@@ -13,8 +13,7 @@ legacy/
 *.swp
 *.swo
 *~
-.claude/settings.local.json
-.claude/*.local.json
+.claude
 
 # Local environment and secrets
 .env
@@ -83,3 +82,4 @@ tmp/
 !testdata/**/*.sqlite
 !testdata/**/*.sqlite3
 !testdata/**/*.db
+.playwright-mcp/
