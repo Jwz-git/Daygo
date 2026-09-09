@@ -1,0 +1,74 @@
+/*
+ * Dark palette.
+ *
+ * The app writes a RESOLVED appearance onto <html data-dg-appearance="light|dark">.
+ * The stored preference keeps the inherited three-state semantics
+ * (system|light|dark) and "system" is resolved before it is written, so this
+ * file never needs a prefers-color-scheme duplicate of the same block — and an
+ * explicit Light choice is honoured on a dark system.
+ *
+ * Only colour is overridden. Geometry stays in tokens.light.css; duplicating it
+ * here would create two places to change one width.
+ *
+ * Gradients are expressed as CSS angles directly; do not translate them back
+ * to a design-tool angle, the two conventions differ.
+ */
+
+:root[data-dg-appearance='dark'] {
+  color-scheme: dark;
+
+  /* windowBackground: UnitPoint (0, 0.63) -> (1, 0.37) is 75deg in CSS terms. */
+  --dg-window-bg:
+    linear-gradient(75deg, #303c5b 21%, #313348 53%, #3b294b 105%);
+
+  /* panelFill: UnitPoint (0.1, 0) -> (0.9, 1), the Figma "140deg". */
+  --dg-panel-fill:
+    linear-gradient(
+      140deg,
+      rgba(39, 41, 58, 0.8) 9%,
+      rgba(32, 39, 51, 0.8) 80%
+    );
+  --dg-panel-border: #414141;
+  --dg-panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --dg-text-primary: #ffffff;
+  --dg-text-secondary: #dddddd;
+  --dg-text-tertiary: #b3b3b3;
+  --dg-text-muted: #b4b4b4;
+
+  --dg-accent: #f3854b;
+  --dg-accent-text: #f77952;
+  --dg-control-fill: rgba(226, 160, 121, 0.4);
+
+  --dg-hover-fill: rgba(255, 255, 255, 0.08);
+
+  --dg-track-fill: rgba(0, 0, 0, 0.35);
+
+  --dg-input-fill: rgba(255, 255, 255, 0.1);
+  --dg-input-border: #666666;
+
+  --dg-chip-fill: rgba(255, 255, 255, 0.15);
+  --dg-chip-border: #888888;
+  --dg-chip-text: #ffffff;
+
+  --dg-button-primary-fill: #d1653e;
+  --dg-button-primary-border: #ea9265;
+  --dg-button-primary-text: #ffffff;
+  --dg-button-secondary-fill: rgba(104, 109, 138, 0.4);
+  --dg-button-secondary-border: #777777;
+  --dg-button-secondary-text: #dddddd;
+
+  --dg-danger-fill: rgba(255, 89, 80, 0.22);
+
+  --dg-rail-selection-fill:
+    linear-gradient(
+      180deg,
+      rgba(116, 114, 255, 0.3) 0%,
+      rgba(167, 167, 167, 0.05) 100%
+    );
+  --dg-rail-selection-border: #848484;
+
+  --dg-card-fill: #3a3a4c;
+  --dg-card-border: #999999;
+  --dg-card-time: #b4b4b4;
+}

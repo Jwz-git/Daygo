@@ -1,0 +1,25 @@
+export default {
+  action: {
+    copy: '复制',
+    retry: '重试',
+    today: '今天',
+    previous: '上一个',
+    next: '下一个',
+    manage: '管理',
+    regenerate: '重新生成',
+    export: '导出',
+    add: '添加',
+    save: '保存',
+    cancel: '取消',
+    edit: '编辑',
+    delete: '删除',
+  },
+  state: {
+    loading: '加载中…',
+    empty: '暂无内容',
+  },
+  placeholder: {
+    milestoneLabel: 'M{milestone}',
+    milestoneHint: '该功能计划在里程碑 M{milestone} 接入。',
+  },
+}

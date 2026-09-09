@@ -1,0 +1,7 @@
+/* Single entry point for global styles; main.ts imports only this file. */
+
+@import './reset.css';
+@import './fonts.css';
+@import './tokens.light.css';
+@import './tokens.dark.css';
+@import './base.css';

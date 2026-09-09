@@ -1,0 +1,88 @@
+/*
+ * Light palette. Tokens are named by role, never by colour value, so the
+ * palette can be swapped without touching components.
+ *
+ * Geometry (widths, radii, paddings) lives here as well and is deliberately NOT
+ * repeated in tokens.dark.css: only colour differs between appearances.
+ */
+
+:root {
+  /*
+   * Drives native form controls, scrollbars and focus rings. Declaring it in
+   * CSS rather than from JS keeps the appearance switch to a single attribute
+   * write; see theme/index.ts.
+   */
+  color-scheme: light;
+
+  /* window */
+  --dg-window-bg:
+    radial-gradient(circle at 64% 100%, #ffe6cf 0%, #ffe6e0 45%, #d6e8ff 100%);
+  --dg-window-padding: 15px;
+
+  /* panel */
+  --dg-panel-fill: rgba(251, 251, 251, 0.55);
+  --dg-panel-border: #fafafa;
+  --dg-panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --dg-panel-radius: 8px;
+
+  /* text */
+  --dg-text-primary: #333333;
+  --dg-text-secondary: #707070;
+  --dg-text-tertiary: #787878;
+  --dg-text-muted: #979797;
+
+  /* accent and controls */
+  --dg-accent: #f3854b;
+  --dg-accent-text: #ffa376;
+  --dg-control-fill: #ffd2b9;
+
+  /* hover wash shared by the rail and the settings nav */
+  --dg-hover-fill: rgba(255, 255, 255, 0.4);
+
+  /* segmented-control track (→ segmentTrackFill) */
+  --dg-track-fill: rgba(255, 255, 255, 0.5);
+
+  /* text fields, selects (→ inputFill / inputBorder) */
+  --dg-input-fill: rgba(255, 255, 255, 0.9);
+  --dg-input-border: #e1e1e1;
+
+  /* chips (→ chipFill / chipBorder / chipText) */
+  --dg-chip-fill: rgba(255, 255, 255, 0.9);
+  --dg-chip-border: #e1e1e1;
+  --dg-chip-text: #333333;
+
+  /* buttons (→ primaryButton* / secondaryButton*) */
+  --dg-button-primary-fill: #ff9f6f;
+  --dg-button-primary-border: #f4c8b1;
+  --dg-button-primary-text: #ffffff;
+  --dg-button-secondary-fill: #fcf9f7;
+  --dg-button-secondary-border: #d0d0d0;
+  --dg-button-secondary-text: #727272;
+
+  /* failure surfaces (→ cardFailedFill) */
+  --dg-danger-fill: #ffece4;
+
+  /* sidebar rail */
+  --dg-rail-width: 80px;
+  --dg-rail-item-size: 62px;
+  --dg-rail-icon-size: 18px;
+  --dg-rail-selection-size: 33px;
+  --dg-rail-selection-radius: 10px;
+  --dg-rail-selection-fill: rgba(255, 255, 255, 0.62);
+  --dg-rail-selection-border: rgba(255, 255, 255, 0.86);
+  --dg-rail-label-size: 11px;
+
+  /* cards */
+  --dg-card-fill: rgba(255, 255, 255, 0.61);
+  --dg-card-border: #d0d0d0;
+  --dg-card-time: #979797;
+  --dg-card-radius: 8px;
+
+  /* page geometry (measured from the legacy layout constants) */
+  --dg-inspector-width: 363px;
+  --dg-inspector-gap: 12px;
+  --dg-settings-nav-width: 160px;
+  --dg-settings-content-max: 600px;
+  --dg-daily-content-max: 1320px;
+  --dg-page-padding: 24px;
+}

@@ -1,0 +1,82 @@
+export default {
+  title: '设置',
+  nav: {
+    storage: '存储',
+    privacy: '隐私',
+    providers: '模型服务',
+    agentAccess: 'MCP / CLI',
+    dataExport: '导出',
+    other: '其他',
+  },
+  section: {
+    storageDescription: '录制状态与权限、录制质量、磁盘占用上限。',
+    privacyDescription: '被屏蔽的应用不会进入截图。',
+    providersDescription: '主备模型服务、连接测试与提示词自定义。',
+    agentAccessDescription: '让本地 CLI 客户端连接 Agent Bridge。',
+    dataExportDescription: '按时间范围导出 Markdown，或重跑某一天的分析。',
+    otherDescription: '外观、启动项、遥测与语言。',
+  },
+  appearance: {
+    theme: '主题',
+    themeDescription: '选择“跟随系统”时，会随 macOS 的浅色/深色切换实时变化。',
+    themeOption: {
+      system: '跟随系统',
+      light: '浅色',
+      dark: '深色',
+    },
+  },
+  language: {
+    interface: '界面语言',
+    interfaceDescription: '影响本应用的所有界面文案。',
+    followSystem: '跟随系统',
+    output: '模型输出语言',
+    outputDescription:
+      '影响模型生成的卡片标题与摘要所使用的语言，与界面语言相互独立。',
+  },
+  providers: {
+    description: '当前仅支持自定义供应商：填写协议、接口地址与模型名即可使用。',
+    empty: '尚未添加任何供应商。',
+    add: '添加供应商',
+    removeConfirm: '确定删除“{name}”？',
+    protocol: {
+      label: '协议',
+      openai: 'OpenAI 兼容',
+      anthropic: 'Anthropic',
+    },
+    form: {
+      addTitle: '添加供应商',
+      editTitle: '编辑供应商',
+      name: '名称',
+      namePlaceholder: '例如：公司网关',
+      endpoint: '接口地址',
+      model: '模型',
+      modelPlaceholder: '例如：gpt-4o-mini',
+      apiKey: 'API Key',
+      apiKeyPlaceholder: '粘贴密钥',
+      apiKeyKeepHint: '留空表示保持不变。',
+    },
+    routing: {
+      title: '调用顺序',
+      description: '主服务调用失败时，自动回退到备用服务。',
+      primary: '主服务',
+      secondary: '备用服务',
+      none: '不使用',
+      primaryBadge: '主',
+      secondaryBadge: '备',
+    },
+    secret: {
+      configured: '本次会话已填写密钥',
+      missing: '未填写密钥',
+      clear: '清除密钥',
+      sessionOnlyTitle: '密钥不会写入磁盘',
+      sessionOnly:
+        '密钥仅保留在当前进程内存中，退出应用后需要重新填写。持久化将通过 SetProviderSecret 写入系统钥匙串，而不是浏览器存储。',
+    },
+    error: {
+      required: '不能为空',
+      invalidUrl: '需要以 http:// 或 https:// 开头的完整地址',
+    },
+    test: '连接测试',
+    testDescription: '发起一次真实调用，验证密钥、地址与模型是否可用。',
+  },
+}

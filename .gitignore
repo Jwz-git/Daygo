@@ -1,0 +1,86 @@
+# Archived material kept on disk, but not part of the Daygo repository.
+legacy/
+scripts/
+
+# macOS metadata
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+
+# Editors and local Claude Code settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.claude/settings.local.json
+.claude/*.local.json
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+*.secret
+*.secrets
+
+# Go build and test artifacts
+/bin/
+*.test
+*.prof
+*.coverprofile
+coverage.out
+coverage/
+go.work
+go.work.sum
+
+# Frontend dependencies and generated output
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/wailsjs/
+frontend/package.json.md5
+*.tsbuildinfo
+
+# Wails and general build output
+/build/bin/
+build_tmp/
+build_universal/
+dist/
+*.app
+*.dmg
+*.pkg
+*.zip
+*.tar.gz
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+
+# Local databases, recordings, caches, and backups
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.db
+*.db-shm
+*.db-wal
+*.plist.local
+recordings/
+timelapses/
+backups/
+.cache/
+.tmp/
+tmp/
+*.log
+*.tmp
+
+# Keep curated anonymous test fixtures trackable.
+!testdata/
+!testdata/**/*.sqlite
+!testdata/**/*.sqlite3
+!testdata/**/*.db
