@@ -17,10 +17,10 @@ const { t } = useI18n()
     <PageHeader :title="t('daily.title')">
       <template #lead>
         <div class="nav-group" role="group" :aria-label="t('daily.title')">
-          <button type="button" class="chip" disabled>
+          <button type="button" class="dg-chip" disabled>
             {{ t('common.action.previous') }}
           </button>
-          <button type="button" class="chip" disabled>
+          <button type="button" class="dg-chip" disabled>
             {{ t('common.action.next') }}
           </button>
         </div>
@@ -56,30 +56,16 @@ const { t } = useI18n()
   gap: 8px;
 }
 
-.chip {
-  padding: 5px 12px;
-  border: 1px solid var(--dg-card-border);
-  border-radius: 999px;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  background: transparent;
-}
-
-.chip:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
 .body {
   flex: 1;
   min-height: 0;
-  padding: 0 var(--dg-page-padding) var(--dg-page-padding);
+  padding: 2px var(--dg-page-padding) var(--dg-page-padding);
 }
 
 .content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   width: 100%;
   max-width: var(--dg-daily-content-max);
   margin: 0 auto;

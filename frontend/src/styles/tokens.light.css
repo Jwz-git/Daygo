@@ -16,73 +16,108 @@
 
   /* window */
   --dg-window-bg:
-    radial-gradient(circle at 64% 100%, #ffe6cf 0%, #ffe6e0 45%, #d6e8ff 100%);
-  --dg-window-padding: 15px;
+    radial-gradient(
+      120% 95% at 90% 106%,
+      rgba(247, 190, 148, 0.38) 0%,
+      transparent 56%
+    ),
+    radial-gradient(
+      115% 90% at 4% -8%,
+      rgba(163, 196, 238, 0.46) 0%,
+      transparent 58%
+    ),
+    linear-gradient(148deg, #edf1f8 0%, #f2f1f5 56%, #f9f1ea 100%);
+  --dg-window-padding: 12px;
 
   /* panel */
-  --dg-panel-fill: rgba(251, 251, 251, 0.55);
-  --dg-panel-border: #fafafa;
-  --dg-panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --dg-panel-radius: 8px;
+  --dg-panel-fill: rgba(253, 253, 254, 0.78);
+  --dg-panel-border: rgba(255, 255, 255, 0.9);
+  --dg-panel-shadow:
+    0 26px 64px rgba(58, 48, 66, 0.11),
+    0 2px 8px rgba(58, 48, 66, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --dg-panel-radius: 6px;
 
   /* text */
-  --dg-text-primary: #333333;
-  --dg-text-secondary: #707070;
-  --dg-text-tertiary: #787878;
-  --dg-text-muted: #979797;
+  --dg-text-primary: #29282f;
+  --dg-text-secondary: #66646e;
+  --dg-text-tertiary: #7d7a84;
+  --dg-text-muted: #96939c;
 
   /* accent and controls */
-  --dg-accent: #f3854b;
-  --dg-accent-text: #ffa376;
-  --dg-control-fill: #ffd2b9;
+  --dg-accent: #ef7d48;
+  --dg-accent-strong: #dc6834;
+  --dg-accent-text: #c9582c;
+  --dg-focus-ring: rgba(239, 125, 72, 0.24);
+  --dg-control-fill: rgba(244, 135, 83, 0.18);
+  --dg-control-fill-hover: rgba(244, 135, 83, 0.25);
+  /* selected item in a secondary nav list: a whisper of the accent, not a block */
+  --dg-nav-active-fill: rgba(244, 135, 83, 0.13);
+  --dg-nav-active-text: #b64f27;
+  --dg-danger: #c84f43;
 
   /* hover wash shared by the rail and the settings nav */
-  --dg-hover-fill: rgba(255, 255, 255, 0.4);
+  --dg-hover-fill: rgba(89, 77, 93, 0.065);
+  --dg-hover-fill-strong: rgba(89, 77, 93, 0.1);
 
   /* segmented-control track (→ segmentTrackFill) */
-  --dg-track-fill: rgba(255, 255, 255, 0.5);
+  --dg-track-fill: rgba(91, 81, 96, 0.075);
 
   /* text fields, selects (→ inputFill / inputBorder) */
-  --dg-input-fill: rgba(255, 255, 255, 0.9);
-  --dg-input-border: #e1e1e1;
+  --dg-input-fill: rgba(255, 255, 255, 0.76);
+  --dg-input-fill-hover: rgba(255, 255, 255, 0.94);
+  --dg-input-border: rgba(74, 67, 79, 0.15);
 
   /* chips (→ chipFill / chipBorder / chipText) */
-  --dg-chip-fill: rgba(255, 255, 255, 0.9);
-  --dg-chip-border: #e1e1e1;
-  --dg-chip-text: #333333;
+  --dg-chip-fill: rgba(255, 255, 255, 0.62);
+  --dg-chip-border: rgba(74, 67, 79, 0.14);
+  --dg-chip-text: #3e3c44;
 
   /* buttons (→ primaryButton* / secondaryButton*) */
-  --dg-button-primary-fill: #ff9f6f;
-  --dg-button-primary-border: #f4c8b1;
+  --dg-button-primary-fill: linear-gradient(180deg, #f99b6b 0%, #ef7d48 100%);
+  --dg-button-primary-hover: linear-gradient(180deg, #f79261 0%, #e8703d 100%);
+  --dg-button-primary-border: rgba(208, 91, 41, 0.3);
   --dg-button-primary-text: #ffffff;
-  --dg-button-secondary-fill: #fcf9f7;
-  --dg-button-secondary-border: #d0d0d0;
-  --dg-button-secondary-text: #727272;
+  --dg-button-secondary-fill: rgba(255, 255, 255, 0.66);
+  --dg-button-secondary-hover: rgba(255, 255, 255, 0.94);
+  --dg-button-secondary-border: rgba(74, 67, 79, 0.16);
+  --dg-button-secondary-text: #5e5b65;
 
   /* failure surfaces (→ cardFailedFill) */
-  --dg-danger-fill: #ffece4;
+  --dg-danger-fill: rgba(211, 73, 57, 0.1);
 
   /* sidebar rail */
   --dg-rail-width: 80px;
   --dg-rail-item-size: 62px;
   --dg-rail-icon-size: 18px;
   --dg-rail-selection-size: 33px;
-  --dg-rail-selection-radius: 10px;
-  --dg-rail-selection-fill: rgba(255, 255, 255, 0.62);
-  --dg-rail-selection-border: rgba(255, 255, 255, 0.86);
-  --dg-rail-label-size: 11px;
+  --dg-rail-selection-radius: 7px;
+  --dg-rail-selection-fill: rgba(255, 255, 255, 0.58);
+  --dg-rail-selection-border: rgba(255, 255, 255, 0.82);
+  --dg-rail-selection-shadow:
+    0 8px 22px rgba(78, 62, 79, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  --dg-rail-label-size: 12px;
 
   /* cards */
-  --dg-card-fill: rgba(255, 255, 255, 0.61);
-  --dg-card-border: #d0d0d0;
-  --dg-card-time: #979797;
-  --dg-card-radius: 8px;
+  --dg-card-fill: rgba(255, 255, 255, 0.52);
+  --dg-card-border: rgba(65, 58, 70, 0.13);
+  --dg-card-shadow:
+    0 10px 28px rgba(68, 51, 67, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  --dg-card-time: #96939c;
+  --dg-card-radius: 6px;
 
-  /* page geometry (measured from the legacy layout constants) */
+  /* motion */
+  --dg-motion-fast: 120ms;
+  --dg-motion-base: 180ms;
+  --dg-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* page geometry */
   --dg-inspector-width: 363px;
   --dg-inspector-gap: 12px;
-  --dg-settings-nav-width: 160px;
-  --dg-settings-content-max: 600px;
+  --dg-settings-nav-width: 174px;
+  --dg-settings-content-max: 680px;
   --dg-daily-content-max: 1320px;
-  --dg-page-padding: 24px;
+  --dg-page-padding: 28px;
 }

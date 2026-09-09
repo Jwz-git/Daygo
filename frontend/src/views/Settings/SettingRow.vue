@@ -4,7 +4,7 @@ defineProps<{ title: string; hint?: string }>()
 </script>
 
 <template>
-  <section class="row">
+  <section class="row dg-card">
     <div class="row__text">
       <h2 class="row__title">{{ title }}</h2>
       <p v-if="hint" class="row__hint">{{ hint }}</p>
@@ -20,11 +20,18 @@ defineProps<{ title: string; hint?: string }>()
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  border: 1px solid var(--dg-card-border);
-  border-radius: var(--dg-card-radius);
-  background: var(--dg-card-fill);
+  gap: 18px;
+  padding: 17px 18px;
+  transition:
+    border-color var(--dg-motion-base) ease,
+    box-shadow var(--dg-motion-base) ease;
+}
+
+.row:hover {
+  border-color: var(--dg-chip-border);
+  box-shadow:
+    0 14px 34px rgba(25, 18, 30, 0.065),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .row__title {

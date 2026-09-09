@@ -15,14 +15,21 @@ import AppShell from '@/layout/AppShell.vue'
 </template>
 
 <style>
-/* Deliberately restrained: the legacy matchedGeometryEffect animations are not
-   part of a functional-equivalence v1 (docs/09-roadmap.md). */
-.page-enter-active,
-.page-leave-active {
-  transition: opacity 120ms ease;
+.page-enter-active {
+  transition:
+    opacity var(--dg-motion-base) ease,
+    transform 240ms var(--dg-ease-out);
 }
 
-.page-enter-from,
+.page-leave-active {
+  transition: opacity 90ms ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
 .page-leave-to {
   opacity: 0;
 }
@@ -31,6 +38,10 @@ import AppShell from '@/layout/AppShell.vue'
   .page-enter-active,
   .page-leave-active {
     transition: none;
+  }
+
+  .page-enter-from {
+    transform: none;
   }
 }
 </style>

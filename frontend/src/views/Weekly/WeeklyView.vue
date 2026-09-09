@@ -25,10 +25,10 @@ const cards = [
     <PageHeader :title="t('weekly.title')">
       <template #lead>
         <div class="nav-group" role="group" :aria-label="t('weekly.title')">
-          <button type="button" class="chip" disabled>
+          <button type="button" class="dg-chip" disabled>
             {{ t('common.action.previous') }}
           </button>
-          <button type="button" class="chip" disabled>
+          <button type="button" class="dg-chip" disabled>
             {{ t('common.action.next') }}
           </button>
         </div>
@@ -56,29 +56,15 @@ const cards = [
   gap: 8px;
 }
 
-.chip {
-  padding: 5px 12px;
-  border: 1px solid var(--dg-card-border);
-  border-radius: 999px;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  background: transparent;
-}
-
-.chip:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
 .body {
   flex: 1;
   min-height: 0;
-  padding: 0 var(--dg-page-padding) var(--dg-page-padding);
+  padding: 2px var(--dg-page-padding) var(--dg-page-padding);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 18px;
 }
 </style>

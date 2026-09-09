@@ -48,17 +48,24 @@ const route = useRoute()
 
 <style scoped>
 .rail {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   width: var(--dg-rail-width);
-  padding-top: 10px;
+  padding: 48px 0 24px;
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
 }
 
 .rail__list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
   width: 100%;
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 </style>

@@ -30,11 +30,14 @@ const props = defineProps<{
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   width: 100%;
   height: var(--dg-rail-item-size);
   color: var(--dg-text-secondary);
   text-decoration: none;
+  transition:
+    color var(--dg-motion-fast) ease,
+    transform var(--dg-motion-base) var(--dg-ease-out);
 }
 
 .rail-item__glyph {
@@ -45,8 +48,10 @@ const props = defineProps<{
   border: 1px solid transparent;
   border-radius: var(--dg-rail-selection-radius);
   transition:
-    background 140ms ease,
-    border-color 140ms ease;
+    background var(--dg-motion-base) ease,
+    border-color var(--dg-motion-base) ease,
+    box-shadow var(--dg-motion-base) ease,
+    transform var(--dg-motion-base) var(--dg-ease-out);
 }
 
 .rail-item__icon {
@@ -56,11 +61,20 @@ const props = defineProps<{
 
 .rail-item__label {
   font-size: var(--dg-rail-label-size);
+  font-weight: 520;
   line-height: 1.1;
+  letter-spacing: 0.01em;
+  transition: color var(--dg-motion-fast) ease;
+}
+
+.rail-item:hover {
+  color: var(--dg-text-primary);
+  transform: translateY(-1px);
 }
 
 .rail-item:hover .rail-item__glyph {
   background: var(--dg-hover-fill);
+  transform: scale(1.04);
 }
 
 .rail-item.is-active {
@@ -70,11 +84,21 @@ const props = defineProps<{
 .rail-item.is-active .rail-item__glyph {
   border-color: var(--dg-rail-selection-border);
   background: var(--dg-rail-selection-fill);
+  box-shadow: var(--dg-rail-selection-shadow);
 }
 
 .rail-item:focus-visible {
-  outline: 2px solid var(--dg-accent);
-  outline-offset: 2px;
-  border-radius: var(--dg-rail-selection-radius);
+  outline: none;
+}
+
+.rail-item:focus-visible .rail-item__glyph {
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-item,
+  .rail-item__glyph {
+    transition: none;
+  }
 }
 </style>

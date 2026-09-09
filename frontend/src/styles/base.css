@@ -11,6 +11,12 @@
 body {
   font-size: 14px;
   line-height: 1.5;
+  background: var(--dg-window-bg);
+}
+
+::selection {
+  background: var(--dg-control-fill-hover);
+  color: var(--dg-text-primary);
 }
 
 /* Every routed view has a single .page root filling the panel. */
@@ -32,19 +38,35 @@ body {
   border-radius: var(--dg-panel-radius);
   background: var(--dg-panel-fill);
   box-shadow: var(--dg-panel-shadow);
-  backdrop-filter: blur(28px) saturate(110%);
+  backdrop-filter: blur(30px) saturate(118%);
 }
 
 .dg-card {
   border: 1px solid var(--dg-card-border);
   border-radius: var(--dg-card-radius);
   background: var(--dg-card-fill);
+  box-shadow: var(--dg-card-shadow);
 }
 
 /* Scroll containers inside the panel; the page itself never scrolls. */
 .dg-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dg-hover-fill-strong) transparent;
+}
+
+.dg-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.dg-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--dg-hover-fill-strong);
+  background-clip: padding-box;
 }
 
 /*
@@ -61,49 +83,127 @@ body {
 
 .dg-input {
   width: 100%;
-  padding: 6px 10px;
+  min-height: 34px;
+  padding: 7px 10px;
   border: 1px solid var(--dg-input-border);
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--dg-input-fill);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   color: var(--dg-text-primary);
   font-size: 13px;
+  transition:
+    background-color var(--dg-motion-fast) ease,
+    border-color var(--dg-motion-fast) ease,
+    box-shadow var(--dg-motion-fast) ease;
+}
+
+.dg-input:hover {
+  background: var(--dg-input-fill-hover);
+  border-color: var(--dg-chip-border);
 }
 
 .dg-input:focus-visible {
-  outline: 2px solid var(--dg-accent);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--dg-accent);
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .dg-input[aria-invalid='true'] {
-  border-color: var(--dg-accent);
+  border-color: var(--dg-danger);
 }
 
 .dg-button {
-  padding: 5px 12px;
+  min-height: 32px;
+  padding: 6px 13px;
   border: 1px solid var(--dg-button-secondary-border);
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--dg-button-secondary-fill);
+  box-shadow: 0 1px 2px rgba(20, 16, 25, 0.05);
   color: var(--dg-button-secondary-text);
   font-size: 13px;
+  font-weight: 550;
   white-space: nowrap;
+  transition:
+    transform var(--dg-motion-fast) var(--dg-ease-out),
+    background var(--dg-motion-fast) ease,
+    border-color var(--dg-motion-fast) ease,
+    box-shadow var(--dg-motion-fast) ease;
 }
 
 .dg-button:disabled {
-  opacity: 0.55;
+  opacity: 0.48;
   cursor: default;
 }
 
 .dg-button:not(:disabled):hover {
-  border-color: var(--dg-accent);
+  background: var(--dg-button-secondary-hover);
+  border-color: var(--dg-chip-border);
+  box-shadow: 0 4px 12px rgba(20, 16, 25, 0.08);
+  transform: translateY(-1px);
+}
+
+.dg-button:not(:disabled):active {
+  box-shadow: 0 1px 2px rgba(20, 16, 25, 0.05);
+  transform: translateY(0) scale(0.985);
 }
 
 .dg-button--primary {
   border-color: var(--dg-button-primary-border);
   background: var(--dg-button-primary-fill);
+  box-shadow: 0 5px 14px rgba(217, 99, 48, 0.2);
   color: var(--dg-button-primary-text);
 }
 
+.dg-button--primary:not(:disabled):hover {
+  border-color: var(--dg-button-primary-border);
+  background: var(--dg-button-primary-hover);
+  box-shadow: 0 8px 20px rgba(217, 99, 48, 0.25);
+}
+
 .dg-button:focus-visible {
-  outline: 2px solid var(--dg-accent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+.dg-chip {
+  min-height: 30px;
+  padding: 5px 12px;
+  border: 1px solid var(--dg-chip-border);
+  border-radius: 999px;
+  background: var(--dg-chip-fill);
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+  transition:
+    background var(--dg-motion-fast) ease,
+    border-color var(--dg-motion-fast) ease,
+    transform var(--dg-motion-fast) var(--dg-ease-out);
+}
+
+.dg-chip--filled {
+  border-color: transparent;
+  background: var(--dg-control-fill);
+  color: var(--dg-text-primary);
+}
+
+.dg-chip:disabled {
+  opacity: 0.48;
+  cursor: default;
+}
+
+.dg-chip:not(:disabled):hover {
+  background: var(--dg-control-fill-hover);
+  transform: translateY(-1px);
+}
+
+.dg-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-button,
+  .dg-chip,
+  .dg-input {
+    transition: none;
+  }
 }

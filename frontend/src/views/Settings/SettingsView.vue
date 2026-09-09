@@ -83,33 +83,56 @@ const activeMilestone = computed<4 | 5>(
 .body {
   display: grid;
   grid-template-columns: var(--dg-settings-nav-width) minmax(0, 1fr);
+  gap: 24px;
   flex: 1;
   min-height: 0;
   padding: 0 var(--dg-page-padding) var(--dg-page-padding);
 }
 
+.nav {
+  align-self: start;
+  padding: 7px;
+  border: 1px solid var(--dg-card-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--dg-card-fill) 72%, transparent);
+  box-shadow: var(--dg-card-shadow);
+}
+
 .nav ul {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .nav__item {
   width: 100%;
-  padding: 7px 10px;
-  border-radius: 6px;
+  padding: 9px 11px;
+  border-radius: 5px;
   color: var(--dg-text-secondary);
   font-size: 13px;
+  font-weight: 500;
   text-align: left;
+  transition:
+    color var(--dg-motion-fast) ease,
+    background var(--dg-motion-fast) ease,
+    transform var(--dg-motion-fast) var(--dg-ease-out);
 }
 
 .nav__item:hover {
   background: var(--dg-hover-fill);
+  color: var(--dg-text-primary);
+  transform: translateX(2px);
 }
 
 .nav__item.is-active {
-  background: var(--dg-control-fill);
-  color: var(--dg-text-primary);
+  background: var(--dg-nav-active-fill);
+  color: var(--dg-nav-active-text);
+  font-weight: 620;
+}
+
+.nav__item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .content {
@@ -119,9 +142,9 @@ const activeMilestone = computed<4 | 5>(
 .content__inner {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   max-width: var(--dg-settings-content-max);
-  padding-bottom: 8px;
+  padding: 2px 4px 12px 0;
 }
 
 @media (max-width: 860px) {
@@ -130,13 +153,29 @@ const activeMilestone = computed<4 | 5>(
     gap: 14px;
   }
 
+  .nav {
+    padding: 6px;
+    overflow-x: auto;
+  }
+
   .nav ul {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .nav__item {
     width: auto;
+    white-space: nowrap;
+  }
+
+  .nav__item:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav__item {
+    transition: none;
   }
 }
 </style>

@@ -111,7 +111,7 @@ async function confirmRemove(id: string): Promise<void> {
   <p class="intro">{{ t('settings.providers.description') }}</p>
 
   <ul v-if="!store.isEmpty" class="list">
-    <li v-for="provider in store.providers" :key="provider.id" class="item">
+    <li v-for="provider in store.providers" :key="provider.id" class="item dg-card">
       <header class="item__head">
         <h2 class="item__name">{{ provider.displayName }}</h2>
         <span
@@ -186,7 +186,7 @@ async function confirmRemove(id: string): Promise<void> {
 
   <p v-else class="empty">{{ t('settings.providers.empty') }}</p>
 
-  <form v-if="formOpen" class="form" @submit.prevent="submit">
+  <form v-if="formOpen" class="form dg-card" @submit.prevent="submit">
     <h2 class="form__title">
       {{
         editingId === null
@@ -280,7 +280,7 @@ async function confirmRemove(id: string): Promise<void> {
     {{ t('settings.providers.add') }}
   </button>
 
-  <section v-if="!store.isEmpty" class="routing">
+  <section v-if="!store.isEmpty" class="routing dg-card">
     <h2 class="routing__title">{{ t('settings.providers.routing.title') }}</h2>
     <p class="routing__hint">{{ t('settings.providers.routing.description') }}</p>
     <div class="routing__grid">
@@ -349,11 +349,23 @@ async function confirmRemove(id: string): Promise<void> {
 .routing {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 18px;
-  border: 1px solid var(--dg-card-border);
-  border-radius: var(--dg-card-radius);
-  background: var(--dg-card-fill);
+  gap: 12px;
+  padding: 17px 18px;
+}
+
+.item {
+  transition:
+    border-color var(--dg-motion-base) ease,
+    box-shadow var(--dg-motion-base) ease,
+    transform var(--dg-motion-base) var(--dg-ease-out);
+}
+
+.item:hover {
+  border-color: var(--dg-chip-border);
+  box-shadow:
+    0 16px 38px rgba(25, 18, 30, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
 }
 
 .item__head {
@@ -373,17 +385,20 @@ async function confirmRemove(id: string): Promise<void> {
 
 .badge {
   flex: none;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border: 1px solid var(--dg-chip-border);
   border-radius: 999px;
   background: var(--dg-chip-fill);
   color: var(--dg-chip-text);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 620;
+  letter-spacing: 0.02em;
 }
 
 .badge--accent {
   border-color: transparent;
   background: var(--dg-control-fill);
+  color: var(--dg-accent-text);
 }
 
 .meta {
@@ -453,7 +468,7 @@ async function confirmRemove(id: string): Promise<void> {
 }
 
 .form__error {
-  color: var(--dg-accent);
+  color: var(--dg-danger);
 }
 
 .form__hint,

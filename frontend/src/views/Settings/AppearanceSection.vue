@@ -76,8 +76,7 @@ function onLanguageChange(event: Event): void {
 
   <!--
     Distinct from the interface language: this is the language the model writes
-    card titles and summaries in (legacy UserDefaults key
-    `llmOutputLanguageOverride`). It is not part of SettingsDTO yet.
+    card titles and summaries in. It is not part of SettingsDTO yet.
   -->
   <MilestoneNotice
     title-key="settings.language.output"

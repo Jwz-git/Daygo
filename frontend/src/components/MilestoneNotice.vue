@@ -11,7 +11,7 @@ const props = defineProps<{
 </script>
 
 <template>
-  <section class="milestone-notice">
+  <section class="milestone-notice dg-card">
     <header class="milestone-notice__head">
       <h2 class="milestone-notice__title">{{ $t(props.titleKey) }}</h2>
       <span class="milestone-notice__tag">
@@ -29,16 +29,33 @@ const props = defineProps<{
 
 <style scoped>
 .milestone-notice {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 18px;
-  border: 1px dashed var(--dg-card-border);
-  border-radius: var(--dg-card-radius);
-  background: var(--dg-card-fill);
+  gap: 9px;
+  min-height: 120px;
+  padding: 20px;
+  overflow: hidden;
+  border-style: dashed;
+}
+
+.milestone-notice::after {
+  position: absolute;
+  right: -30px;
+  bottom: -42px;
+  width: 112px;
+  height: 112px;
+  border: 1px solid var(--dg-card-border);
+  border-radius: 50%;
+  background: var(--dg-control-fill);
+  content: '';
+  opacity: 0.28;
+  pointer-events: none;
 }
 
 .milestone-notice__head {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -63,11 +80,16 @@ const props = defineProps<{
 }
 
 .milestone-notice__description {
+  position: relative;
+  z-index: 1;
+  max-width: 42rem;
   color: var(--dg-text-secondary);
   font-size: 13px;
 }
 
 .milestone-notice__hint {
+  position: relative;
+  z-index: 1;
   color: var(--dg-text-muted);
   font-size: 12px;
 }

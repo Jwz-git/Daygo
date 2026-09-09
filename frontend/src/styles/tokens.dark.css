@@ -17,58 +17,86 @@
 :root[data-dg-appearance='dark'] {
   color-scheme: dark;
 
-  /* windowBackground: UnitPoint (0, 0.63) -> (1, 0.37) is 75deg in CSS terms. */
+  /* windowBackground: layered ambient colour with quiet contrast. */
   --dg-window-bg:
-    linear-gradient(75deg, #303c5b 21%, #313348 53%, #3b294b 105%);
+    radial-gradient(
+      120% 95% at 88% 108%,
+      rgba(163, 76, 82, 0.5) 0%,
+      transparent 54%
+    ),
+    radial-gradient(
+      115% 90% at 4% -10%,
+      rgba(72, 104, 152, 0.58) 0%,
+      transparent 56%
+    ),
+    linear-gradient(148deg, #252f47 0%, #2b2d40 54%, #33243c 100%);
 
-  /* panelFill: UnitPoint (0.1, 0) -> (0.9, 1), the Figma "140deg". */
   --dg-panel-fill:
     linear-gradient(
       140deg,
-      rgba(39, 41, 58, 0.8) 9%,
-      rgba(32, 39, 51, 0.8) 80%
+      rgba(43, 46, 63, 0.8) 9%,
+      rgba(31, 37, 50, 0.82) 80%
     );
-  --dg-panel-border: #414141;
-  --dg-panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --dg-panel-border: rgba(255, 255, 255, 0.11);
+  --dg-panel-shadow:
+    0 30px 80px rgba(5, 8, 18, 0.35),
+    0 2px 10px rgba(5, 8, 18, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 
-  --dg-text-primary: #ffffff;
-  --dg-text-secondary: #dddddd;
-  --dg-text-tertiary: #b3b3b3;
-  --dg-text-muted: #b4b4b4;
+  --dg-text-primary: #f5f3f7;
+  --dg-text-secondary: #c7c4cf;
+  --dg-text-tertiary: #a7a3af;
+  --dg-text-muted: #918d99;
 
-  --dg-accent: #f3854b;
-  --dg-accent-text: #f77952;
-  --dg-control-fill: rgba(226, 160, 121, 0.4);
+  --dg-accent: #f18a57;
+  --dg-accent-strong: #ff9a67;
+  --dg-accent-text: #ff9a67;
+  --dg-focus-ring: rgba(241, 138, 87, 0.26);
+  --dg-control-fill: rgba(241, 138, 87, 0.2);
+  --dg-control-fill-hover: rgba(241, 138, 87, 0.28);
+  --dg-nav-active-fill: rgba(241, 138, 87, 0.14);
+  --dg-nav-active-text: #ffa87a;
+  --dg-danger: #ff8278;
 
-  --dg-hover-fill: rgba(255, 255, 255, 0.08);
+  --dg-hover-fill: rgba(255, 255, 255, 0.06);
+  --dg-hover-fill-strong: rgba(255, 255, 255, 0.1);
 
-  --dg-track-fill: rgba(0, 0, 0, 0.35);
+  --dg-track-fill: rgba(4, 7, 15, 0.28);
 
-  --dg-input-fill: rgba(255, 255, 255, 0.1);
-  --dg-input-border: #666666;
+  --dg-input-fill: rgba(255, 255, 255, 0.065);
+  --dg-input-fill-hover: rgba(255, 255, 255, 0.095);
+  --dg-input-border: rgba(255, 255, 255, 0.13);
 
-  --dg-chip-fill: rgba(255, 255, 255, 0.15);
-  --dg-chip-border: #888888;
-  --dg-chip-text: #ffffff;
+  --dg-chip-fill: rgba(255, 255, 255, 0.075);
+  --dg-chip-border: rgba(255, 255, 255, 0.13);
+  --dg-chip-text: #ebe8ef;
 
-  --dg-button-primary-fill: #d1653e;
-  --dg-button-primary-border: #ea9265;
+  --dg-button-primary-fill: linear-gradient(180deg, #e77d4e 0%, #c95c34 100%);
+  --dg-button-primary-hover: linear-gradient(180deg, #f18a57 0%, #d4683e 100%);
+  --dg-button-primary-border: rgba(255, 163, 115, 0.35);
   --dg-button-primary-text: #ffffff;
-  --dg-button-secondary-fill: rgba(104, 109, 138, 0.4);
-  --dg-button-secondary-border: #777777;
-  --dg-button-secondary-text: #dddddd;
+  --dg-button-secondary-fill: rgba(255, 255, 255, 0.075);
+  --dg-button-secondary-hover: rgba(255, 255, 255, 0.12);
+  --dg-button-secondary-border: rgba(255, 255, 255, 0.14);
+  --dg-button-secondary-text: #d2ced7;
 
-  --dg-danger-fill: rgba(255, 89, 80, 0.22);
+  --dg-danger-fill: rgba(255, 89, 80, 0.14);
 
   --dg-rail-selection-fill:
     linear-gradient(
       180deg,
-      rgba(116, 114, 255, 0.3) 0%,
-      rgba(167, 167, 167, 0.05) 100%
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.055) 100%
     );
-  --dg-rail-selection-border: #848484;
+  --dg-rail-selection-border: rgba(255, 255, 255, 0.16);
+  --dg-rail-selection-shadow:
+    0 10px 24px rgba(3, 5, 12, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 
-  --dg-card-fill: #3a3a4c;
-  --dg-card-border: #999999;
-  --dg-card-time: #b4b4b4;
+  --dg-card-fill: rgba(255, 255, 255, 0.07);
+  --dg-card-border: rgba(255, 255, 255, 0.12);
+  --dg-card-shadow:
+    0 12px 32px rgba(5, 8, 18, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --dg-card-time: #918d99;
 }

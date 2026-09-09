@@ -18,13 +18,13 @@ const { t } = useI18n()
     <PageHeader :title="t('timeline.title')">
       <template #lead>
         <div class="nav-group" role="group" :aria-label="t('timeline.title')">
-          <button type="button" class="chip" disabled>
+          <button type="button" class="dg-chip" disabled>
             {{ t('common.action.previous') }}
           </button>
-          <button type="button" class="chip" disabled>
+          <button type="button" class="dg-chip" disabled>
             {{ t('common.action.next') }}
           </button>
-          <button type="button" class="chip chip--filled" disabled>
+          <button type="button" class="dg-chip dg-chip--filled" disabled>
             {{ t('common.action.today') }}
           </button>
         </div>
@@ -39,8 +39,8 @@ const { t } = useI18n()
     </PageHeader>
 
     <div class="filter-bar">
-      <span class="chip chip--filled">{{ t('timeline.filter.all') }}</span>
-      <span class="chip">{{ t('timeline.filter.manage') }}</span>
+      <span class="dg-chip dg-chip--filled">{{ t('timeline.filter.all') }}</span>
+      <span class="dg-chip">{{ t('timeline.filter.manage') }}</span>
     </div>
 
     <div class="body dg-scroll">
@@ -64,10 +64,10 @@ const { t } = useI18n()
     <footer class="footer">
       <span class="footer__meta">{{ t('timeline.footer.recorded') }}</span>
       <div class="footer__actions">
-        <button type="button" class="chip" disabled>
+        <button type="button" class="dg-chip" disabled>
           {{ t('timeline.footer.copy') }}
         </button>
-        <button type="button" class="chip" disabled>
+        <button type="button" class="dg-chip" disabled>
           {{ t('timeline.footer.review') }}
         </button>
       </div>
@@ -83,58 +83,46 @@ const { t } = useI18n()
   gap: 8px;
 }
 
-.chip {
-  padding: 5px 12px;
-  border: 1px solid var(--dg-card-border);
-  border-radius: 999px;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  background: transparent;
-}
-
-.chip--filled {
-  border-color: transparent;
-  background: var(--dg-control-fill);
-  color: var(--dg-text-primary);
-}
-
-.chip:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
 .segment {
   display: flex;
   padding: 3px;
+  border: 1px solid var(--dg-chip-border);
   border-radius: 999px;
   background: var(--dg-track-fill);
+  box-shadow: inset 0 1px 2px rgba(20, 16, 25, 0.04);
 }
 
 .segment__option {
-  padding: 4px 14px;
+  padding: 5px 15px;
   border-radius: 999px;
   color: var(--dg-text-secondary);
   font-size: 12px;
 }
 
 .segment__option.is-selected {
-  background: var(--dg-control-fill);
+  background: var(--dg-chip-fill);
+  box-shadow: 0 3px 10px rgba(20, 16, 25, 0.1);
   color: var(--dg-text-primary);
 }
 
 .filter-bar {
   display: flex;
   gap: 8px;
-  padding: 0 var(--dg-page-padding) 14px;
+  padding: 0 var(--dg-page-padding) 16px;
 }
 
 .body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--dg-inspector-width);
-  gap: var(--dg-inspector-gap);
+  gap: 16px;
   flex: 1;
   min-height: 0;
   padding: 0 var(--dg-page-padding);
+}
+
+.track,
+.inspector {
+  min-width: 0;
 }
 
 .footer {
@@ -142,8 +130,10 @@ const { t } = useI18n()
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px var(--dg-page-padding);
+  margin-top: 18px;
+  padding: 15px var(--dg-page-padding) 17px;
   border-top: 1px solid var(--dg-card-border);
+  background: linear-gradient(180deg, transparent, var(--dg-hover-fill));
 }
 
 .footer__meta {

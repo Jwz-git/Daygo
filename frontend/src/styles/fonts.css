@@ -1,7 +1,9 @@
 /*
- * Figtree for UI text, Instrument Serif for display headings.
- * The files stay as .ttf — a woff2 step would add a non-JS dependency to an
- * npm-only build chain, and assets are served locally, not over HTTP.
+ * UI faces, all bundled with the app — no system-font dependency, no network.
+ *
+ * Latin/UI text uses Figtree (variable, .ttf). Chinese text uses LXGW WenKai,
+ * shipped as .woff2 because the uncompressed CJK outlines are ~25 MB per weight
+ * and the frontend is embedded in the Go binary. Licence: assets/fonts/OFL.txt.
  */
 
 @font-face {
@@ -36,10 +38,32 @@
   font-display: block;
 }
 
+/*
+ * LXGW WenKai 1.522 (OFL-1.1). Regular and Medium are the two weights the UI
+ * actually uses; font-synthesis is off, so asking for 600 resolves to Medium
+ * rather than a smeared synthetic bold.
+ */
+@font-face {
+  font-family: 'LXGW WenKai';
+  src: url('../assets/fonts/LXGWWenKai-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'LXGW WenKai';
+  src: url('../assets/fonts/LXGWWenKai-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
-  /* Latin faces first, CJK system faces right behind them. */
+  /* Latin/UI first, then the bundled CJK face, then macOS system CJK. */
   --dg-font-ui:
-    'Figtree', 'PingFang SC', 'Hiragino Sans GB', 'Helvetica Neue', sans-serif;
+    'Figtree', 'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB',
+    'Helvetica Neue', sans-serif;
   --dg-font-mono:
     ui-monospace, 'SFMono-Regular', Menlo, monospace;
 }
@@ -49,8 +73,7 @@
  *
  * Instrument Serif carries no CJK glyphs, so a Chinese heading would fall back
  * per-character to PingFang SC and break against any Latin text or digits on
- * the same line — and the legacy app uses this face exactly where it shows
- * most (timeline date 26pt, settings title 22pt, weekly header 26pt).
+ * the same line. Chinese headings therefore use the bundled LXGW WenKai.
  *
  * The marker is set on <html> by i18n/index.ts setLocale(), not via :lang(),
  * so nested language attributes inside content cannot flip the heading font.
@@ -64,7 +87,7 @@
 
 :root[data-dg-lang-script='hans'] {
   --dg-font-display:
-    'PingFang SC', 'Hiragino Sans GB', 'Figtree', sans-serif;
-  --dg-font-display-weight: 300;
-  --dg-font-display-tracking: 0.01em;
+    'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB', 'Figtree', sans-serif;
+  --dg-font-display-weight: 500;
+  --dg-font-display-tracking: 0.02em;
 }
