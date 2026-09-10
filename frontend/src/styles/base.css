@@ -87,7 +87,9 @@ body {
   padding: 7px 10px;
   border: 1px solid var(--dg-input-border);
   border-radius: 5px;
-  background: var(--dg-input-fill);
+  /* Longhand, not the `background` shorthand: a <select> layers its chevron in
+     background-image, and the shorthand here (and on :hover) would wipe it. */
+  background-color: var(--dg-input-fill);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   color: var(--dg-text-primary);
   font-size: 13px;
@@ -98,7 +100,7 @@ body {
 }
 
 .dg-input:hover {
-  background: var(--dg-input-fill-hover);
+  background-color: var(--dg-input-fill-hover);
   border-color: var(--dg-chip-border);
 }
 
@@ -110,6 +112,24 @@ body {
 
 .dg-input[aria-invalid='true'] {
   border-color: var(--dg-danger);
+}
+
+/*
+ * A <select> must opt out of the native control, or WebKit — the engine behind
+ * the macOS desktop WebView — renders an Aqua popup button and ignores every
+ * surface rule above it, while Blink (a dev browser) keeps the styled box; the
+ * two then look nothing alike. appearance:none drops the native chrome so the
+ * shared .dg-input surface actually shows, and the chevron is drawn here, its
+ * colour carried by a per-appearance token.
+ */
+select.dg-input {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 30px;
+  background-image: var(--dg-select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 12px 12px;
 }
 
 .dg-button {

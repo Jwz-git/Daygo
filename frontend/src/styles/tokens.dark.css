@@ -66,6 +66,7 @@
   --dg-input-fill: rgba(255, 255, 255, 0.065);
   --dg-input-fill-hover: rgba(255, 255, 255, 0.095);
   --dg-input-border: rgba(255, 255, 255, 0.13);
+  --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%23a7a3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
   --dg-chip-fill: rgba(255, 255, 255, 0.075);
   --dg-chip-border: rgba(255, 255, 255, 0.13);
