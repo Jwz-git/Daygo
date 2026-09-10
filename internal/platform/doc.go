@@ -13,9 +13,9 @@
 //     implementation-independent semantics belong in this contract; provisional
 //     native UI and updater shapes stay minimal until their decisions land.
 //
-// Two implementations are planned behind these ports and must pass the SAME
-// contract suite (platformtest.Suite): internal/platform/fake (every OS) and
-// the real darwin adapter (macOS CI only, after the M1 decision). Neither
-// exists yet — both are M1 deliverables. An interface the fake passes but the
-// real adapter has not run against is not considered verified — docs/06 §6.5.
+// Two implementations sit behind these ports and must pass the SAME contract
+// suite (platformtest): internal/platform/fake (every OS) and the real darwin
+// adapter (macOS CI only, after the M1 decision). The fake covers Capture only;
+// the real adapter does not exist yet. An interface the fake passes but the real
+// adapter has not run against is not considered verified — docs/06 §6.5.
 package platform

@@ -4,8 +4,10 @@
 > 可测试的契约：方法签名、字段级 DTO、错误码、事件语义、版本与兼容性规则。
 >
 > **本文不代表其中所有目标都已实现。** 已落盘：前端设置页及其本地存储层、`internal/platform`
-> 端口与值类型（无实现）、`internal/app` 绑定骨架（§5.2.1 的 M1 方法）、`apperr` 错误类型与
-> 事件常量。`internal/platform/fake` 与 `platformtest.Suite` 尚未实现。
+> 端口与值类型、`internal/app` 绑定骨架（§5.2.1 的 M1 方法）、`apperr` 错误类型与
+> 事件常量、以及 `internal/platform/fake` 的 **Capture** 实现与
+> `platformtest.Suite`/`SuitePermission` 契约套件（§5.7.4）。fake 的其余端口
+> （Media / System / Secrets / Updater）与真实适配层尚未实现。
 > 平台适配边界（§5.8）仍为 **待定设计**：只定义任何实现都必须满足的要求，不定义协议本身。
 
 ## 5.1 本文的定位
@@ -1006,14 +1008,33 @@ type Updater interface {
 **两者必须通过同一套契约测试**：
 
 ```go
-// platformtest.Suite 对任意 Capture/Media/System 实现运行同一批断言。
+// platformtest.Suite 对任意 Capture 实现运行同一批断言。
 // fake 在所有平台上跑；真实适配层只在 macOS CI 上跑。
 func Suite(t *testing.T, newCapture func(t *testing.T) platform.Capture)
+
+// platformtest.SuitePermission 覆盖授权路径，需要实现方暴露可驱动的授权状态。
+// fake 直接驱动；真实适配层只能在系统未授权时手工跑。
+func SuitePermission(t *testing.T, newCapture func(t *testing.T) AuthorizedCapture)
+
+// AuthorizedCapture 是 platform.Capture 加一个测试用的授权设置入口。
+type AuthorizedCapture interface {
+    platform.Capture
+    SetPermission(platform.PermissionState)
+}
 ```
 
-覆盖：幂等 `Start`/`Stop`、单次 `Close`、`ctx` 取消、序号跨重启单调、frame/segment 顺序、
-累计确认、重放去重、状态合并、`Close` 后 channel 关闭、权限拒绝路径。**只有 fake 通过而
+目标覆盖：幂等 `Start`/`Stop`、单次 `Close`、`ctx` 取消、序号跨重启单调、frame/segment 顺序、
+累计确认、重放、状态合并、`Close` 后 channel 关闭、权限拒绝路径。Go 写库侧另行验证
+`(segment_path, frame_index)` 的重放去重。**只有 fake 通过而
 适配层未跑同一套测试的接口，不算已验证。**
+
+已落盘的覆盖面：`Suite` 覆盖正常生命周期、预取消命令、序号跨重启单调、累计确认与重放、
+状态合并和流关闭；`SuitePermission` 覆盖授权缺失、运行期撤权与授权恢复。未授权时 `Start`
+**返回 nil**——端口层不定义授权错误，`permission_denied` 是按 §5.4.1 由 Go 绑定层生成的码。
+仍待补：执行中取消、故障注入、Go 写库侧重放去重，以及 `Media`/`System` 的契约套件。
+
+`internal/platform/fake` 当前只实现 `Capture`；`Media`/`System`/`Secrets`/`Updater`
+尚未实现，因此 [09](09-roadmap.md) 中「fake 完整实现」一项未勾选。
 
 ---
 

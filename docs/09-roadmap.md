@@ -45,8 +45,10 @@
 - [ ] **限时一周的宿主探针**：验证 [06 §6.6](06-native-integration.md#66-选型时要回答的问题)
       的 9 个问题；
 - [x] `internal/platform` 端口定义（接口，无实现）；
-- [ ] `internal/platform/fake` 完整实现；
-- [ ] `platformtest.Suite` 契约测试套件；
+- [ ] `internal/platform/fake` 完整实现（**仅 `Capture` 已落盘**；`Media`/`System`/
+      `Secrets`/`Updater` 未实现）；
+- [ ] `platformtest.Suite` 契约测试套件（正常路径与权限路径已落盘；执行中取消、故障注入和
+      Go 写库侧重放去重仍待补，见 05 §5.7.4）；
 - [x] `internal/app` 骨架 + `apperr` 错误类型 + 事件常量；
 - [x] 首批绑定：`GetCapabilities`、`GetDayContext`、`GetRecordingState`、
       `GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`

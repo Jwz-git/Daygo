@@ -7,8 +7,9 @@
 >
 > **当前代码事实。** `internal/platform` 端口、值类型与封闭集校验已落盘（接口，无实现）；
 > `internal/app` 的 M1 绑定骨架已挂入 Wails `Bind`（权限方法在真实适配层落地前返回
-> `native_unavailable`）。`internal/platform/fake`、`platformtest.Suite`、真实捕获、
-> 分段编码和本决策描述的原生目录均尚未实现。以下路径与命令是实施规格，不是现状。
+> `native_unavailable`）；`internal/platform/fake` 的 `Capture` 与
+> `platformtest.Suite`/`SuitePermission` 契约套件已落盘。真实捕获、分段编码、
+> fake 的其余端口和本决策描述的原生目录均尚未实现。以下路径与命令是实施规格，不是现状。
 
 ## 1. 范围与结论
 
@@ -787,8 +788,8 @@ Windows 技术选择必须以矩阵结果决定：若 WGC 指示不可接受则�
 
 ### 8.4 契约与 ABI 门禁
 
-- `platformtest.Suite` 同时跑 fake 与真实适配层：Start/Stop 幂等、Close、ctx 取消、全局 seq、
-  事件顺序、累计 Ack、重放、状态合并、权限拒绝；
+- `platformtest.Suite` 跑 fake 与真实适配层：Start/Stop 幂等、Close、ctx 取消、全局 seq、
+  事件顺序、累计 Ack、重放、状态合并；`platformtest.SuitePermission` 覆盖权限拒绝路径；
 - C 侧编译 `_Static_assert` 固定每个 v1 struct 的 `sizeof`/关键 `offsetof`；Swift 与 C++ 都 include
   同一 header；
 - Go 侧契约测试构造最长合法 UTF-8 ID、空 ID、非法 UTF-8、零长数组、未知尾字段和 ABI major
