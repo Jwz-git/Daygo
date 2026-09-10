@@ -2,24 +2,10 @@ package platform
 
 import "context"
 
-// Capture produces discrete screenshots. Implementations keep pixels inside the
-// adapter and report only durable frame metadata and segment lifecycle events.
+// Capture performs one caller-driven screenshot of the current primary display.
+// It owns no timer, recorder state, event stream, persistence, or segment encoder.
 type Capture interface {
-	// Start accepts a complete config snapshot. Repeating the same config is a
-	// no-op; a different config requires Stop first. ctx bounds only this command.
-	Start(ctx context.Context, cfg CaptureConfig) error
-	// Stop is idempotent and finalizes the current segment. It does not close the
-	// streams, because a later Start may reuse this object.
-	Stop(ctx context.Context) error
-	// Ack cumulatively acknowledges seq and every preceding contiguous event after
-	// Go commits their database effects.
-	Ack(ctx context.Context, seq uint64) error
-	// Events is the ordered, durable frame/segment-closed stream.
-	Events() <-chan CaptureEvent
-	// Status is a mergeable current-state stream; it is not acknowledged.
-	Status() <-chan CaptureStatus
-	// Close releases native resources and closes both streams. It is called once.
-	Close(ctx context.Context) error
+	Capture(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 }
 
 // Media decodes frames out of segments and encodes timelapses. These signatures

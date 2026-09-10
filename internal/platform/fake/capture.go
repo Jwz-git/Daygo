@@ -2,555 +2,187 @@ package fake
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
+	"image"
+	"image/jpeg"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
 
-const (
-	eventsCapacity = 256
-	statusCapacity = 16
-	stateFileName  = ".daygo-fake-capture.json"
-)
-
 var (
-	_               platform.Capture = (*Capture)(nil)
-	errInvalidState                  = errors.New("invalid fake capture state")
-	errStateIO                       = errors.New("fake capture state I/O failed")
-	fakeEpoch                        = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	_         platform.Capture = (*Capture)(nil)
+	fakeEpoch                  = time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 )
 
-// Capture is a deterministic metadata-only implementation of platform.Capture.
+// Capture is a deterministic file-writing implementation of platform.Capture.
+// Its controls exist only so contract tests can drive OS outcomes.
 type Capture struct {
-	operations   sync.Mutex
-	mu           sync.Mutex
-	events       chan platform.CaptureEvent
-	status       chan platform.CaptureStatus
-	closed       bool
-	running      bool
-	permission   platform.PermissionState
-	cfg          platform.CaptureConfig
-	state        durableState
-	statePath    string
-	stopWorker   chan struct{}
-	workerDone   chan struct{}
-	current      *segmentState
-	pending      []platform.CaptureEvent
-	deliveryWake chan struct{}
-	deliveryStop chan struct{}
-	deliveryDone chan struct{}
+	mu                     sync.RWMutex
+	permission             platform.PermissionState
+	frontmostApplicationID string
+	noDisplay              bool
 }
 
-type segmentState struct {
-	path      string
-	frames    int
-	startedAt time.Time
-}
-
-type durableState struct {
-	Version int            `json:"version"`
-	Acked   uint64         `json:"acked"`
-	MaxSeq  uint64         `json:"max_seq"`
-	Events  []durableEvent `json:"events"`
-}
-
-type durableEvent struct {
-	Seq     uint64                    `json:"seq"`
-	Kind    platform.CaptureEventKind `json:"kind"`
-	Frame   *durableFrame             `json:"frame,omitempty"`
-	Segment *platform.SegmentClosed   `json:"segment,omitempty"`
-}
-
-type durableFrame struct {
-	SegmentPath string    `json:"segment_path"`
-	FrameIndex  int       `json:"frame_index"`
-	CapturedAt  time.Time `json:"captured_at"`
-	IdleSeconds *int      `json:"idle_seconds,omitempty"`
-	DisplayID   string    `json:"display_id"`
-	Width       int       `json:"width"`
-	Height      int       `json:"height"`
-	Redacted    bool      `json:"redacted"`
-}
-
-// NewCapture constructs an idle fake capture adapter.
 func NewCapture() *Capture {
-	capture := &Capture{
-		events:       make(chan platform.CaptureEvent, eventsCapacity),
-		status:       make(chan platform.CaptureStatus, statusCapacity),
-		permission:   platform.PermissionGranted,
-		deliveryWake: make(chan struct{}, 1),
-		deliveryStop: make(chan struct{}),
-		deliveryDone: make(chan struct{}),
-	}
-	capture.publishStatusLocked(capture.statusSnapshotLocked(platform.CaptureIdle))
-	go capture.deliverEvents()
-	return capture
+	return &Capture{permission: platform.PermissionGranted}
 }
 
-// SetPermission drives the screen-recording authorization this fake observes; a
-// real adapter can only learn it from the OS. Losing the grant while capturing
-// stops the timer and finalizes the active segment without touching the frame
-// backlog, mirroring docs/04 §4.1.3.
+// SetPermission controls the authorization observed by the fake.
 func (c *Capture) SetPermission(state platform.PermissionState) {
-	c.operations.Lock()
-	defer c.operations.Unlock()
 	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
-		return
-	}
-	suspend := state != c.permission && state != platform.PermissionGranted && c.running
+	defer c.mu.Unlock()
 	c.permission = state
-	if suspend {
-		c.mu.Unlock()
-		_ = c.stop(context.Background())
-		return
-	}
-	if c.running {
-		c.publishStatusLocked(c.statusSnapshotLocked(platform.CaptureCapturing))
-	} else {
-		c.publishStatusLocked(platform.CaptureStatus{Phase: platform.CaptureIdle, Permission: c.permission})
-	}
-	c.mu.Unlock()
 }
 
-func (c *Capture) Events() <-chan platform.CaptureEvent  { return c.events }
-func (c *Capture) Status() <-chan platform.CaptureStatus { return c.status }
-
-func (c *Capture) Start(ctx context.Context, cfg platform.CaptureConfig) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	c.operations.Lock()
-	defer c.operations.Unlock()
-	cfg = platform.CanonicalizeCaptureConfig(cfg)
+// SetFrontmostApplicationID controls the application inspected by the fake's
+// capture-time privacy guard. An empty value means no identified application.
+func (c *Capture) SetFrontmostApplicationID(id string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.closed {
-		return errors.New("fake capture is closed")
+	c.frontmostApplicationID = id
+}
+
+// SetNoDisplay controls whether the fake has a primary display.
+func (c *Capture) SetNoDisplay(noDisplay bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.noDisplay = noDisplay
+}
+
+func (c *Capture) Capture(ctx context.Context, req platform.CaptureRequest) (platform.CaptureResult, error) {
+	if err := ctx.Err(); err != nil {
+		return platform.CaptureResult{}, err
 	}
-	if c.running {
-		if platform.CaptureConfigEqual(c.cfg, cfg) {
-			return nil
-		}
-		return errors.New("fake capture is already running with a different configuration")
+	if !validRequest(req) {
+		return platform.CaptureResult{}, captureError(platform.CaptureInvalidArgument)
 	}
-	if c.permission != platform.PermissionGranted {
-		c.publishStatusLocked(platform.CaptureStatus{Phase: platform.CaptureIdle, Permission: c.permission})
-		return nil
+
+	c.mu.RLock()
+	permission := c.permission
+	frontmostApplicationID := c.frontmostApplicationID
+	noDisplay := c.noDisplay
+	c.mu.RUnlock()
+
+	if permission != platform.PermissionGranted {
+		return platform.CaptureResult{}, captureError(platform.CapturePermissionDenied)
 	}
-	statePath := filepath.Join(cfg.SegmentDirectory, stateFileName)
-	state, err := loadState(statePath)
+	if noDisplay {
+		return platform.CaptureResult{}, captureError(platform.CaptureNoDisplay)
+	}
+	if blocked(frontmostApplicationID, req.BlockedApplicationIDs) {
+		return platform.CaptureResult{Outcome: platform.CaptureBlocked}, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return platform.CaptureResult{}, err
+	}
+
+	width := req.TargetHeight * 16 / 9
+	if width == 0 {
+		width = 1
+	}
+	fileSize, err := writeJPEG(ctx, req.OutputPath, width, req.TargetHeight, req.JPEGQuality)
 	if err != nil {
-		return fmt.Errorf("load fake capture state: %w", err)
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	c.cfg = cfg
-	replay := c.statePath != statePath
-	if replay {
-		c.statePath = statePath
-		c.state = state
-	} else if state.MaxSeq > c.state.MaxSeq {
-		c.state = state
-	}
-	c.running = true
-	c.current = &segmentState{path: fmt.Sprintf("fake/segment-%020d", c.state.MaxSeq+1), startedAt: fakeEpoch.Add(time.Duration(c.state.MaxSeq) * normalizedInterval(cfg.Interval))}
-	c.stopWorker = make(chan struct{})
-	c.workerDone = make(chan struct{})
-	c.publishStatusLocked(c.statusSnapshotLocked(platform.CaptureStarting))
-	if replay {
-		for _, event := range c.state.Events {
-			if event.Seq > c.state.Acked {
-				c.enqueueLocked(event.platformEvent())
-			}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return platform.CaptureResult{}, ctxErr
 		}
+		return platform.CaptureResult{}, captureError(platform.CaptureIO)
 	}
-	c.publishStatusLocked(c.statusSnapshotLocked(platform.CaptureCapturing))
-	go c.run(c.stopWorker, c.workerDone, cfg.Interval)
-	return nil
+	return platform.CaptureResult{
+		Outcome:    platform.CaptureWritten,
+		CapturedAt: fakeEpoch,
+		Width:      width,
+		Height:     req.TargetHeight,
+		FileSize:   fileSize,
+	}, nil
 }
 
-func (c *Capture) Stop(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	c.operations.Lock()
-	defer c.operations.Unlock()
-	return c.stop(ctx)
-}
-
-func (c *Capture) stop(ctx context.Context) error {
-	c.mu.Lock()
-	if c.closed || (!c.running && c.current == nil) {
-		c.mu.Unlock()
-		return nil
-	}
-	stop, done := c.stopWorker, c.workerDone
-	if c.running {
-		c.running = false
-		select {
-		case <-done:
-		default:
-			close(stop)
-		}
-	}
-	c.mu.Unlock()
-	select {
-	case <-done:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.current != nil && c.current.frames > 0 {
-		event := platform.CaptureEvent{Kind: platform.CaptureEventSegmentClosed, Segment: &platform.SegmentClosed{SegmentPath: c.current.path, TotalBytes: 0, FrameCount: c.current.frames, Succeeded: true}}
-		if err := c.appendLocked(event); err != nil {
-			c.current = nil
-			c.publishStatusLocked(platform.CaptureStatus{Phase: platform.CaptureIdle, Permission: c.permission, Fault: &platform.CaptureFault{Code: "fake_state_write", Retryable: true, Message: "fake capture state could not be persisted"}})
-			return fmt.Errorf("finalize fake segment: %w", err)
-		}
-	}
-	c.current = nil
-	c.publishStatusLocked(platform.CaptureStatus{Phase: platform.CaptureIdle, Permission: c.permission})
-	return nil
-}
-
-func (c *Capture) Ack(ctx context.Context, seq uint64) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	c.operations.Lock()
-	defer c.operations.Unlock()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return errors.New("fake capture is closed")
-	}
-	if c.statePath == "" || seq <= c.state.Acked {
-		return nil
-	}
-	if seq > c.state.MaxSeq {
-		seq = c.state.MaxSeq
-	}
-	previous := c.state
-	c.state.Acked = seq
-	kept := make([]durableEvent, 0, len(c.state.Events))
-	for _, event := range c.state.Events {
-		if event.Seq > seq {
-			kept = append(kept, event)
-		}
-	}
-	c.state.Events = kept
-	if err := writeState(c.statePath, c.state); err != nil {
-		c.state = previous
-		return fmt.Errorf("persist fake capture acknowledgement: %w", err)
-	}
-	return nil
-}
-
-func (c *Capture) Close(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	c.operations.Lock()
-	defer c.operations.Unlock()
-	if err := c.stop(ctx); err != nil {
-		return err
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	close(c.deliveryStop)
-	c.mu.Unlock()
-	<-c.deliveryDone
-	c.mu.Lock()
-	close(c.events)
-	close(c.status)
-	return nil
-}
-
-func (c *Capture) run(stop <-chan struct{}, done chan<- struct{}, interval time.Duration) {
-	defer close(done)
-	if interval <= 0 {
-		interval = time.Millisecond
-	}
-	if !c.captureFrame() {
-		return
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-stop:
-			return
-		case <-ticker.C:
-			if !c.captureFrame() {
-				return
-			}
-		}
-	}
-}
-
-func (c *Capture) captureFrame() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !c.running || c.closed || c.current == nil {
+func validRequest(req platform.CaptureRequest) bool {
+	if !filepath.IsAbs(req.OutputPath) || len(req.OutputPath) > 32768 || !utf8.ValidString(req.OutputPath) {
 		return false
 	}
-	if c.segmentLimitReachedLocked() {
-		if err := c.closeSegmentLocked(); err != nil {
-			c.failStateWriteLocked()
+	if !req.ImageFormat.Valid() || req.TargetHeight < 1 || req.TargetHeight > 16384 {
+		return false
+	}
+	if req.JPEGQuality < 1 || req.JPEGQuality > 100 || len(req.BlockedApplicationIDs) > 4096 {
+		return false
+	}
+	totalIDBytes := 0
+	for _, id := range req.BlockedApplicationIDs {
+		if id == "" || len(id) > 4096 || !utf8.ValidString(id) {
 			return false
 		}
-		c.current = c.newSegmentLocked()
+		totalIDBytes += len(id)
+		if totalIDBytes > 1<<20 {
+			return false
+		}
 	}
-	index := c.current.frames
-	display := "fake-display-1"
-	if c.cfg.PreferredDisplayID != nil {
-		display = *c.cfg.PreferredDisplayID
-	}
-	height := c.cfg.CaptureHeight
-	if height <= 0 {
-		height = 720
-	}
-	frame := &platform.CapturedFrame{SegmentPath: c.current.path, FrameIndex: index, CapturedAt: c.current.startedAt.Add(time.Duration(index) * normalizedInterval(c.cfg.Interval)), DisplayID: display, Width: height * 16 / 9, Height: height}
-	if err := c.appendLocked(platform.CaptureEvent{Kind: platform.CaptureEventFrame, Frame: frame}); err != nil {
-		c.failStateWriteLocked()
-		return false
-	}
-	c.current.frames++
-	c.publishStatusLocked(c.statusSnapshotLocked(platform.CaptureCapturing))
 	return true
 }
 
-func (c *Capture) segmentLimitReachedLocked() bool {
-	if c.current.frames == 0 {
+func blocked(frontmostApplicationID string, blockedApplicationIDs []string) bool {
+	if frontmostApplicationID == "" {
 		return false
 	}
-	if c.cfg.SegmentMaxFrames > 0 && c.current.frames >= c.cfg.SegmentMaxFrames {
-		return true
-	}
-	return c.cfg.SegmentMaxDuration > 0 &&
-		time.Duration(c.current.frames)*normalizedInterval(c.cfg.Interval) >= c.cfg.SegmentMaxDuration
-}
-
-func (c *Capture) closeSegmentLocked() error {
-	return c.appendLocked(platform.CaptureEvent{
-		Kind: platform.CaptureEventSegmentClosed,
-		Segment: &platform.SegmentClosed{
-			SegmentPath: c.current.path,
-			FrameCount:  c.current.frames,
-			Succeeded:   true,
-		},
-	})
-}
-
-func (c *Capture) newSegmentLocked() *segmentState {
-	return &segmentState{
-		path:      fmt.Sprintf("fake/segment-%020d", c.state.MaxSeq+1),
-		startedAt: fakeEpoch.Add(time.Duration(c.state.MaxSeq) * normalizedInterval(c.cfg.Interval)),
-	}
-}
-
-func (c *Capture) failStateWriteLocked() {
-	c.running = false
-	c.publishStatusLocked(platform.CaptureStatus{Phase: platform.CaptureIdle, Permission: c.permission, Fault: &platform.CaptureFault{Code: "fake_state_write", Retryable: true, Message: "fake capture state could not be persisted"}})
-}
-
-func normalizedInterval(value time.Duration) time.Duration {
-	if value <= 0 {
-		return time.Millisecond
-	}
-	return value
-}
-
-func (c *Capture) appendLocked(event platform.CaptureEvent) error {
-	event.Seq = c.state.MaxSeq + 1
-	durable := durableFromPlatform(event)
-	previousMaxSeq := c.state.MaxSeq
-	previousVersion := c.state.Version
-	c.state.MaxSeq = event.Seq
-	c.state.Version = 1
-	c.state.Events = append(c.state.Events, durable)
-	if err := writeState(c.statePath, c.state); err != nil {
-		c.state.MaxSeq = previousMaxSeq
-		c.state.Version = previousVersion
-		c.state.Events = c.state.Events[:len(c.state.Events)-1]
-		return err
-	}
-	c.enqueueLocked(event)
-	return nil
-}
-
-func (c *Capture) enqueueLocked(event platform.CaptureEvent) {
-	c.pending = append(c.pending, event)
-	select {
-	case c.deliveryWake <- struct{}{}:
-	default:
-	}
-}
-
-func (c *Capture) deliverEvents() {
-	defer close(c.deliveryDone)
-	for {
-		c.mu.Lock()
-		if len(c.pending) == 0 {
-			c.mu.Unlock()
-			select {
-			case <-c.deliveryWake:
-				continue
-			case <-c.deliveryStop:
-				return
-			}
-		}
-		event := c.pending[0]
-		c.mu.Unlock()
-		select {
-		case c.events <- event:
-			c.mu.Lock()
-			if len(c.pending) > 0 && c.pending[0].Seq == event.Seq {
-				c.pending = c.pending[1:]
-			}
-			c.mu.Unlock()
-		case <-c.deliveryStop:
-			return
+	for _, id := range blockedApplicationIDs {
+		if id == frontmostApplicationID {
+			return true
 		}
 	}
+	return false
 }
 
-func (c *Capture) statusSnapshotLocked(phase platform.CapturePhase) platform.CaptureStatus {
-	display := "fake-display-1"
-	if c.cfg.PreferredDisplayID != nil {
-		display = *c.cfg.PreferredDisplayID
+func writeJPEG(ctx context.Context, outputPath string, width, height, quality int) (int64, error) {
+	if _, err := os.Lstat(outputPath); err == nil || !os.IsNotExist(err) {
+		return 0, os.ErrExist
 	}
-	status := platform.CaptureStatus{Phase: phase, Permission: c.permission, ActiveDisplayID: &display}
-	if c.current != nil && c.current.frames > 0 {
-		at := c.current.startedAt.Add(time.Duration(c.current.frames-1) * normalizedInterval(c.cfg.Interval))
-		status.LastFrameAt = &at
-	}
-	return status
-}
 
-func (c *Capture) publishStatusLocked(status platform.CaptureStatus) {
-	select {
-	case c.status <- status:
-	default:
-		select {
-		case <-c.status:
-		default:
-		}
-		c.status <- status
-	}
-}
-
-func durableFromPlatform(event platform.CaptureEvent) durableEvent {
-	result := durableEvent{Seq: event.Seq, Kind: event.Kind, Segment: event.Segment}
-	if event.Frame != nil {
-		result.Frame = &durableFrame{SegmentPath: event.Frame.SegmentPath, FrameIndex: event.Frame.FrameIndex, CapturedAt: event.Frame.CapturedAt, IdleSeconds: event.Frame.IdleSeconds, DisplayID: event.Frame.DisplayID, Width: event.Frame.Width, Height: event.Frame.Height, Redacted: event.Frame.Redacted}
-	}
-	return result
-}
-
-func (event durableEvent) platformEvent() platform.CaptureEvent {
-	result := platform.CaptureEvent{Seq: event.Seq, Kind: event.Kind, Segment: event.Segment}
-	if event.Frame != nil {
-		result.Frame = &platform.CapturedFrame{SegmentPath: event.Frame.SegmentPath, FrameIndex: event.Frame.FrameIndex, CapturedAt: event.Frame.CapturedAt, IdleSeconds: event.Frame.IdleSeconds, DisplayID: event.Frame.DisplayID, Width: event.Frame.Width, Height: event.Frame.Height, Redacted: event.Frame.Redacted}
-	}
-	return result
-}
-
-func loadState(fileName string) (durableState, error) {
-	data, err := os.ReadFile(fileName)
-	if errors.Is(err, os.ErrNotExist) {
-		return durableState{Version: 1}, nil
-	}
+	directory := filepath.Dir(outputPath)
+	file, err := os.CreateTemp(directory, "."+filepath.Base(outputPath)+".daygo-*.partial")
 	if err != nil {
-		return durableState{}, errStateIO
+		return 0, err
 	}
-	var state durableState
-	if err := json.Unmarshal(data, &state); err != nil {
-		return durableState{}, errInvalidState
-	}
-	if state.Version != 1 || state.Acked > state.MaxSeq {
-		return durableState{}, errInvalidState
-	}
-	previous := state.Acked
-	for _, event := range state.Events {
-		if event.Seq != previous+1 || event.Seq > state.MaxSeq || !event.Kind.Valid() || (event.Frame == nil) == (event.Segment == nil) {
-			return durableState{}, errInvalidState
-		}
-		if (event.Kind == platform.CaptureEventFrame) != (event.Frame != nil) {
-			return durableState{}, errInvalidState
-		}
-		if event.Frame != nil && !platform.ValidSegmentPath(event.Frame.SegmentPath) {
-			return durableState{}, errInvalidState
-		}
-		if event.Segment != nil && !platform.ValidSegmentPath(event.Segment.SegmentPath) {
-			return durableState{}, errInvalidState
-		}
-		previous = event.Seq
-	}
-	if previous != state.MaxSeq {
-		return durableState{}, errInvalidState
-	}
-	return state, nil
-}
+	temporaryPath := file.Name()
+	defer os.Remove(temporaryPath)
 
-func writeState(fileName string, state durableState) error {
-	if err := writeStateFile(fileName, state); err != nil {
-		return errStateIO
-	}
-	return nil
-}
-
-func writeStateFile(fileName string, state durableState) error {
-	if err := os.MkdirAll(filepath.Dir(fileName), 0o700); err != nil {
-		return err
-	}
-	data, err := json.Marshal(state)
-	if err != nil {
-		return err
-	}
-	temporary, err := os.CreateTemp(filepath.Dir(fileName), ".daygo-fake-capture-*")
-	if err != nil {
-		return err
-	}
-	temporaryName := temporary.Name()
-	remove := true
+	encoded := false
 	defer func() {
-		if remove {
-			_ = os.Remove(temporaryName)
+		if !encoded {
+			_ = file.Close()
 		}
 	}()
-	if err := temporary.Chmod(0o600); err != nil {
-		_ = temporary.Close()
-		return err
+
+	if err := jpeg.Encode(file, image.NewRGBA(image.Rect(0, 0, width, height)), &jpeg.Options{Quality: quality}); err != nil {
+		return 0, err
 	}
-	if _, err := temporary.Write(data); err != nil {
-		_ = temporary.Close()
-		return err
+	if err := file.Close(); err != nil {
+		return 0, err
 	}
-	if err := temporary.Sync(); err != nil {
-		_ = temporary.Close()
-		return err
+	encoded = true
+	if err := ctx.Err(); err != nil {
+		return 0, err
 	}
-	if err := temporary.Close(); err != nil {
-		return err
+
+	// Linking a completed sibling file publishes without replacing an existing
+	// destination. Removing the temporary link leaves the final file intact.
+	if err := os.Link(temporaryPath, outputPath); err != nil {
+		return 0, err
 	}
-	if err := os.Rename(temporaryName, fileName); err != nil {
-		return err
+	if err := os.Remove(temporaryPath); err != nil {
+		_ = os.Remove(outputPath)
+		return 0, err
 	}
-	remove = false
-	return nil
+	info, err := os.Stat(outputPath)
+	if err != nil {
+		_ = os.Remove(outputPath)
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+func captureError(code platform.CaptureErrorCode) error {
+	return &platform.CaptureError{Code: code}
 }
