@@ -34,6 +34,9 @@ func Run() error {
 		AssetServer: &assetserver.Options{
 			Assets: frontend.Assets,
 		},
+		// system is nil until the native adapter exists: capability and day
+		// methods work truthfully, permission methods return native_unavailable.
+		Bind: []any{NewBackend(nil)},
 		Mac: &mac.Options{
 			/*
 			 * TitleBarHidden (not TitleBarHiddenInset): both keep the native

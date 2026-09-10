@@ -44,12 +44,13 @@
 
 - [ ] **限时一周的宿主探针**：验证 [06 §6.6](06-native-integration.md#66-选型时要回答的问题)
       的 9 个问题；
-- [ ] `internal/platform` 端口定义（接口，无实现）；
+- [x] `internal/platform` 端口定义（接口，无实现）；
 - [ ] `internal/platform/fake` 完整实现；
 - [ ] `platformtest.Suite` 契约测试套件；
-- [ ] `internal/app` 骨架 + `apperr` 错误类型 + 事件常量；
-- [ ] 首批绑定：`GetCapabilities`、`GetDayContext`、`GetRecordingState`、
-      `GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`；
+- [x] `internal/app` 骨架 + `apperr` 错误类型 + 事件常量；
+- [x] 首批绑定：`GetCapabilities`、`GetDayContext`、`GetRecordingState`、
+      `GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`
+      （已挂入 Wails `Bind`；权限方法在原生适配层落地前返回 `native_unavailable`）；
 - [ ] 前端 `api/` wrapper 与错误解析；
 - [ ] 签名与公证流水线（用桩适配层打通，不等到 M5）。
 
