@@ -1,18 +1,71 @@
 package app
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/Jwz-git/Daygo/frontend"
+	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 )
 
+// ApplicationSupportDirName is the directory under the user's Application
+// Support folder that holds every Daygo file. The name is part of the
+// published identity and cannot change after the first public release
+// (AGENTS.md, "身份标识").
+const ApplicationSupportDirName = "Daygo"
+
+// supportDir returns the application support directory. os.UserConfigDir maps
+// to ~/Library/Application Support on macOS, which is the path docs/03 §3.1
+// specifies.
+func supportDir() (string, error) {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locate application support directory: %w", err)
+	}
+	return filepath.Join(base, ApplicationSupportDirName), nil
+}
+
 // Run starts the Daygo desktop shell.
+//
+// The database is opened before the window, so the ownership the UI reports is
+// the ownership actually held. Failing to open it is not fatal: a second
+// instance is expected to run without the write lock, and a damaged database
+// should still let the user see the app rather than a process that exits
+// silently. Storage problems surface through GetDiagnostics instead.
 func Run() error {
-	err := wails.Run(&options.App{
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	backend := NewBackend(nil, nil)
+	dir, err := supportDir()
+	if err != nil {
+		return err
+	}
+	// Capture ownership is requested at startup because this process is the
+	// one the user launched; a second instance loses the race and reports
+	// isCaptureOwner false.
+	store, openErr := storage.Open(ctx, storage.Options{Dir: dir, CaptureOwnerRequested: true})
+	if openErr != nil {
+		// Keep the reason available to diagnostics without aborting startup.
+		backend.setStorageError(openErr)
+	} else {
+		backend.attachStorage(store)
+		defer func() { _ = store.Close() }()
+
+		// Maintenance is owned by this context, so cancelling it at shutdown
+		// stops the goroutine. There is no global scheduler to leak
+		// (docs/modules/data.md).
+		maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{BackupDir: dir})
+		go maintainer.Run(ctx)
+	}
+
+	err = wails.Run(&options.App{
 		Title:     "Daygo",
 		Width:     1180,
 		Height:    760,
@@ -36,7 +89,7 @@ func Run() error {
 		},
 		// system is nil until the native adapter exists: capability and day
 		// methods work truthfully, permission methods return native_unavailable.
-		Bind: []any{NewBackend(nil)},
+		Bind: []any{backend},
 		Mac: &mac.Options{
 			/*
 			 * TitleBarHidden (not TitleBarHiddenInset): both keep the native

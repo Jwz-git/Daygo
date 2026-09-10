@@ -56,7 +56,7 @@ func (*systemStub) Events() <-chan platform.SystemEvent                         
 func TestGetDayContextCurrentLogicalDay(t *testing.T) {
 	loc := mustLocation(t, "America/Los_Angeles")
 	now := time.Date(2026, time.March, 8, 2, 30, 0, 0, loc)
-	backend := newBackend(fixedClock{now: now}, &systemStub{}, true, true)
+	backend := newBackend(fixedClock{now: now}, &systemStub{}, nil, true, true)
 
 	got, err := backend.GetDayContext("")
 	if err != nil {
@@ -75,7 +75,7 @@ func TestGetDayContextCurrentLogicalDay(t *testing.T) {
 
 func TestGetDayContextExplicitAndInvalid(t *testing.T) {
 	loc := mustLocation(t, "Asia/Kolkata")
-	backend := newBackend(fixedClock{now: time.Date(2026, 1, 15, 2, 0, 0, 0, loc)}, &systemStub{}, true, true)
+	backend := newBackend(fixedClock{now: time.Date(2026, 1, 15, 2, 0, 0, 0, loc)}, &systemStub{}, nil, true, true)
 	got, err := backend.GetDayContext("2024-02-29")
 	if err != nil || got.Day != "2024-02-29" {
 		t.Fatalf("explicit day = %+v, %v", got, err)
@@ -88,7 +88,7 @@ func TestGetDayContextExplicitAndInvalid(t *testing.T) {
 
 func TestM1PermissionBindings(t *testing.T) {
 	system := &systemStub{permission: platform.PermissionNotDetermined, notifications: platform.PermissionDenied}
-	backend := newBackend(fixedClock{now: time.Now()}, system, true, false)
+	backend := newBackend(fixedClock{now: time.Now()}, system, nil, true, false)
 
 	permission, err := backend.GetPermissionState()
 	if err != nil {
@@ -114,7 +114,7 @@ func TestM1PermissionBindings(t *testing.T) {
 }
 
 func TestM1BindingErrorsAreAppErrors(t *testing.T) {
-	backend := newBackend(fixedClock{now: time.Now()}, nil, true, true)
+	backend := newBackend(fixedClock{now: time.Now()}, nil, nil, true, true)
 	_, err := backend.GetPermissionState()
 	assertAppCode(t, err, apperr.NativeUnavailable)
 	_, err = backend.GetRecordingState()
@@ -123,14 +123,14 @@ func TestM1BindingErrorsAreAppErrors(t *testing.T) {
 	assertAppCode(t, backend.OpenSystemSettings("arbitrary-url"), apperr.InvalidArgument)
 
 	system := &systemStub{permission: "invented"}
-	backend = newBackend(fixedClock{now: time.Now()}, system, true, true)
+	backend = newBackend(fixedClock{now: time.Now()}, system, nil, true, true)
 	_, err = backend.GetPermissionState()
 	assertAppCode(t, err, apperr.Internal)
 }
 
 func TestM1PlatformErrorsAreSanitized(t *testing.T) {
 	cause := errors.New("private native path and diagnostic detail")
-	backend := newBackend(fixedClock{now: time.Now()}, &systemStub{permissionErr: cause}, true, true)
+	backend := newBackend(fixedClock{now: time.Now()}, &systemStub{permissionErr: cause}, nil, true, true)
 	_, err := backend.GetPermissionState()
 	assertAppCode(t, err, apperr.NativeUnavailable)
 	if err.Error() == cause.Error() {
@@ -139,7 +139,7 @@ func TestM1PlatformErrorsAreSanitized(t *testing.T) {
 }
 
 func TestGetCapabilitiesDoesNotAdvertisePlannedFeatures(t *testing.T) {
-	backend := newBackend(fixedClock{now: time.Now()}, nil, true, false)
+	backend := newBackend(fixedClock{now: time.Now()}, nil, nil, true, false)
 	got, err := backend.GetCapabilities()
 	if err != nil {
 		t.Fatalf("GetCapabilities: %v", err)

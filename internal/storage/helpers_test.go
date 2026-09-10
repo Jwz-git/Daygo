@@ -57,3 +57,15 @@ func assertKind(t *testing.T, err error, want Kind) {
 		t.Fatalf("kind = %q, want %q (err: %v)", got, want, err)
 	}
 }
+
+// rowCount reports how many rows a table holds. It opens no transaction of its
+// own, so it can run while the store is mid-test without contending.
+func rowCount(t *testing.T, store *Store, table string) int {
+	t.Helper()
+	var count int
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	return count
+}

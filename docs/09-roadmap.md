@@ -16,7 +16,7 @@
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、页面骨架 | 已有时间函数单元通过；闭环未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 仅页面骨架，功能未开始 | 未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 仅页面骨架，功能未开始 | 未验收 |
-| [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core（连接、PRAGMA、迁移链、只读降级、实例锁） | 单元与并发 smoke 通过；1 小时 DB-8、维护与诊断未运行 |
+| [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint 与备份 | 单元与并发 smoke 通过；1 小时 DB-8、清理与诊断 UI 未运行 |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、主题、i18n、本地偏好 | 类型检查通过；绑定持久化未验收 |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：开发构建链 | 原生身份、签名、公证、更新未验收 |
 
@@ -183,7 +183,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 7 | 分段容器与编码格式 | recording / 工程 | 分段落盘真实实现前；03 §3.4 |
 | 8 | 帧解码与视频合成 | recording / 工程协调，timeline 消费 | 分别在 media-read / EncodeVideo 实现前；06 §6.2 |
 | 9 | 自动更新链路 | delivery / 工程 | 宿主形态确定前验证可行性，Updater 实现前定方案 |
-| 10 | 数据库备份保留份数 | data / 工程 | 维护任务实现前；03 §3.6 |
+| 10 | 数据库备份保留份数 | data / 工程 | **已决定：7 份**，见 [decisions/data-backup-retention.md](decisions/data-backup-retention.md) |
 | 11 | 解析失败的提示与处置体验 | timeline / 产品 | 时间线失败交互实现前；禁止静默丢弃已是硬约束 |
 | 12 | 统一重试后的用户可观察行为 | timeline / 产品，providers 协作 | 重试入口与策略接入前 |
 | 13 | 每周图表与 DTO 子模型 | weekly / 产品 + 设计 | 周视图实现前；05 §5.11 |

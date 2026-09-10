@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"time"
 )
 
@@ -52,6 +53,85 @@ type Store struct {
 	observer Observer
 	writeLk  *fileLock
 	ownerLk  *fileLock
+
+	// clock is the single source of "now" for rows this package writes, so a
+	// test can make timestamps deterministic without touching the database.
+	clock func() time.Time
+
+	// backupMu serializes backup naming and the VACUUM INTO write, so two
+	// concurrent backups cannot pick the same file name. backupSeq is guarded
+	// by it and only breaks ties within one clock instant.
+	backupMu  sync.Mutex
+	backupSeq int
+
+	// subscribers receive settings-change notifications. The mutex guards both
+	// the set and the sends, so a notify never races with a Watch teardown.
+	subMu       sync.Mutex
+	subscribers map[chan SettingsChanged]struct{}
+}
+
+// now reports the current time through the store's clock.
+func (s *Store) now() time.Time {
+	if s == nil || s.clock == nil {
+		return time.Now()
+	}
+	return s.clock()
+}
+
+// setClock replaces the store's clock. It exists for tests that need
+// deterministic timestamps without reaching into unexported fields, and is not
+// part of the production surface: nothing in this package calls it.
+func (s *Store) setClock(clock func() time.Time) {
+	s.clock = clock
+}
+
+// addSubscriber registers a channel to receive change notifications.
+func (s *Store) addSubscriber(ch chan SettingsChanged) {
+	if s == nil || ch == nil {
+		return
+	}
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	if s.subscribers == nil {
+		s.subscribers = make(map[chan SettingsChanged]struct{})
+	}
+	s.subscribers[ch] = struct{}{}
+}
+
+// removeSubscriber stops delivery and closes the channel. It is idempotent, so
+// a Watch teardown racing with Store.Close cannot double-close.
+//
+// The send in notifySettings holds the same mutex, so no send can be in flight
+// when the close happens.
+func (s *Store) removeSubscriber(ch chan SettingsChanged) {
+	if s == nil || ch == nil {
+		return
+	}
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	if _, ok := s.subscribers[ch]; ok {
+		delete(s.subscribers, ch)
+		close(ch)
+	}
+}
+
+// notifySettings publishes a change to every subscriber. Keys are copied per
+// subscriber so one cannot mutate what another sees.
+func (s *Store) notifySettings(keys []string, at time.Time) {
+	if s == nil || len(keys) == 0 {
+		return
+	}
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	for ch := range s.subscribers {
+		event := SettingsChanged{Keys: append([]string(nil), keys...), At: at}
+		select {
+		case ch <- event:
+		default:
+			// A slow consumer re-reads settings rather than relying on this
+			// channel as a complete log; blocking would stall the writer.
+		}
+	}
 }
 
 // Mode reports how this instance opened the database.

@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/platform"
+	"github.com/Jwz-git/Daygo/internal/storage"
 	daytime "github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
@@ -25,41 +27,116 @@ type systemClock struct{}
 
 func (systemClock) Now() time.Time { return time.Now() }
 
-// Backend is the Wails-bound M1 surface. It coordinates pure Go policies and
-// platform ports; it contains no native implementation itself.
+// Backend is the Wails-bound surface. It coordinates pure Go policies, the
+// storage foundation and platform ports; it contains no native implementation
+// itself.
 type Backend struct {
-	clock          Clock
-	system         platform.System
+	clock   Clock
+	system  platform.System
+	storage *storage.Store
+
+	// canWrite and isCaptureOwner are the fallback ownership values used when
+	// no store is attached. With a store present they are ignored in favor of
+	// the real instance locks, so the reported ownership cannot drift from the
+	// locks actually held (docs/modules/data.md).
 	canWrite       bool
 	isCaptureOwner bool
+
+	// storageErr records why the database is unavailable when Open failed. It
+	// is reported through diagnostics rather than thrown at startup, so a
+	// second instance or a damaged file still leaves a usable window.
+	storageMu  sync.RWMutex
+	storageErr error
 }
 
-// NewBackend wires the M1 binding surface. system may be nil while the native
+// NewBackend wires the binding surface. system may be nil while the native
 // adapter is unavailable; the permission methods then return native_unavailable
 // instead of pretending a platform result exists.
-func NewBackend(system platform.System) *Backend {
-	return newBackend(systemClock{}, system, true, true)
+//
+// store may be nil too: without a database the app is still able to report day
+// context, and it must not claim write ownership it does not have.
+func NewBackend(system platform.System, store *storage.Store) *Backend {
+	return newBackend(systemClock{}, system, store, false, false)
 }
 
-func newBackend(clock Clock, system platform.System, canWrite, isCaptureOwner bool) *Backend {
+func newBackend(clock Clock, system platform.System, store *storage.Store, canWrite, isCaptureOwner bool) *Backend {
 	return &Backend{
 		clock:          clock,
 		system:         system,
+		storage:        store,
 		canWrite:       canWrite,
 		isCaptureOwner: isCaptureOwner,
 	}
 }
 
-// GetCapabilities reports only features that are actually usable. M1 does not
-// expose planned M2-M4 feature flags as fake availability.
+// attachStorage binds an open store. It is called once during startup, before
+// the window is created, so no locking is needed against readers; the mutex
+// exists for setStorageError, which can run while bindings are serving.
+func (b *Backend) attachStorage(store *storage.Store) {
+	b.storage = store
+}
+
+// setStorageError records a failed open. The error stays internal: diagnostics
+// reports the class of failure, never a path or a driver message that could
+// carry user data (docs/07).
+func (b *Backend) setStorageError(err error) {
+	b.storageMu.Lock()
+	defer b.storageMu.Unlock()
+	b.storageErr = err
+}
+
+// storageFailure reports the recorded open failure, if any.
+func (b *Backend) storageFailure() error {
+	b.storageMu.RLock()
+	defer b.storageMu.RUnlock()
+	return b.storageErr
+}
+
+// Store exposes the open store to other bindings in this package. It is nil
+// when the database is unavailable; callers must handle that rather than
+// assuming persistence exists.
+func (b *Backend) Store() *storage.Store {
+	return b.storage
+}
+
+// instanceOwnership reports what this process actually holds. With a store the
+// answer comes from the instance locks; without one, the caller-supplied
+// fallback applies. Both values are derived in one place so GetCapabilities and
+// GetRecordingState can never disagree.
+func (b *Backend) instanceOwnership() (canWrite, isCaptureOwner bool) {
+	if b.storage == nil {
+		return b.canWrite, b.isCaptureOwner
+	}
+	instance := b.storage.Instance()
+	return instance.Mode == storage.ModeReadWrite, instance.CaptureOwner
+}
+
+// GetCapabilities reports only features that are actually usable. Ownership is
+// read from the instance locks when a store is attached, so a read-only second
+// instance reports canWrite false rather than the value it was constructed
+// with.
 func (b *Backend) GetCapabilities() (CapabilitiesDTO, error) {
+	canWrite, isCaptureOwner := b.instanceOwnership()
 	return CapabilitiesDTO{
-		CanWrite:       b.canWrite,
-		IsCaptureOwner: b.isCaptureOwner,
-		Features:       []string{"settings"},
+		CanWrite:       canWrite,
+		IsCaptureOwner: isCaptureOwner,
+		Features:       b.features(),
 		AppVersion:     appVersion,
 		APIRevision:    apiRevision,
 	}, nil
+}
+
+// features lists the feature flags this build can honestly advertise. A feature
+// appears only when its bindings exist and return real results; the frontend
+// decides what to render from this list rather than probing calls and
+// interpreting failures (docs/05 §5.2.1).
+func (b *Backend) features() []string {
+	features := []string{"settings"}
+	if b.storage != nil {
+		// Persistence is real only when a database is actually open.
+		features = append(features, "storage")
+	}
+	return features
 }
 
 // GetDayContext resolves an empty day to the current logical day. A non-empty
@@ -89,17 +166,18 @@ func (b *Backend) GetDayContext(day string) (DayContextDTO, error) {
 	}, nil
 }
 
-// GetRecordingState is truthful even before capture is implemented: M1 starts
+// GetRecordingState is truthful even before capture is implemented: it starts
 // idle and reports the real permission if a platform System is connected.
 func (b *Backend) GetRecordingState() (RecordingStateDTO, error) {
 	permission, err := b.recordingPermission()
 	if err != nil {
 		return RecordingStateDTO{}, err
 	}
+	_, isCaptureOwner := b.instanceOwnership()
 	return RecordingStateDTO{
 		State:          RecordingStateIdle,
 		Permission:     permission,
-		IsCaptureOwner: b.isCaptureOwner,
+		IsCaptureOwner: isCaptureOwner,
 	}, nil
 }
 

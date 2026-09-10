@@ -381,7 +381,18 @@ type DiagnosticsDTO struct {
     NativeState       string `json:"nativeState"` // "ok" | "restarting" | "unavailable"
     CaptureOwnerPID   *int   `json:"captureOwnerPid"`
     SkippedCardsToday int    `json:"skippedCardsToday"` // 时钟串解析失败计数，见 03 §3.5
+
+    // 以下两项由 data 在实现诊断时新增，属非破坏性扩张：既有字段的名称与
+    // 语义均未改变。目的见下方说明。
+    DBStatus    string            `json:"dbStatus"`              // "ok" | "read_only" | "unavailable"
+    Unavailable map[string]string `json:"unavailable,omitempty"` // 字段名 → 不可用原因
 }
+
+`DBStatus` 与 `Unavailable` 的存在理由：`RecordingsBytes`、`PendingBatches`、`FailedBatches`
+与 `LastCaptureAtTs` 的数据源分属 recording 与 timeline，在其表落盘前这些字段只能是 0。
+裸零会被读作"没有活动"，与实际含义"数据源尚不存在"相反。`Unavailable` 显式列出后者及其
+原因，前端据此区分空态与不可用态。`DBStatus` 让只读降级与"数据库未打开"在界面上可辨
+（`07 §7.5` 的连接层只读要求需要一个可观察的出口）。
 
 // ---------- 时间线 ----------
 

@@ -13,32 +13,54 @@
 
 ## 当前状态与证据
 
-实现进度：**部分实现**。db-core 切片已落盘：`internal/storage` 的连接、PRAGMA、迁移链、
-可观测读写封装、只读降级与实例锁；`app_settings` 表由 v1 迁移创建。
-settings-store 的类型化 repository、维护 / 清理、备份恢复与 GetDiagnostics 均未开始。
+实现进度：**部分实现**（切片 1–4 已落盘，切片 5 长期观察未开始）。
 
-落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,lock_unix,lock_windows}.go`，
+已交付能力：
+
+- **db-core**：`internal/storage` 的连接、PRAGMA、迁移链、可观测读写封装、只读降级与实例锁；
+  `app_settings` 表由 v1 迁移创建。
+- **settings-store**：`app_settings` 的类型化 repository（`SettingsRepo`），含往返、单事务批量写、
+  错误路径与 `Watch` 变更通知（ctx 结束关闭）。规范化与夹取按 `05 §5.6.3` 留给
+  `internal/settings`，本层不重复实现。
+- **绑定接入**：`internal/app` 持有真实 `*storage.Store`；`canWrite` / `isCaptureOwner`
+  来自实例锁而非构造参数，`GetCapabilities` 只在真正打开数据库时报告 `storage` 能力。
+- **diagnostics**：`Store.Stats` 与 `GetDiagnostics`；无数据源的字段经 `DTO.Unavailable`
+  说明原因，不返回会读作"没有活动"的裸零。storage → apperr 的错误映射集中在
+  `mapStorageError`（`05 §5.6.1` 要求单点）。
+- **维护**：`Checkpoint`（WAL，300 秒）、`Backup`（`VACUUM INTO`，每日，保留 7 份）、
+  `Backup` 轮换、`RestoreFromBackup`、`IntegrityCheck`，以及由 app 生命周期持有的
+  `Maintainer` goroutine（ctx 取消即退出，无全局单例）。
+
+未开始：`GetDiagnostics` 的 UI、磁盘与遥测设置分区、录制清理（阻塞于 `screenshots` 表与
+`Media`，见下）。
+
+落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,settings,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，
 匿名夹具与生成器在 `internal/storage/testdata/`。
 
-现有绑定的 canWrite / isCaptureOwner 默认值仍不证明锁已建立——锁由 `storage.Open` 持有，
-尚未经绑定层接入。缺陷诊断界面未实现，因此诊断数据目前无消费者。
+**跨模块边界一处未跨**：诊断的 `recordingsBytes` / `pendingBatches` / `failedBatches` 与
+录制清理依赖 `screenshots`（recording 负责）与 `analysis_batches`（timeline 负责）两张表。
+按 `data.md`「禁止一次性建设未使用的全部目标表」，本次**不代建**这些表；相关字段如实报告为
+不可用，清理未接线。接入条件见「能力与跨层职责」。
 
-实现与验证状态分别记录；下方“验证记录”只登记真实运行过的命令与结果。
+缺陷诊断数据现已产生消费者（`GetDiagnostics`），但诊断界面尚未接入。
+
+实现与验证状态分别记录；下方"验证记录"只登记真实运行过的命令与结果。
 
 ## 能力与跨层职责
 
 本模块先后可独立交付 db-core、settings-store、diagnostics 和维护能力；
 这些是切片，不要求一次完成 data 才解锁其他功能。
 
-**db-core 已可被消费者接入**（`09 §9.3`）：连接、PRAGMA、迁移链、只读降级与两把实例锁
-已落盘并有测试。业务表仍须由各功能模块按需追加迁移版本，data 协调合入顺序。
+**已可供消费者接入**（`09 §9.3`）：db-core、settings-store、diagnostics。
+维护的 checkpoint 与备份已可用；**录制清理仍阻塞**于 `screenshots` 表与 real `Media`。
 
 | 输入 | 可独立推进 | 真实接入条件 |
 |---|---|---|
 | 03 schema 与 05 repository 契约 | 匿名新库、旧库、损坏库与并发 fixture | db-core 独立门禁；只用隔离测试目录 |
 | recording: 活跃 / 收尾分段、Media.ProbeSegment | 假分段、故障与字节均摊 fixture | 真实生命周期和 media-read 接入后验证清理 / 恢复 |
 | 各模块诊断数据 | 匿名计数 / 耗时、错误码与 DTO fixture | 计数从真实行为产生，禁止敏感活动信息 |
-| preferences: settings-access / ui-bridge | 磁盘上限 / 遥测配置 fixture | 持久化、事件与生成绑定；G-host |
+| preferences: settings-access / ui-bridge | 磁盘上限 / 遥测配置 fixture | settings-store 已就绪；待 preferences 接入类型化访问与生成绑定 |
+
 
 
 internal/storage 是唯一 SQL、连接、schema 和迁移 owner；data 维护统一读写可观测封装、
@@ -88,6 +110,12 @@ real Media 未就绪仅阻塞真实清理验收，不阻塞连接、迁移和设
 |---|---|---|---|
 | 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/storage/`、`-race`、`go build ./...`、`go vet ./...`、`gofmt -l .` | 全部通过；DB-1/2/4/6/7/8(smoke)/IT-13 在已实现范围通过 | 非 Linux 实机；`internal/app` 需 `frontend/dist` 才能编译 |
 | 2026-09-11 / 同上 | `go test -tags long -run TestConcurrentReaderWriterOneHour -timeout 25s` | 25 秒后被超时中断，无死锁、无 busy 报错、无损坏 | **仅为逻辑验证，不是 DB-8 通过**；1 小时全量未运行 |
+| 2026-09-11 / 同上 | `go test -count=1 -race ./internal/app/` | 通过；绑定层所有权来自真实锁、诊断映射与维护路径均有断言 | 未在真实 Wails 宿主中运行；`GetDiagnostics` 无 UI |
+| 2026-09-11 / 同上 | `go test -count=1 ./internal/storage/`（settings / 维护 / 诊断用例） | 通过；settings 往返与重启读回、单事务原子性、Watch 交付与关闭、备份可读且轮换、恢复保留原库、并发备份互不碰撞 | 未接真实用户设置；清理未接线 |
+
+**测试发现的一个真实缺陷**：并发调用 `Store.Backup` 时，先前基于秒级时间的文件名会让两次
+备份取到同名，`VACUUM INTO` 拒绝覆盖导致双双失败。现改为在互斥区内使用单调序号命名，
+并发备份用例覆盖此路径。
 
 DB-3、DB-5、DB-9 未运行：分别依赖只读 repository 方法、`timeline_cards.metadata`、
 分段生命周期与 `Media`，这些表与能力尚未交付，与 db-core 无关。
