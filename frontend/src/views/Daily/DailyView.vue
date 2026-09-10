@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import PageHeader from '@/components/PageHeader.vue'
-import MilestoneNotice from '@/components/MilestoneNotice.vue'
+import PlannedNotice from '@/components/PlannedNotice.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -29,20 +29,17 @@ const { t } = useI18n()
 
     <div class="body dg-scroll">
       <div class="content dg-stagger">
-        <MilestoneNotice
+        <PlannedNotice
           title-key="daily.workflow.title"
           description-key="daily.workflow.description"
-          :milestone="4"
         />
-        <MilestoneNotice
+        <PlannedNotice
           title-key="daily.stats.title"
           description-key="daily.stats.description"
-          :milestone="4"
         />
-        <MilestoneNotice
+        <PlannedNotice
           title-key="daily.standup.title"
           description-key="daily.standup.description"
-          :milestone="4"
         />
       </div>
     </div>

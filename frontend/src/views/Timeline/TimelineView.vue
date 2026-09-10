@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import PageHeader from '@/components/PageHeader.vue'
-import MilestoneNotice from '@/components/MilestoneNotice.vue'
+import PlannedNotice from '@/components/PlannedNotice.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -45,18 +45,16 @@ const { t } = useI18n()
 
     <div class="body dg-scroll dg-stagger">
       <section class="track">
-        <MilestoneNotice
+        <PlannedNotice
           title-key="timeline.track.title"
           description-key="timeline.track.description"
-          :milestone="3"
         />
       </section>
 
       <aside class="inspector">
-        <MilestoneNotice
+        <PlannedNotice
           title-key="timeline.inspector.title"
           description-key="timeline.inspector.description"
-          :milestone="3"
         />
       </aside>
     </div>

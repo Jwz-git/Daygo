@@ -19,7 +19,6 @@ export default {
     empty: '暂无内容',
   },
   placeholder: {
-    milestoneLabel: 'M{milestone}',
-    milestoneHint: '该功能计划在里程碑 M{milestone} 接入。',
+    planned: '规划中',
   },
 }

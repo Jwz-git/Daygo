@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
-import MilestoneNotice from '@/components/MilestoneNotice.vue'
+import PlannedNotice from '@/components/PlannedNotice.vue'
 import type { AppTheme } from '@/api/dto'
 import { SYSTEM_LANGUAGE, type LanguagePreference } from '@/i18n/locales'
 import { useAppearanceStore } from '@/stores/appearance'
@@ -78,10 +78,9 @@ function onLanguageChange(event: Event): void {
     Distinct from the interface language: this is the language the model writes
     card titles and summaries in. It is not part of SettingsDTO yet.
   -->
-  <MilestoneNotice
+  <PlannedNotice
     title-key="settings.language.output"
     description-key="settings.language.outputDescription"
-    :milestone="2"
   />
 </template>
 

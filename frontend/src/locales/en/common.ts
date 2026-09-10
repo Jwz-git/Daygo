@@ -19,7 +19,6 @@ export default {
     empty: 'Nothing here yet',
   },
   placeholder: {
-    milestoneLabel: 'M{milestone}',
-    milestoneHint: 'Planned for milestone M{milestone}.',
+    planned: 'Planned',
   },
 }

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import PageHeader from '@/components/PageHeader.vue'
-import MilestoneNotice from '@/components/MilestoneNotice.vue'
+import PlannedNotice from '@/components/PlannedNotice.vue'
 
 import AppearanceSection from './AppearanceSection.vue'
 import ProvidersSection from './ProvidersSection.vue'
@@ -11,26 +11,23 @@ import ProvidersSection from './ProvidersSection.vue'
 const { t } = useI18n()
 
 /*
- * `milestone: null` marks a section that is implemented; the rest render a
- * placeholder naming the milestone that fills them in (docs/09-roadmap.md).
- * There is no account section: v1 has no account system by design.
+ * A section is either implemented or a planned placeholder. The two implemented
+ * ones (providers, other) are routed explicitly in the template; every other
+ * key renders a PlannedNotice. There is no account section: v1 has no account
+ * system by design.
  */
 const sections = [
-  { key: 'providers', milestone: null },
-  { key: 'storage', milestone: 4 },
-  { key: 'privacy', milestone: 4 },
-  { key: 'agentAccess', milestone: 5 },
-  { key: 'dataExport', milestone: 4 },
-  { key: 'other', milestone: null },
-] as const satisfies readonly { key: string; milestone: 4 | 5 | null }[]
+  'providers',
+  'storage',
+  'privacy',
+  'agentAccess',
+  'dataExport',
+  'other',
+] as const
 
-type SectionKey = (typeof sections)[number]['key']
+type SectionKey = (typeof sections)[number]
 
 const active = ref<SectionKey>('other')
-
-const activeMilestone = computed<4 | 5>(
-  () => sections.find((section) => section.key === active.value)?.milestone ?? 4,
-)
 </script>
 
 <template>
@@ -40,15 +37,15 @@ const activeMilestone = computed<4 | 5>(
     <div class="body">
       <nav class="nav" :aria-label="t('settings.title')">
         <ul>
-          <li v-for="section in sections" :key="section.key">
+          <li v-for="section in sections" :key="section">
             <button
               type="button"
               class="nav__item"
-              :class="{ 'is-active': active === section.key }"
-              :aria-current="active === section.key ? 'true' : undefined"
-              @click="active = section.key"
+              :class="{ 'is-active': active === section }"
+              :aria-current="active === section ? 'true' : undefined"
+              @click="active = section"
             >
-              {{ t(`settings.nav.${section.key}`) }}
+              {{ t(`settings.nav.${section}`) }}
             </button>
           </li>
         </ul>
@@ -60,18 +57,16 @@ const activeMilestone = computed<4 | 5>(
 
           <template v-else-if="active === 'other'">
             <AppearanceSection />
-            <MilestoneNotice
+            <PlannedNotice
               title-key="settings.nav.other"
               description-key="settings.section.otherDescription"
-              :milestone="2"
             />
           </template>
 
-          <MilestoneNotice
+          <PlannedNotice
             v-else
             :title-key="`settings.nav.${active}`"
             :description-key="`settings.section.${active}Description`"
-            :milestone="activeMilestone"
           />
         </div>
       </div>

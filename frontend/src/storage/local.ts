@@ -10,7 +10,7 @@ import { isRecord } from './decode'
  * bodies plus this file, and keeps the key table auditable in one place.
  *
  * Nothing here may hold a credential. Provider API keys go to the Keychain via
- * SetProviderSecret in phase 4 — see stores/providers.ts.
+ * SetProviderSecret once that binding exists — see stores/providers.ts.
  */
 
 /**

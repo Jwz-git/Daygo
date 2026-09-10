@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import PageHeader from '@/components/PageHeader.vue'
-import MilestoneNotice from '@/components/MilestoneNotice.vue'
+import PlannedNotice from '@/components/PlannedNotice.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -37,12 +37,11 @@ const cards = [
 
     <div class="body dg-scroll">
       <div class="grid dg-stagger">
-        <MilestoneNotice
+        <PlannedNotice
           v-for="card in cards"
           :key="card.key"
           :title-key="`weekly.card.${card.key}`"
           :description-key="`weekly.card.${card.key}Description`"
-          :milestone="4"
         />
       </div>
     </div>

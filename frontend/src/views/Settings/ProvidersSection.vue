@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import MilestoneNotice from '@/components/MilestoneNotice.vue'
+import PlannedNotice from '@/components/PlannedNotice.vue'
 import {
   PROVIDER_PROTOCOLS,
   type ProviderDTO,
@@ -324,10 +324,9 @@ async function confirmRemove(id: string): Promise<void> {
     <p class="notice__body">{{ t('settings.providers.secret.sessionOnly') }}</p>
   </section>
 
-  <MilestoneNotice
+  <PlannedNotice
     title-key="settings.providers.test"
     description-key="settings.providers.testDescription"
-    :milestone="2"
   />
 </template>
 
@@ -490,13 +489,19 @@ async function confirmRemove(id: string): Promise<void> {
   align-self: flex-start;
 }
 
+/*
+ * A reassurance about where keys live, not a failure to act on: the quiet
+ * track fill keeps it an aside. The danger tint stays reserved for errors and
+ * the delete confirmation.
+ */
 .notice {
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
+  border: 1px solid var(--dg-chip-border);
   border-radius: var(--dg-card-radius);
-  background: var(--dg-danger-fill);
+  background: var(--dg-track-fill);
 }
 
 .notice__title {
