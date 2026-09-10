@@ -88,3 +88,4 @@ tmp/
 .playwright-mcp/
 
 build/
+temp/

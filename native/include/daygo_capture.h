@@ -12,6 +12,8 @@
 #define DG_CAPTURE_CALL __cdecl
 #if defined(DAYGO_CAPTURE_BUILD)
 #define DG_CAPTURE_API __declspec(dllexport)
+#elif defined(DAYGO_CAPTURE_STATIC)
+#define DG_CAPTURE_API
 #else
 #define DG_CAPTURE_API __declspec(dllimport)
 #endif

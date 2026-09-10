@@ -10,7 +10,8 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "preBuildHooks": {
-    "darwin/*": "../../native/darwin/build.sh"
+    "darwin/*": "../../native/darwin/build.sh",
+    "windows/*": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../native/windows/build.ps1"
   },
   "author": {
     "name": "Jwz-git"
