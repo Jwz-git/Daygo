@@ -41,6 +41,7 @@ export default {
     protocol: {
       label: '协议',
       openai: 'OpenAI 兼容',
+      openai_responses: 'OpenAI Responses',
       anthropic: 'Anthropic',
     },
     form: {
@@ -50,10 +51,15 @@ export default {
       namePlaceholder: '例如：公司网关',
       endpoint: '接口地址',
       model: '模型',
-      modelPlaceholder: '例如：gpt-4o-mini',
+      modelPlaceholder: {
+        openai: '例如：gpt-4o-mini',
+        openai_responses: '例如：gpt-4o',
+        anthropic: '例如：claude-sonnet-4-5',
+      },
       apiKey: 'API Key',
       apiKeyPlaceholder: '粘贴密钥',
       apiKeyKeepHint: '留空表示保持不变。',
+      httpWarning: '该地址未加密（HTTP）：密钥与截图内容会以明文经过网络。',
     },
     routing: {
       title: '调用顺序',
@@ -76,7 +82,21 @@ export default {
       required: '不能为空',
       invalidUrl: '需要以 http:// 或 https:// 开头的完整地址',
     },
-    test: '连接测试',
-    testDescription: '发起一次真实调用，验证密钥、地址与模型是否可用。',
+    test: {
+      run: '测试',
+      running: '测试中…',
+      passed: '通过 · {model} · {latency} ms · 文本/图片/结构化输出',
+      error: {
+        authentication: '密钥无效或已失效',
+        rate_limited: '请求过于频繁，请稍后再试',
+        timeout: '请求超时（30 秒）',
+        unavailable: '无法连接到该地址',
+        invalid_request: '请求被拒绝，请检查模型名与地址',
+        unsupported_feature: '该服务不支持结构化输出',
+        invalid_output: '模型未能通过图片与回显验证',
+        canceled: '请求已取消',
+        wails_unavailable: '连接测试需要在 Daygo 应用内运行',
+      },
+    },
   },
 }

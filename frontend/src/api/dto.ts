@@ -25,7 +25,7 @@ export interface AppearanceSettingsDTO {
 }
 
 /** The wire protocol a custom endpoint speaks. */
-export const PROVIDER_PROTOCOLS = ['openai', 'anthropic'] as const
+export const PROVIDER_PROTOCOLS = ['openai', 'openai_responses', 'anthropic'] as const
 
 export type ProviderProtocol = (typeof PROVIDER_PROTOCOLS)[number]
 
@@ -52,4 +52,25 @@ export interface ProviderDTO {
 export interface ProviderRoutingDTO {
   primary: string
   secondary: string | null
+}
+
+/**
+ * Draft for one connection probe. The secret crosses the Wails boundary for
+ * this call only and is never persisted, logged or echoed back.
+ */
+export interface ProviderTestDraft {
+  protocol: ProviderProtocol
+  endpoint: string
+  model: string
+  secret: string
+}
+
+/** One probe outcome. A failed probe is a result, not an exception. */
+export interface ProviderTestResult {
+  ok: boolean
+  model: string
+  latencyMs: number
+  capabilities: string[]
+  errorCode: string
+  message: string
 }
