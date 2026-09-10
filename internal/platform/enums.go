@@ -54,31 +54,50 @@ func (p ActivationPolicy) Valid() bool {
 	}
 }
 
-// CaptureEventKind identifies one ordered durable capture event.
-type CaptureEventKind string
+// CaptureImageFormat identifies an on-disk image encoding.
+type CaptureImageFormat string
 
 const (
-	CaptureEventFrame         CaptureEventKind = "frame"
-	CaptureEventSegmentClosed CaptureEventKind = "segment_closed"
+	CaptureImageJPEG CaptureImageFormat = "jpeg"
 )
 
-func (k CaptureEventKind) Valid() bool {
-	return k == CaptureEventFrame || k == CaptureEventSegmentClosed
+func (f CaptureImageFormat) Valid() bool {
+	return f == CaptureImageJPEG
 }
 
-// CapturePhase is the adapter's current capture lifecycle phase.
-type CapturePhase string
+// CaptureOutcome distinguishes a written screenshot from a privacy-blocked
+// attempt. A blocked attempt is not an error and produces no file.
+type CaptureOutcome string
 
 const (
-	CaptureIdle      CapturePhase = "idle"
-	CaptureStarting  CapturePhase = "starting"
-	CaptureCapturing CapturePhase = "capturing"
-	CapturePaused    CapturePhase = "paused"
+	CaptureWritten CaptureOutcome = "written"
+	CaptureBlocked CaptureOutcome = "blocked"
 )
 
-func (p CapturePhase) Valid() bool {
-	switch p {
-	case CaptureIdle, CaptureStarting, CaptureCapturing, CapturePaused:
+func (o CaptureOutcome) Valid() bool {
+	return o == CaptureWritten || o == CaptureBlocked
+}
+
+// CaptureErrorCode is the closed error set for one screenshot call.
+type CaptureErrorCode string
+
+const (
+	CaptureInvalidArgument    CaptureErrorCode = "invalid_argument"
+	CaptureABIMismatch        CaptureErrorCode = "abi_mismatch"
+	CaptureUnsupported        CaptureErrorCode = "unsupported"
+	CapturePermissionDenied   CaptureErrorCode = "permission_denied"
+	CaptureNoDisplay          CaptureErrorCode = "no_display"
+	CaptureTimeout            CaptureErrorCode = "timeout"
+	CaptureIO                 CaptureErrorCode = "io"
+	CapturePrivacyUnsupported CaptureErrorCode = "privacy_unsupported"
+	CaptureNative             CaptureErrorCode = "native"
+)
+
+func (c CaptureErrorCode) Valid() bool {
+	switch c {
+	case CaptureInvalidArgument, CaptureABIMismatch, CaptureUnsupported,
+		CapturePermissionDenied, CaptureNoDisplay, CaptureTimeout, CaptureIO,
+		CapturePrivacyUnsupported, CaptureNative:
 		return true
 	default:
 		return false

@@ -2,98 +2,43 @@ package platform
 
 import (
 	"path"
-	"sort"
 	"strings"
 	"time"
 )
 
-type CaptureConfig struct {
-	Interval              time.Duration
-	CaptureHeight         int
-	BlockedApplicationIDs []string
-	SegmentDirectory      string
-	PreferredDisplayID    *string
+// CaptureRequest is the complete input for one screenshot attempt. OutputPath
+// is an absolute, not-yet-existing JPEG path allocated by Go storage.
+type CaptureRequest struct {
+	OutputPath            string
+	ImageFormat           CaptureImageFormat
+	TargetHeight          int
+	JPEGQuality           int
 	ShowsCursor           bool
-	SegmentMaxFrames      int
-	SegmentMaxDuration    time.Duration
+	BlockedApplicationIDs []string
 }
 
-// CanonicalizeCaptureConfig deep-copies pointer/slice fields and sorts blocked
-// IDs, defining the "same config" rule without retaining caller-owned memory.
-func CanonicalizeCaptureConfig(cfg CaptureConfig) CaptureConfig {
-	result := cfg
-	result.BlockedApplicationIDs = append([]string(nil), cfg.BlockedApplicationIDs...)
-	sort.Strings(result.BlockedApplicationIDs)
-	if cfg.PreferredDisplayID != nil {
-		id := *cfg.PreferredDisplayID
-		result.PreferredDisplayID = &id
+// CaptureResult describes one completed call. Image metadata is valid only
+// when Outcome is CaptureWritten.
+type CaptureResult struct {
+	Outcome    CaptureOutcome
+	CapturedAt time.Time
+	Width      int
+	Height     int
+	FileSize   int64
+}
+
+// CaptureError is the stable Go-facing classification of a failed screenshot.
+// NativeCode is diagnostic only; callers branch on Code.
+type CaptureError struct {
+	Code       CaptureErrorCode
+	NativeCode int64
+}
+
+func (e *CaptureError) Error() string {
+	if e == nil {
+		return "capture failed"
 	}
-	return result
-}
-
-func CaptureConfigEqual(left, right CaptureConfig) bool {
-	left = CanonicalizeCaptureConfig(left)
-	right = CanonicalizeCaptureConfig(right)
-	if left.Interval != right.Interval || left.CaptureHeight != right.CaptureHeight ||
-		left.SegmentDirectory != right.SegmentDirectory || left.ShowsCursor != right.ShowsCursor ||
-		left.SegmentMaxFrames != right.SegmentMaxFrames || left.SegmentMaxDuration != right.SegmentMaxDuration ||
-		!equalOptionalString(left.PreferredDisplayID, right.PreferredDisplayID) ||
-		len(left.BlockedApplicationIDs) != len(right.BlockedApplicationIDs) {
-		return false
-	}
-	for i := range left.BlockedApplicationIDs {
-		if left.BlockedApplicationIDs[i] != right.BlockedApplicationIDs[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func equalOptionalString(left, right *string) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return *left == *right
-}
-
-// CaptureEvent keeps frame and segment-close messages in one durable order.
-type CaptureEvent struct {
-	Seq     uint64
-	Kind    CaptureEventKind
-	Frame   *CapturedFrame
-	Segment *SegmentClosed
-}
-
-type CapturedFrame struct {
-	SegmentPath string
-	FrameIndex  int
-	CapturedAt  time.Time
-	IdleSeconds *int
-	DisplayID   string
-	Width       int
-	Height      int
-	Redacted    bool
-}
-
-type SegmentClosed struct {
-	SegmentPath string
-	TotalBytes  int64
-	FrameCount  int
-	Succeeded   bool
-}
-
-type CaptureStatus struct {
-	Phase           CapturePhase
-	Permission      PermissionState
-	ActiveDisplayID *string
-	LastFrameAt     *time.Time
-	Fault           *CaptureFault
-}
-
-type CaptureFault struct {
-	Code      string
-	Retryable bool
-	Message   string
+	return "capture: " + string(e.Code)
 }
 
 // ValidSegmentPath reports whether value is a canonical relative path below a
