@@ -197,8 +197,15 @@ WithFallback( WithRetry(primary), WithRetry(secondary) )
 顺序不能反：**先在主 provider 上按策略重试，仍失败才切到备用**。写反会把一次网络抖动
 升级成 provider 切换。回退具有**粘性**——同一批次切换到备用后不再回切。
 
-每次尝试都产出一条 `llm_calls` 记录（尝试序号、provider、模型、耗时、截断后的正文）。
-这不是可选项：它是解析器黄金测试的输入来源。
+每次真实 HTTP attempt 都产出一条 `llm_calls` 元数据记录：批次 / purpose、尝试序号、
+provider / 协议 / 请求与实际模型、起止时间、耗时、结果 / 错误分类、HTTP 状态及可选 usage。
+**不得保存 endpoint、请求 / 响应正文、图片、密钥或费用。** 解析器黄金测试只使用人工构造的
+匿名固定夹具，不从用户调用记录还原 payload。
+
+默认每个 provider 最多 3 次 attempt（首次 + 2 次重试），从 500 ms 开始指数退避、8 秒封顶并
+带 full jitter；尊重 `Retry-After`，但单次等待不超过 30 秒。408、429、5xx、临时网络错误及
+超时可重试；401 / 403、404、无效参数和取消不重试。结构化输出最终校验失败可额外重试一次，
+但仍计入 3 次上限。调用方 `context` 是总时限，HTTP 和退避都必须传播取消。
 
 失败分类映射到面向用户的类别，写入 `analysis_batches.failure_kind`，并通过
 `batch:failed` 事件推给 UI。
@@ -206,6 +213,10 @@ WithFallback( WithRetry(primary), WithRetry(secondary) )
 ### 4.3.4 提示词与输出解析
 
 - 提示词按协议分组，允许用户覆盖，默认值随代码发布。
+- 统一输入由有序文本与内存图片 part 组成；媒体由 analysis 通过 `platform.Media` 准备，
+  `internal/ai` 不读取分段路径。图片限 JPEG / PNG / WebP，最多 20 张、单张 5 MiB、总量 20 MiB。
+- JSON Schema 同时发送到协议原生结构化输出字段，返回后仍执行本地提取 / 修复与 schema 验证；
+  兼容端不支持时明确返回 `unsupported_feature`，不静默退化。
 - **输出解析必须防御性实现。** 模型会输出畸形 JSON、正文前言和围栏代码块。
   `internal/ai/jsonrepair` 负责恢复，并且**每一种见过的畸形形态都要有夹具测试**。
 - 分类必须是现有分类**名称**之一；模型给出未知分类时归入 `System` 并计入诊断，

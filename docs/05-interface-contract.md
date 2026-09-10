@@ -835,15 +835,32 @@ type ReplaceResult struct {
 
 ### 5.6.4 ai / analysis
 
-1. `InputKind` 决定负载形态，**由流水线准备**，provider 不自行合成媒体。
-2. 装饰器顺序固定为 `WithFallback(WithRetry(primary), WithRetry(secondary))`：先在主
-   provider 上按策略重试，仍失败才切到备用，且切换后该批次不再回切。顺序写反会把一次
-   网络抖动升级为 provider 切换。
-3. 每次尝试都必须产出一条 `llm_calls` 记录（尝试序号、provider、模型、耗时、截断后的正文）。
-   审计记录不是可选项——它是解析器黄金测试的输入来源。
-4. 转录可并行，**但卡片的 读取 → 生成 → 改写 序列必须按重叠范围串行化**。
-5. `context` 取消必须能中止在途 provider 调用；被取消的批次保持 `processing`，下次启动
-   重新拾取。
+1. `internal/ai` 暴露统一 `Generate(ctx, Request)`：`Request.Parts` 是有序文本 / 内存图片，
+   可附带 JSON Schema；媒体由流水线经 `platform.Media` 准备，provider 不读路径或自行解码。
+   首期图片仅接受 JPEG / PNG / WebP，最多 20 张、单张 5 MiB、原始总量 20 MiB。
+2. 三种协议都发送原生 schema：openai（Chat Completions）与 openai_responses 分别使用
+   `response_format` 和 `text.format`，anthropic 使用 `output_config.format`；返回后仍须
+   本地提取 / 修复 JSON 并验证 schema。兼容端不支持时返回 `unsupported_feature`，
+   不得静默降级为无约束文本。协议封闭集为 `openai` / `openai_responses` / `anthropic`，
+   由 `internal/ai` 的 `Protocol` 类型与 factory 统一构造。
+3. 装饰器顺序固定为 `WithFallback(WithRetry(primary), WithRetry(secondary))`：先在主
+   provider 上按策略重试，仍失败才切到备用，且切换后该批次不再回切。粘性状态属于批次调用
+   作用域，不用全局标志。
+4. 默认每个 provider 最多 3 次 attempt；500 ms 指数退避、8 秒封顶并带 full jitter，
+   `Retry-After` 等待不超过 30 秒。408 / 429 / 5xx、临时网络错误与超时可重试；认证、404、
+   无效参数及取消不重试。结构化输出无效的额外重试仍计入该上限。
+5. 每次真实 HTTP attempt 必须记录 `llm_calls` 脱敏元数据：批次 / purpose、序号、provider、
+   协议、模型、时间 / 耗时、结果 / 错误、HTTP 状态和可选 usage。禁止保存 endpoint、正文、图片、
+   密钥和费用；匿名人工 fixture 才是解析器黄金测试输入。
+6. `TestProvider` 只向指定 provider 发起一次 30 秒内的连接探针，不重试、不 fallback，
+   不发送业务正文。探针包含固定指令文本、内嵌匿名 PNG 和严格 JSON Schema：模型必须
+   回显固定 probe token 并正确识别图片特征才算通过，仅 HTTP 2xx 不构成成功；返回实际
+   模型、延迟与已验证能力（文本 / 图片 / 结构化输出）。Provider 的地址、协议、模型与
+   密钥在探针通过前只是草稿，不写入正式配置；测试成功后才原子保存并激活，失败或取消
+   不得留下部分配置，编辑已生效 provider 时测试失败则继续沿用上一组已验证配置。
+   HTTP endpoint 允许使用，仅提示明文传输风险，不强制 HTTPS。
+7. 转录可并行，**但卡片的 读取 → 生成 → 改写 序列必须按重叠范围串行化**。
+8. `context` 取消必须中止在途 HTTP 与退避；被取消的批次保持 `processing`，下次启动重新拾取。
 
 ---
 

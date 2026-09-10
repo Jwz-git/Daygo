@@ -109,8 +109,8 @@ func TestBatchingPartitions(t *testing.T)
 
 LLM 的**输出**不确定，所以不比较端到端文本。LLM 输出的**解析**完全确定，而缺陷正在这里。
 
-`llm_calls` 尚未实现。解析器先使用人工构造的匿名响应夹具；未来若从本机记录提取，
-必须先按 07 验证不可逆匿名化，绝不直接提交真实 payload：
+`llm_calls` 只允许保存 attempt 元数据，不能成为 payload 来源。解析器始终使用人工构造且
+验证不可逆匿名化的响应夹具，绝不从本机调用记录或真实服务提取用户 payload：
 
 ```text
 testdata/fixtures/llmresponses/

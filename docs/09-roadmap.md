@@ -71,7 +71,7 @@
 | host | recording | 06 §6.6；窗口、状态栏、激活策略；G-host 实机证据 | 各模块的大规模 UI 扩张；不要求 timeline 已完成 |
 | capture | recording | 05 §5.7；Capture/System 的 fake 与真实契约、隐私双保护、有序帧与 Ack 重放；真实落库需 db-core | timeline 的帧输入、data 的分段生命周期 |
 | media-read | recording | 03 §3.4、05 §5.7；分段格式决策、探测、单帧与批量解码；IT-2/3/4 与崩溃夹具 | timeline 帧条及资源处理器、data 恢复与清理 |
-| provider-client | providers | 05 §5.6.4；两种协议、路由、取消、错误与重试、Secrets；匿名 HTTP 夹具后再做用户配置服务的真实测试 | timeline 分析、daily 文本生成 |
+| provider-client | providers | 05 §5.6.4；文本 / 图片 / JSON Schema、三种原生协议（openai / openai_responses / anthropic）、路由、取消、错误与重试、Secrets、纯元数据审计；匿名 TLS HTTP 夹具后再做用户配置服务的真实测试 | timeline 分析、daily 文本生成 |
 | cards | timeline | 05 §5.6.2；卡片 / 分类 repository、范围串行化与事务、分类重命名、跳过计数、查询契约 | daily / weekly；不等时间线视觉打磨 |
 | notifications | daily | System 通知端口、权限、提醒设置与取消；fake 后真实系统提醒验证 | 每日提醒与首次运行说明 |
 | diagnostics | data | GetDiagnostics 及可观测封装；各模块提供匿名计数和耗时，字段与脱敏测试通过 | 所有功能的故障可见性、data 页面 |

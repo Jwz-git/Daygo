@@ -100,6 +100,29 @@ CREATE TABLE observations (
   metadata      TEXT,               -- JSON
   created_at    INTEGER NOT NULL
 );
+
+-- 每次真实 HTTP attempt 的脱敏元数据；不保存 endpoint、正文、图片、密钥或费用。
+CREATE TABLE llm_calls (
+  id                 INTEGER PRIMARY KEY,
+  batch_id           INTEGER REFERENCES analysis_batches(id),
+  purpose            TEXT    NOT NULL,
+  attempt_no         INTEGER NOT NULL,
+  provider_id        TEXT    NOT NULL,
+  protocol           TEXT    NOT NULL,   -- openai | anthropic
+  requested_model    TEXT    NOT NULL,
+  actual_model       TEXT,
+  started_at         INTEGER NOT NULL,
+  finished_at        INTEGER NOT NULL,
+  latency_ms         INTEGER NOT NULL,
+  outcome            TEXT    NOT NULL,
+  error_kind         TEXT,
+  http_status        INTEGER,
+  input_tokens       INTEGER,
+  output_tokens      INTEGER,
+  cache_read_tokens  INTEGER,
+  cache_write_tokens INTEGER
+);
+CREATE INDEX idx_llm_calls_batch ON llm_calls (batch_id, purpose, attempt_no);
 ```
 
 `analysis_batches.status` 是封闭枚举：
@@ -333,7 +356,7 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 | WAL checkpoint | 300 秒 | |
 | 数据库备份 | 启动后 1 小时，之后每 24 小时 | 保留最近 N 份，N 待定 |
 | 录制清理 | 启动后 1 小时，之后每小时 | 超出 `storage.recordingsLimitBytes` 时按分段从旧到新删除 |
-| `llm_calls` 正文截断 | 随写入 | 单条上限 64 KB |
+| `llm_calls` 元数据留存 | 待定 | 只含 attempt 元数据，不含正文 |
 
 清理规则：**从不删除活跃分段**；删除分段的同时软删除其 `screenshots` 行；对应卡片保留
 （用户仍能看到那段时间做了什么，只是没有帧可看）。

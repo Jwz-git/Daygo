@@ -28,9 +28,11 @@
 | preferences: settings-access / ui-bridge | DTO、事件与 store fixture | G-host、真实绑定和生成 DTO |
 
 输出 time 与 cards，可分别供 daily / weekly 验收，不等时间线页面全部完善。
-internal/analysis 拥有调度、批次与范围串行化；internal/ai 拥有提示词与解析；
-internal/insight 只读聚合；卡片、批次、observations、分类、llm_calls 和 review ratings 的
-schema / repository 统一落 internal/storage。本模块完善 internal/timeutil。
+internal/analysis 拥有调度、媒体准备、批次路由粘性与范围串行化；internal/ai 拥有统一文本 /
+图片 / JSON Schema 调用、协议、重试、提示词与解析，且不读取分段路径；internal/insight 只读
+聚合；卡片、批次、observations、分类、llm_calls 和 review ratings 的 schema / repository
+统一落 internal/storage。llm_calls 只记录 attempt 元数据，不保存模型正文。本模块完善
+internal/timeutil。
 internal/app 负责绑定与数字 ID 资源入口，平台 Media 读像素；媒体缓存有界。
 分类设置归本模块；通知 / Provider / 录制设置继续归各自功能。
 
@@ -50,7 +52,8 @@ internal/app 负责绑定与数字 ID 资源入口，平台 Media 读像素；�
 1. 固定时间、分批、空闲、解析、事务夹具；补完整 time 能力并先提供给 daily / weekly。
 2. 在 internal/storage 交付卡片与分类、批次等 repository，独立验收 cards；
    ReplaceCardsInRange 单事务保持 03 §3.5 四项规则，SkippedCards 必须计入诊断。
-3. 用 Capture / Provider / Media fake 打通分析流水线、取消、重试与范围串行化；
+3. 用 Capture / Provider / Media fake 打通“解码匿名帧 → 结构化 observations → 结构化 cards”
+   两段分析流水线、取消、重试、批次内 fallback 粘性与范围串行化；整批空闲时保持零 LLM 调用；
    接真实能力后逐段验证，所有 goroutine 有所有者与退出路径。
 4. 接时间线 / 分类 / 媒体绑定、资源处理器、store、事件及 UI；写后等事件重拉。
    单独交付 Media.EncodeVideo / 有界缓存并与 recording 协调公共端口和编码决策。

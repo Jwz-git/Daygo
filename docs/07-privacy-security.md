@@ -70,8 +70,10 @@ flowchart LR
 - 错误 `message` 跨界前必须已脱敏（[05 §5.4.1](05-interface-contract.md#541-错误码表封闭集合)
   的约束 1）。需要定位信息时放进内部错误链，只进本机日志。
 
-`llm_calls` 表里存的请求/响应正文**是本机数据**，用于解析器回归测试，
-**不参与任何上报**，且单条截断到 64 KB。
+`llm_calls` **只存每次 HTTP attempt 的脱敏元数据**：provider / 协议 / 模型、时间与耗时、
+结果 / 错误分类、HTTP 状态和可选 token usage。它永不保存 endpoint、请求 / 响应正文、图片、
+API key、费用或可还原用户活动的 metadata，也不参与任何上报。解析器回归只使用人工构造并
+验证匿名性的固定夹具。
 
 ## 7.5 本地攻击面
 
@@ -89,7 +91,7 @@ flowchart LR
 |------|------|----------|
 | 分段录制 | 受 `storage.recordingsLimitBytes` 约束，超限按整段从旧到新清理 | 自动 + 手动 |
 | 时间线卡片 | 无限期 | 单卡软删除；批量删除待设计 |
-| `llm_calls` | 无限期，正文截断 64 KB | 待设计 |
+| `llm_calls` | 无限期（上限待定），仅 attempt 元数据 | 待设计 |
 | 数据库备份 | 每日，保留份数待定 | 自动轮换 |
 
 **卸载即彻底删除**：所有数据都在 `~/Library/Application Support/Daygo/` 和钥匙串里，
