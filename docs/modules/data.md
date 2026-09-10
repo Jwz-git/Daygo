@@ -13,14 +13,25 @@
 
 ## 当前状态与证据
 
-实现进度：未开始。数据库、settings repository、锁、维护与诊断均未验收。
-当前没有 internal/storage 实现；现有绑定的 canWrite / isCaptureOwner 默认值不证明锁已建立。
-设计 schema 和 testdata 路径不是已落盘数据库或已运行测试。
+实现进度：**部分实现**。db-core 切片已落盘：`internal/storage` 的连接、PRAGMA、迁移链、
+可观测读写封装、只读降级与实例锁；`app_settings` 表由 v1 迁移创建。
+settings-store 的类型化 repository、维护 / 清理、备份恢复与 GetDiagnostics 均未开始。
+
+落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,lock_unix,lock_windows}.go`，
+匿名夹具与生成器在 `internal/storage/testdata/`。
+
+现有绑定的 canWrite / isCaptureOwner 默认值仍不证明锁已建立——锁由 `storage.Open` 持有，
+尚未经绑定层接入。缺陷诊断界面未实现，因此诊断数据目前无消费者。
+
+实现与验证状态分别记录；下方“验证记录”只登记真实运行过的命令与结果。
 
 ## 能力与跨层职责
 
 本模块先后可独立交付 db-core、settings-store、diagnostics 和维护能力；
 这些是切片，不要求一次完成 data 才解锁其他功能。
+
+**db-core 已可被消费者接入**（`09 §9.3`）：连接、PRAGMA、迁移链、只读降级与两把实例锁
+已落盘并有测试。业务表仍须由各功能模块按需追加迁移版本，data 协调合入顺序。
 
 | 输入 | 可独立推进 | 真实接入条件 |
 |---|---|---|
@@ -28,6 +39,7 @@
 | recording: 活跃 / 收尾分段、Media.ProbeSegment | 假分段、故障与字节均摊 fixture | 真实生命周期和 media-read 接入后验证清理 / 恢复 |
 | 各模块诊断数据 | 匿名计数 / 耗时、错误码与 DTO fixture | 计数从真实行为产生，禁止敏感活动信息 |
 | preferences: settings-access / ui-bridge | 磁盘上限 / 遥测配置 fixture | 持久化、事件与生成绑定；G-host |
+
 
 internal/storage 是唯一 SQL、连接、schema 和迁移 owner；data 维护统一读写可观测封装、
 锁及迁移编号。其他功能提交自身表与 repository 到此包，按实际需求新增版本，
@@ -72,5 +84,13 @@ real Media 未就绪仅阻塞真实清理验收，不阻塞连接、迁移和设
 
 ## 验证记录
 
-DB、锁、清理、诊断和长期实验均未运行。
+| 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
+|---|---|---|---|
+| 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/storage/`、`-race`、`go build ./...`、`go vet ./...`、`gofmt -l .` | 全部通过；DB-1/2/4/6/7/8(smoke)/IT-13 在已实现范围通过 | 非 Linux 实机；`internal/app` 需 `frontend/dist` 才能编译 |
+| 2026-09-11 / 同上 | `go test -tags long -run TestConcurrentReaderWriterOneHour -timeout 25s` | 25 秒后被超时中断，无死锁、无 busy 报错、无损坏 | **仅为逻辑验证，不是 DB-8 通过**；1 小时全量未运行 |
+
+DB-3、DB-5、DB-9 未运行：分别依赖只读 repository 方法、`timeline_cards.metadata`、
+分段生命周期与 `Media`，这些表与能力尚未交付，与 db-core 无关。
+IT-12 未运行：real Media 未就绪，仅阻塞真实清理验收（见下）。
+
 后续记录驱动 / 系统、commit、匿名夹具、并发时长、回读 PRAGMA 与完整性结果。
