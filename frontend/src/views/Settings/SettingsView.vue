@@ -55,7 +55,7 @@ const activeMilestone = computed<4 | 5>(
       </nav>
 
       <div class="content dg-scroll">
-        <div class="content__inner">
+        <div class="content__inner dg-stagger">
           <ProvidersSection v-if="active === 'providers'" />
 
           <template v-else-if="active === 'other'">

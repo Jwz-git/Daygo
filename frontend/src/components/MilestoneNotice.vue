@@ -41,15 +41,23 @@ const props = defineProps<{
 
 .milestone-notice::after {
   position: absolute;
-  right: -30px;
-  bottom: -42px;
-  width: 112px;
-  height: 112px;
-  border: 1px solid var(--dg-card-border);
+  right: -32px;
+  bottom: -44px;
+  width: 104px;
+  height: 104px;
   border-radius: 50%;
-  background: var(--dg-control-fill);
+  /*
+   * A soft ambient wash, not a ringed disc. Repeated down a grid of
+   * placeholders (the weekly view stacks six) a hard-edged circle reads as a
+   * stamped motif; a faint radial blob reads as texture and stops competing.
+   */
+  background: radial-gradient(
+    circle at 50% 50%,
+    var(--dg-control-fill) 0%,
+    transparent 72%
+  );
   content: '';
-  opacity: 0.28;
+  opacity: 0.6;
   pointer-events: none;
 }
 

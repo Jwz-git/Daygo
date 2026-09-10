@@ -28,7 +28,7 @@ const { t } = useI18n()
     </PageHeader>
 
     <div class="body dg-scroll">
-      <div class="content">
+      <div class="content dg-stagger">
         <MilestoneNotice
           title-key="daily.workflow.title"
           description-key="daily.workflow.description"
