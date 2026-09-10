@@ -86,7 +86,7 @@ enum {
  * output_path:
  *   Absolute UTF-8 path for the final JPEG. Its parent exists and the final
  *   path does not. The implementation writes a sibling temporary file, closes
- *   it, and atomically renames without replacing an existing file.
+ *   it, and atomically publishes without replacing an existing file.
  *
  * blocked_application_ids:
  *   Complete per-call privacy snapshot. If the frontmost application matches,

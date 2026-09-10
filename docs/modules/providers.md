@@ -65,7 +65,8 @@ llm.outputLanguage 的字段规则和设置交互；批次内粘性由 timeline 
 ## 验收、阻塞与回退
 
 完成要求：配置 / 路由 / 密钥全链路真实可用、三种协议夹具通过、真实配置服务连接通过、
-无密钥泄漏；未配置时不发请求，测试连接成功前草稿配置不生效。fake 不证明外部服务或
+无密钥泄漏；未配置时不发请求，连接测试经绑定真实发起且结果如实展示（建议性，不阻塞
+保存）。fake 不证明外部服务或
 系统钥匙串可用。
 Secrets / 身份阻塞只限制真实密钥功能；HTTP fixture 与消费者开发可继续。
 
@@ -83,3 +84,7 @@ JSON 提取与 schema 校验、内嵌 PNG 连接探针与 factory。`go test ./i
 `go vet ./internal/ai/...`、`CGO_ENABLED=0 go build ./...` 通过，全部使用匿名 TLS fixture。
 Secrets、Provider repository、Wails 绑定、真实服务连接及升级身份验证未运行；
 后续记录匿名夹具、commit 与环境。
+2026-09-10：`TestProviderConnection` 绑定接入（internal/app/provider_probe.go），
+前端密钥旁测试按钮 + 结果本地化展示（建议性，不阻塞保存）。`go test ./internal/app/...`
+与前端 typecheck / build 通过；wails dev 内以本机匿名 mock HTTP 服务器完成通过 / 401 /
+不可达 / 无桥四条端到端路径。llm_calls 元数据待 data 模块 db-core 落地后接入。

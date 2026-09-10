@@ -21,7 +21,7 @@
   --dg-window-bg:
     radial-gradient(
       120% 95% at 88% 108%,
-      rgba(163, 76, 82, 0.5) 0%,
+      rgba(122, 96, 190, 0.3) 0%,
       transparent 54%
     ),
     radial-gradient(
@@ -29,7 +29,7 @@
       rgba(72, 104, 152, 0.58) 0%,
       transparent 56%
     ),
-    linear-gradient(148deg, #252f47 0%, #2b2d40 54%, #33243c 100%);
+    linear-gradient(148deg, #252f47 0%, #2b2d40 54%, #2f2b4a 100%);
 
   --dg-panel-fill:
     linear-gradient(
@@ -48,15 +48,23 @@
   --dg-text-tertiary: #a7a3af;
   --dg-text-muted: #918d99;
 
-  --dg-accent: #f18a57;
-  --dg-accent-strong: #ff9a67;
-  --dg-accent-text: #ff9a67;
-  --dg-focus-ring: rgba(241, 138, 87, 0.26);
-  --dg-control-fill: rgba(241, 138, 87, 0.2);
-  --dg-control-fill-hover: rgba(241, 138, 87, 0.28);
-  --dg-nav-active-fill: rgba(241, 138, 87, 0.14);
-  --dg-nav-active-text: #ffa87a;
+  /*
+   * Nocturnal counterpart of the light palette: the window already paints dusk
+   * (blue corner into plum), so the accent stays in that hue family instead of
+   * fighting it. Warm colour remains only where it carries meaning — danger,
+   * caution — plus the ember wash in the bottom-right corner.
+   */
+  --dg-accent: #8ba8e8;
+  --dg-accent-strong: #a0bcf0;
+  --dg-accent-text: #a8c2f2;
+  --dg-focus-ring: rgba(139, 168, 232, 0.3);
+  --dg-control-fill: rgba(139, 168, 232, 0.18);
+  --dg-control-fill-hover: rgba(139, 168, 232, 0.26);
+  --dg-nav-active-fill: rgba(139, 168, 232, 0.13);
+  --dg-nav-active-text: #b3c9f4;
   --dg-danger: #ff8278;
+  /* caution, one step below danger: plaintext-HTTP endpoints and the like */
+  --dg-warning: #e3b25e;
 
   --dg-hover-fill: rgba(255, 255, 255, 0.06);
   --dg-hover-fill-strong: rgba(255, 255, 255, 0.1);
@@ -72,9 +80,9 @@
   --dg-chip-border: rgba(255, 255, 255, 0.13);
   --dg-chip-text: #ebe8ef;
 
-  --dg-button-primary-fill: linear-gradient(180deg, #e77d4e 0%, #c95c34 100%);
-  --dg-button-primary-hover: linear-gradient(180deg, #f18a57 0%, #d4683e 100%);
-  --dg-button-primary-border: rgba(255, 163, 115, 0.35);
+  --dg-button-primary-fill: linear-gradient(180deg, #7d9cde 0%, #5c7cc2 100%);
+  --dg-button-primary-hover: linear-gradient(180deg, #8dabeb 0%, #6b8bce 100%);
+  --dg-button-primary-border: rgba(163, 188, 240, 0.34);
   --dg-button-primary-text: #ffffff;
   --dg-button-secondary-fill: rgba(255, 255, 255, 0.075);
   --dg-button-secondary-hover: rgba(255, 255, 255, 0.12);

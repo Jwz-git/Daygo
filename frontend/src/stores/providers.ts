@@ -14,6 +14,7 @@ import { readRecord, writeRecord } from '@/storage/local'
 /** Prefilled when a protocol is picked; the user is free to replace it. */
 export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
   openai: 'https://api.openai.com/v1',
+  openai_responses: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com/v1',
 }
 
@@ -163,9 +164,9 @@ function normalizeRouting(routing: ProviderRoutingDTO): ProviderRoutingDTO {
  * §5.5.2 makes provider keys write-only and the system keychain their home
  * (service io.github.jwz-git.daygo.apikeys.<provider>), reached through
  * SetProviderSecret once that binding exists. Until then a key entered in the
- * UI is kept in memory for this session only; writing it to localStorage would
- * put a plaintext credential in the WebView store to no benefit, since nothing
- * calls a provider yet. `hasSecret` is therefore derived from memory, never
+ * UI is kept in memory for this session only (the connection-test binding
+ * draws from it); writing it to localStorage would put a plaintext credential
+ * in the WebView store. `hasSecret` is therefore derived from memory, never
  * read back from disk — so it cannot claim a key that is no longer there.
  */
 export const useProvidersStore = defineStore('providers', () => {
@@ -283,6 +284,12 @@ export const useProvidersStore = defineStore('providers', () => {
     forgetSecret(id)
   }
 
+  /** The in-memory key for a provider, if entered this session. Feeds the
+   * connection-test binding; it is never rendered or persisted. */
+  function secretOf(id: string): string | undefined {
+    return secrets.get(id)
+  }
+
   return {
     providers,
     routing,
@@ -294,5 +301,6 @@ export const useProvidersStore = defineStore('providers', () => {
     setPrimary,
     setSecondary,
     clearSecret,
+    secretOf,
   }
 })

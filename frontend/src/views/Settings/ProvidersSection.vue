@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import PlannedNotice from '@/components/PlannedNotice.vue'
 import {
   PROVIDER_PROTOCOLS,
   type ProviderDTO,
   type ProviderProtocol,
+  type ProviderTestResult,
 } from '@/api/dto'
+import { testProviderConnection, WAILS_UNAVAILABLE } from '@/api/providerTest'
 import {
   DEFAULT_ENDPOINTS,
   draftOf,
@@ -18,7 +19,7 @@ import {
   type ProviderField,
 } from '@/stores/providers'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const store = useProvidersStore()
 
 void store.hydrate()
@@ -33,6 +34,77 @@ const draft = reactive<ProviderDraft>(emptyDraft())
 const secondaryChoices = computed(() =>
   store.providers.filter((provider) => provider.id !== store.routing.primary),
 )
+
+const nameInput = ref<HTMLInputElement | null>(null)
+
+const modelPlaceholder = computed(() =>
+  t(`settings.providers.form.modelPlaceholder.${draft.protocol}`),
+)
+
+// Plain HTTP is accepted, only flagged: localhost gateways have no TLS story.
+const isPlainHttp = computed(() => draft.endpoint.trim().startsWith('http://'))
+
+type TestState =
+  | { phase: 'idle' }
+  | { phase: 'running' }
+  | { phase: 'done'; result: ProviderTestResult }
+
+const testState = ref<TestState>({ phase: 'idle' })
+
+// A result describes the draft as it was when tested; any later edit makes it
+// stale, so it clears instead of lingering next to a different configuration.
+watch(draft, () => {
+  testState.value = { phase: 'idle' }
+})
+
+/** The typed key, or — while editing — the one already held for this session. */
+const keyForTest = computed(() => {
+  const typed = draft.secret.trim()
+  if (typed !== '') return typed
+  const id = editingId.value
+  return id === null ? '' : (store.secretOf(id) ?? '')
+})
+
+const canTest = computed(
+  () =>
+    draft.endpoint.trim() !== '' &&
+    draft.model.trim() !== '' &&
+    keyForTest.value !== '',
+)
+
+function testFailureText(result: ProviderTestResult): string {
+  const key = `settings.providers.test.error.${result.errorCode}`
+  const known = te(key) ? t(key) : ''
+  return known === '' ? result.message : known
+}
+
+async function runTest(): Promise<void> {
+  if (testState.value.phase === 'running' || !canTest.value) return
+  testState.value = { phase: 'running' }
+  try {
+    const result = await testProviderConnection({
+      protocol: draft.protocol,
+      endpoint: draft.endpoint.trim(),
+      model: draft.model.trim(),
+      secret: keyForTest.value,
+    })
+    testState.value = { phase: 'done', result }
+  } catch (error) {
+    testState.value = {
+      phase: 'done',
+      result: {
+        ok: false,
+        model: '',
+        latencyMs: 0,
+        capabilities: [],
+        errorCode: error instanceof Error && error.message === WAILS_UNAVAILABLE
+          ? WAILS_UNAVAILABLE
+          : 'unavailable',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    }
+  }
+}
 
 function protocolLabel(protocol: ProviderProtocol): string {
   return t(`settings.providers.protocol.${protocol}`)
@@ -52,6 +124,7 @@ function openAdd(): void {
   editingId.value = null
   errors.value = {}
   formOpen.value = true
+  void nextTick(() => nameInput.value?.focus())
 }
 
 function openEdit(provider: ProviderDTO): void {
@@ -59,6 +132,7 @@ function openEdit(provider: ProviderDTO): void {
   editingId.value = provider.id
   errors.value = {}
   formOpen.value = true
+  void nextTick(() => nameInput.value?.focus())
 }
 
 /** Also the only place the typed key leaves component state. */
@@ -67,6 +141,7 @@ function closeForm(): void {
   editingId.value = null
   errors.value = {}
   formOpen.value = false
+  testState.value = { phase: 'idle' }
 }
 
 async function submit(): Promise<void> {
@@ -199,6 +274,7 @@ async function confirmRemove(id: string): Promise<void> {
       <label class="form__cell">
         <span class="dg-field-label">{{ t('settings.providers.form.name') }}</span>
         <input
+          ref="nameInput"
           v-model="draft.displayName"
           class="dg-input"
           type="text"
@@ -235,6 +311,9 @@ async function confirmRemove(id: string): Promise<void> {
           :aria-invalid="errors.endpoint ? 'true' : undefined"
         />
         <p v-if="errors.endpoint" class="form__error">{{ errorText('endpoint') }}</p>
+        <p v-else-if="isPlainHttp" class="form__warning">
+          {{ t('settings.providers.form.httpWarning') }}
+        </p>
       </label>
 
       <label class="form__cell">
@@ -244,7 +323,7 @@ async function confirmRemove(id: string): Promise<void> {
           class="dg-input"
           type="text"
           spellcheck="false"
-          :placeholder="t('settings.providers.form.modelPlaceholder')"
+          :placeholder="modelPlaceholder"
           :aria-invalid="errors.model ? 'true' : undefined"
         />
         <p v-if="errors.model" class="form__error">{{ errorText('model') }}</p>
@@ -252,16 +331,46 @@ async function confirmRemove(id: string): Promise<void> {
 
       <label class="form__cell">
         <span class="dg-field-label">{{ t('settings.providers.form.apiKey') }}</span>
-        <input
-          v-model="draft.secret"
-          class="dg-input"
-          type="password"
-          autocomplete="off"
-          spellcheck="false"
-          :placeholder="t('settings.providers.form.apiKeyPlaceholder')"
-        />
+        <div class="form__key-row">
+          <input
+            v-model="draft.secret"
+            class="dg-input"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            :placeholder="t('settings.providers.form.apiKeyPlaceholder')"
+          />
+          <button
+            type="button"
+            class="dg-button"
+            :disabled="!canTest || testState.phase === 'running'"
+            @click="runTest"
+          >
+            {{ t('settings.providers.test.run') }}
+          </button>
+        </div>
         <p v-if="editingId !== null" class="form__hint">
           {{ t('settings.providers.form.apiKeyKeepHint') }}
+        </p>
+        <p v-if="testState.phase === 'running'" class="form__hint">
+          {{ t('settings.providers.test.running') }}
+        </p>
+        <p
+          v-else-if="testState.phase === 'done' && testState.result.ok"
+          class="form__test-ok"
+        >
+          {{
+            t('settings.providers.test.passed', {
+              model: testState.result.model,
+              latency: testState.result.latencyMs,
+            })
+          }}
+        </p>
+        <p
+          v-else-if="testState.phase === 'done'"
+          class="form__error"
+        >
+          {{ testFailureText(testState.result) }}
         </p>
       </label>
     </div>
@@ -323,11 +432,6 @@ async function confirmRemove(id: string): Promise<void> {
     </h2>
     <p class="notice__body">{{ t('settings.providers.secret.sessionOnly') }}</p>
   </section>
-
-  <PlannedNotice
-    title-key="settings.providers.test"
-    description-key="settings.providers.testDescription"
-  />
 </template>
 
 <style scoped>
@@ -461,13 +565,32 @@ async function confirmRemove(id: string): Promise<void> {
 }
 
 .form__error,
-.form__hint {
+.form__hint,
+.form__warning {
   margin-top: 4px;
   font-size: 11px;
 }
 
 .form__error {
   color: var(--dg-danger);
+}
+
+.form__warning {
+  color: var(--dg-warning);
+}
+
+.form__key-row {
+  display: flex;
+  gap: 8px;
+}
+
+.form__key-row .dg-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.form__test-ok {
+  color: var(--dg-accent-text);
 }
 
 .form__hint,

@@ -47,6 +47,7 @@ export default {
     protocol: {
       label: 'Protocol',
       openai: 'OpenAI-compatible',
+      openai_responses: 'OpenAI Responses',
       anthropic: 'Anthropic',
     },
     form: {
@@ -56,10 +57,16 @@ export default {
       namePlaceholder: 'e.g. Work gateway',
       endpoint: 'Base URL',
       model: 'Model',
-      modelPlaceholder: 'e.g. gpt-4o-mini',
+      modelPlaceholder: {
+        openai: 'e.g. gpt-4o-mini',
+        openai_responses: 'e.g. gpt-4o',
+        anthropic: 'e.g. claude-sonnet-4-5',
+      },
       apiKey: 'API key',
       apiKeyPlaceholder: 'Paste the key',
       apiKeyKeepHint: 'Leave blank to keep the current key.',
+      httpWarning:
+        'This address is not encrypted (HTTP): your key and screenshots travel the network in plain text.',
     },
     routing: {
       title: 'Call order',
@@ -82,8 +89,21 @@ export default {
       required: 'Required',
       invalidUrl: 'Needs a full http:// or https:// address',
     },
-    test: 'Connection test',
-    testDescription:
-      'Makes one real call to check the key, the address and the model.',
+    test: {
+      run: 'Test',
+      running: 'Testing…',
+      passed: 'Pass · {model} · {latency} ms · text/image/structured output',
+      error: {
+        authentication: 'The key is invalid or expired',
+        rate_limited: 'Rate limited — try again shortly',
+        timeout: 'Timed out after 30 seconds',
+        unavailable: 'Could not reach this address',
+        invalid_request: 'The request was rejected — check the model and address',
+        unsupported_feature: 'This service does not support structured output',
+        invalid_output: 'The model failed the image and echo check',
+        canceled: 'The request was canceled',
+        wails_unavailable: 'The connection test runs inside the Daygo app',
+      },
+    },
   },
 }

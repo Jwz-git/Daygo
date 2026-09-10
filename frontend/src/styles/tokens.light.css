@@ -55,6 +55,8 @@
   --dg-nav-active-fill: rgba(244, 135, 83, 0.13);
   --dg-nav-active-text: #b64f27;
   --dg-danger: #c84f43;
+  /* caution, one step below danger: plaintext-HTTP endpoints and the like */
+  --dg-warning: #9a6d14;
 
   /* hover wash shared by the rail and the settings nav */
   --dg-hover-fill: rgba(89, 77, 93, 0.065);

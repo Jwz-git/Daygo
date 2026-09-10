@@ -28,15 +28,15 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 2 | 触发授权申请 | 引导流程 | `System.RequestScreenRecordingPermission` | 待定设计 |
 | 3 | 跳转到系统设置的指定面板 | 授权被拒后的引导 | `System.OpenSystemSettings` | 待定设计 |
 | 4 | 枚举显示器 | 选择捕获目标 | `System.Displays` | 待定设计 |
-| 5 | 截取指定显示器的一帧 | 捕获 | `Capture`（内部） | 待定设计 |
-| 6 | 从捕获中排除指定应用 | 隐私屏蔽 | `CaptureConfig.BlockedApplicationIDs` | 待定设计 |
-| 7 | 把帧编码进分段文件 | 存储 | `Capture`（内部） | 待定设计 |
+| 5 | 截取当前主显示器的一帧 | 捕获 | `Capture.Capture` | 有限实现，待实机矩阵 |
+| 6 | 从捕获中排除指定应用 | 隐私屏蔽 | `CaptureRequest.BlockedApplicationIDs` | 有限实现，待双保护验收 |
+| 7 | 把单帧原子编码为 JPEG | staging | `Capture.Capture` | 有限实现，待恢复接入 |
 | 8 | 从分段解出单帧为 JPEG | 缩略图、帧条 | `Media.DecodeFrame(s)` | 待定设计 |
 | 9 | 把多帧合成为 mp4 | timelapse | `Media.EncodeVideo` | 待定设计 |
 | 10 | 探测分段的帧数与尺寸、可读性 | 崩溃恢复 | `Media.ProbeSegment` | 待定设计 |
-| 11 | 读取系统空闲秒数 | 空闲判定 | `CapturedFrame.IdleSeconds` | 待定设计 |
-| 12 | 光标所在显示器 | 活跃显示器跟踪 | `Capture`（内部） | 待定设计 |
-| 13 | 最前台应用标识 | 隐私屏蔽判定 | `System.FrontmostApplication` | 待定设计 |
+| 11 | 读取系统空闲秒数 | 空闲判定 | `System`（内部） | 待定设计 |
+| 12 | 解析调用时的系统主显示器 | 捕获目标 | `Capture.Capture`（内部） | 有限实现，待多屏验收 |
+| 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | 有限实现，待实机矩阵 |
 | 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | 待定设计 |
 | 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | 待定设计 |
 | 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | 待定设计 |
@@ -60,14 +60,14 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 适配层**承担**：
 
 - 上表 22 项能力的具体实现；
-- 帧的短期缓冲：Go 未确认的帧必须落盘，重连后重放（[05 §5.7.3](05-interface-contract.md#573-帧交付与确认)）；
+- 单次 Capture 的临时 JPEG 编码与排他原子发布；调用返回后不保留帧缓冲、事件日志或 recorder
+  状态；
 - 与 Go 之间的协议编解码（若形态是进程外）。
 
 适配层**明确不承担**：
 
-- **不打开、不写 SQLite。** Go 是唯一写入方。适配层只报告 `CapturedFrame` 和
-  `SegmentClosed`，由 Go 决定写什么。
-- **不读设置为自己决策。** 配置由 Go 全量下发（`CaptureConfig`），因此适配层重启后无状态、
+- **不打开、不写 SQLite。** Go 是唯一写入方；Go 负责 pending 记录、幂等提交和启动对账。
+- **不读设置为自己决策。** 每次 Capture 请求全量携带本次参数，因此适配层调用后无状态、
   在测试中可复现。
 - **不发起网络请求。**
 - **不含产品逻辑**：不分批、不做空闲判定、不生成卡片、不判断哪天属于哪个逻辑日。
@@ -96,8 +96,8 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 - **它和真实适配层必须通过同一套契约测试**（`platformtest.Suite`）。只有 fake 通过、
   真实适配层没跑同一套测试的接口，不算已验证。
 
-fake 需要能构造的场景：正常出帧、授权被拒、适配层不可用、分段收尾失败、重连后重放、
-状态合并、`Close` 后 channel 关闭。
+Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层不可用、取消 / 超时和目标路径
+冲突。System / Media fake 再分别覆盖事件合并、分段收尾、解码失败和关闭语义。
 
 ## 6.6 选型时要回答的问题
 
