@@ -3,8 +3,10 @@
 > **状态：规范草案。** 本文把 [02 §2.1](02-architecture.md#21-模块图) 的模块边界收敛为可实现、
 > 可测试的契约：方法签名、字段级 DTO、错误码、事件语义、版本与兼容性规则。
 >
-> **本文不代表其中任何目标已经实现。** 当前落盘的只有前端设置页和它的本地存储层。
-> 平台适配边界（§5.8）标注为 **待定设计**：只定义任何实现都必须满足的要求，不定义协议本身。
+> **本文不代表其中所有目标都已实现。** 已落盘：前端设置页及其本地存储层、`internal/platform`
+> 端口与值类型（无实现）、`internal/app` 绑定骨架（§5.2.1 的 M1 方法）、`apperr` 错误类型与
+> 事件常量。`internal/platform/fake` 与 `platformtest.Suite` 尚未实现。
+> 平台适配边界（§5.8）仍为 **待定设计**：只定义任何实现都必须满足的要求，不定义协议本身。
 
 ## 5.1 本文的定位
 
@@ -835,6 +837,9 @@ type ReplaceResult struct {
 ## 5.7 B4：platform 端口契约
 
 端口只声明接口。**实现形态待定设计**（§5.8），但下列语义与实现无关，因此现在就可以冻结。
+代码块给出端口签名的核心；`internal/platform` 代码还包含封闭集校验（各枚举的 `Valid()`/
+`Paired()`）与纯函数 helper（`CanonicalizeCaptureConfig`、`ValidSegmentPath`），以代码为准、
+不逐项抄进本文，避免形成第二份漂移源。
 
 ```go
 package platform
@@ -926,6 +931,7 @@ type Media interface {
 
 type System interface {
     ScreenRecordingPermission(ctx context.Context) (PermissionState, error)
+    NotificationsPermission(ctx context.Context) (PermissionState, error)
     RequestScreenRecordingPermission(ctx context.Context) error
     OpenSystemSettings(ctx context.Context, pane SettingsPane) error
 
