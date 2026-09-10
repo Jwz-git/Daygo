@@ -450,7 +450,7 @@ type RecordingStateDTO struct {
     PauseEndsAtTs   *int64  `json:"pauseEndsAtTs"` // 定时暂停到期时刻；无限期为 null
     Permission      string  `json:"permission"`    // granted|denied|not_determined
     IsCaptureOwner  bool    `json:"isCaptureOwner"`
-    ActiveDisplayID *uint32 `json:"activeDisplayId"`
+    ActiveDisplayID *string `json:"activeDisplayId"` // 平台 opaque ID，不解析其格式
     LastFrameAtTs   *int64  `json:"lastFrameAtTs"` // 看门狗依据，见风险 C-2
 }
 
@@ -473,7 +473,7 @@ type CaptureSettingsDTO struct {
 }
 
 type PrivacySettingsDTO struct {
-    BlockedBundleIDs []string `json:"blockedBundleIds"` // → privacy.blockedBundleIds
+    BlockedApplicationIDs []string `json:"blockedApplicationIds"` // → privacy.blockedApplicationIds
 }
 
 type StorageSettingsDTO struct {
@@ -512,7 +512,7 @@ type TelemetrySettingsDTO struct {
 type SettingsPatchDTO struct {
     IntervalSeconds        *int      `json:"intervalSeconds"`
     CaptureHeight          *int      `json:"captureHeight"`
-    BlockedBundleIDs       *[]string `json:"blockedBundleIds"`
+    BlockedApplicationIDs  *[]string `json:"blockedApplicationIds"`
     RecordingsLimitBytes   *int64    `json:"recordingsLimitBytes"`
     JournalReminderEnabled *bool     `json:"journalReminderEnabled"`
     JournalReminderTime    *string   `json:"journalReminderTime"`
@@ -842,25 +842,46 @@ package platform
 type Capture interface {
     Start(ctx context.Context, cfg CaptureConfig) error
     Stop(ctx context.Context) error
-    Frames() <-chan CapturedFrame   // 每编码一帧一条消息，仅关停时关闭
-    Status() <-chan CaptureStatus   // 状态机转换与权限变化
+    Ack(ctx context.Context, seq uint64) error
+    Events() <-chan CaptureEvent // 有序、持久化；仅 Close 时关闭
+    Status() <-chan CaptureStatus // 可合并的瞬时状态；仅 Close 时关闭
+    Close(ctx context.Context) error
 }
 
 type CaptureConfig struct {
-    Interval         time.Duration
-    CaptureHeight    int
-    BlockedBundleIDs []string
-    SegmentDirectory string
+    Interval              time.Duration
+    CaptureHeight         int
+    BlockedApplicationIDs []string
+    SegmentDirectory      string
+    PreferredDisplayID    *string
+    ShowsCursor           bool
+    SegmentMaxFrames      int
+    SegmentMaxDuration    time.Duration
+}
+
+type CaptureEventKind string
+
+const (
+    CaptureEventFrame         CaptureEventKind = "frame"
+    CaptureEventSegmentClosed CaptureEventKind = "segment_closed"
+)
+
+// CaptureEvent 保持 frame 与 segment_closed 的顺序；Seq 由 Ack 累计确认。
+type CaptureEvent struct {
+    Seq     uint64
+    Kind    CaptureEventKind
+    Frame   *CapturedFrame
+    Segment *SegmentClosed
 }
 
 // CapturedFrame 是 Go 写 screenshots 行所需的全部信息。
 // INSERT 由 Go 执行，不由适配层执行——这保证了单一写入方。
 type CapturedFrame struct {
-    Seq         uint64 // 单调递增，用于确认与去重
-    SegmentPath string
+    SegmentPath string // 相对 CaptureConfig.SegmentDirectory
     FrameIndex  int
     CapturedAt  time.Time
     IdleSeconds *int // nil 表示采样不可用，与 0 语义不同
+    DisplayID   string
     Width       int
     Height      int
     Redacted    bool
@@ -871,6 +892,29 @@ type SegmentClosed struct {
     TotalBytes  int64
     FrameCount  int
     Succeeded   bool // false 表示丢弃文件并软删除对应行
+}
+
+type CapturePhase string
+
+const (
+    CaptureIdle      CapturePhase = "idle"
+    CaptureStarting  CapturePhase = "starting"
+    CaptureCapturing CapturePhase = "capturing"
+    CapturePaused    CapturePhase = "paused"
+)
+
+type CaptureStatus struct {
+    Phase           CapturePhase
+    Permission      PermissionState
+    ActiveDisplayID *string
+    LastFrameAt     *time.Time
+    Fault           *CaptureFault
+}
+
+type CaptureFault struct {
+    Code      string
+    Retryable bool
+    Message   string // 已脱敏
 }
 
 type Media interface {
@@ -921,30 +965,34 @@ type Updater interface {
 
 1. **端口只声明接口，不含实现细节。** 任何服务都不得构造 IPC 消息、拼接路径或直接调用
    系统 API。
-2. `Start`/`Stop` 幂等：重复 `Start` 相同配置是空操作；`Stop` 后可再 `Start`。
+2. `Start`/`Stop` 幂等：重复 `Start` 相同配置是空操作；不同配置先 `Stop`，`Stop` 后可再
+   `Start`。`Close` 只能调用一次，并负责关闭 channel。
 3. 配置全量传入（`CaptureConfig`），适配层**不读设置为自己决策**，因此重启后无状态、
    测试中可复现。
-4. 端口方法不返回原生对象句柄。像素以 `[]byte`（JPEG）跨界，不传递图像对象或文件描述符。
+4. 端口方法不返回原生对象句柄。捕获像素留在适配层内直接进入分段编码器；帧解码后的 JPEG
+   才以 `[]byte` 从 `Media` 返回。完整 ABI 与构建方案见
+   [M1 屏幕捕获决策](decisions/M1-screen-capture.md)。
 
 ### 5.7.2 channel 语义
 
 | channel | 缓冲 | 满时策略 | 关闭时机 |
 |---------|------|----------|----------|
-| `Capture.Frames()` | 有界（≥ 64） | **绝不丢弃**：阻塞并由适配层落盘，重连后重放 | 仅关停时 |
-| `Capture.Status()` | 有界（≥ 8） | 合并：丢弃旧的同类状态，保留最新 | 仅关停时 |
-| `System.Events()` | 有界（≥ 32） | 合并同类事件；睡眠/唤醒这类**成对事件不得合并** | 仅关停时 |
-| `Updater.Events()` | 有界（≥ 8） | 合并 | 仅关停时 |
+| `Capture.Events()` | 有界（≥ 64） | **绝不丢弃**：适配层先落盘，恢复后按序重放 | `Close` |
+| `Capture.Status()` | 有界（≥ 8） | 合并：丢弃旧的同类状态，保留最新 | `Close` |
+| `System.Events()` | 有界（≥ 32） | 合并同类事件；睡眠/唤醒这类**成对事件不得合并** | 关停 |
+| `Updater.Events()` | 有界（≥ 8） | 合并 | 关停 |
 
 消费者规则：每个 channel **恰好一个所有者 goroutine**，有明确退出条件，并且 `select` 上
 `ctx.Done()`；禁止无法停止的后台 goroutine。
 
 ### 5.7.3 帧交付与确认
 
-1. `CapturedFrame.Seq` 单调递增；Go 在 `screenshots` 行**提交后**确认。
-2. 未确认帧由适配层持久化，重连后重放。
-3. 重放去重键是 `(segmentPath, frameIndex)`，Go 侧插入必须对重复安全——重放不能产生重复行。
-4. `SegmentClosed.Succeeded == false` 表示丢弃文件并软删除对应行。
-5. `SegmentClosed.TotalBytes` 由 Go 均摊到该分段的各行；清理以**整个分段**为单位。
+1. `CaptureEvent.Seq` 在同一数据目录内跨重启单调递增；Go 提交对应数据库更新后累计 `Ack`。
+2. frame 与 segment-closed 共用一条有序流；后者必须排在该分段所有 frame 之后。
+3. 未确认事件由适配层持久化，重启后按原序重放。
+4. 重放去重键是 `(segmentPath, frameIndex)`，Go 侧插入必须对重复安全——重放不能产生重复行。
+5. `SegmentClosed.Succeeded == false` 表示丢弃文件并软删除对应行。
+6. `SegmentClosed.TotalBytes` 由 Go 均摊到该分段的各行；清理以**整个分段**为单位。
 
 ### 5.7.4 fake 实现与契约测试
 
@@ -957,8 +1005,9 @@ type Updater interface {
 func Suite(t *testing.T, newCapture func(t *testing.T) platform.Capture)
 ```
 
-覆盖：幂等 `Start`/`Stop`、`ctx` 取消、序号单调、重放去重、状态合并、`Stop` 后 channel
-关闭、权限拒绝路径。**只有 fake 通过而适配层未跑同一套测试的接口，不算已验证。**
+覆盖：幂等 `Start`/`Stop`、单次 `Close`、`ctx` 取消、序号跨重启单调、frame/segment 顺序、
+累计确认、重放去重、状态合并、`Close` 后 channel 关闭、权限拒绝路径。**只有 fake 通过而
+适配层未跑同一套测试的接口，不算已验证。**
 
 ---
 

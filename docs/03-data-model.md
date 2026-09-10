@@ -240,7 +240,7 @@ CREATE TABLE providers (
 |----|------|------|
 | `capture.intervalSeconds` | int | `10` |
 | `capture.heightPixels` | int | `1080` |
-| `privacy.blockedBundleIds` | string[] | `[]` |
+| `privacy.blockedApplicationIds` | string[] | `[]` |
 | `storage.recordingsLimitBytes` | int64 | `0`（不限） |
 | `notifications.journalReminderEnabled` | bool | `false` |
 | `notifications.journalReminderTime` | string `HH:mm` | `"18:00"` |
