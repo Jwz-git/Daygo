@@ -29,7 +29,7 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 3 | 跳转到系统设置的指定面板 | 授权被拒后的引导 | `System.OpenSystemSettings` | 待定设计 |
 | 4 | 枚举显示器 | 选择捕获目标 | `System.Displays` | 待定设计 |
 | 5 | 截取指定显示器的一帧 | 捕获 | `Capture`（内部） | 待定设计 |
-| 6 | 从捕获中排除指定应用 | 隐私屏蔽 | `CaptureConfig.BlockedBundleIDs` | 待定设计 |
+| 6 | 从捕获中排除指定应用 | 隐私屏蔽 | `CaptureConfig.BlockedApplicationIDs` | 待定设计 |
 | 7 | 把帧编码进分段文件 | 存储 | `Capture`（内部） | 待定设计 |
 | 8 | 从分段解出单帧为 JPEG | 缩略图、帧条 | `Media.DecodeFrame(s)` | 待定设计 |
 | 9 | 把多帧合成为 mp4 | timelapse | `Media.EncodeVideo` | 待定设计 |
@@ -97,7 +97,7 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
   真实适配层没跑同一套测试的接口，不算已验证。
 
 fake 需要能构造的场景：正常出帧、授权被拒、适配层不可用、分段收尾失败、重连后重放、
-状态合并、`Stop` 后 channel 关闭。
+状态合并、`Close` 后 channel 关闭。
 
 ## 6.6 选型时要回答的问题
 
@@ -117,3 +117,6 @@ M1 的决策记录必须逐条回答，缺一条就不能视为已决策：
 
 回答落盘为 `docs/decisions/M1-native-adapter.md`，并同步更新本文与
 [05 §5.8](05-interface-contract.md#58-b5平台适配边界待定设计)。
+
+屏幕捕获子项的候选技术、Go 数据契约、C ABI 与实验矩阵见
+[M1 屏幕捕获](decisions/M1-screen-capture.md)。该子决策不代替上述九项总决策。
