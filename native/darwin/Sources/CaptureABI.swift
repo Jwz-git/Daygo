@@ -29,7 +29,7 @@ private final class BlockingCaptureResult: @unchecked Sendable {
     }
 }
 
-@c @implementation
+@_cdecl("dg_capture_abi_version")
 func dg_capture_abi_version(
     _ major: UnsafeMutablePointer<UInt32>?,
     _ minor: UnsafeMutablePointer<UInt32>?
@@ -38,7 +38,7 @@ func dg_capture_abi_version(
     minor?.pointee = UInt32(DG_CAPTURE_ABI_MINOR)
 }
 
-@c @implementation
+@_cdecl("dg_capture_once")
 func dg_capture_once(
     _ requestedABIMajor: UInt32,
     _ requestPointer: UnsafePointer<dg_capture_request_v1>?,
