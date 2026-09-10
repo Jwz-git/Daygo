@@ -24,23 +24,9 @@ fi
 printf 'Syncing frontend dependencies...\n'
 npm --prefix "$ROOT_DIR/frontend" install --no-audit --no-fund
 
-# frontend/wailsjs/ is generated and not committed, but src/api/*.ts imports it,
-# so vue-tsc and vite both fail without it. Generating it needs a compilable Go
-# tree, and go:embed all:dist needs dist to exist — hence the placeholder.
-if [[ ! -f "$ROOT_DIR/frontend/wailsjs/go/app/Backend.d.ts" ]]; then
-  printf 'Generating Wails bindings for frontend typecheck...\n'
-  mkdir -p "$ROOT_DIR/frontend/dist"
-  printf '<!doctype html>\n' > "$ROOT_DIR/frontend/dist/index.html"
-  (cd "$ROOT_DIR/cmd/daygo" \
-    && go run "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION" build -s -m -nopackage)
-fi
-
-# Build the real bundle, replacing the placeholder if one was written above.
-# The Go binary compiles dist via go:embed, so this must run before wails dev.
-if [[ ! -d "$ROOT_DIR/frontend/dist/assets" ]]; then
-  printf 'Building frontend bundle for go:embed...\n'
-  npm --prefix "$ROOT_DIR/frontend" run build
-fi
+# Shared with the headless gate: see scripts/bootstrap-frontend.sh for why the
+# order is placeholder dist -> bindings -> real bundle.
+"$ROOT_DIR/scripts/bootstrap-frontend.sh"
 
 cd "$ROOT_DIR/cmd/daygo"
 

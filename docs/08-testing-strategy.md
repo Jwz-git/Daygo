@@ -233,5 +233,20 @@ npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
 
+**前端三条命令有顺序依赖，Go 命令也是。** `internal/app` 导入 `frontend`，后者的
+`go:embed all:dist` 在 `dist` 不存在时匹配不到任何文件，**整个模块无法编译**——包括上面
+的 `go build` 与 `go test`。而 `dist` 与 `wailsjs` 都是生成产物、不入库
+（`05 §5.5.5` 规则 3），两者又互相依赖：生成绑定需要可编译的 Go 树，可编译又需要 `dist`。
+
+所以在干净环境（新 clone、CI runner）上，**必须先跑一次引导**再执行上述任何命令。
+`scripts/gate.sh` 已内置该顺序，等价于依次执行上面全部命令：
+
+```bash
+./scripts/gate.sh
+```
+
+引导逻辑本身在 `scripts/bootstrap-frontend.sh`，`scripts/dev.sh` 与 `gate.sh` 共用；
+顺序为「占位 `dist` → 生成绑定 → 真实 bundle」，每步幂等。
+
 **Linux 上必须全绿。** 这条门禁反向约束了所有接口设计：任何让核心包无法在无 macOS
 环境编译或测试的设计都是错的。
