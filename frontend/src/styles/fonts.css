@@ -89,5 +89,10 @@
   --dg-font-display:
     'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB', 'Figtree', sans-serif;
   --dg-font-display-weight: 500;
-  --dg-font-display-tracking: 0.02em;
+  /*
+   * WenKai's glyphs already sit at a comfortable rhythm; positive tracking
+   * pulls short (two-character) titles like 设置 / 每周 visibly apart, so keep
+   * it neutral.
+   */
+  --dg-font-display-tracking: 0;
 }

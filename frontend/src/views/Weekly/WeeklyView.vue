@@ -36,7 +36,7 @@ const cards = [
     </PageHeader>
 
     <div class="body dg-scroll">
-      <div class="grid">
+      <div class="grid dg-stagger">
         <MilestoneNotice
           v-for="card in cards"
           :key="card.key"

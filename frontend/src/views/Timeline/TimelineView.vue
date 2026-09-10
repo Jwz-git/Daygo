@@ -43,7 +43,7 @@ const { t } = useI18n()
       <span class="dg-chip">{{ t('timeline.filter.manage') }}</span>
     </div>
 
-    <div class="body dg-scroll">
+    <div class="body dg-scroll dg-stagger">
       <section class="track">
         <MilestoneNotice
           title-key="timeline.track.title"
