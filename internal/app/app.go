@@ -43,6 +43,12 @@ func Run() error {
 	defer cancel()
 
 	backend := NewBackend(nil, nil)
+	// The emitter publishes to the frontend once Wails supplies a context in
+	// OnStartup; before that it drops events, which is correct because a window
+	// that does not exist yet has no listener.
+	emitter := NewWailsEmitter()
+	backend.SetEventEmitter(emitter)
+
 	dir, err := supportDir()
 	if err != nil {
 		return err
@@ -90,6 +96,12 @@ func Run() error {
 		// system is nil until the native adapter exists: capability and day
 		// methods work truthfully, permission methods return native_unavailable.
 		Bind: []any{backend},
+		// OnStartup hands over the Wails context the event emitter needs. It is
+		// installed here rather than at construction because runtime events
+		// require a live context.
+		OnStartup: func(ctx context.Context) {
+			emitter.SetContext(ctx)
+		},
 		Mac: &mac.Options{
 			/*
 			 * TitleBarHidden (not TitleBarHiddenInset): both keep the native

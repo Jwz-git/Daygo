@@ -17,7 +17,7 @@
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 仅页面骨架，功能未开始 | 未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 仅页面骨架，功能未开始 | 未验收 |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint 与备份 | 单元与并发 smoke 通过；1 小时 DB-8、清理与诊断 UI 未运行 |
-| [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、主题、i18n、本地偏好 | 类型检查通过；绑定持久化未验收 |
+| [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、主题、i18n、本地偏好、settings-access | 类型检查与 Go 单元通过；前端绑定持久化未验收 |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：开发构建链 | 原生身份、签名、公证、更新未验收 |
 
 ### 当前代码证据
@@ -139,7 +139,7 @@ G-host 是统一限制 UI 扩张的例外，其余失败只限制相关能力，
 
 | 检查点 | 参与能力 | 结果 |
 |---|---|---|
-| 持久化设置 | db-core + settings-store + settings-access + 一个功能分区 | 保存 → 事件 → 重拉 → 重启读回；无双写、密钥泄漏 |
+| 持久化设置 | db-core + settings-store + settings-access + 一个功能分区 | 保存 → 事件 → 重拉 → 重启读回；无双写、密钥泄漏。Go 侧四段已就绪并通过单元验证；检查点通过仍需前端接入一个功能分区并做真实重启交互 |
 | 安全录制 | host + capture + media-read + db-core | IT-1–14 相关路径、MC 矩阵；真实帧可读、可恢复、可清理 |
 | 自动时间线 | capture + provider-client + time + cards | 帧 → 分批 → 分析 → 卡片 → UI；G-loop，解析错误计数、重试不重复 |
 | 洞察消费 | cards + time，daily 另需文本生成 / 通知 | 每日 / 每周可分别验收；日期、分类和空态正确 |

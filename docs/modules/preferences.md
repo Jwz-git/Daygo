@@ -13,18 +13,29 @@
 
 ## 当前状态与证据
 
-实现进度：部分实现；前端类型检查通过，真实绑定持久化未验收。
-[appearance store](../../frontend/src/stores/appearance.ts)、主题、i18n、路由、设置容器、
-[localStorage 适配](../../frontend/src/storage/local.ts) 已落盘。
-[api/dto.ts](../../frontend/src/api/dto.ts) 是手写子集；
-绑定已存在但前端生成类型 / wrapper / 错误解析未接入，package.json 没有单元测试运行器。
-新原生功能与 SQLite 设置存储尚未实现。
+实现进度：**部分实现**。settings-access 已落盘，前端接入未开始。
+
+已交付：
+
+- `internal/settings`：15 个设置键的类型化读写、默认值、规范化与夹取、`Patch` 语义
+  （nil = 本次不改）、跨键规则（`llm.outputLanguage` 与 `appearance.language` 相互独立、
+  空串语言保留为"跟随系统"哨兵）。只经 `storage.SettingsRepo` 读写，不含 SQL。
+- `internal/app`：`GetSettings` / `UpdateSettings` 绑定与 `SettingsDTO` / `SettingsPatchDTO`；
+  `UpdateSettings` 返回生效后的完整设置，`settings:changed` 只带改动键名且仅在提交后发出。
+  事件经可注入的 `EventEmitter` 发布，绑定层测试不需要 Wails runtime。
+
+未交付：前端生成绑定与 wrapper、错误解析、前端单元测试运行器、localStorage 接管迁移。
+`api/dto.ts` 仍是手写子集。页面容器已有，但设置尚未经绑定持久化。
+
+配置的**产品逻辑**不在本模块：录制 / 隐私 / 自启 / Dock 归 recording，
+Provider / 输出语言归 providers，提醒归 daily，磁盘 / 遥测归 data。
+`internal/settings` 只回答"这个设置是什么、什么值有效"。
 
 ## 能力与跨层职责
 
 | 输入 | 可独立推进 | 真实接入条件 |
 |---|---|---|
-| data: settings-store | fake repository 测试默认值、patch 与夹取 | SQLite repository 往返、迁移及事务验收 |
+| data: settings-store | 已完成；`internal/settings` 在其上做类型化访问 | 已就绪 |
 | 05 DTO / 事件 / 错误契约 | 搭前端测试运行器、生成类型消费与 wrapper fixture | 真实绑定存在；不将未实现方法补成假成功 |
 | 各功能设置定义 | 页面容器、键级 patch 和事件分发 | 功能负责方的字段规则与真实能力验收 |
 
@@ -33,6 +44,7 @@
 internal/settings 提供类型化读写，底层只调用 data 的 repository；
 internal/app 拥有 Get/UpdateSettings 和 DTO；store / api 拥有取数与事件，组件只负责交互。
 用户可见文本经 i18n；API key 永不进入通用设置或 localStorage。
+
 
 ## 实验与失败条件
 
@@ -66,5 +78,10 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 
 ## 验证记录
 
-2026-09-10：前端类型检查通过，见 [基线](../09-roadmap.md#当前代码证据)。
-前端单元运行器、绑定持久化、重启交互与迁移实验未验收。
+| 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
+|---|---|---|---|
+| 2026-09-10 | `npm --prefix frontend run typecheck` | 通过，见 [基线](../09-roadmap.md#当前代码证据) | — |
+| 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/settings/ ./internal/app/`、`-race`、`go build ./...`、`go vet ./...` | 通过；默认值、夹取、patch 只改显式键、失败不留部分写入、单键读与全量读一致、事件只带改动键且仅在提交后发出、重启读回 | 单元通过不等于真实重启交互；前端未接入 |
+
+前端单元运行器、绑定持久化、重启交互与 localStorage 迁移实验未验收。
+`settings patch`、`localStorage 接管` 两项实验的**前端侧**仍未运行。

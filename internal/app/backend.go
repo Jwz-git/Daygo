@@ -17,6 +17,14 @@ const (
 	appVersion = "0.0.0"
 )
 
+// EventEmitter publishes an event to the frontend. It is an interface so the
+// binding layer can be tested without a Wails runtime: docs/02 §2.1 keeps the
+// Go core testable with no GUI, and a direct runtime.EventsEmit call would
+// break that for every test that exercises an event-producing method.
+type EventEmitter interface {
+	Emit(name EventName, payload any)
+}
+
 // Clock makes GetDayContext deterministic without giving the binding layer a
 // second source of timezone truth.
 type Clock interface {
@@ -26,6 +34,12 @@ type Clock interface {
 type systemClock struct{}
 
 func (systemClock) Now() time.Time { return time.Now() }
+
+// nopEmitter discards events. It is the default so a Backend built without an
+// emitter (a test, or a non-Wails host) does not panic on the first write.
+type nopEmitter struct{}
+
+func (nopEmitter) Emit(EventName, any) {}
 
 // Backend is the Wails-bound surface. It coordinates pure Go policies, the
 // storage foundation and platform ports; it contains no native implementation
@@ -47,6 +61,35 @@ type Backend struct {
 	// second instance or a damaged file still leaves a usable window.
 	storageMu  sync.RWMutex
 	storageErr error
+
+	// emitter publishes frontend events. It is never nil after construction:
+	// a Backend built through NewBackend or newBackend gets at least the
+	// no-op emitter.
+	emitter EventEmitter
+}
+
+// SetEventEmitter installs the Wails-backed emitter. It is called once during
+// startup, before the window exists, so no synchronization is needed.
+func (b *Backend) SetEventEmitter(emitter EventEmitter) {
+	if emitter == nil {
+		emitter = nopEmitter{}
+	}
+	b.emitter = emitter
+}
+
+// emitSettingsChanged publishes the keys a settings write committed.
+func (b *Backend) emitSettingsChanged(keys []string) {
+	if b == nil || b.emitter == nil {
+		return
+	}
+	b.emitter.Emit(EventSettingsChanged, SettingsChangedPayload{Keys: keys})
+}
+
+// SettingsChangedPayload is the settings:changed event body (docs/05 §5.5.3).
+// It carries only key names: the frontend re-reads through GetSettings rather
+// than applying an optimistic update from the event.
+type SettingsChangedPayload struct {
+	Keys []string `json:"keys"`
 }
 
 // NewBackend wires the binding surface. system may be nil while the native
@@ -66,6 +109,7 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 		storage:        store,
 		canWrite:       canWrite,
 		isCaptureOwner: isCaptureOwner,
+		emitter:        nopEmitter{},
 	}
 }
 
