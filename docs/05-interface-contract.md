@@ -867,90 +867,39 @@ type ReplaceResult struct {
 ## 5.7 B4：platform 端口契约
 
 端口只声明接口。**实现形态待定设计**（§5.8），但下列语义与实现无关，因此现在就可以冻结。
-代码块给出端口签名的核心；`internal/platform` 代码还包含封闭集校验（各枚举的 `Valid()`/
-`Paired()`）与纯函数 helper（`CanonicalizeCaptureConfig`、`ValidSegmentPath`），以代码为准、
-不逐项抄进本文，避免形成第二份漂移源。
+代码块给出端口签名的核心；封闭集校验与请求边界以 `internal/platform` 代码为准，不重复维护
+实现细节。
 
 ```go
 package platform
 
+// Capture 每次只截取调用时的系统主显示器一次。
 type Capture interface {
-    Start(ctx context.Context, cfg CaptureConfig) error
-    Stop(ctx context.Context) error
-    Ack(ctx context.Context, seq uint64) error
-    Events() <-chan CaptureEvent // 有序、持久化；仅 Close 时关闭
-    Status() <-chan CaptureStatus // 可合并的瞬时状态；仅 Close 时关闭
-    Close(ctx context.Context) error
+    Capture(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 }
 
-type CaptureConfig struct {
-    Interval              time.Duration
-    CaptureHeight         int
-    BlockedApplicationIDs []string
-    SegmentDirectory      string
-    PreferredDisplayID    *string
+type CaptureRequest struct {
+    OutputPath            string // Go 分配的绝对、尚不存在的 .jpg/.jpeg 路径
+    ImageFormat           CaptureImageFormat
+    TargetHeight          int
+    JPEGQuality           int
     ShowsCursor           bool
-    SegmentMaxFrames      int
-    SegmentMaxDuration    time.Duration
+    BlockedApplicationIDs []string
 }
 
-type CaptureEventKind string
-
-const (
-    CaptureEventFrame         CaptureEventKind = "frame"
-    CaptureEventSegmentClosed CaptureEventKind = "segment_closed"
-)
-
-// CaptureEvent 保持 frame 与 segment_closed 的顺序；Seq 由 Ack 累计确认。
-type CaptureEvent struct {
-    Seq     uint64
-    Kind    CaptureEventKind
-    Frame   *CapturedFrame
-    Segment *SegmentClosed
+type CaptureResult struct {
+    Outcome    CaptureOutcome // written 或 blocked
+    CapturedAt time.Time
+    Width      int
+    Height     int
+    FileSize   int64
 }
 
-// CapturedFrame 是 Go 写 screenshots 行所需的全部信息。
-// INSERT 由 Go 执行，不由适配层执行——这保证了单一写入方。
-type CapturedFrame struct {
-    SegmentPath string // 相对 CaptureConfig.SegmentDirectory
-    FrameIndex  int
-    CapturedAt  time.Time
-    IdleSeconds *int // nil 表示采样不可用，与 0 语义不同
-    DisplayID   string
-    Width       int
-    Height      int
-    Redacted    bool
+type CaptureError struct {
+    Code       CaptureErrorCode // 稳定分类，业务只按此字段分支
+    NativeCode int64            // 仅本地数值诊断
 }
 
-type SegmentClosed struct {
-    SegmentPath string
-    TotalBytes  int64
-    FrameCount  int
-    Succeeded   bool // false 表示丢弃文件并软删除对应行
-}
-
-type CapturePhase string
-
-const (
-    CaptureIdle      CapturePhase = "idle"
-    CaptureStarting  CapturePhase = "starting"
-    CaptureCapturing CapturePhase = "capturing"
-    CapturePaused    CapturePhase = "paused"
-)
-
-type CaptureStatus struct {
-    Phase           CapturePhase
-    Permission      PermissionState
-    ActiveDisplayID *string
-    LastFrameAt     *time.Time
-    Fault           *CaptureFault
-}
-
-type CaptureFault struct {
-    Code      string
-    Retryable bool
-    Message   string // 已脱敏
-}
 
 type Media interface {
     DecodeFrame(ctx context.Context, req DecodeRequest) ([]byte, error)   // 返回 JPEG 字节
@@ -1001,34 +950,34 @@ type Updater interface {
 
 1. **端口只声明接口，不含实现细节。** 任何服务都不得构造 IPC 消息、拼接路径或直接调用
    系统 API。
-2. `Start`/`Stop` 幂等：重复 `Start` 相同配置是空操作；不同配置先 `Stop`，`Stop` 后可再
-   `Start`。`Close` 只能调用一次，并负责关闭 channel。
-3. 配置全量传入（`CaptureConfig`），适配层**不读设置为自己决策**，因此重启后无状态、
-   测试中可复现。
-4. 端口方法不返回原生对象句柄。捕获像素留在适配层内直接进入分段编码器；帧解码后的 JPEG
-   才以 `[]byte` 从 `Media` 返回。完整 ABI 与构建方案见
-   [recording 屏幕捕获决策](decisions/recording-screen-capture.md)。
+2. `Capture.Capture` 每次只截取调用时的主显示器一次；不拥有 timer、recorder 状态、事件流、
+   persistence 或分段编码器。
+3. 请求参数全量传入，适配层**不读设置为自己决策**。`blocked` 是成功控制结果：没有 error，
+   也不生成文件；`written` 返回时文件必须完整且元数据有效。
+4. `OutputPath` 必须是 Go 预先分配的绝对 JPEG 路径且调用前不存在。原生层在同目录写临时文件，
+   以排他、原子方式发布，绝不覆盖已有路径。
+5. context、隐私双保护、参数边界和同步 C ABI 见
+   [截图 v2 实现与调用](decisions/recording-screen-capture-v2.md)。
+6. `Media` 是后续读取或转码能力；Capture 不直接创建媒体分段。
 
 ### 5.7.2 channel 语义
 
 | channel | 缓冲 | 满时策略 | 关闭时机 |
 |---------|------|----------|----------|
-| `Capture.Events()` | 有界（≥ 64） | **绝不丢弃**：适配层先落盘，恢复后按序重放 | `Close` |
-| `Capture.Status()` | 有界（≥ 8） | 合并：丢弃旧的同类状态，保留最新 | `Close` |
 | `System.Events()` | 有界（≥ 32） | 合并同类事件；睡眠/唤醒这类**成对事件不得合并** | 关停 |
 | `Updater.Events()` | 有界（≥ 8） | 合并 | 关停 |
 
 消费者规则：每个 channel **恰好一个所有者 goroutine**，有明确退出条件，并且 `select` 上
-`ctx.Done()`；禁止无法停止的后台 goroutine。
+`ctx.Done()`；禁止无法停止的后台 goroutine。Capture 不暴露 channel。
 
-### 5.7.3 帧交付与确认
+### 5.7.3 截图文件交付与恢复
 
-1. `CaptureEvent.Seq` 在同一数据目录内跨重启单调递增；Go 提交对应数据库更新后累计 `Ack`。
-2. frame 与 segment-closed 共用一条有序流；后者必须排在该分段所有 frame 之后。
-3. 未确认事件由适配层持久化，重启后按原序重放。
-4. 重放去重键是 `(segmentPath, frameIndex)`，Go 侧插入必须对重复安全——重放不能产生重复行。
-5. `SegmentClosed.Succeeded == false` 表示丢弃文件并软删除对应行。
-6. `SegmentClosed.TotalBytes` 由 Go 均摊到该分段的各行；清理以**整个分段**为单位。
+1. Go 在调用前创建 pending capture 记录并分配唯一 `OutputPath`；原生层不打开 SQLite。
+2. `written` 后 Go 校验结果并幂等写入 screenshot 行，再清除 pending；数据库提交失败时保留
+   文件和 pending 供启动对账。
+3. `blocked` 不产生文件；Go 可记录不含路径、窗口标题、应用活动或图像内容的诊断计数。
+4. 超时、取消和原生失败不得产生可接受的过期结果；启动对账只处理 Go 已登记的 pending 路径。
+5. 后续分段由 Go 协调的独立 Media 能力生成；不得把分段所有权重新塞回 Capture。
 
 ### 5.7.4 fake 实现与契约测试
 
@@ -1080,7 +1029,7 @@ type AuthorizedCapture interface {
 | 4 | 若使用文件系统载体，权限 `0600`；所有输入视为不可信 | 与 §5.9 的 socket 同一安全模型 |
 | 5 | 单消息大小上限（控制平面 1 MB），超限即断开 | 防内存放大 |
 | 6 | **未知字段忽略，未知操作明确报错** | 前者允许向前兼容加字段，后者避免静默不执行 |
-| 7 | 崩溃、断连、宿主重启后可恢复；恢复后重新下发配置并重放未确认帧 | [风险 C-2](10-risks.md#c-2静默丢失捕获) |
+| 7 | 崩溃、断连、宿主重启后可恢复；Go 用 pending 记录对账已发布文件并重新下发调用参数 | [风险 C-2](10-risks.md#c-2静默丢失捕获) |
 | 8 | 破坏性变更升 major 版本，并有双端兼容测试 | 两端若分别签名分发，版本必然会错配 |
 
 `native_unavailable` 由 **Go 侧**生成（连接断开、超时、重启中），适配层不自报此码。

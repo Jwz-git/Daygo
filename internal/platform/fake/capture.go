@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
@@ -57,8 +56,8 @@ func (c *Capture) Capture(ctx context.Context, req platform.CaptureRequest) (pla
 	if err := ctx.Err(); err != nil {
 		return platform.CaptureResult{}, err
 	}
-	if !validRequest(req) {
-		return platform.CaptureResult{}, captureError(platform.CaptureInvalidArgument)
+	if err := req.Validate(); err != nil {
+		return platform.CaptureResult{}, err
 	}
 
 	c.mu.RLock()
@@ -98,29 +97,6 @@ func (c *Capture) Capture(ctx context.Context, req platform.CaptureRequest) (pla
 		Height:     req.TargetHeight,
 		FileSize:   fileSize,
 	}, nil
-}
-
-func validRequest(req platform.CaptureRequest) bool {
-	if !filepath.IsAbs(req.OutputPath) || len(req.OutputPath) > 32768 || !utf8.ValidString(req.OutputPath) {
-		return false
-	}
-	if !req.ImageFormat.Valid() || req.TargetHeight < 1 || req.TargetHeight > 16384 {
-		return false
-	}
-	if req.JPEGQuality < 1 || req.JPEGQuality > 100 || len(req.BlockedApplicationIDs) > 4096 {
-		return false
-	}
-	totalIDBytes := 0
-	for _, id := range req.BlockedApplicationIDs {
-		if id == "" || len(id) > 4096 || !utf8.ValidString(id) {
-			return false
-		}
-		totalIDBytes += len(id)
-		if totalIDBytes > 1<<20 {
-			return false
-		}
-	}
-	return true
 }
 
 func blocked(frontmostApplicationID string, blockedApplicationIDs []string) bool {

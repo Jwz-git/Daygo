@@ -83,3 +83,5 @@ tmp/
 !testdata/**/*.sqlite3
 !testdata/**/*.db
 .playwright-mcp/
+
+build/

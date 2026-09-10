@@ -2,8 +2,10 @@ package platform
 
 import (
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // CaptureRequest is the complete input for one screenshot attempt. OutputPath
@@ -15,6 +17,35 @@ type CaptureRequest struct {
 	JPEGQuality           int
 	ShowsCursor           bool
 	BlockedApplicationIDs []string
+}
+
+// Validate checks platform-independent request bounds before an adapter touches
+// the filesystem or invokes a native API.
+func (r CaptureRequest) Validate() error {
+	if !filepath.IsAbs(r.OutputPath) || len(r.OutputPath) > 32768 || !utf8.ValidString(r.OutputPath) {
+		return &CaptureError{Code: CaptureInvalidArgument}
+	}
+	extension := strings.ToLower(filepath.Ext(r.OutputPath))
+	if extension != ".jpg" && extension != ".jpeg" {
+		return &CaptureError{Code: CaptureInvalidArgument}
+	}
+	if !r.ImageFormat.Valid() || r.TargetHeight < 1 || r.TargetHeight > 16384 {
+		return &CaptureError{Code: CaptureInvalidArgument}
+	}
+	if r.JPEGQuality < 1 || r.JPEGQuality > 100 || len(r.BlockedApplicationIDs) > 4096 {
+		return &CaptureError{Code: CaptureInvalidArgument}
+	}
+	totalIDBytes := 0
+	for _, id := range r.BlockedApplicationIDs {
+		if id == "" || len(id) > 4096 || !utf8.ValidString(id) {
+			return &CaptureError{Code: CaptureInvalidArgument}
+		}
+		totalIDBytes += len(id)
+		if totalIDBytes > 1<<20 {
+			return &CaptureError{Code: CaptureInvalidArgument}
+		}
+	}
+	return nil
 }
 
 // CaptureResult describes one completed call. Image metadata is valid only

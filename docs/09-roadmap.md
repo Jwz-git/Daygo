@@ -26,8 +26,10 @@
 `npm --prefix frontend run typecheck` 通过。这不是 Linux 实机、macOS 原生集成或长时间证据。
 
 - [端口](../internal/platform/ports.go)、[值类型](../internal/platform/types.go)、
-  [Capture fake](../internal/platform/fake/capture.go) 和
-  [契约套件](../internal/platform/platformtest/suite.go) 已落盘；fake 的其他四个端口尚未实现。
+  [Capture fake](../internal/platform/fake/capture.go)、[契约套件](../internal/platform/platformtest/suite.go)、
+  [macOS Capture](../internal/platform/darwin/capture.go) 与
+  [截图 v2 调用说明](decisions/recording-screen-capture-v2.md) 已落盘；fake 的其他四个端口尚未实现。
+- 真实 macOS 单次调用已生成并解码 JPEG；隐私实机矩阵、正式应用装配和长期观察未验收。
 - [绑定骨架](../internal/app/backend.go)、错误和事件已有测试；权限调用在无适配层时返回
   `native_unavailable`。写入 / 捕获所有权目前没有真实锁实现。
 - [时间函数及测试](../internal/timeutil/timeutil_test.go) 覆盖已有日期边界；时钟串派生、周边界
@@ -69,7 +71,7 @@
 | ui-bridge | preferences | 05 §5.5.5；生成 DTO、薄 wrapper、事件订阅与错误解析、前端测试运行器；各功能接入自己的绑定 | 所有界面；正式扩张受 G-host 约束 |
 | time | timeline | 03 §3.2/3.5；4 点逻辑日、日历日、时钟串、周边界、五时区夹具与属性测试按子能力验收 | recording 日期消费者、daily / weekly 及查询 |
 | host | recording | 06 §6.6；窗口、状态栏、激活策略；G-host 实机证据 | 各模块的大规模 UI 扩张；不要求 timeline 已完成 |
-| capture | recording | 05 §5.7；Capture/System 的 fake 与真实契约、隐私双保护、有序帧与 Ack 重放；真实落库需 db-core | timeline 的帧输入、data 的分段生命周期 |
+| capture | recording | 05 §5.7；单次 Capture fake / 真实契约、隐私双保护、原子 JPEG、pending 对账；真实落库需 db-core | timeline 的帧输入、data 的后续媒体生命周期 |
 | media-read | recording | 03 §3.4、05 §5.7；分段格式决策、探测、单帧与批量解码；IT-2/3/4 与崩溃夹具 | timeline 帧条及资源处理器、data 恢复与清理 |
 | provider-client | providers | 05 §5.6.4；文本 / 图片 / JSON Schema、三种原生协议（openai / openai_responses / anthropic）、路由、取消、错误与重试、Secrets、纯元数据审计；匿名 TLS HTTP 夹具后再做用户配置服务的真实测试 | timeline 分析、daily 文本生成 |
 | cards | timeline | 05 §5.6.2；卡片 / 分类 repository、范围串行化与事务、分类重命名、跳过计数、查询契约 | daily / weekly；不等时间线视觉打磨 |
@@ -111,7 +113,7 @@ UI、平台探针、解析器和聚合逻辑均可使用契约输入独立推进
 |---|---|---|---|
 | G-host 宿主 | 大规模 UI 扩张、宣称常驻录制可用 | 限时一周的宿主探针、核心逻辑、契约与必要验证界面 | 真实 macOS：关窗后至少 10 分钟进程存活且**持续离散捕获**，状态栏重开、激活策略切换；IT-14；心跳仅是前置探针 |
 | G-native 原生与身份 | 未决能力的大规模原生实现、对应真实功能验收 | 候选实验、fake、与实现形态无关的消费者 | 06 §6.6 按能力记录结论；屏幕授权 / 钥匙串身份与升级、签名公证和干净机器 Gatekeeper 可行性须提前验证；缺设备或身份材料记阻塞 |
-| G-data 真实数据接入 | 将未验证链路用于真实记录或宣称数据安全 | 匿名夹具、受控集成实验、其他独立能力 | 隐私双保护、唯一 writer / capture owner、连接层只读、提交后 Ack、重放去重、分段收尾恢复；对应 DB / IT / MC 测试 |
+| G-data 真实数据接入 | 将未验证链路用于真实记录或宣称数据安全 | 匿名夹具、受控集成实验、其他独立能力 | 隐私双保护、唯一 writer / capture owner、连接层只读、pending 对账、幂等提交与媒体恢复；对应 DB / IT / MC 测试 |
 | G-core 可移植核心 | 合入破坏纯 Go 或 Linux 核心门禁的变更 | 隔离实验、定位失败及重新决策 | 08 §8.8 的构建、测试、契约门禁；SQLite 实验失败不得自动切换为 cgo 驱动 |
 | G-loop 用户闭环 | 标记录制到自动时间线闭环验收完成 | 单模块验收、故障修复、其他模块开发 | 真实配置 provider，连续 7 天自用，无未解释捕获缺口，失败可见且可操作 |
 | G-stability 长期稳定性 | 宣称长时间 / 边界稳定性完成 | 模块交付、累计观察和修复 | 08 §8.6.2 的 14 天窗口、跨一次 DST、跨周一分别记录；7 天不能代替这些证据 |
@@ -175,7 +177,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | # | 待定项 | 负责模块 / 决定者 | 必须决定的时机与规范 |
 |---|---|---|---|
 | 1 | 平台适配形态及宿主 | recording / 工程，delivery 协作 | 大规模原生实现前；06 §6.6、G-host/G-native |
-| 2 | 屏幕捕获方式 | recording / 工程 | 真实 Capture 实现前；[实验规格](decisions/recording-screen-capture.md) |
+| 2 | 屏幕捕获方式 | recording / 工程 | 扩大真实接入或标记“已决定”前；[v2 实现与调用](decisions/recording-screen-capture-v2.md)、[实验规格](decisions/recording-screen-capture.md) |
 | 3 | 系统事件订阅方式 | recording / 工程 | 恢复状态机真实接入前；06 §6.2 |
 | 4 | 钥匙串访问方式与身份 | providers / 工程，delivery 协作 | 真实密钥接入前；Secrets、G-native |
 | 5 | 状态栏与激活策略 | recording / 工程 | G-host 验收前 |

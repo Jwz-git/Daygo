@@ -9,25 +9,28 @@
 
 公共依据：[04 §4.1](../04-data-flow.md#41-捕获流水线)、
 [05 §5.7](../05-interface-contract.md#57-b4platform-端口契约)、
-[06](../06-native-integration.md)、[07 §7.2](../07-privacy-security.md#72-捕获侧的两层保护)。
+[06](../06-native-integration.md)、[截图 v2 实现与调用](../decisions/recording-screen-capture-v2.md)、
+[07 §7.2](../07-privacy-security.md#72-捕获侧的两层保护)。
 
 ## 当前状态与证据
 
-实现进度：部分实现。单元 / fake 契约：已有部分覆盖；真实集成与长期观察：未验收。
+实现进度：部分实现。单元 / fake 契约已覆盖单次截图语义；macOS 原生单次截图与 cgo 适配已
+落盘并完成一轮真实像素 smoke，但应用装配、隐私实机矩阵和长期观察未验收。
 [Capture fake](../../internal/platform/fake/capture.go)、
 [契约套件](../../internal/platform/platformtest/suite.go)、
-[权限绑定](../../internal/app/system_bindings.go) 已存在；真实 Capture、Media、System、
-recorder 和后台生命周期尚未实现。绑定中的所有权值不构成真实锁证据。
-[捕获实验规格](../decisions/recording-screen-capture.md) 的历史编译结果不证明授权或真实截图。
+[macOS Capture](../../internal/platform/darwin/capture.go)、
+[Swift 原生实现](../../native/darwin/Sources/Screenshot.swift) 和
+[权限绑定](../../internal/app/system_bindings.go) 已存在；Media、完整 System、recorder、
+storage pending 恢复和后台生命周期尚未实现。
 
 ## 能力与跨层职责
 
 | 输入 | 可先推进 | 真实接入条件 |
 |---|---|---|
-| data: db-core / settings-store | 用匿名事件序列验证提交、Ack、去重；状态机使用 repository fake | DB 门禁、连接层只读、捕获所有权验收 |
+| data: db-core / settings-store | 用 pending capture ID 和文件夹具验证提交、恢复与去重；状态机使用 repository fake | DB 门禁、连接层只读、捕获所有权验收 |
 | preferences: settings-access / ui-bridge | 固定录制配置快照、绑定 DTO 和状态事件夹具 | 配置落库、事件重拉；UI 扩张需 G-host |
 | delivery: 身份与分发探针 | 有限宿主、截图、编解码实验 | G-native 与本能力原生决策 |
-| data: 清理能力 | 交付活跃 / 收尾分段事件，供维护侧用夹具开发 | 真实长期录制前验证整段清理集成 |
+| data: 清理能力 | 接入完整 JPEG 与后续 Media 分段元数据 | 真实长期录制前验证 staging 与整段清理集成 |
 
 输出 host、capture、media-read 三项能力，按 09 §9.3 分别验收。
 Go 负责录制意愿、暂停、恢复延迟、监管和配置；internal/app 编排生命周期、绑定和事件；
@@ -41,8 +44,8 @@ internal/storage。recording 协调 System 公共端口，daily 自行交付通�
 |---|---|---|---|
 | 宿主与 IT-14 | 限时一周探针；真实截图后关窗，观察至少 10 分钟，再从状态栏重开并切激活策略 | 进程与离散捕获持续，窗口可重开 | 心跳正常但截图停止仍失败；记录匿名帧计数 / 时间、进程状态 |
 | MC-1–8 / IT-5/8/9 | 未授权、撤权、双屏、旋转 / HDR、屏蔽应用前台与后台窗口 | 授权显式请求；两层保护、目标屏及尺寸正确，无持续录屏指示 | 泄漏、过期帧或指示不符阻塞真实捕获；实机矩阵保存脱敏结果 |
-| IT-1–4/10/11/13 | 匿名帧、分段轮换、提交前后崩溃、重放、双实例 | 单写入 / 单捕获、提交后 Ack、无重复行，分段可读 | 丢帧、重复、错误只读或不可恢复分段阻塞接入 |
-| IT-6/7 与 MC-9/10 | user idle / user pause / capturing 下触发睡眠、锁屏、退出 | 各事件分别建模；唤醒 5 秒、解锁 0.5 秒；系统不恢复 idle | 状态混淆、无收尾、未确认帧丢失失败 |
+| IT-1–4/10/11/13 | 匿名帧、提交前后崩溃、pending 恢复、双实例 | 单写入 / 单捕获、幂等提交、无重复行 | 丢帧、重复、错误只读或孤儿文件无法恢复会阻塞接入 |
+| IT-6/7 与 MC-9/10 | user idle / user pause / capturing 下触发睡眠、锁屏、退出 | 各事件分别建模；唤醒 5 秒、解锁 0.5 秒；系统不恢复 idle | 状态混淆、过期截图入库或 pending 文件失控失败 |
 | MC-12 与 08 长期断言 | 真实 24 小时分间隔实验，后续累计稳定性窗口 | 资源有界、无未解释缺口 | 编译通过不能代替长时间证据 |
 
 ## 实现切片与集成
@@ -51,24 +54,26 @@ internal/storage。recording 协调 System 公共端口，daily 自行交付通�
    未决前只做有限探针，G-host 需要真实截图证明。
 2. 补 fake System/Media 与 Capture 执行中取消、故障注入契约；实现 Go 录制状态机及可停止监管。
    产物是可无 GUI 运行的状态序列测试。
-3. 使用 db-core 接 screenshots repository 与落库后 Ack；真实 Capture/Media 跑同一套契约。
-   验证分段均摊字节、重放去重和读写锁；数据接入与 data 清理共同跑 IT-12/13。
+3. 使用 db-core 接 pending capture 与 screenshots repository；真实 Capture 跑同一套单次调用契约，
+   验证“文件发布 → 幂等入库”及崩溃对账，再由 Media 能力决定是否转入分段。
 4. 实现录制 / 授权绑定与事件、状态栏控制及设置分区，store 负责重拉；拒绝授权、无所有权、
-   适配器故障均有可见状态。原生状态是真实来源，不用“希望录制”冒充实际 capturing。
+   适配器故障均有可见状态。Go recorder 状态是真实来源，不用“希望录制”冒充实际 capturing。
 5. 逐条运行 IT / MC 实机矩阵；与 timeline 接入后累计 G-loop 与 G-stability 证据。
 
 ## 验收、阻塞与回退
 
-完成要求：用户闭环与 IT-1–14 中本模块路径、相关 MC 门禁通过，真实分段可读可恢复，
-隐私双保护和状态栏可操作。fake 仅证明契约，不证明像素、身份、耗电。
+完成要求：用户闭环与 IT-1–14 中本模块路径、相关 MC 门禁通过，真实 JPEG 与后续媒体产物可读、
+可恢复，隐私双保护和状态栏可操作。fake 仅证明契约，不证明像素、身份、耗电。
 G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixture 和其他模块仍可推进。
 
-待决：宿主 / 适配形态、截图 API、系统事件、分段格式、解码、状态栏与协议；负责人为
+待决：宿主 / 适配形态、截图真实门禁、系统事件、分段格式、解码、状态栏与协议；负责人为
 recording 工程，身份协同 delivery；均须在相应大规模实现前决定，见 09 §9.8。
-回退：停止新增捕获并收尾或安全移交当前分段，保留未 Ack 日志和数据库；
-撤销未启用的接入提交可恢复外壳。禁止以清空数据目录代替恢复。
+回退：停止新增 Capture 调用，清理未提交 staging 文件并保留数据库；撤销未启用的接入改动可
+恢复外壳。禁止以清空数据目录代替恢复。
 
 ## 验证记录
 
-2026-09-10：已有 Go 测试通过，见 [基线](../09-roadmap.md#当前代码证据)。
-原生、IT / MC、G-host、长期观察均未运行；须记录 commit、设备 / 系统、匿名输入及实际结果。
+2026-09-10：单次 Capture fake 契约测试通过；Swift arm64/x86_64 通用静态库构建通过；
+darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子落盘验证为 32×18、777 bytes。
+授权后的真实 cgo 调用从 1920×1080 主显示器生成并解码 1280×720 JPEG，返回宽高、字节数与
+磁盘一致。隐私双保护、捕获指示、正式应用 TCC 身份、G-host 与长期观察仍未验收。

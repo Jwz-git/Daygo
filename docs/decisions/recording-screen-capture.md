@@ -4,9 +4,13 @@
 > C ABI。真实授权、捕获指示、隐私遮蔽、签名、公证和长时间运行实验通过前，平台实现仍是
 >「待定设计」。
 >
-> **当前代码事实。** `internal/platform` 仍保留早期的长生命周期 `Start/Stop/Events/Ack`
-> 草案；它不是本文目标接口。按本次范围不修改该代码和其它规范，后续实现前必须单独迁移，不能
-> 同时保留两套捕获契约。`native/include/daygo_capture.h` 是 C ABI 的唯一事实来源。
+> **当前代码事实。** `internal/platform` 已切换为单次 `Capture` 契约，fake 与契约测试已同步；
+> `native/darwin` 已实现 Swift `SCScreenshotManager.captureImage`、隐私过滤、JPEG 原子落盘和
+> C ABI，`internal/platform/darwin` 已完成 cgo 包装；真实 macOS 调用已生成并解码 1280×720 JPEG。
+> recorder、storage pending 恢复、应用装配及隐私双保护实机矩阵尚未实现或验收。
+>
+> 当前 macOS 实现、调试方式和上层调用示例见
+> [屏幕截屏 v2：macOS 实现与上层调用](recording-screen-capture-v2.md)。
 
 ## 1. 决定
 
@@ -181,11 +185,12 @@ Go 收到后负责生成脱敏占位帧；不得把“没有文件”记成丢�
 C ABI 是同步调用，不能持有 Go `context.Context`。Go wrapper 按以下规则适配：
 
 1. 调用前检查 `ctx.Err()`；已取消则不进入 native；
-2. 有 deadline 时把剩余毫秒传入 `timeout_ms`，无 deadline 时使用 recorder 的有界默认值；
-3. 原生层在超时后取消本次平台任务、清理临时文件并返回 `timeout`；
-4. 显式 cancel 若发生在已经进入 C 之后，不另起 goroutine 假装取消。wrapper 等待本次 native 调用
-   收尾，返回时优先报告 `ctx.Err()`，并删除可能已发布但不再接受的文件；
-5. recorder 关停必须等待这一个在途调用完成或超时，不允许遗留无所有者的 native worker。
+2. 有 deadline 时把剩余毫秒传入 `timeout_ms`，无 deadline 时使用 10 秒默认值；
+3. 超时时 native 原子撤销本次文件发布权限、取消平台任务，并且只删除确由本次调用发布的文件；
+4. 已提交给系统的异步截图回调可能在超时返回后短暂排空，但它只持有复制后的 Swift 值，不持有
+   Go 指针、C 输出指针或发布权限，因此不能在函数返回后生成文件；
+5. cgo 返回后 wrapper 再检查 `ctx.Err()`；若 context 已取消且本次已经成功发布，删除结果并返回
+   context error。recorder 不另起无所有者的 cgo goroutine。
 
 ## 4. 文件交接与恢复
 
@@ -266,6 +271,10 @@ int32_t dg_capture_once(
 
 `out_error` 只携带数值型 native domain/code，用于本地诊断。它不包含动态字符串，从而没有
 跨 runtime 分配、release、路径泄漏或错误字符串分支。
+
+本地调试可显式设置 `DAYGO_CAPTURE_DEBUG=1`。native 只向 stderr 输出无内容、无路径、无应用
+标识的阶段名、单调时钟和图片尺寸 / 字节数；默认不输出。阶段日志用于区分授权预检、
+`SCShareableContent` 查询、显示器解析、截图、JPEG 写入、ABI 返回和超时。
 
 ### 5.3 请求字段
 
@@ -464,8 +473,8 @@ Windows 没有与 ScreenCaptureKit `excludingApplications` 等价的公开能力
 
 ## 9. 迁移和退出条件
 
-实现前需要一个独立的 Go 契约迁移，把现有 `internal/platform` 和公共接口规范从
-`Start/Stop/Events/Ack` 一次性切换为本文的 `Capture` 单次调用。本文不授权保留旧接口适配层。
+Go 内部端口、fake、macOS 原生适配和 05/06 公共规范已从 `Start/Stop/Events/Ack` 切换为本文的
+单次 `Capture` 调用；不得重新引入兼容别名或第二套捕获契约。
 
 以下条件全部满足后，才可把 macOS 截屏从“待定设计”改为“已决定”：
 
