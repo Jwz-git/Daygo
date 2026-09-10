@@ -1,12 +1,12 @@
 # Daygo 设计文档
 
-> **状态：设计中。** 本目录描述 Daygo 的目标行为与接口。当前实际落盘的实现只有
-> Wails 桌面外壳、前端页面骨架和设置页；其余内容尚未实现。**不要把本目录里的目录、
-> 接口、命令或行为描述成现状。**
+> **状态：设计中。** 本目录描述目标行为与接口。已有桌面外壳、前端设置、平台端口、
+> Capture fake、部分契约测试 / 绑定与时间函数；真实原生、数据库和业务闭环尚未实现。
+> 当前状态与证据见 [09 §9.1](09-roadmap.md#91-模块总表)，不要把目标目录、命令或行为描述成现状。
 >
 > 涉及 macOS 原生能力（屏幕捕获、系统授权、钥匙串、状态栏、自动更新、视频编解码）的
 > 实现方式一律标注 **待定设计**。本目录只定义这些能力的*边界与契约*，不指定实现技术。
-> 汇总见 [09 §9.5 待定设计清单](09-roadmap.md#95-待定设计清单)。
+> 汇总见 [09 §9.8 待定设计清单](09-roadmap.md#98-待定设计清单)。
 
 ## 文档索引
 
@@ -20,12 +20,30 @@
 | 06 | [原生集成](06-native-integration.md) | 需要平台提供哪些能力、Go 侧端口形状 |
 | 07 | [隐私与安全](07-privacy-security.md) | 数据边界、密钥、遥测、IPC 安全模型 |
 | 08 | [测试策略](08-testing-strategy.md) | 各层验证方式与门禁 |
-| 09 | [开发路线图](09-roadmap.md) | M0–M5 里程碑、退出条件与待定设计清单 |
+| 09 | [功能模块路线](09-roadmap.md) | 模块状态、能力接入、门禁、检查点与待定设计 |
 | 10 | [风险登记](10-risks.md) | 已识别风险与缓解措施 |
 
-M1 原生能力的实验规格与子决策：
+## 开发入口
 
-- [屏幕捕获：技术调研、数据契约与原生 ABI](decisions/M1-screen-capture.md)——macOS /
+先在 [模块总表](09-roadmap.md#91-模块总表) 选择用户功能，再读该执行册和关联公共规范。
+模块可并行开工，真实接入取决于具体能力；fake 验证与真实闭环验收分别记录。
+
+| 模块执行册 | 用户结果 |
+|---|---|
+| [recording](modules/recording.md) | 常驻录制与隐私 |
+| [providers](modules/providers.md) | AI 配置与连接 |
+| [timeline](modules/timeline.md) | 自动时间线 |
+| [daily](modules/daily.md) | 每日摘要、日记与目标 |
+| [weekly](modules/weekly.md) | 每周复盘 |
+| [data](modules/data.md) | 数据维护与诊断 |
+| [preferences](modules/preferences.md) | 外观、语言与通用设置 |
+| [delivery](modules/delivery.md) | 安装与安全更新 |
+
+新增执行册沿用 [模板](modules/_template.md)。这些功能边界不改变 02 的技术分层。
+
+原生能力的实验规格与子决策：
+
+- [屏幕捕获：技术调研、数据契约与原生 ABI](decisions/recording-screen-capture.md)——macOS /
   Windows 候选、Go `Capture` 契约、C ABI v1、构建与真实机器门禁。
 
 工程约定（构建命令、代码风格、提交格式、依赖规则）见仓库根目录的
@@ -80,7 +98,7 @@ Go 拥有全部可移植业务逻辑，并且是 SQLite 的唯一写入方。平
 | 设置（存储、隐私、账户） | ✅ | 需要 Go 绑定 |
 | 自然语言问答（Chat） | ❌ | 推迟 |
 | 导出 Markdown | ❌ | 推迟到 v1.1 |
-| CLI / MCP / Agent 写入通道 | ❌ | 接口已定义（[05 §5.9](05-interface-contract.md#59-对外接口)），实现推迟 |
+| CLI / MCP / Agent 写入通道 | ❌ | 接口已定义（[05 §5.9](05-interface-contract.md#59-b6对外接口推迟到-v11)），实现推迟 |
 
 推迟项的接口形状仍然写进 [05](05-interface-contract.md)，这样 v1 的数据模型不会在
 补做它们时被迫改动。

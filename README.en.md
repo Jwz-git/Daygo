@@ -4,7 +4,7 @@
 
 Daygo is a private, local-first work journal for macOS. It captures screen activity at intervals, uses an AI provider chosen by the user to understand that activity, and turns it into a searchable daily timeline, standup summary, and review.
 
-> **Project status:** Daygo is being built with a Go core, Wails, and Vue. What exists today is the desktop shell and the frontend page skeleton; it is not ready for general installation yet.
+> **Project status:** Daygo is being built with a Go core, Wails, and Vue. Existing code includes the desktop shell, frontend settings, platform ports, a Capture fake, partial bindings, and date helpers; it is not ready for general installation yet.
 
 ## Why Daygo
 
@@ -52,20 +52,20 @@ platform adapter (implementation undecided)
 
 Go owns all portable business logic and is the single SQLite writer. The parts that need macOS system capabilities sit behind a small set of ports whose **implementation is not yet chosen** — the docs define only the contract any implementation must satisfy. That boundary is what lets the Go core build and test without macOS (`CGO_ENABLED=0`), which the whole testing strategy depends on.
 
-See the [design docs](docs/README.md) for requirements, interfaces, data model, testing strategy, milestones, and risks.
+See the [design docs](docs/README.md) for requirements, interfaces, data model, testing strategy, feature modules, and risks.
 
 ## Current repository layout
 
 ```text
 cmd/daygo/                  Go command entry point and wails.json
-internal/                   Go core (currently the app shell only)
+internal/                   app bindings, platform ports / Capture fake, partial timeutil
 frontend/                   Vue 3 + TypeScript frontend
 build/                      Wails build assets and output
 testdata/                   fixtures and reference databases (not yet present)
 docs/                       design documentation
 ```
 
-Most Go paths described under `docs/` are still target state. **What exists today is the Wails shell, the frontend page skeleton, and the settings screen** — without storage, analysis, AI, platform adapter, or background lifecycle. See [docs/09-roadmap.md](docs/09-roadmap.md) for the plan.
+Most Go paths described under `docs/` are still target state. Existing code includes the Wails shell, frontend pages and settings, platform ports, a Capture fake, partial bindings, and date helpers. Real storage, analysis, AI, native adapters, and background lifecycle are not implemented. See [docs/09-roadmap.md](docs/09-roadmap.md) for the plan.
 
 ## Build and run
 
@@ -92,6 +92,6 @@ The output is `build/bin/Daygo.app`. Build the frontend first after a fresh clon
 
 ## Contributing
 
-Work should follow the milestone order in [docs/09-roadmap.md](docs/09-roadmap.md) and respect the constraints in [docs/07-privacy-security.md](docs/07-privacy-security.md). Read [AGENTS.md](AGENTS.md) before making implementation changes.
+Work follows the [feature module roadmap](docs/09-roadmap.md) and each module's execution guide. Modules may develop concurrently and integrate when their specific capabilities are ready. Work must respect the constraints in [docs/07-privacy-security.md](docs/07-privacy-security.md). Read [AGENTS.md](AGENTS.md) before making implementation changes.
 
-For substantial changes, open an issue first and state which milestone and verification gate the work addresses.
+For substantial changes, open an issue first and state which feature module, shared capabilities, and verification gates the work addresses.

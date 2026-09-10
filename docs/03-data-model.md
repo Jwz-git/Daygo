@@ -3,6 +3,12 @@
 > **状态：设计。** 本文定义 Daygo 自有的持久化结构。schema 尚未落盘；落盘时以本文为准，
 > 实现与本文冲突时以代码为准并在同一 commit 修正本文。
 
+功能模块按需求增量落盘表与 repository，全部位于 internal/storage。
+[data](modules/data.md) 负责唯一连接、迁移机制 / 编号、锁与可观测封装；功能负责业务表和查询，
+[09 §9.7](09-roadmap.md#97-需求接口与测试归属) 跟踪归属。
+迁移仍从 user_version=1 开始逐版本验收，不因开发模块并行而出现分叉迁移链。
+app_settings repository 归 data，类型化访问归 preferences；没有第二套设置数据库。
+
 ## 3.1 磁盘布局
 
 ```text

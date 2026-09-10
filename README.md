@@ -4,7 +4,7 @@
 
 Daygo 是一款面向 macOS 的隐私优先、本地优先工作日志。它定时采集屏幕活动，使用用户选择的 AI 服务理解工作内容，并将结果整理为可检索的每日时间线、站会摘要和复盘记录。
 
-> 项目状态：Daygo 正在以 Go Core + Wails + Vue 构建。目前落盘的只有桌面外壳与前端页面骨架，尚未达到公开安装条件。
+> 项目状态：Daygo 正在以 Go Core + Wails + Vue 构建。已有桌面外壳、前端设置、平台端口、Capture fake、部分绑定与时间函数，尚未达到公开安装条件。
 
 ## 为什么做 Daygo
 
@@ -52,20 +52,20 @@ Go Core
 
 Go 拥有全部可移植业务逻辑，并且是 SQLite 的唯一写入方。需要 macOS 系统能力的部分收拢在一组端口后面，**实现方式尚未选定**——文档只定义任何方案都必须满足的契约。这条边界让 Go Core 能在无 macOS 环境下构建与测试（`CGO_ENABLED=0`），整套测试策略以此为前提。
 
-完整的需求、接口、数据模型、测试策略、里程碑与风险见[设计文档](docs/README.md)。
+完整的需求、接口、数据模型、测试策略、功能模块路线与风险见[设计文档](docs/README.md)。
 
 ## 当前仓库结构
 
 ```text
 cmd/daygo/                  Go 命令入口与 wails.json
-internal/                   Go Core（当前仅 app 外壳）
+internal/                   app 绑定骨架、platform 端口 / Capture fake、部分 timeutil
 frontend/                   Vue 3 + TypeScript 前端
 build/                      Wails 构建资源与产物
 testdata/                   夹具与参考数据库（尚未落盘）
 docs/                       设计文档
 ```
 
-`docs/` 中描述的多数 Go 目录和接口仍属于目标状态，尚未落盘。**当前已落盘的只有 Wails 外壳、前端页面骨架和设置页**，不含存储、分析、AI、平台适配或后台生命周期。开发路线见 [docs/09-roadmap.md](docs/09-roadmap.md)。
+`docs/` 中描述的多数 Go 目录和接口仍属于目标状态，尚未落盘。当前已有 Wails 外壳、前端页面骨架和设置页、平台端口、Capture fake、部分绑定及时间函数；真实存储、分析、AI、原生适配和后台生命周期尚未实现。开发路线见 [docs/09-roadmap.md](docs/09-roadmap.md)。
 
 ## 构建与运行
 
@@ -92,6 +92,6 @@ go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform darwin/arm
 
 ## 参与贡献
 
-实现工作应遵循 [docs/09-roadmap.md](docs/09-roadmap.md) 的里程碑顺序，并遵守 [docs/07-privacy-security.md](docs/07-privacy-security.md) 的隐私约束。开始修改前请阅读 [AGENTS.md](AGENTS.md)。
+实现工作按 [功能模块路线](docs/09-roadmap.md) 和对应的模块执行册推进；模块可以并行开发，按具体能力的依赖接入，并遵守 [docs/07-privacy-security.md](docs/07-privacy-security.md) 的隐私约束。开始修改前请阅读 [AGENTS.md](AGENTS.md)。
 
-计划进行较大改动时，请先创建 Issue，并说明改动所属的里程碑及其验证门禁。
+计划进行较大改动时，请先创建 Issue，并说明改动所属的功能模块、共享能力影响及其验证门禁。
