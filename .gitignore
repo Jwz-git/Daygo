@@ -77,9 +77,12 @@ tmp/
 *.log
 *.tmp
 
-# Keep curated anonymous test fixtures trackable.
-!testdata/
-!testdata/**/*.sqlite
-!testdata/**/*.sqlite3
-!testdata/**/*.db
+# Keep curated anonymous test fixtures trackable. The `**/` prefix is required:
+# a pattern containing a slash is anchored to the repository root, so the
+# unscoped `!testdata/**/*.db` would only rescue a top-level testdata/ and leave
+# fixtures under internal/**/testdata/ ignored by the rules above.
+!**/testdata/**
+!**/testdata/**/*.sqlite
+!**/testdata/**/*.sqlite3
+!**/testdata/**/*.db
 .playwright-mcp/
