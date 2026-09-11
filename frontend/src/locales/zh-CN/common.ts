@@ -16,6 +16,7 @@ export default {
   },
   state: {
     loading: '加载中…',
+    saving: '正在保存…',
     empty: '暂无内容',
   },
   placeholder: {

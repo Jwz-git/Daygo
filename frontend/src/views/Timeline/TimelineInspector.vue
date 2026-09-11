@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CategoryDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
+import type { TimelineActionAvailability } from '@/api/timeline'
+import type { TimelineAction } from '@/stores/timeline'
 
 import { safeCategoryColor } from './layout'
 
@@ -10,10 +12,22 @@ const props = defineProps<{
   day: TimelineDayDTO
   card: TimelineCardDTO | null
   canWrite: boolean
+  actions: TimelineActionAvailability
+  pendingAction: TimelineAction | null
+  actionFailed: boolean
 }>()
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{
+  close: []
+  updateTitle: [cardID: number, title: string]
+  updateCategory: [cardID: number, category: string]
+  delete: [cardID: number]
+}>()
 const { t } = useI18n()
+const editing = ref(false)
+const confirmingDelete = ref(false)
+const draftTitle = ref('')
+const draftCategory = ref('')
 
 interface CategoryTotal {
   category: CategoryDTO
@@ -42,6 +56,84 @@ const selectedColor = computed(() => {
   const category = props.day.categories.find((entry) => entry.name === props.card?.category)
   return safeCategoryColor(category?.colorHex)
 })
+
+const videoURLs = computed(() => {
+  const card = props.card
+  if (card === null) return []
+  return [...new Set([card.videoSummaryUrl, ...card.otherVideoSummaryUrls])]
+    .filter((url): url is string => typeof url === 'string' && url.trim() !== '')
+})
+
+const editableCategories = computed(() =>
+  props.day.categories.filter((category) => !category.isSystem),
+)
+
+const canStartEditing = computed(
+  () => props.canWrite && (props.actions.updateTitle || props.actions.updateCategory),
+)
+
+const canSaveTitle = computed(() => {
+  const card = props.card
+  const title = draftTitle.value.trim()
+  return card !== null &&
+    title !== '' &&
+    title !== card.title &&
+    props.actions.updateTitle &&
+    props.pendingAction === null
+})
+
+const canSaveCategory = computed(() => {
+  const card = props.card
+  const category = draftCategory.value.trim()
+  return card !== null &&
+    category !== '' &&
+    category !== card.category &&
+    props.actions.updateCategory &&
+    props.pendingAction === null
+})
+
+watch(
+  () => props.card?.id ?? null,
+  () => {
+    editing.value = false
+    confirmingDelete.value = false
+    draftTitle.value = props.card?.title ?? ''
+    draftCategory.value = props.card?.category ?? ''
+  },
+  { immediate: true },
+)
+
+function beginEditing(): void {
+  if (!canStartEditing.value || props.card === null) return
+  draftTitle.value = props.card.title
+  draftCategory.value = props.card.category
+  confirmingDelete.value = false
+  editing.value = true
+}
+
+function cancelEditing(): void {
+  editing.value = false
+  draftTitle.value = props.card?.title ?? ''
+  draftCategory.value = props.card?.category ?? ''
+}
+
+function saveTitle(): void {
+  if (!canSaveTitle.value || props.card === null) return
+  emit('updateTitle', props.card.id, draftTitle.value.trim())
+  editing.value = false
+}
+
+function saveCategory(): void {
+  if (!canSaveCategory.value || props.card === null) return
+  emit('updateCategory', props.card.id, draftCategory.value.trim())
+  editing.value = false
+}
+
+function confirmDeletion(): void {
+  if (props.card === null) return
+  emit('delete', props.card.id)
+  confirmingDelete.value = false
+}
 
 function duration(minutes: number): string {
   const hours = Math.floor(minutes / 60)
@@ -118,7 +210,52 @@ function duration(minutes: number): string {
         {{ props.card.start }} – {{ props.card.end }} · {{ duration(props.card.durationMinutes) }}
       </div>
 
-      <section class="inspector__section">
+      <div v-if="editing" class="editor">
+        <label>
+          <span>{{ t('timeline.inspector.titleLabel') }}</span>
+          <span class="editor__field">
+            <input
+              v-model="draftTitle"
+              class="dg-input"
+              type="text"
+              maxlength="160"
+              :disabled="!props.actions.updateTitle || props.pendingAction !== null"
+              @keydown.enter.prevent="saveTitle"
+            />
+            <button type="button" class="dg-button" :disabled="!canSaveTitle" @click="saveTitle">
+              {{ props.pendingAction === 'update-title' ? t('common.state.saving') : t('common.action.save') }}
+            </button>
+          </span>
+        </label>
+        <label>
+          <span>{{ t('timeline.inspector.categoryLabel') }}</span>
+          <span class="editor__field">
+            <select
+              v-model="draftCategory"
+              class="dg-input"
+              :disabled="!props.actions.updateCategory || props.pendingAction !== null"
+            >
+              <option
+                v-for="category in editableCategories"
+                :key="category.id"
+                :value="category.name"
+              >
+                {{ category.name }}
+              </option>
+            </select>
+            <button type="button" class="dg-button" :disabled="!canSaveCategory" @click="saveCategory">
+              {{ props.pendingAction === 'update-category' ? t('common.state.saving') : t('common.action.save') }}
+            </button>
+          </span>
+        </label>
+        <div class="editor__actions">
+          <button type="button" class="dg-button" @click="cancelEditing">
+            {{ t('common.action.cancel') }}
+          </button>
+        </div>
+      </div>
+
+      <section v-else class="inspector__section">
         <h3>{{ t('timeline.inspector.summary') }}</h3>
         <p>{{ props.card.detailedSummary || props.card.summary || t('timeline.inspector.noSummary') }}</p>
       </section>
@@ -145,19 +282,68 @@ function duration(minutes: number): string {
 
       <section class="inspector__section inspector__section--frames">
         <div>
-          <h3>{{ t('timeline.inspector.frames') }}</h3>
-          <p>{{ t('timeline.inspector.framesUnavailable') }}</p>
+          <h3>{{ t('timeline.inspector.media') }}</h3>
+          <p v-if="videoURLs.length === 0">{{ t('timeline.inspector.framesUnavailable') }}</p>
         </div>
-        <div class="frame-placeholder" aria-hidden="true">
+        <div v-if="videoURLs.length === 0" class="frame-placeholder" aria-hidden="true">
           <span></span><span></span><span></span>
+        </div>
+        <div v-else class="media-list">
+          <video
+            v-for="(url, index) in videoURLs"
+            :key="url"
+            controls
+            preload="metadata"
+            :src="url"
+            :aria-label="t('timeline.inspector.mediaLabel', { count: index + 1 })"
+          ></video>
         </div>
       </section>
 
-      <div class="inspector__actions" :title="t('timeline.inspector.actionsUnavailable')">
-        <button type="button" class="dg-button" disabled>{{ t('common.action.edit') }}</button>
-        <button type="button" class="dg-button" disabled>{{ t('common.action.delete') }}</button>
+      <p v-if="props.actionFailed" class="inspector__error" role="alert">
+        {{ t('timeline.inspector.actionFailed') }}
+      </p>
+
+      <div class="inspector__actions">
+        <template v-if="confirmingDelete">
+          <span class="inspector__confirm">{{ t('timeline.inspector.deleteConfirm') }}</span>
+          <button type="button" class="dg-button" @click="confirmingDelete = false">
+            {{ t('common.action.cancel') }}
+          </button>
+          <button
+            type="button"
+            class="dg-button inspector__delete"
+            :disabled="props.pendingAction !== null"
+            @click="confirmDeletion"
+          >
+            {{ t('common.action.delete') }}
+          </button>
+        </template>
+        <template v-else>
+          <button
+            type="button"
+            class="dg-button"
+            :disabled="!canStartEditing || props.pendingAction !== null"
+            :title="canStartEditing ? t('common.action.edit') : t('timeline.inspector.actionsUnavailable')"
+            @click="beginEditing"
+          >
+            {{ t('common.action.edit') }}
+          </button>
+          <button
+            type="button"
+            class="dg-button"
+            :disabled="!props.canWrite || !props.actions.deleteCard || props.pendingAction !== null"
+            :title="props.actions.deleteCard ? t('common.action.delete') : t('timeline.inspector.actionsUnavailable')"
+            @click="confirmingDelete = true"
+          >
+            {{ t('common.action.delete') }}
+          </button>
+        </template>
         <span v-if="!props.canWrite" class="inspector__readonly">
           {{ t('timeline.inspector.readOnly') }}
+        </span>
+        <span v-else-if="!canStartEditing && !props.actions.deleteCard" class="inspector__readonly">
+          {{ t('timeline.inspector.actionsUnavailable') }}
         </span>
       </div>
     </template>
@@ -280,6 +466,18 @@ function duration(minutes: number): string {
 
 .card-time span { width: 7px; height: 7px; border-radius: 50%; }
 
+.editor {
+  display: grid;
+  gap: 13px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--dg-timeline-grid);
+}
+
+.editor label { display: grid; gap: 5px; }
+.editor label > span { color: var(--dg-text-secondary); font-size: 10px; font-weight: 600; }
+.editor__field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.editor__actions { display: flex; justify-content: flex-end; gap: 7px; }
+
 .inspector__section { padding: 16px 0; border-top: 1px solid var(--dg-timeline-grid); }
 .inspector__section:first-of-type { border-top: 0; }
 .inspector__section h3 { margin-bottom: 6px; color: var(--dg-text-primary); font-size: 11px; font-weight: 650; }
@@ -293,6 +491,11 @@ function duration(minutes: number): string {
 .inspector__section--frames { display: grid; gap: 12px; }
 .frame-placeholder { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .frame-placeholder span { height: 52px; border: 1px solid var(--dg-timeline-grid); border-radius: 5px; background: var(--dg-timeline-frame-fill); }
+.media-list { display: grid; gap: 8px; }
+.media-list video { width: 100%; border-radius: 6px; background: var(--dg-track-fill); }
 .inspector__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 18px; border-top: 1px solid var(--dg-timeline-grid); }
 .inspector__readonly { width: 100%; color: var(--dg-text-muted); font-size: 10px; }
+.inspector__confirm { width: 100%; color: var(--dg-text-secondary); font-size: 11px; }
+.inspector__delete { border-color: color-mix(in srgb, var(--dg-danger) 34%, transparent); color: var(--dg-danger); }
+.inspector__error { margin: 4px 0 12px; color: var(--dg-danger); font-size: 11px; }
 </style>

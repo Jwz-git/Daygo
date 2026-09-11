@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import PageHeader from '@/components/PageHeader.vue'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
+import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { useTimelineStore } from '@/stores/timeline'
 
 import TimelineInspector from './TimelineInspector.vue'
@@ -25,10 +26,14 @@ const {
   capabilities,
   dayNavigationAvailable,
   usingDevelopmentFixture,
+  pendingAction,
+  actionError,
+  actionAvailability,
 } = storeToRefs(timeline)
 const { locale, t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
 
 const dateTitle = computed(() => {
   if (context.value === null) return t('timeline.title')
@@ -81,6 +86,17 @@ function goToToday(): void {
   void router.push({ name: 'timeline', query })
 }
 
+async function copyTimeline(): Promise<void> {
+  if (day.value === null || cards.value.length === 0) return
+  try {
+    await navigator.clipboard.writeText(formatTimelineForClipboard(day.value.day, cards.value))
+    copyState.value = 'copied'
+  } catch {
+    copyState.value = 'failed'
+  }
+  window.setTimeout(() => { copyState.value = 'idle' }, 1600)
+}
+
 onMounted(() => {
   timeline.startEvents()
 })
@@ -91,7 +107,7 @@ onBeforeUnmount(() => timeline.stopListening())
 </script>
 
 <template>
-  <div class="page timeline-page">
+  <div class="page timeline-page" @keydown.esc="timeline.selectCard(null)">
     <PageHeader :title="dateTitle">
       <template #lead>
         <div class="date-nav" role="group" :aria-label="t('timeline.navigation.label')">
@@ -161,12 +177,32 @@ onBeforeUnmount(() => timeline.stopListening())
       <span class="filter-bar__spacer"></span>
       <button
         type="button"
+        class="filter-manage filter-manage--available"
+        :disabled="cards.length === 0"
+        @click="copyTimeline"
+      >
+        {{ copyState === 'copied' ? t('timeline.copy.copied') : copyState === 'failed' ? t('timeline.copy.failed') : t('timeline.copy.action') }}
+      </button>
+      <button
+        type="button"
+        class="filter-manage filter-manage--available"
+        :disabled="!capabilities?.canWrite || !actionAvailability.reprocessDay || pendingAction !== null"
+        :title="actionAvailability.reprocessDay ? t('timeline.reprocess.action') : t('timeline.reprocess.unavailable')"
+        @click="timeline.reprocess()"
+      >
+        {{ pendingAction === 'reprocess-day' ? t('timeline.reprocess.pending') : t('timeline.reprocess.action') }}
+      </button>
+      <button
+        type="button"
         class="filter-manage"
         :title="t('timeline.filter.manageUnavailable')"
         disabled
       >
         {{ t('timeline.filter.manage') }}
       </button>
+      <span v-if="actionError !== null && selectedCard === null" class="filter-error" role="alert">
+        {{ t('timeline.actionFailed') }}
+      </span>
     </div>
 
     <div class="timeline-body">
@@ -186,7 +222,10 @@ onBeforeUnmount(() => timeline.stopListening())
           :failures="day.failures"
           :processing-ranges="day.processingRanges"
           :selected-card-i-d="selectedCardID"
+          :can-retry="Boolean(capabilities?.canWrite && actionAvailability.retryBatches)"
+          :retrying="pendingAction === 'retry-batches'"
           @select="timeline.selectCard"
+          @retry="timeline.retryFailure"
         />
         <TimelineInspector
           class="timeline-body__inspector"
@@ -194,7 +233,13 @@ onBeforeUnmount(() => timeline.stopListening())
           :day="day"
           :card="selectedCard"
           :can-write="capabilities?.canWrite ?? false"
+          :actions="actionAvailability"
+          :pending-action="pendingAction"
+          :action-failed="actionError !== null"
           @close="timeline.selectCard(null)"
+          @update-title="timeline.changeCardTitle"
+          @update-category="timeline.changeCardCategory"
+          @delete="timeline.removeCard"
         />
       </template>
     </div>
@@ -285,6 +330,10 @@ onBeforeUnmount(() => timeline.stopListening())
 .filter-chip i { width: 7px; height: 7px; border-radius: 50%; }
 .filter-bar__spacer { flex: 1; }
 .filter-manage { color: var(--dg-text-muted); cursor: default; }
+.filter-manage--available:not(:disabled) { color: var(--dg-text-secondary); cursor: pointer; }
+.filter-manage--available:not(:disabled):hover { background: var(--dg-hover-fill); color: var(--dg-text-primary); }
+.filter-manage--available:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.filter-error { flex: none; color: var(--dg-danger); font-size: 10px; white-space: nowrap; }
 
 .timeline-body {
   position: relative;
@@ -311,7 +360,9 @@ onBeforeUnmount(() => timeline.stopListening())
     bottom: 12px;
     display: block;
     width: min(var(--dg-inspector-width), calc(100% - 24px));
+    background: var(--dg-panel-fill);
     box-shadow: var(--dg-panel-shadow);
+    backdrop-filter: blur(24px) saturate(110%);
   }
 }
 

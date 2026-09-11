@@ -16,6 +16,7 @@ export default {
   },
   state: {
     loading: 'Loading…',
+    saving: 'Saving…',
     empty: 'Nothing here yet',
   },
   placeholder: {

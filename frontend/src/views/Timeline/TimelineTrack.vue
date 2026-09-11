@@ -26,9 +26,14 @@ const props = defineProps<{
   failures: TimelineFailureDTO[]
   processingRanges: RangeDTO[]
   selectedCardID: number | null
+  canRetry: boolean
+  retrying: boolean
 }>()
 
-const emit = defineEmits<{ select: [id: number] }>()
+const emit = defineEmits<{
+  select: [id: number]
+  retry: [batchIDs: number[]]
+}>()
 const { locale, t } = useI18n()
 const scroller = ref<HTMLElement | null>(null)
 
@@ -159,8 +164,20 @@ watch(() => props.context.day, () => void revealRelevantTime())
           }"
           role="alert"
         >
-          <span class="range__title">{{ t('timeline.failure.title') }}</span>
-          <span class="range__message">{{ failure.message }}</span>
+          <span class="range__copy">
+            <span class="range__title">{{ t('timeline.failure.title') }}</span>
+            <span class="range__message">{{ failure.message }}</span>
+          </span>
+          <button
+            v-if="failure.retryable"
+            type="button"
+            class="range__retry"
+            :disabled="!props.canRetry || props.retrying || failure.batchIds.length === 0"
+            :title="props.canRetry ? t('timeline.failure.retry') : t('timeline.failure.retryUnavailable')"
+            @click="emit('retry', failure.batchIds)"
+          >
+            {{ props.retrying ? t('timeline.failure.retrying') : t('common.action.retry') }}
+          </button>
         </div>
 
         <TimelineActivityCard
@@ -256,14 +273,14 @@ watch(() => props.context.day, () => void revealRelevantTime())
 }
 
 .range--failure {
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 10px;
   border: 1px solid color-mix(in srgb, var(--dg-danger) 34%, transparent);
   background: var(--dg-danger-fill);
   color: var(--dg-danger);
 }
 
+.range__copy { display: flex; min-width: 0; flex-direction: column; }
 .range__title { font-weight: 650; }
 .range__message {
   max-width: 100%;
@@ -272,6 +289,20 @@ watch(() => props.context.day, () => void revealRelevantTime())
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.range__retry {
+  flex: none;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  color: var(--dg-danger);
+  font-size: 10px;
+}
+
+.range__retry:disabled { cursor: default; opacity: 0.42; }
+.range__retry:not(:disabled):hover { background: color-mix(in srgb, var(--dg-danger) 9%, transparent); }
+.range__retry:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 
 .now-line {
   position: absolute;

@@ -9,6 +9,7 @@ export default {
   meta: {
     tracked: '已跟踪 {count} 分钟',
   },
+  actionFailed: '操作未完成，数据没有被前端改写。',
   filter: {
     label: '按分类筛选',
     all: '全部',
@@ -21,6 +22,19 @@ export default {
   processing: '正在分析这一时段…',
   failure: {
     title: '分析未完成',
+    retry: '重试这个失败时段',
+    retrying: '正在重试…',
+    retryUnavailable: '批次重试绑定尚未交付或当前实例只读',
+  },
+  copy: {
+    action: '复制时间线',
+    copied: '已复制',
+    failed: '复制失败',
+  },
+  reprocess: {
+    action: '重新处理',
+    pending: '已提交…',
+    unavailable: '整日重处理绑定尚未交付',
   },
   state: {
     loading: {
@@ -68,10 +82,15 @@ export default {
     noSummary: '这一活动没有摘要。',
     apps: '应用与站点',
     distractions: '分心片段',
-    frames: '活动帧',
+    media: '活动回放',
+    mediaLabel: '活动回放 {count}',
     framesUnavailable: '媒体读取绑定交付后按需加载，不阻塞时间线。',
     actionsUnavailable: '编辑、分类修改与删除将在卡片写入绑定交付后启用',
     readOnly: '当前为只读状态',
+    titleLabel: '标题',
+    categoryLabel: '分类',
+    deleteConfirm: '删除后卡片会被软删除。确定继续吗？',
+    actionFailed: '操作没有完成，现有卡片未被前端改写。',
   },
   duration: {
     minutes: '{count} 分钟',

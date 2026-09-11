@@ -13,7 +13,7 @@
 |---|---|---|---|
 | [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、macOS / Windows 单次截图、权限绑定骨架 | fake 契约通过；两平台各有一次真实像素 smoke，MC / WC 完整矩阵与真实集成未验收 |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、主备路由、协议客户端和连接测试 | 部分实现：三协议客户端、重试 / 回退、连接探针绑定；前端配置存无密钥 localStorage | Go 单元与匿名 TLS fixture 通过；Secrets、Provider 落库与真实服务未验收 |
-| [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、碰撞分栏时间轨道、详情切片、开发专用匿名样例 | 时间函数单元、前端类型 / 构建和匿名视觉夹具通过；真实绑定与闭环未验收 |
+| [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、碰撞分栏轨道、详情及写操作接入界面、开发专用匿名样例 | 时间函数单元、前端类型 / 构建和匿名视觉夹具通过；卡片 / 分析真实绑定与闭环未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：工作流 / 指标 / 只读日报前端切片、与 Timeline 共享路由日期、开发专用匿名样例 | 前端类型 / 构建、浅深主题、窄窗口及中英文样例检查通过；真实绑定与闭环未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、开发专用匿名样例 | 前端类型 / 构建、浅深主题、窄窗口及中英文样例检查通过；真实聚合、绑定与周边界未验收 |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：跨平台 db-core、settings-store、diagnostics、checkpoint 与备份 | macOS 单元与并发 smoke、Windows LockFileEx 跨进程 smoke 通过；1 小时 DB-8、清理与诊断 UI 未运行 |

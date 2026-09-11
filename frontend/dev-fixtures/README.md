@@ -7,9 +7,10 @@ outside `src`, are not imported by the application, and must not appear in
 The timeline, daily, and weekly stores use their matching JSON file only when the
 required Wails bindings are missing. A visible “sample data · development
 only” badge keeps that state distinct from real activity. `daily.json` contains
-six anonymous activities and a short recap. `weekly.json` contains only one
-anonymous aggregate week. Neither file is a recording of a real person or
-project.
+six anonymous activities and a short recap. `timeline.json` contains seven
+anonymous activities, including an idle range and adjacent short cards.
+`weekly.json` contains only one anonymous aggregate week. None of these files is
+a recording of a real person or project.
 
 To remove the previews later, delete this directory,
 `src/api/developmentFixtures.ts`, the `developmentFixtures()` Vite plugin, and

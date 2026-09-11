@@ -9,12 +9,18 @@ import type {
 } from '@/api/dto'
 import { getTimelineDevelopmentFixture } from '@/api/developmentFixtures'
 import {
+  deleteCard,
   getDayContext,
+  getTimelineActionAvailability,
   getTimelineCapabilities,
   getTimelineDay,
   hasTimelineDayBinding,
   onTimelineUpdated,
+  reprocessDay,
+  retryBatches,
   TimelineUnavailableError,
+  updateCardCategory,
+  updateCardTitle,
 } from '@/api/timeline'
 
 export type TimelineState =
@@ -24,6 +30,13 @@ export type TimelineState =
   | 'processing'
   | 'failure'
   | 'populated'
+
+export type TimelineAction =
+  | 'update-title'
+  | 'update-category'
+  | 'delete-card'
+  | 'retry-batches'
+  | 'reprocess-day'
 
 export const useTimelineStore = defineStore('timeline', () => {
   const context = ref<DayContextDTO | null>(null)
@@ -35,6 +48,9 @@ export const useTimelineStore = defineStore('timeline', () => {
   const selectedCardID = ref<number | null>(null)
   const categoryFilter = ref<string | null>(null)
   const usingDevelopmentFixture = ref(false)
+  const pendingAction = ref<TimelineAction | null>(null)
+  const actionError = ref<unknown>(null)
+  const actionBindings = getTimelineActionAvailability()
   let requestVersion = 0
   let stopEvents: (() => void) | null = null
 
@@ -47,6 +63,17 @@ export const useTimelineStore = defineStore('timeline', () => {
   const selectedCard = computed(
     () => day.value?.cards.find((card) => card.id === selectedCardID.value) ?? null,
   )
+
+  const actionAvailability = computed(() => {
+    const enabled = capabilities.value?.features.includes('timeline') ?? false
+    return {
+      updateCategory: enabled && actionBindings.updateCategory,
+      updateTitle: enabled && actionBindings.updateTitle,
+      deleteCard: enabled && actionBindings.deleteCard,
+      retryBatches: enabled && actionBindings.retryBatches,
+      reprocessDay: enabled && actionBindings.reprocessDay,
+    }
+  })
 
   const state = computed<TimelineState>(() => {
     if (loading.value) return 'loading'
@@ -63,6 +90,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     loading.value = true
     unavailable.value = false
     error.value = null
+    actionError.value = null
     usingDevelopmentFixture.value = false
 
     try {
@@ -105,6 +133,7 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   function selectCard(id: number | null): void {
     selectedCardID.value = id
+    actionError.value = null
   }
 
   function setCategoryFilter(category: string | null): void {
@@ -112,6 +141,49 @@ export const useTimelineStore = defineStore('timeline', () => {
     if (selectedCard.value !== null && category !== null && selectedCard.value.category !== category) {
       selectedCardID.value = null
     }
+  }
+
+  async function runAction(action: TimelineAction, operation: () => Promise<void>): Promise<boolean> {
+    if (pendingAction.value !== null) return false
+    pendingAction.value = action
+    actionError.value = null
+    try {
+      await operation()
+      return true
+    } catch (cause: unknown) {
+      actionError.value = cause
+      return false
+    } finally {
+      pendingAction.value = null
+    }
+  }
+
+  function changeCardTitle(cardID: number, title: string): Promise<boolean> {
+    const nextTitle = title.trim()
+    if (nextTitle.length === 0) return Promise.resolve(false)
+    return runAction('update-title', () => updateCardTitle(cardID, nextTitle))
+  }
+
+  function changeCardCategory(cardID: number, category: string): Promise<boolean> {
+    const nextCategory = category.trim()
+    if (nextCategory.length === 0) return Promise.resolve(false)
+    return runAction('update-category', () => updateCardCategory(cardID, nextCategory))
+  }
+
+  async function removeCard(cardID: number): Promise<boolean> {
+    const succeeded = await runAction('delete-card', () => deleteCard(cardID))
+    if (succeeded) selectedCardID.value = null
+    return succeeded
+  }
+
+  function retryFailure(batchIDs: number[]): Promise<boolean> {
+    return runAction('retry-batches', () => retryBatches(batchIDs))
+  }
+
+  function reprocess(): Promise<boolean> {
+    const selectedDay = context.value?.day
+    if (selectedDay === undefined) return Promise.resolve(false)
+    return runAction('reprocess-day', () => reprocessDay(selectedDay))
   }
 
   function startEvents(): void {
@@ -135,6 +207,9 @@ export const useTimelineStore = defineStore('timeline', () => {
     selectedCardID,
     categoryFilter,
     usingDevelopmentFixture,
+    pendingAction,
+    actionError,
+    actionAvailability,
     cards,
     selectedCard,
     state,
@@ -142,6 +217,11 @@ export const useTimelineStore = defineStore('timeline', () => {
     load,
     selectCard,
     setCategoryFilter,
+    changeCardTitle,
+    changeCardCategory,
+    removeCard,
+    retryFailure,
+    reprocess,
     startEvents,
     stopListening,
   }

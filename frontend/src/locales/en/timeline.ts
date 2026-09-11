@@ -9,6 +9,7 @@ export default {
   meta: {
     tracked: '{count} minutes tracked',
   },
+  actionFailed: 'The action did not finish. The frontend did not change the data.',
   filter: {
     label: 'Filter by category',
     all: 'All',
@@ -21,6 +22,19 @@ export default {
   processing: 'Analysing this range…',
   failure: {
     title: 'Analysis incomplete',
+    retry: 'Retry this failed range',
+    retrying: 'Retrying…',
+    retryUnavailable: 'Batch retry is not connected or this instance is read-only',
+  },
+  copy: {
+    action: 'Copy timeline',
+    copied: 'Copied',
+    failed: 'Copy failed',
+  },
+  reprocess: {
+    action: 'Reprocess',
+    pending: 'Submitted…',
+    unavailable: 'Full-day reprocessing is not connected yet',
   },
   state: {
     loading: {
@@ -68,10 +82,15 @@ export default {
     noSummary: 'This activity has no summary.',
     apps: 'Apps and sites',
     distractions: 'Distractions',
-    frames: 'Activity frames',
+    media: 'Activity playback',
+    mediaLabel: 'Activity playback {count}',
     framesUnavailable: 'Media will load on demand once its binding ships, without blocking the timeline.',
     actionsUnavailable: 'Editing, category changes and deletion will unlock with the card write bindings',
     readOnly: 'Currently read-only',
+    titleLabel: 'Title',
+    categoryLabel: 'Category',
+    deleteConfirm: 'This card will be soft-deleted. Continue?',
+    actionFailed: 'The action did not finish. The frontend left the existing card unchanged.',
   },
   duration: {
     minutes: '{count} min',
