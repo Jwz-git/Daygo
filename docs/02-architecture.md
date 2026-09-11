@@ -28,6 +28,7 @@ flowchart TD
             ANALYSIS["analysis — 分批、流水线、空闲判定"]
             AIM["ai — provider 注册表、路由、重试"]
             INSIGHT["insight — 时间线、每日、每周"]
+            CHAT["chat — 应用内对话式 agent：问答与沙箱内受控编辑（推迟）"]
             AGENT["agent — 对外接口：agentbridge 写入通道 / MCP 工具面（推迟）"]
         end
         subgraph FOUND["foundation"]
@@ -143,6 +144,7 @@ Daygo/
 │   ├── timeutil/                    ★ 凌晨 4 点逻辑日（时钟串派生与周边界 ☐）
 │   ├── analysis/                    ☐ scheduler / batcher / pipeline / idle / reprocess
 │   ├── insight/                     ☐ timeline / daily / weekly
+│   ├── chat/                        ☐ 应用内对话式 agent：回合状态机、工具沙箱与预算（chat 模块，推迟到 v1.1；契约见 05 §5.12）
 │   ├── domain/                      ☐ 共享类型，无行为
 │   ├── media/                       ☐ 已解码帧的有界 LRU（字节，不是图像对象）
 │   ├── agentbridge/                 ☐ 外部写入通道（agent 模块，推迟到 v1.1）

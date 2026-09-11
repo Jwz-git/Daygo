@@ -258,7 +258,28 @@ CREATE TABLE timeline_review_ratings (
 );
 ```
 
-Chat 相关表（`chat_conversations`、`chat_messages`）随 Chat 功能一起落盘，v1 不建。
+```sql
+-- Chat 会话与消息。随 chat 功能落盘（推迟到 v1.1，契约见 05 §5.12）；会话模型待定，
+-- 若选择单一滚动会话，chat_conversations 可省。
+CREATE TABLE chat_conversations (
+  id         TEXT PRIMARY KEY,   -- UUID
+  title      TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE chat_messages (
+  id              INTEGER PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+  role            TEXT NOT NULL,  -- user | assistant | tool_call | tool_result
+  content         TEXT NOT NULL,
+  tool_name       TEXT,           -- role = tool_call 时
+  tool_arguments  TEXT,           -- JSON，已过 schema 校验
+  status          TEXT,           -- assistant 消息：ok | failed | canceled
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX idx_chat_messages_conversation ON chat_messages (conversation_id, id);
+```
 
 ### 3.3.5 设置与 Provider
 
@@ -304,6 +325,10 @@ CREATE TABLE providers (
 | `providers.routing` | `{primary, secondary}` | 空 |
 | `llm.outputLanguage` | string（空串=跟随界面语言） | `""` |
 | `llm.recognitionEnhancementEnabled` | bool | `false` |
+| `chat.editMode` | string（`readonly` \| `edits`） | `"readonly"` |
+
+`chat.editMode` 是 chat 沙箱门禁（[05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现)），
+随 chat 功能落盘；当前不在 `internal/settings` 已实现的 16 个键内。
 
 `llm.outputLanguage` 与 `appearance.language` 是**两个独立设置**：前者决定模型生成的卡片
 标题与摘要用什么语言，后者只影响界面文案。不得复用同一个字段。

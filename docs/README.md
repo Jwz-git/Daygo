@@ -45,6 +45,8 @@
 | [data](modules/data.md) | 数据维护与诊断 |
 | [preferences](modules/preferences.md) | 外观、语言与通用设置 |
 | [delivery](modules/delivery.md) | 安装与安全更新 |
+| [agent](modules/agent.md) | CLI、agent.sock 与 MCP（推迟，设计准备） |
+| [chat](modules/chat.md) | 应用内自然语言问答与受控编辑（推迟，设计准备） |
 
 新增执行册沿用 [模板](modules/_template.md)。这些功能边界不改变 02 的技术分层。
 
@@ -120,7 +122,7 @@ Go 拥有全部可移植业务逻辑，并且是 SQLite 的唯一写入方。平
 | 每周复盘 | ✅ | 合计与分类占比；自定义图表推迟 |
 | 设置（外观、语言、Provider） | ✅ | 已部分落盘 |
 | 设置（存储、隐私、账户） | ✅ | 需要 Go 绑定 |
-| 自然语言问答（Chat） | ❌ | 推迟 |
+| 自然语言问答（Chat） | ❌ | 推迟；应用内 agent 设计准备见 [modules/chat](modules/chat.md) |
 | 导出 Markdown | ❌ | 推迟到 v1.1 |
 | CLI / MCP / Agent 写入通道 | ❌ | 接口形状已定义（[05 §5.9](05-interface-contract.md#59-b6对外接口推迟到-v11)），设计准备见 [modules/agent.md](modules/agent.md)，实现推迟 |
 

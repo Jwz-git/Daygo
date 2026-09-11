@@ -1317,4 +1317,57 @@ CGO_ENABLED=0 go build ./... && CGO_ENABLED=0 go test ./internal/...
 | 时钟串解析失败的提示与处置体验（禁止静默丢弃） | timeline 产品 | 失败交互实现前；SkippedCards 必须被消费 |
 | 统一重试策略后的用户可观察行为 | timeline 产品，providers 协作 | 重试策略与入口接入前 |
 | `apiRevision` 是否在生产中真正校验 | preferences 工程 | 前后端版本不一致处理接入前 |
-| Chat 相关绑定是否进入 v1.1 | delivery / 范围 | v1 发布后 |
+| Chat 相关绑定是否进入 v1.1（设计准备见 §5.12） | delivery / 范围 | v1 发布后 |
+| Chat 会话模型、流式输出、留存与 provider 路由（§5.12 待定表） | chat 产品 + 工程 | chat 实现切片前 |
+
+---
+
+## 5.12 Chat：应用内对话式 Agent（设计准备，未实现）
+
+Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分类 / 搜索，并在沙箱授权内
+完成增删改查。它**不属于 B6 对外接口**：不经 CLI、`agent.sock` 或 MCP，是宿主内功能
+（B1 绑定 + `internal/chat` 服务直接调用与绑定层同源的服务路径）。但工具面与 B6 **同源**：
+读面等于 §5.9.1 的读命令语义，写面不超出 §5.9.2 的六个操作——三条通道共享一套查询与
+写入语义，不出现第四套。v1 不交付；执行册见 [modules/chat](modules/chat.md)。
+
+已定约束：
+
+| 约束 | 值 | 理由 |
+|------|-----|------|
+| 形态 | 宿主内 chat 服务（`internal/chat`）+ B1 绑定 | 用户在应用内发起，无需外部进程或第二条协议 |
+| 工具读面 | timeline / card / daily / weekly / categories / search，语义与 §5.9.1 同源 | 与 CLI / MCP 一套查询语义 |
+| 工具写面 | 恰为 §5.9.2 的六个操作：`category_add` `category_update` `category_remove` `card_update` `card_delete` `goal_set` | 不为 chat 引入绑定层没有的写能力 |
+| 写入路径 | 与绑定层同一条服务路径：同校验、同事件；实例不持写入锁时写工具一律拒绝 | 同源；只读实例不因 chat 破坏 |
+| 沙箱门禁 | 设置 `chat.editMode`：`readonly`（默认）/ `edits`；**服务端独立校验**，UI 不承担门禁 | 与 `system.agentEditsEnabled` 分离——那是 `agent.sock` 外部通道的开关，两者独立生效 |
+| 工具调用机制 | 协议无关 JSON 模式：模型经结构化输出返回 `{tool, arguments}` 或最终回答；不依赖各家原生 function-calling API | 三协议统一，复用 `internal/ai` 现有能力 |
+| 预算 | 每条用户消息最多 **8** 次工具调用；单次工具结果截断 **64 KiB**；回合总时限 **120 s**；可取消 | 防循环与内存放大 |
+| 校验 | 工具参数按固定 JSON Schema 服务端校验；未知工具或非法参数返回封闭错误给模型，回合不中断 | LLM 输出是数据（[07 §7.5](07-privacy-security.md#75-本地攻击面)） |
+| 隐私 | 工具输出与错误 `message` 不含原始帧、分段路径、文件路径、密钥、LLM payload | 07 的边界对 chat 生效 |
+| 审计 | 真实 HTTP attempt 计入 `llm_calls`（purpose=`chat`）；chat 触发的写入追加 `agent-writes.log` 并带来源标记 | 与 §5.9.2 同一条审计日志 |
+| 核心可测 | `internal/chat` 在 `CGO_ENABLED=0` 下可构建，Linux 可测（脚本化 fake provider） | §5.10.3 的 CI 门禁反向约束接口设计 |
+
+设计中的绑定与事件（实现时进 §5.2.1 / §5.5.1 / §5.5.3 的正式目录，反射清单测试同步；
+`SettingsDTO` 增加 `chat` 分组属非破坏性扩张）：
+
+| 方法 | 类型 | 事件 | 主要错误码 |
+|------|------|------|-----------|
+| `SendChatMessage(content string) error` | 写·非幂等（发起一个回合） | `chat:updated` | `provider_not_configured` `provider_failed` `invalid_argument` |
+| `CancelChatTurn() error` | 写·幂等 | `chat:updated` | — |
+| `GetChatMessages(beforeID int64, limit int) ([]ChatMessageDTO, error)` | 读 | — | `invalid_argument` |
+
+消息模型：**原子消息**，角色为 `user` / `assistant` / `tool_call` / `tool_result`；回合的
+失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` / `canceled`）。`chat:updated`
+是失效通知，前端靠 `GetChatMessages` 重拉，符合 §5.5.3 "事件不是数据源"。
+
+待定候选（[09 §9.8](09-roadmap.md#98-待定设计清单) #23）：
+
+| 决策点 | 候选 | 含义与代价 |
+|--------|------|-----------|
+| 会话模型 | 单一滚动会话 | 最简：一张 `chat_messages` 表即可，`chat_conversations` 可省 |
+| | 多会话（标题、切换） | 更接近聊天产品，但需要会话管理 UI 与 `chat_conversations` 表 |
+| 流式输出 | 保持原子消息 | 首屏简单，长回答有等待感 |
+| | token 级增量 | 需要按 §5.5.3 增加带 `seq` 的流式增量事件与重建协议，三协议流式能力不一 |
+| 消息留存 | 无限期 vs 按天数 / 条数上限 | 上限策略与 [07 §7.6](07-privacy-security.md#76-数据留存与删除) 的留存原则一并定 |
+| provider 路由 | 复用 `providers.routing` | 零新增配置；分析失败回退会波及 chat 体验 |
+| | chat 独立选择 provider | 需要新增设置项与 UI |
+| 审计来源标记 | `agent-writes.log` 中区分 UI / agent.sock / MCP / chat 来源 | 与 §5.9.3 的候选共通，一并定 |
