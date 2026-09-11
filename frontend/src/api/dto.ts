@@ -203,3 +203,18 @@ export interface CapabilitiesDTO {
   appVersion: string
   apiRevision: number
 }
+
+export interface CategoryTotalDTO {
+  name: string
+  minutes: number
+  share: number
+}
+
+export interface WeeklyDashboardDTO {
+  weekStart: string
+  weekStartTs: number
+  weekEndTs: number
+  trackedMinutes: number
+  focusMinutes: number
+  categories: CategoryTotalDTO[]
+}

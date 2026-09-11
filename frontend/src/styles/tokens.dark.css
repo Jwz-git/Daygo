@@ -91,4 +91,16 @@
   --dg-daily-cell-border: rgba(255, 255, 255, 0.035);
   --dg-daily-distraction: #ff8278;
   --dg-daily-footer-fill: rgba(8, 8, 10, 0.14);
+
+  --dg-weekly-focus: #ff8a55;
+  --dg-weekly-ring-track: rgba(255, 255, 255, 0.09);
+  --dg-weekly-ring-center: rgba(35, 35, 38, 0.98);
+  --dg-weekly-summary-fill: rgba(8, 8, 10, 0.13);
+  --dg-weekly-bar-track: rgba(255, 255, 255, 0.065);
+  --dg-weekly-series-1: #6d9bc3;
+  --dg-weekly-series-2: #f08a5d;
+  --dg-weekly-series-3: #69a58d;
+  --dg-weekly-series-4: #978bc3;
+  --dg-weekly-series-5: #71aab0;
+  --dg-weekly-series-6: #bea06e;
 }

@@ -703,7 +703,7 @@ type GoalCategoryRefDTO struct {
     SortOrder  int    `json:"sortOrder"`
 }
 
-// 图表专用子模型随 Weekly UI 一起定稿，见 §5.11。
+// 当前首屏只使用这些聚合字段；丰富图表子模型仍待定，见 §5.11。
 type WeeklyDashboardDTO struct {
     WeekStart      string             `json:"weekStart"` // yyyy-MM-dd
     WeekStartTs    int64              `json:"weekStartTs"`
@@ -1275,7 +1275,7 @@ CGO_ENABLED=0 go build ./... && CGO_ENABLED=0 go test ./internal/...
 |------|--------|------|
 | 平台适配边界的最终形态（§5.8） | recording 工程，delivery 协作 | 大规模原生实现前，G-host / G-native |
 | 分段容器与编解码格式（[03 §3.4](03-data-model.md#34-帧与分段)） | recording 工程 | 真实分段实现前 |
-| `WeeklyDashboardDTO` 的图表子模型 | weekly 产品 + 设计 | 周视图实现前 |
+| `WeeklyDashboardDTO` 的丰富图表子模型 | weekly 产品 + 设计 | 热力图、应用关系或流向图进入范围前；聚合首屏不扩 DTO |
 | 时钟串解析失败的提示与处置体验（禁止静默丢弃） | timeline 产品 | 失败交互实现前；SkippedCards 必须被消费 |
 | 统一重试策略后的用户可观察行为 | timeline 产品，providers 协作 | 重试策略与入口接入前 |
 | `apiRevision` 是否在生产中真正校验 | preferences 工程 | 前后端版本不一致处理接入前 |

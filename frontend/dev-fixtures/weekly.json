@@ -1,0 +1,16 @@
+{
+  "dashboard": {
+    "weekStart": "2026-09-07",
+    "weekStartTs": 1788724800,
+    "weekEndTs": 1789329600,
+    "trackedMinutes": 1680,
+    "focusMinutes": 1395,
+    "categories": [
+      { "name": "项目工作", "minutes": 560, "share": 0.333333 },
+      { "name": "开发", "minutes": 430, "share": 0.255952 },
+      { "name": "沟通", "minutes": 295, "share": 0.175595 },
+      { "name": "学习", "minutes": 255, "share": 0.151786 },
+      { "name": "个人", "minutes": 140, "share": 0.083333 }
+    ]
+  }
+}

@@ -3,6 +3,7 @@ import type {
   DailyRecapDTO,
   DayContextDTO,
   TimelineDayDTO,
+  WeeklyDashboardDTO,
 } from '@/api/dto'
 
 export interface TimelineDevelopmentFixture {
@@ -16,6 +17,10 @@ export interface DailyDevelopmentFixture {
   timeline: TimelineDayDTO
   recap: DailyRecapDTO
   capabilities: CapabilitiesDTO
+}
+
+export interface WeeklyDevelopmentFixture {
+  dashboard: WeeklyDashboardDTO
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -57,6 +62,28 @@ function isDailyFixture(value: unknown): value is DailyDevelopmentFixture {
   )
 }
 
+function isWeeklyFixture(value: unknown): value is WeeklyDevelopmentFixture {
+  if (!isRecord(value) || !isRecord(value.dashboard)) return false
+
+  const dashboard = value.dashboard
+  if (!Array.isArray(dashboard.categories)) return false
+
+  return (
+    typeof dashboard.weekStart === 'string' &&
+    typeof dashboard.weekStartTs === 'number' &&
+    typeof dashboard.weekEndTs === 'number' &&
+    typeof dashboard.trackedMinutes === 'number' &&
+    typeof dashboard.focusMinutes === 'number' &&
+    dashboard.categories.every(
+      (category) =>
+        isRecord(category) &&
+        typeof category.name === 'string' &&
+        typeof category.minutes === 'number' &&
+        typeof category.share === 'number',
+    )
+  )
+}
+
 async function fetchDevelopmentFixture<T>(
   path: string,
   validate: (value: unknown) => value is T,
@@ -85,4 +112,8 @@ export async function getTimelineDevelopmentFixture(): Promise<TimelineDevelopme
 
 export async function getDailyDevelopmentFixture(): Promise<DailyDevelopmentFixture | null> {
   return fetchDevelopmentFixture('/__daygo_dev__/daily', isDailyFixture)
+}
+
+export async function getWeeklyDevelopmentFixture(): Promise<WeeklyDevelopmentFixture | null> {
+  return fetchDevelopmentFixture('/__daygo_dev__/weekly', isWeeklyFixture)
 }

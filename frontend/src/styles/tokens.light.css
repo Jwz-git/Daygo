@@ -119,6 +119,19 @@
   --dg-daily-distraction: #b8453d;
   --dg-daily-footer-fill: rgba(247, 247, 249, 0.52);
 
+  /* weekly summary */
+  --dg-weekly-focus: #ef7d48;
+  --dg-weekly-ring-track: rgba(82, 76, 88, 0.1);
+  --dg-weekly-ring-center: rgba(252, 252, 253, 0.96);
+  --dg-weekly-summary-fill: rgba(247, 247, 249, 0.56);
+  --dg-weekly-bar-track: rgba(70, 63, 75, 0.07);
+  --dg-weekly-series-1: #4f7ea8;
+  --dg-weekly-series-2: #e87848;
+  --dg-weekly-series-3: #4e8d75;
+  --dg-weekly-series-4: #7a6ea8;
+  --dg-weekly-series-5: #57949b;
+  --dg-weekly-series-6: #a8834f;
+
   /* motion */
   --dg-motion-fast: 100ms;
   --dg-motion-base: 160ms;
@@ -130,5 +143,6 @@
   --dg-settings-nav-width: 174px;
   --dg-settings-content-max: 680px;
   --dg-daily-content-max: 1320px;
+  --dg-weekly-content-max: 1120px;
   --dg-page-padding: 28px;
 }

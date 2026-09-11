@@ -11,6 +11,9 @@ function developmentFixtures(): Plugin {
   const dailyFixture = fileURLToPath(
     new URL('./dev-fixtures/daily.json', import.meta.url),
   )
+  const weeklyFixture = fileURLToPath(
+    new URL('./dev-fixtures/weekly.json', import.meta.url),
+  )
 
   return {
     name: 'daygo-development-fixtures',
@@ -32,6 +35,7 @@ function developmentFixtures(): Plugin {
 
       serveFixture('/__daygo_dev__/timeline', timelineFixture)
       serveFixture('/__daygo_dev__/daily', dailyFixture)
+      serveFixture('/__daygo_dev__/weekly', weeklyFixture)
     },
   }
 }
