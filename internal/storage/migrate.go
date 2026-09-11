@@ -134,6 +134,23 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 3,
+		name:    "recording: pending captures and screenshots",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			for _, stmt := range []string{
+				`CREATE TABLE pending_captures (id INTEGER PRIMARY KEY, relative_path TEXT NOT NULL UNIQUE, captured_at INTEGER NOT NULL, idle_seconds INTEGER, width INTEGER NOT NULL, height INTEGER NOT NULL, redacted INTEGER NOT NULL DEFAULT 0, file_size INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+				`CREATE INDEX idx_pending_captures_state ON pending_captures (state, id)`,
+				`CREATE TABLE screenshots (id INTEGER PRIMARY KEY, segment_path TEXT NOT NULL, frame_index INTEGER NOT NULL, captured_at INTEGER NOT NULL, idle_seconds_at_capture INTEGER, width INTEGER NOT NULL, height INTEGER NOT NULL, redacted INTEGER NOT NULL DEFAULT 0, file_size INTEGER, is_deleted INTEGER NOT NULL DEFAULT 0, UNIQUE(segment_path, frame_index))`,
+				`CREATE INDEX idx_screenshots_captured_at ON screenshots (captured_at)`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v3 recording tables", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // seedBuiltInCategories inserts the two built-in categories. IDs are fixed

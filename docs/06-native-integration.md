@@ -41,8 +41,8 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 12 | 解析调用时的系统主显示器 | 捕获目标 | `Capture.Capture`（内部） | 有限实现，待多屏验收 |
 | 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | 有限实现，待实机矩阵 |
 | 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | 待定设计 |
-| 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | 待定设计 |
-| 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | 待定设计 |
+| 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | macOS System ABI 已实现，待实机验证 |
+| 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | macOS System ABI 已实现，待实机验证 |
 | 17 | 开机自启开关 | 设置 | `System.{,Set}LaunchAtLogin` | 待定设计 |
 | 18 | 激活策略切换（是否占 Dock） | 后台 Agent 语义 | `System.SetActivationPolicy` | 待定设计 |
 | 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | 待定设计 |

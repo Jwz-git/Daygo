@@ -300,6 +300,7 @@ export function toApiError(e: unknown): ApiError {
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
 | `GetRecordingState() (RecordingStateDTO, error)` | recording | System / recorder 实际状态 | 读 | — | — |
+| `GetRecordingDirectory() (string, error)` | recording | recording path resolution | 读 | — | `database_error` |
 | `CaptureTest(request CaptureTestRequestDTO) (CaptureTestResultDTO, error)` | recording（联调） | Capture 适配器 | 写·测试 | — | `invalid_argument` `permission_denied` `native_unavailable` |
 | `PickCaptureTestApplication() (*CaptureTestApplicationDTO, error)` | recording（联调） | Wails picker / ApplicationInspector | 写·测试 | — | `invalid_argument` `native_unavailable` |
 | `OpenCaptureTestFolder(path string) error` | recording（联调） | 系统文件管理器 | 写·测试 | — | `invalid_argument` `not_found` `native_unavailable` |

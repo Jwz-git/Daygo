@@ -3,16 +3,20 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/Jwz-git/Daygo/frontend"
+	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
+	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // ApplicationSupportDirName is the directory under the user's Application
@@ -43,10 +47,10 @@ func Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	backend := NewBackend(nil, nil)
+	backend := NewBackend(factory.NewSystem(), nil)
 	backend.setCapture(factory.NewCapture())
 	backend.setApplicationInspector(factory.NewApplicationInspector())
-	// The emitter publishes to the frontend once Wails supplies a context in
+	backend.startSystemEventPump()
 	// OnStartup; before that it drops events, which is correct because a window
 	// that does not exist yet has no listener.
 	emitter := NewWailsEmitter()
@@ -73,13 +77,13 @@ func Run() error {
 		maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{BackupDir: dir})
 		go maintainer.Run(ctx)
 	}
-
 	err = wails.Run(&options.App{
-		Title:     "Daygo",
-		Width:     1180,
-		Height:    760,
-		MinWidth:  880,
-		MinHeight: 600,
+		Title:             "Daygo",
+		Width:             1180,
+		Height:            760,
+		HideWindowOnClose: true,
+		MinWidth:          880,
+		MinHeight:         600,
 		/*
 		 * Not frameless: a frameless NSWindow drops the standard window frame,
 		 * and with it both the traffic-light controls and the native rounded
@@ -105,6 +109,38 @@ func Run() error {
 		OnStartup: func(ctx context.Context) {
 			emitter.SetContext(ctx)
 			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx})
+			updateStatus := func(state recorder.State) {
+				title, pause := "Not recording", "Start Recording"
+				switch state {
+				case recorder.StateStarting, recorder.StateCapturing:
+					title, pause = "Recording", "Pause Recording"
+				case recorder.StatePaused:
+					title, pause = "Paused", "Resume Recording"
+				}
+				if err := backend.system.SetStatusItem(ctx, platform.StatusItemState{Visible: true, Title: title, Tooltip: "Daygo", OpenLabel: "Open Daygo", PauseLabel: pause, QuitLabel: "Quit Daygo", PauseEnabled: state != recorder.StateStarting}); err != nil {
+					log.Printf("status item update unavailable: %v", err)
+				}
+			}
+			backend.setStatusUpdater(updateStatus)
+			updateStatus(backend.recorderState())
+			backend.setStatusAction(func(action string) {
+				switch action {
+				case "open":
+					runtime.WindowShow(ctx)
+					runtime.Show(ctx)
+				case "quit":
+					runtime.Quit(ctx)
+				case "toggle_pause":
+					switch backend.recorderState() {
+					case recorder.StateIdle:
+						_ = backend.SetRecording(true)
+					case recorder.StatePaused:
+						_ = backend.ResumeRecording()
+					case recorder.StateCapturing:
+						_ = backend.PauseRecording(0)
+					}
+				}
+			})
 		},
 		Mac: &mac.Options{
 			/*

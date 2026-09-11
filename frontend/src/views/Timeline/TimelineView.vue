@@ -5,10 +5,10 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import PageHeader from '@/components/PageHeader.vue'
+import { onRecordingState, getRecordingState, setRecording } from '@/api/recording'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { useTimelineStore } from '@/stores/timeline'
-
 import TimelineInspector from './TimelineInspector.vue'
 import TimelineStatePanel from './TimelineStatePanel.vue'
 import TimelineTrack from './TimelineTrack.vue'
@@ -34,14 +34,17 @@ const { locale, t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
-
+const recordingState = ref('idle')
+const recordingError = ref('')
+let stopRecordingEvents: (() => void) | undefined
+async function startRecording(): Promise<void> {
+  recordingError.value = ''
+  try { await setRecording(true); recordingState.value = (await getRecordingState()).state } catch (cause: unknown) { recordingError.value = cause instanceof Error ? cause.message : String(cause) }
+}
 const dateTitle = computed(() => {
   if (context.value === null) return t('timeline.title')
   return new Intl.DateTimeFormat(locale.value, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    timeZone: context.value.timeZone,
+    weekday: 'short', month: 'short', day: 'numeric', timeZone: context.value.timeZone,
   }).format(new Date(context.value.dayStartTs * 1000))
 })
 
@@ -99,11 +102,10 @@ async function copyTimeline(): Promise<void> {
 
 onMounted(() => {
   timeline.startEvents()
+  stopRecordingEvents = onRecordingState((state) => { recordingState.value = state })
+  void getRecordingState().then((value) => { recordingState.value = value.state }).catch(() => undefined)
 })
-
-watch(() => route.query.day, () => void timeline.load(routeDay()), { immediate: true })
-
-onBeforeUnmount(() => timeline.stopListening())
+onBeforeUnmount(() => { timeline.stopListening(); stopRecordingEvents?.() })
 </script>
 
 <template>
@@ -143,9 +145,10 @@ onBeforeUnmount(() => timeline.stopListening())
       </template>
 
       <template #trail>
-        <span v-if="usingDevelopmentFixture" class="development-badge">
-          {{ t('timeline.developmentFixture') }}
-        </span>
+        <button v-if="recordingState === 'idle'" type="button" class="dg-chip dg-chip--filled" @click="startRecording">{{ t('timeline.recording.start') }}</button>
+        <span v-else class="development-badge">{{ recordingState }}</span>
+        <span v-if="recordingError" class="timeline-error">{{ recordingError }}</span>
+        <span v-if="usingDevelopmentFixture" class="development-badge">{{ t('timeline.developmentFixture') }}</span>
         <div v-if="day" class="day-meta">
           <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>
           <i aria-hidden="true"></i>

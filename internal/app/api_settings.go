@@ -77,6 +77,12 @@ func (b *Backend) UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error) {
 	if len(changed) > 0 {
 		b.emitSettingsChanged(changed)
 	}
+	b.recorderMu.Lock()
+	activeRecorder := b.recorder
+	b.recorderMu.Unlock()
+	if activeRecorder != nil {
+		activeRecorder.UpdateSettings(snapshot)
+	}
 	return settingsToDTO(snapshot), nil
 }
 

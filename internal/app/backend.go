@@ -7,6 +7,7 @@ import (
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/platform"
+	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	daytime "github.com/Jwz-git/Daygo/internal/timeutil"
 )
@@ -57,8 +58,14 @@ type Backend struct {
 	applicationInspector platform.ApplicationInspector
 	applicationPicker    applicationPicker
 	storage              *storage.Store
-
-	// canWrite and isCaptureOwner are the fallback ownership values used when
+	recorder             *recorder.Recorder
+	recorderMu           sync.Mutex
+	systemEventMu        sync.Mutex
+	systemEventBuffer    []platform.SystemEvent
+	statusActionMu       sync.RWMutex
+	statusAction         func(string)
+	statusUpdaterMu      sync.RWMutex
+	statusUpdater        func(recorder.State)
 	// no store is attached. With a store present they are ignored in favor of
 	// the real instance locks, so the reported ownership cannot drift from
 	// the locks actually held (docs/modules/data.md).
@@ -174,6 +181,57 @@ func (b *Backend) storageFailure() error {
 // nil when the database is unavailable; callers must handle that rather than
 // assuming persistence exists.
 //
+// startSystemEventPump owns the single platform event subscription and fans
+// events into both the recorder and diagnostic/test consumers.
+func (b *Backend) startSystemEventPump() {
+	if b == nil || b.system == nil {
+		return
+	}
+	go func(events <-chan platform.SystemEvent) {
+		for event := range events {
+			b.systemEventMu.Lock()
+			if len(b.systemEventBuffer) >= 64 {
+				b.systemEventBuffer = b.systemEventBuffer[1:]
+			}
+			b.systemEventBuffer = append(b.systemEventBuffer, event)
+			b.systemEventMu.Unlock()
+			b.recorderMu.Lock()
+			r := b.recorder
+			b.recorderMu.Unlock()
+			if r != nil {
+				r.HandleSystemEvent(event)
+			}
+			if event.Data.StatusItemID != nil {
+				b.statusActionMu.RLock()
+				handler := b.statusAction
+				b.statusActionMu.RUnlock()
+				if handler != nil {
+					handler(*event.Data.StatusItemID)
+				}
+			}
+		}
+	}(b.system.Events())
+}
+func (b *Backend) setStatusUpdater(updater func(recorder.State)) {
+	b.statusUpdaterMu.Lock()
+	b.statusUpdater = updater
+	b.statusUpdaterMu.Unlock()
+}
+
+func (b *Backend) updateStatus(state recorder.State) {
+	b.statusUpdaterMu.RLock()
+	updater := b.statusUpdater
+	b.statusUpdaterMu.RUnlock()
+	if updater != nil {
+		updater(state)
+	}
+}
+func (b *Backend) setStatusAction(handler func(string)) {
+	b.statusActionMu.Lock()
+	b.statusAction = handler
+	b.statusActionMu.Unlock()
+}
+
 // Unexported on purpose: while it was exported, Wails bound it and pulled
 // storage.Store into the generated models. Nothing outside this package may
 // hold the database handle anyway (docs/02 §2.2 rule 5).
@@ -250,19 +308,15 @@ func (b *Backend) GetDayContext(day string) (DayContextDTO, error) {
 	}, nil
 }
 
-// GetRecordingState is truthful even before capture is implemented: it starts
-// idle and reports the real permission if a platform System is connected.
+// GetRecordingState reports permission, ownership, and the live Go recorder state.
 func (b *Backend) GetRecordingState() (RecordingStateDTO, error) {
 	permission, err := b.recordingPermission()
 	if err != nil {
 		return RecordingStateDTO{}, err
 	}
 	_, isCaptureOwner := b.instanceOwnership()
-	return RecordingStateDTO{
-		State:          RecordingStateIdle,
-		Permission:     permission,
-		IsCaptureOwner: isCaptureOwner,
-	}, nil
+	state := RecordingState(b.recorderState())
+	return RecordingStateDTO{State: state, Permission: permission, IsCaptureOwner: isCaptureOwner}, nil
 }
 
 // recordingPermission is GetRecordingState's single query: system unavailability

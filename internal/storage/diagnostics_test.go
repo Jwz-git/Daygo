@@ -33,20 +33,19 @@ func TestStatsReportsDatabaseSize(t *testing.T) {
 	}
 }
 
-// A feature that has not shipped must be reported as unavailable, not as a
-// zero. A bare zero is indistinguishable from "nothing recorded yet".
-func TestStatsReportsMissingOptionalTables(t *testing.T) {
+// An empty recording schema reports an available source with zero bytes.
+func TestStatsReportsEmptyRecordingSource(t *testing.T) {
 	store := openWriter(t, newDir(t))
 
 	stats, err := store.Stats(context.Background())
 	if err != nil {
 		t.Fatalf("Stats: %v", err)
 	}
-	if stats.RecordingsAvailable {
-		t.Fatal("screenshots table reported present, but recording has not shipped a schema for it")
+	if !stats.RecordingsAvailable {
+		t.Fatal("recording schema reported unavailable")
 	}
 	if stats.RecordingsBytes != 0 {
-		t.Fatalf("RecordingsBytes = %d while the table is absent", stats.RecordingsBytes)
+		t.Fatalf("RecordingsBytes = %d for an empty recording schema", stats.RecordingsBytes)
 	}
 }
 

@@ -76,7 +76,7 @@ func TestDiagnosticsReportsReadOnlyInstance(t *testing.T) {
 	}
 }
 
-// A counter whose data source does not exist must say so rather than report a
+// Counters whose data source does not exist must say so rather than report a
 // zero that reads as "nothing happened".
 func TestDiagnosticsNamesUnavailableDataSources(t *testing.T) {
 	store := openTestStore(t, t.TempDir(), false)
@@ -85,10 +85,13 @@ func TestDiagnosticsNamesUnavailableDataSources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetDiagnostics: %v", err)
 	}
-	for _, field := range []string{"recordingsBytes", "pendingBatches", "failedBatches", "lastCaptureAtTs"} {
+	for _, field := range []string{"pendingBatches", "failedBatches", "lastCaptureAtTs"} {
 		if dto.Unavailable[field] == "" {
 			t.Errorf("%s has no data source yet but is not listed as unavailable", field)
 		}
+	}
+	if _, ok := dto.Unavailable["recordingsBytes"]; ok {
+		t.Fatal("recordingsBytes is unavailable despite the recording schema")
 	}
 }
 

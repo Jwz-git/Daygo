@@ -1,6 +1,7 @@
 export default {
   title: '截图 ABI 联调',
   badge: '临时测试',
+  startRecording: '开始录制',
   description: '直接调用当前平台的单次截图 ABI。配置不会写入 Daygo 设置或数据库。',
   configuration: '截图配置',
   outputDirectory: '输出目录（绝对路径）',
@@ -21,6 +22,9 @@ export default {
   stopSchedule: '停止定时',
   openFolder: '打开输出目录',
   results: '最近结果',
+  systemEvents: '系统事件监听',
+  systemEventsHint: '锁屏、解锁、睡眠、唤醒、屏保和显示器变化会显示在这里。',
+  noSystemEvents: '尚未收到系统事件。',
   result: {
     written: '已写入 {width} × {height}，{bytes} 字节',
     blocked: '已按屏蔽规则阻止',

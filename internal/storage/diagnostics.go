@@ -23,10 +23,9 @@ type Stats struct {
 	// counter is part of the contract rather than an optional extra.
 	SkippedCards int64
 	// RecordingsBytes sums screenshots.file_size over live rows (docs/03 §3.4).
-	// It is 0 while the screenshots table does not exist, which is reported
-	// through RecordingsAvailable rather than as a misleading zero.
+	// An empty recording schema is an available source and reports zero.
 	RecordingsBytes int64
-	// RecordingsAvailable reports whether the screenshots table exists yet.
+	// RecordingsAvailable reports whether the screenshots table exists.
 	RecordingsAvailable bool
 }
 

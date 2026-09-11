@@ -19,18 +19,21 @@
 ## 当前状态与证据
 
 实现进度：部分实现。单元 / fake 契约已覆盖单次截图语义；macOS 原生单次截图与 cgo 适配已
-落盘并完成一轮真实像素 smoke，但应用装配、隐私实机矩阵和长期观察未验收。
+落盘并完成一轮真实像素 smoke；Go recorder、pending capture 提交 / 恢复已落盘并通过 fake
+生命周期测试。录制设置、主页开始控制、`recording:state` 前端同步和 macOS 状态栏的有限接入
+已经落盘，用户已确认 dev 基本功能正常。production、隐私实机矩阵和长期观察未验收。
 Windows 侧另有一份同 ABI 的 DXGI 实现（`internal/platform/windows` + `native/windows`），
 已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke，但仍**不在发布范围**；
 完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
 无法打开数据库。以上不改变本模块的验收口径。
-[Capture fake](../../internal/platform/fake/capture.go)、
-[契约套件](../../internal/platform/platformtest/suite.go)、
-`internal/app/capture_test_binding.go`、`capture_test_application_binding.go` 和
-`frontend/src/views/CaptureTest/CaptureTestView.vue` 提供临时联调页面：可通过 Wails 原生面板
-选择 `.app`，把 ScreenCaptureKit 使用的 Bundle ID 加入屏蔽名单，再配置截图参数单次或限时调用并
-打开输出目录。路径不跨绑定且不持久化；该页面不接 recorder、正式 settings 或数据库。
-Media、完整 System、recorder、storage pending 恢复和后台生命周期尚未实现。
+`internal/recorder` 提供可停止的 Go 状态机：`idle → starting → capturing`，支持 `paused`
+与恢复；Capture 前写入 pending intent，完成后幂等提交 `screenshots`。`Backend` 已接入
+`SetRecording`、`PauseRecording`、`ResumeRecording`，绑定首次调用时读取真实 settings 并装配
+macOS Capture；后续设置更新会下发给运行中的 recorder。系统事件桥与 recorder 处理已有代码，
+但真实权限请求和睡眠 / 锁屏 / 屏保矩阵尚未验收。
+
+临时 `CaptureTest` binding 与页面仍只用于原生联调；页面上的正式录制按钮调用 recorder，
+但它的单次 / 定时 ABI 表单仍不写入正式设置。
 
 ## 能力与跨层职责
 

@@ -2,11 +2,12 @@
 
 > **状态：设计中，部分落盘。** 本目录描述的是目标行为与接口。
 >
-> **已落盘**（基线 commit `c2950cf`，加当前工作树的 Windows 验证与锁适配）：桌面外壳与前端设置页、
-> SQLite 基础（连接 / PRAGMA / 迁移链 / 跨平台实例锁 / `app_settings` / 备份 / 诊断）、类型化设置、
-> 三协议 AI 客户端、平台端口与 Capture fake 及契约套件、macOS 与 Windows 的单次截图实现、
-> 十个正式 Wails 绑定，以及临时截图 ABI 联调页面和绑定。
-> **未实现**：recorder 与常驻生命周期、业务表（screenshots / 批次 / 卡片）、分段与 Media、分析流水线、
+> **已落盘**（基线 commit `c2950cf`，加当前工作树）：桌面外壳与前端设置页、SQLite 基础
+> （连接 / PRAGMA / 迁移链 / 跨平台实例锁 / `app_settings` / 备份 / 诊断及部分业务表）、
+> 类型化设置、三协议 AI 客户端、平台端口与 Capture fake 及契约套件、macOS 与 Windows
+> 单次截图、Go recorder 与 pending capture 提交 / 恢复、录制设置和状态栏的有限接入、正式
+> Wails 绑定，以及临时截图 ABI 联调页面。
+> **未实现或未完成**：真实系统权限流程、分段与 Media、完整录制长期门禁、分析流水线、
 > insight 聚合、Secrets 与 Provider 持久化。
 >
 > 当前状态与证据见 [09 §9.1](09-roadmap.md#91-模块总表)。
@@ -62,6 +63,7 @@
 | [macOS 应用选择与身份 ABI](decisions/recording-application-picker.md) | 有限实现 | Wails `.app` picker、签名身份校验、独立 Go 端口与临时联调 binding |
 | [屏幕截屏（Windows）：DXGI 实现与限制](decisions/recording-screen-capture-windows.md) | 有限实机验证，**不在发布范围** | DXGI 路径、与 macOS 的四条差异、真机 smoke 与未验证矩阵 |
 | [图片存储流水线](decisions/recording-image-storage.md) | 架构方向已决定，未实现 | staging JPEG、不可变分段、整段清理与 LLM 内存图片发送 |
+| [录制设置与状态栏交接](handoff-recording-settings.md) | 本轮录制设置、主页控制、菜单栏状态同步的完成项、证据与未完成事项 |
 | [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
 

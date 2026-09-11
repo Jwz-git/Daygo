@@ -1,6 +1,7 @@
 export default {
   title: 'Capture ABI Test',
   badge: 'Temporary test',
+  startRecording: 'Start recording',
   description: 'Calls the current platform one-shot capture ABI directly. These settings are not saved to Daygo or its database.',
   configuration: 'Capture configuration',
   outputDirectory: 'Output directory (absolute path)',
@@ -21,6 +22,9 @@ export default {
   stopSchedule: 'Stop timer',
   openFolder: 'Open output folder',
   results: 'Recent results',
+  systemEvents: 'System event monitor',
+  systemEventsHint: 'Lock, unlock, sleep, wake, screensaver, and display changes appear here.',
+  noSystemEvents: 'No system events received yet.',
   result: {
     written: 'Written {width} × {height}, {bytes} bytes',
     blocked: 'Blocked by the privacy rule',

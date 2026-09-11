@@ -3,14 +3,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { CAPTURE_HEIGHTS, CAPTURE_INTERVAL_SECONDS } from '@/api/dto'
-
+import { getRecordingDirectory } from '@/api/recording'
 import SettingRow from './SettingRow.vue'
 import { useSettingsSection } from './useSettingsSection'
 
 const BYTES_PER_GB = 1024 ** 3
 
 const { t } = useI18n()
-const { state, settings, load, persist } = useSettingsSection()
+const { state, settings, load, persist, writeFailed } = useSettingsSection()
 
 const intervalSeconds = computed(
   () => settings.value?.capture.intervalSeconds ?? CAPTURE_INTERVAL_SECONDS[2],
@@ -25,9 +25,10 @@ const limitGb = computed(() => {
   return bytes === 0 ? 1 : bytes / BYTES_PER_GB
 })
 
-const gbInput = ref<HTMLInputElement | null>(null)
-
-onMounted(() => void load())
+const recordingDirectory = ref('')
+const gbInput = ref('1')
+function syncGbInput(): void { gbInput.value = String(limitGb.value) }
+onMounted(() => { void load(); void getRecordingDirectory().then((value) => { recordingDirectory.value = value }).catch(() => undefined) })
 
 function onIntervalChange(event: Event): void {
   void persist({ intervalSeconds: Number((event.target as HTMLSelectElement).value) })
@@ -43,7 +44,7 @@ function onUnlimitedToggle(event: Event): void {
     void persist({ recordingsLimitBytes: 0 })
     return
   }
-  const gb = Math.round(parseFloat(gbInput.value?.value ?? ''))
+  const gb = Math.round(parseFloat(gbInput.value))
   void persist({ recordingsLimitBytes: Number.isFinite(gb) && gb >= 1 ? gb * BYTES_PER_GB : BYTES_PER_GB })
 }
 
@@ -120,6 +121,10 @@ function onLimitChange(event: Event): void {
       <span class="limit__unit">{{ t('settings.storage.unitGb') }}</span>
     </div>
   </SettingRow>
+  <SettingRow :title="t('settings.storage.directory')" :hint="t('settings.storage.directoryHint')">
+    <code class="directory">{{ recordingDirectory || t('settings.storage.directoryUnavailable') }}</code>
+  </SettingRow>
+  <p v-if="writeFailed" class="write-error" role="alert">{{ t('settings.storage.writeError') }}</p>
 </template>
 
 <style scoped>
@@ -153,6 +158,10 @@ function onLimitChange(event: Event): void {
 
 .limit__unit {
   color: var(--dg-text-secondary);
+  font-size: 13px;
+}
+.write-error {
+  color: var(--dg-danger, #b42318);
   font-size: 13px;
 }
 

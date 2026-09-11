@@ -16,22 +16,24 @@ export type SettingsSectionState = 'loading' | 'ready' | 'unavailable' | 'error'
 export function useSettingsSection() {
   const state = ref<SettingsSectionState>('loading')
   const settings = shallowRef<SettingsDTO | null>(null)
+  const writeFailed = ref(false)
 
   async function load(): Promise<void> {
     try {
       settings.value = await getSettings()
       state.value = 'ready'
     } catch (error) {
-      state.value =
-        error instanceof Error && error.message === WAILS_UNAVAILABLE ? 'unavailable' : 'error'
+      state.value = error instanceof Error && error.message === WAILS_UNAVAILABLE ? 'unavailable' : 'error'
     }
   }
 
   async function persist(patch: SettingsPatch): Promise<void> {
+    writeFailed.value = false
     try {
       settings.value = await updateSettings(patch)
       state.value = 'ready'
     } catch {
+      writeFailed.value = true
       try {
         settings.value = await getSettings()
         state.value = 'ready'
@@ -41,5 +43,5 @@ export function useSettingsSection() {
     }
   }
 
-  return { state, settings, load, persist }
+  return { state, settings, load, persist, writeFailed }
 }

@@ -122,11 +122,16 @@ type AppInfo struct {
 	Name string
 }
 
-// Native UI and updater shapes remain provisional until their decisions land.
+// StatusItemState describes the public menu-bar surface. Labels are supplied
+// by the app layer so the native adapter never owns product state or locale.
 type StatusItemState struct {
-	Visible bool
-	Title   string
-	Tooltip string
+	Visible      bool
+	Title        string
+	Tooltip      string
+	OpenLabel    string
+	PauseLabel   string
+	QuitLabel    string
+	PauseEnabled bool
 }
 
 type Notification struct {

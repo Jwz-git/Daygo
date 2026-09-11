@@ -10,6 +10,7 @@ export default {
     tracked: '已跟踪 {count} 分钟',
   },
   actionFailed: '操作未完成，数据没有被前端改写。',
+  recording: { start: '开始录制' },
   filter: {
     label: '按分类筛选',
     all: '全部',

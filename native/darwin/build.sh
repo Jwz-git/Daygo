@@ -29,6 +29,7 @@ for arch in arm64 x86_64; do
     -static \
     -framework CoreGraphics \
     -framework Foundation \
+    -framework AppKit \
     -framework ImageIO \
     -framework ScreenCaptureKit \
     -framework UniformTypeIdentifiers \

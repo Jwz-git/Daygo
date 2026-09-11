@@ -75,10 +75,9 @@ func (b *Backend) GetDiagnostics() (DiagnosticsDTO, error) {
 	if stats.RecordingsAvailable {
 		dto.RecordingsBytes = stats.RecordingsBytes
 	} else {
-		// The screenshots table belongs to the recording module and does not
-		// exist yet. Reporting 0 without saying so would look like "no
-		// recordings", which is a different claim.
-		dto.Unavailable["recordingsBytes"] = "screenshots table not created yet"
+		// The recording schema is available; zero means no committed frames.
+		// This is distinct from an unavailable data source.
+		dto.Unavailable["recordingsBytes"] = "recording schema unavailable"
 	}
 	dto.Unavailable["lastCaptureAtTs"] = "capture is not implemented"
 

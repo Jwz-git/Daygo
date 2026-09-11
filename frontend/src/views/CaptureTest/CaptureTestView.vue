@@ -3,9 +3,12 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import PageHeader from '@/components/PageHeader.vue'
-import { captureTest, openCaptureTestFolder, pickCaptureTestApplication, WAILS_UNAVAILABLE, type CaptureTestResult } from '@/api/captureTest'
+import { captureTest, openCaptureTestFolder, pickCaptureTestApplication, pollSystemEvents, WAILS_UNAVAILABLE, type CaptureTestResult, type SystemEventTest } from '@/api/captureTest'
+import { getRecordingState, setRecording } from '@/api/recording'
 
 const { t } = useI18n()
+const recordingState = ref('idle')
+const recordingError = ref('')
 
 const outputDirectory = ref('/tmp/daygo-capture-test')
 const filenamePrefix = ref('daygo-capture')
@@ -23,6 +26,9 @@ const selectedApplicationLabel = ref('')
 const results = ref<CaptureTestResult[]>([])
 let timer: ReturnType<typeof setInterval> | undefined
 let stopTimer: ReturnType<typeof setTimeout> | undefined
+const systemEvents = ref<SystemEventTest[]>([])
+let eventTimer: ReturnType<typeof setInterval> | undefined
+const systemPaused = ref(false)
 
 const blockedApplicationIds = computed(() =>
   blockedApplicationIdsText.value
@@ -62,18 +68,15 @@ async function chooseBlockedApplication(): Promise<void> {
   }
 }
 
-
 async function captureOnce(): Promise<void> {
-  if (busy.value) return
+  if (busy.value || systemPaused.value) return
   busy.value = true
   error.value = ''
   try {
     const result = await captureTest(request())
-    results.value.unshift(result)
+    if (!systemPaused.value) results.value.unshift(result)
   } catch (cause: unknown) {
-    error.value = cause instanceof Error && cause.message === WAILS_UNAVAILABLE
-      ? t('captureTest.errors.wailsUnavailable')
-      : cause instanceof Error ? cause.message : String(cause)
+    error.value = cause instanceof Error && cause.message === WAILS_UNAVAILABLE ? t('captureTest.errors.wailsUnavailable') : cause instanceof Error ? cause.message : String(cause)
   } finally {
     busy.value = false
   }
@@ -104,6 +107,10 @@ async function openFolder(): Promise<void> {
     error.value = cause instanceof Error ? cause.message : String(cause)
   }
 }
+async function startRecording(): Promise<void> {
+  recordingError.value = ''
+  try { await setRecording(true); recordingState.value = (await getRecordingState()).state } catch (cause: unknown) { recordingError.value = cause instanceof Error ? cause.message : String(cause) }
+}
 
 function formatResult(result: CaptureTestResult): string {
   if (result.outcome === 'blocked') return t('captureTest.result.blocked')
@@ -114,14 +121,38 @@ function formatResult(result: CaptureTestResult): string {
   })
 }
 
-onBeforeUnmount(stopSchedule)
+async function pollEvents(): Promise<void> {
+  try {
+    const events = await pollSystemEvents()
+    if (events.length === 0) return
+    systemEvents.value = [...events, ...systemEvents.value].slice(0, 32)
+    for (const event of events) {
+      if (['sleep', 'screen_locked', 'screensaver_start'].includes(event.kind)) {
+        systemPaused.value = true
+      } else if (['wake', 'screen_unlocked', 'screensaver_stop'].includes(event.kind)) {
+        systemPaused.value = false
+      }
+    }
+  } catch { /* Wails is optional in the Vite preview */ }
+}
+
+eventTimer = window.setInterval(() => void pollEvents(), 500)
+void pollEvents()
+
+onBeforeUnmount(() => {
+  stopSchedule()
+  if (eventTimer !== undefined) window.clearInterval(eventTimer)
+})
 </script>
 
 <template>
   <div class="page capture-test">
     <PageHeader :title="t('captureTest.title')">
-      <template #lead>
-        <span class="dg-chip dg-chip--filled">{{ t('captureTest.badge') }}</span>
+      <template #lead><span class="dg-chip dg-chip--filled">{{ t('captureTest.badge') }}</span></template>
+      <template #trail>
+        <button v-if="recordingState === 'idle'" type="button" class="dg-chip dg-chip--filled" @click="startRecording">{{ t('captureTest.startRecording') }}</button>
+        <span v-else class="development-badge">{{ recordingState }}</span>
+        <span v-if="recordingError" class="error">{{ recordingError }}</span>
       </template>
     </PageHeader>
 
@@ -191,6 +222,14 @@ onBeforeUnmount(stopSchedule)
             {{ t('captureTest.stopSchedule') }}
           </button>
         </div>
+      </section>
+      <section class="dg-card results" :aria-label="t('captureTest.systemEvents')">
+        <h2>{{ t('captureTest.systemEvents') }}</h2>
+        <p class="hint">{{ t('captureTest.systemEventsHint') }}</p>
+        <ol v-if="systemEvents.length > 0">
+          <li v-for="event in systemEvents" :key="`${event.kind}-${event.atTs}`"><strong>{{ event.kind }}</strong> <code>{{ event.atTs }}</code></li>
+        </ol>
+        <p v-else class="hint">{{ t('captureTest.noSystemEvents') }}</p>
       </section>
 
       <p v-if="error" class="error" role="alert">{{ error }}</p>

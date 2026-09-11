@@ -159,6 +159,15 @@ func TestMigrateOldDatabaseFixturePreservesData(t *testing.T) {
 		t.Fatalf("legacy row content = %q, migration corrupted it", note)
 	}
 }
+func TestMigrateCreatesRecordingTables(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	for _, table := range []string{"pending_captures", "screenshots"} {
+		var name string
+		if err := store.db.QueryRowContext(context.Background(), "SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name); err != nil {
+			t.Fatalf("%s missing after migration: %v", table, err)
+		}
+	}
+}
 
 // A database from a newer build must be refused rather than written to. This
 // build cannot know what a future version's schema means (docs/03 §3.3).

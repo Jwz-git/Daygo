@@ -10,6 +10,7 @@ export default {
     tracked: '{count} minutes tracked',
   },
   actionFailed: 'The action did not finish. The frontend did not change the data.',
+  recording: { start: 'Start recording' },
   filter: {
     label: 'Filter by category',
     all: 'All',
