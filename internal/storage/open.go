@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 
 	// The pure-Go SQLite driver. It is imported here, in the one package that
 	// owns SQL, so no other package can reach SQLite (docs/05 §5.6.2 rule 1).
@@ -37,6 +38,11 @@ type Options struct {
 	// CaptureOwnerRequested asks for the capture-owner lock. The caller decides
 	// whether this process should capture; Open only reports whether it got it.
 	CaptureOwnerRequested bool
+	// Location is the host time zone used for clock-string derivation and day
+	// boundaries. Nil means time.Local. It is a single source of local time:
+	// repositories must not call time.Local directly, so tests can pin DST and
+	// fractional-offset zones (docs/08 §8.3).
+	Location *time.Location
 }
 
 // Open opens the business database, taking the instance locks that decide the
@@ -68,7 +74,7 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	}
 
 	path := filepath.Join(opts.Dir, DatabaseFileName)
-	store := &Store{path: path, observer: observer}
+	store := &Store{path: path, observer: observer, loc: opts.Location}
 
 	writeLk, err := tryLock(filepath.Join(opts.Dir, writeLockName))
 	switch {

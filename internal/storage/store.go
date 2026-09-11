@@ -58,6 +58,11 @@ type Store struct {
 	// test can make timestamps deterministic without touching the database.
 	clock func() time.Time
 
+	// loc is the single source of local time for day boundaries and
+	// clock-string derivation. Tests pin it to DST and fractional-offset
+	// zones; production passes the host zone once at Open.
+	loc *time.Location
+
 	// backupMu serializes backup naming and the VACUUM INTO write, so two
 	// concurrent backups cannot pick the same file name. backupSeq is guarded
 	// by it and only breaks ties within one clock instant.
@@ -76,6 +81,16 @@ func (s *Store) now() time.Time {
 		return time.Now()
 	}
 	return s.clock()
+}
+
+// location returns the store's time zone, defaulting to the host's. It is the
+// only sanctioned way to obtain local time in this package; repositories that
+// call time.Local directly would bypass the test seam.
+func (s *Store) location() *time.Location {
+	if s == nil || s.loc == nil {
+		return time.Local
+	}
+	return s.loc
 }
 
 // setClock replaces the store's clock. It exists for tests that need

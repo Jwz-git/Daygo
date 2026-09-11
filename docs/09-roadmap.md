@@ -33,6 +33,7 @@
 - [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v2 = `app_settings` +
   cards 能力的 `analysis_batches` / `timeline_cards` / `categories`，内置分类种子）、
   POSIX `flock` / Windows `LockFileEx` 实例锁与只读降级、可观测读写封装、`app_settings` repository、
+  cards / categories repository（`ReplaceCardsInRange` 单事务改写与时钟串派生）、
   `Checkpoint` / `Backup`（`VACUUM INTO`，保留 7 份）/ `RestoreFromBackup` / `IntegrityCheck`、
   `Stats`。匿名夹具在 [`testdata/`](../internal/storage/testdata/)。
 - [settings](../internal/settings/settings.go)：16 个键的类型化访问、默认值、规范化与夹取、

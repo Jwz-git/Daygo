@@ -20,7 +20,13 @@
 仍未验收。
 [timeutil](../../internal/timeutil/timeutil.go)、[日期绑定](../../internal/app/backend.go)
 和 [时间线前端切片](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
-时钟串派生、周边界、完整属性测试、analysis / ai 服务、卡片存储、帧资源和真实绑定尚未实现；
+**2026-09-12：cards 存储切片已落盘**——迁移 v2（`analysis_batches` / `timeline_cards` /
+`categories`，含 System / Idle 种子与 v1 夹具）、`internal/domain` 卡片值类型、
+`timeutil.ResolveClock`（三日锚点 + 跨午夜 + 五时区夹具）、`storage.CardRepo`
+（查询 / 更新 / 软删除 / `ReplaceCardsInRange` 单事务改写，保留其它批次 System 卡片，
+SkippedCards 计入诊断）。Go 单元覆盖时钟派生四规则、DST、并发重叠与分类重命名事务；
+`internal/app` 绑定与真实闭环未接。周边界、完整属性测试、analysis / ai 服务、帧资源
+和真实绑定尚未实现；
 生产页在 `GetTimelineDay` 缺失时明确显示不可用，不返回 fixture 数据。Vite 开发服务会在绑定
 缺失时从 `frontend/dev-fixtures/timeline.json` 提供一组匿名只读样例，并在页面上明确标记
 “仅开发”；夹具位于 `src` 外且 production bundle 不包含其 payload 或请求路径。
@@ -80,6 +86,15 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 事务改写失败不提交，不以删除卡片重建的方式回退。schema 回退遵循 data 的备份恢复策略。
 
 ## 验证记录
+
+2026-09-12：cards 存储切片通过 Go 单元测试（`go test ./internal/storage/
+./internal/timeutil/`）与 `CGO_ENABLED=0` 的 macOS / Linux / Windows 构建。夹具覆盖：
+v1 → v2 迁移保数据（DB-2）、`ResolveClock` 三日锚点 / 跨午夜 / meridiem 与 24 小时
+格式 / DST（Lord Howe）/ 半小时与 45 分钟时区 / 畸形输入、`ReplaceCardsInRange`
+派生与插入 / 近午夜跨日 / 跳过卡片计数（喂 `NoteSkippedCards`）/ 保留其它批次
+System 卡片 / timelapse 路径回收 / 并发重叠最终一致（busy 视为合法重试信号）、
+分类种子 / 整体覆盖 / 重名拒绝 / 重命名同事务改写卡片。这只证明存储层行为，
+不证明绑定接入、分析流水线或真实闭环。
 
 2026-09-10：已有 timeutil 和绑定 Go 测试通过，见 [基线](../09-roadmap.md#当前代码证据)。
 
