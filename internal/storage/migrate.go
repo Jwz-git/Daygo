@@ -47,6 +47,17 @@ type migration struct {
 // version per change (docs/09 §9.3). db-core deliberately does not pre-create
 // tables for features that do not exist yet: that would freeze a schema before
 // its design is settled.
+// v2 lands the cards capability (docs/09 §9.3): timeline_cards, categories,
+// and the analysis_batches shell. analysis_batches is created early only
+// because timeline_cards.batch_id references it — the batch state machine,
+// screenshots, and observations arrive with the analysis pipeline (v3).
+// timeline_cards.batch_id stays nullable so cards can exist before batches
+// are written by anyone.
+//
+// The two built-in categories are seeded inside this same transaction:
+// System (excluded from totals) and Idle (counts toward idle time). Seeding
+// here rather than on first read means every database, including one whose
+// only writer crashed mid-migration, either has both rows or neither.
 var migrations = []migration{
 	{
 		version: 1,
@@ -63,6 +74,96 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 2,
+		name:    "cards: timeline_cards, categories, analysis_batches",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			stmts := []string{
+				`CREATE TABLE analysis_batches (
+					id           INTEGER PRIMARY KEY,
+					start_ts     INTEGER NOT NULL,
+					end_ts       INTEGER NOT NULL,
+					status       TEXT    NOT NULL,
+					failure_kind TEXT,
+					failure_note TEXT,
+					created_at   INTEGER NOT NULL,
+					updated_at   INTEGER NOT NULL
+				)`,
+				`CREATE INDEX idx_batches_status ON analysis_batches (status)`,
+				`CREATE TABLE timeline_cards (
+					id                 INTEGER PRIMARY KEY,
+					batch_id           INTEGER REFERENCES analysis_batches(id),
+					day                TEXT    NOT NULL,
+					start              TEXT    NOT NULL,
+					end                TEXT    NOT NULL,
+					start_ts           INTEGER NOT NULL,
+					end_ts             INTEGER NOT NULL,
+					category           TEXT    NOT NULL,
+					subcategory        TEXT,
+					title              TEXT    NOT NULL,
+					summary            TEXT    NOT NULL,
+					detailed_summary   TEXT,
+					video_summary_path TEXT,
+					metadata           TEXT,
+					is_deleted         INTEGER NOT NULL DEFAULT 0,
+					created_at         INTEGER NOT NULL,
+					updated_at         INTEGER NOT NULL
+				)`,
+				`CREATE INDEX idx_cards_day  ON timeline_cards (day, start_ts)`,
+				`CREATE INDEX idx_cards_span ON timeline_cards (start_ts, end_ts)`,
+				`CREATE TABLE categories (
+					id          TEXT    PRIMARY KEY,
+					name        TEXT    NOT NULL UNIQUE,
+					color_hex   TEXT    NOT NULL,
+					details     TEXT    NOT NULL DEFAULT '',
+					sort_order  INTEGER NOT NULL,
+					is_system   INTEGER NOT NULL DEFAULT 0,
+					is_idle     INTEGER NOT NULL DEFAULT 0,
+					created_at  INTEGER NOT NULL,
+					updated_at  INTEGER NOT NULL
+				)`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v2 tables", err)
+				}
+			}
+			if err := seedBuiltInCategories(ctx, tx); err != nil {
+				return err
+			}
+			return nil
+		},
+	},
+}
+
+// seedBuiltInCategories inserts the two built-in categories. IDs are fixed
+// constants, not generated per database: a re-seeded row must collide with
+// itself (and be skipped) rather than duplicate under a second UUID.
+func seedBuiltInCategories(ctx context.Context, tx *sql.Tx) error {
+	const (
+		systemID = "00000000-0000-4000-8000-000000000001"
+		idleID   = "00000000-0000-4000-8000-000000000002"
+		seededAt = 0 // migration time; the categories predate any user data
+	)
+	rows := []struct {
+		id     string
+		name   string
+		hex    string
+		isIdle int
+	}{
+		{systemID, "System", "#8E8E93", 0},
+		{idleID, "Idle", "#C7C7CC", 1},
+	}
+	for _, r := range rows {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO categories (id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at)
+			VALUES (?, ?, ?, '', 0, 1, ?, ?, ?)
+			ON CONFLICT(id) DO NOTHING`,
+			r.id, r.name, r.hex, r.isIdle, seededAt, seededAt); err != nil {
+			return wrap("seed built-in category "+r.name, err)
+		}
+	}
+	return nil
 }
 
 // schemaVersion is the version this build expects after migrating.

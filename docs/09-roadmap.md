@@ -30,7 +30,8 @@
 
 已落盘并有自动化覆盖：
 
-- [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v1 = `app_settings`）、
+- [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v2 = `app_settings` +
+  cards 能力的 `analysis_batches` / `timeline_cards` / `categories`，内置分类种子）、
   POSIX `flock` / Windows `LockFileEx` 实例锁与只读降级、可观测读写封装、`app_settings` repository、
   `Checkpoint` / `Backup`（`VACUUM INTO`，保留 7 份）/ `RestoreFromBackup` / `IntegrityCheck`、
   `Stats`。匿名夹具在 [`testdata/`](../internal/storage/testdata/)。

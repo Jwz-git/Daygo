@@ -1,9 +1,11 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库只有一张表**：`PRAGMA user_version = 1` 创建的 `app_settings`
-> （`internal/storage/migrate.go`）。本文其余表都是目标结构，由对应功能模块随需求
-> 沿同一条迁移链逐版本追加。实现与本文冲突时以代码为准，并在同一 commit 修正本文。
+> **当前数据库（`PRAGMA user_version = 2`）有四张表**：`app_settings`（v1，
+> `internal/storage/migrate.go`）与 cards 能力的 `analysis_batches`、`timeline_cards`、
+> `categories`（v2，含 `System` / `Idle` 内置种子）。本文其余表都是目标结构，由对应功能模块
+> 随需求沿同一条迁移链逐版本追加（规划：v3 = 截图 / 批次关联 / observations / llm_calls，
+> v4 = providers，v5+ = daily）。实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
 功能模块按需求增量落盘表与 repository，全部位于 internal/storage。
 [data](modules/data.md) 负责唯一连接、迁移机制 / 编号、锁与可观测封装；功能负责业务表和查询，

@@ -208,6 +208,86 @@ func TestUnmigratedDatabaseReportsVersionZero(t *testing.T) {
 	}
 }
 
+// DB-2 for v2: upgrade a database written by a v1-only build and assert the
+// pre-existing settings survive, the new tables and indexes exist, and both
+// built-in categories are seeded.
+func TestMigrateV1FixturePreservesDataAndCreatesCardsTables(t *testing.T) {
+	fixture := filepath.Join("testdata", "v1-with-settings.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	for _, table := range []string{"timeline_cards", "categories", "analysis_batches"} {
+		var name string
+		err := store.db.QueryRowContext(context.Background(),
+			"SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
+		if err != nil {
+			t.Fatalf("table %s missing after migration: %v", table, err)
+		}
+	}
+	for _, index := range []string{"idx_cards_day", "idx_cards_span", "idx_batches_status"} {
+		var name string
+		err := store.db.QueryRowContext(context.Background(),
+			"SELECT name FROM sqlite_master WHERE type='index' AND name=?", index).Scan(&name)
+		if err != nil {
+			t.Fatalf("index %s missing after migration: %v", index, err)
+		}
+	}
+
+	// Pre-existing settings must survive the upgrade.
+	var theme string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT value FROM app_settings WHERE key = 'appearance.theme'").Scan(&theme); err != nil {
+		t.Fatalf("read setting after upgrade: %v", err)
+	}
+	if theme != `"system"` {
+		t.Fatalf("appearance.theme = %q after upgrade; the migration altered existing data", theme)
+	}
+
+	// Both built-in categories must be seeded, with the system flags set.
+	rows, err := store.db.QueryContext(context.Background(),
+		"SELECT name, is_system, is_idle FROM categories ORDER BY name")
+	if err != nil {
+		t.Fatalf("read categories: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var got []string
+	for rows.Next() {
+		var name string
+		var isSystem, isIdle int
+		if err := rows.Scan(&name, &isSystem, &isIdle); err != nil {
+			t.Fatalf("scan category: %v", err)
+		}
+		got = append(got, name)
+		switch name {
+		case "System":
+			if isSystem != 1 || isIdle != 0 {
+				t.Fatalf("System flags = system:%d idle:%d, want 1/0", isSystem, isIdle)
+			}
+		case "Idle":
+			if isSystem != 1 || isIdle != 1 {
+				t.Fatalf("Idle flags = system:%d idle:%d, want 1/1", isSystem, isIdle)
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate categories: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("built-in categories = %v, want exactly System and Idle", got)
+	}
+}
+
 func copyFile(t *testing.T, src, dst string) {
 	t.Helper()
 	data, err := os.ReadFile(src)

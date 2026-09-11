@@ -37,6 +37,9 @@ func main() {
 	if err := writeV0WithSettings(filepath.Join(outDir, "v0-with-settings.db")); err != nil {
 		log.Fatalf("v0-with-settings.db: %v", err)
 	}
+	if err := writeV1WithSettings(filepath.Join(outDir, "v1-with-settings.db")); err != nil {
+		log.Fatalf("v1-with-settings.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -69,6 +72,38 @@ func writeV0WithSettings(path string) error {
 			(2, 'anonymous-fixture-beta')`,
 		// user_version stays 0: this database predates the migration chain.
 		`PRAGMA user_version = 0`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("exec %q: %w", stmt, err)
+		}
+	}
+	return nil
+}
+
+// writeV1WithSettings builds a version-1 database with app_settings rows, the
+// last state a v1-only build can produce. v2's fixture test upgrades this file
+// and asserts the settings survive alongside the new tables.
+func writeV1WithSettings(path string) error {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`CREATE TABLE app_settings (
+			key        TEXT PRIMARY KEY,
+			value      TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`INSERT INTO app_settings (key, value, updated_at) VALUES
+			('appearance.theme', '"system"', 1700000000),
+			('capture.intervalSeconds', '15', 1700000001)`,
+		`PRAGMA user_version = 1`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
