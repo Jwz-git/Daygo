@@ -63,8 +63,6 @@
 | [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
 
-[M1 屏幕捕获](decisions/M1-screen-capture.md) 只是旧路径的历史跳转页，内容已迁走。
-
 `scripts/check-docs.py` 会检查本目录里所有链接和小节锚点是否存在、有没有“谁都没链接到”
 的孤立文档；它由 `scripts/gate.sh` 调用。它只能证明文档内部自洽，**不能证明文档与代码一致**
 ——那仍然要求改代码的同一个 commit 里改文档。
