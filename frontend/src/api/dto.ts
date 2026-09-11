@@ -18,11 +18,6 @@ export const APP_THEMES = ['system', 'light', 'dark'] as const
 
 export type AppTheme = (typeof APP_THEMES)[number]
 
-export interface AppearanceSettingsDTO {
-  theme: AppTheme
-  /** BCP 47. "" means follow the system — see i18n/locales.ts. */
-  language: LanguagePreference
-}
 
 /** LLMSettingsDTO — how recognition requests are sent to the model. */
 export interface LLMSettingsDTO {
@@ -59,28 +54,37 @@ export interface PrivacySettingsDTO {
 export interface StorageSettingsDTO {
   recordingsLimitBytes: number
 }
-
-/** SystemSettingsDTO subset this app reads. */
+/** Settings exposes the system settings consumed by current sections. */
 export interface SystemSettingsDTO {
-  /** Gates the agent.sock write channel (docs/05 §5.9.2). */
   agentEditsEnabled: boolean
 }
 
-/** The SettingsDTO groups this app reads today; names match the Go JSON tags. */
+/** AppearanceSettingsDTO is persisted independently from LLM output language. */
+export interface AppearanceSettingsDTO {
+  theme: AppTheme
+  /** Empty means follow the system language. */
+  language: LanguagePreference
+}
+
+/** SettingsDTO groups the settings consumed by current frontend sections. */
 export interface SettingsDTO {
   capture: CaptureSettingsDTO
   privacy: PrivacySettingsDTO
   storage: StorageSettingsDTO
+  appearance: AppearanceSettingsDTO
   llm: LLMSettingsDTO
   system: SystemSettingsDTO
 }
 
-/** SettingsPatchDTO subset — every field optional; absent means "leave unchanged". */
+/** SettingsPatchDTO subset — every field optional; absent means leave unchanged. */
 export interface SettingsPatch {
   intervalSeconds?: number
   captureHeight?: number
   blockedApplicationIds?: string[]
   recordingsLimitBytes?: number
+  theme?: AppTheme
+  language?: LanguagePreference
+  outputLanguage?: string
   recognitionEnhancementEnabled?: boolean
   agentEditsEnabled?: boolean
 }

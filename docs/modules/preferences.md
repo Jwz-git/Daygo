@@ -13,8 +13,7 @@
 
 ## 当前状态与证据
 
-实现进度：**部分实现**。settings-access、前端外壳、主题 / 语言本地偏好和设置页面已落盘；
-前端尚未完整切换到生成绑定与后端设置事实来源。
+实现进度：**部分实现**。settings-access、前端外壳、主题 / 语言设置和设置页面已落盘；外观设置已优先通过 `GetSettings` / `UpdateSettings` 接管，浏览器预览仍保留安全的 localStorage 回退。
 
 已交付：
 
@@ -27,9 +26,8 @@
 - `frontend`：路由、侧栏、浅 / 深 / 跟随系统主题、双语切换和设置分区；界面使用 macOS 系统
   字体优先的中性视觉层级，交互仅保留短促颜色 / 透明度反馈和开关位置过渡。
 
-未交付：前端生成绑定与统一 wrapper、错误解析、前端单元测试运行器、localStorage 接管迁移。
-`api/dto.ts` 仍是手写子集。主题 / 语言仍由 localStorage 持久化，识别增强已接手写薄 wrapper，
-其他设置分区尚未接入后端绑定。
+未交付：前端所有 DTO 的生成类型替换、统一错误模型、localStorage 全量接管迁移，以及尚无产品消费者的启动项 / Dock / 遥测行为接入。
+`frontend/src/api/dto.ts` 仍保留时间线 / Provider 等尚未生成绑定的手写类型；主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。模型输出语言、识别增强和存储上限已通过生成绑定接入设置页。
 
 **绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
 绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`（`Store` 还把 `storage.Store` 拉进了生成的
@@ -67,14 +65,12 @@ internal/app 拥有 Get/UpdateSettings 和 DTO；store / api 拥有取数与事�
 
 ## 实现切片与集成
 
-1. 为现有主题 / 语言 / localStorage 行为补最小必要夹具与单元运行器，
-   沿用 npm 与现有锁文件；不为改测试工具链额外创建锁文件。
-2. 以 settings-store fake 实现类型化访问与 patch；data repository 就绪后验收持久化。
-3. 接生成绑定与 DTO、薄 wrapper、统一错误和事件消费，移除已替代的手写 DTO；
-   不要求一次生成所有未来绑定，不声明未实现功能可用。
-4. 先迁移外观 / 语言的存储来源，验证保存、事件重拉、重启；其余分区由所属功能按同样规则接管。
-   迁移以功能为单位，不同时写 localStorage 和 SQLite，不自动持久化旧内存密钥。
-5. 验收偏好闭环与双语言状态；新增大规模界面仍受 G-host 约束。
+1. 为现有主题 / 语言 / localStorage 行为保留最小必要夹具与单元运行器，沿用 npm 与现有锁文件；不为改测试工具链额外创建锁文件。
+2. 以 settings-store fake 实现类型化访问与 patch；data repository 已就绪。
+3. 接生成绑定与 DTO、薄 wrapper、统一错误和事件消费；设置页已消费生成的 `SettingsDTO`，未实现的功能仍保持占位。
+4. 迁移外观 / 语言的存储来源，先通过一次 `UpdateSettings` 成功返回后删除旧 localStorage；数据库不可用时保留本地预览值且停止写入，避免双写。
+5. 接入模型输出语言、识别增强和存储上限的低风险设置 UI；启动项 / Dock / 遥测须等各自真实消费者就绪后再开放开关。
+6. 验收偏好闭环与双语言状态；新增大规模界面仍受 G-host 约束。
 
 ## 验收、阻塞与回退
 
@@ -91,9 +87,6 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 | 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
 |---|---|---|---|
 | 2026-09-10 | `npm --prefix frontend run typecheck` | 通过，见 [基线](../09-roadmap.md#当前代码证据) | — |
-| 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/settings/ ./internal/app/`、`-race`、`go build ./...`、`go vet ./...` | 通过；默认值、夹取、patch 只改显式键、失败不留部分写入、单键读与全量读一致、事件只带改动键且仅在提交后发出、重启读回 | 单元通过不等于真实重启交互；前端未接入 |
-| 2026-09-11 / 见本次提交 / macOS arm64 | `llm.recognitionEnhancementEnabled` 新键：settings / app 单元与重启读回、设置页开关经生成绑定读写（Other 分区） | 通过；默认 false、patch 只改显式键、UpdateSettings 返回生效值后前端以后端状态为准展示 | 浏览器预览无 Wails 桥时开关禁用；真实应用内点击交互未验证 |
-| 2026-09-11 / 见本次提交 / 浏览器预览 | 浅 / 深主题切换，时间线 / 每日 / 设置页面人工视觉复核；production build 静态检查 | 通过；系统字体、中性表面、焦点层级清晰，无逐项入场、位移悬浮、放大或无限 shimmer | WebView 实机动画帧率与 VoiceOver 尚未验证 |
+| 2026-09-12 / 当前工作树 / macOS arm64 | `npm --prefix frontend run typecheck`、`npm --prefix frontend run test:unit`、`npm --prefix frontend run build`；浏览器预览设置页 | 通过；设置页可读取诊断、展示未接入数据源、选择录制上限，输出语言可编辑 / 重置，主题语言在有 Wails 桥时走后端 | Wails 真实重启交互、真实存储压力和 recorder 清理未验收 |
 
-前端单元运行器、绑定持久化、重启交互与 localStorage 迁移实验未验收。
-`settings patch`、`localStorage 接管` 两项实验的**前端侧**仍未运行。
+前端仍未完成全量绑定生成类型替换、真实重启交互和 localStorage 迁移的独立实机实验。

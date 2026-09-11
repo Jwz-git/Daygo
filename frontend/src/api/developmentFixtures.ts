@@ -88,15 +88,16 @@ function isWeeklyFixture(value: unknown): value is WeeklyDevelopmentFixture {
 
 function isSettingsFixture(value: unknown): value is SettingsDTO {
   if (!isRecord(value) || !isRecord(value.capture) || !isRecord(value.llm)) return false
-  if (!isRecord(value.privacy) || !isRecord(value.storage) || !isRecord(value.system)) {
-    return false
-  }
+  if (!isRecord(value.privacy) || !isRecord(value.storage) || !isRecord(value.appearance) || !isRecord(value.system)) return false
 
   return (
     typeof value.capture.intervalSeconds === 'number' &&
     typeof value.capture.captureHeight === 'number' &&
     Array.isArray(value.privacy.blockedApplicationIds) &&
     typeof value.storage.recordingsLimitBytes === 'number' &&
+    typeof value.appearance.theme === 'string' &&
+    typeof value.appearance.language === 'string' &&
+    typeof value.llm.outputLanguage === 'string' &&
     typeof value.llm.recognitionEnhancementEnabled === 'boolean' &&
     typeof value.system.agentEditsEnabled === 'boolean'
   )
@@ -115,6 +116,7 @@ export function applyDevelopmentSettingsPatch(
     capture: { ...current.capture },
     privacy: { blockedApplicationIds: [...current.privacy.blockedApplicationIds] },
     storage: { ...current.storage },
+    appearance: { ...current.appearance },
     llm: { ...current.llm },
     system: { ...current.system },
   }
@@ -123,9 +125,12 @@ export function applyDevelopmentSettingsPatch(
   if (patch.blockedApplicationIds !== undefined) {
     next.privacy.blockedApplicationIds = [...patch.blockedApplicationIds]
   }
+  if (patch.theme !== undefined) next.appearance.theme = patch.theme
+  if (patch.language !== undefined) next.appearance.language = patch.language
   if (patch.recordingsLimitBytes !== undefined) {
     next.storage.recordingsLimitBytes = patch.recordingsLimitBytes
   }
+  if (patch.outputLanguage !== undefined) next.llm.outputLanguage = patch.outputLanguage
   if (patch.recognitionEnhancementEnabled !== undefined) {
     next.llm.recognitionEnhancementEnabled = patch.recognitionEnhancementEnabled
   }

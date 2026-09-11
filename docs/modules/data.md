@@ -33,20 +33,21 @@
   `Backup` 轮换、`RestoreFromBackup`、`IntegrityCheck`，以及由 app 生命周期持有的
   `Maintainer` goroutine（ctx 取消即退出，无全局单例）。
 
-未开始：`GetDiagnostics` 的 UI、磁盘与遥测设置分区、录制清理（阻塞于 `screenshots` 表与
-`Media`，见下）。
+录制清理仍未开始（阻塞于 `screenshots` 表与 `Media`，见下）。
 
-落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,settings,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，
-匿名夹具与生成器在 `internal/storage/testdata/`。
+已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者和真实可用性；录制占用上限可持久化写入 `app_settings`。当录制表尚未存在时，页面明确显示“尚未接入”，不会把零误报为没有录制数据，也不会因修改上限删除文件。
+
+落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,settings,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，匿名夹具与生成器在 `internal/storage/testdata/`；前端接入位于 `frontend/src/views/Settings/StorageSection.vue` 与 `frontend/src/api/diagnostics.ts`。
 
 **跨模块边界一处未跨**：诊断的 `recordingsBytes` / `pendingBatches` / `failedBatches` 与
 录制清理依赖 `screenshots`（recording 负责）与 `analysis_batches`（timeline 负责）两张表。
 按 `data.md`「禁止一次性建设未使用的全部目标表」，本次**不代建**这些表；相关字段如实报告为
 不可用，清理未接线。接入条件见「能力与跨层职责」。
 
-缺陷诊断数据现已产生消费者（`GetDiagnostics`），但诊断界面尚未接入。
+诊断现在已有真实设置页消费者；不可用来源会在 UI 中显式显示，生产构建不会加载开发夹具。
 
-实现与验证状态分别记录；下方"验证记录"只登记真实运行过的命令与结果。
+实现与验证状态分别记录；下方“验证记录”只登记真实运行过的命令与结果。
+
 
 ## 能力与跨层职责
 
@@ -90,8 +91,7 @@ Go 负责清理决策、备份与诊断；像素读取经 Media，适配层不�
    其他模块的业务表逐项走同一迁移链，data 协调迁移合入顺序。
 3. 在匿名分段 fixture 上实现 checkpoint、备份恢复与清理；真实 media-read 就绪后跑 IT-12。
    retention 决策落盘后再启用相应策略，禁止删除活跃分段。
-4. 增加 GetDiagnostics 与匿名指标、磁盘和遥测设置、store 与 UI；
-   各功能在行为产生处计数，诊断页晚接入不能成为静默丢错的理由。
+4. 增加 GetDiagnostics 与匿名指标、磁盘和遥测设置、store 与 UI；当前已接入诊断 UI 和磁盘上限设置，遥测写入仍待实际 telemetry 消费者。
 5. 累计 14 天磁盘 / 内存观察，与录制 / 更新共同验证关停和恢复；长期状态单列。
 
 ## 验收、阻塞与回退

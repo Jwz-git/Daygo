@@ -10,6 +10,7 @@ export default {
     export: '导出',
     add: '添加',
     save: '保存',
+    reset: '重置',
     cancel: '取消',
     edit: '编辑',
     delete: '删除',

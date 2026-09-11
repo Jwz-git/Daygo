@@ -16,8 +16,8 @@
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、碰撞分栏轨道、详情及写操作接入界面、开发专用匿名样例 | 时间函数单元、前端类型 / 构建和匿名视觉夹具通过；卡片 / 分析真实绑定与闭环未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：工作流 / 指标 / 只读日报前端切片、与 Timeline 共享路由日期、开发专用匿名样例 | 前端类型 / 构建、浅深主题、窄窗口及中英文样例检查通过；真实绑定与闭环未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、开发专用匿名样例 | 前端类型 / 构建、浅深主题、窄窗口及中英文样例检查通过；真实聚合、绑定与周边界未验收 |
-| [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：跨平台 db-core、settings-store、diagnostics、checkpoint 与备份 | macOS 单元与并发 smoke、Windows LockFileEx 跨进程 smoke 通过；1 小时 DB-8、清理与诊断 UI 未运行 |
-| [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、主题、i18n、本地偏好、settings-access；视觉层级与动效已收敛 | 类型检查、构建、浏览器浅 / 深主题检查与 Go 单元通过；前端绑定持久化未验收 |
+| [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：跨平台 db-core、settings-store、diagnostics、checkpoint 与备份；存储设置页已接入 | macOS 单元与并发 smoke、Windows LockFileEx 跨进程 smoke、存储设置浏览器 smoke 通过；1 小时 DB-8、清理与真实 Wails 重启未运行 |
+| [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者未验收 |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：开发构建链 | 原生身份、签名、公证、更新未验收 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 未开始：仅 05 §5.9 契约与执行册（2026-09-12 建立，设计准备） | 未运行；MCP 传输决策见 §9.8 #22 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 未开始：仅 05 §5.12 契约与执行册（2026-09-12 建立，设计准备） | 未运行；会话模型等待决项 #23 |

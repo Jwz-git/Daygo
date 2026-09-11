@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
-import PlannedNotice from '@/components/PlannedNotice.vue'
 import type { AppTheme } from '@/api/dto'
 import { SYSTEM_LANGUAGE, type LanguagePreference } from '@/i18n/locales'
 import { useAppearanceStore } from '@/stores/appearance'
@@ -44,11 +43,12 @@ function onLanguageChange(event: Event): void {
 <template>
   <SettingRow
     :title="t('settings.appearance.theme')"
-    :hint="t('settings.appearance.themeDescription')"
+    :hint="appearance.persistence === 'unavailable' ? t('settings.appearance.persistenceUnavailable') : t('settings.appearance.themeDescription')"
   >
     <select
       class="dg-input select"
       :value="appearance.theme"
+      :disabled="appearance.persistence === 'unavailable' || appearance.saving"
       :aria-label="t('settings.appearance.theme')"
       @change="onThemeChange"
     >
@@ -65,6 +65,7 @@ function onLanguageChange(event: Event): void {
     <select
       class="dg-input select"
       :value="appearance.language"
+      :disabled="appearance.persistence === 'unavailable' || appearance.saving"
       :aria-label="t('settings.language.interface')"
       @change="onLanguageChange"
     >
@@ -74,14 +75,6 @@ function onLanguageChange(event: Event): void {
     </select>
   </SettingRow>
 
-  <!--
-    Distinct from the interface language: this is the language the model writes
-    card titles and summaries in. It is not part of SettingsDTO yet.
-  -->
-  <PlannedNotice
-    title-key="settings.language.output"
-    description-key="settings.language.outputDescription"
-  />
 </template>
 
 <style scoped>

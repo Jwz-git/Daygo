@@ -175,6 +175,15 @@ onBeforeUnmount(() => daily.stopListening())
   place-items: center;
 }
 
+.date-nav__arrow:not(:disabled):hover {
+  background: var(--dg-hover-fill);
+}
+
+.date-nav__arrow:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
 .date-nav__arrow:disabled { color: var(--dg-text-muted); cursor: default; opacity: 0.55; }
 
 .development-badge {

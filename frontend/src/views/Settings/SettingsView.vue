@@ -11,6 +11,7 @@ import PrivacySection from './PrivacySection.vue'
 import ProvidersSection from './ProvidersSection.vue'
 import RecognitionSection from './RecognitionSection.vue'
 import StorageSection from './StorageSection.vue'
+import OutputLanguageSection from './OutputLanguageSection.vue'
 
 const { t } = useI18n()
 
@@ -69,6 +70,7 @@ const active = ref<SectionKey>('other')
 
           <template v-else-if="active === 'other'">
             <AppearanceSection />
+            <OutputLanguageSection />
             <RecognitionSection />
             <PlannedNotice
               title-key="settings.nav.other"

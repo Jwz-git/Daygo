@@ -29,7 +29,7 @@ async function loadDevelopmentSettings(): Promise<SettingsDTO | null> {
 
 /** The effective settings, with backend defaults already applied. */
 export async function getSettings(): Promise<SettingsDTO> {
-  if (hasBridge()) return GetSettings()
+  if (hasBridge()) return (await GetSettings()) as unknown as SettingsDTO
 
   const dev = await loadDevelopmentSettings()
   if (dev !== null) return dev
@@ -41,10 +41,41 @@ export async function getSettings(): Promise<SettingsDTO> {
  * which is the only authority to display — never the value that was sent.
  */
 export async function updateSettings(patch: SettingsPatch): Promise<SettingsDTO> {
-  if (hasBridge()) return UpdateSettings(patch)
+  if (hasBridge()) return (await UpdateSettings(patch)) as unknown as SettingsDTO
 
   const dev = await loadDevelopmentSettings()
   if (dev === null) throw new Error(WAILS_UNAVAILABLE)
   developmentSettings = applyDevelopmentSettingsPatch(dev, patch)
   return developmentSettings
+}
+
+interface SettingsChangedPayload {
+  keys: string[]
+}
+
+interface WailsRuntime {
+  EventsOnMultiple: (
+    eventName: string,
+    callback: (...data: unknown[]) => void,
+    maxCallbacks: number,
+  ) => () => void
+}
+
+function isWailsRuntime(value: unknown): value is WailsRuntime {
+  return typeof value === 'object' && value !== null &&
+    'EventsOnMultiple' in value && typeof value.EventsOnMultiple === 'function'
+}
+
+function settingsChangedPayload(value: unknown): SettingsChangedPayload | null {
+  if (typeof value !== 'object' || value === null || !('keys' in value)) return null
+  if (!Array.isArray(value.keys) || !value.keys.every((key) => typeof key === 'string')) return null
+  return { keys: value.keys }
+}
+
+export function onSettingsChanged(callback: (keys: readonly string[]) => void): () => void {
+  if (!('runtime' in window) || !isWailsRuntime(window.runtime)) return () => undefined
+  return window.runtime.EventsOnMultiple('settings:changed', (raw: unknown) => {
+    const payload = settingsChangedPayload(raw)
+    if (payload !== null) callback(payload.keys)
+  }, -1) ?? (() => undefined)
 }

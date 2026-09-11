@@ -10,6 +10,7 @@ export default {
     export: 'Export',
     add: 'Add',
     save: 'Save',
+    reset: 'Reset',
     cancel: 'Cancel',
     edit: 'Edit',
     delete: 'Delete',

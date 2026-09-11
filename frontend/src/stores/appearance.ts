@@ -2,6 +2,12 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { APP_THEMES, type AppTheme, type AppearanceSettingsDTO } from '@/api/dto'
+import {
+  WAILS_UNAVAILABLE,
+  getSettings,
+  onSettingsChanged,
+  updateSettings,
+} from '@/api/settings'
 import { setLocale } from '@/i18n'
 import {
   DEFAULT_LANGUAGE,
@@ -34,56 +40,62 @@ export const LANGUAGE_PREFERENCES: readonly LanguagePreference[] = [
   ...SUPPORTED_LOCALES,
 ]
 
-function decodeStored(): AppearanceSettingsDTO {
-  const raw = readRecord(STORAGE_KEYS.appearance)
+interface StoredAppearance {
+  value: AppearanceSettingsDTO
+  shouldMigrate: boolean
+  usedLegacyKey: boolean
+}
 
-  if (raw === null) {
-    // Pre-envelope scaffold wrote the language alone, as a bare string.
-    // Pick it up once so an existing choice survives, then drop the key.
-    const legacy = normalizeLanguagePreference(
-      readLegacyString(LEGACY_LANGUAGE_KEY),
-    )
-    removeKey(LEGACY_LANGUAGE_KEY)
-    return { theme: DEFAULT_THEME, language: legacy ?? DEFAULT_LANGUAGE }
+function decodeStored(): StoredAppearance {
+  const raw = readRecord(STORAGE_KEYS.appearance)
+  if (raw !== null) {
+    return {
+      value: {
+        theme: asMember(raw.theme, APP_THEMES) ?? DEFAULT_THEME,
+        language: normalizeLanguagePreference(raw.language) ?? DEFAULT_LANGUAGE,
+      },
+      shouldMigrate: true,
+      usedLegacyKey: false,
+    }
   }
 
+  const legacy = normalizeLanguagePreference(readLegacyString(LEGACY_LANGUAGE_KEY))
   return {
-    theme: asMember(raw.theme, APP_THEMES) ?? DEFAULT_THEME,
-    language: normalizeLanguagePreference(raw.language) ?? DEFAULT_LANGUAGE,
+    value: {
+      theme: DEFAULT_THEME,
+      language: legacy ?? DEFAULT_LANGUAGE,
+    },
+    shouldMigrate: legacy !== null,
+    usedLegacyKey: legacy !== null,
+  }
+}
+
+function normalizeBackendAppearance(theme: string, language: string): AppearanceSettingsDTO {
+  return {
+    theme: asMember(theme, APP_THEMES) ?? DEFAULT_THEME,
+    language: normalizeLanguagePreference(language) ?? DEFAULT_LANGUAGE,
   }
 }
 
 /**
- * Appearance settings: the interface theme and the interface language.
- *
- * The pair mirrors AppearanceSettingsDTO (docs/05-interface-contract.md
- * §5.5.2) because that is what will serve it: one store, one record, one
- * future UpdateSettings patch. Splitting theme and language into separate
- * stores would give one DTO two owners.
- *
- * `hydrate` and the setters are async even though today's persistence is
- * synchronous: when they become GetSettings() / UpdateSettings({ theme }) over
- * Wails, only these bodies change and no component is rewritten.
+ * Appearance remains immediately available in browser previews through the
+ * versioned local record. Inside Wails, GetSettings is authoritative. An
+ * existing local preference migrates once through UpdateSettings and is only
+ * removed after the backend returns its normalized state, preventing dual
+ * writes or preference loss when database startup fails.
  */
 export const useAppearanceStore = defineStore('appearance', () => {
   const theme = ref<AppTheme>(DEFAULT_THEME)
   const language = ref<LanguagePreference>(DEFAULT_LANGUAGE)
-
-  /** What the DOM actually shows; "system" is already resolved away. */
   const appearance = ref<ResolvedAppearance>('light')
-
-  /** What the UI is actually rendered in; "" is already resolved away. */
+  const persistence = ref<'backend' | 'local' | 'unavailable'>('unavailable')
+  const saving = ref(false)
   const locale = computed<AppLocale>(() => resolveLanguage(language.value))
-
   const themes = APP_THEMES
   const languages = LANGUAGE_PREFERENCES
 
-  /**
-   * Live only while `theme` is "system". Held here rather than left attached
-   * for the app's lifetime so the subscription has one visible owner and one
-   * exit condition.
-   */
   let stopSystemWatch: (() => void) | null = null
+  let stopSettingsWatch: (() => void) | null = null
 
   function applyTheme(): void {
     const resolved = resolveAppearance(theme.value)
@@ -101,39 +113,109 @@ export const useAppearanceStore = defineStore('appearance', () => {
     }
   }
 
-  function persist(): void {
-    const dto: AppearanceSettingsDTO = {
+  function applyPreference(value: AppearanceSettingsDTO): void {
+    theme.value = value.theme
+    language.value = value.language
+    applyTheme()
+    syncSystemWatch()
+    setLocale(locale.value)
+  }
+
+  function persistLocal(): void {
+    writeRecord(STORAGE_KEYS.appearance, {
       theme: theme.value,
       language: language.value,
-    }
-    writeRecord(STORAGE_KEYS.appearance, { ...dto })
+    })
+  }
+
+  async function reloadBackend(): Promise<void> {
+    const settings = await getSettings()
+    applyPreference(
+      normalizeBackendAppearance(settings.appearance.theme, settings.appearance.language),
+    )
+  }
+
+  function startSettingsWatch(): void {
+    if (stopSettingsWatch !== null) return
+    stopSettingsWatch = onSettingsChanged((keys) => {
+      if (
+        keys.includes('appearance.theme') ||
+        keys.includes('appearance.language')
+      ) {
+        void reloadBackend()
+      }
+    })
   }
 
   async function hydrate(): Promise<void> {
     const stored = decodeStored()
-    theme.value = stored.theme
-    language.value = stored.language
-
-    applyTheme()
-    syncSystemWatch()
-    setLocale(locale.value)
+    try {
+      let settings = await getSettings()
+      if (stored.shouldMigrate) {
+        settings = await updateSettings({
+          theme: stored.value.theme,
+          language: stored.value.language,
+        })
+        removeKey(STORAGE_KEYS.appearance)
+        if (stored.usedLegacyKey) removeKey(LEGACY_LANGUAGE_KEY)
+      }
+      persistence.value = 'backend'
+      applyPreference(
+        normalizeBackendAppearance(settings.appearance.theme, settings.appearance.language),
+      )
+      startSettingsWatch()
+    } catch (error) {
+      applyPreference(stored.value)
+      if (error instanceof Error && error.message === WAILS_UNAVAILABLE) {
+        persistence.value = 'local'
+        persistLocal()
+        if (stored.usedLegacyKey) removeKey(LEGACY_LANGUAGE_KEY)
+      } else {
+        persistence.value = 'unavailable'
+      }
+    }
   }
 
   async function setTheme(next: AppTheme): Promise<void> {
-    if (next === theme.value) return
+    if (next === theme.value || saving.value || persistence.value === 'unavailable') return
+    if (persistence.value === 'local') {
+      applyPreference({ theme: next, language: language.value })
+      persistLocal()
+      return
+    }
 
-    theme.value = next
-    applyTheme()
-    syncSystemWatch()
-    persist()
+    saving.value = true
+    try {
+      const settings = await updateSettings({ theme: next })
+      applyPreference(
+        normalizeBackendAppearance(settings.appearance.theme, settings.appearance.language),
+      )
+    } catch {
+      await reloadBackend().catch(() => undefined)
+    } finally {
+      saving.value = false
+    }
   }
 
   async function setLanguage(next: LanguagePreference): Promise<void> {
-    if (next === language.value) return
+    if (next === language.value || saving.value || persistence.value === 'unavailable') return
+    if (persistence.value === 'local') {
+      applyPreference({ theme: theme.value, language: next })
+      persistLocal()
+      return
+    }
 
-    language.value = next
-    setLocale(locale.value)
-    persist()
+    saving.value = true
+    try {
+      const settings = await updateSettings({ language: next })
+      applyPreference(
+        normalizeBackendAppearance(settings.appearance.theme, settings.appearance.language),
+      )
+    } catch {
+      await reloadBackend().catch(() => undefined)
+    } finally {
+      saving.value = false
+    }
   }
 
   return {
@@ -141,6 +223,8 @@ export const useAppearanceStore = defineStore('appearance', () => {
     language,
     appearance,
     locale,
+    persistence,
+    saving,
     themes,
     languages,
     hydrate,

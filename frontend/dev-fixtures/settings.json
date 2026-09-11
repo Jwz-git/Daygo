@@ -16,6 +16,10 @@
     "outputLanguage": "",
     "recognitionEnhancementEnabled": false
   },
+  "appearance": {
+    "theme": "system",
+    "language": "zh-CN"
+  },
   "system": {
     "agentEditsEnabled": false
   }

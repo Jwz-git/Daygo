@@ -19,23 +19,6 @@ export default {
       'Export a date range as Markdown, or reprocess a day.',
     otherDescription: 'Appearance, launch, telemetry and language.',
   },
-  storage: {
-    interval: 'Capture interval',
-    intervalHint:
-      'How often a frame is taken. Shorter intervals record more detail and use more disk.',
-    intervalOption: '{seconds} s',
-    height: 'Capture resolution',
-    heightHint: 'Height of the captured image; lower it to reduce usage.',
-    heightOption: {
-      '720': '720p',
-      '1080': '1080p',
-    },
-    limit: 'Disk usage limit',
-    limitHint:
-      'When exceeded, the oldest complete segments are cleaned up first; active recording is never touched.',
-    unlimited: 'Unlimited',
-    unitGb: 'GB',
-  },
   privacy: {
     blockedTitle: 'Blocked apps',
     blockedHint:
@@ -58,6 +41,7 @@ export default {
     theme: 'Theme',
     themeDescription:
       'With "Follow system" the window tracks the macOS light/dark switch live.',
+    persistenceUnavailable: 'The settings database is unavailable. Appearance is read only.',
     themeOption: {
       system: 'Follow system',
       light: 'Light',
@@ -70,12 +54,49 @@ export default {
     followSystem: 'Follow system',
     output: 'Model output language',
     outputDescription:
-      'The language the model writes card titles and summaries in. Independent of the interface language.',
+      'Follows the interface language by default. Enter a BCP 47 tag or language name for newly generated cards and summaries.',
+    outputPlaceholder: 'e.g. en',
+    outputUnavailable: 'Runs inside the Daygo app.',
+    outputError: 'Could not save. The backend value has been restored.',
+    saving: 'Saving…',
   },
   recognition: {
     title: 'Recognition enhancement',
     hint: 'Increases token usage',
     unavailable: 'Runs inside the Daygo app',
+  },
+  storage: {
+    title: 'Storage and diagnostics',
+    description: 'Inspect the real database state and set a target recording size.',
+    refresh: 'Refresh',
+    refreshing: 'Refreshing…',
+    unavailable: 'Storage diagnostics run inside the Daygo app.',
+    error: 'Storage diagnostics could not be read. Try again.',
+    database: 'Database',
+    recordings: 'Recordings',
+    recordingsHint: 'Counts only recording data that is actually connected',
+    native: 'Native service',
+    pending: 'Not connected',
+    owner: 'Capture process {pid}',
+    noOwner: 'This instance is not the capture owner',
+    limit: 'Recording size limit',
+    limitHint: 'Saves the target limit; 0 means unlimited. Cleanup starts after segmented recording is connected.',
+    cleanupPending: 'There is no screenshots table or Media segment cleanup yet, so changing this limit does not delete files.',
+    writeError: 'Could not save the limit. The database value has been restored.',
+    status: {
+      ok: 'Healthy',
+      read_only: 'Read only',
+      unavailable: 'Unavailable',
+      restarting: 'Restarting',
+    },
+    limitOption: {
+      unlimited: 'Unlimited',
+      oneGB: '1 GB',
+      twoGB: '2 GB',
+      fiveGB: '5 GB',
+      tenGB: '10 GB',
+      twentyGB: '20 GB',
+    },
   },
   providers: {
     description:
