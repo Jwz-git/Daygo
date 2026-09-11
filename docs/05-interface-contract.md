@@ -3,11 +3,15 @@
 > **状态：规范草案。** 本文把 [02 §2.1](02-architecture.md#21-模块图) 的模块边界收敛为可实现、
 > 可测试的契约：方法签名、字段级 DTO、错误码、事件语义、版本与兼容性规则。
 >
-> **本文不代表其中所有目标都已实现。** 已落盘：前端设置页及其本地存储层、`internal/platform`
-> 端口与值类型、`internal/app` 绑定骨架（公共日期 / 能力、录制状态与权限方法）、`apperr` 错误类型与
-> 事件常量、以及 `internal/platform/fake` 的 **Capture** 实现与
-> `platformtest.Suite`/`SuitePermission` 契约套件（§5.7.4）。fake 的其余端口
-> （Media / System / Secrets / Updater）与真实适配层尚未实现。
+> **本文不代表其中所有目标都已实现。** 截至 commit `c2950cf` 已落盘：
+> `internal/storage`（连接、PRAGMA、迁移链、实例锁、`app_settings` repository、维护与诊断）、
+> `internal/settings`（15 个键的类型化访问与规范化）、
+> `internal/ai`（三种协议客户端、重试 / 回退、结构化输出、连接探针）、
+> `internal/platform` 端口与值类型、`internal/platform/fake` 的 **Capture** 实现与
+> `platformtest` 的四套契约套件（§5.7.4）、macOS 与 Windows 的真实 Capture 适配器、
+> `internal/app` 的十个绑定方法（§5.2.1）、`apperr` 错误类型与事件常量、
+> 前端外壳 / 设置页及其本地存储层。
+> fake 的其余端口（Media / System / Secrets / Updater）、recorder、时间线与洞察尚未实现。
 > 平台适配边界（§5.8）仍为 **待定设计**：只定义任何实现都必须满足的要求，不定义协议本身。
 
 ## 5.1 本文的定位
@@ -37,7 +41,7 @@ flowchart TD
     B4["B4 platform 端口"]
     ADAPT["平台适配层（形态待定设计）"]
     B5["B5 适配边界（待定设计）"]
-    OS["macOS 系统能力"]
+    OS["宿主系统能力（macOS 主线 · Windows 实验）"]
     B6["B6 对外接口：CLI / agent.sock（推迟）"]
     EXT["外部 agent · 用户脚本"]
 
@@ -75,10 +79,23 @@ flowchart TD
 | data | GetDiagnostics | 可观测封装及各功能真实诊断来源 |
 | delivery | 更新状态和检查 | Updater、安全重启与身份 / 分发验证 |
 
-当前仅 GetCapabilities、GetDayContext、GetRecordingState、GetPermissionState、
-RequestScreenRecordingPermission、OpenSystemSettings 已挂入 Bind；
-没有真实 System 时相关权限 / 录制状态查询会返回 native_unavailable。
-这不代表录制开关、设置落库或所有权锁已实现。fake 的覆盖以 §5.7.4 为准。
+当前挂在 `Backend` 上、属于本契约的绑定方法恰好十个，按负责模块分：
+
+| 模块 | 已实现的绑定 | 真实程度 |
+|---|---|---|
+| preferences | `GetCapabilities`、`GetSettings`、`UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
+| timeline | `GetDayContext` | 真实 4 点边界计算 |
+| data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
+| recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | **未接 System 适配器**，权限相关调用返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
+| providers | `TestProviderConnection` | 真实 HTTP 探针；provider 的增删改查与密钥存储尚未实现 |
+
+没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
+这不代表录制开关、Provider 持久化或 Secrets 已实现。fake 的覆盖以 §5.7.4 为准。
+
+> **已知缺陷。** `Backend` 上还有两个导出方法 `SetEventEmitter` 与 `Store`，它们是包内装配
+> 用的，却因为 Wails 绑定导出全部导出方法而出现在生成的 `Backend.d.ts` 里（`Store` 甚至把
+> `storage.Store` 拉进了生成的 `models.ts`）。它们**不是契约的一部分**，前端不得调用；
+> 修复方向是把两者改为非导出或移出绑定对象，由 preferences 在 ui-bridge 接入时一并处理。
 
 **未实现的方法不要先放一个返回假数据的桩。** 前端据 CapabilitiesDTO.Features
 决定渲染什么，而不是靠调用失败试探；测试 fake 不进入正式绑定。
@@ -133,7 +150,7 @@ RequestScreenRecordingPermission、OpenSystemSettings 已挂入 Bind；
   | `PermissionState` | `granted` `denied` `not_determined` |
   | `BatchStatus` | `pending` `processing` `succeeded` `failed` `failed_empty` `skipped_short` |
   | `JournalStatus` | `draft` `intentions_set` `complete` |
-  | `ProviderProtocol` | `openai` `anthropic` |
+  | `ProviderProtocol` | `openai`（Chat Completions） `openai_responses` `anthropic`（Messages） |
   | `AppTheme` | `system` `light` `dark` |
 
 - 集合方法必须有**确定的排序**和**明确的上限**，否则黄金测试无法比较：
@@ -227,6 +244,7 @@ export function toApiError(e: unknown): ApiError {
 
 签名以 `internal/app` 的目标绑定方法给出（当前绑定对象名为 `Backend`）。
 “负责模块”协调实现，“接入条件”列出需要的能力；它们不改变方法签名或承诺已实现。
+**本目录里已经实现的只有 §5.2.1 列出的十个方法**，其余都是目标签名。
 
 #### 会话与能力
 
@@ -308,6 +326,18 @@ export function toApiError(e: unknown): ApiError {
 | `SetProviderSecret(id string, secret string) error` | providers | Secrets / Provider repository | 写·幂等 | `settings:changed` | `not_found` `native_unavailable` |
 | `DeleteProviderSecret(id string) error` | providers | Secrets / Provider repository | 写·幂等 | `settings:changed` | `not_found` |
 | `TestProvider(id string) (ProviderTestDTO, error)` | providers | provider-client / Secrets / 用户配置 | 读·有网络副作用 | — | `provider_not_configured` `provider_failed` |
+| `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | **已实现**：provider-client | 读·有网络副作用 | — | `invalid_argument` |
+
+两个测试方法**不是重复**，区别必须保留：
+
+- `TestProviderConnection` 测的是**表单里还没保存的草稿**，密钥随调用传入、只进 Go 内存，
+  不落盘、不进日志、不回显。它已经实现，是用户在密钥输入框旁点击“测试”时走的路径。
+- `TestProvider` 测的是**已保存的 provider**，密钥由 Go 从钥匙串取，调用方只给 id。
+  它依赖 Secrets 与 Provider repository，尚未实现。
+
+两者都只发一次探针（30 秒上限、不重试、不回退），**失败是返回值而不是 error**：
+`ok=false` 加分类后的错误码，让 UI 把结果显示在输入框旁而不是弹窗。探针的通过标准见
+§5.6.4 第 6 条——仅 HTTP 2xx 不算通过。
 
 **密钥只写不读。** 没有任何绑定方法返回密钥内容；前端只能通过 `ProviderDTO.hasSecret`
 知道是否已配置。`TestProvider` 的返回里也不得回显密钥或完整请求体。
@@ -571,7 +601,7 @@ type CategoryDTO struct {
 type ProviderDTO struct {
     ID          string `json:"id"`
     DisplayName string `json:"displayName"`
-    Protocol    string `json:"protocol"` // openai | anthropic
+    Protocol    string `json:"protocol"` // openai | openai_responses | anthropic
     Endpoint    string `json:"endpoint"` // 绝对 http(s) 基地址，不含凭据
     Model       string `json:"model"`
     HasSecret   bool   `json:"hasSecret"` // 只暴露"是否已配置"，永不返回密钥内容
@@ -592,12 +622,35 @@ type ProviderRoutingDTO struct {
     Secondary *string `json:"secondary"` // 与 primary 相同时必须写成 null
 }
 
+// TestProvider 的返回（针对已保存的 provider；尚未实现）。
 type ProviderTestDTO struct {
     OK        bool    `json:"ok"`
     LatencyMs int     `json:"latencyMs"`
     Model     *string `json:"model"`
     Message   string  `json:"message"` // 已脱敏，不含请求体
     Code      *string `json:"code"`    // 失败时对应 §5.4.1 的 code
+}
+
+// TestProviderConnection 的入参（已实现）。Secret 只为本次调用跨界，
+// 不写数据库、不写钥匙串、不进日志、不回显。
+type ProviderTestDraftDTO struct {
+    Protocol string `json:"protocol"`
+    Endpoint string `json:"endpoint"`
+    Model    string `json:"model"`
+    Secret   string `json:"secret"`
+}
+
+// TestProviderConnection 的返回（已实现）。失败是结果而不是 error：
+// ErrorCode 取自 internal/ai 的错误分类（authentication / rate_limited /
+// timeout / unavailable / invalid_request / unsupported_feature /
+// invalid_output / canceled），与 §5.4.1 的绑定错误码是两套独立集合。
+type ProviderTestResultDTO struct {
+    OK           bool     `json:"ok"`
+    Model        string   `json:"model"`        // provider 实际使用的模型
+    LatencyMs    int64    `json:"latencyMs"`
+    Capabilities []string `json:"capabilities"` // text | image | structured_output
+    ErrorCode    string   `json:"errorCode"`
+    Message      string   `json:"message"`      // 已脱敏的固定文案，不含响应正文
 }
 
 // ---------- 洞察 ----------
@@ -735,21 +788,34 @@ type UpdaterStateDTO struct {
 ### 5.5.5 前端侧规则
 
 ```text
-frontend/src/
-├── api/
-│   ├── generated/     wails generate module 的产物；.gitignore 中，不提交
-│   ├── client.ts      错误解析（§5.4）、超时、重试策略
-│   ├── events.ts      事件订阅与取消订阅，事件名常量
-│   ├── fake/          夹具驱动的同签名实现，供 UI 走查
-│   └── <domain>.ts    每个域一个薄 wrapper：DTO → 视图模型
-├── router/            vue-router 路由表（hash 模式）
-├── i18n/              vue-i18n 实例、locale 解析与规范化
-├── locales/           <locale>/<domain>.ts 语言包；zh-CN 默认、en 回退
-├── theme/             主题解析与 <html data-dg-appearance> 写入
-├── storage/           本地偏好适配层，全应用唯一的 localStorage 调用方
-├── layout/            AppShell、SideRail 等多页外壳组件
-└── stores/            Pinia：数据获取、轮询、聚合、事件响应
+frontend/
+├── wailsjs/           ★ wails 生成产物（wails.json 的 wailsjsdir 指向这里）
+│   ├── go/app/Backend.{js,d.ts}    绑定方法
+│   ├── go/models.ts                ★ DTO 类型的唯一来源
+│   └── runtime/                    事件与窗口 runtime
+└── src/
+    ├── api/
+    │   ├── dto.ts          ☐ 临时手写 DTO 子集，生成绑定接入后删除
+    │   ├── providerTest.ts ★ 已有的薄 wrapper（连接探针）
+    │   ├── client.ts       ☐ 错误解析（§5.4）、超时、重试策略
+    │   ├── events.ts       ☐ 事件订阅与取消订阅，事件名常量
+    │   └── <domain>.ts     ☐ 每个域一个薄 wrapper：DTO → 视图模型
+    ├── router/            ★ vue-router 路由表（hash 模式）
+    ├── i18n/              ★ vue-i18n 实例、locale 解析与规范化
+    ├── locales/           ★ <locale>/<domain>.ts 语言包；zh-CN 默认、en 回退
+    ├── theme/             ★ 主题解析与 <html data-dg-appearance> 写入
+    ├── storage/           ★ 本地偏好适配层，全应用唯一的 localStorage 调用方
+    ├── layout/            ★ AppShell、SideRail 等多页外壳组件
+    ├── components/        ★ 展示组件
+    ├── views/             ★ 每个路由一个目录
+    └── stores/            ★ Pinia：数据获取、轮询、聚合、事件响应
 ```
+
+★ 已落盘，☐ 目标状态。生成产物在 `frontend/wailsjs/`——**不是** `src/api/generated/`；
+它与 `frontend/dist/` 都在 `.gitignore` 中，且互为前提（生成绑定要求 Go 树可编译，
+而 `go:embed all:dist` 要求 `dist` 存在）。干净检出必须先跑
+`scripts/bootstrap-frontend.sh`，否则 `vue-tsc` 与 `go build` 都会失败，原因见
+[08 §8.8](08-testing-strategy.md#88-ci-门禁)。
 
 1. **组件不得直接 import 生成绑定，也不得订阅事件。** 数据获取与事件响应只发生在 store
    或 `api/` 中；组件只消费 store。
@@ -783,6 +849,11 @@ frontend/src/
   | 平台适配调用（权限、状态、钥匙串） | 3 s |
   | 帧解码（单帧 / 批量） | 2 s / 10 s |
   | provider 调用 | 不在绑定层设限，由 `analysis` 的重试与取消策略控制 |
+
+  已落盘的取值与此表一致：`storage` 的 `readTimeout` / `writeTimeout` 为 5 s / 10 s，
+  在调用方未给 deadline 时自动套用；`internal/app` 的权限调用 3 s、设置读写 10 s、诊断 5 s。
+  连接探针是例外——`ai.TestConnection` 自带 30 秒上限（§5.6.4 第 6 条），
+  它是用户主动触发的一次网络往返，不受数据库超时约束。
 
 - 错误一律 `%w` 包装并携带操作与对象上下文；**禁止字符串匹配判断错误类型**。绑定层用
   `errors.Is`/`errors.As` 把内部错误映射到 §5.4.1 的 code，映射表集中在一处，不散落。
@@ -880,6 +951,11 @@ type ReplaceResult struct {
 端口只声明接口。**实现形态待定设计**（§5.8），但下列语义与实现无关，因此现在就可以冻结。
 代码块给出端口签名的核心；封闭集校验与请求边界以 `internal/platform` 代码为准，不重复维护
 实现细节。
+
+端口是**跨平台**的：`Capture` 现在有 macOS 与 Windows 两个真实实现，两者共用同一个接口、
+同一套 `CaptureRequest.Validate()` 和同一套错误码。平台之间的能力差异落在“某个错误码更常
+出现”上，不落在签名上——逐项对照见
+[06 §6.7 平台实现状态](06-native-integration.md#67-平台实现状态)。
 
 ```go
 package platform
@@ -996,30 +1072,63 @@ type Updater interface {
 **两者必须通过同一套契约测试**：
 
 ```go
-// platformtest.Suite 对任意 Capture 实现运行同一批断言。
-// fake 在所有平台上跑；真实适配层只在 macOS CI 上跑。
+// 基础套件：任何 platform.Capture 实现都必须通过。
 func Suite(t *testing.T, newCapture func(t *testing.T) platform.Capture)
 
-// platformtest.SuitePermission 覆盖授权路径，需要实现方暴露可驱动的授权状态。
-// fake 直接驱动；真实适配层只能在系统未授权时手工跑。
+// 下面三套需要实现方额外暴露一个“可驱动的 OS 状态”入口。fake 直接驱动；
+// 真实适配层只能在对应真机条件下手工跑（授权关闭、屏蔽应用前台、无显示器）。
 func SuitePermission(t *testing.T, newCapture func(t *testing.T) AuthorizedCapture)
+func SuitePrivacy(t *testing.T, newCapture func(t *testing.T) PrivacyCapture)
+func SuiteNoDisplay(t *testing.T, newCapture func(t *testing.T) DisplayCapture)
 
-// AuthorizedCapture 是 platform.Capture 加一个测试用的授权设置入口。
 type AuthorizedCapture interface {
     platform.Capture
     SetPermission(platform.PermissionState)
 }
+type PrivacyCapture interface {
+    platform.Capture
+    SetFrontmostApplicationID(string)
+}
+type DisplayCapture interface {
+    platform.Capture
+    SetNoDisplay(bool)
+}
 ```
 
-目标覆盖：幂等 `Start`/`Stop`、单次 `Close`、`ctx` 取消、序号跨重启单调、frame/segment 顺序、
-累计确认、重放、状态合并、`Close` 后 channel 关闭、权限拒绝路径。Go 写库侧另行验证
-`(segment_path, frame_index)` 的重放去重。**只有 fake 通过而
-适配层未跑同一套测试的接口，不算已验证。**
+已落盘的断言，逐条对应一个可能被悄悄改坏的不变量：
 
-已落盘的覆盖面：`Suite` 覆盖正常生命周期、预取消命令、序号跨重启单调、累计确认与重放、
-状态合并和流关闭；`SuitePermission` 覆盖授权缺失、运行期撤权与授权恢复。未授权时 `Start`
-**返回 nil**——端口层不定义授权错误，`permission_denied` 是按 §5.4.1 由 Go 绑定层生成的码。
-仍待补：执行中取消、故障注入、Go 写库侧重放去重，以及 `Media`/`System` 的契约套件。
+| 套件 / 用例 | 断言 |
+|---|---|
+| `Suite` / writes one complete JPEG | 返回 `written`；文件可被 `jpeg.DecodeConfig` 解码；解码尺寸、`os.Stat` 大小与 `CaptureResult` 三者一致 |
+| `Suite` / does not overwrite output | 目标路径已存在时返回 `io`，**已有文件内容逐字节不变** |
+| `Suite` / honors cancellation before capture | 预取消的 ctx 返回 `context.Canceled`，且不创建输出文件 |
+| `Suite` / rejects invalid request | 越界请求返回 `invalid_argument`（走 `CaptureRequest.Validate()`，与平台无关） |
+| `SuitePermission` | 未授权返回 `permission_denied` 且不产生文件；授权恢复后同一实现能正常出图 |
+| `SuitePrivacy` | 前台命中屏蔽名单时返回的结果**恰好是** `CaptureResult{Outcome: blocked}`（其余字段为零值），且不产生文件 |
+| `SuiteNoDisplay` | 无主显示器时返回 `no_display` 且不产生文件 |
+
+三条读这张表时容易忽略的语义：
+
+1. **`blocked` 不是 error。** 它是成功的控制结果，调用方不得计入 native 失败。
+2. **错误分类在端口层就已封闭。** `permission_denied` / `no_display` / `io` 由适配层返回
+   `*platform.CaptureError` 表达，绑定层再映射到 §5.4.1 的对外码；不靠字符串匹配。
+3. **“不覆盖已有文件”是隐私与恢复共同依赖的性质**，因此它是契约测试而不是实现细节：
+   覆盖会让启动对账无法区分“本次发布”与“上次残留”。
+
+仍待补：执行中（而非调用前）取消、I/O 故障注入、Go 写库侧的幂等提交与对账测试，
+以及 `Media` / `System` 的契约套件。
+
+运行矩阵：
+
+| 实现 | 跑哪几套 | 在哪跑 | 现状 |
+|---|---|---|---|
+| `internal/platform/fake` | 四套全跑 | 任意平台，`CGO_ENABLED=0` | 通过 |
+| `internal/platform/darwin` | `Suite`（需真机与授权）、`SuitePermission` / `SuitePrivacy` 需真机构造条件 | macOS + cgo | **未接入套件**；只做过一次人工 smoke，见 [截图 v2 §11](decisions/recording-screen-capture-v2.md) |
+| `internal/platform/windows` | 同上 | Windows + cgo | **未接入套件**，无任何实机记录，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
+
+**只有 fake 通过、真实适配层没跑同一套测试的接口，不算已验证。** 真机独有的场景
+（多屏、旋转、快速切换前台、24 小时资源）由 [08 §8.6.2 MC](08-testing-strategy.md#862-mc真实-macos-捕获矩阵)
+与 [§8.6.3 WC](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 覆盖，契约套件不替代它们。
 
 `internal/platform/fake` 当前只实现 `Capture`；`Media`/`System`/`Secrets`/`Updater`
 尚未实现；分别由 recording、daily（通知）、providers、delivery 在能力执行册跟踪，

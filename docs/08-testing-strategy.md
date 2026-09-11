@@ -11,10 +11,17 @@
 > **对每一条有风险的行为，先写夹具（输入 + 期望输出），再写实现。**
 > 夹具是规范；实现是对规范的一次尝试。
 
+**夹具放在使用它的包旁边**：`internal/<pkg>/testdata/`，由 `go test` 的标准约定加载，
+不集中到仓库根目录的单一 `testdata/`。已落盘的例子是
+[`internal/storage/testdata/`](../internal/storage/testdata/)：三个匿名二进制夹具加一个
+`//go:build ignore` 的生成器 `gen.go`——生成器入库，产物也入库，因为“由上一版本写出的库”
+无法由本版本的 DDL 重建（DB-2）。`.gitignore` 用 `!**/testdata/**` 把它们从“忽略一切 .db”
+中救回来，新增夹具目录沿用同一形状即可。
+
 夹具形状：
 
 ```jsonc
-// testdata/fixtures/idle/fully_idle_15min.json
+// internal/analysis/testdata/idle/fully_idle_15min.json
 {
   "description": "15 分钟批次，全部帧空闲 > 60s，覆盖率 0.98",
   "input": {
@@ -113,11 +120,15 @@ LLM 的**输出**不确定，所以不比较端到端文本。LLM 输出的**解
 验证不可逆匿名化的响应夹具，绝不从本机调用记录或真实服务提取用户 payload：
 
 ```text
-testdata/fixtures/llmresponses/
+internal/ai/testdata/llmresponses/
 ├── openai/transcribe/{ok,malformed_json,fenced_block,truncated}.json
 ├── openai/cards/{ok,prose_preamble,trailing_comma,wrong_types}.json
+├── openai_responses/{transcribe,cards}/{ok,...}.json
 └── anthropic/{transcribe,cards}/{ok,...}.json
 ```
+
+三个协议各有一套响应形状（`openai` / `openai_responses` / `anthropic`），
+解析回归必须分别覆盖，不能用其中一个的夹具代表另外两个。
 
 每遇到一种新的畸形形态，就**加一个匿名夹具**；保存的是可复现形态，不是用户活动正文。
 
@@ -144,7 +155,11 @@ testdata/fixtures/llmresponses/
 - **DTO 形状**用黄金 JSON 快照锁定字段名、可空性、枚举取值；
 - **错误码**遍历绑定方法的错误路径，断言全部是 `*apperr.Error` 且 code 在封闭表内；
 - **事件名**在 Go 与前端各有一份常量，测试断言两份一致；
-- **platform 端口**用同一套 `platformtest.Suite` 跑 fake 与真实适配层。
+- **platform 端口**用同一套 `platformtest` 跑 fake 与真实适配层：`Suite`（出图完整性、
+  不覆盖已有文件、调用前取消、非法请求）加 `SuitePermission` / `SuitePrivacy` /
+  `SuiteNoDisplay` 三个需要驱动 OS 状态的套件，逐条断言见
+  [05 §5.7.4](05-interface-contract.md#574-fake-实现与契约测试)。
+  fake 四套全绿；两个真实适配器**都还没接入套件**。
 
 ## 8.6 集成测试
 
@@ -187,10 +202,55 @@ IT-14 属于 G-host，验证整个项目的宿主前提：真实 macOS 上关窗
 IT-1–11/14，data 主责 IT-12/13；跨界场景共同验证。进程内 / 外适配的故障注入须随选型记录
 等价观察方法，保留异常退出 / 重放语义，不假定已有独立适配进程。
 
-### 8.6.2 长时间断言
+### 8.6.2 MC：真实 macOS 捕获矩阵
+
+IT 用例验证“整条链路跑得起来”，MC 用例验证“这台真机上的截图原语行为正确”。
+两者不可互相替代：fake 与契约测试通过不构成任何一条 MC 通过。全部 MC 结果按
+[09 §9.6](09-roadmap.md#96-集成检查点与证据) 的格式记录（日期、commit、系统版本、机型、
+脱敏观察），命中隐私项失败时直接阻塞真实捕获接入。
+
+| ID | 场景 | 必须观察到的结果 |
+|----|------|------------------|
+| MC-1 | 以 1 / 10 / 60 秒间隔连续调用 | 每次调用最多一张图；**系统屏幕录制指示器不常亮**；无持续 capture session |
+| MC-2 | 双显示器，光标移到副屏 | 始终只截系统主显示器；不产生显示器选择或切换状态 |
+| MC-3 | Retina、旋转、SDR / HDR | 输出尺寸与 `CaptureResult` 一致，色彩无明显偏差 |
+| MC-4 | 未授权屏幕录制 | `permission_denied`，无文件，不自动循环弹窗 |
+| MC-5 | 捕获过程中撤销授权 | 后续调用固定返回 `permission_denied`；**用户保存的“希望录制”偏好未被改写** |
+| MC-6 | 屏蔽应用处于前台 | `blocked`，未调用系统截图 API，最终路径与临时文件都不存在 |
+| MC-7 | 屏蔽应用在后台但窗口可见 | 图像中不出现其内容（`excludingApplications` 生效） |
+| MC-8 | 快速切换前台、多空间、全屏与系统窗口 | 不出现屏蔽应用内容；无法可靠判定时返回 `privacy_unsupported` 而不是降级截图 |
+| MC-9 | 睡眠 / 唤醒 | Go 停止与恢复调用；native 无残留会话；唤醒后 5 秒内的过期结果不入库 |
+| MC-10 | 锁屏 / 解锁 / 屏保 | 同上，恢复延迟 0.5 秒；`idle` 不被系统事件改成 `capturing` |
+| MC-11 | 开发签名 / Release 签名 / 升级后签名 | TCC 身份稳定，同签名升级不触发新的授权提示（[风险 C-3](10-risks.md#c-3身份与授权不稳定)） |
+| MC-12 | 连续 24 小时分间隔调用 | 内存、线程、文件描述符与系统对象无增长；失败可按调用计数 |
+
+MC-6–MC-8 是 [07 §7.2](07-privacy-security.md#72-捕获侧的两层保护) 两层保护的实机证据，
+缺一条就不能宣称隐私双保护已验收。
+
+### 8.6.3 WC：真实 Windows 捕获矩阵
+
+Windows 适配器已落盘但**未验证、不在发布范围**（[决策记录](decisions/recording-screen-capture-windows.md)，
+[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。WC 是它进入任何真实使用前的最小证据集。
+
+| ID | 场景 | 必须观察到的结果 |
+|----|------|------------------|
+| WC-1 | 空屏蔽名单下单次调用 | 主监视器出图，尺寸 / 字节数与 `CaptureResult` 一致，可解码且非全黑 |
+| WC-2 | 屏蔽名单非空、前台命中 | `blocked`，无文件 |
+| WC-3 | 屏蔽名单非空、前台未命中 | `privacy_unsupported`，无文件；**不得**降级为“只检查前台” |
+| WC-4 | 前台为传统 Win32（无 AUMID）应用 | `privacy_unsupported`；记录该限制而不是放宽判定 |
+| WC-5 | 目标路径已存在 | `io`，已有文件字节不变 |
+| WC-6 | 多监视器、缩放（DPI）、旋转 | 只截主监视器，方向与尺寸正确 |
+| WC-7 | 受保护内容（`SetWindowDisplayAffinity`）、独占全屏、驱动返回空帧 | 要么正确出图，要么明确失败；**GDI 回退不得绕过内容保护** |
+| WC-8 | 连续 24 小时分间隔调用 | 资源无增长；COM / D3D 对象无泄漏 |
+
+WC-3 与 WC-4 一起决定了一个产品事实：**只要用户配置了屏蔽应用，Windows 当前就拿不到画面。**
+在这两条被隐私能力补齐之前，Windows 不进入发布构建。
+
+### 8.6.4 长时间断言
 
 录制到时间线的真实闭环先做连续 7 天自用（G-loop）：无未解释缺口、失败可见可操作。
 下表是独立的 G-stability 证据，14 天、跨一次真实 DST、跨周一分别记录；7 天不能把它们标为通过。
+MC-12 / WC-8 的 24 小时观察是本表的前置条件，不是它的替代。
 只有安全录制与真实分析接入后才开始累计相应观察窗口：
 
 | 检查 | 窗口 | 断言 |
@@ -247,6 +307,10 @@ npm --prefix frontend run build
 
 引导逻辑本身在 `scripts/bootstrap-frontend.sh`，`scripts/dev.sh` 与 `gate.sh` 共用；
 顺序为「占位 `dist` → 生成绑定 → 真实 bundle」，每步幂等。
+
+`gate.sh` 最后还会跑 `scripts/check-docs.py`：检查 markdown 链接与小节锚点是否存在、
+有没有没被任何文档链接到的孤立文档。它只保证文档**内部自洽**；文档与代码是否一致仍然
+靠“同一个 commit 内修正文档”这条纪律，不靠脚本。
 
 **Linux 上必须全绿。** 这条门禁反向约束了所有接口设计：任何让核心包无法在无 macOS
 环境编译或测试的设计都是错的。

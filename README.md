@@ -2,9 +2,12 @@
 
 **简体中文** · [English](README.en.md)
 
-Daygo 是一款面向 macOS 的隐私优先、本地优先工作日志。它定时采集屏幕活动，使用用户选择的 AI 服务理解工作内容，并将结果整理为可检索的每日时间线、站会摘要和复盘记录。
+Daygo 是一款面向 macOS 的隐私优先、本地优先工作日志。它按固定间隔采集当前主显示器的画面，使用用户选择的 AI 服务理解工作内容，并将结果整理为可检索的每日时间线、站会摘要和复盘记录。
 
-> 项目状态：Daygo 正在以 Go Core + Wails + Vue 构建。已有桌面外壳、前端设置、平台端口、Capture fake、部分绑定与时间函数，尚未达到公开安装条件。
+> **项目状态：开发中，尚未达到公开安装条件。** 已有桌面外壳与设置页、SQLite 基础（迁移、
+> 实例锁、设置、备份、诊断）、三协议 AI 客户端与连接测试、平台端口与 Capture fake、
+> macOS 单次截图实现和十个 Wails 绑定；录制循环、时间线、每日 / 每周复盘尚未实现。
+> 逐项状态见 [docs/09-roadmap.md §9.1](docs/09-roadmap.md#91-模块总表)。
 
 ## 为什么做 Daygo
 
@@ -46,7 +49,7 @@ Go Core
   ├── 时间线、每日与每周洞察
   └── 生命周期编排
         ↓ internal/platform 端口
-平台适配层（实现待定设计）
+平台适配层（形态待定设计；屏幕捕获已有 darwin / windows 实现）
   └── 屏幕捕获、系统授权、钥匙串、状态栏、自动更新
 ```
 
@@ -58,37 +61,61 @@ Go 拥有全部可移植业务逻辑，并且是 SQLite 的唯一写入方。需
 
 ```text
 cmd/daygo/                  Go 命令入口与 wails.json
-internal/                   app 绑定骨架、platform 端口 / Capture fake、部分 timeutil
+internal/
+  app/                      Wails 绑定、DTO、错误码与事件
+  storage/                  唯一 SQLite 写入方：连接、迁移、实例锁、维护、诊断
+  settings/                 app_settings 之上的类型化设置
+  ai/                       三种协议客户端、重试 / 回退、结构化输出、连接探针
+  platform/                 平台端口 + fake + 契约套件 + darwin / windows 适配器
+  timeutil/                 凌晨 4 点逻辑日
+native/                     原生截图实现（共用一份 C ABI）
+  include/daygo_capture.h   ABI v1
+  darwin/                   Swift + ScreenCaptureKit
+  windows/                  C++ + DXGI（实验，未验证）
 frontend/                   Vue 3 + TypeScript 前端
+scripts/                    引导、门禁与开发脚本
 build/                      Wails 构建资源与产物
-testdata/                   夹具与参考数据库（尚未落盘）
 docs/                       设计文档
 ```
 
-`docs/` 中描述的多数 Go 目录和接口仍属于目标状态，尚未落盘。当前已有 Wails 外壳、前端页面骨架和设置页、平台端口、Capture fake、部分绑定及时间函数；真实存储、分析、AI、原生适配和后台生命周期尚未实现。开发路线见 [docs/09-roadmap.md](docs/09-roadmap.md)。
+`docs/` 中描述的多数目录与接口仍属于目标状态。分析流水线、时间线 / 每日 / 每周、
+recorder 与后台生命周期尚未实现。开发路线见 [docs/09-roadmap.md](docs/09-roadmap.md)。
+
+**关于 Windows：** 仓库里有一份实验性的 Windows 截图实现，它未经任何实机验证、不在发布
+范围，而且 Windows 上尚无实例锁实现（因而没有数据库）。目标平台仍然只有 macOS，
+细节见 [决策记录](docs/decisions/recording-screen-capture-windows.md)。
 
 ## 构建与运行
 
-环境要求：macOS 14+、Go 1.25+、Node.js 20.19+（或 22.12+）、npm。
+环境要求：macOS 14+、Go 1.25+、Node.js 20.19+（或 22.12+）、npm、Xcode Command Line Tools。
 
 ```bash
 git clone https://github.com/Jwz-git/Daygo.git
 cd Daygo
 
-# 前端依赖与构建
-npm --prefix frontend ci
-npm --prefix frontend run build
+# 开发运行（自动完成依赖安装与生成产物引导）
+./scripts/dev.sh
 
-# Go 检查
-go test ./...
-go vet ./...
+# 提交前门禁：引导 + Go 构建 / 测试 / vet / gofmt + 前端 typecheck / build
+./scripts/gate.sh
+```
 
-# 构建 macOS 应用（wails.json 位于入口目录）
+**干净检出必须先引导，不能直接跑 `go build` 或 `npm run build`。** 两个生成目录互为前提：
+`frontend/dist` 被 `go:embed all:dist` 引用（缺失则整个 Go 模块无法编译），
+`frontend/wailsjs` 被前端源码引用（缺失则 `vue-tsc` 失败），而生成它又需要可编译的 Go 树。
+`scripts/bootstrap-frontend.sh` 按“占位 dist → 生成绑定 → 真实 bundle”解开这个环，
+`dev.sh` 与 `gate.sh` 都会调用它。Windows 上用 `scripts/dev.ps1`。
+
+打包应用：
+
+```bash
 cd cmd/daygo
 go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform darwin/arm64
 ```
 
-产物位于 `build/bin/Daygo.app`。首次克隆后必须先构建前端，否则 `frontend/dist` 不存在会导致 Go 构建失败。`wails` 命令需在 `cmd/daygo` 目录执行，它会自动解析仓库根目录下的 `frontend/` 和 `build/`。
+产物位于 `build/bin/Daygo.app`。`wails` 命令需在 `cmd/daygo` 目录执行，它会自动解析仓库
+根目录下的 `frontend/` 和 `build/`，并通过 `preBuildHooks` 构建原生静态库。
+发布链路（签名、公证、自动更新）尚未建立。
 
 ## 参与贡献
 

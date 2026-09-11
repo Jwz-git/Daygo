@@ -1,16 +1,25 @@
 # Daygo — Go + Wails + Vue Agent 指令
 
-Daygo 是一个 macOS 常驻后台 Agent：按间隔截取当前活跃显示器，分批交给用户配置的 LLM，
+Daygo 是一个 macOS 常驻后台 Agent：按间隔截取当前的系统主显示器，分批交给用户配置的 LLM，
 把结果呈现为时间线、每日摘要和每周复盘。
 
 ## 当前状态
 
 **这是一个新项目，不承接任何既有产品的数据、身份或对外契约。**
 
-已落盘：Wails 桌面外壳、Vue 页面骨架、路由、i18n、主题、设置页（外观 / 语言 / Provider）
-及其本地存储层；另有平台端口、Capture fake 与部分契约测试、绑定骨架、错误 / 事件类型、
-部分时间函数。真实平台适配、业务数据库、分析 / AI 和后台生命周期尚未实现。
+已落盘（commit `c2950cf`）：Wails 桌面外壳与 Vue 页面骨架（路由、i18n、主题、设置页）
+及其本地存储层；`internal/storage`（连接、PRAGMA、迁移链、flock 实例锁、`app_settings`、
+备份与诊断）；`internal/settings`（15 个键的类型化访问）；`internal/ai`（三协议客户端、
+重试 / 回退、结构化输出、连接探针）；平台端口、Capture fake 与四套契约套件；
+macOS 与 Windows 的单次截图适配器；十个 Wails 绑定；错误 / 事件类型；凌晨 4 点日期函数。
+
+尚未实现：recorder 与后台生命周期、业务表（screenshots / 批次 / 卡片）、分段与 Media、
+分析流水线、insight 聚合、Secrets 与 Provider 持久化、前端生成绑定接入。
 实现与验证状态分别见 `docs/09-roadmap.md §9.1` 及各模块执行册。
+
+**目标平台是 macOS。** 仓库里另有一份实验性 Windows 截图实现，它未经任何实机验证、
+不在发布范围，而且 Windows 上没有实例锁实现因而**没有数据库**；不要把它当作“已支持 Windows”
+（`docs/decisions/recording-screen-capture-windows.md`）。
 
 `docs/README.md` 是设计入口，`docs/01`–`10` 是设计规格。跨界接口（Wails 绑定、DTO、事件、
 错误码、平台端口）以 `docs/05-interface-contract.md` 为准。开始任务前先读与任务直接相关的
@@ -79,7 +88,7 @@ Go foundation               storage / settings / domain / timeutil
         ↓ 接口
 internal/platform           端口：Capture / Media / System / Secrets / Updater
         ↓ 实现待定设计
-平台适配层                   唯一接触 macOS 能力的地方
+平台适配层                   唯一接触系统能力的地方（darwin / windows）
 ```
 
 必须保持以下依赖规则：
@@ -97,6 +106,21 @@ internal/platform           端口：Capture / Media / System / Secrets / Update
 ---
 
 ## 构建与测试
+
+### 一次跑完提交门禁
+
+```bash
+./scripts/gate.sh
+```
+
+等价于下面的 Go 与前端命令，但**包含它们缺少的引导步骤**：`internal/app` 导入 `frontend`，
+后者的 `go:embed all:dist` 在 `frontend/dist` 不存在时匹配不到文件，整个模块无法编译；
+而 `vue-tsc` 又需要 `frontend/wailsjs` 里的生成绑定，生成绑定本身要求 Go 树可编译。
+干净检出上必须先 `./scripts/bootstrap-frontend.sh`（顺序：占位 dist → 生成绑定 → 真实 bundle），
+否则 `go build ./...` 和 `npm run build` 都会失败。
+
+门禁最后会跑 `scripts/check-docs.py`，检查文档链接、小节锚点和孤立文档。
+它只保证文档内部自洽；**文档与代码是否一致仍由你在同一个 commit 里保证**。
 
 ### Go
 
@@ -121,6 +145,21 @@ npm --prefix frontend run build
 
 工具链以 `frontend/package-lock.json` 和 `frontend/package.json` 的 scripts 为准。
 不要混用 npm、pnpm、yarn，也不要在未确认现有工具链前生成新锁文件。
+
+### 原生静态库
+
+```bash
+# macOS：Swift → arm64 + x86_64 → lipo
+native/darwin/build.sh        # → build/native/darwin/universal/libdaygo_capture.a
+
+# Windows（PowerShell，需要 MinGW-w64 的 g++ / ar）
+powershell -NoProfile -ExecutionPolicy Bypass -File native\windows\build.ps1
+                              # → build/native/windows/amd64/libdaygo_capture.a
+```
+
+只有走 cgo 的适配器需要它们；`cmd/daygo/wails.json` 的 `preBuildHooks` 会在对应平台的
+Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 `go run -a`，否则 Go 缓存可能
+继续链接旧 archive。核心门禁（`CGO_ENABLED=0`）不需要这两个产物。
 
 ### 验证强度
 

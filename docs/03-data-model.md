@@ -1,7 +1,9 @@
 # 03 数据模型
 
-> **状态：设计。** 本文定义 Daygo 自有的持久化结构。schema 尚未落盘；落盘时以本文为准，
-> 实现与本文冲突时以代码为准并在同一 commit 修正本文。
+> **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
+> **当前数据库只有一张表**：`PRAGMA user_version = 1` 创建的 `app_settings`
+> （`internal/storage/migrate.go`）。本文其余表都是目标结构，由对应功能模块随需求
+> 沿同一条迁移链逐版本追加。实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
 功能模块按需求增量落盘表与 repository，全部位于 internal/storage。
 [data](modules/data.md) 负责唯一连接、迁移机制 / 编号、锁与可观测封装；功能负责业务表和查询，
@@ -13,12 +15,18 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
 
 ```text
 ~/Library/Application Support/Daygo/
-├── daygo.sqlite (+ -wal, -shm)   业务数据库
+├── daygo.sqlite (+ -wal, -shm)   业务数据库                        ★
+├── daygo.sqlite.lock             写入锁（flock，进程退出即释放）    ★
+├── capture.lock                  捕获所有者锁，与写入锁相互独立      ★
 ├── recordings/                   分段文件，yyyyMMdd_HHmmssSSS.<ext>
 ├── timelapses/<yyyy-MM-dd>/      每张卡片的时间压缩视频
-├── backups/                      每日数据库副本
+├── backups/daygo-<UTC>-<seq>.db  每日数据库副本，保留 7 份           ★
 └── agent.sock                    外部写入通道（推迟到 v1.1）
 ```
+
+★ 已落盘。目录本身以 `0700` 创建。两把锁是独立文件而不是库内的行，这样只读实例
+（没有可写描述符）也能观察争用，且写入锁与捕获所有者锁可以由不同进程持有；
+候选方案与回退见 [data 实例锁](decisions/data-locking.md)。
 
 数据库是唯一的结构化事实来源。**设置也在数据库里**（`app_settings` 表），不使用
 `UserDefaults` / plist——这样设置能与受其影响的数据在同一事务内变更，也不必处理偏好设置
@@ -50,7 +58,17 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
 ## 3.3 表结构
 
 `PRAGMA user_version` 从 `1` 起，配套版本化迁移链（`internal/storage/migrate.go`）。
-连接层固定 `journal_mode=WAL`、`synchronous=NORMAL`、`busy_timeout=5000`。
+连接层固定 `journal_mode=WAL`、`synchronous=NORMAL`、`busy_timeout=5000`，并在打开后
+**回读校验**这三项确实生效（DB-6）——只检查“没报错”发现不了被静默忽略的 PRAGMA。
+
+迁移链的三条纪律，违反其中任何一条都会让用户库和代码分叉：
+
+1. **只追加，不修改。** 已发布的版本永远不能改：用户库已经停在那个版本，改动对他们不生效。
+2. **每个版本配一个“旧库 → 新库”夹具**，与该版本同一个 commit 合入。证明迁移保数据的唯一
+   方式，是拿上一版本写出的真实文件跑一遍（DB-2）。
+3. **DDL 与 `user_version` 在同一个事务里提交**，因此崩溃后重跑是幂等的（DB-1）。
+
+版本号比本 build 支持的更高时**拒绝打开**而不是尝试兼容；只读实例根本不跑迁移。
 
 ### 3.3.1 捕获与分析
 
@@ -108,7 +126,7 @@ CREATE TABLE llm_calls (
   purpose            TEXT    NOT NULL,
   attempt_no         INTEGER NOT NULL,
   provider_id        TEXT    NOT NULL,
-  protocol           TEXT    NOT NULL,   -- openai | anthropic
+  protocol           TEXT    NOT NULL,   -- openai | openai_responses | anthropic
   requested_model    TEXT    NOT NULL,
   actual_model       TEXT,
   started_at         INTEGER NOT NULL,
@@ -253,7 +271,7 @@ CREATE TABLE app_settings (
 CREATE TABLE providers (
   id           TEXT PRIMARY KEY,   -- 生成的不透明标识
   display_name TEXT NOT NULL,
-  protocol     TEXT NOT NULL,      -- openai | anthropic
+  protocol     TEXT NOT NULL,      -- openai | openai_responses | anthropic
   endpoint     TEXT NOT NULL,      -- 绝对 http(s) 基地址，不含凭据
   model        TEXT NOT NULL,
   sort_order   INTEGER NOT NULL,
@@ -351,12 +369,15 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 
 ## 3.6 维护任务
 
-| 任务 | 周期 | 说明 |
-|------|------|------|
-| WAL checkpoint | 300 秒 | |
-| 数据库备份 | 启动后 1 小时，之后每 24 小时 | 保留最近 N 份，N 待定 |
-| 录制清理 | 启动后 1 小时，之后每小时 | 超出 `storage.recordingsLimitBytes` 时按分段从旧到新删除 |
-| `llm_calls` 元数据留存 | 待定 | 只含 attempt 元数据，不含正文 |
+| 任务 | 周期 | 状态 | 说明 |
+|------|------|------|------|
+| WAL checkpoint | 300 秒 | ★ 已实现 | `PASSIVE`：不阻塞读写，宁可 WAL 大一会儿也不要卡住一次捕获写入 |
+| 数据库备份 | 启动后 1 小时，之后每 24 小时 | ★ 已实现 | `VACUUM INTO`（不是文件复制，避免撕裂的 WAL），保留最近 **7** 份（[决策](decisions/data-backup-retention.md)） |
+| 录制清理 | 启动后 1 小时，之后每小时 | 未实现 | 超出 `storage.recordingsLimitBytes` 时按分段从旧到新删除；阻塞于 `screenshots` 表与 `Media` |
+| `llm_calls` 元数据留存 | 待定 | 未实现 | 只含 attempt 元数据，不含正文 |
+
+维护循环由 app 生命周期持有（`storage.Maintainer`），`ctx` 取消即退出，不存在全局单例。
+只读实例照常跑循环，它的写操作被存储层拒绝——第二个实例是预期状态，不是故障。
 
 清理规则：**从不删除活跃分段**；删除分段的同时软删除其 `screenshots` 行；对应卡片保留
 （用户仍能看到那段时间做了什么，只是没有帧可看）。

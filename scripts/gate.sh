@@ -39,4 +39,14 @@ printf '\n== frontend ==\n'
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 
+printf '\n== docs ==\n'
+# Link and anchor rot in docs/ is mechanical, so it is checked mechanically.
+# Skipped rather than failed when python3 is absent: the documentation check
+# must not be the reason a Go/frontend gate cannot run on a machine.
+if command -v python3 >/dev/null 2>&1; then
+  python3 scripts/check-docs.py
+else
+  printf 'python3 not found; skipping docs check\n'
+fi
+
 printf '\ngate: passed\n'

@@ -46,6 +46,12 @@ flowchart LR
 占位帧在 `screenshots.redacted = 1` 标记，跨界时体现为 `FrameRefDTO.Redacted`，UI 必须
 显式呈现"此处内容已屏蔽"而不是显示空白。
 
+**平台无法提供第 1 层时必须失败关闭。** 适配层返回 `privacy_unsupported`，上层不截图、
+不落盘，也**不得**降级成“只做第 2 层”。这条已经有实际后果：Windows 没有与
+`SCContentFilter(excludingApplications:)` 等价的公开能力，因此只要屏蔽名单非空，
+Windows 适配器就返回 `privacy_unsupported`（[决策记录](decisions/recording-screen-capture-windows.md)）。
+“让 Windows 也能出图”不是放宽这条规则的理由。
+
 ## 7.3 密钥
 
 | 项 | 规则 |
@@ -91,11 +97,14 @@ API key、费用或可还原用户活动的 metadata，也不参与任何上报�
 |------|------|----------|
 | 分段录制 | 受 `storage.recordingsLimitBytes` 约束，超限按整段从旧到新清理 | 自动 + 手动 |
 | 时间线卡片 | 无限期 | 单卡软删除；批量删除待设计 |
-| `llm_calls` | 无限期（上限待定），仅 attempt 元数据 | 待设计 |
-| 数据库备份 | 每日，保留份数待定 | 自动轮换 |
+| `llm_calls` | 无限期（上限待定，[09 §9.8 第 15 项](09-roadmap.md#98-待定设计清单)），仅 attempt 元数据 | 待设计 |
+| 数据库备份 | 每日，**保留最近 7 份**（[决策](decisions/data-backup-retention.md)，`storage.DefaultBackupRetention`） | 自动轮换，按文件名时间序删最旧 |
 
 **卸载即彻底删除**：所有数据都在 `~/Library/Application Support/Daygo/` 和钥匙串里，
 没有第二处副本。这一点应在 UI 里明确告诉用户。
+
+备份不加密。数据库不含密钥（密钥在钥匙串），但含时间线内容，因此它继承目录的 `0700`
+权限，并和其余数据一起在卸载时消失——备份不得写到该目录之外。
 
 一键"导出全部数据"和"删除全部数据"入口列为待决产品问题
 （[01 §1.7](01-product-requirements.md#17-待决的产品问题)），倾向于做。

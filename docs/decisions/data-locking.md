@@ -63,6 +63,11 @@ Windows 需要 `LockFileEx` 另行实现，而 Windows 发布范围本身仍未�
   互等，尽管本实现全程使用非阻塞获取，不会真正阻塞。
 - **同一进程内两次 `Open` 同一目录会互相争用。** `flock` 按打开文件描述计，这是刻意保留
   的性质：测试依赖它来覆盖双实例路径。
+- **Windows 上没有锁，因此没有数据库。** `lock_windows.go` 的 `tryLock` 直接返回错误，
+  于是 `storage.Open` 失败、`app.Run` 以“无数据库”状态启动，设置与诊断返回 `database_error`。
+  这在只有 macOS 实现时是无害的占位；自从仓库里出现了 Windows 截图适配器
+  （[决策记录](recording-screen-capture-windows.md)），它变成了“Windows 构建不是可用产品”
+  的直接原因，必须显式记住。补齐方式是 `LockFileEx`，见 §5——调用方不需要改。
 
 ## 5. 回退
 

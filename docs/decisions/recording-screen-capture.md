@@ -416,6 +416,13 @@ internal/platform/darwin/
 
 ## 7. Windows 约束
 
+> **2026-09-11 更新：** 本节的约束已经被一份真实实现落地并验证为“可编译”——
+> `native/windows` 用 DXGI Desktop Duplication 实现了同一个 `dg_capture_once`。
+> 实现细节、与 macOS 的差异和仍然缺的东西见
+> [Windows 截图实现与限制](recording-screen-capture-windows.md)。
+> **结论未变**：没有画面排除原语，因此屏蔽名单非空时一律返回 `privacy_unsupported`，
+> 且在 WC 矩阵通过前不进发布构建。
+
 Windows 仍只做候选实验：
 
 - WGC：为当前 primary monitor 创建一次 capture，取第一帧，立即关闭 session/frame pool；

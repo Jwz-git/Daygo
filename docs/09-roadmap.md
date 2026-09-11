@@ -11,8 +11,8 @@
 
 | 模块 / 执行册 | 用户结果与职责 | 当前实现进度 | 当前验证状态 |
 |---|---|---|---|
-| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、绑定骨架 | 部分单元 / fake 契约通过；真实集成未验收 |
-| [providers AI 接入](modules/providers.md) | Provider、密钥、主备路由、协议客户端和连接测试 | 部分实现：前端配置及无密钥本地存储 | 类型检查通过；真实集成未验收 |
+| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、macOS / Windows 单次截图、权限绑定骨架 | fake 契约通过；macOS 一次人工 smoke，MC / WC 实机矩阵与真实集成未验收 |
+| [providers AI 接入](modules/providers.md) | Provider、密钥、主备路由、协议客户端和连接测试 | 部分实现：三协议客户端、重试 / 回退、连接探针绑定；前端配置存无密钥 localStorage | Go 单元与匿名 TLS fixture 通过；Secrets、Provider 落库与真实服务未验收 |
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、页面骨架 | 已有时间函数单元通过；闭环未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 仅页面骨架，功能未开始 | 未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 仅页面骨架，功能未开始 | 未验收 |
@@ -22,23 +22,43 @@
 
 ### 当前代码证据
 
-2026-09-10 本机基线（代码 commit `b059a76`，macOS / Darwin arm64）：`CGO_ENABLED=0 go test ./...` 与
-`npm --prefix frontend run typecheck` 通过。这不是 Linux 实机、macOS 原生集成或长时间证据。
+**基线：2026-09-11，commit `c2950cf`，macOS 14 / arm64 · go1.25.6 · Node 25。**
+`./scripts/gate.sh` 全绿（`CGO_ENABLED=0 go build ./...`、`CGO_ENABLED=0 go test ./internal/...`、
+`go vet ./...`、`gofmt -l .` 无输出、前端 `typecheck` 与 `build`）；
+`GOOS=linux CGO_ENABLED=0 go build ./internal/...` 与 `GOOS=windows CGO_ENABLED=0 go build ./internal/...`
+通过。**这只是本机无头基线**，不是 Linux 实机 CI、原生集成或长时间证据。
 
-- [端口](../internal/platform/ports.go)、[值类型](../internal/platform/types.go)、
-  [Capture fake](../internal/platform/fake/capture.go)、[契约套件](../internal/platform/platformtest/suite.go)、
-  [macOS Capture](../internal/platform/darwin/capture.go) 与
-  [截图 v2 调用说明](decisions/recording-screen-capture-v2.md) 已落盘；fake 的其他四个端口尚未实现。
-- 真实 macOS 单次调用已生成并解码 JPEG；隐私实机矩阵、正式应用装配和长期观察未验收。
-- [绑定骨架](../internal/app/backend.go)、错误和事件已有测试；权限调用在无适配层时返回
-  `native_unavailable`。写入 / 捕获所有权目前没有真实锁实现。
-- [时间函数及测试](../internal/timeutil/timeutil_test.go) 覆盖已有日期边界；时钟串派生、周边界
-  与完整属性测试仍待交付。
-- [前端 DTO](../frontend/src/api/dto.ts) 仍是手写子集；
-  `api/` 已存在，但生成绑定接入、错误 wrapper、前端单元测试运行器尚未完成。
-- 原生捕获、业务数据库、分析与 AI 服务、常驻生命周期均未实现。
-  [历史编译探针](decisions/recording-screen-capture.md#81-已完成的本机编译探针)
-  仅证明当时的编译与链接，临时源码未入库，不记为当前真实集成通过。
+已落盘并有自动化覆盖：
+
+- [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v1 = `app_settings`）、
+  `flock` 实例锁与只读降级、可观测读写封装、`app_settings` repository、
+  `Checkpoint` / `Backup`（`VACUUM INTO`，保留 7 份）/ `RestoreFromBackup` / `IntegrityCheck`、
+  `Stats`。匿名夹具在 [`testdata/`](../internal/storage/testdata/)。
+- [settings](../internal/settings/settings.go)：15 个键的类型化访问、默认值、规范化与夹取、
+  `Patch` 的 nil 语义。
+- [ai](../internal/ai/)：三种协议客户端（`openai` / `openai_responses` / `anthropic`）、
+  统一 `Generate`、重试与粘性回退、脱敏 attempt 观测、JSON 提取与 schema 校验、
+  内嵌匿名 PNG 的连接探针；全部用匿名 TLS fixture 验证。
+- [app](../internal/app/)：十个绑定方法（清单见 [05 §5.2.1](05-interface-contract.md#521-按功能能力的可用性)）、
+  `apperr` 封闭码表、事件常量与可注入的事件发布、storage → apperr 的单点映射。
+- [platform](../internal/platform/)：端口与值类型、Capture fake、
+  [四套契约套件](../internal/platform/platformtest/suite.go)（基础 / 授权 / 隐私 / 无显示器）。
+- [timeutil](../internal/timeutil/timeutil.go)：凌晨 4 点逻辑日、日历日与逻辑日窗口。
+
+已落盘但**未验证**：
+
+- [macOS Capture](../internal/platform/darwin/capture.go) + [Swift 实现](../native/darwin/Sources/)：
+  做过一次真机 smoke（1920×1080 → 1280×720 JPEG，元数据与磁盘一致），
+  但未接入契约套件，MC 实机矩阵、正式应用 TCC 身份与长期观察均未运行。
+- [Windows Capture](../internal/platform/windows/capture.go) + [DXGI 实现](../native/windows/Sources/daygo_capture.cpp)：
+  **没有任何实机记录**，WC 矩阵未运行，且 Windows 上 `storage.Open` 因缺少锁实现而失败。
+  见 [决策记录](decisions/recording-screen-capture-windows.md)。
+
+尚未实现：recorder 与常驻生命周期、`screenshots` / 批次 / 卡片等业务表、分段与 Media、
+分析流水线、insight 聚合、Secrets 与 Provider 持久化、资源处理器、前端生成绑定接入
+（[`api/dto.ts`](../frontend/src/api/dto.ts) 仍是手写子集）与前端单元测试运行器。
+更早期的编译 / 链接探针（[验证门禁](decisions/recording-screen-capture.md#8-验证门禁)）
+只证明当时能编译链接，临时源码未入库，不记为真实集成通过。
 
 ## 9.2 执行与状态规则
 
@@ -116,7 +136,7 @@ UI、平台探针、解析器和聚合逻辑均可使用契约输入独立推进
 | G-data 真实数据接入 | 将未验证链路用于真实记录或宣称数据安全 | 匿名夹具、受控集成实验、其他独立能力 | 隐私双保护、唯一 writer / capture owner、连接层只读、pending 对账、幂等提交与媒体恢复；对应 DB / IT / MC 测试 |
 | G-core 可移植核心 | 合入破坏纯 Go 或 Linux 核心门禁的变更 | 隔离实验、定位失败及重新决策 | 08 §8.8 的构建、测试、契约门禁；SQLite 实验失败不得自动切换为 cgo 驱动 |
 | G-loop 用户闭环 | 标记录制到自动时间线闭环验收完成 | 单模块验收、故障修复、其他模块开发 | 真实配置 provider，连续 7 天自用，无未解释捕获缺口，失败可见且可操作 |
-| G-stability 长期稳定性 | 宣称长时间 / 边界稳定性完成 | 模块交付、累计观察和修复 | 08 §8.6.2 的 14 天窗口、跨一次 DST、跨周一分别记录；7 天不能代替这些证据 |
+| G-stability 长期稳定性 | 宣称长时间 / 边界稳定性完成 | 模块交付、累计观察和修复 | 08 §8.6.4 的 14 天窗口、跨一次 DST、跨周一分别记录；7 天不能代替这些证据 |
 
 门禁失败记录到对应能力：负责人、失败输入、观察、影响消费者、下一项验证。
 G-host 是统一限制 UI 扩张的例外，其余失败只限制相关能力，不重建全项目串行等待。
@@ -193,8 +213,10 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 15 | llm_calls 与卡片留存上限 | data / 产品 | 相关留存策略实现前；07 §7.6 |
 | 16 | Chat 是否进入后续版本 | delivery / 范围 | 首个公开版本后评估；v1 不实现 |
 | 17 | apiRevision 的生产检查 | preferences / 工程 | 前后端版本不一致处理接入前；05 §5.10 |
-| 18 | Windows 发布范围 | delivery / 范围，recording 提供证据 | 明确产品范围且 WC 隐私 / 指示门禁通过后；保留候选研究 |
+| 18 | Windows 发布范围 | delivery / 范围，recording 提供证据 | **仍未决定**，但代码已有一份未验证的 DXGI 截图实现（[决策记录](decisions/recording-screen-capture-windows.md)）。进入发布前至少需要：[08 §8.6.3](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 的 WC 全部通过（尤其 WC-3/WC-4 的隐私失败关闭）、`lock_windows.go` 落实实例锁、以及捕获指示与分发身份的结论 |
 | 19 | 每日摘要 / 日记 summary 的生成触发、刷新与失败交互 | daily / 产品 + 工程 | 生成切片实现前；若新增绑定先补 05 与双侧契约，不假定现有查询方法就是生成入口 |
+| 20 | 多显示器是否恢复"跟随光标的活跃显示器" | recording / 产品 + 工程 | recorder 接入真实捕获前；当前冻结为系统主显示器（[04 §4.1.2](04-data-flow.md#412-只截一块显示器系统主显示器)），改动会给端口加字段和跨调用状态 |
+| 21 | Windows 截图是否合成鼠标指针 | recording / 工程 | Windows 进入任何真实使用前；当前实现接受 `ShowsCursor` 但不生效，要么补合成要么在 ABI 上明确降级语义 |
 
 决定写入 `docs/decisions/<module>-<topic>.md`，记录候选、实验、结果、边界与回退，
 同步相应公共规范。无证据不标为已决定。捕获旧文档路径仅保留历史跳转。

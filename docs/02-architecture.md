@@ -41,8 +41,8 @@ flowchart TD
     end
 
     PLATFORM["platform — 端口：Capture / Media / System / Secrets / Updater"]
-    ADAPTER["平台适配层 — 形态待定设计"]
-    OS["macOS 系统能力"]
+    ADAPTER["平台适配层 — 形态待定设计（已有 darwin / windows 的 Capture）"]
+    OS["宿主系统能力（macOS 主线 · Windows 实验）"]
 
     VIEWS --> STORES --> API --> WAILS --> APPM
     APPM --> SVC
@@ -89,84 +89,90 @@ flowchart TD
 
 ## 2.4 目录结构
 
+★ 已落盘，☐ 目标状态。**不要把 ☐ 的路径描述成现状**，也不要为了匹配这张图去搬动已验证的
+代码；目录调整应独立提交并保持可构建。
+
 ```text
 Daygo/
 ├── cmd/
-│   ├── daygo/                   Wails 入口 + wails.json
-│   └── daygo-cli/               只读 CLI（推迟到 v1.1）
+│   ├── daygo/                       ★ Wails 入口 + wails.json
+│   └── daygo-cli/                   ☐ 只读 CLI（推迟到 v1.1）
 │
 ├── internal/
-│   ├── app/                     生命周期、监管、绑定 API
-│   │   ├── app.go               构造与装配
-│   │   ├── lifecycle.go         启动顺序、优雅关闭
-│   │   ├── api_timeline.go      绑定方法：时间线
-│   │   ├── api_settings.go      绑定方法：设置与 provider
-│   │   ├── api_insight.go       绑定方法：每日、每周、日记
-│   │   ├── assets.go            帧与 timelapse 的 HTTP 资源处理器
-│   │   ├── apperr/              跨界错误类型与码表
-│   │   ├── events.go            事件名与负载
-│   │   └── state.go             录制开关、暂停状态
+│   ├── app/                         生命周期、绑定 API；唯一知道 Wails 的层
+│   │   ├── app.go                   ★ 装配：先开数据库，再开窗口
+│   │   ├── backend.go               ★ 绑定对象：能力、逻辑日、录制状态、权限
+│   │   ├── api_settings.go          ★ 绑定：设置读写
+│   │   ├── diagnostics_binding.go   ★ 绑定：诊断 + storage → apperr 的单点映射
+│   │   ├── provider_probe.go        ★ 绑定：provider 连接探针
+│   │   ├── system_bindings.go       ★ 绑定：授权申请与系统面板
+│   │   ├── events.go                ★ 事件名常量
+│   │   ├── emitter_wails.go         ★ 事件发布（接口化，测试不需要 Wails runtime）
+│   │   ├── *_dto.go                 ★ 跨界 DTO
+│   │   ├── apperr/                  ★ 跨界错误类型与封闭码表
+│   │   ├── lifecycle.go             ☐ 启动顺序、优雅关闭
+│   │   ├── api_timeline.go          ☐ 绑定：时间线
+│   │   ├── api_insight.go           ☐ 绑定：每日、每周、日记
+│   │   ├── assets.go                ☐ 帧与 timelapse 的 HTTP 资源处理器
+│   │   └── state.go                 ☐ 录制开关、暂停状态
 │   │
-│   ├── domain/                  共享类型，无行为
-│   ├── storage/                 唯一 SQLite 写入方
-│   │   ├── db.go                连接池、PRAGMA、打开与恢复
-│   │   ├── migrate.go           版本化迁移链
-│   │   ├── timeline.go          卡片，含 ReplaceCardsInRange
-│   │   ├── screenshots.go
-│   │   ├── batches.go
-│   │   ├── observations.go
-│   │   ├── journal.go / goals.go / standup.go / llmcalls.go
-│   │   ├── maintenance.go       checkpoint、备份、清理
-│   │   └── observe.go           慢查询与争用埋点
+│   ├── storage/                     ★ 唯一 SQLite 写入方与 schema owner
+│   │   ├── open.go store.go pragma.go     连接、模式、可观测读写封装
+│   │   ├── lock_unix.go lock_windows.go   实例锁（Windows 未实现）
+│   │   ├── migrate.go               版本化迁移链（当前停在 v1: app_settings）
+│   │   ├── errors.go                失败分类：busy / corrupt / read_only / …
+│   │   ├── observe.go               慢查询、争用与 breadcrumb 埋点
+│   │   ├── settings.go              app_settings repository
+│   │   ├── diagnostics.go maintenance.go maintain.go   统计、备份、维护循环
+│   │   ├── testdata/                ★ 匿名夹具与其生成器
+│   │   └── timeline.go screenshots.go batches.go …     ☐ 业务表随功能逐版本交付
 │   │
-│   ├── settings/                app_settings 之上的类型化访问
-│   ├── analysis/                scheduler / batcher / pipeline / idle / reprocess
-│   ├── ai/                      provider / registry / routing / retry / fallback
-│   │   ├── openai/              OpenAI 兼容协议
-│   │   ├── anthropic/           Anthropic 协议
-│   │   ├── prompts/
-│   │   └── jsonrepair/          畸形 JSON 恢复
-│   ├── insight/                 timeline / daily / weekly
-│   ├── media/                   已解码帧的 LRU 缓存（字节，不是图像对象）
-│   ├── platform/                端口，只有接口
-│   │   ├── capture.go / media.go / system.go / secrets.go / updater.go
-│   │   ├── darwin/              平台适配层实现（待定设计）
-│   │   └── fake/                内存实现，供测试与 CI
-│   ├── agentbridge/             外部写入通道（推迟）
-│   ├── telemetry/
-│   └── timeutil/
-│       ├── dayboundary.go       凌晨 4 点逻辑日
-│       ├── clock.go             时钟串解析与格式化
-│       └── week.go
+│   ├── settings/                    ★ app_settings 之上的类型化访问与规范化
+│   ├── ai/                          ★ provider 抽象、重试 / 回退、结构化输出、连接探针
+│   │   ├── openai/                  ★ Chat Completions 与 Responses
+│   │   ├── anthropic/               ★ Messages
+│   │   ├── factory/                 ★ 按协议构造客户端
+│   │   ├── prompts/                 ☐
+│   │   └── jsonrepair/              ☐ 畸形 JSON 恢复（当前在 structured.go 内）
+│   ├── platform/                    ★ 端口：只有接口与值类型
+│   │   ├── ports.go types.go enums.go
+│   │   ├── fake/                    ★ Capture 的确定性实现，全平台可跑
+│   │   ├── platformtest/            ★ fake 与真实适配层共用的契约套件
+│   │   ├── darwin/                  ★ cgo → ScreenCaptureKit
+│   │   └── windows/                 ★ cgo → DXGI（实验，未验证，不在发布范围）
+│   ├── timeutil/                    ★ 凌晨 4 点逻辑日（时钟串派生与周边界 ☐）
+│   ├── analysis/                    ☐ scheduler / batcher / pipeline / idle / reprocess
+│   ├── insight/                     ☐ timeline / daily / weekly
+│   ├── domain/                      ☐ 共享类型，无行为
+│   ├── media/                       ☐ 已解码帧的有界 LRU（字节，不是图像对象）
+│   ├── agentbridge/                 ☐ 外部写入通道（推迟到 v1.1）
+│   └── telemetry/                   ☐
 │
-├── frontend/
-│   └── src/
-│       ├── views/               每个路由一个目录
-│       ├── layout/              AppShell、SideRail
-│       ├── components/
-│       ├── router/              vue-router（hash 模式）
-│       ├── i18n/                vue-i18n 实例、locale 解析与规范化
-│       ├── locales/             <locale>/<domain>.ts
-│       ├── theme/               主题解析与 <html data-dg-appearance> 写入
-│       ├── storage/             本地偏好适配层，全应用唯一的 localStorage 调用方
-│       ├── stores/              Pinia
-│       ├── api/                 生成绑定 + 薄 wrapper
-│       ├── styles/              设计令牌（CSS 自定义属性）
-│       └── assets/
+├── native/                          ★ 原生截图实现，两平台共用一份 C ABI
+│   ├── include/daygo_capture.h      ABI v1 的唯一事实来源
+│   ├── darwin/Sources/ + build.sh   Swift + ScreenCaptureKit
+│   └── windows/Sources/ + build.ps1 C++ + DXGI，另有 smoke.cpp
 │
-├── build/                       Wails 构建资源与产物
-├── testdata/                    夹具与参考数据库
-└── docs/                        本目录
+├── scripts/                         ★ bootstrap-frontend.sh · gate.sh · dev.sh · dev.ps1
+├── frontend/                        ★ Vue 3 + TypeScript（内部结构见 05 §5.5.5）
+├── build/                           Wails 构建资源；bin/ 与 native/ 产物不入库
+└── docs/                            本目录
 ```
 
-两个目录值得单独说明。
+三处值得单独说明。
 
 `internal/platform/fake/` **不是事后补充**。正是它让分析流水线、AI 层和每个 insight
 构建器能在没有 Mac、没有授权弹窗、没有真实帧的环境里测试。各功能模块随所用平台能力
 交付 fake 和真实契约；无需先实现全部端口才能开发消费者。
 
-`testdata/` 保存参考数据库，让"schema 变更后旧数据还能读吗"成为回归测试而非人工检查。
-至少三个变体：典型安装、含边界数据的安装（跨午夜卡片、DST 当天、空闲整天）、空数据库。
+`internal/<pkg>/testdata/` 保存匿名夹具，按 Go 的标准约定放在使用它的包旁边，
+而不是仓库根目录的单一 `testdata/`。`internal/storage/testdata/` 是已落盘的样板：
+夹具与其生成器一起入库，因为"由上一版本写出的数据库"无法用本版本的 DDL 重建。
+参考数据库至少要覆盖三个变体：典型安装、含边界数据的安装（跨午夜卡片、DST 当天、
+空闲整天、脱敏帧）、空数据库。
+
+`native/` 下两个平台实现同一个 `dg_capture_once`，共用 `native/include/daygo_capture.h`。
+**ABI 只有一份**：任何一侧新增字段都要同时满足头文件里的 `static_assert` 布局断言。
 
 ## 2.5 前端约定
 
@@ -214,6 +220,12 @@ Daygo/
 5. 启动分析调度器与维护任务。
 
 启动顺序的硬约束：**在第 1 步成功前不得启动捕获**，否则会产生无处落库的帧。
+
+已落盘的部分是第 1、3、5 步的一部分：`app.Run` 先 `storage.Open`（同时申请写入锁与捕获
+所有者锁），再启动由同一个 `ctx` 拥有的维护 goroutine，最后才创建窗口。
+**打开失败不是致命错误**——第二个实例拿不到写入锁是预期状态，损坏的库也应该让用户看到
+界面而不是一个静默退出的进程，因此失败原因被记下并经 `GetDiagnostics` 暴露。
+第 2 步只装配了已存在的部分，第 4 步（恢复录制意愿）还不存在。
 
 ### 2.6.2 关闭
 

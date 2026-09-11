@@ -5,6 +5,9 @@
 > 按负责模块的能力决策记录处理（[09 §9.8](09-roadmap.md#98-待定设计清单)）。
 >
 > 在决策落盘前，**不得**按某一种候选方案大规模实现，也不得删除其它候选路径。
+>
+> 22 项能力中只有“单次截图”有真实实现，且分 macOS 与 Windows 两套；
+> 逐项状态见 [§6.7](#67-平台实现状态)。
 
 ## 6.1 为什么单独隔离这一层
 
@@ -124,3 +127,29 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 
 候选技术、Go 数据契约、C ABI 与实验矩阵见
 [recording 屏幕捕获](decisions/recording-screen-capture.md)。编译探针不替代上述真实机器证据。
+
+## 6.7 平台实现状态
+
+产品主线是 macOS。Windows 现在有一份**可编译、未验证、不在发布范围**的截图实现，
+它的存在不改变 v1 的目标平台（[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
+把它记在这里，是因为“仓库里有 Windows 代码”和“Windows 可用”是两件事，不写下来就会被混淆。
+
+| 能力 | macOS | Windows | 说明 |
+|---|---|---|---|
+| 单次截图（第 5 / 7 / 12 项） | 有限实现，已跑通真机 smoke | 有限实现，**无任何实机记录** | macOS 用 ScreenCaptureKit，Windows 用 DXGI Desktop Duplication + GDI 回退 |
+| 隐私屏蔽（第 6 / 13 项） | 前台兜底 + 画面排除，两层齐备 | **无画面排除原语**：名单非空即 `privacy_unsupported` | Windows 上配置了屏蔽应用就拿不到画面，这是失败关闭而非缺陷 |
+| 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 实现与 ABI 语义之间的已知缺口 |
+| 屏幕录制授权（第 1–3 项） | 端口已定义，适配层未实现 | 系统无对应授权 | macOS 未接入前，绑定返回 `native_unavailable` |
+| 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | **未实现**，`storage.Open` 直接失败 | 后果是 Windows 上没有数据库；见 [data 实例锁](decisions/data-locking.md) |
+| 其余 14 项（第 4、8–11、14–22 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
+
+构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
+`native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是
+`build/native/darwin/universal/libdaygo_capture.a` 与
+`build/native/windows/amd64/libdaygo_capture.a`。两者共用
+[`native/include/daygo_capture.h`](../native/include/daygo_capture.h) 这一份 ABI 定义。
+
+实现细节与限制：[macOS 截图 v2](decisions/recording-screen-capture-v2.md)、
+[Windows 截图](decisions/recording-screen-capture-windows.md)；
+真机验收矩阵：[08 §8.6.2 MC](08-testing-strategy.md#862-mc真实-macos-捕获矩阵)、
+[§8.6.3 WC](08-testing-strategy.md#863-wc真实-windows-捕获矩阵)。
