@@ -6,7 +6,8 @@
 并安全升级且保留数据与授权身份。负责 F-L4、首次运行引导与分发验收。
 签名、公证、身份和更新可行性要早做有限实验，完整发行只组合已验收模块。
 本执行册不授权生成、修改或发布 release 产物；实际发布须用户明确要求。
-Chat、CLI / agent socket 和 Windows 发布保持后续范围 / 待决状态。
+Chat 与 Windows 发布保持后续范围 / 待决状态；CLI / agent socket / MCP 已移交
+[agent 模块](agent.md)（设计准备中，v1 不交付）。
 
 依据：[06 选型问题](../06-native-integration.md#66-选型时要回答的问题)、
 [05 更新绑定](../05-interface-contract.md#权限系统与更新)、

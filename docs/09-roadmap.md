@@ -19,6 +19,7 @@
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：跨平台 db-core、settings-store、diagnostics、checkpoint 与备份 | macOS 单元与并发 smoke、Windows LockFileEx 跨进程 smoke 通过；1 小时 DB-8、清理与诊断 UI 未运行 |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、主题、i18n、本地偏好、settings-access；视觉层级与动效已收敛 | 类型检查、构建、浏览器浅 / 深主题检查与 Go 单元通过；前端绑定持久化未验收 |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：开发构建链 | 原生身份、签名、公证、更新未验收 |
+| [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 未开始：仅 05 §5.9 契约与执行册（2026-09-12 建立，设计准备） | 未运行；MCP 传输决策见 §9.8 #22 |
 
 ### 当前代码证据
 
@@ -221,6 +222,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 19 | 每日摘要 / 日记 summary 的生成触发、刷新与失败交互 | daily / 产品 + 工程 | 生成切片实现前；若新增绑定先补 05 与双侧契约，不假定现有查询方法就是生成入口 |
 | 20 | 多显示器是否恢复"跟随光标的活跃显示器" | recording / 产品 + 工程 | recorder 接入真实捕获前；当前冻结为系统主显示器（[04 §4.1.2](04-data-flow.md#412-只截一块显示器系统主显示器)），改动会给端口加字段和跨调用状态 |
 | 21 | Windows 截图是否合成鼠标指针 | recording / 工程 | Windows 进入任何真实使用前；当前实现接受 `ShowsCursor` 但不生效，要么补合成要么在 ABI 上明确降级语义 |
+| 22 | MCP 传输与进程模型（stdio 子进程 vs 宿主内 HTTP；工具粒度与审计来源标记随之一并定） | agent / 工程，delivery 协作 | MCP 实现前，agent 执行册切片 1 前必须落决策；已定约束与候选见 [05 §5.9.3](05-interface-contract.md#593-mcp-服务器设计准备未实现)，决策落 `decisions/agent-mcp-transport.md` |
 
 决定写入 `docs/decisions/<module>-<topic>.md`，记录候选、实验、结果、边界与回退，
 同步相应公共规范。无证据不标为已决定。捕获旧文档路径仅保留历史跳转。

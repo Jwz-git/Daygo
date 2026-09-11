@@ -28,7 +28,7 @@ flowchart TD
             ANALYSIS["analysis — 分批、流水线、空闲判定"]
             AIM["ai — provider 注册表、路由、重试"]
             INSIGHT["insight — 时间线、每日、每周"]
-            AGENT["agentbridge — 外部写入通道"]
+            AGENT["agent — 对外接口：agentbridge 写入通道 / MCP 工具面（推迟）"]
         end
         subgraph FOUND["foundation"]
             direction TB
@@ -145,7 +145,8 @@ Daygo/
 │   ├── insight/                     ☐ timeline / daily / weekly
 │   ├── domain/                      ☐ 共享类型，无行为
 │   ├── media/                       ☐ 已解码帧的有界 LRU（字节，不是图像对象）
-│   ├── agentbridge/                 ☐ 外部写入通道（推迟到 v1.1）
+│   ├── agentbridge/                 ☐ 外部写入通道（agent 模块，推迟到 v1.1）
+│   ├── mcp/                         ☐ MCP 工具面（agent 模块，推迟；传输与进程模型见 05 §5.9.3）
 │   └── telemetry/                   ☐
 │
 ├── native/                          ★ 原生截图实现，两平台共用一份 C ABI

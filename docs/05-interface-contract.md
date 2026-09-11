@@ -42,7 +42,7 @@ flowchart TD
     ADAPT["平台适配层（形态待定设计）"]
     B5["B5 适配边界（待定设计）"]
     OS["宿主系统能力（macOS 主线 · Windows 实验）"]
-    B6["B6 对外接口：CLI / agent.sock（推迟）"]
+    B6["B6 对外接口：CLI / agent.sock / MCP（推迟）"]
     EXT["外部 agent · 用户脚本"]
 
     VUE --> B1 --> APPL
@@ -61,7 +61,7 @@ flowchart TD
 | B3 | services ↔ foundation | Go 接口，纯值语义 | 已定 | §5.6 |
 | B4 | Go ↔ `platform` | Go 接口 + channel | 已定 | §5.7 |
 | B5 | 适配层 ↔ 系统能力 | — | **待定设计** | §5.8 |
-| B6 | 外部 ↔ Daygo | CLI JSON / NDJSON socket | 推迟到 v1.1 | §5.9 |
+| B6 | 外部 ↔ Daygo | CLI JSON / NDJSON socket / MCP 工具面 | 推迟到 v1.1 | §5.9 |
 
 ### 5.2.1 按功能能力的可用性
 
@@ -1228,6 +1228,37 @@ JSON 输出（`--json`）规则：
 **写入必须与绑定层走同一条服务路径**（同样的校验、同样的事件），否则外部 agent 改了数据
 而 UI 不刷新，或绕过了分类名校验。
 
+### 5.9.3 MCP 服务器（设计准备，未实现）
+
+MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当作工具源：查时间线、
+读日报、在授权范围内改卡片与分类。本节**只固定已可确定的约束**；传输与进程模型未定，
+候选见下表与 [09 §9.8](09-roadmap.md#98-待定设计清单)，决策落
+`docs/decisions/agent-mcp-*.md` 后本节随之收敛。
+
+已定约束：
+
+| 约束 | 值 | 理由 |
+|------|-----|------|
+| 工具读面 | 与 §5.9.1 CLI 读命令同源：timeline / card / daily / weekly / categories / search | 一套查询语义，两处实现会漂移 |
+| 工具写面 | 操作集不超出 §5.9.2 的六个操作 | 不为 MCP 引入绑定层没有的写能力 |
+| 写入路径 | 与绑定层同一条服务路径：同校验、同事件、同 `edits_disabled` 门禁（服务端独立校验） | 外部写入后 UI 必须刷新；门禁不能靠客户端自律 |
+| 输出信封 | 复用 `schema_version`（初始 1），JSON 规则同 §5.9.1（键排序、时间格式、空值省略） | 一个版本域服务所有对外 JSON，diff 门禁共用 |
+| 时间与日期 | 同 §5.5.1 五种表示；`today` / `yesterday` 别名只在入口层解析，MCP 客户端不得自行推算逻辑日 | 与前端同一规则：客户端自算 4 点边界必然错一天 |
+| 隐私边界 | 工具不暴露原始帧、分段路径、LLM payload、密钥、屏幕内容 | [07](07-privacy-security.md) 的边界对 MCP 同样生效 |
+| 核心可测 | MCP 服务代码 `CGO_ENABLED=0` 且在 Linux 下可编译可测试 | §5.10.3 的 CI 门禁反向约束接口设计 |
+
+待定候选（09 §9.8 #22）：
+
+| 决策点 | 候选 | 含义与代价 |
+|--------|------|-----------|
+| 传输与进程模型 | **stdio**：MCP 客户端拉起 `daygo mcp` 子进程 | 独立进程，与 CLI 同构：读走只读 DB（`SQLITE_OPEN_READONLY` + `query_only`，`DAYGO_DB` 可覆盖），写走 `agent.sock`。无需端口与鉴权，权限模型沿用 0600 socket + `agentEditsEnabled` |
+| | **Streamable HTTP**：宿主内常驻服务 | 读写可直达服务层（等价于又一个绑定层消费者），但需要本地回环监听、端口选择与鉴权设计，扩大攻击面 |
+| 工具粒度与命名 | 逐命令映射（`daygo_timeline` …）vs 粗粒度查询工具 | 决策随传输一起落；命名进 `schema_version` 冻结范围 |
+| 审计归属 | MCP 写入在 `agent-writes.log` 中的来源标记 | 需要区分 UI / CLI / MCP 三种写入来源时一并定 |
+
+无论选哪种候选，上表"已定约束"不变；特别是**stdio 形态的 MCP 写入与 CLI 写入一样只能经
+`agent.sock`**，不得为省一跳而开第二条直连数据库的写路径。
+
 ---
 
 ## 5.10 版本、变更流程与测试门禁
@@ -1263,6 +1294,7 @@ JSON 输出（`--json`）规则：
 | platform 端口 | 同一套 `platformtest.Suite` 跑 fake 与真实适配层 | `internal/platform/platformtest` |
 | 资源处理器 | 路径穿越、404/403/502/503、缓存头 | `internal/app/assets_test.go` |
 | Agent bridge | 双端协议测试：操作 + 错误码 + 大小上限 + 门禁 | `internal/agentbridge` |
+| MCP 服务器 | 工具清单与 §5.9.1 读命令 / §5.9.2 操作集同源断言、`schema_version` 快照、错误码封闭集、隐私字段排除 | 包位置随 §5.9.3 传输决策定 |
 
 CI 门禁：
 

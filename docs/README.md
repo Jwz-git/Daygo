@@ -124,7 +124,7 @@ Go 拥有全部可移植业务逻辑，并且是 SQLite 的唯一写入方。平
 | 设置（存储、隐私、账户） | ✅ | 需要 Go 绑定 |
 | 自然语言问答（Chat） | ❌ | 推迟 |
 | 导出 Markdown | ❌ | 推迟到 v1.1 |
-| CLI / MCP / Agent 写入通道 | ❌ | 接口已定义（[05 §5.9](05-interface-contract.md#59-b6对外接口推迟到-v11)），实现推迟 |
+| CLI / MCP / Agent 写入通道 | ❌ | 接口形状已定义（[05 §5.9](05-interface-contract.md#59-b6对外接口推迟到-v11)），设计准备见 [modules/agent.md](modules/agent.md)，实现推迟 |
 
 推迟项的接口形状仍然写进 [05](05-interface-contract.md)，这样 v1 的数据模型不会在
 补做它们时被迫改动。
