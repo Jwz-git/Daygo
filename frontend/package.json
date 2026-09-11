@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test:unit": "node scripts/run-unit-tests.mjs"
   },
   "dependencies": {
     "pinia": "3.0.4",

@@ -36,6 +36,7 @@ gofmt -l .
 printf 'gofmt: clean\n'
 
 printf '\n== frontend ==\n'
+npm --prefix frontend run test:unit
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 

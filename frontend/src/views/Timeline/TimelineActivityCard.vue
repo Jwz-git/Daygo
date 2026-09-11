@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import type { CSSProperties } from 'vue'
+import { computed, type CSSProperties } from 'vue'
 
 import type { TimelineCardDTO } from '@/api/dto'
+import AppSiteIcon from '@/components/AppSiteIcon.vue'
+import { preferredAppSite } from '@/lib/appSiteIcon'
 
 const props = defineProps<{
   card: TimelineCardDTO
@@ -14,6 +16,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ select: [id: number] }>()
+const appSite = computed(() => preferredAppSite(props.card.appSites))
 
 function cardStyle(): CSSProperties {
   return {
@@ -30,13 +33,24 @@ function cardStyle(): CSSProperties {
   <button
     type="button"
     class="activity-card"
-    :class="{ 'is-selected': props.selected, 'is-compact': props.height < 54 }"
+    :class="{
+      'is-selected': props.selected,
+      'is-compact': props.height < 54,
+      'is-collided': props.laneCount > 1,
+    }"
     :style="cardStyle()"
     :aria-pressed="props.selected"
     :aria-label="`${props.card.title}, ${props.card.start} – ${props.card.end}, ${props.card.category}`"
     @click="emit('select', props.card.id)"
   >
     <span class="activity-card__rail" aria-hidden="true"></span>
+    <AppSiteIcon
+      v-if="appSite"
+      class="activity-card__icon"
+      :site="appSite"
+      :accent="props.color"
+      :size="18"
+    />
     <span class="activity-card__copy">
       <span class="activity-card__title">{{ props.card.title }}</span>
       <span v-if="props.height >= 64" class="activity-card__summary">{{ props.card.summary }}</span>
@@ -53,7 +67,7 @@ function cardStyle(): CSSProperties {
   width: calc((100% - 12px) / var(--timeline-lane-count) - 4px);
   display: flex;
   align-items: flex-start;
-  gap: 11px;
+  gap: 9px;
   min-height: 38px;
   padding: 9px 12px 9px 14px;
   overflow: hidden;
@@ -66,6 +80,10 @@ function cardStyle(): CSSProperties {
     border-color var(--dg-motion-fast) ease,
     background var(--dg-motion-fast) ease,
     box-shadow var(--dg-motion-fast) ease;
+}
+
+.activity-card__icon {
+  margin-top: 0;
 }
 
 .activity-card:hover {
@@ -141,6 +159,10 @@ function cardStyle(): CSSProperties {
   padding-top: 6px;
   padding-bottom: 6px;
 }
+
+.activity-card.is-collided .activity-card__time { display: none; }
+
+.activity-card.is-collided .activity-card__summary { -webkit-line-clamp: 1; }
 
 @media (max-width: 720px) {
   .activity-card__time { display: none; }

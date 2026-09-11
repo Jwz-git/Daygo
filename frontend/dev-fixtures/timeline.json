@@ -77,7 +77,7 @@
         "detailedSummary": "检查当前进度，把需要集中处理的事项排在上午，低优先级工作留到下午。",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Daygo", "secondary": "Notes" },
+        "appSites": { "primary": "planning.example", "secondary": "Notes" },
         "distractions": [],
         "isIdle": false,
         "durationMinutes": 25

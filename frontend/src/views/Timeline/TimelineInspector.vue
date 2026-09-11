@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 
 import type { CategoryDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
+import AppSiteIcon from '@/components/AppSiteIcon.vue'
+import { appSiteValues } from '@/lib/appSiteIcon'
 import type { TimelineAction } from '@/stores/timeline'
 
 import { safeCategoryColor } from './layout'
@@ -56,6 +58,8 @@ const selectedColor = computed(() => {
   const category = props.day.categories.find((entry) => entry.name === props.card?.category)
   return safeCategoryColor(category?.colorHex)
 })
+
+const displayedAppSites = computed(() => appSiteValues(props.card?.appSites ?? null))
 
 const videoURLs = computed(() => {
   const card = props.card
@@ -260,12 +264,14 @@ function duration(minutes: number): string {
         <p>{{ props.card.detailedSummary || props.card.summary || t('timeline.inspector.noSummary') }}</p>
       </section>
 
-      <section v-if="props.card.appSites" class="inspector__section">
+      <section v-if="displayedAppSites.length > 0" class="inspector__section">
         <h3>{{ t('timeline.inspector.apps') }}</h3>
-        <div class="tags">
-          <span v-if="props.card.appSites.primary">{{ props.card.appSites.primary }}</span>
-          <span v-if="props.card.appSites.secondary">{{ props.card.appSites.secondary }}</span>
-        </div>
+        <ul class="app-sites">
+          <li v-for="site in displayedAppSites" :key="site.toLocaleLowerCase('en-US')">
+            <AppSiteIcon :site="site" :accent="selectedColor" :size="20" />
+            <span>{{ site }}</span>
+          </li>
+        </ul>
       </section>
 
       <section v-if="props.card.distractions.length > 0" class="inspector__section">
@@ -482,8 +488,25 @@ function duration(minutes: number): string {
 .inspector__section:first-of-type { border-top: 0; }
 .inspector__section h3 { margin-bottom: 6px; color: var(--dg-text-primary); font-size: 11px; font-weight: 650; }
 .inspector__section p { color: var(--dg-text-secondary); font-size: 11px; line-height: 1.6; }
-.tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.tags span { padding: 4px 8px; border-radius: 99px; background: var(--dg-track-fill); color: var(--dg-text-secondary); font-size: 10px; }
+.app-sites { display: flex; flex-wrap: wrap; gap: 7px; }
+.app-sites li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 7px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+  font-size: 10px;
+}
+.app-sites li > span {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .distraction { display: grid; gap: 2px; padding: 8px 0; }
 .distraction span { color: var(--dg-text-muted); font-size: 9px; }
 .distraction strong { color: var(--dg-text-secondary); font-size: 11px; font-weight: 550; }
