@@ -39,7 +39,7 @@
 - [ai](../internal/ai/)：三种协议客户端（`openai` / `openai_responses` / `anthropic`）、
   统一 `Generate`、重试与粘性回退、脱敏 attempt 观测、JSON 提取与 schema 校验、
   内嵌匿名 PNG 的连接探针；全部用匿名 TLS fixture 验证。
-- [app](../internal/app/)：十个绑定方法（清单见 [05 §5.2.1](05-interface-contract.md#521-按功能能力的可用性)）、
+  内部正式绑定方法、临时截图联调绑定（清单见 [05 §5.2.1](05-interface-contract.md#521-按功能能力的可用性)）、
   `apperr` 封闭码表、事件常量与可注入的事件发布、storage → apperr 的单点映射。
 - [platform](../internal/platform/)：端口与值类型、Capture fake、
   [四套契约套件](../internal/platform/platformtest/suite.go)（基础 / 授权 / 隐私 / 无显示器）。

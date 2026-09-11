@@ -26,10 +26,10 @@ Windows 侧另有一份同 ABI 的 DXGI 实现（`internal/platform/windows` + `
 无法打开数据库。以上不改变本模块的验收口径。
 [Capture fake](../../internal/platform/fake/capture.go)、
 [契约套件](../../internal/platform/platformtest/suite.go)、
-[macOS Capture](../../internal/platform/darwin/capture.go)、
-[Swift 原生实现](../../native/darwin/Sources/Screenshot.swift) 和
-[权限绑定](../../internal/app/system_bindings.go) 已存在；Media、完整 System、recorder、
-storage pending 恢复和后台生命周期尚未实现。
+`internal/app/capture_test_binding.go` 和 `frontend/src/views/CaptureTest/CaptureTestView.vue` 提供临时
+联调页面：配置输出目录、文件名前缀、目标高度、JPEG 质量、光标和屏蔽 Bundle ID，可单次或限时定时
+调用，并打开最近输出目录。该页面不接 recorder、正式 settings 或数据库。
+Media、完整 System、recorder、storage pending 恢复和后台生命周期尚未实现。
 
 ## 能力与跨层职责
 
@@ -91,3 +91,8 @@ darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子�
 全零帧被跳过，后续桌面更新由 DXGI 返回非零 BGRA，没有命中 GDI fallback。非空屏蔽名单返回
 `privacy_unsupported` 且不生成文件，证明失败关闭而非隐私能力完整。仅 WC-1 有限通过；
 目标冲突、多屏切换/旋转、受保护内容、光标与 24 小时资源矩阵未运行。
+
+2026-09-11：临时 `CaptureTest` binding 使用真实 macOS `darwin.Capture` 完成 one-shot smoke，生成并
+检查 JPEG 文件存在、非空且返回文件大小一致；fake binding 行为测试、Go 全量测试、前端 typecheck/build
+和文档链接检查通过。Wails 原生窗口中的页面视觉检查受当前 headless 环境限制，已用 Vite 页面和无障碍
+树确认路由、导航入口、配置控件与操作按钮渲染；定时与 Finder 长期观察仍未验收。

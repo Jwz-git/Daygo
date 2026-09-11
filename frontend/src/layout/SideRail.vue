@@ -2,6 +2,7 @@
 import type { Component } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 
+import IconCaptureTest from '@/components/icons/IconCaptureTest.vue'
 import IconDaily from '@/components/icons/IconDaily.vue'
 import IconSettings from '@/components/icons/IconSettings.vue'
 import IconTimeline from '@/components/icons/IconTimeline.vue'
@@ -26,6 +27,7 @@ const items: readonly RailItem[] = [
   { navKey: 'daily', to: { name: 'daily' }, labelKey: 'nav.daily', icon: IconDaily },
   { navKey: 'weekly', to: { name: 'weekly' }, labelKey: 'nav.weekly', icon: IconWeekly },
   { navKey: 'settings', to: { name: 'settings' }, labelKey: 'nav.settings', icon: IconSettings },
+  { navKey: 'capture-test', to: { name: 'capture-test' }, labelKey: 'nav.captureTest', icon: IconCaptureTest },
 ]
 
 const route = useRoute()

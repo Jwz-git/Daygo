@@ -3,10 +3,11 @@
 > **状态：设计中，部分落盘。** 本目录描述的是目标行为与接口。
 >
 > **已落盘**（基线 commit `c2950cf`，加当前工作树的 Windows 验证与锁适配）：桌面外壳与前端设置页、
-> SQLite 基础（连接 / PRAGMA / 迁移链 / 跨平台实例锁 / `app_settings` / 备份 / 诊断）、类型化设置、三协议 AI 客户端与连接探针、
-> 平台端口与 Capture fake 及其契约套件、macOS 与 Windows 的单次截图实现、十个 Wails 绑定。
-> **未实现**：recorder 与常驻生命周期、分段与媒体、分析流水线、时间线 / 每日 / 每周闭环、
-> Secrets 与 Provider 持久化。
+> SQLite 基础（连接 / PRAGMA / 迁移链 / 跨平台实例锁 / `app_settings` / 备份 / 诊断）、类型化设置、
+> 三协议 AI 客户端、平台端口与 Capture fake 及契约套件、macOS 与 Windows 的单次截图实现、
+> 十个正式 Wails 绑定，以及临时截图 ABI 联调页面和绑定。
+> **未实现**：recorder 与常驻生命周期、业务表（screenshots / 批次 / 卡片）、分段与 Media、分析流水线、
+> insight 聚合、Secrets 与 Provider 持久化。
 >
 > 当前状态与证据见 [09 §9.1](09-roadmap.md#91-模块总表)。
 > **不要把目标目录、命令或行为描述成现状**；文档与代码冲突时以代码为准。

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/Jwz-git/Daygo/frontend"
+	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -43,6 +44,7 @@ func Run() error {
 	defer cancel()
 
 	backend := NewBackend(nil, nil)
+	backend.setCapture(factory.NewCapture())
 	// The emitter publishes to the frontend once Wails supplies a context in
 	// OnStartup; before that it drops events, which is correct because a window
 	// that does not exist yet has no listener.

@@ -60,7 +60,8 @@
 - 分段、帧索引、Media 解码、磁盘配额和清理；
 - 睡眠、唤醒、锁屏、解锁、屏保、窗口关闭和进程退出编排。
 
-当前应用尚未装配真实 `darwin.Capture`，也没有 recorder 消费者。生产代码不能直接从 Vue 或
+当前应用已在 macOS composition root 装配真实 `darwin.Capture`，但仅由临时 `CaptureTest` 联调绑定调用；
+recorder 消费者、数据库 pending 恢复和后台生命周期仍未实现。生产代码不能直接从 Vue 或正式
 Wails binding 调用原生包；调用方向必须保持：
 
 ```text

@@ -53,12 +53,13 @@ func (nopEmitter) Emit(EventName, any) {}
 type Backend struct {
 	clock   Clock
 	system  platform.System
+	capture platform.Capture
 	storage *storage.Store
 
 	// canWrite and isCaptureOwner are the fallback ownership values used when
 	// no store is attached. With a store present they are ignored in favor of
-	// the real instance locks, so the reported ownership cannot drift from the
-	// locks actually held (docs/modules/data.md).
+	// the real instance locks, so the reported ownership cannot drift from
+	// the locks actually held (docs/modules/data.md).
 	canWrite       bool
 	isCaptureOwner bool
 
@@ -67,6 +68,10 @@ type Backend struct {
 	// second instance or a damaged file still leaves a usable window.
 	storageMu  sync.RWMutex
 	storageErr error
+
+	// captureMu serializes the test binding's path allocation and native call.
+	// It prevents two rapid UI clicks from racing over a generated output name.
+	captureMu sync.Mutex
 
 	// emitter publishes frontend events. It is never nil after construction:
 	// a Backend built through NewBackend or newBackend gets at least the
@@ -84,6 +89,12 @@ func (b *Backend) setEventEmitter(emitter EventEmitter) {
 		emitter = nopEmitter{}
 	}
 	b.emitter = emitter
+}
+
+// setCapture installs the platform adapter at the composition root. It stays
+// unexported because the adapter is an implementation detail, not a binding.
+func (b *Backend) setCapture(capture platform.Capture) {
+	b.capture = capture
 }
 
 // emitSettingsChanged publishes the keys a settings write committed.

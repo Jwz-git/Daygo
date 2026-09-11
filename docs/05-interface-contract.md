@@ -3,13 +3,13 @@
 > **状态：规范草案。** 本文把 [02 §2.1](02-architecture.md#21-模块图) 的模块边界收敛为可实现、
 > 可测试的契约：方法签名、字段级 DTO、错误码、事件语义、版本与兼容性规则。
 >
-> **本文不代表其中所有目标都已实现。** 截至 commit `c2950cf` 已落盘：
+> 本文把正式绑定、临时联调绑定和端口形状分开描述。截至当前工作树已落盘：
 > `internal/storage`（连接、PRAGMA、迁移链、实例锁、`app_settings` repository、维护与诊断）、
 > `internal/settings`（16 个键的类型化访问与规范化）、
 > `internal/ai`（三种协议客户端、重试 / 回退、结构化输出、连接探针）、
 > `internal/platform` 端口与值类型、`internal/platform/fake` 的 **Capture** 实现与
-> `platformtest` 的四套契约套件（§5.7.4）、macOS 与 Windows 的真实 Capture 适配器、
-> `internal/app` 的十个绑定方法（§5.2.1）、`apperr` 错误类型与事件常量、
+> `platformtest` 的四套契约套件、macOS 与 Windows 的真实 Capture 适配器、
+> `internal/app` 的正式绑定方法和临时 `CaptureTest` 联调绑定、`apperr` 错误类型与事件常量、
 > 前端外壳 / 设置页及其本地存储层。
 > fake 的其余端口（Media / System / Secrets / Updater）、recorder、时间线与洞察尚未实现。
 > 平台适配边界（§5.8）仍为 **待定设计**：只定义任何实现都必须满足的要求，不定义协议本身。
@@ -79,14 +79,17 @@ flowchart TD
 | data | GetDiagnostics | 可观测封装及各功能真实诊断来源 |
 | delivery | 更新状态和检查 | Updater、安全重启与身份 / 分发验证 |
 
-当前挂在 `Backend` 上、属于本契约的绑定方法恰好十个，按负责模块分：
+当前挂在 `Backend` 上、属于正式契约的绑定方法仍按 §5.2.1 计数；另有一个明确标注为临时用途的
+`CaptureTest` 联调绑定，用于在 recorder 尚未装配前验证真实 Capture ABI。它不读写数据库、不读取
+正式配置，且不应被正式产品页面依赖。
 
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
-| preferences | `GetCapabilities`、`GetSettings`、`UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
+| preferences | `GetCapabilities`、`GetSettings / UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
 | timeline | `GetDayContext` | 真实 4 点边界计算 |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
-| recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | **未接 System 适配器**，权限相关调用返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
+| recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
+| recording（联调） | `CaptureTest` | 直接调用平台 `Capture`，仅生成测试 JPEG，不接 recorder / storage / config |
 | providers | `TestProviderConnection` | 真实 HTTP 探针；provider 的增删改查与密钥存储尚未实现 |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
@@ -246,7 +249,7 @@ export function toApiError(e: unknown): ApiError {
 
 签名以 `internal/app` 的目标绑定方法给出（当前绑定对象名为 `Backend`）。
 “负责模块”协调实现，“接入条件”列出需要的能力；它们不改变方法签名或承诺已实现。
-**本目录里已经实现的只有 §5.2.1 列出的十个方法**，其余都是目标签名。
+正式契约方法见 §5.2.1；临时 `CaptureTest` / `OpenCaptureTestFolder` 联调方法另列于录制表中。
 
 #### 会话与能力
 
@@ -292,6 +295,8 @@ export function toApiError(e: unknown): ApiError {
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
 | `GetRecordingState() (RecordingStateDTO, error)` | recording | System / recorder 实际状态 | 读 | — | — |
+| `CaptureTest(request CaptureTestRequestDTO) (CaptureTestResultDTO, error)` | recording（联调） | Capture 适配器 | 写·测试 | — | `invalid_argument` `permission_denied` `native_unavailable` |
+| `OpenCaptureTestFolder(path string) error` | recording（联调） | 系统文件管理器 | 写·测试 | — | `invalid_argument` `not_found` `native_unavailable` |
 | `SetRecording(enabled bool) error` | recording | capture / db-core / 授权 | 写·幂等 | `recording:state` | `permission_denied` `not_capture_owner` `native_unavailable` |
 | `PauseRecording(minutes int) error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | `invalid_argument` `not_capture_owner` |
 | `ResumeRecording() error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | 同上 |

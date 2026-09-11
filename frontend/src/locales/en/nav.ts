@@ -4,4 +4,5 @@ export default {
   daily: 'Daily',
   weekly: 'Weekly',
   settings: 'Settings',
+  captureTest: 'Capture test',
 }

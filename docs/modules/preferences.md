@@ -33,8 +33,8 @@
 
 **绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
 绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`（`Store` 还把 `storage.Store` 拉进了生成的
-`models.ts`）。两者已改为非导出，生成产物现在恰好是 [05 §5.2.1](../05-interface-contract.md#521-按功能能力的可用性)
-的十个方法。接 ui-bridge 时沿用这条规则：**绑定对象上的导出方法就是前端 API**，
+`models.ts`）。两者已改为非导出，正式契约生成产物现在对应 [05 §5.2.1](../05-interface-contract.md#521-按功能能力的可用性)；
+临时截图联调绑定另列于 recording，不属于设置页面契约。接 ui-bridge 时沿用这条规则：**绑定对象上的导出方法就是前端 API**，
 装配用的入口一律非导出，`internal/app/bindings_test.go` 会在两者不一致时失败。
 
 配置的**产品逻辑**不在本模块：录制 / 隐私 / 自启 / Dock 归 recording，

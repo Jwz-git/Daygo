@@ -38,6 +38,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Settings/SettingsView.vue'),
     meta: { navKey: 'settings' },
   },
+  {
+    path: '/capture-test',
+    name: 'capture-test',
+    component: () => import('@/views/CaptureTest/CaptureTestView.vue'),
+    meta: { navKey: 'capture-test' },
+  },
   { path: '/:pathMatch(.*)*', redirect: { name: 'timeline' } },
 ]
 
