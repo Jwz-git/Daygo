@@ -94,6 +94,7 @@ func TestLoadDefaultsOnEmptyDatabase(t *testing.T) {
 		CrashReportingOptIn:    DefaultCrashReportingOptIn,
 		ProvidersRouting:       Routing{},
 		OutputLanguage:         DefaultOutputLanguage,
+		RecognitionEnhancement: DefaultRecognitionEnhancement,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("defaults mismatch:\ngot  %+v\nwant %+v", got, want)
@@ -344,6 +345,33 @@ func TestOutputLanguageIsIndependent(t *testing.T) {
 	if snapshot.OutputLanguage != "" {
 		t.Fatalf("outputLanguage = %q, want it untouched by the interface language",
 			snapshot.OutputLanguage)
+	}
+}
+
+func TestRecognitionEnhancementIsIndependentAndPersistent(t *testing.T) {
+	repo := newFakeRepo()
+	s := New(repo)
+
+	snapshot, changed, err := s.Apply(context.Background(), Patch{RecognitionEnhancement: ptr(true)})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if !snapshot.RecognitionEnhancement {
+		t.Fatal("recognition enhancement remained disabled")
+	}
+	if len(changed) != 1 || changed[0] != KeyLLMRecognitionEnhancement {
+		t.Fatalf("changed = %v, want recognition enhancement key", changed)
+	}
+	if repo.values[KeyLLMRecognitionEnhancement] != "true" {
+		t.Fatalf("stored value = %q, want true", repo.values[KeyLLMRecognitionEnhancement])
+	}
+
+	reloaded, err := New(repo).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !reloaded.RecognitionEnhancement {
+		t.Fatal("recognition enhancement was not read back")
 	}
 }
 

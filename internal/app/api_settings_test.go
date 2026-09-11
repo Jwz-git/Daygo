@@ -298,5 +298,44 @@ func TestWailsEmitterDropsEventsBeforeContext(t *testing.T) {
 	emitter.Emit(EventSettingsChanged, SettingsChangedPayload{Keys: []string{"x"}})
 }
 
+// Recognition enhancement defaults off and survives a restart through the DTO
+// and the database, so the frontend toggle persists a real value.
+func TestRecognitionEnhancementRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	store := openTestStore(t, dir, false)
+	backend := newBackend(fixedClock{}, nil, store, false, false)
+
+	dto, err := backend.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if dto.LLM.RecognitionEnhancementEnabled {
+		t.Fatal("recognition enhancement default = true, want false")
+	}
+
+	updated, err := backend.UpdateSettings(SettingsPatchDTO{RecognitionEnhancementEnabled: ptrBool(true)})
+	if err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	if !updated.LLM.RecognitionEnhancementEnabled {
+		t.Fatal("recognition enhancement stayed false after an explicit patch")
+	}
+
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	reopened := openTestStore(t, dir, false)
+	restarted := newBackend(fixedClock{}, nil, reopened, false, false)
+
+	reread, err := restarted.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings after restart: %v", err)
+	}
+	if !reread.LLM.RecognitionEnhancementEnabled {
+		t.Fatal("recognition enhancement did not survive a restart")
+	}
+}
+
 func ptrInt(value int) *int      { return &value }
 func ptrString(v string) *string { return &v }
+func ptrBool(v bool) *bool       { return &v }

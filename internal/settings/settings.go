@@ -38,6 +38,7 @@ const (
 	KeyTelemetryCrashReportingOptIn = "telemetry.crashReportingOptIn"
 	KeyProvidersRouting             = "providers.routing"
 	KeyLLMOutputLanguage            = "llm.outputLanguage"
+	KeyLLMRecognitionEnhancement    = "llm.recognitionEnhancementEnabled"
 )
 
 // AllKeys lists every setting key. It exists so a test can assert the stored
@@ -60,6 +61,7 @@ func AllKeys() []string {
 		KeyTelemetryCrashReportingOptIn,
 		KeyProvidersRouting,
 		KeyLLMOutputLanguage,
+		KeyLLMRecognitionEnhancement,
 	}
 }
 
@@ -90,6 +92,7 @@ const (
 	DefaultAnalyticsOptIn         = false
 	DefaultCrashReportingOptIn    = false
 	DefaultOutputLanguage         = ""
+	DefaultRecognitionEnhancement = false
 )
 
 // repo is the storage side of this package. It is an interface defined here,
@@ -133,6 +136,7 @@ type Snapshot struct {
 	CrashReportingOptIn    bool
 	ProvidersRouting       Routing
 	OutputLanguage         string
+	RecognitionEnhancement bool
 }
 
 // Routing is the stored form of providers.routing (docs/03 §3.3.5). An empty
@@ -182,6 +186,7 @@ type Patch struct {
 	Theme                  *string
 	Language               *string
 	OutputLanguage         *string
+	RecognitionEnhancement *bool
 	LaunchAtLogin          *bool
 	ShowDockIcon           *bool
 	AgentEditsEnabled      *bool
@@ -294,6 +299,11 @@ func (s *Settings) encodePatch(p Patch) (map[string]string, []string, error) {
 			return nil, nil, err
 		}
 	}
+	if p.RecognitionEnhancement != nil {
+		if err := put(KeyLLMRecognitionEnhancement, *p.RecognitionEnhancement); err != nil {
+			return nil, nil, err
+		}
+	}
 	if p.LaunchAtLogin != nil {
 		if err := put(KeySystemLaunchAtLogin, *p.LaunchAtLogin); err != nil {
 			return nil, nil, err
@@ -340,6 +350,7 @@ func (s *Settings) snapshotFrom(raw map[string]string) Snapshot {
 		CrashReportingOptIn:    decodeBool(raw[KeyTelemetryCrashReportingOptIn], DefaultCrashReportingOptIn),
 		ProvidersRouting:       decodeRouting(raw[KeyProvidersRouting]),
 		OutputLanguage:         normalizeLanguage(decodeString(raw[KeyLLMOutputLanguage], DefaultOutputLanguage)),
+		RecognitionEnhancement: decodeBool(raw[KeyLLMRecognitionEnhancement], DefaultRecognitionEnhancement),
 	}
 }
 
@@ -476,6 +487,8 @@ func defaultFor(key string) string {
 		return `{"primary":"","secondary":""}`
 	case KeyLLMOutputLanguage:
 		return encodeScalar(DefaultOutputLanguage)
+	case KeyLLMRecognitionEnhancement:
+		return encodeScalar(DefaultRecognitionEnhancement)
 	default:
 		return ""
 	}

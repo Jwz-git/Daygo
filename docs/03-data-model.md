@@ -300,9 +300,14 @@ CREATE TABLE providers (
 | `telemetry.crashReportingOptIn` | bool | `false` |
 | `providers.routing` | `{primary, secondary}` | 空 |
 | `llm.outputLanguage` | string（空串=跟随界面语言） | `""` |
+| `llm.recognitionEnhancementEnabled` | bool | `false` |
 
 `llm.outputLanguage` 与 `appearance.language` 是**两个独立设置**：前者决定模型生成的卡片
 标题与摘要用什么语言，后者只影响界面文案。不得复用同一个字段。
+
+`llm.recognitionEnhancementEnabled` 开启后，识别用途的每张图片在发送前于内存中切为
+四张带交叉覆盖的分片（见 [04 §4.3.4](04-data-flow.md#434-提示词与输出解析)），原图与分片
+均不额外落盘；默认关闭，因为开启会提高 token 用量。
 
 ## 3.4 帧与分段
 

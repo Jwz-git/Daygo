@@ -24,6 +24,29 @@ export interface AppearanceSettingsDTO {
   language: LanguagePreference
 }
 
+/** LLMSettingsDTO — how recognition requests are sent to the model. */
+export interface LLMSettingsDTO {
+  /** BCP 47; "" follows the interface language. */
+  outputLanguage: string
+  /**
+   * Recognition enhancement: each image is split in memory into four
+   * overlapping tiles before it is sent, so small text survives provider-side
+   * downscaling. Off sends the original image unchanged. Increases usage.
+   */
+  recognitionEnhancementEnabled: boolean
+}
+
+/** The SettingsDTO groups this app reads today; names match the Go JSON tags. */
+export interface SettingsDTO {
+  llm: LLMSettingsDTO
+}
+
+/** SettingsPatchDTO subset — every field optional; absent means "leave unchanged". */
+export interface SettingsPatch {
+  recognitionEnhancementEnabled?: boolean
+}
+
+
 /** The wire protocol a custom endpoint speaks. */
 export const PROVIDER_PROTOCOLS = ['openai', 'openai_responses', 'anthropic'] as const
 

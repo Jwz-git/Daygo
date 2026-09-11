@@ -17,7 +17,7 @@
 
 已交付：
 
-- `internal/settings`：15 个设置键的类型化读写、默认值、规范化与夹取、`Patch` 语义
+- `internal/settings`：16 个设置键的类型化读写、默认值、规范化与夹取、`Patch` 语义
   （nil = 本次不改）、跨键规则（`llm.outputLanguage` 与 `appearance.language` 相互独立、
   空串语言保留为"跟随系统"哨兵）。只经 `storage.SettingsRepo` 读写，不含 SQL。
 - `internal/app`：`GetSettings` / `UpdateSettings` 绑定与 `SettingsDTO` / `SettingsPatchDTO`；
@@ -88,6 +88,7 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 |---|---|---|---|
 | 2026-09-10 | `npm --prefix frontend run typecheck` | 通过，见 [基线](../09-roadmap.md#当前代码证据) | — |
 | 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/settings/ ./internal/app/`、`-race`、`go build ./...`、`go vet ./...` | 通过；默认值、夹取、patch 只改显式键、失败不留部分写入、单键读与全量读一致、事件只带改动键且仅在提交后发出、重启读回 | 单元通过不等于真实重启交互；前端未接入 |
+| 2026-09-11 / 见本次提交 / macOS arm64 | `llm.recognitionEnhancementEnabled` 新键：settings / app 单元与重启读回、设置页开关经生成绑定读写（Other 分区） | 通过；默认 false、patch 只改显式键、UpdateSettings 返回生效值后前端以后端状态为准展示 | 浏览器预览无 Wails 桥时开关禁用；真实应用内点击交互未验证 |
 
 前端单元运行器、绑定持久化、重启交互与 localStorage 迁移实验未验收。
 `settings patch`、`localStorage 接管` 两项实验的**前端侧**仍未运行。

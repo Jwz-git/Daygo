@@ -34,7 +34,7 @@
   `flock` 实例锁与只读降级、可观测读写封装、`app_settings` repository、
   `Checkpoint` / `Backup`（`VACUUM INTO`，保留 7 份）/ `RestoreFromBackup` / `IntegrityCheck`、
   `Stats`。匿名夹具在 [`testdata/`](../internal/storage/testdata/)。
-- [settings](../internal/settings/settings.go)：15 个键的类型化访问、默认值、规范化与夹取、
+- [settings](../internal/settings/settings.go)：16 个键的类型化访问、默认值、规范化与夹取、
   `Patch` 的 nil 语义。
 - [ai](../internal/ai/)：三种协议客户端（`openai` / `openai_responses` / `anthropic`）、
   统一 `Generate`、重试与粘性回退、脱敏 attempt 观测、JSON 提取与 schema 校验、

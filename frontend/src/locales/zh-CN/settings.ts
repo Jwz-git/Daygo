@@ -33,6 +33,11 @@ export default {
     outputDescription:
       '影响模型生成的卡片标题与摘要所使用的语言，与界面语言相互独立。',
   },
+  recognition: {
+    title: '识别增强模式',
+    hint: '会提高 token 消耗量',
+    unavailable: '需要在 Daygo 应用内运行',
+  },
   providers: {
     description: '当前仅支持自定义供应商：填写协议、接口地址与模型名即可使用。',
     empty: '尚未添加任何供应商。',

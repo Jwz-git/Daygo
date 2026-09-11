@@ -107,7 +107,8 @@ func settingsToDTO(s settings.Snapshot) SettingsDTO {
 			Language: s.Language,
 		},
 		LLM: LLMSettingsDTO{
-			OutputLanguage: s.OutputLanguage,
+			OutputLanguage:                s.OutputLanguage,
+			RecognitionEnhancementEnabled: s.RecognitionEnhancement,
 		},
 		System: SystemSettingsDTO{
 			LaunchAtLogin:     s.LaunchAtLogin,
@@ -135,6 +136,7 @@ func patchFromDTO(p SettingsPatchDTO) settings.Patch {
 		Theme:                  p.Theme,
 		Language:               p.Language,
 		OutputLanguage:         p.OutputLanguage,
+		RecognitionEnhancement: p.RecognitionEnhancementEnabled,
 		LaunchAtLogin:          p.LaunchAtLogin,
 		ShowDockIcon:           p.ShowDockIcon,
 		AgentEditsEnabled:      p.AgentEditsEnabled,

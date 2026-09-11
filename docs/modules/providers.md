@@ -38,7 +38,13 @@ JPEG / PNG / WebP，最多 20 张、单张 5 MiB、原始总量 20 MiB；调用�
 协议客户端归 internal/ai；上层任务通过消费者接口调用，不导入另一服务的内部实现。
 providers repository 在 internal/storage；Secrets.Get 只供 Go 客户端取密钥，
 任何绑定均不返回密钥。settings-access 由 preferences 维护，本模块拥有 providers.routing、
-llm.outputLanguage 的字段规则和设置交互；批次内粘性由 timeline 集成验证。
+llm.outputLanguage、llm.recognitionEnhancementEnabled 的字段规则和设置交互；批次内粘性由
+timeline 集成验证。
+
+识别增强（`ai.GenerateRecognition`，由 `llm.recognitionEnhancementEnabled` 控制，默认关）：
+开启时识别用途的每张图片在内存中切成 2×2 四张重叠分片（每片约半幅加交叉覆盖）再发送，
+分片仅存在于单次请求生命周期、返回后清零，不落盘不入库；关闭时请求原样透传。生产识别
+调用方（timeline 分析流水线）尚未接入，该开关当前持久化设置值并由设置页读写。
 
 ## 实验与失败条件
 
@@ -88,3 +94,10 @@ Secrets、Provider repository、Wails 绑定、真实服务连接及升级身份
 前端密钥旁测试按钮 + 结果本地化展示（建议性，不阻塞保存）。`go test ./internal/app/...`
 与前端 typecheck / build 通过；wails dev 内以本机匿名 mock HTTP 服务器完成通过 / 401 /
 不可达 / 无桥四条端到端路径。llm_calls 元数据待 data 模块 db-core 落地后接入。
+2026-09-11：识别增强落地——`internal/ai` 新增 `ai.GenerateRecognition`（关闭时原样透传；
+开启时每张识别图片切成 2×2 四张重叠分片，顺序左上/右上/左下/右下，调用返回后清零临时
+字节，不落盘），`llm.recognitionEnhancementEnabled` 设置键（默认 false）经
+`GetSettings` / `UpdateSettings` 暴露，设置页（Other 分区）提供开关。
+`go test ./internal/ai/... ./internal/settings/... ./internal/app/...`、前端
+typecheck / build 通过，夹具为内存生成的匿名 PNG。真实 provider 四片请求与生产分析
+流水线接入未运行。

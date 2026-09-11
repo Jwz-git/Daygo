@@ -9,7 +9,7 @@ Daygo 是一个 macOS 常驻后台 Agent：按间隔截取当前的系统主显�
 
 已落盘（commit `c2950cf`）：Wails 桌面外壳与 Vue 页面骨架（路由、i18n、主题、设置页）
 及其本地存储层；`internal/storage`（连接、PRAGMA、迁移链、flock 实例锁、`app_settings`、
-备份与诊断）；`internal/settings`（15 个键的类型化访问）；`internal/ai`（三协议客户端、
+备份与诊断）；`internal/settings`（16 个键的类型化访问）；`internal/ai`（三协议客户端、
 重试 / 回退、结构化输出、连接探针）；平台端口、Capture fake 与四套契约套件；
 macOS 与 Windows 的单次截图适配器；十个 Wails 绑定；错误 / 事件类型；凌晨 4 点日期函数。
 

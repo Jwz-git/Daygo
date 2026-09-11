@@ -5,7 +5,7 @@
 >
 > **本文不代表其中所有目标都已实现。** 截至 commit `c2950cf` 已落盘：
 > `internal/storage`（连接、PRAGMA、迁移链、实例锁、`app_settings` repository、维护与诊断）、
-> `internal/settings`（15 个键的类型化访问与规范化）、
+> `internal/settings`（16 个键的类型化访问与规范化）、
 > `internal/ai`（三种协议客户端、重试 / 回退、结构化输出、连接探针）、
 > `internal/platform` 端口与值类型、`internal/platform/fake` 的 **Capture** 实现与
 > `platformtest` 的四套契约套件（§5.7.4）、macOS 与 Windows 的真实 Capture 适配器、
@@ -551,7 +551,8 @@ type AppearanceSettingsDTO struct {
 // LLMSettingsDTO 与 AppearanceSettingsDTO.Language 是两个独立设置：
 // 前者决定模型生成的卡片标题与摘要用什么语言，后者只影响界面文案。
 type LLMSettingsDTO struct {
-    OutputLanguage string `json:"outputLanguage"` // BCP 47；空串表示跟随界面语言
+    OutputLanguage                string `json:"outputLanguage"`                // BCP 47；空串表示跟随界面语言
+    RecognitionEnhancementEnabled bool   `json:"recognitionEnhancementEnabled"` // 识别图片切四片发送；默认 false
 }
 
 type SystemSettingsDTO struct {
@@ -577,6 +578,7 @@ type SettingsPatchDTO struct {
     Theme                  *string   `json:"theme"`
     Language               *string   `json:"language"`
     OutputLanguage         *string   `json:"outputLanguage"`
+    RecognitionEnhancement *bool     `json:"recognitionEnhancementEnabled"`
     LaunchAtLogin          *bool     `json:"launchAtLogin"`
     ShowDockIcon           *bool     `json:"showDockIcon"`
     AgentEditsEnabled      *bool     `json:"agentEditsEnabled"`

@@ -38,6 +38,11 @@ export default {
     outputDescription:
       'The language the model writes card titles and summaries in. Independent of the interface language.',
   },
+  recognition: {
+    title: 'Recognition enhancement',
+    hint: 'Increases token usage',
+    unavailable: 'Runs inside the Daygo app',
+  },
   providers: {
     description:
       'Custom providers only for now: a protocol, a base URL and a model id is all it takes.',
