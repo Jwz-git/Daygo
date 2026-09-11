@@ -40,7 +40,7 @@ func backendWithStore(t *testing.T) (*Backend, *recordingEmitter) {
 	store := openTestStore(t, t.TempDir(), false)
 	backend := newBackend(fixedClock{}, nil, store, false, false)
 	emitter := &recordingEmitter{}
-	backend.SetEventEmitter(emitter)
+	backend.setEventEmitter(emitter)
 	return backend, emitter
 }
 
@@ -171,7 +171,7 @@ func TestUpdateSettingsFailureEmitsNothing(t *testing.T) {
 
 	backend := newBackend(fixedClock{}, nil, reader, false, false)
 	emitter := &recordingEmitter{}
-	backend.SetEventEmitter(emitter)
+	backend.setEventEmitter(emitter)
 
 	if _, err := backend.UpdateSettings(SettingsPatchDTO{Theme: ptrString("dark")}); err == nil {
 		t.Fatal("UpdateSettings succeeded on a read-only instance")

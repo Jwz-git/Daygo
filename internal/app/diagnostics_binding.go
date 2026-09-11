@@ -36,7 +36,7 @@ func (b *Backend) GetDiagnostics() (DiagnosticsDTO, error) {
 		dto.NativeState = NativeStateOK
 	}
 
-	store := b.Store()
+	store := b.store()
 	if store == nil {
 		dto.DBStatus = DBStatusUnavailable
 		// Report why, without leaking a path or a driver message. The class of

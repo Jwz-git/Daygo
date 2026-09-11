@@ -44,6 +44,12 @@ func (nopEmitter) Emit(EventName, any) {}
 // Backend is the Wails-bound surface. It coordinates pure Go policies, the
 // storage foundation and platform ports; it contains no native implementation
 // itself.
+//
+// EXPORTED METHODS ARE THE FRONTEND API. Wails binds every exported method on
+// this type, so an exported helper silently becomes part of the contract in
+// docs/05 §5.5.1 and lands in the generated Backend.d.ts. Anything that is not
+// a binding method stays unexported, however inconvenient; bindings_test.go
+// fails when the two disagree.
 type Backend struct {
 	clock   Clock
 	system  platform.System
@@ -68,9 +74,12 @@ type Backend struct {
 	emitter EventEmitter
 }
 
-// SetEventEmitter installs the Wails-backed emitter. It is called once during
+// setEventEmitter installs the Wails-backed emitter. It is called once during
 // startup, before the window exists, so no synchronization is needed.
-func (b *Backend) SetEventEmitter(emitter EventEmitter) {
+//
+// Unexported on purpose: it is composition, not a binding. Exporting it would
+// hand the frontend a way to replace the event emitter.
+func (b *Backend) setEventEmitter(emitter EventEmitter) {
 	if emitter == nil {
 		emitter = nopEmitter{}
 	}
@@ -136,10 +145,14 @@ func (b *Backend) storageFailure() error {
 	return b.storageErr
 }
 
-// Store exposes the open store to other bindings in this package. It is nil
-// when the database is unavailable; callers must handle that rather than
+// store exposes the open store to other binding methods in this package. It is
+// nil when the database is unavailable; callers must handle that rather than
 // assuming persistence exists.
-func (b *Backend) Store() *storage.Store {
+//
+// Unexported on purpose: while it was exported, Wails bound it and pulled
+// storage.Store into the generated models. Nothing outside this package may
+// hold the database handle anyway (docs/02 §2.2 rule 5).
+func (b *Backend) store() *storage.Store {
 	return b.storage
 }
 

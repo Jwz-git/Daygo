@@ -47,7 +47,7 @@ func Run() error {
 	// OnStartup; before that it drops events, which is correct because a window
 	// that does not exist yet has no listener.
 	emitter := NewWailsEmitter()
-	backend.SetEventEmitter(emitter)
+	backend.setEventEmitter(emitter)
 
 	dir, err := supportDir()
 	if err != nil {

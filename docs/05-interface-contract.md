@@ -92,10 +92,12 @@ flowchart TD
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
 这不代表录制开关、Provider 持久化或 Secrets 已实现。fake 的覆盖以 §5.7.4 为准。
 
-> **已知缺陷。** `Backend` 上还有两个导出方法 `SetEventEmitter` 与 `Store`，它们是包内装配
-> 用的，却因为 Wails 绑定导出全部导出方法而出现在生成的 `Backend.d.ts` 里（`Store` 甚至把
-> `storage.Store` 拉进了生成的 `models.ts`）。它们**不是契约的一部分**，前端不得调用；
-> 修复方向是把两者改为非导出或移出绑定对象，由 preferences 在 ui-bridge 接入时一并处理。
+> **绑定对象上的导出方法就是前端 API。** Wails 绑定会导出绑定对象的**每一个**导出方法，
+> 因此“顺手导出一个装配用的 helper”等于无声地改了契约。这已经发生过一次：
+> `SetEventEmitter` 与 `Store` 曾因为导出而进入生成的 `Backend.d.ts`，后者还把
+> `storage.Store` 拉进了生成的 `models.ts`——把一个前端永远不该持有的数据库句柄
+> 变成了它的类型。两者已改为非导出，并由 `internal/app/bindings_test.go` 用反射断言
+> `*Backend` 的导出方法集合恰好等于上表，改动契约必须同时改文档、改这张表和改那份清单。
 
 **未实现的方法不要先放一个返回假数据的桩。** 前端据 CapabilitiesDTO.Features
 决定渲染什么，而不是靠调用失败试探；测试 fake 不进入正式绑定。
@@ -1235,6 +1237,7 @@ JSON 输出（`--json`）规则：
 
 | 契约 | 测试 | 位置 |
 |------|------|------|
+| 绑定方法集合 | 反射断言 `*Backend` 的导出方法恰好等于 §5.2.1 的清单——Wails 会把任何导出方法变成前端 API | `internal/app/bindings_test.go` |
 | DTO JSON 形状 | 黄金 JSON 快照：字段名、可空性、枚举取值 | `internal/app/*_dto_test.go` |
 | 错误码封闭集 | 遍历绑定方法的错误路径，断言均为 `*apperr.Error` 且 code 在表内 | `internal/app/apperr_test.go` |
 | 事件名与负载 | 事件常量与负载结构快照；前端常量与 Go 常量一致 | `internal/app/events_test.go` + 前端单测 |

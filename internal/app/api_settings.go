@@ -19,7 +19,7 @@ const settingsTimeout = 10 * time.Second
 // to read or write. Reporting unavailable is the honest answer; inventing
 // in-memory defaults would let the UI show values that would vanish on restart.
 func (b *Backend) settingsAccess() (*settings.Settings, error) {
-	store := b.Store()
+	store := b.store()
 	if store == nil {
 		if err := b.storageFailure(); err != nil {
 			return nil, mapStorageError("open settings", err)

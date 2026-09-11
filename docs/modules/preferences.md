@@ -27,11 +27,11 @@
 未交付：前端生成绑定与 wrapper、错误解析、前端单元测试运行器、localStorage 接管迁移。
 `api/dto.ts` 仍是手写子集。页面容器已有，但设置尚未经绑定持久化。
 
-**一个已知缺陷随 ui-bridge 一起修**：`Backend` 上的 `SetEventEmitter` 与 `Store` 是包内装配
-用的导出方法，却被 Wails 当成绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`
-（`Store` 还把 `storage.Store` 拉进了生成的 `models.ts`）。它们不在
-[05 §5.5.1](../05-interface-contract.md#551-绑定方法目录) 的契约内，前端不得调用；
-修法是改为非导出或移出绑定对象，同时更新生成产物。
+**绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
+绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`（`Store` 还把 `storage.Store` 拉进了生成的
+`models.ts`）。两者已改为非导出，生成产物现在恰好是 [05 §5.2.1](../05-interface-contract.md#521-按功能能力的可用性)
+的十个方法。接 ui-bridge 时沿用这条规则：**绑定对象上的导出方法就是前端 API**，
+装配用的入口一律非导出，`internal/app/bindings_test.go` 会在两者不一致时失败。
 
 配置的**产品逻辑**不在本模块：录制 / 隐私 / 自启 / Dock 归 recording，
 Provider / 输出语言归 providers，提醒归 daily，磁盘 / 遥测归 data。
