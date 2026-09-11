@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 
 import PageHeader from '@/components/PageHeader.vue'
+import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { useDailyStore } from '@/stores/daily'
 
 import DailyMetricsPanel from './DailyMetricsPanel.vue'
@@ -24,6 +26,8 @@ const {
   dayNavigationAvailable,
 } = storeToRefs(daily)
 const { locale, t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const dateTitle = computed(() => {
   if (context.value === null) return t('daily.title')
@@ -35,10 +39,44 @@ const dateTitle = computed(() => {
   }).format(new Date(context.value.dayStartTs * 1000))
 })
 
+const canNavigateBackward = computed(
+  () => dayNavigationAvailable.value && context.value !== null,
+)
+
+const canNavigateForward = computed(
+  () =>
+    dayNavigationAvailable.value &&
+    context.value !== null &&
+    context.value.nowTs >= context.value.dayEndTs,
+)
+
+function routeDay(): string {
+  return calendarDayQuery(route.query.day)
+}
+
+function navigate(offset: -1 | 1): void {
+  const current = context.value
+  if (current === null) return
+  const target = shiftCalendarDate(current.day, offset)
+  if (target === null) return
+  void router.push({ name: 'daily', query: { ...route.query, day: target } })
+}
+
+function goToToday(): void {
+  if (route.query.day === undefined) {
+    void daily.load()
+    return
+  }
+  const query = { ...route.query }
+  delete query.day
+  void router.push({ name: 'daily', query })
+}
+
 onMounted(() => {
   daily.startEvents()
-  void daily.load()
 })
+
+watch(() => route.query.day, () => void daily.load(routeDay()), { immediate: true })
 
 onBeforeUnmount(() => daily.stopListening())
 </script>
@@ -52,8 +90,9 @@ onBeforeUnmount(() => daily.stopListening())
             type="button"
             class="date-nav__arrow"
             :aria-label="t('common.action.previous')"
-            :title="t('daily.navigation.backendRequired')"
-            disabled
+            :title="dayNavigationAvailable ? t('common.action.previous') : t('daily.navigation.backendRequired')"
+            :disabled="!canNavigateBackward"
+            @click="navigate(-1)"
           >
             ‹
           </button>
@@ -61,8 +100,9 @@ onBeforeUnmount(() => daily.stopListening())
             type="button"
             class="date-nav__arrow"
             :aria-label="t('common.action.next')"
-            :title="t('daily.navigation.backendRequired')"
-            disabled
+            :title="!dayNavigationAvailable ? t('daily.navigation.backendRequired') : canNavigateForward ? t('common.action.next') : t('daily.navigation.futureUnavailable')"
+            :disabled="!canNavigateForward"
+            @click="navigate(1)"
           >
             ›
           </button>
@@ -70,7 +110,7 @@ onBeforeUnmount(() => daily.stopListening())
             type="button"
             class="dg-chip dg-chip--filled"
             :disabled="!dayNavigationAvailable && !usingDevelopmentFixture"
-            @click="daily.load()"
+            @click="goToToday"
           >
             {{ t('common.action.today') }}
           </button>

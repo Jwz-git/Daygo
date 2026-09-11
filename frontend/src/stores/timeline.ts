@@ -12,7 +12,7 @@ import {
   getDayContext,
   getTimelineCapabilities,
   getTimelineDay,
-  hasDayContextBinding,
+  hasTimelineDayBinding,
   onTimelineUpdated,
   TimelineUnavailableError,
 } from '@/api/timeline'
@@ -138,7 +138,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     cards,
     selectedCard,
     state,
-    dayNavigationAvailable: computed(() => hasDayContextBinding()),
+    dayNavigationAvailable: computed(() => hasTimelineDayBinding()),
     load,
     selectCard,
     setCategoryFilter,

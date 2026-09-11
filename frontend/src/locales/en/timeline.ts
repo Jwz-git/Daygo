@@ -3,7 +3,8 @@ export default {
   developmentFixture: 'Sample data · development only',
   navigation: {
     label: 'Logical day navigation',
-    backendRequired: 'Previous and next day navigation will unlock with the timeline data binding',
+    backendRequired: 'Date navigation requires the timeline data binding',
+    futureUnavailable: 'A date after the current logical day is not available',
   },
   meta: {
     tracked: '{count} minutes tracked',

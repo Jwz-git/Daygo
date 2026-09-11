@@ -9,6 +9,8 @@ const props = defineProps<{
   selected: boolean
   top: number
   height: number
+  laneIndex: number
+  laneCount: number
 }>()
 
 const emit = defineEmits<{ select: [id: number] }>()
@@ -18,6 +20,8 @@ function cardStyle(): CSSProperties {
     top: `${props.top}px`,
     height: `${props.height}px`,
     '--timeline-category': props.color,
+    '--timeline-lane-index': props.laneIndex,
+    '--timeline-lane-count': props.laneCount,
   }
 }
 </script>
@@ -29,6 +33,7 @@ function cardStyle(): CSSProperties {
     :class="{ 'is-selected': props.selected, 'is-compact': props.height < 54 }"
     :style="cardStyle()"
     :aria-pressed="props.selected"
+    :aria-label="`${props.card.title}, ${props.card.start} – ${props.card.end}, ${props.card.category}`"
     @click="emit('select', props.card.id)"
   >
     <span class="activity-card__rail" aria-hidden="true"></span>
@@ -44,8 +49,8 @@ function cardStyle(): CSSProperties {
 .activity-card {
   position: absolute;
   z-index: 3;
-  right: 10px;
-  left: 2px;
+  left: calc(2px + (100% - 12px) * var(--timeline-lane-index) / var(--timeline-lane-count));
+  width: calc((100% - 12px) / var(--timeline-lane-count) - 4px);
   display: flex;
   align-items: flex-start;
   gap: 11px;

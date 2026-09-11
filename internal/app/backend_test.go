@@ -77,7 +77,7 @@ func TestGetDayContextExplicitAndInvalid(t *testing.T) {
 	loc := mustLocation(t, "Asia/Kolkata")
 	backend := newBackend(fixedClock{now: time.Date(2026, 1, 15, 2, 0, 0, 0, loc)}, &systemStub{}, nil, true, true)
 	got, err := backend.GetDayContext("2024-02-29")
-	if err != nil || got.Day != "2024-02-29" {
+	if err != nil || got.Day != "2024-02-29" || got.StandupDay != "2024-02-29" {
 		t.Fatalf("explicit day = %+v, %v", got, err)
 	}
 	for _, day := range []string{"today", "2026-2-03", "2026-02-30"} {

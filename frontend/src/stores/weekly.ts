@@ -5,7 +5,8 @@ import type { WeeklyDashboardDTO } from '@/api/dto'
 import { getWeeklyDevelopmentFixture } from '@/api/developmentFixtures'
 import { onTimelineUpdated } from '@/api/timeline'
 import { getWeeklyDashboard, hasWeeklyBinding, WeeklyUnavailableError } from '@/api/weekly'
-import { buildWeeklyPresentation, shiftWeekStart } from '@/stores/weeklyPresentation'
+import { shiftWeekStart } from '@/lib/calendarDate'
+import { buildWeeklyPresentation } from '@/stores/weeklyPresentation'
 
 export type WeeklyState = 'loading' | 'unavailable' | 'failure' | 'empty' | 'populated'
 

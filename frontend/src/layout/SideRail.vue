@@ -7,6 +7,7 @@ import IconDaily from '@/components/icons/IconDaily.vue'
 import IconSettings from '@/components/icons/IconSettings.vue'
 import IconTimeline from '@/components/icons/IconTimeline.vue'
 import IconWeekly from '@/components/icons/IconWeekly.vue'
+import { calendarDayQuery } from '@/lib/calendarDate'
 
 import SideRailItem from './SideRailItem.vue'
 
@@ -31,6 +32,12 @@ const items: readonly RailItem[] = [
 ]
 
 const route = useRoute()
+
+function destination(item: RailItem): RouteLocationRaw {
+  if (item.navKey !== 'timeline' && item.navKey !== 'daily') return item.to
+  const day = calendarDayQuery(route.query.day)
+  return day === '' ? item.to : { name: item.navKey, query: { day } }
+}
 </script>
 
 <template>
@@ -38,7 +45,7 @@ const route = useRoute()
     <ul class="rail__list">
       <li v-for="item in items" :key="item.navKey">
         <SideRailItem
-          :to="item.to"
+          :to="destination(item)"
           :label="$t(item.labelKey)"
           :icon="item.icon"
           :active="route.meta.navKey === item.navKey"

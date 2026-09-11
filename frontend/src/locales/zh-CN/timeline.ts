@@ -3,7 +3,8 @@ export default {
   developmentFixture: '样例数据 · 仅开发',
   navigation: {
     label: '逻辑日导航',
-    backendRequired: '前后日导航将在时间线数据绑定交付后启用',
+    backendRequired: '时间线数据绑定交付后可切换日期',
+    futureUnavailable: '不能前往当前逻辑日之后',
   },
   meta: {
     tracked: '已跟踪 {count} 分钟',

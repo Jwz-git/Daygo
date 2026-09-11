@@ -4,12 +4,12 @@ import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import PageHeader from '@/components/PageHeader.vue'
+import { shiftCalendarDate } from '@/lib/calendarDate'
 import { useWeeklyStore } from '@/stores/weekly'
 
 import WeeklyCategoryPanel from './WeeklyCategoryPanel.vue'
 import WeeklyOverviewPanel from './WeeklyOverviewPanel.vue'
 import WeeklyStatePanel from './WeeklyStatePanel.vue'
-import { shiftCalendarDate } from '@/stores/weeklyPresentation'
 
 const weekly = useWeeklyStore()
 const {

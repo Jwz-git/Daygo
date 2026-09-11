@@ -215,8 +215,10 @@ func (b *Backend) GetDayContext(day string) (DayContextDTO, error) {
 	if loc == nil {
 		return DayContextDTO{}, apperr.E(apperr.Internal, "local time zone is unavailable", nil)
 	}
+	standupDay := day
 	if day == "" {
 		day = daytime.LogicalDay(now, loc)
+		standupDay = daytime.CalendarDay(now, loc)
 	}
 
 	start, end, err := daytime.DayWindow(day, loc)
@@ -225,7 +227,7 @@ func (b *Backend) GetDayContext(day string) (DayContextDTO, error) {
 	}
 	return DayContextDTO{
 		Day:             day,
-		StandupDay:      daytime.CalendarDay(now, loc),
+		StandupDay:      standupDay,
 		DayStartTs:      start.Unix(),
 		DayEndTs:        end.Unix(),
 		NowTs:           now.Unix(),

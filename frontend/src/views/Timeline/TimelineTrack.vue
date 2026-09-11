@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type {
@@ -13,6 +13,7 @@ import type {
 import TimelineActivityCard from './TimelineActivityCard.vue'
 import {
   MIN_CARD_HEIGHT,
+  layoutTimelineCards,
   positionRange,
   safeCategoryColor,
   trackHeight,
@@ -29,6 +30,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [id: number] }>()
 const { locale, t } = useI18n()
+const scroller = ref<HTMLElement | null>(null)
 
 const height = computed(() => trackHeight(props.context.dayStartTs, props.context.dayEndTs))
 
@@ -73,6 +75,19 @@ const nowPosition = computed(() => {
   ).top
 })
 
+const placedCards = computed(() =>
+  layoutTimelineCards(
+    props.cards,
+    props.context.dayStartTs,
+    props.context.dayEndTs,
+    height.value,
+  ),
+)
+
+const cardPlacement = computed(
+  () => new Map(placedCards.value.map((card) => [card.id, card])),
+)
+
 function placed(startTs: number, endTs: number, minimumHeight = 2) {
   return positionRange(
     startTs,
@@ -83,10 +98,32 @@ function placed(startTs: number, endTs: number, minimumHeight = 2) {
     minimumHeight,
   )
 }
+
+async function revealRelevantTime(): Promise<void> {
+  await nextTick()
+  const element = scroller.value
+  if (element === null) return
+
+  const firstEventTs = Math.min(
+    ...props.cards.map((card) => card.startTs),
+    ...props.processingRanges.map((range) => range.startTs),
+    ...props.failures.map((failure) => failure.startTs),
+  )
+  const targetTs = nowPosition.value !== null
+    ? props.context.nowTs
+    : Number.isFinite(firstEventTs)
+      ? firstEventTs
+      : props.context.dayStartTs
+  const targetTop = placed(targetTs, targetTs).top
+  element.scrollTop = Math.max(0, targetTop - element.clientHeight * 0.28)
+}
+
+onMounted(() => void revealRelevantTime())
+watch(() => props.context.day, () => void revealRelevantTime())
 </script>
 
 <template>
-  <section class="timeline-track" :aria-label="t('timeline.track.ariaLabel')">
+  <section ref="scroller" class="timeline-track" :aria-label="t('timeline.track.ariaLabel')">
     <div class="timeline-track__canvas" :style="{ height: `${height}px` }">
       <div
         v-for="mark in hourMarks"
@@ -132,8 +169,10 @@ function placed(startTs: number, endTs: number, minimumHeight = 2) {
           :card="card"
           :color="categoryColors.get(card.category) ?? safeCategoryColor(undefined)"
           :selected="card.id === props.selectedCardID"
-          :top="placed(card.startTs, card.endTs, MIN_CARD_HEIGHT).top"
-          :height="placed(card.startTs, card.endTs, MIN_CARD_HEIGHT).height"
+          :top="cardPlacement.get(card.id)?.top ?? placed(card.startTs, card.endTs, MIN_CARD_HEIGHT).top"
+          :height="cardPlacement.get(card.id)?.height ?? placed(card.startTs, card.endTs, MIN_CARD_HEIGHT).height"
+          :lane-index="cardPlacement.get(card.id)?.laneIndex ?? 0"
+          :lane-count="cardPlacement.get(card.id)?.laneCount ?? 1"
           @select="emit('select', $event)"
         />
 

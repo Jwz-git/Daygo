@@ -3,7 +3,8 @@ export default {
   developmentFixture: '样例数据 · 仅开发',
   navigation: {
     label: '每日复盘日期导航',
-    backendRequired: '前后日导航将在日期数据绑定完整接入后启用',
+    backendRequired: '日期与时间线绑定完整接入后可切换日期',
+    futureUnavailable: '不能前往当前逻辑日之后',
   },
   meta: {
     tracked: '已跟踪 {count} 分钟',

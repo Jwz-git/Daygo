@@ -40,6 +40,14 @@ export function hasDayContextBinding(): boolean {
   return typeof backend()?.GetDayContext === 'function'
 }
 
+export function hasTimelineDayBinding(): boolean {
+  const current = backend()
+  return (
+    typeof current?.GetDayContext === 'function' &&
+    typeof current.GetTimelineDay === 'function'
+  )
+}
+
 export async function getDayContext(day = ''): Promise<DayContextDTO> {
   const method = backend()?.GetDayContext
   if (typeof method !== 'function') throw new TimelineUnavailableError()

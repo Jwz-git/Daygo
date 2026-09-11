@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 
 import PageHeader from '@/components/PageHeader.vue'
+import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { useTimelineStore } from '@/stores/timeline'
 
 import TimelineInspector from './TimelineInspector.vue'
@@ -25,6 +27,8 @@ const {
   usingDevelopmentFixture,
 } = storeToRefs(timeline)
 const { locale, t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const dateTitle = computed(() => {
   if (context.value === null) return t('timeline.title')
@@ -44,10 +48,44 @@ const hasTrack = computed(() =>
   day.value !== null && ['populated', 'processing', 'failure'].includes(state.value),
 )
 
+const canNavigateBackward = computed(
+  () => dayNavigationAvailable.value && context.value !== null,
+)
+
+const canNavigateForward = computed(
+  () =>
+    dayNavigationAvailable.value &&
+    context.value !== null &&
+    context.value.nowTs >= context.value.dayEndTs,
+)
+
+function routeDay(): string {
+  return calendarDayQuery(route.query.day)
+}
+
+function navigate(offset: -1 | 1): void {
+  const current = context.value
+  if (current === null) return
+  const target = shiftCalendarDate(current.day, offset)
+  if (target === null) return
+  void router.push({ name: 'timeline', query: { ...route.query, day: target } })
+}
+
+function goToToday(): void {
+  if (route.query.day === undefined) {
+    void timeline.load()
+    return
+  }
+  const query = { ...route.query }
+  delete query.day
+  void router.push({ name: 'timeline', query })
+}
+
 onMounted(() => {
   timeline.startEvents()
-  void timeline.load()
 })
+
+watch(() => route.query.day, () => void timeline.load(routeDay()), { immediate: true })
 
 onBeforeUnmount(() => timeline.stopListening())
 </script>
@@ -60,26 +98,28 @@ onBeforeUnmount(() => timeline.stopListening())
           <button
             type="button"
             class="date-nav__arrow"
-            :title="t('timeline.navigation.backendRequired')"
+            :title="dayNavigationAvailable ? t('common.action.previous') : t('timeline.navigation.backendRequired')"
             :aria-label="t('common.action.previous')"
-            disabled
+            :disabled="!canNavigateBackward"
+            @click="navigate(-1)"
           >
             ‹
           </button>
           <button
             type="button"
             class="date-nav__arrow"
-            :title="t('timeline.navigation.backendRequired')"
+            :title="!dayNavigationAvailable ? t('timeline.navigation.backendRequired') : canNavigateForward ? t('common.action.next') : t('timeline.navigation.futureUnavailable')"
             :aria-label="t('common.action.next')"
-            disabled
+            :disabled="!canNavigateForward"
+            @click="navigate(1)"
           >
             ›
           </button>
           <button
             type="button"
             class="dg-chip dg-chip--filled"
-            :disabled="!dayNavigationAvailable"
-            @click="timeline.load()"
+            :disabled="!dayNavigationAvailable && !usingDevelopmentFixture"
+            @click="goToToday"
           >
             {{ t('common.action.today') }}
           </button>
