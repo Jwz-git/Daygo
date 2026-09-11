@@ -13,10 +13,12 @@
 
 ## 当前状态与证据
 
-实现进度：部分实现。已有时间函数单元通过；分析与真实时间线未验收。
+实现进度：部分实现。已有时间函数单元通过；可接真实 DTO 的小时轨道、卡片、失败 / 处理中
+状态和详情检查器已落盘，但分析与真实时间线未验收。
 [timeutil](../../internal/timeutil/timeutil.go)、[日期绑定](../../internal/app/backend.go)
-和 [页面骨架](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
-时钟串派生、周边界、完整属性测试、analysis / ai 服务、卡片存储、帧资源和真实 UI 尚未实现。
+和 [时间线前端切片](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
+时钟串派生、周边界、完整属性测试、analysis / ai 服务、卡片存储、帧资源和真实绑定尚未实现；
+生产页在 `GetTimelineDay` 缺失时明确显示不可用，不返回 fixture 数据。
 
 ## 能力与跨层职责
 
@@ -75,4 +77,8 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 ## 验证记录
 
 2026-09-10：已有 timeutil 和绑定 Go 测试通过，见 [基线](../09-roadmap.md#当前代码证据)。
-其余行为、数据库、资源、真实闭环与长期测试未运行。
+
+2026-09-11：时间线前端切片通过 `vue-tsc --noEmit` 与 Vite production build；用一次性匿名
+浏览器夹具人工复核浅 / 深主题、1440×900 双栏、窄窗折叠、小时刻度、短卡片、长空白、
+失败 / 处理中区间、分类筛选与详情切换。production bundle 已检查不含夹具哨兵文本。
+这只证明前端呈现与状态边界，不证明 cards、媒体、写操作、真实闭环或长期稳定性。

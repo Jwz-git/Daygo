@@ -108,4 +108,19 @@
     0 12px 32px rgba(5, 8, 18, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.045);
   --dg-card-time: #918d99;
+
+  --dg-timeline-grid: rgba(255, 255, 255, 0.065);
+  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.12);
+  --dg-timeline-card-fill: rgba(255, 255, 255, 0.065);
+  --dg-timeline-card-hover: rgba(255, 255, 255, 0.1);
+  --dg-timeline-card-selected: rgba(139, 168, 232, 0.13);
+  --dg-timeline-card-border: rgba(255, 255, 255, 0.105);
+  --dg-timeline-card-shadow: 0 7px 20px rgba(3, 5, 12, 0.15);
+  --dg-timeline-inspector-fill: rgba(8, 12, 24, 0.12);
+  --dg-timeline-empty-fill: rgba(8, 12, 24, 0.1);
+  --dg-timeline-placeholder: rgba(255, 255, 255, 0.15);
+  --dg-timeline-processing-fill: rgba(139, 168, 232, 0.08);
+  --dg-timeline-processing-border: rgba(139, 168, 232, 0.16);
+  --dg-timeline-processing-shine: rgba(255, 255, 255, 0.1);
+  --dg-timeline-frame-fill: rgba(255, 255, 255, 0.045);
 }

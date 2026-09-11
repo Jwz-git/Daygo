@@ -1,151 +1,269 @@
 <script setup lang="ts">
-import PageHeader from '@/components/PageHeader.vue'
-import PlannedNotice from '@/components/PlannedNotice.vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
+import PageHeader from '@/components/PageHeader.vue'
+import { useTimelineStore } from '@/stores/timeline'
 
-/*
- * The header controls below are inert on purpose. Date navigation cannot be
- * built yet: the logical day (4 AM boundary) may only come from the backend via
- * GetDayContext("") — see docs/05-interface-contract.md §5.3.2 — so this
- * shell deliberately contains no date arithmetic.
- */
+import TimelineInspector from './TimelineInspector.vue'
+import TimelineStatePanel from './TimelineStatePanel.vue'
+import TimelineTrack from './TimelineTrack.vue'
+import { safeCategoryColor } from './layout'
+
+const timeline = useTimelineStore()
+const {
+  context,
+  day,
+  cards,
+  state,
+  selectedCard,
+  selectedCardID,
+  categoryFilter,
+  capabilities,
+  dayNavigationAvailable,
+} = storeToRefs(timeline)
+const { locale, t } = useI18n()
+
+const dateTitle = computed(() => {
+  if (context.value === null) return t('timeline.title')
+  return new Intl.DateTimeFormat(locale.value, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: context.value.timeZone,
+  }).format(new Date(context.value.dayStartTs * 1000))
+})
+
+const filterCategories = computed(() =>
+  (day.value?.categories ?? []).filter((category) => !category.isSystem),
+)
+
+const hasTrack = computed(() =>
+  day.value !== null && ['populated', 'processing', 'failure'].includes(state.value),
+)
+
+onMounted(() => {
+  timeline.startEvents()
+  void timeline.load()
+})
+
+onBeforeUnmount(() => timeline.stopListening())
 </script>
 
 <template>
-  <div class="page">
-    <PageHeader :title="t('timeline.title')">
+  <div class="page timeline-page">
+    <PageHeader :title="dateTitle">
       <template #lead>
-        <div class="nav-group" role="group" :aria-label="t('timeline.title')">
-          <button type="button" class="dg-chip" disabled>
-            {{ t('common.action.previous') }}
+        <div class="date-nav" role="group" :aria-label="t('timeline.navigation.label')">
+          <button
+            type="button"
+            class="date-nav__arrow"
+            :title="t('timeline.navigation.backendRequired')"
+            :aria-label="t('common.action.previous')"
+            disabled
+          >
+            ‹
           </button>
-          <button type="button" class="dg-chip" disabled>
-            {{ t('common.action.next') }}
+          <button
+            type="button"
+            class="date-nav__arrow"
+            :title="t('timeline.navigation.backendRequired')"
+            :aria-label="t('common.action.next')"
+            disabled
+          >
+            ›
           </button>
-          <button type="button" class="dg-chip dg-chip--filled" disabled>
+          <button
+            type="button"
+            class="dg-chip dg-chip--filled"
+            :disabled="!dayNavigationAvailable"
+            @click="timeline.load()"
+          >
             {{ t('common.action.today') }}
           </button>
         </div>
       </template>
 
       <template #trail>
-        <div class="segment" role="group" :aria-label="t('timeline.title')">
-          <span class="segment__option is-selected">{{ t('timeline.mode.day') }}</span>
-          <span class="segment__option">{{ t('timeline.mode.week') }}</span>
+        <div v-if="day" class="day-meta">
+          <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>
+          <i aria-hidden="true"></i>
+          <span>{{ context?.timeZone }}</span>
         </div>
       </template>
     </PageHeader>
 
-    <div class="filter-bar">
-      <span class="dg-chip dg-chip--filled">{{ t('timeline.filter.all') }}</span>
-      <span class="dg-chip">{{ t('timeline.filter.manage') }}</span>
+    <div class="filter-bar" :aria-label="t('timeline.filter.label')">
+      <button
+        type="button"
+        class="filter-chip"
+        :class="{ 'is-selected': categoryFilter === null }"
+        @click="timeline.setCategoryFilter(null)"
+      >
+        {{ t('timeline.filter.all') }}
+      </button>
+      <button
+        v-for="category in filterCategories"
+        :key="category.id"
+        type="button"
+        class="filter-chip"
+        :class="{ 'is-selected': categoryFilter === category.name }"
+        @click="timeline.setCategoryFilter(category.name)"
+      >
+        <i :style="{ background: safeCategoryColor(category.colorHex) }" aria-hidden="true"></i>
+        {{ category.name }}
+      </button>
+      <span class="filter-bar__spacer"></span>
+      <button
+        type="button"
+        class="filter-manage"
+        :title="t('timeline.filter.manageUnavailable')"
+        disabled
+      >
+        {{ t('timeline.filter.manage') }}
+      </button>
     </div>
 
-    <div class="body dg-scroll dg-stagger">
-      <section class="track">
-        <PlannedNotice
-          title-key="timeline.track.title"
-          description-key="timeline.track.description"
-        />
-      </section>
+    <div class="timeline-body">
+      <TimelineStatePanel
+        v-if="!hasTrack"
+        class="timeline-body__state"
+        :state="state"
+        @retry="timeline.load(context?.day ?? '')"
+      />
 
-      <aside class="inspector">
-        <PlannedNotice
-          title-key="timeline.inspector.title"
-          description-key="timeline.inspector.description"
+      <template v-else-if="day && context">
+        <TimelineTrack
+          class="timeline-body__track"
+          :context="context"
+          :cards="cards"
+          :categories="day.categories"
+          :failures="day.failures"
+          :processing-ranges="day.processingRanges"
+          :selected-card-i-d="selectedCardID"
+          @select="timeline.selectCard"
         />
-      </aside>
+        <TimelineInspector
+          class="timeline-body__inspector"
+          :class="{ 'has-selection': selectedCard !== null }"
+          :day="day"
+          :card="selectedCard"
+          :can-write="capabilities?.canWrite ?? false"
+          @close="timeline.selectCard(null)"
+        />
+      </template>
     </div>
-
-    <footer class="footer">
-      <span class="footer__meta">{{ t('timeline.footer.recorded') }}</span>
-      <div class="footer__actions">
-        <button type="button" class="dg-chip" disabled>
-          {{ t('timeline.footer.copy') }}
-        </button>
-        <button type="button" class="dg-chip" disabled>
-          {{ t('timeline.footer.review') }}
-        </button>
-      </div>
-    </footer>
   </div>
 </template>
 
 <style scoped>
-.nav-group,
-.footer__actions {
+.date-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
 }
 
-.segment {
-  display: flex;
-  padding: 3px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 999px;
-  background: var(--dg-track-fill);
-  box-shadow: inset 0 1px 2px rgba(20, 16, 25, 0.04);
-}
-
-.segment__option {
-  padding: 5px 15px;
-  border-radius: 999px;
+.date-nav__arrow {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   color: var(--dg-text-secondary);
-  font-size: 12px;
+  font-size: 25px;
+  line-height: 1;
+  place-items: center;
 }
 
-.segment__option.is-selected {
-  background: var(--dg-chip-fill);
-  box-shadow: 0 3px 10px rgba(20, 16, 25, 0.1);
-  color: var(--dg-text-primary);
+.date-nav__arrow:disabled {
+  color: var(--dg-text-muted);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.day-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--dg-text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.day-meta i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .filter-bar {
   display: flex;
-  gap: 8px;
-  padding: 0 var(--dg-page-padding) 16px;
+  align-items: center;
+  gap: 7px;
+  min-height: 43px;
+  padding: 0 var(--dg-page-padding) 13px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.body {
+.filter-bar::-webkit-scrollbar { display: none; }
+
+.filter-chip,
+.filter-manage {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--dg-text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  transition: background var(--dg-motion-fast) ease, border-color var(--dg-motion-fast) ease;
+}
+
+.filter-chip:hover { background: var(--dg-hover-fill); }
+.filter-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.filter-chip.is-selected { border-color: var(--dg-chip-border); background: var(--dg-chip-fill); color: var(--dg-text-primary); }
+.filter-chip i { width: 7px; height: 7px; border-radius: 50%; }
+.filter-bar__spacer { flex: 1; }
+.filter-manage { color: var(--dg-text-muted); cursor: default; }
+
+.timeline-body {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--dg-inspector-width);
-  gap: 16px;
+  gap: var(--dg-inspector-gap);
   flex: 1;
   min-height: 0;
-  padding: 0 var(--dg-page-padding);
+  padding: 0 var(--dg-page-padding) var(--dg-page-padding);
 }
 
-.track,
-.inspector {
-  min-width: 0;
-}
-
-.footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 18px;
-  padding: 15px var(--dg-page-padding) 17px;
-  border-top: 1px solid var(--dg-card-border);
-  background: linear-gradient(180deg, transparent, var(--dg-hover-fill));
-}
-
-.footer__meta {
-  color: var(--dg-text-muted);
-  font-size: 12px;
-}
+.timeline-body__state { grid-column: 1 / -1; }
+.timeline-body__track,
+.timeline-body__inspector { min-width: 0; }
 
 @media (max-width: 1000px) {
-  .body {
-    grid-template-columns: minmax(0, 1fr);
+  .timeline-body { grid-template-columns: minmax(0, 1fr); }
+  .timeline-body__inspector { display: none; }
+  .timeline-body__inspector.has-selection {
+    position: absolute;
+    z-index: 9;
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    display: block;
+    width: min(var(--dg-inspector-width), calc(100% - 24px));
+    box-shadow: var(--dg-panel-shadow);
   }
+}
 
-  .inspector {
-    display: none;
-  }
+@media (max-width: 720px) {
+  .day-meta { display: none; }
+  .timeline-body { padding-right: 16px; padding-left: 16px; }
+  .filter-bar { padding-right: 16px; padding-left: 16px; }
 }
 </style>

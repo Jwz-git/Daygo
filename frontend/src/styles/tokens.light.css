@@ -113,6 +113,24 @@
   --dg-card-time: #96939c;
   --dg-card-radius: 6px;
 
+  /* timeline */
+  --dg-timeline-time-width: 66px;
+  --dg-timeline-card-radius: 7px;
+  --dg-timeline-grid: rgba(65, 58, 70, 0.08);
+  --dg-timeline-grid-strong: rgba(65, 58, 70, 0.14);
+  --dg-timeline-card-fill: rgba(255, 255, 255, 0.58);
+  --dg-timeline-card-hover: rgba(255, 255, 255, 0.82);
+  --dg-timeline-card-selected: rgba(255, 255, 255, 0.9);
+  --dg-timeline-card-border: rgba(65, 58, 70, 0.13);
+  --dg-timeline-card-shadow: 0 5px 16px rgba(68, 51, 67, 0.05);
+  --dg-timeline-inspector-fill: rgba(255, 255, 255, 0.36);
+  --dg-timeline-empty-fill: rgba(255, 255, 255, 0.18);
+  --dg-timeline-placeholder: rgba(95, 87, 100, 0.2);
+  --dg-timeline-processing-fill: rgba(103, 128, 177, 0.08);
+  --dg-timeline-processing-border: rgba(103, 128, 177, 0.16);
+  --dg-timeline-processing-shine: rgba(255, 255, 255, 0.48);
+  --dg-timeline-frame-fill: rgba(94, 84, 99, 0.055);
+
   /* motion */
   --dg-motion-fast: 120ms;
   --dg-motion-base: 180ms;

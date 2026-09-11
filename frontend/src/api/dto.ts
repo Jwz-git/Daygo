@@ -97,3 +97,98 @@ export interface ProviderTestResult {
   errorCode: string
   message: string
 }
+
+// Timeline DTOs mirror docs/05-interface-contract.md §5.5.2. They stay
+// hand-written only until these target bindings exist and Wails can generate
+// the same shapes into api/generated/models.ts.
+export interface DayContextDTO {
+  day: string
+  standupDay: string
+  dayStartTs: number
+  dayEndTs: number
+  nowTs: number
+  timeZone: string
+  dayBoundaryHour: number
+}
+
+export interface CategoryDTO {
+  id: string
+  name: string
+  colorHex: string
+  details: string
+  sortOrder: number
+  isSystem: boolean
+  isIdle: boolean
+  createdAtTs: number
+  updatedAtTs: number
+}
+
+export interface AppSitesDTO {
+  primary: string | null
+  secondary: string | null
+}
+
+export interface DistractionDTO {
+  id: string
+  startTime: string
+  endTime: string
+  title: string
+  summary: string
+  videoSummaryUrl: string | null
+}
+
+export interface TimelineCardDTO {
+  id: number
+  batchId: number | null
+  day: string
+  start: string
+  end: string
+  startTs: number
+  endTs: number
+  category: string
+  subcategory: string
+  title: string
+  summary: string
+  detailedSummary: string
+  videoSummaryUrl: string | null
+  otherVideoSummaryUrls: string[]
+  appSites: AppSitesDTO | null
+  distractions: DistractionDTO[]
+  isIdle: boolean
+  durationMinutes: number
+}
+
+export interface TimelineFailureDTO {
+  batchIds: number[]
+  startTs: number
+  endTs: number
+  kind: string
+  message: string
+  retryable: boolean
+}
+
+export interface RangeDTO {
+  startTs: number
+  endTs: number
+}
+
+export interface TimelineDayDTO {
+  day: string
+  dayStartTs: number
+  dayEndTs: number
+  cards: TimelineCardDTO[]
+  categories: CategoryDTO[]
+  trackedMinutes: number
+  idleMinutes: number
+  failures: TimelineFailureDTO[]
+  processingRanges: RangeDTO[]
+  generatedAtTs: number
+}
+
+export interface CapabilitiesDTO {
+  canWrite: boolean
+  isCaptureOwner: boolean
+  features: string[]
+  appVersion: string
+  apiRevision: number
+}

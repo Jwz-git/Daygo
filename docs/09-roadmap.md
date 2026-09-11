@@ -13,7 +13,7 @@
 |---|---|---|---|
 | [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、macOS / Windows 单次截图、权限绑定骨架 | fake 契约通过；macOS 一次人工 smoke，MC / WC 实机矩阵与真实集成未验收 |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、主备路由、协议客户端和连接测试 | 部分实现：三协议客户端、重试 / 回退、连接探针绑定；前端配置存无密钥 localStorage | Go 单元与匿名 TLS fixture 通过；Secrets、Provider 落库与真实服务未验收 |
-| [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、页面骨架 | 已有时间函数单元通过；闭环未验收 |
+| [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、可接入时间轨道与详情切片 | 时间函数单元、前端类型 / 构建和匿名视觉夹具通过；真实绑定与闭环未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 仅页面骨架，功能未开始 | 未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 仅页面骨架，功能未开始 | 未验收 |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint 与备份 | 单元与并发 smoke 通过；1 小时 DB-8、清理与诊断 UI 未运行 |
