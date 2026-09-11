@@ -95,7 +95,7 @@ API key、费用或可还原用户活动的 metadata，也不参与任何上报�
 
 | 数据 | 留存 | 删除方式 |
 |------|------|----------|
-| 分段录制 | 受 `storage.recordingsLimitBytes` 约束，超限按整段从旧到新清理 | 自动 + 手动 |
+| 分段录制 | 受 `storage.recordingsLimitBytes` 约束；像素不进 SQLite，超限只按 closed segment 从旧到新两阶段清理，排除 staging/building/活跃/分析租用段 | 自动 + 手动 |
 | 时间线卡片 | 无限期 | 单卡软删除；批量删除待设计 |
 | `llm_calls` | 无限期（上限待定，[09 §9.8 第 15 项](09-roadmap.md#98-待定设计清单)），仅 attempt 元数据 | 待设计 |
 | 数据库备份 | 每日，**保留最近 7 份**（[决策](decisions/data-backup-retention.md)，`storage.DefaultBackupRetention`） | 自动轮换，按文件名时间序删最旧 |

@@ -11,12 +11,12 @@
 
 | 模块 / 执行册 | 用户结果与职责 | 当前实现进度 | 当前验证状态 |
 |---|---|---|---|
-| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、macOS / Windows 单次截图、权限绑定骨架 | fake 契约通过；macOS 一次人工 smoke，MC / WC 实机矩阵与真实集成未验收 |
+| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、macOS / Windows 单次截图、权限绑定骨架 | fake 契约通过；两平台各有一次真实像素 smoke，MC / WC 完整矩阵与真实集成未验收 |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、主备路由、协议客户端和连接测试 | 部分实现：三协议客户端、重试 / 回退、连接探针绑定；前端配置存无密钥 localStorage | Go 单元与匿名 TLS fixture 通过；Secrets、Provider 落库与真实服务未验收 |
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、可接入时间轨道与详情切片、开发专用匿名样例 | 时间函数单元、前端类型 / 构建和匿名视觉夹具通过；真实绑定与闭环未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：工作流 / 指标 / 只读日报前端切片、开发专用匿名样例 | 前端类型 / 构建、浅深主题、窄窗口及中英文样例检查通过；真实绑定与闭环未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 仅页面骨架，功能未开始 | 未验收 |
-| [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint 与备份 | 单元与并发 smoke 通过；1 小时 DB-8、清理与诊断 UI 未运行 |
+| [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：跨平台 db-core、settings-store、diagnostics、checkpoint 与备份 | macOS 单元与并发 smoke、Windows LockFileEx 跨进程 smoke 通过；1 小时 DB-8、清理与诊断 UI 未运行 |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、主题、i18n、本地偏好、settings-access；视觉层级与动效已收敛 | 类型检查、构建、浏览器浅 / 深主题检查与 Go 单元通过；前端绑定持久化未验收 |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：开发构建链 | 原生身份、签名、公证、更新未验收 |
 
@@ -31,7 +31,7 @@
 已落盘并有自动化覆盖：
 
 - [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v1 = `app_settings`）、
-  `flock` 实例锁与只读降级、可观测读写封装、`app_settings` repository、
+  POSIX `flock` / Windows `LockFileEx` 实例锁与只读降级、可观测读写封装、`app_settings` repository、
   `Checkpoint` / `Backup`（`VACUUM INTO`，保留 7 份）/ `RestoreFromBackup` / `IntegrityCheck`、
   `Stats`。匿名夹具在 [`testdata/`](../internal/storage/testdata/)。
 - [settings](../internal/settings/settings.go)：16 个键的类型化访问、默认值、规范化与夹取、
@@ -45,13 +45,15 @@
   [四套契约套件](../internal/platform/platformtest/suite.go)（基础 / 授权 / 隐私 / 无显示器）。
 - [timeutil](../internal/timeutil/timeutil.go)：凌晨 4 点逻辑日、日历日与逻辑日窗口。
 
-已落盘但**未验证**：
+已落盘但只完成**有限验证**：
 
 - [macOS Capture](../internal/platform/darwin/capture.go) + [Swift 实现](../native/darwin/Sources/)：
   做过一次真机 smoke（1920×1080 → 1280×720 JPEG，元数据与磁盘一致），
   但未接入契约套件，MC 实机矩阵、正式应用 TCC 身份与长期观察均未运行。
 - [Windows Capture](../internal/platform/windows/capture.go) + [DXGI 实现](../native/windows/Sources/daygo_capture.cpp)：
-  **没有任何实机记录**，WC 矩阵未运行，且 Windows 上 `storage.Open` 因缺少锁实现而失败。
+  Windows 11 上原生与 Go cgo 单次 smoke 均得到可解码的 1280×720 非黑 JPEG；DXGI 会跳过
+  pointer-only 的全零首帧，非空屏蔽名单失败关闭。完整 WC 矩阵、光标、长期资源与发布身份仍未验收。
+  `storage.Open` 已通过 `LockFileEx` 接通写锁/捕获锁、只读降级和进程终止释放 smoke。
   见 [决策记录](decisions/recording-screen-capture-windows.md)。
 
 尚未实现：recorder 与常驻生命周期、`screenshots` / 批次 / 卡片等业务表、分段与 Media、
@@ -213,7 +215,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 15 | llm_calls 与卡片留存上限 | data / 产品 | 相关留存策略实现前；07 §7.6 |
 | 16 | Chat 是否进入后续版本 | delivery / 范围 | 首个公开版本后评估；v1 不实现 |
 | 17 | apiRevision 的生产检查 | preferences / 工程 | 前后端版本不一致处理接入前；05 §5.10 |
-| 18 | Windows 发布范围 | delivery / 范围，recording 提供证据 | **仍未决定**，但代码已有一份未验证的 DXGI 截图实现（[决策记录](decisions/recording-screen-capture-windows.md)）。进入发布前至少需要：[08 §8.6.3](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 的 WC 全部通过（尤其 WC-3/WC-4 的隐私失败关闭）、`lock_windows.go` 落实实例锁、以及捕获指示与分发身份的结论 |
+| 18 | Windows 发布范围 | delivery / 范围，recording 提供证据 | **仍未决定**。DXGI 单次真实像素 smoke 与 `LockFileEx` 实例锁已验证（[决策记录](decisions/recording-screen-capture-windows.md)），只移除了两个工程阻塞。进入发布前仍需：[08 §8.6.3](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 其余 WC 全部通过（尤其隐私能力）、捕获指示、长期资源与分发身份结论 |
 | 19 | 每日摘要 / 日记 summary 的生成触发、刷新与失败交互 | daily / 产品 + 工程 | 生成切片实现前；若新增绑定先补 05 与双侧契约，不假定现有查询方法就是生成入口 |
 | 20 | 多显示器是否恢复"跟随光标的活跃显示器" | recording / 产品 + 工程 | recorder 接入真实捕获前；当前冻结为系统主显示器（[04 §4.1.2](04-data-flow.md#412-只截一块显示器系统主显示器)），改动会给端口加字段和跨调用状态 |
 | 21 | Windows 截图是否合成鼠标指针 | recording / 工程 | Windows 进入任何真实使用前；当前实现接受 `ShowsCursor` 但不生效，要么补合成要么在 ABI 上明确降级语义 |

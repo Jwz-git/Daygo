@@ -1,4 +1,4 @@
-# data 实例锁：flock 锁文件
+# data 实例锁：flock / LockFileEx 锁文件
 
 > **状态：已决定（db-core 实现范围内）。** 本文记录写入锁与捕获所有者锁的实现手段、
 > 候选方案与回退路径。`09 §9.8` 未把锁手段列为待定项，但文档只规定了「写入锁被占用时
@@ -14,8 +14,9 @@
 | 写入锁 | `<dir>/daygo.sqlite.lock` | 持有者以读写模式打开数据库并执行迁移 |
 | 捕获所有者锁 | `<dir>/capture.lock` | 持有者驱动捕获；未持有者返回 `not_capture_owner` |
 
-实现：POSIX 平台上对锁文件描述符调用 `flock(fd, LOCK_EX | LOCK_NB)`，取不到即
-`EWOULDBLOCK`。Windows 未实现（`lock_windows.go` 返回明确错误，不假装加锁成功）。
+实现：POSIX 平台对锁文件描述符调用 `flock(fd, LOCK_EX | LOCK_NB)`；Windows 对第一个字节调用
+`LockFileEx(LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY)`。争用统一映射为
+`ErrLockBusy`，释放时显式 `UnlockFileEx` 后关闭句柄，进程异常终止时由内核关闭句柄并释放锁。
 
 锁文件**不是**数据库文件本身。原因见 §3.1。
 
@@ -29,14 +30,15 @@
 
 ## 3. 候选与取舍
 
-### 3.1 选中：flock 锁文件
+### 3.1 选中：内核咨询锁文件
 
 **优点。** 进程崩溃、被 kill、宿主重启后锁由内核自动释放，**不存在陈旧锁**。
 诊断直接：锁文件存在即有人持有，`lsof` 可查。不占用数据库页，不影响 `integrity_check`。
 
 **代价。** 依赖 POSIX `flock` 语义。它不可跨 NFS 可靠工作，但
 `~/Library/Application Support/` 是本地路径，不构成实际限制。
-Windows 需要 `LockFileEx` 另行实现，而 Windows 发布范围本身仍未决定（`09 §9.8` 第 18 项）。
+Windows 使用等价的 `LockFileEx` 字节范围锁。Windows 发布范围本身仍未决定（`09 §9.8` 第 18 项），
+但 Store 不再为此维护第二套接口或持久化机制。
 
 ### 3.2 未选中：SQLite 内锁表
 
@@ -61,17 +63,15 @@ Windows 需要 `LockFileEx` 另行实现，而 Windows 发布范围本身仍未�
   文档只规定「检测到写入锁被占用时进入只读模式」，未规定竞争次序。
 - **捕获锁与写入锁的获取顺序固定为：先写入锁，后捕获锁。** 顺序固定是为了避免两个实例
   互等，尽管本实现全程使用非阻塞获取，不会真正阻塞。
-- **同一进程内两次 `Open` 同一目录会互相争用。** `flock` 按打开文件描述计，这是刻意保留
+- **同一进程内两次 `Open` 同一目录会互相争用。** 两平台均按独立打开句柄争用，这是刻意保留
   的性质：测试依赖它来覆盖双实例路径。
-- **Windows 上没有锁，因此没有数据库。** `lock_windows.go` 的 `tryLock` 直接返回错误，
-  于是 `storage.Open` 失败、`app.Run` 以“无数据库”状态启动，设置与诊断返回 `database_error`。
-  这在只有 macOS 实现时是无害的占位；自从仓库里出现了 Windows 截图适配器
-  （[决策记录](recording-screen-capture-windows.md)），它变成了“Windows 构建不是可用产品”
-  的直接原因，必须显式记住。补齐方式是 `LockFileEx`，见 §5——调用方不需要改。
+- **Windows 锁已接通，但只完成短时验证。** 跨进程争用、正常关闭释放、进程被强制终止后的
+  内核释放、`storage.Open` 只读降级与捕获所有者互斥均有 Windows 测试；DB-8 的一小时并发
+  仍未运行，因此不能据此宣称 Windows Store 长期稳定。
 
 ## 5. 回退
 
-若 flock 在目标环境被证明不可用（例如未来要求适配 NFS 或 Windows），回退路径是
+若目标环境的内核文件锁被证明不可用（例如未来要求适配 NFS），回退路径是
 **保留现有 `Open` 的锁调用点与 `ErrLockBusy` 语义**，仅替换 `lock_unix.go` / `lock_windows.go`
 中的 `tryLock` 实现。`storage.Mode`、`Instance` 与只读降级逻辑不依赖具体锁机制，
 因此替换不触及调用方。**不得**在回退时引入陈旧锁或租约窗口。

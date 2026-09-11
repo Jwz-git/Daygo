@@ -229,8 +229,9 @@ MC-6–MC-8 是 [07 §7.2](07-privacy-security.md#72-捕获侧的两层保护) �
 
 ### 8.6.3 WC：真实 Windows 捕获矩阵
 
-Windows 适配器已落盘但**未验证、不在发布范围**（[决策记录](decisions/recording-screen-capture-windows.md)，
-[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。WC 是它进入任何真实使用前的最小证据集。
+Windows 适配器已落盘并完成 **WC-1 的有限真机 smoke，但仍不在发布范围**
+（[决策记录](decisions/recording-screen-capture-windows.md)，[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
+这只证明当前机器上 DXGI 能生成可解码非黑 JPEG；WC 其余项仍是进入任何真实使用前的最小证据集。
 
 | ID | 场景 | 必须观察到的结果 |
 |----|------|------------------|
@@ -242,6 +243,12 @@ Windows 适配器已落盘但**未验证、不在发布范围**（[决策记录]
 | WC-6 | 多监视器、缩放（DPI）、旋转 | 只截主监视器，方向与尺寸正确 |
 | WC-7 | 受保护内容（`SetWindowDisplayAffinity`）、独占全屏、驱动返回空帧 | 要么正确出图，要么明确失败；**GDI 回退不得绕过内容保护** |
 | WC-8 | 连续 24 小时分间隔调用 | 资源无增长；COM / D3D 对象无泄漏 |
+
+2026-09-11 的 Windows 11（NT 10.0.26200、NVIDIA RTX 4060 Laptop GPU、双显示器）记录：
+WC-1 通过一次原生 smoke 与一次 Go cgo smoke。首次 `AcquireNextFrame` 可能只有鼠标更新
+（`AccumulatedFrames=0`、`LastPresentTime=0`）且纹理全零；实现会在同一 timeout 预算内继续等待，
+随后取得非零 BGRA 桌面帧并输出 1280×720 JPEG。非空屏蔽名单另做失败关闭 smoke，得到
+`privacy_unsupported` 且没有目标文件；这不是 WC-2/3/4 的完整隐私验收。WC-5–8 未运行。
 
 WC-3 与 WC-4 一起决定了一个产品事实：**只要用户配置了屏蔽应用，Windows 当前就拿不到画面。**
 在这两条被隐私能力补齐之前，Windows 不进入发布构建。

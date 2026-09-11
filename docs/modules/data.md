@@ -9,6 +9,7 @@
 崩溃上报实际分发接入由 delivery 协作，隐私名单 UI 与捕获双保护归 recording。
 
 依据：[03](../03-data-model.md)、[05 storage](../05-interface-contract.md#562-storage)、
+[图片存储流水线](../decisions/recording-image-storage.md)、
 [07](../07-privacy-security.md)、[08 DB 测试](../08-testing-strategy.md#84-数据与迁移测试)。
 
 ## 当前状态与证据
@@ -17,7 +18,8 @@
 
 已交付能力：
 
-- **db-core**：`internal/storage` 的连接、PRAGMA、迁移链、可观测读写封装、只读降级与实例锁；
+- **db-core**：`internal/storage` 的连接、PRAGMA、迁移链、可观测读写封装、只读降级与实例锁
+  （POSIX `flock` / Windows `LockFileEx`）；
   `app_settings` 表由 v1 迁移创建。
 - **settings-store**：`app_settings` 的类型化 repository（`SettingsRepo`），含往返、单事务批量写、
   错误路径与 `Watch` 变更通知（ctx 结束关闭）。规范化与夹取按 `05 §5.6.3` 留给
@@ -112,6 +114,7 @@ real Media 未就绪仅阻塞真实清理验收，不阻塞连接、迁移和设
 | 2026-09-11 / 同上 | `go test -tags long -run TestConcurrentReaderWriterOneHour -timeout 25s` | 25 秒后被超时中断，无死锁、无 busy 报错、无损坏 | **仅为逻辑验证，不是 DB-8 通过**；1 小时全量未运行 |
 | 2026-09-11 / 同上 | `go test -count=1 -race ./internal/app/` | 通过；绑定层所有权来自真实锁、诊断映射与维护路径均有断言 | 未在真实 Wails 宿主中运行；`GetDiagnostics` 无 UI |
 | 2026-09-11 / 同上 | `go test -count=1 ./internal/storage/`（settings / 维护 / 诊断用例） | 通过；settings 往返与重启读回、单事务原子性、Watch 交付与关闭、备份可读且轮换、恢复保留原库、并发备份互不碰撞 | 未接真实用户设置；清理未接线 |
+| 2026-09-11 / 当前工作树 / Windows 11 amd64 · go1.25.4 | `go test -count=1 ./internal/storage ./internal/settings`；子进程持锁、正常退出与强制终止夹具 | 通过；`LockFileEx` 对第二实例返回 `ErrLockBusy`，正常关闭和进程终止后均可重取；`Open` 只读降级、捕获所有者互斥与 `Close` 释放通过 | 仅短时 smoke；DB-8 一小时并发与录制清理未运行 |
 
 **测试发现的一个真实缺陷**：并发调用 `Store.Backup` 时，先前基于秒级时间的文件名会让两次
 备份取到同名，`VACUUM INTO` 拒绝覆盖导致双双失败。现改为在互斥区内使用单调序号命名，

@@ -106,9 +106,8 @@
 - 检测：IT-13，以及定期查询"来自不同分段前缀但 `captured_at` 重叠"的行。
 
 **残余风险。** 主目录在网络挂载卷上时 `flock` 不可靠。应检测 `~` 是否在本地存储并告警。
-Windows 尚无锁实现（`lock_windows.go` 直接返回错误），后果是那里根本打不开数据库——
-在 `LockFileEx` 落盘前，Windows 构建不具备本风险要求的任何保护
-（[决策](decisions/data-locking.md)）。
+Windows 已用 `LockFileEx` 接通实例锁并通过短时跨进程 smoke，但一小时 DB-8 尚未运行；
+因此长期并发稳定性仍是残余风险（[决策](decisions/data-locking.md)）。
 
 ---
 

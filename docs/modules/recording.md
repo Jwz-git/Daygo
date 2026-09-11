@@ -11,6 +11,7 @@
 [05 §5.7](../05-interface-contract.md#57-b4platform-端口契约)、
 [06](../06-native-integration.md)、[截图 v2 实现与调用](../decisions/recording-screen-capture-v2.md)、
 [Windows 截图实现与限制](../decisions/recording-screen-capture-windows.md)、
+[图片存储流水线](../decisions/recording-image-storage.md)、
 [07 §7.2](../07-privacy-security.md#72-捕获侧的两层保护)。
 实机矩阵：[08 §8.6.2 MC](../08-testing-strategy.md#862-mc真实-macos-捕获矩阵)、
 [§8.6.3 WC](../08-testing-strategy.md#863-wc真实-windows-捕获矩阵)。
@@ -20,8 +21,9 @@
 实现进度：部分实现。单元 / fake 契约已覆盖单次截图语义；macOS 原生单次截图与 cgo 适配已
 落盘并完成一轮真实像素 smoke，但应用装配、隐私实机矩阵和长期观察未验收。
 Windows 侧另有一份同 ABI 的 DXGI 实现（`internal/platform/windows` + `native/windows`），
-**未做任何实机验证，不在发布范围**，且 Windows 上没有实例锁因而没有数据库；
-它不改变本模块的验收口径，只增加一套待跑的 WC 矩阵。
+已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke，但仍**不在发布范围**；
+完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
+无法打开数据库。以上不改变本模块的验收口径。
 [Capture fake](../../internal/platform/fake/capture.go)、
 [契约套件](../../internal/platform/platformtest/suite.go)、
 [macOS Capture](../../internal/platform/darwin/capture.go)、
@@ -84,6 +86,8 @@ darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子�
 授权后的真实 cgo 调用从 1920×1080 主显示器生成并解码 1280×720 JPEG，返回宽高、字节数与
 磁盘一致。隐私双保护、捕获指示、正式应用 TCC 身份、G-host 与长期观察仍未验收。
 
-2026-09-11（commit `c2950cf`，macOS arm64）：Windows 适配器只验证了编译层面的事实——
-`GOOS=windows CGO_ENABLED=0 go build ./internal/...` 通过（无 cgo 时返回 `unsupported`）。
-**WC-1…WC-8 全部未运行**，没有 Windows 机器上的出图、隐私或资源记录。
+2026-09-11（当前工作树，Windows 11 NT 10.0.26200、NVIDIA RTX 4060 Laptop GPU、双显示器）：
+原生 smoke 与 Go cgo smoke 均生成并解码 1280×720 非黑 JPEG。调试记录确认首个 pointer-only
+全零帧被跳过，后续桌面更新由 DXGI 返回非零 BGRA，没有命中 GDI fallback。非空屏蔽名单返回
+`privacy_unsupported` 且不生成文件，证明失败关闭而非隐私能力完整。仅 WC-1 有限通过；
+目标冲突、多屏切换/旋转、受保护内容、光标与 24 小时资源矩阵未运行。

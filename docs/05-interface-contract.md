@@ -910,6 +910,8 @@ type ReplaceResult struct {
 6. 慢查询、争用与 breadcrumb 属于**可观测性**，实现在读写封装里，**不出现在 repository
    接口签名上**。
 7. 第二个实例检测到写入锁被占用时进入只读模式，绑定层的写方法返回 `not_capture_owner`。
+   POSIX 使用非阻塞 `flock`，Windows 使用非阻塞排他 `LockFileEx`；两者保持相同的
+   `ErrLockBusy`、只读降级和进程退出释放语义。
 
 ### 5.6.3 settings
 
@@ -1063,12 +1065,14 @@ type Updater interface {
 
 ### 5.7.3 截图文件交付与恢复
 
-1. Go 在调用前创建 pending capture 记录并分配唯一 `OutputPath`；原生层不打开 SQLite。
-2. `written` 后 Go 校验结果并幂等写入 screenshot 行，再清除 pending；数据库提交失败时保留
-   文件和 pending 供启动对账。
+1. Go 在调用前创建 pending capture 记录并分配唯一 staging `OutputPath`；原生层不打开 SQLite。
+2. `written` 后 Go 校验结果并回填 pending 元数据；JPEG 仍是 staging，不直接成为长期 screenshot。
 3. `blocked` 不产生文件；Go 可记录不含路径、窗口标题、应用活动或图像内容的诊断计数。
 4. 超时、取消和原生失败不得产生可接受的过期结果；启动对账只处理 Go 已登记的 pending 路径。
-5. 后续分段由 Go 协调的独立 Media 能力生成；不得把分段所有权重新塞回 Capture。
+5. 达到轮换边界时，Go 协调独立 Media 能力从冻结的 staging 集合批量构建并原子发布分段；
+   一个短事务共同提交 closed segment 与全部 screenshot 行并删除 pending，成功后再删 staging。
+6. SQLite 只存索引和生命周期状态，不存像素 BLOB。恢复、清理和分析发送的完整边界见
+   [图片存储决策](decisions/recording-image-storage.md)。不得把分段所有权重新塞回 Capture。
 
 ### 5.7.4 fake 实现与契约测试
 
@@ -1128,7 +1132,7 @@ type DisplayCapture interface {
 |---|---|---|---|
 | `internal/platform/fake` | 四套全跑 | 任意平台，`CGO_ENABLED=0` | 通过 |
 | `internal/platform/darwin` | `Suite`（需真机与授权）、`SuitePermission` / `SuitePrivacy` 需真机构造条件 | macOS + cgo | **未接入套件**；只做过一次人工 smoke，见 [截图 v2 §11](decisions/recording-screen-capture-v2.md) |
-| `internal/platform/windows` | 同上 | Windows + cgo | **未接入套件**，无任何实机记录，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
+| `internal/platform/windows` | 同上 | Windows + cgo | **未接入套件**；原生 smoke 与 Go cgo smoke 已验证真实非黑 JPEG，完整 WC 矩阵仍未运行，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
 
 **只有 fake 通过、真实适配层没跑同一套测试的接口，不算已验证。** 真机独有的场景
 （多屏、旋转、快速切换前台、24 小时资源）由 [08 §8.6.2 MC](08-testing-strategy.md#862-mc真实-macos-捕获矩阵)

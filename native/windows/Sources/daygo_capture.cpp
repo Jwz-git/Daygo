@@ -388,94 +388,106 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
   ComPtr<IDXGIOutputDuplication> duplication;
   hr = output->DuplicateOutput(device.get(), duplication.put());
   if (FAILED(hr)) return hr;
-  DXGI_OUTDUPL_FRAME_INFO frame_info{};
-  ComPtr<IDXGIResource> resource;
-  debug_stage("duplication.acquire.begin");
-  hr = duplication->AcquireNextFrame(request.timeout_ms, &frame_info, resource.put());
-  if (FAILED(hr)) return hr;
-  if (GetEnvironmentVariableA("DAYGO_CAPTURE_DEBUG", nullptr, 0) > 0) {
-    char message[256];
-    std::snprintf(message, sizeof(message),
-                  "[daygo.capture] frame accumulated=%u present=%lld mouse=%lld pointer_visible=%d\n",
-                  frame_info.AccumulatedFrames, static_cast<long long>(frame_info.LastPresentTime.QuadPart),
-                  static_cast<long long>(frame_info.LastMouseUpdateTime.QuadPart), frame_info.PointerPosition.Visible);
-    std::fputs(message, stderr);
-  }
-  ComPtr<ID3D11Texture2D> texture;
-  hr = resource->QueryInterface(IID_PPV_ARGS(texture.put()));
-  if (FAILED(hr)) {
-    duplication->ReleaseFrame();
-    return hr;
-  }
-  D3D11_TEXTURE2D_DESC desc{};
-  texture->GetDesc(&desc);
   const bool debug_enabled = GetEnvironmentVariableA("DAYGO_CAPTURE_DEBUG", nullptr, 0) > 0;
-  if (debug_enabled) {
-    char message[256];
-    std::snprintf(message, sizeof(message),
-                  "[daygo.capture] texture format=%u size=%ux%u mip=%u array=%u sample=%u/%u\n",
-                  static_cast<unsigned>(desc.Format), desc.Width, desc.Height, desc.MipLevels,
-                  desc.ArraySize, desc.SampleDesc.Count, desc.SampleDesc.Quality);
-    std::fputs(message, stderr);
-  }
-  D3D11_TEXTURE2D_DESC staging_desc = desc;
-  staging_desc.Usage = D3D11_USAGE_STAGING;
-  staging_desc.BindFlags = 0;
-  staging_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-  staging_desc.MiscFlags = 0;
-  ComPtr<ID3D11Texture2D> staging;
-  hr = device->CreateTexture2D(&staging_desc, nullptr, staging.put());
-  if (SUCCEEDED(hr)) context->CopyResource(staging.get(), texture.get());
-  if (FAILED(hr)) {
-    duplication->ReleaseFrame();
-    return hr;
-  }
-  D3D11_MAPPED_SUBRESOURCE mapped{};
-  hr = context->Map(staging.get(), 0, D3D11_MAP_READ, 0, &mapped);
-  if (FAILED(hr)) {
-    duplication->ReleaseFrame();
-    return hr;
-  }
-  std::vector<uint8_t> raw(static_cast<size_t>(desc.Width) * desc.Height * 4);
-  if (debug_enabled) {
-    char message[160];
-    std::snprintf(message, sizeof(message), "[daygo.capture] mapped row_pitch=%zu depth_pitch=%zu\n",
-                  static_cast<size_t>(mapped.RowPitch), static_cast<size_t>(mapped.DepthPitch));
-    std::fputs(message, stderr);
-  }
-  for (UINT y = 0; y < desc.Height; ++y) {
-    std::copy_n(static_cast<const uint8_t*>(mapped.pData) + static_cast<size_t>(y) * mapped.RowPitch,
-                static_cast<size_t>(desc.Width) * 4, raw.data() + static_cast<size_t>(y) * desc.Width * 4);
-  }
-  context->Unmap(staging.get(), 0);
-  duplication->ReleaseFrame();
-  const bool dxgi_all_zero = std::none_of(raw.begin(), raw.end(), [](uint8_t value) { return value != 0; });
-  if (debug_enabled) {
-    uint8_t min_value = 255;
-    uint8_t max_value = 0;
-    uint64_t nonzero = 0;
-    for (uint8_t value : raw) {
-      min_value = std::min(min_value, value);
-      max_value = std::max(max_value, value);
-      nonzero += value != 0;
-    }
-    char message[160];
-    if (raw.size() >= 4) {
+  std::vector<uint8_t> raw;
+  UINT source_width = 0;
+  UINT source_height = 0;
+  DXGI_OUTDUPL_FRAME_INFO frame_info{};
+  bool dxgi_all_zero = false;
+  const ULONGLONG acquire_started = GetTickCount64();
+  for (;;) {
+    ComPtr<IDXGIResource> resource;
+    const ULONGLONG elapsed = GetTickCount64() - acquire_started;
+    if (elapsed >= request.timeout_ms) return DXGI_ERROR_WAIT_TIMEOUT;
+    const UINT remaining = request.timeout_ms - static_cast<UINT>(elapsed);
+    debug_stage("duplication.acquire.begin");
+    hr = duplication->AcquireNextFrame(remaining, &frame_info, resource.put());
+    if (FAILED(hr)) return hr;
+    if (debug_enabled) {
+      char message[256];
       std::snprintf(message, sizeof(message),
-                    "[daygo.capture] pixels=%ux%u min=%u max=%u nonzero=%llu first=%u,%u,%u,%u\n",
-                    desc.Width, desc.Height, min_value, max_value,
-                    static_cast<unsigned long long>(nonzero), raw[0], raw[1], raw[2], raw[3]);
-    } else {
-      std::snprintf(message, sizeof(message), "[daygo.capture] pixels=%ux%u min=%u max=%u nonzero=%llu\n",
-                    desc.Width, desc.Height, min_value, max_value, static_cast<unsigned long long>(nonzero));
+                    "[daygo.capture] frame accumulated=%u present=%lld mouse=%lld pointer_visible=%d\n",
+                    frame_info.AccumulatedFrames, static_cast<long long>(frame_info.LastPresentTime.QuadPart),
+                    static_cast<long long>(frame_info.LastMouseUpdateTime.QuadPart), frame_info.PointerPosition.Visible);
+      std::fputs(message, stderr);
     }
-    OutputDebugStringA(message);
-    std::fputs(message, stderr);
+    ComPtr<ID3D11Texture2D> texture;
+    hr = resource->QueryInterface(IID_PPV_ARGS(texture.put()));
+    if (FAILED(hr)) {
+      duplication->ReleaseFrame();
+      return hr;
+    }
+    D3D11_TEXTURE2D_DESC desc{};
+    texture->GetDesc(&desc);
+    source_width = desc.Width;
+    source_height = desc.Height;
+    if (debug_enabled) {
+      char message[256];
+      std::snprintf(message, sizeof(message),
+                    "[daygo.capture] texture format=%u size=%ux%u mip=%u array=%u sample=%u/%u\n",
+                    static_cast<unsigned>(desc.Format), desc.Width, desc.Height, desc.MipLevels,
+                    desc.ArraySize, desc.SampleDesc.Count, desc.SampleDesc.Quality);
+      std::fputs(message, stderr);
+    }
+    D3D11_TEXTURE2D_DESC staging_desc = desc;
+    staging_desc.Usage = D3D11_USAGE_STAGING;
+    staging_desc.BindFlags = 0;
+    staging_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    staging_desc.MiscFlags = 0;
+    ComPtr<ID3D11Texture2D> staging;
+    hr = device->CreateTexture2D(&staging_desc, nullptr, staging.put());
+    if (SUCCEEDED(hr)) context->CopyResource(staging.get(), texture.get());
+    if (FAILED(hr)) {
+      duplication->ReleaseFrame();
+      return hr;
+    }
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    hr = context->Map(staging.get(), 0, D3D11_MAP_READ, 0, &mapped);
+    if (FAILED(hr)) {
+      duplication->ReleaseFrame();
+      return hr;
+    }
+    raw.assign(static_cast<size_t>(desc.Width) * desc.Height * 4, 0);
+    if (debug_enabled) {
+      char message[160];
+      std::snprintf(message, sizeof(message), "[daygo.capture] mapped row_pitch=%zu depth_pitch=%zu\n",
+                    static_cast<size_t>(mapped.RowPitch), static_cast<size_t>(mapped.DepthPitch));
+      std::fputs(message, stderr);
+    }
+    for (UINT y = 0; y < desc.Height; ++y) {
+      std::copy_n(static_cast<const uint8_t*>(mapped.pData) + static_cast<size_t>(y) * mapped.RowPitch,
+                  static_cast<size_t>(desc.Width) * 4, raw.data() + static_cast<size_t>(y) * desc.Width * 4);
+    }
+    context->Unmap(staging.get(), 0);
+    duplication->ReleaseFrame();
+    dxgi_all_zero = std::none_of(raw.begin(), raw.end(), [](uint8_t value) { return value != 0; });
+    if (debug_enabled) {
+      uint8_t min_value = 255;
+      uint8_t max_value = 0;
+      uint64_t nonzero = 0;
+      for (uint8_t value : raw) {
+        min_value = std::min(min_value, value);
+        max_value = std::max(max_value, value);
+        nonzero += value != 0;
+      }
+      char message[160];
+      if (raw.size() >= 4) {
+        std::snprintf(message, sizeof(message),
+                      "[daygo.capture] pixels=%ux%u min=%u max=%u nonzero=%llu first=%u,%u,%u,%u\n",
+                      desc.Width, desc.Height, min_value, max_value,
+                      static_cast<unsigned long long>(nonzero), raw[0], raw[1], raw[2], raw[3]);
+      } else {
+        std::snprintf(message, sizeof(message), "[daygo.capture] pixels=%ux%u min=%u max=%u nonzero=%llu\n",
+                      desc.Width, desc.Height, min_value, max_value, static_cast<unsigned long long>(nonzero));
+      }
+      OutputDebugStringA(message);
+      std::fputs(message, stderr);
+    }
+    if (!dxgi_all_zero || frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0) break;
+    debug_stage("dxgi.pointer_only.retry");
   }
   DXGI_OUTPUT_DESC output_desc{};
   output->GetDesc(&output_desc);
-  UINT source_width = desc.Width;
-  UINT source_height = desc.Height;
   DXGI_MODE_ROTATION source_rotation = output_desc.Rotation;
   if (dxgi_all_zero) {
     std::vector<uint8_t> gdi_pixels;

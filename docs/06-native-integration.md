@@ -130,17 +130,17 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 
 ## 6.7 平台实现状态
 
-产品主线是 macOS。Windows 现在有一份**可编译、未验证、不在发布范围**的截图实现，
+产品主线是 macOS。Windows 现在有一份**完成有限真机 smoke、但不在发布范围**的截图实现，
 它的存在不改变 v1 的目标平台（[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
 把它记在这里，是因为“仓库里有 Windows 代码”和“Windows 可用”是两件事，不写下来就会被混淆。
 
 | 能力 | macOS | Windows | 说明 |
 |---|---|---|---|
-| 单次截图（第 5 / 7 / 12 项） | 有限实现，已跑通真机 smoke | 有限实现，**无任何实机记录** | macOS 用 ScreenCaptureKit，Windows 用 DXGI Desktop Duplication + GDI 回退 |
+| 单次截图（第 5 / 7 / 12 项） | 有限实现，已跑通真机 smoke | 有限实现，真机非黑 JPEG smoke 通过 | macOS 用 ScreenCaptureKit，Windows 优先 DXGI Desktop Duplication；GDI 只在有效桌面更新仍为全零时回退 |
 | 隐私屏蔽（第 6 / 13 项） | 前台兜底 + 画面排除，两层齐备 | **无画面排除原语**：名单非空即 `privacy_unsupported` | Windows 上配置了屏蔽应用就拿不到画面，这是失败关闭而非缺陷 |
 | 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 实现与 ABI 语义之间的已知缺口 |
 | 屏幕录制授权（第 1–3 项） | 端口已定义，适配层未实现 | 系统无对应授权 | macOS 未接入前，绑定返回 `native_unavailable` |
-| 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | **未实现**，`storage.Open` 直接失败 | 后果是 Windows 上没有数据库；见 [data 实例锁](decisions/data-locking.md) |
+| 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
 | 其余 14 项（第 4、8–11、14–22 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用

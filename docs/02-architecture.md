@@ -118,7 +118,7 @@ Daygo/
 │   │
 │   ├── storage/                     ★ 唯一 SQLite 写入方与 schema owner
 │   │   ├── open.go store.go pragma.go     连接、模式、可观测读写封装
-│   │   ├── lock_unix.go lock_windows.go   实例锁（Windows 未实现）
+│   │   ├── lock_unix.go lock_windows.go   实例锁（flock / LockFileEx）
 │   │   ├── migrate.go               版本化迁移链（当前停在 v1: app_settings）
 │   │   ├── errors.go                失败分类：busy / corrupt / read_only / …
 │   │   ├── observe.go               慢查询、争用与 breadcrumb 埋点
@@ -139,7 +139,7 @@ Daygo/
 │   │   ├── fake/                    ★ Capture 的确定性实现，全平台可跑
 │   │   ├── platformtest/            ★ fake 与真实适配层共用的契约套件
 │   │   ├── darwin/                  ★ cgo → ScreenCaptureKit
-│   │   └── windows/                 ★ cgo → DXGI（实验，未验证，不在发布范围）
+│   │   └── windows/                 ★ cgo → DXGI（实验，有限真机 smoke，不在发布范围）
 │   ├── timeutil/                    ★ 凌晨 4 点逻辑日（时钟串派生与周边界 ☐）
 │   ├── analysis/                    ☐ scheduler / batcher / pipeline / idle / reprocess
 │   ├── insight/                     ☐ timeline / daily / weekly

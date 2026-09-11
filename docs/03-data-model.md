@@ -16,9 +16,10 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
 ```text
 ~/Library/Application Support/Daygo/
 ├── daygo.sqlite (+ -wal, -shm)   业务数据库                        ★
-├── daygo.sqlite.lock             写入锁（flock，进程退出即释放）    ★
+├── daygo.sqlite.lock             写入锁（flock / LockFileEx）       ★
 ├── capture.lock                  捕获所有者锁，与写入锁相互独立      ★
-├── recordings/                   分段文件，yyyyMMdd_HHmmssSSS.<ext>
+├── recordings/staging/           Capture 原子 JPEG，提交分段后删除
+├── recordings/segments/          已关闭的不可变分段
 ├── timelapses/<yyyy-MM-dd>/      每张卡片的时间压缩视频
 ├── backups/daygo-<UTC>-<seq>.db  每日数据库副本，保留 7 份           ★
 └── agent.sock                    外部写入通道（推迟到 v1.1）
@@ -311,7 +312,10 @@ CREATE TABLE providers (
 
 ## 3.4 帧与分段
 
-像素不逐帧存图片，而是写入**分段文件**，按 `(segment_path, frame_index)` 寻址。
+像素**不进入 SQLite BLOB**。`Capture` 输出的逐帧 JPEG 只在 `recordings/staging/` 短期存在；
+积累到轮换边界后由 `Media` 批量构建不可变分段，成功提交后删除 staging。只有已完整发布并完成
+结构化提交的帧才写入 `screenshots`，按 `(segment_path, frame_index)` 寻址。完整状态机与崩溃
+窗口见[图片存储决策](decisions/recording-image-storage.md)。
 容器与编码格式**待定设计**，但必须满足：
 
 | # | 要求 | 原因 |
@@ -327,8 +331,8 @@ CREATE TABLE providers (
 1. **绝不删除活跃分段。**
 2. `screenshots.file_size` 是分段总大小**均摊**到该分段每一行的值。要得到实际磁盘占用，
    必须逐行求和；把某一行的值当成单帧大小是错的。
-3. 启动时必须执行一次对账，处理三种故障：行在文件缺失（软删除行）、文件在但不可读
-   （删文件 + 软删除行）、文件可读但 `file_size` 为 NULL（回填）。
+3. 启动时必须执行一次对账：恢复已登记的 staging/pending；探测已发布但尚未结构化提交的
+   building segment；完成中断的 deleting；陌生文件只隔离和诊断，绝不自动信任或发送。
 
 ## 3.5 时钟串派生
 
@@ -378,11 +382,12 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 |------|------|------|------|
 | WAL checkpoint | 300 秒 | ★ 已实现 | `PASSIVE`：不阻塞读写，宁可 WAL 大一会儿也不要卡住一次捕获写入 |
 | 数据库备份 | 启动后 1 小时，之后每 24 小时 | ★ 已实现 | `VACUUM INTO`（不是文件复制，避免撕裂的 WAL），保留最近 **7** 份（[决策](decisions/data-backup-retention.md)） |
-| 录制清理 | 启动后 1 小时，之后每小时 | 未实现 | 超出 `storage.recordingsLimitBytes` 时按分段从旧到新删除；阻塞于 `screenshots` 表与 `Media` |
+| 录制清理 | 启动后 1 小时，之后每小时 | 未实现 | 超出上限时按 closed segment 从旧到新两阶段删除；阻塞于业务表与 `Media`，见[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
 | `llm_calls` 元数据留存 | 待定 | 未实现 | 只含 attempt 元数据，不含正文 |
 
 维护循环由 app 生命周期持有（`storage.Maintainer`），`ctx` 取消即退出，不存在全局单例。
 只读实例照常跑循环，它的写操作被存储层拒绝——第二个实例是预期状态，不是故障。
 
-清理规则：**从不删除活跃分段**；删除分段的同时软删除其 `screenshots` 行；对应卡片保留
+清理规则：**从不删除 staging、building、活跃或被分析租用的分段**；先记录 `deleting` 意图，
+事务外删除完整文件，再软删除其 `screenshots` 行并完成状态；对应卡片保留
 （用户仍能看到那段时间做了什么，只是没有帧可看）。

@@ -8,7 +8,8 @@ Daygo 是一个 macOS 常驻后台 Agent：按间隔截取当前的系统主显�
 **这是一个新项目，不承接任何既有产品的数据、身份或对外契约。**
 
 已落盘（commit `c2950cf`）：Wails 桌面外壳与 Vue 页面骨架（路由、i18n、主题、设置页）
-及其本地存储层；`internal/storage`（连接、PRAGMA、迁移链、flock 实例锁、`app_settings`、
+及其本地存储层；`internal/storage`（连接、PRAGMA、迁移链、POSIX `flock` / Windows
+`LockFileEx` 实例锁、`app_settings`、
 备份与诊断）；`internal/settings`（16 个键的类型化访问）；`internal/ai`（三协议客户端、
 重试 / 回退、结构化输出、连接探针）；平台端口、Capture fake 与四套契约套件；
 macOS 与 Windows 的单次截图适配器；十个 Wails 绑定；错误 / 事件类型；凌晨 4 点日期函数。
@@ -17,8 +18,9 @@ macOS 与 Windows 的单次截图适配器；十个 Wails 绑定；错误 / 事�
 分析流水线、insight 聚合、Secrets 与 Provider 持久化、前端生成绑定接入。
 实现与验证状态分别见 `docs/09-roadmap.md §9.1` 及各模块执行册。
 
-**目标平台是 macOS。** 仓库里另有一份实验性 Windows 截图实现，它未经任何实机验证、
-不在发布范围，而且 Windows 上没有实例锁实现因而**没有数据库**；不要把它当作“已支持 Windows”
+**目标平台是 macOS。** 仓库里另有一份实验性 Windows 截图实现，它只完成了单机有限 smoke，
+不在发布范围；Windows Store 锁已经接通，但隐私、光标、长时间稳定性与发布身份仍未验收。
+不要把它当作“已支持 Windows”
 （`docs/decisions/recording-screen-capture-windows.md`）。
 
 `docs/README.md` 是设计入口，`docs/01`–`10` 是设计规格。跨界接口（Wails 绑定、DTO、事件、

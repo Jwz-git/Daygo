@@ -1,6 +1,6 @@
 # recording 屏幕截屏（Windows）：DXGI 实现、差异与限制
 
-> **状态：已落盘的实验性原生切片，不在发布范围。** 提交 `c2950cf` 为 Windows 实现了与 macOS
+> **状态：已落盘并完成有限真机 smoke 的实验性原生切片，不在发布范围。** 提交 `c2950cf` 为 Windows 实现了与 macOS
 > 同一套 C ABI v1 的 `dg_capture_once`。Windows 是否进入发布仍是
 > [09 §9.8 第 18 项](../09-roadmap.md#98-待定设计清单) 的待定项，本文不改变该结论。
 >
@@ -33,12 +33,15 @@ Go 侧没有任何 Windows 专用分支：`windows.NewCapture()` 与 `darwin.New
 
 1. 主监视器由 `EnumDisplayMonitors` + `MONITORINFOF_PRIMARY` 解析，再匹配到对应的
    `IDXGIOutput1`；调用方不传显示器 ID，与 macOS 的 `CGMainDisplayID()` 语义一致。
-2. 在该适配器上创建 `ID3D11Device`，`DuplicateOutput` → `AcquireNextFrame(timeout_ms)` →
-   复制到 staging texture → map 读回 BGRA。
+2. 在该适配器上创建 `ID3D11Device`，`DuplicateOutput` → `AcquireNextFrame(remaining_timeout)` →
+   复制到 staging texture → map 读回 BGRA。若拿到的只是 pointer-only 更新
+   （`AccumulatedFrames=0`、`LastPresentTime=0`）且像素全零，则释放该帧并在**同一 timeout 预算**
+   内继续等待桌面更新；这修复了部分驱动/虚拟显示组合下首次调用看似成功却得到黑帧的问题。
 3. 按 `DXGI_OUTPUT_DESC.Rotation` 做 90/180/270 旋转，再最近邻等比缩放到 `target_height`，
    宽度为 `round(width × targetHeight / height)`，最小为 1。
-4. **DXGI 返回全零帧时回退到 GDI**：`BitBlt(SRCCOPY | CAPTUREBLT)` 抓主监视器矩形。
-   这条回退用于驱动或合成器返回空帧的情形，不改变对外语义。
+4. **DXGI 报告真实桌面更新但仍返回全零帧时才回退到 GDI**：
+   `BitBlt(SRCCOPY | CAPTUREBLT)` 抓主监视器矩形。pointer-only 黑帧不会触发回退；这使 DXGI
+   保持主路径，同时保留驱动/合成器异常时的有限兼容层。
 5. WIC 编码 JPEG，`ImageQuality = jpeg_quality / 100`。
 6. 原子发布：同目录创建 `.<文件名>.daygo-<pid>-<tick>.partial`（`CREATE_NEW`），
    编码后 `FlushFileBuffers`，再用 `MoveFileExW(..., MOVEFILE_WRITE_THROUGH)` 发布。
@@ -66,21 +69,15 @@ Go 侧没有任何 Windows 专用分支：`windows.NewCapture()` 与 `darwin.New
 `DXGI_OUTDUPL_FRAME_INFO.PointerPosition` 指针，或在 ABI 上明确"该 flag 为平台尽力而为"。
 在两者之一落盘前，不要假定 Windows 截图包含光标。
 
-## 4. Windows 上目前跑不通的部分
+## 4. Store 兼容层
 
-`internal/storage/lock_windows.go` 的 `tryLock` 直接返回错误（`flock` 是 POSIX 设施，
-`LockFileEx` 尚未实现）。后果是一条完整的链路结论：
+`internal/storage/lock_windows.go` 已用 `LockFileEx` 实现与 POSIX `flock` 相同的两把非阻塞排他锁：
+`daygo.sqlite.lock` 决定唯一 writer，`capture.lock` 决定唯一捕获者。争用映射为 `ErrLockBusy`，
+因此 `storage.Open`、连接层只读降级、`Instance` 与上层绑定无需 Windows 专用分支。
 
-```text
-storage.Open → 取写入锁失败 → 返回 error
-            → app.Run 记录 storageError 并继续启动窗口
-            → 没有数据库：GetSettings / UpdateSettings / GetDiagnostics 返回 database_error
-```
-
-因此 **Windows 目前只有"单次截图"这一层可用**，设置、诊断、维护和任何持久化都不可用。
-在 `lock_windows.go` 落实 `LockFileEx` 之前，不要把 Windows 构建当作可用产品，也不要以
-"Windows 上设置存不下来"为由新开第二套持久化机制（见
-[data 实例锁](data-locking.md#5-回退)：替换 `tryLock` 即可，调用方不变）。
+Windows 实机测试覆盖了跨进程争用、正常关闭后重取、子进程强制终止后由内核释放、第二实例
+只读降级及捕获所有者互斥。它证明设置、诊断与维护不再因“锁未实现”而无法启动；不证明业务表、
+recorder 或长期数据库并发已经交付。
 
 ## 5. 构建
 
@@ -103,13 +100,17 @@ native\windows\build.ps1 -RunSmoke  # 额外链接并运行原生 smoke
 
 ## 6. 验证状态
 
-**未记录。** 本仓库没有任何 Windows 实机验证记录：提交 `c2950cf` 只包含实现。
-需要跑的矩阵是 [08 §8.6.3 的 WC 用例](../08-testing-strategy.md#863-wc真实-windows-捕获矩阵)；
-在 WC-1…WC-8 有记录之前，Windows 捕获只能标为"已实现、未验证"。
+2026-09-11，Windows 11（NT 10.0.26200）、NVIDIA RTX 4060 Laptop GPU
+（驱动 32.0.15.9174）、双显示器环境：
 
-已经确认的只有编译层面的事实（macOS 主机，2026-09-11，commit `c2950cf`）：
-`GOOS=windows CGO_ENABLED=0 go build ./internal/...` 通过，即无 cgo 路径返回 `unsupported`
-且不破坏核心门禁。**这不是 Windows 截图通过。**
+- `native/windows/build.ps1 -RunSmoke` 通过；WIC 回读 JPEG 为 1280×720 且含非黑像素；
+- Go cgo smoke 通过，`CaptureResult` 的宽高/字节数与落盘一致；
+- 调试记录显示首帧为 pointer-only 全零纹理，重试后 DXGI 返回 3840×2160 非零 BGRA，最终未命中 GDI；
+- 非空屏蔽名单返回 `privacy_unsupported` 且没有目标文件，符合失败关闭；
+- `go test ./internal/platform/...`、`go vet ./internal/platform/windows` 与无 cgo 构建通过。
+
+因此 WC-1 只能记为**本机有限通过**；WC-2–8 的完整构造条件、目标路径冲突、多屏切换/旋转、
+受保护内容、GDI 是否绕过保护、光标与 24 小时资源仍未验证。Windows 仍不在发布范围。
 
 ## 7. 边界与回退
 

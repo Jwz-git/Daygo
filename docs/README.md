@@ -2,8 +2,8 @@
 
 > **状态：设计中，部分落盘。** 本目录描述的是目标行为与接口。
 >
-> **已落盘**（commit `c2950cf`）：桌面外壳与前端设置页、SQLite 基础（连接 / PRAGMA / 迁移链 /
-> 实例锁 / `app_settings` / 备份 / 诊断）、类型化设置、三协议 AI 客户端与连接探针、
+> **已落盘**（基线 commit `c2950cf`，加当前工作树的 Windows 验证与锁适配）：桌面外壳与前端设置页、
+> SQLite 基础（连接 / PRAGMA / 迁移链 / 跨平台实例锁 / `app_settings` / 备份 / 诊断）、类型化设置、三协议 AI 客户端与连接探针、
 > 平台端口与 Capture fake 及其契约套件、macOS 与 Windows 的单次截图实现、十个 Wails 绑定。
 > **未实现**：recorder 与常驻生命周期、分段与媒体、分析流水线、时间线 / 每日 / 每周闭环、
 > Secrets 与 Provider 持久化。
@@ -56,8 +56,9 @@
 |---|---|---|
 | [屏幕截屏：单次调用契约与原生 ABI](decisions/recording-screen-capture.md) | 契约已冻结 | 跨平台原始规格、Go `Capture` 契约、C ABI v1 与真机门禁 |
 | [屏幕截屏 v2：macOS 实现与上层调用](decisions/recording-screen-capture-v2.md) | 有限实现 | Swift / cgo 路径、调用不变量、错误处理、调试与 recorder 接入边界 |
-| [屏幕截屏（Windows）：DXGI 实现与限制](decisions/recording-screen-capture-windows.md) | 实现已落盘，**未验证、不在发布范围** | DXGI 路径、与 macOS 的四条差异、Windows 上尚不可用的部分 |
-| [data 实例锁：flock 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的实现手段、候选与回退 |
+| [屏幕截屏（Windows）：DXGI 实现与限制](decisions/recording-screen-capture-windows.md) | 有限实机验证，**不在发布范围** | DXGI 路径、与 macOS 的四条差异、真机 smoke 与未验证矩阵 |
+| [图片存储流水线](decisions/recording-image-storage.md) | 架构方向已决定，未实现 | staging JPEG、不可变分段、整段清理与 LLM 内存图片发送 |
+| [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
 
 [M1 屏幕捕获](decisions/M1-screen-capture.md) 只是旧路径的历史跳转页，内容已迁走。
@@ -79,7 +80,7 @@ commit 内修正文档**。
 Daygo 是一个 macOS 常驻后台 Agent。它按固定间隔截取当前的系统主显示器，把帧按时间分批
 交给用户配置的 LLM 理解，再把结果整理成可检索的每日时间线、站会摘要和每周复盘。
 
-目标平台是 macOS。仓库里另有一份**实验性、未验证、不在发布范围**的 Windows 截图实现，
+目标平台是 macOS。仓库里另有一份**实验性、仅完成有限实机验证、不在发布范围**的 Windows 截图实现，
 它不改变 v1 的平台范围（[06 §6.7](06-native-integration.md#67-平台实现状态)）。
 
 三条产品前提决定了整个架构：

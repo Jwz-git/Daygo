@@ -23,19 +23,20 @@ flowchart TD
     F --> I
     G --> I{"再次确认状态 == capturing"}
     I -->|否| Z3["丢弃：捕获过程中已停止"]
-    I -->|是| J{"分段需要轮换？"}
-    J -->|"尺寸变化 / 达到帧数上限 / 达到时长上限"| K["收尾分段，均摊字节数到各行"]
-    K --> L
-    J -->|否| L["追加帧到当前分段"]
-    L --> M["INSERT INTO screenshots"]
+    I -->|是| J["校验并登记 staging JPEG 元数据"]
+    J --> K{"分段窗口需要冻结？"}
+    K -->|否| Z4["等待下一次离散捕获"]
+    K -->|"尺寸变化 / 达到帧数上限 / 达到时长上限"| L["Media 批量构建并原子发布不可变分段"]
+    L --> M["单事务提交 segment + screenshots，清除 pending"]
+    M --> N["删除已提交的 staging JPEG"]
 ```
 
 **这张图是目标流程。** 已实现的只有中间一格：`platform.Capture` 的一次调用会写出一张完整
 JPEG（或返回 `blocked`），定时器、状态机、分段、`screenshots` 表都还不存在。落地顺序是
 “单张 JPEG + pending 记录”先跑通，分段合成随 `Media` 能力一起做——分段容器与编码格式仍是
-[待定设计](09-roadmap.md#98-待定设计清单)。在那之前，图中的“追加帧到当前分段”实际是
-“发布一张 staging JPEG”，事务边界见
-[截图 v2 §6](decisions/recording-screen-capture-v2.md)。
+[待定设计](09-roadmap.md#98-待定设计清单)。已经决定的 staging、结构化提交、恢复和整段清理
+边界见[图片存储决策](decisions/recording-image-storage.md)；任何数据库事务都不得跨越捕获、编码
+或文件删除等慢 I/O。
 
 ### 4.1.1 参数
 
@@ -125,7 +126,7 @@ idle ──启动──> starting ──就绪──> capturing
 ```mermaid
 flowchart TD
     subgraph W["写入路径 —— 唯一写入方是 Go"]
-        CAP["捕获 → screenshots"]
+        CAP["捕获 → pending/staging → closed segment + screenshots"]
         SCH["调度器 → analysis_batches + batch_screenshots"]
         PIPE["流水线 → observations + timeline_cards"]
         UI["绑定写方法 → 卡片 / 设置 / 分类 / 日记 / 目标"]
@@ -145,7 +146,8 @@ flowchart TD
 
 三条不变量：
 
-1. **恰好一个进程持有写入权。** 通过 `<appsupport>/Daygo/daygo.sqlite.lock` 上的 `flock`
+1. **恰好一个进程持有写入权。** 通过 `<appsupport>/Daygo/daygo.sqlite.lock` 上的内核文件锁
+   （POSIX `flock` / Windows `LockFileEx`）
    表达。第二个实例启动时检测到锁被占用，进入只读查看器模式而不是并发写；只读由
    **连接层**保证（`mode=ro` + `PRAGMA query_only(1)`），不靠调用方自律。
 2. **恰好一个进程持有捕获所有者锁**（`capture.lock`）。与写入锁分开，因为未来可能出现

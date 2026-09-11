@@ -409,7 +409,7 @@ go run -a ./tmp/capture-smoke
 - 关闭窗口后 10 分钟持续离散捕获与状态栏重开，即 G-host；
 - 开发 / Release / 升级签名的 TCC 身份；
 - 24 小时资源和捕获指示观察，即 [08 §8.6.2](../08-testing-strategy.md#862-mc真实-macos-捕获矩阵) 的 MC-1…MC-12；
-- Windows 适配已另有实现，但未验证且不在发布范围，见
+- Windows 适配已另有实现并完成有限真机 smoke，但完整 WC 未验证且不在发布范围，见
   [Windows 截图实现与限制](recording-screen-capture-windows.md)。
 
 回退方式：停止在 composition root 注入真实 `darwin.Capture`，保留 Go recorder、fake 和权限 UI；

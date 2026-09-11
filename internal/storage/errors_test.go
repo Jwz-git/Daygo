@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -116,6 +117,9 @@ func TestNotADatabaseIsClassifiedAsCorrupt(t *testing.T) {
 // recovery path deletes files. The database here is perfectly valid; only the
 // directory is unwritable.
 func TestUnwritableDirectoryIsNotCorruption(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows ACLs do not implement POSIX chmod write denial")
+	}
 	if os.Geteuid() == 0 {
 		t.Skip("running as root bypasses directory permissions")
 	}
