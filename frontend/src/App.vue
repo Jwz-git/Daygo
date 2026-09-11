@@ -16,9 +16,7 @@ import AppShell from '@/layout/AppShell.vue'
 
 <style>
 .page-enter-active {
-  transition:
-    opacity var(--dg-motion-base) ease,
-    transform 240ms var(--dg-ease-out);
+  transition: opacity var(--dg-motion-base) ease;
 }
 
 .page-leave-active {
@@ -27,7 +25,6 @@ import AppShell from '@/layout/AppShell.vue'
 
 .page-enter-from {
   opacity: 0;
-  transform: translateY(4px);
 }
 
 .page-leave-to {
@@ -38,10 +35,6 @@ import AppShell from '@/layout/AppShell.vue'
   .page-enter-active,
   .page-leave-active {
     transition: none;
-  }
-
-  .page-enter-from {
-    transform: none;
   }
 }
 </style>

@@ -60,15 +60,13 @@ function cardStyle(): CSSProperties {
   transition:
     border-color var(--dg-motion-fast) ease,
     background var(--dg-motion-fast) ease,
-    box-shadow var(--dg-motion-fast) ease,
-    transform var(--dg-motion-fast) var(--dg-ease-out);
+    box-shadow var(--dg-motion-fast) ease;
 }
 
 .activity-card:hover {
   z-index: 5;
   border-color: color-mix(in srgb, var(--timeline-category) 40%, var(--dg-timeline-card-border));
   background: var(--dg-timeline-card-hover);
-  transform: translateX(2px);
 }
 
 .activity-card:focus-visible {

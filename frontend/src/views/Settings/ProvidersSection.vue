@@ -458,17 +458,11 @@ async function confirmRemove(id: string): Promise<void> {
 
 .item {
   transition:
-    border-color var(--dg-motion-base) ease,
-    box-shadow var(--dg-motion-base) ease,
-    transform var(--dg-motion-base) var(--dg-ease-out);
+    border-color var(--dg-motion-base) ease;
 }
 
 .item:hover {
   border-color: var(--dg-chip-border);
-  box-shadow:
-    0 16px 38px rgba(25, 18, 30, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transform: translateY(-1px);
 }
 
 .item__head {

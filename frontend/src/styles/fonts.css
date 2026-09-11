@@ -1,98 +1,19 @@
 /*
- * UI faces, all bundled with the app — no system-font dependency, no network.
- *
- * Latin/UI text uses Figtree (variable, .ttf). Chinese text uses LXGW WenKai,
- * shipped as .woff2 because the uncompressed CJK outlines are ~25 MB per weight
- * and the frontend is embedded in the Go binary. Licence: assets/fonts/OFL.txt.
+ * Daygo is a macOS desktop utility. Use the platform UI face first so type,
+ * metrics and antialiasing match the rest of the desktop instead of reading
+ * like a styled web landing page. Bundled fonts stay in assets for now so this
+ * visual change is independently reversible.
  */
-
-@font-face {
-  font-family: 'Figtree';
-  src: url('../assets/fonts/Figtree-VariableFont_wght.ttf') format('truetype');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'Figtree';
-  src: url('../assets/fonts/Figtree-Italic-VariableFont_wght.ttf') format('truetype');
-  font-weight: 100 900;
-  font-style: italic;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'Instrument Serif';
-  src: url('../assets/fonts/InstrumentSerif-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'Instrument Serif';
-  src: url('../assets/fonts/InstrumentSerif-Italic.ttf') format('truetype');
-  font-weight: 400;
-  font-style: italic;
-  font-display: block;
-}
-
-/*
- * LXGW WenKai 1.522 (OFL-1.1). Regular and Medium are the two weights the UI
- * actually uses; font-synthesis is off, so asking for 600 resolves to Medium
- * rather than a smeared synthetic bold.
- */
-@font-face {
-  font-family: 'LXGW WenKai';
-  src: url('../assets/fonts/LXGWWenKai-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'LXGW WenKai';
-  src: url('../assets/fonts/LXGWWenKai-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: block;
-}
 
 :root {
-  /* Latin/UI first, then the bundled CJK face, then macOS system CJK. */
   --dg-font-ui:
-    'Figtree', 'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB',
-    'Helvetica Neue', sans-serif;
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
+    'Helvetica Neue', Arial, sans-serif;
+  --dg-font-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC',
+    'Helvetica Neue', Arial, sans-serif;
+  --dg-font-display-weight: 650;
+  --dg-font-display-tracking: -0.018em;
   --dg-font-mono:
-    ui-monospace, 'SFMono-Regular', Menlo, monospace;
-}
-
-/*
- * Display font is language-dependent.
- *
- * Instrument Serif carries no CJK glyphs, so a Chinese heading would fall back
- * per-character to PingFang SC and break against any Latin text or digits on
- * the same line. Chinese headings therefore use the bundled LXGW WenKai.
- *
- * The marker is set on <html> by i18n/index.ts setLocale(), not via :lang(),
- * so nested language attributes inside content cannot flip the heading font.
- */
-:root {
-  --dg-font-display:
-    'Instrument Serif', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif;
-  --dg-font-display-weight: 400;
-  --dg-font-display-tracking: -0.01em;
-}
-
-:root[data-dg-lang-script='hans'] {
-  --dg-font-display:
-    'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB', 'Figtree', sans-serif;
-  --dg-font-display-weight: 500;
-  /*
-   * WenKai's glyphs already sit at a comfortable rhythm; positive tracking
-   * pulls short (two-character) titles like 设置 / 每周 visibly apart, so keep
-   * it neutral.
-   */
-  --dg-font-display-tracking: 0;
+    ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 }

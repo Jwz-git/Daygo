@@ -53,7 +53,7 @@ const active = ref<SectionKey>('other')
       </nav>
 
       <div class="content dg-scroll">
-        <div class="content__inner dg-stagger">
+        <div class="content__inner">
           <ProvidersSection v-if="active === 'providers'" />
 
           <template v-else-if="active === 'other'">
@@ -111,14 +111,12 @@ const active = ref<SectionKey>('other')
   text-align: left;
   transition:
     color var(--dg-motion-fast) ease,
-    background var(--dg-motion-fast) ease,
-    transform var(--dg-motion-fast) var(--dg-ease-out);
+    background var(--dg-motion-fast) ease;
 }
 
 .nav__item:hover {
   background: var(--dg-hover-fill);
   color: var(--dg-text-primary);
-  transform: translateX(2px);
 }
 
 .nav__item.is-active {
@@ -165,9 +163,6 @@ const active = ref<SectionKey>('other')
     white-space: nowrap;
   }
 
-  .nav__item:hover {
-    transform: translateY(-1px);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

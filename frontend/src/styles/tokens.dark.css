@@ -9,59 +9,31 @@
  *
  * Only colour is overridden. Geometry stays in tokens.light.css; duplicating it
  * here would create two places to change one width.
- *
- * Gradients are expressed as CSS angles directly; do not translate them back
- * to a design-tool angle, the two conventions differ.
  */
 
 :root[data-dg-appearance='dark'] {
   color-scheme: dark;
 
-  /* windowBackground: layered ambient colour with quiet contrast. */
-  --dg-window-bg:
-    radial-gradient(
-      120% 95% at 88% 108%,
-      rgba(122, 96, 190, 0.3) 0%,
-      transparent 54%
-    ),
-    radial-gradient(
-      115% 90% at 4% -10%,
-      rgba(72, 104, 152, 0.58) 0%,
-      transparent 56%
-    ),
-    linear-gradient(148deg, #252f47 0%, #2b2d40 54%, #2f2b4a 100%);
+  --dg-window-bg: #242426;
 
-  --dg-panel-fill:
-    linear-gradient(
-      140deg,
-      rgba(43, 46, 63, 0.8) 9%,
-      rgba(31, 37, 50, 0.82) 80%
-    );
-  --dg-panel-border: rgba(255, 255, 255, 0.11);
-  --dg-panel-shadow:
-    0 30px 80px rgba(5, 8, 18, 0.35),
-    0 2px 10px rgba(5, 8, 18, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --dg-panel-fill: rgba(31, 31, 33, 0.94);
+  --dg-panel-border: rgba(255, 255, 255, 0.1);
+  --dg-panel-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
 
   --dg-text-primary: #f5f3f7;
   --dg-text-secondary: #c7c4cf;
   --dg-text-tertiary: #a7a3af;
   --dg-text-muted: #918d99;
 
-  /*
-   * Nocturnal counterpart of the light palette: the window already paints dusk
-   * (blue corner into plum), so the accent stays in that hue family instead of
-   * fighting it. Warm colour remains only where it carries meaning — danger,
-   * caution — plus the ember wash in the bottom-right corner.
-   */
-  --dg-accent: #8ba8e8;
-  --dg-accent-strong: #a0bcf0;
-  --dg-accent-text: #a8c2f2;
-  --dg-focus-ring: rgba(139, 168, 232, 0.3);
-  --dg-control-fill: rgba(139, 168, 232, 0.18);
-  --dg-control-fill-hover: rgba(139, 168, 232, 0.26);
-  --dg-nav-active-fill: rgba(139, 168, 232, 0.13);
-  --dg-nav-active-text: #b3c9f4;
+  /* Keep the same warm Daygo accent in both appearances. */
+  --dg-accent: #ff8a55;
+  --dg-accent-strong: #ff9a6b;
+  --dg-accent-text: #ffa276;
+  --dg-focus-ring: rgba(255, 138, 85, 0.28);
+  --dg-control-fill: rgba(255, 138, 85, 0.17);
+  --dg-control-fill-hover: rgba(255, 138, 85, 0.23);
+  --dg-nav-active-fill: rgba(255, 138, 85, 0.14);
+  --dg-nav-active-text: #ffab84;
   --dg-danger: #ff8278;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
   --dg-warning: #e3b25e;
@@ -80,9 +52,9 @@
   --dg-chip-border: rgba(255, 255, 255, 0.13);
   --dg-chip-text: #ebe8ef;
 
-  --dg-button-primary-fill: linear-gradient(180deg, #7d9cde 0%, #5c7cc2 100%);
-  --dg-button-primary-hover: linear-gradient(180deg, #8dabeb 0%, #6b8bce 100%);
-  --dg-button-primary-border: rgba(163, 188, 240, 0.34);
+  --dg-button-primary-fill: #e97845;
+  --dg-button-primary-hover: #f18450;
+  --dg-button-primary-border: rgba(255, 169, 128, 0.32);
   --dg-button-primary-text: #ffffff;
   --dg-button-secondary-fill: rgba(255, 255, 255, 0.075);
   --dg-button-secondary-hover: rgba(255, 255, 255, 0.12);
@@ -91,36 +63,26 @@
 
   --dg-danger-fill: rgba(255, 89, 80, 0.14);
 
-  --dg-rail-selection-fill:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.13) 0%,
-      rgba(255, 255, 255, 0.055) 100%
-    );
+  --dg-rail-selection-fill: rgba(255, 255, 255, 0.1);
   --dg-rail-selection-border: rgba(255, 255, 255, 0.16);
-  --dg-rail-selection-shadow:
-    0 10px 24px rgba(3, 5, 12, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --dg-rail-selection-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 
   --dg-card-fill: rgba(255, 255, 255, 0.07);
   --dg-card-border: rgba(255, 255, 255, 0.12);
-  --dg-card-shadow:
-    0 12px 32px rgba(5, 8, 18, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
   --dg-card-time: #918d99;
 
   --dg-timeline-grid: rgba(255, 255, 255, 0.065);
   --dg-timeline-grid-strong: rgba(255, 255, 255, 0.12);
   --dg-timeline-card-fill: rgba(255, 255, 255, 0.065);
   --dg-timeline-card-hover: rgba(255, 255, 255, 0.1);
-  --dg-timeline-card-selected: rgba(139, 168, 232, 0.13);
+  --dg-timeline-card-selected: rgba(255, 138, 85, 0.12);
   --dg-timeline-card-border: rgba(255, 255, 255, 0.105);
-  --dg-timeline-card-shadow: 0 7px 20px rgba(3, 5, 12, 0.15);
+  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   --dg-timeline-inspector-fill: rgba(8, 12, 24, 0.12);
   --dg-timeline-empty-fill: rgba(8, 12, 24, 0.1);
   --dg-timeline-placeholder: rgba(255, 255, 255, 0.15);
-  --dg-timeline-processing-fill: rgba(139, 168, 232, 0.08);
-  --dg-timeline-processing-border: rgba(139, 168, 232, 0.16);
-  --dg-timeline-processing-shine: rgba(255, 255, 255, 0.1);
+  --dg-timeline-processing-fill: rgba(255, 255, 255, 0.045);
+  --dg-timeline-processing-border: rgba(255, 255, 255, 0.11);
   --dg-timeline-frame-fill: rgba(255, 255, 255, 0.045);
 }

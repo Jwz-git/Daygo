@@ -28,7 +28,7 @@ const { t } = useI18n()
     </PageHeader>
 
     <div class="body dg-scroll">
-      <div class="content dg-stagger">
+      <div class="content">
         <PlannedNotice
           title-key="daily.workflow.title"
           description-key="daily.workflow.description"

@@ -13,7 +13,8 @@
 
 ## 当前状态与证据
 
-实现进度：**部分实现**。settings-access 已落盘，前端接入未开始。
+实现进度：**部分实现**。settings-access、前端外壳、主题 / 语言本地偏好和设置页面已落盘；
+前端尚未完整切换到生成绑定与后端设置事实来源。
 
 已交付：
 
@@ -23,9 +24,12 @@
 - `internal/app`：`GetSettings` / `UpdateSettings` 绑定与 `SettingsDTO` / `SettingsPatchDTO`；
   `UpdateSettings` 返回生效后的完整设置，`settings:changed` 只带改动键名且仅在提交后发出。
   事件经可注入的 `EventEmitter` 发布，绑定层测试不需要 Wails runtime。
+- `frontend`：路由、侧栏、浅 / 深 / 跟随系统主题、双语切换和设置分区；界面使用 macOS 系统
+  字体优先的中性视觉层级，交互仅保留短促颜色 / 透明度反馈和开关位置过渡。
 
-未交付：前端生成绑定与 wrapper、错误解析、前端单元测试运行器、localStorage 接管迁移。
-`api/dto.ts` 仍是手写子集。页面容器已有，但设置尚未经绑定持久化。
+未交付：前端生成绑定与统一 wrapper、错误解析、前端单元测试运行器、localStorage 接管迁移。
+`api/dto.ts` 仍是手写子集。主题 / 语言仍由 localStorage 持久化，识别增强已接手写薄 wrapper，
+其他设置分区尚未接入后端绑定。
 
 **绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
 绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`（`Store` 还把 `storage.Store` 拉进了生成的
@@ -89,6 +93,7 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 | 2026-09-10 | `npm --prefix frontend run typecheck` | 通过，见 [基线](../09-roadmap.md#当前代码证据) | — |
 | 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/settings/ ./internal/app/`、`-race`、`go build ./...`、`go vet ./...` | 通过；默认值、夹取、patch 只改显式键、失败不留部分写入、单键读与全量读一致、事件只带改动键且仅在提交后发出、重启读回 | 单元通过不等于真实重启交互；前端未接入 |
 | 2026-09-11 / 见本次提交 / macOS arm64 | `llm.recognitionEnhancementEnabled` 新键：settings / app 单元与重启读回、设置页开关经生成绑定读写（Other 分区） | 通过；默认 false、patch 只改显式键、UpdateSettings 返回生效值后前端以后端状态为准展示 | 浏览器预览无 Wails 桥时开关禁用；真实应用内点击交互未验证 |
+| 2026-09-11 / 见本次提交 / 浏览器预览 | 浅 / 深主题切换，时间线 / 每日 / 设置页面人工视觉复核；production build 静态检查 | 通过；系统字体、中性表面、焦点层级清晰，无逐项入场、位移悬浮、放大或无限 shimmer | WebView 实机动画帧率与 VoiceOver 尚未验证 |
 
 前端单元运行器、绑定持久化、重启交互与 localStorage 迁移实验未验收。
 `settings patch`、`localStorage 接管` 两项实验的**前端侧**仍未运行。

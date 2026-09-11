@@ -1,5 +1,6 @@
 export default {
   title: '时间线',
+  developmentFixture: '样例数据 · 仅开发',
   navigation: {
     label: '逻辑日导航',
     backendRequired: '前后日导航将在时间线数据绑定交付后启用',
@@ -22,14 +23,14 @@ export default {
   },
   state: {
     loading: {
-      eyebrow: '正在连接',
-      title: '读取你的时间线',
-      description: '正在向 Daygo Core 请求逻辑日和活动状态。',
+      eyebrow: '正在加载',
+      title: '读取时间线',
+      description: '正在读取当天的活动。',
     },
     unavailable: {
-      eyebrow: '有限前端切片',
+      eyebrow: '暂不可用',
       title: '时间线数据能力尚不可用',
-      description: '界面已经就绪，但卡片仓储与 GetTimelineDay 绑定尚未交付。这里不会使用虚构活动填充生产页面。',
+      description: '时间线数据尚未接入。生产页面不会使用示例活动填充。',
     },
     empty: {
       eyebrow: '今天',
@@ -53,8 +54,8 @@ export default {
     },
   },
   overview: {
-    eyebrow: '逻辑日概览',
-    title: '今天的节奏',
+    eyebrow: '今日概览',
+    title: '时间分布',
     tracked: '已跟踪',
     idle: '空闲',
     noCategories: '有活动后，这里会显示分类用时。',

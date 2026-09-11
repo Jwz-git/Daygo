@@ -36,7 +36,7 @@ const cards = [
     </PageHeader>
 
     <div class="body dg-scroll">
-      <div class="grid dg-stagger">
+      <div class="grid">
         <PlannedNotice
           v-for="card in cards"
           :key="card.key"

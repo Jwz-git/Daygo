@@ -153,6 +153,7 @@ function placed(startTs: number, endTs: number, minimumHeight = 2) {
 <style scoped>
 .timeline-track {
   min-height: 0;
+  padding-top: 7px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -211,12 +212,8 @@ function placed(startTs: number, endTs: number, minimumHeight = 2) {
 
 .range--processing {
   border: 1px solid var(--dg-timeline-processing-border);
-  background:
-    linear-gradient(90deg, transparent 0%, var(--dg-timeline-processing-shine) 48%, transparent 100%),
-    var(--dg-timeline-processing-fill);
-  background-size: 180% 100%, auto;
+  background: var(--dg-timeline-processing-fill);
   color: var(--dg-text-secondary);
-  animation: timeline-shimmer 1.8s linear infinite;
 }
 
 .range--failure {
@@ -258,11 +255,4 @@ function placed(startTs: number, endTs: number, minimumHeight = 2) {
   background: var(--dg-accent);
 }
 
-@keyframes timeline-shimmer {
-  to { background-position: -180% 0, 0 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .range--processing { animation: none; }
-}
 </style>

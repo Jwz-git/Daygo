@@ -38,7 +38,7 @@ const canRetry = computed(() => props.state === 'failure')
   justify-content: center;
   min-height: 420px;
   padding: 48px;
-  border: 1px dashed var(--dg-timeline-grid-strong);
+  border: 1px solid var(--dg-timeline-grid-strong);
   border-radius: var(--dg-card-radius);
   background: var(--dg-timeline-empty-fill);
   text-align: center;
@@ -50,10 +50,9 @@ const canRetry = computed(() => props.state === 'failure')
   height: 76px;
   margin-bottom: 24px;
   border: 1px solid var(--dg-timeline-grid-strong);
-  border-radius: 24px;
+  border-radius: 18px;
   background: var(--dg-card-fill);
   box-shadow: var(--dg-card-shadow);
-  transform: rotate(-4deg);
 }
 
 .state-panel__mark span {
@@ -69,17 +68,12 @@ const canRetry = computed(() => props.state === 'failure')
 .state-panel__mark span:nth-child(2) { top: 35px; right: 26px; }
 .state-panel__mark span:nth-child(3) { top: 48px; right: 21px; }
 
-.state-panel--loading .state-panel__mark span {
-  animation: state-pulse 1.25s ease-in-out infinite alternate;
-}
-
 .state-panel__eyebrow {
   margin-bottom: 7px;
   color: var(--dg-accent-text);
   font-size: 11px;
   font-weight: 650;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .state-panel__title {
@@ -95,11 +89,4 @@ const canRetry = computed(() => props.state === 'failure')
   font-size: 13px;
 }
 
-@keyframes state-pulse {
-  to { opacity: 0.32; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .state-panel--loading .state-panel__mark span { animation: none; }
-}
 </style>

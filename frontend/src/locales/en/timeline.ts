@@ -1,5 +1,6 @@
 export default {
   title: 'Timeline',
+  developmentFixture: 'Sample data · development only',
   navigation: {
     label: 'Logical day navigation',
     backendRequired: 'Previous and next day navigation will unlock with the timeline data binding',
@@ -22,14 +23,14 @@ export default {
   },
   state: {
     loading: {
-      eyebrow: 'Connecting',
-      title: 'Reading your timeline',
-      description: 'Requesting the logical day and activity status from Daygo Core.',
+      eyebrow: 'Loading',
+      title: 'Reading timeline',
+      description: 'Reading activity for this day.',
     },
     unavailable: {
-      eyebrow: 'Limited frontend slice',
+      eyebrow: 'Unavailable',
       title: 'Timeline data is not available yet',
-      description: 'The interface is ready, but card storage and the GetTimelineDay binding have not shipped. Production never fills this view with fictional activity.',
+      description: 'Timeline data is not connected yet. Production never fills this view with sample activity.',
     },
     empty: {
       eyebrow: 'Today',
@@ -53,8 +54,8 @@ export default {
     },
   },
   overview: {
-    eyebrow: 'Logical day overview',
-    title: 'Today’s rhythm',
+    eyebrow: 'Today',
+    title: 'Time breakdown',
     tracked: 'Tracked',
     idle: 'Idle',
     noCategories: 'Category time will appear here once there is activity.',

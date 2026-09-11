@@ -185,9 +185,7 @@ function duration(minutes: number): string {
   margin-bottom: 5px;
   color: var(--dg-accent-text);
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  font-weight: 600;
 }
 
 .inspector__title {

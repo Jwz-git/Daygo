@@ -1,0 +1,185 @@
+{
+  "context": {
+    "day": "2026-09-11",
+    "standupDay": "2026-09-11",
+    "dayStartTs": 1789070400,
+    "dayEndTs": 1789156800,
+    "nowTs": 1789110600,
+    "timeZone": "Asia/Shanghai",
+    "dayBoundaryHour": 4
+  },
+  "day": {
+    "day": "2026-09-11",
+    "dayStartTs": 1789070400,
+    "dayEndTs": 1789156800,
+    "trackedMinutes": 250,
+    "idleMinutes": 75,
+    "generatedAtTs": 1789110600,
+    "categories": [
+      {
+        "id": "focus",
+        "name": "专注工作",
+        "colorHex": "#6C8AE4",
+        "details": "需要持续注意力的工作",
+        "sortOrder": 1,
+        "isSystem": false,
+        "isIdle": false,
+        "createdAtTs": 1789070400,
+        "updatedAtTs": 1789070400
+      },
+      {
+        "id": "communication",
+        "name": "沟通",
+        "colorHex": "#E18A5B",
+        "details": "会议和异步沟通",
+        "sortOrder": 2,
+        "isSystem": false,
+        "isIdle": false,
+        "createdAtTs": 1789070400,
+        "updatedAtTs": 1789070400
+      },
+      {
+        "id": "planning",
+        "name": "规划",
+        "colorHex": "#55A58E",
+        "details": "任务整理和计划",
+        "sortOrder": 3,
+        "isSystem": false,
+        "isIdle": false,
+        "createdAtTs": 1789070400,
+        "updatedAtTs": 1789070400
+      }
+    ],
+    "cards": [
+      {
+        "id": 101,
+        "batchId": 21,
+        "day": "2026-09-11",
+        "start": "09:20",
+        "end": "09:45",
+        "startTs": 1789089600,
+        "endTs": 1789091100,
+        "category": "规划",
+        "subcategory": "项目",
+        "title": "整理今天的工作顺序",
+        "summary": "确认待办范围并安排优先级。",
+        "detailedSummary": "检查当前进度，把需要集中处理的事项排在上午，低优先级工作留到下午。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Daygo", "secondary": "Notes" },
+        "distractions": [],
+        "isIdle": false,
+        "durationMinutes": 25
+      },
+      {
+        "id": 102,
+        "batchId": 22,
+        "day": "2026-09-11",
+        "start": "10:15",
+        "end": "11:05",
+        "startTs": 1789092900,
+        "endTs": 1789095900,
+        "category": "专注工作",
+        "subcategory": "开发",
+        "title": "调整时间线布局与交互",
+        "summary": "收敛页面层级并检查窄窗口布局。",
+        "detailedSummary": "修改时间轨道和详情栏的布局，检查卡片最小高度、时间刻度对齐与键盘焦点。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Visual Studio Code", "secondary": "Safari" },
+        "distractions": [
+          {
+            "id": "d-102-1",
+            "startTime": "10:37",
+            "endTime": "10:41",
+            "title": "短暂查看消息",
+            "summary": "查看通知后返回当前任务。",
+            "videoSummaryUrl": null
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 50
+      },
+      {
+        "id": 103,
+        "batchId": 24,
+        "day": "2026-09-11",
+        "start": "13:20",
+        "end": "14:55",
+        "startTs": 1789104000,
+        "endTs": 1789109700,
+        "category": "专注工作",
+        "subcategory": "开发",
+        "title": "完成前端状态与详情面板",
+        "summary": "补齐加载、失败和选中状态。",
+        "detailedSummary": "集中完成时间线的数据状态、卡片详情以及分类汇总展示。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Visual Studio Code", "secondary": null },
+        "distractions": [],
+        "isIdle": false,
+        "durationMinutes": 95
+      },
+      {
+        "id": 104,
+        "batchId": 25,
+        "day": "2026-09-11",
+        "start": "15:00",
+        "end": "15:10",
+        "startTs": 1789110000,
+        "endTs": 1789110600,
+        "category": "沟通",
+        "subcategory": "同步",
+        "title": "同步测试结果",
+        "summary": "记录构建结果和待确认项。",
+        "detailedSummary": "快速同步当前验证结果，并把仍需实机检查的内容单独列出。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Messages", "secondary": null },
+        "distractions": [],
+        "isIdle": false,
+        "durationMinutes": 10
+      },
+      {
+        "id": 105,
+        "batchId": 26,
+        "day": "2026-09-11",
+        "start": "16:00",
+        "end": "16:40",
+        "startTs": 1789113600,
+        "endTs": 1789116000,
+        "category": "规划",
+        "subcategory": "复盘",
+        "title": "整理后续接入事项",
+        "summary": "列出后端接入和实机验证清单。",
+        "detailedSummary": "根据当前界面切片整理真实数据接入、事件重拉与媒体能力的后续事项。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Daygo", "secondary": "Notes" },
+        "distractions": [],
+        "isIdle": false,
+        "durationMinutes": 40
+      }
+    ],
+    "processingRanges": [
+      { "startTs": 1789116000, "endTs": 1789118400 }
+    ],
+    "failures": [
+      {
+        "batchIds": [27],
+        "startTs": 1789118400,
+        "endTs": 1789119300,
+        "kind": "analysis_timeout",
+        "message": "这个时段尚未完成分析",
+        "retryable": true
+      }
+    ]
+  },
+  "capabilities": {
+    "canWrite": false,
+    "isCaptureOwner": true,
+    "features": [],
+    "appVersion": "dev-fixture",
+    "apiRevision": 0
+  }
+}

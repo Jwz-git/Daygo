@@ -7,6 +7,7 @@ import type {
   TimelineCardDTO,
   TimelineDayDTO,
 } from '@/api/dto'
+import { getTimelineDevelopmentFixture } from '@/api/developmentFixtures'
 import {
   getDayContext,
   getTimelineCapabilities,
@@ -33,6 +34,7 @@ export const useTimelineStore = defineStore('timeline', () => {
   const error = ref<unknown>(null)
   const selectedCardID = ref<number | null>(null)
   const categoryFilter = ref<string | null>(null)
+  const usingDevelopmentFixture = ref(false)
   let requestVersion = 0
   let stopEvents: (() => void) | null = null
 
@@ -61,6 +63,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     loading.value = true
     unavailable.value = false
     error.value = null
+    usingDevelopmentFixture.value = false
 
     try {
       const nextContext = await getDayContext(requestedDay)
@@ -81,8 +84,17 @@ export const useTimelineStore = defineStore('timeline', () => {
     } catch (cause: unknown) {
       if (version !== requestVersion) return
       if (cause instanceof TimelineUnavailableError) {
-        unavailable.value = true
-        day.value = null
+        const fixture = await getTimelineDevelopmentFixture()
+        if (version !== requestVersion) return
+        if (fixture === null) {
+          unavailable.value = true
+          day.value = null
+        } else {
+          context.value = fixture.context
+          day.value = fixture.day
+          capabilities.value = fixture.capabilities
+          usingDevelopmentFixture.value = true
+        }
       } else {
         error.value = cause
       }
@@ -122,6 +134,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     error,
     selectedCardID,
     categoryFilter,
+    usingDevelopmentFixture,
     cards,
     selectedCard,
     state,

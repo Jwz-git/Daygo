@@ -36,36 +36,9 @@ const props = defineProps<{
   min-height: 112px;
   padding: 18px 20px;
   overflow: hidden;
-  border-style: dashed;
-  /*
-   * Scaffolding, not content. Dropping the lifted card shadow and thinning the
-   * fill lets a grid of these (the weekly view stacks six) recede behind real
-   * UI instead of reading as six competing cards.
-   */
-  background: color-mix(in srgb, var(--dg-card-fill) 55%, transparent);
+  /* Planned sections are quiet grouped rows, not promotional cards. */
+  background: color-mix(in srgb, var(--dg-card-fill) 72%, transparent);
   box-shadow: none;
-}
-
-.planned-notice::after {
-  position: absolute;
-  right: -32px;
-  bottom: -44px;
-  width: 104px;
-  height: 104px;
-  border-radius: 50%;
-  /*
-   * A soft ambient wash, not a ringed disc. Repeated down a grid a hard-edged
-   * circle reads as a stamped motif; a faint radial blob reads as texture and
-   * stops competing.
-   */
-  background: radial-gradient(
-    circle at 50% 50%,
-    var(--dg-control-fill) 0%,
-    transparent 72%
-  );
-  content: '';
-  opacity: 0.5;
-  pointer-events: none;
 }
 
 .planned-notice__head {
@@ -90,8 +63,8 @@ const props = defineProps<{
 .planned-notice__status {
   flex: none;
   padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--dg-track-fill);
+  border-radius: 5px;
+  background: var(--dg-hover-fill);
   color: var(--dg-text-tertiary);
   font-size: 11px;
   font-weight: 550;

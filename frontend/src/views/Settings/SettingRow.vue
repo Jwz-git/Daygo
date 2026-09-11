@@ -23,15 +23,11 @@ defineProps<{ title: string; hint?: string }>()
   gap: 18px;
   padding: 17px 18px;
   transition:
-    border-color var(--dg-motion-base) ease,
-    box-shadow var(--dg-motion-base) ease;
+    border-color var(--dg-motion-base) ease;
 }
 
 .row:hover {
   border-color: var(--dg-chip-border);
-  box-shadow:
-    0 14px 34px rgba(25, 18, 30, 0.065),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .row__title {

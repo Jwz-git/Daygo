@@ -22,6 +22,7 @@ const {
   categoryFilter,
   capabilities,
   dayNavigationAvailable,
+  usingDevelopmentFixture,
 } = storeToRefs(timeline)
 const { locale, t } = useI18n()
 
@@ -86,6 +87,9 @@ onBeforeUnmount(() => timeline.stopListening())
       </template>
 
       <template #trail>
+        <span v-if="usingDevelopmentFixture" class="development-badge">
+          {{ t('timeline.developmentFixture') }}
+        </span>
         <div v-if="day" class="day-meta">
           <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>
           <i aria-hidden="true"></i>
@@ -188,6 +192,16 @@ onBeforeUnmount(() => timeline.stopListening())
   color: var(--dg-text-muted);
   font-size: 10px;
   white-space: nowrap;
+}
+
+.development-badge {
+  padding: 3px 7px;
+  border: 1px solid var(--dg-chip-border);
+  border-radius: 5px;
+  background: var(--dg-hover-fill);
+  color: var(--dg-text-tertiary);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .day-meta i {

@@ -22,7 +22,7 @@ const props = defineProps<{ title: string }>()
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 30px var(--dg-page-padding) 20px;
+  padding: 26px var(--dg-page-padding) 18px;
 }
 
 .page-header__lead,
@@ -35,7 +35,7 @@ const props = defineProps<{ title: string }>()
 
 .page-header__title {
   color: var(--dg-text-primary);
-  font-size: 28px;
+  font-size: 25px;
   line-height: 1.08;
   white-space: nowrap;
 }

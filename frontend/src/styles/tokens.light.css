@@ -15,28 +15,14 @@
   color-scheme: light;
 
   /* window */
-  --dg-window-bg:
-    radial-gradient(
-      120% 95% at 90% 106%,
-      rgba(247, 190, 148, 0.38) 0%,
-      transparent 56%
-    ),
-    radial-gradient(
-      115% 90% at 4% -8%,
-      rgba(163, 196, 238, 0.46) 0%,
-      transparent 58%
-    ),
-    linear-gradient(148deg, #edf1f8 0%, #f2f1f5 56%, #f9f1ea 100%);
-  --dg-window-padding: 12px;
+  --dg-window-bg: #e8e8eb;
+  --dg-window-padding: 8px;
 
   /* panel */
-  --dg-panel-fill: rgba(253, 253, 254, 0.78);
-  --dg-panel-border: rgba(255, 255, 255, 0.9);
-  --dg-panel-shadow:
-    0 26px 64px rgba(58, 48, 66, 0.11),
-    0 2px 8px rgba(58, 48, 66, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  --dg-panel-radius: 6px;
+  --dg-panel-fill: rgba(249, 249, 250, 0.94);
+  --dg-panel-border: rgba(0, 0, 0, 0.1);
+  --dg-panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --dg-panel-radius: 10px;
 
   /* text */
   --dg-text-primary: #29282f;
@@ -79,8 +65,8 @@
   --dg-chip-text: #3e3c44;
 
   /* buttons (→ primaryButton* / secondaryButton*) */
-  --dg-button-primary-fill: linear-gradient(180deg, #f99b6b 0%, #ef7d48 100%);
-  --dg-button-primary-hover: linear-gradient(180deg, #f79261 0%, #e8703d 100%);
+  --dg-button-primary-fill: #ef7d48;
+  --dg-button-primary-hover: #e5703e;
   --dg-button-primary-border: rgba(208, 91, 41, 0.3);
   --dg-button-primary-text: #ffffff;
   --dg-button-secondary-fill: rgba(255, 255, 255, 0.66);
@@ -97,21 +83,17 @@
   --dg-rail-icon-size: 18px;
   --dg-rail-selection-size: 33px;
   --dg-rail-selection-radius: 7px;
-  --dg-rail-selection-fill: rgba(255, 255, 255, 0.58);
-  --dg-rail-selection-border: rgba(255, 255, 255, 0.82);
-  --dg-rail-selection-shadow:
-    0 8px 22px rgba(78, 62, 79, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  --dg-rail-selection-fill: rgba(255, 255, 255, 0.72);
+  --dg-rail-selection-border: rgba(0, 0, 0, 0.08);
+  --dg-rail-selection-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   --dg-rail-label-size: 12px;
 
   /* cards */
-  --dg-card-fill: rgba(255, 255, 255, 0.52);
+  --dg-card-fill: rgba(255, 255, 255, 0.64);
   --dg-card-border: rgba(65, 58, 70, 0.13);
-  --dg-card-shadow:
-    0 10px 28px rgba(68, 51, 67, 0.055),
-    inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
   --dg-card-time: #96939c;
-  --dg-card-radius: 6px;
+  --dg-card-radius: 9px;
 
   /* timeline */
   --dg-timeline-time-width: 66px;
@@ -122,19 +104,18 @@
   --dg-timeline-card-hover: rgba(255, 255, 255, 0.82);
   --dg-timeline-card-selected: rgba(255, 255, 255, 0.9);
   --dg-timeline-card-border: rgba(65, 58, 70, 0.13);
-  --dg-timeline-card-shadow: 0 5px 16px rgba(68, 51, 67, 0.05);
+  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.045);
   --dg-timeline-inspector-fill: rgba(255, 255, 255, 0.36);
   --dg-timeline-empty-fill: rgba(255, 255, 255, 0.18);
   --dg-timeline-placeholder: rgba(95, 87, 100, 0.2);
   --dg-timeline-processing-fill: rgba(103, 128, 177, 0.08);
   --dg-timeline-processing-border: rgba(103, 128, 177, 0.16);
-  --dg-timeline-processing-shine: rgba(255, 255, 255, 0.48);
   --dg-timeline-frame-fill: rgba(94, 84, 99, 0.055);
 
   /* motion */
-  --dg-motion-fast: 120ms;
-  --dg-motion-base: 180ms;
-  --dg-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dg-motion-fast: 100ms;
+  --dg-motion-base: 160ms;
+  --dg-ease-out: cubic-bezier(0.25, 0.1, 0.25, 1);
 
   /* page geometry */
   --dg-inspector-width: 363px;

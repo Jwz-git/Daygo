@@ -18,7 +18,9 @@
 [timeutil](../../internal/timeutil/timeutil.go)、[日期绑定](../../internal/app/backend.go)
 和 [时间线前端切片](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
 时钟串派生、周边界、完整属性测试、analysis / ai 服务、卡片存储、帧资源和真实绑定尚未实现；
-生产页在 `GetTimelineDay` 缺失时明确显示不可用，不返回 fixture 数据。
+生产页在 `GetTimelineDay` 缺失时明确显示不可用，不返回 fixture 数据。Vite 开发服务会在绑定
+缺失时从 `frontend/dev-fixtures/timeline.json` 提供一组匿名只读样例，并在页面上明确标记
+“仅开发”；夹具位于 `src` 外且 production bundle 不包含其 payload 或请求路径。
 
 ## 能力与跨层职责
 
@@ -82,3 +84,8 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 浏览器夹具人工复核浅 / 深主题、1440×900 双栏、窄窗折叠、小时刻度、短卡片、长空白、
 失败 / 处理中区间、分类筛选与详情切换。production bundle 已检查不含夹具哨兵文本。
 这只证明前端呈现与状态边界，不证明 cards、媒体、写操作、真实闭环或长期稳定性。
+
+2026-09-11：前端视觉收敛为系统字体、中性窗口材质、低阴影和无位移悬浮反馈；删除逐项入场、
+漂浮、放大、光晕与无限 shimmer。Vite 开发服务增加可删除的匿名时间线夹具，浏览器人工复核
+浅 / 深主题、时间比例、详情选中和开发数据标记；production build 检查不含样例活动与 dev
+fixture endpoint。这是开发验收便利设施，不构成生产数据或 G-loop 证据。

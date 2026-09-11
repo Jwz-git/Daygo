@@ -36,8 +36,7 @@ const props = defineProps<{
   color: var(--dg-text-secondary);
   text-decoration: none;
   transition:
-    color var(--dg-motion-fast) ease,
-    transform var(--dg-motion-base) var(--dg-ease-out);
+    color var(--dg-motion-fast) ease;
 }
 
 .rail-item__glyph {
@@ -50,8 +49,7 @@ const props = defineProps<{
   transition:
     background var(--dg-motion-base) ease,
     border-color var(--dg-motion-base) ease,
-    box-shadow var(--dg-motion-base) ease,
-    transform var(--dg-motion-base) var(--dg-ease-out);
+    box-shadow var(--dg-motion-base) ease;
 }
 
 .rail-item__icon {
@@ -69,12 +67,10 @@ const props = defineProps<{
 
 .rail-item:hover {
   color: var(--dg-text-primary);
-  transform: translateY(-1px);
 }
 
 .rail-item:hover .rail-item__glyph {
   background: var(--dg-hover-fill);
-  transform: scale(1.04);
 }
 
 .rail-item.is-active {
