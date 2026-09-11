@@ -8,6 +8,12 @@ type Capture interface {
 	Capture(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 }
 
+// ApplicationInspector resolves the stable identity of one user-selected
+// application bundle. It owns no picker UI and never retains the supplied path.
+type ApplicationInspector interface {
+	InspectApplication(ctx context.Context, path string) (AppInfo, error)
+}
+
 // Media decodes frames out of segments and encodes timelapses. These signatures
 // remain implementation-neutral until the M2 codec decision.
 type Media interface {

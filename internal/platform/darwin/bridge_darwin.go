@@ -6,7 +6,7 @@ package darwin
 #cgo CFLAGS: -I${SRCDIR}/../../../native/include
 #cgo LDFLAGS: ${SRCDIR}/../../../build/native/darwin/universal/libdaygo_capture.a
 #cgo LDFLAGS: -framework CoreGraphics -framework Foundation -framework ImageIO
-#cgo LDFLAGS: -framework ScreenCaptureKit -framework Security -framework UniformTypeIdentifiers
+#cgo LDFLAGS: -framework ScreenCaptureKit -framework UniformTypeIdentifiers
 #cgo LDFLAGS: -Wl,-rpath,/usr/lib/swift
 #include <stdlib.h>
 #include "daygo_capture.h"

@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="$ROOT_DIR/build/native/darwin"
-HEADER="$ROOT_DIR/native/include/daygo_capture.h"
+HEADER="$ROOT_DIR/native/include/daygo_native.h"
 SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
 SOURCES=("$ROOT_DIR"/native/darwin/Sources/*.swift)
 ARCHIVES=()
@@ -31,7 +31,6 @@ for arch in arm64 x86_64; do
     -framework Foundation \
     -framework ImageIO \
     -framework ScreenCaptureKit \
-    -framework Security \
     -framework UniformTypeIdentifiers \
     "${SOURCES[@]}" \
     -o "$archive"

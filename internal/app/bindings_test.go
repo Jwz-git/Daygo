@@ -18,6 +18,7 @@ var contractBindings = []string{
 	"GetRecordingState",
 	"GetSettings",
 	"OpenCaptureTestFolder",
+	"PickCaptureTestApplication",
 	"OpenSystemSettings",
 	"RequestScreenRecordingPermission",
 	"TestProviderConnection",

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import PageHeader from '@/components/PageHeader.vue'
-import { captureTest, openCaptureTestFolder, WAILS_UNAVAILABLE, type CaptureTestResult } from '@/api/captureTest'
+import { captureTest, openCaptureTestFolder, pickCaptureTestApplication, WAILS_UNAVAILABLE, type CaptureTestResult } from '@/api/captureTest'
 
 const { t } = useI18n()
 
@@ -18,6 +18,8 @@ const durationSeconds = ref(60)
 const running = ref(false)
 const busy = ref(false)
 const error = ref('')
+const selectingApplication = ref(false)
+const selectedApplicationLabel = ref('')
 const results = ref<CaptureTestResult[]>([])
 let timer: ReturnType<typeof setInterval> | undefined
 let stopTimer: ReturnType<typeof setTimeout> | undefined
@@ -39,6 +41,27 @@ function request() {
     blockedApplicationIds: blockedApplicationIds.value,
   }
 }
+async function chooseBlockedApplication(): Promise<void> {
+  if (selectingApplication.value || running.value) return
+  selectingApplication.value = true
+  error.value = ''
+  try {
+    const application = await pickCaptureTestApplication()
+    if (application === null) return
+    if (!blockedApplicationIds.value.includes(application.id)) {
+      const current = blockedApplicationIdsText.value.trim()
+      blockedApplicationIdsText.value = current === '' ? application.id : `${current}\n${application.id}`
+    }
+    selectedApplicationLabel.value = `${application.name} (${application.id})`
+  } catch (cause: unknown) {
+    error.value = cause instanceof Error && cause.message === WAILS_UNAVAILABLE
+      ? t('captureTest.errors.wailsUnavailable')
+      : cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    selectingApplication.value = false
+  }
+}
+
 
 async function captureOnce(): Promise<void> {
   if (busy.value) return
@@ -129,10 +152,16 @@ onBeforeUnmount(stopSchedule)
           <input v-model="showsCursor" type="checkbox">
           <span>{{ t('captureTest.showsCursor') }}</span>
         </label>
-        <label class="field">
+        <div class="field">
           <span class="dg-field-label">{{ t('captureTest.blockedApplicationIds') }}</span>
           <textarea v-model="blockedApplicationIdsText" class="dg-input textarea" rows="3" :placeholder="t('captureTest.blockedPlaceholder')" spellcheck="false" />
-        </label>
+          <div class="application-selection">
+            <button class="dg-button" :disabled="selectingApplication || running" type="button" @click="chooseBlockedApplication">
+              {{ selectingApplication ? t('captureTest.selectingApplication') : t('captureTest.chooseApplication') }}
+            </button>
+            <span v-if="selectedApplicationLabel" class="hint">{{ selectedApplicationLabel }}</span>
+          </div>
+        </div>
       </section>
 
       <section class="dg-card form-card" :aria-label="t('captureTest.schedule')">
@@ -222,6 +251,13 @@ h2 {
 .textarea {
   resize: vertical;
 }
+.application-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 
 .check {
   display: flex;

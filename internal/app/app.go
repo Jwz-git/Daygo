@@ -45,6 +45,7 @@ func Run() error {
 
 	backend := NewBackend(nil, nil)
 	backend.setCapture(factory.NewCapture())
+	backend.setApplicationInspector(factory.NewApplicationInspector())
 	// The emitter publishes to the frontend once Wails supplies a context in
 	// OnStartup; before that it drops events, which is correct because a window
 	// that does not exist yet has no listener.
@@ -103,6 +104,7 @@ func Run() error {
 		// require a live context.
 		OnStartup: func(ctx context.Context) {
 			emitter.SetContext(ctx)
+			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx})
 		},
 		Mac: &mac.Options{
 			/*

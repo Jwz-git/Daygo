@@ -26,9 +26,10 @@ Windows 侧另有一份同 ABI 的 DXGI 实现（`internal/platform/windows` + `
 无法打开数据库。以上不改变本模块的验收口径。
 [Capture fake](../../internal/platform/fake/capture.go)、
 [契约套件](../../internal/platform/platformtest/suite.go)、
-`internal/app/capture_test_binding.go` 和 `frontend/src/views/CaptureTest/CaptureTestView.vue` 提供临时
-联调页面：配置输出目录、文件名前缀、目标高度、JPEG 质量、光标和屏蔽 Bundle ID，可单次或限时定时
-调用，并打开最近输出目录。该页面不接 recorder、正式 settings 或数据库。
+`internal/app/capture_test_binding.go`、`capture_test_application_binding.go` 和
+`frontend/src/views/CaptureTest/CaptureTestView.vue` 提供临时联调页面：可通过 Wails 原生面板
+选择 `.app`，把 ScreenCaptureKit 使用的 Bundle ID 加入屏蔽名单，再配置截图参数单次或限时调用并
+打开输出目录。路径不跨绑定且不持久化；该页面不接 recorder、正式 settings 或数据库。
 Media、完整 System、recorder、storage pending 恢复和后台生命周期尚未实现。
 
 ## 能力与跨层职责
@@ -96,3 +97,13 @@ darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子�
 检查 JPEG 文件存在、非空且返回文件大小一致；fake binding 行为测试、Go 全量测试、前端 typecheck/build
 和文档链接检查通过。Wails 原生窗口中的页面视觉检查受当前 headless 环境限制，已用 Vite 页面和无障碍
 树确认路由、导航入口、配置控件与操作按钮渲染；定时与 Finder 长期观察仍未验收。
+
+2026-09-11：新增独立 macOS 应用 Bundle ID ABI 与 `platform.ApplicationInspector`。对
+`/System/Applications/Calculator.app` 的 Go → cgo → Swift smoke 返回 `Calculator` /
+`com.apple.calculator`；arm64 + x86_64 universal archive、binding 行为测试和前端 typecheck 通过。
+Wails 原生 `.app` 面板等待人工视觉验收；helper / XPC 和 MC 隐私矩阵未验收。
+
+2026-09-11：应用身份改为与 `SCRunningApplication.bundleIdentifier` 一致的 Bundle ID，不再把
+代码签名资源完整性作为屏蔽名单接入条件。资源被 Custom UI Style 修改的 VS Code smoke 返回
+`Code` / `com.microsoft.VSCode`；无签名测试 bundle 的回归测试通过。前台兜底同步改用
+`NSRunningApplication.bundleIdentifier`，避免与 ScreenCaptureKit 使用不同身份来源。

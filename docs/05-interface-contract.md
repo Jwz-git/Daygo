@@ -79,9 +79,10 @@ flowchart TD
 | data | GetDiagnostics | 可观测封装及各功能真实诊断来源 |
 | delivery | 更新状态和检查 | Updater、安全重启与身份 / 分发验证 |
 
-当前挂在 `Backend` 上、属于正式契约的绑定方法仍按 §5.2.1 计数；另有一个明确标注为临时用途的
-`CaptureTest` 联调绑定，用于在 recorder 尚未装配前验证真实 Capture ABI。它不读写数据库、不读取
-正式配置，且不应被正式产品页面依赖。
+当前挂在 `Backend` 上、属于正式契约的绑定方法仍按 §5.2.1 计数；另有明确标注为临时用途的
+`CaptureTest`、`PickCaptureTestApplication` 与 `OpenCaptureTestFolder` 联调绑定，用于在 recorder
+尚未装配前验证真实 Capture 和应用身份 ABI。它们不读写数据库、不读取正式配置，且不应被正式
+产品页面依赖。
 
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
@@ -89,7 +90,7 @@ flowchart TD
 | timeline | `GetDayContext` | 真实 4 点边界计算 |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
-| recording（联调） | `CaptureTest` | 直接调用平台 `Capture`，仅生成测试 JPEG，不接 recorder / storage / config |
+| recording（联调） | `CaptureTest`、`PickCaptureTestApplication`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；macOS picker 只返回 ScreenCaptureKit 使用的 `{bundle id, name}`，路径不跨绑定；均不接 recorder / storage / config |
 | providers | `TestProviderConnection` | 真实 HTTP 探针；provider 的增删改查与密钥存储尚未实现 |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
@@ -300,6 +301,7 @@ export function toApiError(e: unknown): ApiError {
 |------|----------|----------|------|------|-----------|
 | `GetRecordingState() (RecordingStateDTO, error)` | recording | System / recorder 实际状态 | 读 | — | — |
 | `CaptureTest(request CaptureTestRequestDTO) (CaptureTestResultDTO, error)` | recording（联调） | Capture 适配器 | 写·测试 | — | `invalid_argument` `permission_denied` `native_unavailable` |
+| `PickCaptureTestApplication() (*CaptureTestApplicationDTO, error)` | recording（联调） | Wails picker / ApplicationInspector | 写·测试 | — | `invalid_argument` `native_unavailable` |
 | `OpenCaptureTestFolder(path string) error` | recording（联调） | 系统文件管理器 | 写·测试 | — | `invalid_argument` `not_found` `native_unavailable` |
 | `SetRecording(enabled bool) error` | recording | capture / db-core / 授权 | 写·幂等 | `recording:state` | `permission_denied` `not_capture_owner` `native_unavailable` |
 | `PauseRecording(minutes int) error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | `invalid_argument` `not_capture_owner` |

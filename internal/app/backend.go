@@ -51,10 +51,12 @@ func (nopEmitter) Emit(EventName, any) {}
 // a binding method stays unexported, however inconvenient; bindings_test.go
 // fails when the two disagree.
 type Backend struct {
-	clock   Clock
-	system  platform.System
-	capture platform.Capture
-	storage *storage.Store
+	clock                Clock
+	system               platform.System
+	capture              platform.Capture
+	applicationInspector platform.ApplicationInspector
+	applicationPicker    applicationPicker
+	storage              *storage.Store
 
 	// canWrite and isCaptureOwner are the fallback ownership values used when
 	// no store is attached. With a store present they are ignored in favor of
@@ -95,6 +97,18 @@ func (b *Backend) setEventEmitter(emitter EventEmitter) {
 // unexported because the adapter is an implementation detail, not a binding.
 func (b *Backend) setCapture(capture platform.Capture) {
 	b.capture = capture
+}
+
+// setApplicationInspector installs the native identity resolver used by the
+// temporary capture test picker.
+func (b *Backend) setApplicationInspector(inspector platform.ApplicationInspector) {
+	b.applicationInspector = inspector
+}
+
+// setApplicationPicker installs UI interaction after Wails provides its live
+// runtime context. It stays separate from identity inspection for headless tests.
+func (b *Backend) setApplicationPicker(picker applicationPicker) {
+	b.applicationPicker = picker
 }
 
 // emitSettingsChanged publishes the keys a settings write committed.

@@ -10,6 +10,8 @@ export default {
   showsCursor: '在截图中显示光标',
   blockedApplicationIds: '屏蔽的应用 Bundle ID（每行一个）',
   blockedPlaceholder: '例如：com.apple.Terminal',
+  chooseApplication: '选择应用',
+  selectingApplication: '正在选择…',
   schedule: '定时测试',
   intervalSeconds: '间隔（秒，0 表示不定时）',
   durationSeconds: '持续时间（秒）',

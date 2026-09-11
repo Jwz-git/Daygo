@@ -57,6 +57,7 @@
 |---|---|---|
 | [屏幕截屏：单次调用契约与原生 ABI](decisions/recording-screen-capture.md) | 契约已冻结 | 跨平台原始规格、Go `Capture` 契约、C ABI v1 与真机门禁 |
 | [屏幕截屏 v2：macOS 实现与上层调用](decisions/recording-screen-capture-v2.md) | 有限实现 | Swift / cgo 路径、调用不变量、错误处理、调试与 recorder 接入边界 |
+| [macOS 应用选择与身份 ABI](decisions/recording-application-picker.md) | 有限实现 | Wails `.app` picker、签名身份校验、独立 Go 端口与临时联调 binding |
 | [屏幕截屏（Windows）：DXGI 实现与限制](decisions/recording-screen-capture-windows.md) | 有限实机验证，**不在发布范围** | DXGI 路径、与 macOS 的四条差异、真机 smoke 与未验证矩阵 |
 | [图片存储流水线](decisions/recording-image-storage.md) | 架构方向已决定，未实现 | staging JPEG、不可变分段、整段清理与 LLM 内存图片发送 |
 | [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |

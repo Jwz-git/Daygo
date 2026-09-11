@@ -10,6 +10,8 @@ export default {
   showsCursor: 'Include the cursor in the image',
   blockedApplicationIds: 'Blocked application Bundle IDs (one per line)',
   blockedPlaceholder: 'For example: com.apple.Terminal',
+  chooseApplication: 'Choose application',
+  selectingApplication: 'Choosing…',
   schedule: 'Timed test',
   intervalSeconds: 'Interval (seconds, 0 disables timer)',
   durationSeconds: 'Duration (seconds)',

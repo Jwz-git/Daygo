@@ -141,15 +141,19 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 | 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 实现与 ABI 语义之间的已知缺口 |
 | 屏幕录制授权（第 1–3 项） | 端口已定义，适配层未实现 | 系统无对应授权 | macOS 未接入前，绑定返回 `native_unavailable` |
 | 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
+| 应用选择身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 Bundle ID ABI | unsupported | 只解析一个用户选择的 bundle；不等于 `InstalledApplications` 已实现 |
 | 其余 14 项（第 4、8–11、14–22 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
 `native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是
 `build/native/darwin/universal/libdaygo_capture.a` 与
-`build/native/windows/amd64/libdaygo_capture.a`。两者共用
-[`native/include/daygo_capture.h`](../native/include/daygo_capture.h) 这一份 ABI 定义。
+`build/native/windows/amd64/libdaygo_capture.a`。截图与应用身份分别使用
+[`native/include/daygo_capture.h`](../native/include/daygo_capture.h) 和
+[`native/include/daygo_application.h`](../native/include/daygo_application.h) 两份独立 ABI；
+Swift 编译通过 `daygo_native.h` 同时导入，截图请求布局未改变。
 
 实现细节与限制：[macOS 截图 v2](decisions/recording-screen-capture-v2.md)、
+[macOS 应用选择与身份 ABI](decisions/recording-application-picker.md)、
 [Windows 截图](decisions/recording-screen-capture-windows.md)；
 真机验收矩阵：[08 §8.6.2 MC](08-testing-strategy.md#862-mc真实-macos-捕获矩阵)、
 [§8.6.3 WC](08-testing-strategy.md#863-wc真实-windows-捕获矩阵)。

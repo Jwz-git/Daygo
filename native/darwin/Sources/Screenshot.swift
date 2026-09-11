@@ -1,6 +1,6 @@
+import AppKit
 import CoreGraphics
 import Foundation
-import Security
 @preconcurrency import ScreenCaptureKit
 
 enum ScreenshotFailure: Error, Sendable {
@@ -184,27 +184,10 @@ private func frontmostVisibleApplicationIdentifier() -> String? {
         else {
             continue
         }
-        var dynamicCode: SecCode?
-        let attributes = [kSecGuestAttributePid: pid] as CFDictionary
-        guard SecCodeCopyGuestWithAttributes(nil, attributes, [], &dynamicCode) == errSecSuccess,
-              let dynamicCode
-        else {
-            continue
-        }
-        var staticCode: SecStaticCode?
-        guard SecCodeCopyStaticCode(dynamicCode, [], &staticCode) == errSecSuccess,
-              let staticCode
-        else {
-            continue
-        }
-        var information: CFDictionary?
-        guard SecCodeCopySigningInformation(
-            staticCode,
-            SecCSFlags(rawValue: kSecCSSigningInformation),
-            &information
-        ) == errSecSuccess,
-            let dictionary = information as? [CFString: Any],
-            let identifier = dictionary[kSecCodeInfoIdentifier] as? String
+        guard let identifier = NSRunningApplication(
+            processIdentifier: pid
+        )?.bundleIdentifier,
+            !identifier.isEmpty
         else {
             continue
         }
