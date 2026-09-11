@@ -12,8 +12,13 @@
 
 ## 当前状态与证据
 
-实现进度：仅 [页面骨架](../../frontend/src/views/Daily/DailyView.vue)，功能未开始。
-单元、fake、真实集成均未验收。现有 timeutil 可复用，但不证明摘要、日记或通知已实现。
+实现进度：部分实现。已落盘可接入的 [每日页面](../../frontend/src/views/Daily/DailyView.vue)、
+[集中式 store](../../frontend/src/stores/daily.ts) 与薄
+[API wrapper](../../frontend/src/api/daily.ts)：按后端 `dayStartTs/dayEndTs` 和卡片时间戳呈现
+15 分钟工作流、派生指标及只读日报，并区分整页不可用与仅日报不可用 / 失败。
+[开发专用匿名样例](../../frontend/dev-fixtures/daily.json) 由 Vite dev middleware 提供，生产构建
+无该数据路径。存储、文本生成、编辑、目标、日记和通知仍未实现；现有 timeutil 可复用，
+但不证明这些能力可用。
 
 ## 能力与跨层职责
 
@@ -41,7 +46,8 @@ repository 位于 internal/storage。notifications 设置、日记 / 目标表�
 
 ## 实现切片与集成
 
-1. 固定日期、日记、目标及文本 fixture；写明生成触发 / 刷新和错误交互，先消除契约缺口。
+1. **部分完成**：固定日期、卡片及只读日报 fixture，完成工作流 / 指标 / 日报呈现；日记与目标
+   fixture、生成触发 / 刷新和错误交互仍待契约决策。
 2. 在 storage 加所需迁移与 repository，独立验证保存、查询和重启；复用 time / cards。
 3. 通过客户端接口生成并存储摘要，保持 insight 只读；fixture 后接真实服务。
 4. 补 System 通知 fake / 原生与提醒设置；接每日绑定、事件、store、UI 和完整空 / 错误 / 加载态。
@@ -59,5 +65,13 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。
 
 ## 验证记录
 
-目前仅有页面骨架；本模块的行为、存储、文本与通知验收均未运行。
-每次验证记录 commit、时区、匿名卡片、预期 / 实际结果及限制。
+2026-09-11 前端切片验证（Asia/Shanghai，6 张匿名卡片 + 1 份匿名日报）：
+
+- `npm --prefix frontend run typecheck` 与 `npm --prefix frontend run build` 通过；
+- 浏览器人工检查浅 / 深主题、700px 窄窗口、中英文界面与复制反馈通过；时间网格在窄窗口
+  保持独立横向滚动；
+- 生产 bundle 检查不含匿名日报文本、`/__daygo_dev__/daily` 或 `dev-fixture`；
+- 这些证据只覆盖前端呈现和开发夹具隔离。真实 Wails 绑定、数据库往返、生成、通知、
+  macOS WebView 长期表现及完整用户闭环未验收。
+
+后续每次验证继续记录 commit、时区、匿名卡片、预期 / 实际结果及限制。
