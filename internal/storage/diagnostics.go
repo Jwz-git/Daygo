@@ -22,12 +22,34 @@ type Stats struct {
 	// docs/05 §5.6.2 rule 4 makes silently dropping cards a defect, so the
 	// counter is part of the contract rather than an optional extra.
 	SkippedCards int64
+
 	// RecordingsBytes sums screenshots.file_size over live rows (docs/03 §3.4).
 	// An empty recording schema is an available source and reports zero.
 	RecordingsBytes int64
-	// RecordingsAvailable reports whether the screenshots table exists.
+	// RecordingsAvailable reports whether the screenshots table exists. When it
+	// does not, RecordingsBytes is meaningless rather than zero.
 	RecordingsAvailable bool
+
+	// LastCaptureAtTs is the newest committed frame's timestamp, nil when no
+	// frame has been committed yet. It is a pointer because "no capture has
+	// happened" and "the newest capture was at the epoch" are different facts.
+	LastCaptureAtTs *int64
+
+	// PendingBatches counts batches still queued or in flight.
+	PendingBatches int
+	// FailedBatches counts batches that ended in a failure state and can be
+	// retried (docs/03 §3.3.1).
+	FailedBatches int
+	// BatchesAvailable reports whether the analysis_batches table exists.
+	BatchesAvailable bool
 }
+
+// Batch status values this package filters on. They mirror the closed set in
+// docs/03 §3.3.1; the query strings below are the only place they appear.
+const (
+	pendingBatchFilter = `status IN ('pending', 'processing')`
+	failedBatchFilter  = `status IN ('failed', 'failed_empty')`
+)
 
 // skippedCards counts cards dropped because their clock string could not be
 // parsed. It is process-local: the pipeline that produces them is also
@@ -78,6 +100,35 @@ func (s *Store) Stats(ctx context.Context) (Stats, error) {
 			"SELECT COALESCE(SUM(file_size), 0) FROM screenshots WHERE is_deleted = 0",
 		).Scan(&stats.RecordingsBytes); err != nil {
 			return Stats{}, wrap("sum recordings bytes", err)
+		}
+
+		// MAX over an empty table is NULL, which is the honest answer for "no
+		// frame has been committed" and must not be flattened to zero.
+		var last sql.NullInt64
+		if err := s.db.QueryRowContext(ctx,
+			"SELECT MAX(captured_at) FROM screenshots WHERE is_deleted = 0",
+		).Scan(&last); err != nil {
+			return Stats{}, wrap("read last capture", err)
+		}
+		if last.Valid {
+			stats.LastCaptureAtTs = &last.Int64
+		}
+	}
+
+	stats.BatchesAvailable, err = s.tableExists(ctx, "analysis_batches")
+	if err != nil {
+		return Stats{}, err
+	}
+	if stats.BatchesAvailable {
+		if err := s.db.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM analysis_batches WHERE "+pendingBatchFilter,
+		).Scan(&stats.PendingBatches); err != nil {
+			return Stats{}, wrap("count pending batches", err)
+		}
+		if err := s.db.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM analysis_batches WHERE "+failedBatchFilter,
+		).Scan(&stats.FailedBatches); err != nil {
+			return Stats{}, wrap("count failed batches", err)
 		}
 	}
 

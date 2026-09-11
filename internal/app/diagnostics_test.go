@@ -1,8 +1,10 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/storage"
@@ -78,20 +80,73 @@ func TestDiagnosticsReportsReadOnlyInstance(t *testing.T) {
 
 // Counters whose data source does not exist must say so rather than report a
 // zero that reads as "nothing happened".
-func TestDiagnosticsNamesUnavailableDataSources(t *testing.T) {
+// The recording and analysis schemas ship in the migration chain, so these
+// fields have real data sources. An empty schema reports zero — or no capture
+// at all — which is a different fact from an unavailable source and must not be
+// labelled as one.
+//
+// This test previously asserted the opposite, back when the tables did not
+// exist and the counters could only be reported as unavailable. The expectation
+// changed because the schema shipped, not because the assertion was
+// inconvenient; the "table absent" branch is covered in internal/storage, where
+// that state can actually be constructed.
+func TestDiagnosticsReportsRealSourcesWhenSchemaPresent(t *testing.T) {
 	store := openTestStore(t, t.TempDir(), false)
 
 	dto, err := newBackend(fixedClock{}, nil, store, false, false).GetDiagnostics()
 	if err != nil {
 		t.Fatalf("GetDiagnostics: %v", err)
 	}
-	for _, field := range []string{"pendingBatches", "failedBatches", "lastCaptureAtTs"} {
-		if dto.Unavailable[field] == "" {
-			t.Errorf("%s has no data source yet but is not listed as unavailable", field)
+
+	for _, field := range []string{
+		"recordingsBytes", "lastCaptureAtTs", "pendingBatches", "failedBatches",
+	} {
+		if reason, ok := dto.Unavailable[field]; ok {
+			t.Errorf("%s reported unavailable (%q) although its schema exists", field, reason)
 		}
 	}
-	if _, ok := dto.Unavailable["recordingsBytes"]; ok {
-		t.Fatal("recordingsBytes is unavailable despite the recording schema")
+
+	if dto.RecordingsBytes != 0 {
+		t.Errorf("recordingsBytes = %d on an empty recording schema", dto.RecordingsBytes)
+	}
+	// No frame has been committed, so there is no last capture time. Reporting
+	// zero here would claim a capture at the Unix epoch.
+	if dto.LastCaptureAtTs != nil {
+		t.Errorf("lastCaptureAtTs = %d with no committed frame", *dto.LastCaptureAtTs)
+	}
+	if dto.PendingBatches != 0 || dto.FailedBatches != 0 {
+		t.Errorf("batches = %d pending / %d failed on an empty schema",
+			dto.PendingBatches, dto.FailedBatches)
+	}
+}
+
+// Committed frames must reach the DTO: this is the path that lets the
+// diagnostics screen show real disk usage instead of a permanent zero.
+func TestDiagnosticsReflectsCommittedFrames(t *testing.T) {
+	store := openTestStore(t, t.TempDir(), false)
+	ctx := context.Background()
+
+	capturedAt := time.Unix(1700000000, 0)
+	id, err := store.Captures().Begin(ctx, "2026/09/12/segment-0001", capturedAt, nil, 1920, 1080, false)
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	if err := store.Captures().Commit(ctx, id, 4096); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	dto, err := newBackend(fixedClock{}, nil, store, false, false).GetDiagnostics()
+	if err != nil {
+		t.Fatalf("GetDiagnostics: %v", err)
+	}
+	if dto.RecordingsBytes != 4096 {
+		t.Errorf("recordingsBytes = %d, want 4096", dto.RecordingsBytes)
+	}
+	if dto.LastCaptureAtTs == nil {
+		t.Fatal("lastCaptureAtTs is nil after a committed frame")
+	}
+	if *dto.LastCaptureAtTs != capturedAt.Unix() {
+		t.Errorf("lastCaptureAtTs = %d, want %d", *dto.LastCaptureAtTs, capturedAt.Unix())
 	}
 }
 

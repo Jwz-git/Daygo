@@ -35,14 +35,20 @@
 
 录制清理仍未开始（阻塞于 `screenshots` 表与 `Media`，见下）。
 
+**跨模块边界已由各模块自行补齐**：诊断原先依赖 recording 的 `screenshots` 与 timeline 的
+`analysis_batches`，两张表当时都不存在，data 按「禁止一次性建设未使用的全部目标表」选择了
+不代建、如实报告为不可用。现在 recording 与 timeline 已各自把表提交进同一条迁移链
+（v2 建 `timeline_cards` / `categories` / `analysis_batches`，v3 建 `pending_captures` /
+`screenshots`），因此：`recordingsBytes`、`lastCaptureAtTs`、`pendingBatches`、`failedBatches`
+改为查询真实数据源；`lastCaptureAtTs` 用指针表达「尚无已提交帧」，不把缺失压成零。
+
+诊断的「来源不存在」分支仍然保留，但已无法由正常迁移链触达，因此其测试改为显式删除表来构造
+（`internal/storage/db_gate_test.go`）。**录制清理仍阻塞**于 `Media`（`media-read`，recording
+负责）：`ProbeSegment` 没有实现，连 fake 都没有，清理无法判断分段边界与活跃段。
+
 已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者和真实可用性；录制占用上限可持久化写入 `app_settings`。当录制表尚未存在时，页面明确显示“尚未接入”，不会把零误报为没有录制数据，也不会因修改上限删除文件。
 
-落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,settings,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，匿名夹具与生成器在 `internal/storage/testdata/`；前端接入位于 `frontend/src/views/Settings/StorageSection.vue` 与 `frontend/src/api/diagnostics.ts`。
-
-**跨模块边界一处未跨**：诊断的 `recordingsBytes` / `pendingBatches` / `failedBatches` 与
-录制清理依赖 `screenshots`（recording 负责）与 `analysis_batches`（timeline 负责）两张表。
-按 `data.md`「禁止一次性建设未使用的全部目标表」，本次**不代建**这些表；相关字段如实报告为
-不可用，清理未接线。接入条件见「能力与跨层职责」。
+落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,settings,cards,categories,captures,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，匿名夹具与生成器在 `internal/storage/testdata/`；前端接入位于 `frontend/src/views/Settings/StorageSection.vue` 与 `frontend/src/api/diagnostics.ts`。
 
 诊断现在已有真实设置页消费者；不可用来源会在 UI 中显式显示，生产构建不会加载开发夹具。
 

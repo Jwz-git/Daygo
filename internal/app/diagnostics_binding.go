@@ -46,7 +46,7 @@ func (b *Backend) GetDiagnostics() (DiagnosticsDTO, error) {
 		} else {
 			dto.Unavailable["database"] = "database was not opened"
 		}
-		b.markPendingDiagnostics(dto.Unavailable)
+		markSchemaUnavailable(dto.Unavailable)
 		return dto, nil
 	}
 
@@ -74,22 +74,35 @@ func (b *Backend) GetDiagnostics() (DiagnosticsDTO, error) {
 
 	if stats.RecordingsAvailable {
 		dto.RecordingsBytes = stats.RecordingsBytes
+		// A nil LastCaptureAtTs here means the table exists and no frame has
+		// been committed — a real answer, not a missing data source.
+		dto.LastCaptureAtTs = stats.LastCaptureAtTs
 	} else {
-		// The recording schema is available; zero means no committed frames.
-		// This is distinct from an unavailable data source.
+		// Zero would read as "no recordings", which is a different claim from
+		// "the recording schema does not exist".
 		dto.Unavailable["recordingsBytes"] = "recording schema unavailable"
+		dto.Unavailable["lastCaptureAtTs"] = "recording schema unavailable"
 	}
-	dto.Unavailable["lastCaptureAtTs"] = "capture is not implemented"
 
-	b.markPendingDiagnostics(dto.Unavailable)
+	if stats.BatchesAvailable {
+		dto.PendingBatches = stats.PendingBatches
+		dto.FailedBatches = stats.FailedBatches
+	} else {
+		dto.Unavailable["pendingBatches"] = "analysis schema unavailable"
+		dto.Unavailable["failedBatches"] = "analysis schema unavailable"
+	}
+
 	return dto, nil
 }
 
-// markPendingDiagnostics records the counts that have no data source yet.
-func (b *Backend) markPendingDiagnostics(unavailable map[string]string) {
-	// The batch tables belong to the timeline module.
-	unavailable["pendingBatches"] = "analysis_batches table not created yet"
-	unavailable["failedBatches"] = "analysis_batches table not created yet"
+// markSchemaUnavailable records every diagnostics field whose table is absent.
+// A zero in a counter is otherwise indistinguishable from a feature that has
+// not shipped, and reporting a bare zero would be a silent lie.
+func markSchemaUnavailable(unavailable map[string]string) {
+	unavailable["recordingsBytes"] = "recording schema unavailable"
+	unavailable["lastCaptureAtTs"] = "recording schema unavailable"
+	unavailable["pendingBatches"] = "analysis schema unavailable"
+	unavailable["failedBatches"] = "analysis schema unavailable"
 }
 
 // storageFailureReason maps an open failure to a short, non-identifying reason.
