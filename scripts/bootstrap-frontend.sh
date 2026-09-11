@@ -20,15 +20,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WAILS_VERSION="${WAILS_VERSION:-v2.15.0}"
 
 # frontend/wailsjs/ is generated and not committed, but src/api/*.ts imports it,
-# so vue-tsc and vite both fail without it. Generating it needs a compilable Go
-# tree, and go:embed all:dist needs dist to exist — hence the placeholder.
-if [[ ! -f "$ROOT_DIR/frontend/wailsjs/go/app/Backend.d.ts" ]]; then
-  printf 'Generating Wails bindings...\n'
-  mkdir -p "$ROOT_DIR/frontend/dist"
-  printf '<!doctype html>\n' > "$ROOT_DIR/frontend/dist/index.html"
-  (cd "$ROOT_DIR/cmd/daygo" \
-    && go run "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION" build -s -m -nopackage)
-fi
+# so vue-tsc and vite both fail without it. It drifts as soon as a binding is
+# added, renamed or removed, and a stale copy produces errors that name the
+# missing member rather than the stale file — so regenerate unconditionally
+# instead of testing for existence.
+printf 'Generating Wails bindings...\n'
+mkdir -p "$ROOT_DIR/frontend/dist"
+printf '<!doctype html>\n' > "$ROOT_DIR/frontend/dist/index.html"
+(cd "$ROOT_DIR/cmd/daygo" \
+  && go run "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION" build -s -m -nopackage)
 
 # Build the real bundle, replacing the placeholder if one was written above.
 # The Go binary compiles dist via go:embed, so this must run before any Go
