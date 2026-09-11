@@ -9,16 +9,50 @@ export default {
     other: 'Other',
   },
   section: {
-    storageDescription:
-      'Recording status and permission, capture quality, disk limits.',
+    storageDescription: 'Capture interval and resolution, disk usage limit.',
     privacyDescription: 'Blocked apps never reach a screenshot.',
     providersDescription:
       'Primary and secondary providers, connection tests, prompt overrides.',
     agentAccessDescription:
-      'Let local CLI clients connect to the Agent Bridge.',
+      'Let local CLI / MCP clients modify your data (arrives in v1.1).',
     dataExportDescription:
       'Export a date range as Markdown, or reprocess a day.',
     otherDescription: 'Appearance, launch, telemetry and language.',
+  },
+  storage: {
+    interval: 'Capture interval',
+    intervalHint:
+      'How often a frame is taken. Shorter intervals record more detail and use more disk.',
+    intervalOption: '{seconds} s',
+    height: 'Capture resolution',
+    heightHint: 'Height of the captured image; lower it to reduce usage.',
+    heightOption: {
+      '720': '720p',
+      '1080': '1080p',
+    },
+    limit: 'Disk usage limit',
+    limitHint:
+      'When exceeded, the oldest complete segments are cleaned up first; active recording is never touched.',
+    unlimited: 'Unlimited',
+    unitGb: 'GB',
+  },
+  privacy: {
+    blockedTitle: 'Blocked apps',
+    blockedHint:
+      'While a blocked app is in the foreground, a redacted placeholder frame is written: the timeline still shows the activity, but no content.',
+    add: 'Add',
+    addPlaceholder: 'Bundle ID, e.g. com.apple.Safari',
+    empty: 'No apps are blocked yet.',
+    remove: 'Remove {id}',
+    error: {
+      duplicate: 'Already in the list',
+      invalid: 'Enter a bundle ID without spaces',
+    },
+  },
+  agentAccess: {
+    editsTitle: 'External write channel',
+    editsHint:
+      'Allow local CLI / MCP clients to modify cards, categories and goals. The channel arrives in v1.1; for now this preference is only stored.',
   },
   appearance: {
     theme: 'Theme',

@@ -5,17 +5,25 @@ import { useI18n } from 'vue-i18n'
 import PageHeader from '@/components/PageHeader.vue'
 import PlannedNotice from '@/components/PlannedNotice.vue'
 
+import AgentAccessSection from './AgentAccessSection.vue'
 import AppearanceSection from './AppearanceSection.vue'
+import PrivacySection from './PrivacySection.vue'
 import ProvidersSection from './ProvidersSection.vue'
 import RecognitionSection from './RecognitionSection.vue'
+import StorageSection from './StorageSection.vue'
 
 const { t } = useI18n()
 
 /*
- * A section is either implemented or a planned placeholder. The two implemented
- * ones (providers, other) are routed explicitly in the template; every other
- * key renders a PlannedNotice. There is no account section: v1 has no account
- * system by design.
+ * A section is either implemented or a planned placeholder. The implemented
+ * ones are routed explicitly in the template; every other key renders a
+ * PlannedNotice. There is no account section: v1 has no account system by
+ * design.
+ *
+ * storage / privacy / agentAccess consume the real GetSettings /
+ * UpdateSettings bindings. The values persist, but each setting's downstream
+ * consumer (recorder, cleanup loop, agent.sock) is still unimplemented — the
+ * agentAccess hint says so explicitly.
  */
 const sections = [
   'providers',
@@ -55,6 +63,9 @@ const active = ref<SectionKey>('other')
       <div class="content dg-scroll">
         <div class="content__inner">
           <ProvidersSection v-if="active === 'providers'" />
+          <StorageSection v-else-if="active === 'storage'" />
+          <PrivacySection v-else-if="active === 'privacy'" />
+          <AgentAccessSection v-else-if="active === 'agentAccess'" />
 
           <template v-else-if="active === 'other'">
             <AppearanceSection />

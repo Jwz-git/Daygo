@@ -9,27 +9,24 @@ import { useSettingsSection } from './useSettingsSection'
 const { t } = useI18n()
 const { state, settings, load, persist } = useSettingsSection()
 
-const enabled = computed(() => settings.value?.llm.recognitionEnhancementEnabled ?? false)
-
-const hint = computed(() =>
-  state.value === 'unavailable'
-    ? t('settings.recognition.unavailable')
-    : t('settings.recognition.hint'),
-)
+const enabled = computed(() => settings.value?.system.agentEditsEnabled ?? false)
 
 onMounted(() => void load())
 
 function onToggle(next: boolean): void {
-  void persist({ recognitionEnhancementEnabled: next })
+  void persist({ agentEditsEnabled: next })
 }
 </script>
 
 <template>
-  <SettingRow :title="t('settings.recognition.title')" :hint="hint">
+  <SettingRow
+    :title="t('settings.agentAccess.editsTitle')"
+    :hint="t('settings.agentAccess.editsHint')"
+  >
     <SwitchControl
       :checked="enabled"
       :disabled="state !== 'ready'"
-      :label="t('settings.recognition.title')"
+      :label="t('settings.agentAccess.editsTitle')"
       @toggle="onToggle"
     />
   </SettingRow>

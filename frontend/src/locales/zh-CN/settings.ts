@@ -9,12 +9,45 @@ export default {
     other: '其他',
   },
   section: {
-    storageDescription: '录制状态与权限、录制质量、磁盘占用上限。',
+    storageDescription: '录制间隔与分辨率、磁盘占用上限。',
     privacyDescription: '被屏蔽的应用不会进入截图。',
     providersDescription: '主备模型服务、连接测试与提示词自定义。',
-    agentAccessDescription: '让本地 CLI 客户端连接 Agent Bridge。',
+    agentAccessDescription: '允许本地 CLI / MCP 客户端修改数据（v1.1 提供）。',
     dataExportDescription: '按时间范围导出 Markdown，或重跑某一天的分析。',
     otherDescription: '外观、启动项、遥测与语言。',
+  },
+  storage: {
+    interval: '录制间隔',
+    intervalHint: '每隔几秒截取一帧。间隔越短记录越细，磁盘占用也越高。',
+    intervalOption: '{seconds} 秒',
+    height: '录制分辨率',
+    heightHint: '截图画面的高度；降低可以减少占用。',
+    heightOption: {
+      '720': '720p',
+      '1080': '1080p',
+    },
+    limit: '磁盘占用上限',
+    limitHint: '超出上限时按完整分段从旧到新清理；正在录制的内容不受影响。',
+    unlimited: '不限',
+    unitGb: 'GB',
+  },
+  privacy: {
+    blockedTitle: '屏蔽应用',
+    blockedHint:
+      '前台应用在名单内时，该时段写入脱敏占位帧：时间线上仍能看到有活动，但没有画面内容。',
+    add: '添加',
+    addPlaceholder: 'Bundle ID，例如 com.apple.Safari',
+    empty: '尚未屏蔽任何应用。',
+    remove: '移除 {id}',
+    error: {
+      duplicate: '该应用已在名单中',
+      invalid: '请输入不含空格的 Bundle ID',
+    },
+  },
+  agentAccess: {
+    editsTitle: '外部写入通道',
+    editsHint:
+      '允许本地 CLI / MCP 客户端修改卡片、分类与目标。通道在 v1.1 提供，当前版本仅保存此偏好。',
   },
   appearance: {
     theme: '主题',

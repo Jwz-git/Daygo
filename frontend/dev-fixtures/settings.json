@@ -1,0 +1,22 @@
+{
+  "capture": {
+    "intervalSeconds": 10,
+    "captureHeight": 1080
+  },
+  "privacy": {
+    "blockedApplicationIds": [
+      "com.apple.Safari",
+      "com.agilebits.onepassword-osx"
+    ]
+  },
+  "storage": {
+    "recordingsLimitBytes": 0
+  },
+  "llm": {
+    "outputLanguage": "",
+    "recognitionEnhancementEnabled": false
+  },
+  "system": {
+    "agentEditsEnabled": false
+  }
+}

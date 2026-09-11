@@ -2,6 +2,8 @@ import type {
   CapabilitiesDTO,
   DailyRecapDTO,
   DayContextDTO,
+  SettingsDTO,
+  SettingsPatch,
   TimelineDayDTO,
   WeeklyDashboardDTO,
 } from '@/api/dto'
@@ -84,6 +86,53 @@ function isWeeklyFixture(value: unknown): value is WeeklyDevelopmentFixture {
   )
 }
 
+function isSettingsFixture(value: unknown): value is SettingsDTO {
+  if (!isRecord(value) || !isRecord(value.capture) || !isRecord(value.llm)) return false
+  if (!isRecord(value.privacy) || !isRecord(value.storage) || !isRecord(value.system)) {
+    return false
+  }
+
+  return (
+    typeof value.capture.intervalSeconds === 'number' &&
+    typeof value.capture.captureHeight === 'number' &&
+    Array.isArray(value.privacy.blockedApplicationIds) &&
+    typeof value.storage.recordingsLimitBytes === 'number' &&
+    typeof value.llm.recognitionEnhancementEnabled === 'boolean' &&
+    typeof value.system.agentEditsEnabled === 'boolean'
+  )
+}
+
+/**
+ * Applies a patch to a development fixture state. Dev-browser only: it stands in
+ * for the backend's normalize-and-clamp step, but does not replicate it — the
+ * real authority is always the value returned by the actual bindings.
+ */
+export function applyDevelopmentSettingsPatch(
+  current: SettingsDTO,
+  patch: SettingsPatch,
+): SettingsDTO {
+  const next: SettingsDTO = {
+    capture: { ...current.capture },
+    privacy: { blockedApplicationIds: [...current.privacy.blockedApplicationIds] },
+    storage: { ...current.storage },
+    llm: { ...current.llm },
+    system: { ...current.system },
+  }
+  if (patch.intervalSeconds !== undefined) next.capture.intervalSeconds = patch.intervalSeconds
+  if (patch.captureHeight !== undefined) next.capture.captureHeight = patch.captureHeight
+  if (patch.blockedApplicationIds !== undefined) {
+    next.privacy.blockedApplicationIds = [...patch.blockedApplicationIds]
+  }
+  if (patch.recordingsLimitBytes !== undefined) {
+    next.storage.recordingsLimitBytes = patch.recordingsLimitBytes
+  }
+  if (patch.recognitionEnhancementEnabled !== undefined) {
+    next.llm.recognitionEnhancementEnabled = patch.recognitionEnhancementEnabled
+  }
+  if (patch.agentEditsEnabled !== undefined) next.system.agentEditsEnabled = patch.agentEditsEnabled
+  return next
+}
+
 async function fetchDevelopmentFixture<T>(
   path: string,
   validate: (value: unknown) => value is T,
@@ -116,4 +165,8 @@ export async function getDailyDevelopmentFixture(): Promise<DailyDevelopmentFixt
 
 export async function getWeeklyDevelopmentFixture(): Promise<WeeklyDevelopmentFixture | null> {
   return fetchDevelopmentFixture('/__daygo_dev__/weekly', isWeeklyFixture)
+}
+
+export async function getSettingsDevelopmentFixture(): Promise<SettingsDTO | null> {
+  return fetchDevelopmentFixture('/__daygo_dev__/settings', isSettingsFixture)
 }

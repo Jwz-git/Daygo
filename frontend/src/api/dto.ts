@@ -36,14 +36,53 @@ export interface LLMSettingsDTO {
   recognitionEnhancementEnabled: boolean
 }
 
+/**
+ * The closed sets the backend clamps reads and writes to (internal/settings).
+ * They drive the UI options; the DTO fields themselves stay `number` because
+ * the generated bindings map Go's int to plain number.
+ */
+export const CAPTURE_INTERVAL_SECONDS = [1, 5, 10, 20, 30, 60] as const
+
+export const CAPTURE_HEIGHTS = [720, 1080] as const
+
+export interface CaptureSettingsDTO {
+  intervalSeconds: number
+  captureHeight: number
+}
+
+/** PrivacySettingsDTO — bundle IDs of apps excluded from screenshots. */
+export interface PrivacySettingsDTO {
+  blockedApplicationIds: string[]
+}
+
+/** StorageSettingsDTO. recordingsLimitBytes: 0 means no limit. */
+export interface StorageSettingsDTO {
+  recordingsLimitBytes: number
+}
+
+/** SystemSettingsDTO subset this app reads. */
+export interface SystemSettingsDTO {
+  /** Gates the agent.sock write channel (docs/05 §5.9.2). */
+  agentEditsEnabled: boolean
+}
+
 /** The SettingsDTO groups this app reads today; names match the Go JSON tags. */
 export interface SettingsDTO {
+  capture: CaptureSettingsDTO
+  privacy: PrivacySettingsDTO
+  storage: StorageSettingsDTO
   llm: LLMSettingsDTO
+  system: SystemSettingsDTO
 }
 
 /** SettingsPatchDTO subset — every field optional; absent means "leave unchanged". */
 export interface SettingsPatch {
+  intervalSeconds?: number
+  captureHeight?: number
+  blockedApplicationIds?: string[]
+  recordingsLimitBytes?: number
   recognitionEnhancementEnabled?: boolean
+  agentEditsEnabled?: boolean
 }
 
 
