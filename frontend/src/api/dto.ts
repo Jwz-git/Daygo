@@ -185,6 +185,17 @@ export interface TimelineDayDTO {
   generatedAtTs: number
 }
 
+export interface DailyRecapDTO {
+  standupDay: string
+  highlightsTitle: string
+  highlights: string[]
+  tasksTitle: string
+  tasks: string[]
+  blockersTitle: string
+  blockersBody: string
+  generatedAtTs: number | null
+}
+
 export interface CapabilitiesDTO {
   canWrite: boolean
   isCaptureOwner: boolean

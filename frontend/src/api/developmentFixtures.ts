@@ -1,8 +1,20 @@
-import type { CapabilitiesDTO, DayContextDTO, TimelineDayDTO } from '@/api/dto'
+import type {
+  CapabilitiesDTO,
+  DailyRecapDTO,
+  DayContextDTO,
+  TimelineDayDTO,
+} from '@/api/dto'
 
 export interface TimelineDevelopmentFixture {
   context: DayContextDTO
   day: TimelineDayDTO
+  capabilities: CapabilitiesDTO
+}
+
+export interface DailyDevelopmentFixture {
+  context: DayContextDTO
+  timeline: TimelineDayDTO
+  recap: DailyRecapDTO
   capabilities: CapabilitiesDTO
 }
 
@@ -26,6 +38,41 @@ function isTimelineFixture(value: unknown): value is TimelineDevelopmentFixture 
   )
 }
 
+function isDailyFixture(value: unknown): value is DailyDevelopmentFixture {
+  if (!isRecord(value) || !isRecord(value.context) || !isRecord(value.timeline)) return false
+  if (!isRecord(value.recap) || !isRecord(value.capabilities)) return false
+
+  return (
+    typeof value.context.day === 'string' &&
+    typeof value.context.standupDay === 'string' &&
+    typeof value.context.dayStartTs === 'number' &&
+    typeof value.context.dayEndTs === 'number' &&
+    Array.isArray(value.timeline.cards) &&
+    Array.isArray(value.timeline.categories) &&
+    typeof value.recap.standupDay === 'string' &&
+    Array.isArray(value.recap.highlights) &&
+    Array.isArray(value.recap.tasks) &&
+    typeof value.recap.blockersBody === 'string' &&
+    typeof value.capabilities.canWrite === 'boolean'
+  )
+}
+
+async function fetchDevelopmentFixture<T>(
+  path: string,
+  validate: (value: unknown) => value is T,
+): Promise<T | null> {
+  if (!import.meta.env.DEV) return null
+
+  try {
+    const response = await fetch(path, { cache: 'no-store' })
+    if (!response.ok) return null
+    const raw: unknown = await response.json()
+    return validate(raw) ? raw : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Browser/Wails development fallback only. Vite serves the payload from
  * frontend/dev-fixtures; that directory is outside src and never enters the
@@ -33,14 +80,9 @@ function isTimelineFixture(value: unknown): value is TimelineDevelopmentFixture 
  * normal "capability unavailable" state.
  */
 export async function getTimelineDevelopmentFixture(): Promise<TimelineDevelopmentFixture | null> {
-  if (!import.meta.env.DEV) return null
+  return fetchDevelopmentFixture('/__daygo_dev__/timeline', isTimelineFixture)
+}
 
-  try {
-    const response = await fetch('/__daygo_dev__/timeline', { cache: 'no-store' })
-    if (!response.ok) return null
-    const raw: unknown = await response.json()
-    return isTimelineFixture(raw) ? raw : null
-  } catch {
-    return null
-  }
+export async function getDailyDevelopmentFixture(): Promise<DailyDevelopmentFixture | null> {
+  return fetchDevelopmentFixture('/__daygo_dev__/daily', isDailyFixture)
 }

@@ -85,4 +85,10 @@
   --dg-timeline-processing-fill: rgba(255, 255, 255, 0.045);
   --dg-timeline-processing-border: rgba(255, 255, 255, 0.11);
   --dg-timeline-frame-fill: rgba(255, 255, 255, 0.045);
+
+  --dg-daily-grid-line: rgba(255, 255, 255, 0.11);
+  --dg-daily-cell-empty: rgba(255, 255, 255, 0.045);
+  --dg-daily-cell-border: rgba(255, 255, 255, 0.035);
+  --dg-daily-distraction: #ff8278;
+  --dg-daily-footer-fill: rgba(8, 8, 10, 0.14);
 }

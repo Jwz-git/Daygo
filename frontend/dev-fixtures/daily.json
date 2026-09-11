@@ -1,0 +1,222 @@
+{
+  "context": {
+    "day": "2026-09-11",
+    "standupDay": "2026-09-11",
+    "dayStartTs": 1789070400,
+    "dayEndTs": 1789156800,
+    "nowTs": 1789114800,
+    "timeZone": "Asia/Shanghai",
+    "dayBoundaryHour": 4
+  },
+  "timeline": {
+    "day": "2026-09-11",
+    "dayStartTs": 1789070400,
+    "dayEndTs": 1789156800,
+    "trackedMinutes": 310,
+    "idleMinutes": 25,
+    "generatedAtTs": 1789114500,
+    "categories": [
+      {
+        "id": "planning",
+        "name": "规划",
+        "colorHex": "#55A58E",
+        "details": "任务整理与计划",
+        "sortOrder": 1,
+        "isSystem": false,
+        "isIdle": false,
+        "createdAtTs": 1789070400,
+        "updatedAtTs": 1789070400
+      },
+      {
+        "id": "focus",
+        "name": "专注工作",
+        "colorHex": "#6C8AE4",
+        "details": "需要持续注意力的工作",
+        "sortOrder": 2,
+        "isSystem": false,
+        "isIdle": false,
+        "createdAtTs": 1789070400,
+        "updatedAtTs": 1789070400
+      },
+      {
+        "id": "communication",
+        "name": "沟通",
+        "colorHex": "#D68A5F",
+        "details": "会议与异步沟通",
+        "sortOrder": 3,
+        "isSystem": false,
+        "isIdle": false,
+        "createdAtTs": 1789070400,
+        "updatedAtTs": 1789070400
+      },
+      {
+        "id": "idle",
+        "name": "分心",
+        "colorHex": "#D76A61",
+        "details": "偏离当前意图的活动",
+        "sortOrder": 4,
+        "isSystem": false,
+        "isIdle": true,
+        "createdAtTs": 1789070400,
+        "updatedAtTs": 1789070400
+      }
+    ],
+    "cards": [
+      {
+        "id": 201,
+        "batchId": 31,
+        "day": "2026-09-11",
+        "start": "09:00",
+        "end": "09:45",
+        "startTs": 1789088400,
+        "endTs": 1789091100,
+        "category": "规划",
+        "subcategory": "项目",
+        "title": "梳理今天的工作顺序",
+        "summary": "确认范围并安排优先级。",
+        "detailedSummary": "整理当天要处理的事项，并确定上午的重点。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Daygo", "secondary": "Notes" },
+        "distractions": [],
+        "isIdle": false,
+        "durationMinutes": 45
+      },
+      {
+        "id": 202,
+        "batchId": 32,
+        "day": "2026-09-11",
+        "start": "10:00",
+        "end": "11:20",
+        "startTs": 1789092000,
+        "endTs": 1789096800,
+        "category": "专注工作",
+        "subcategory": "开发",
+        "title": "完成每日页面的数据结构",
+        "summary": "整理页面状态与前端数据边界。",
+        "detailedSummary": "完成工作流和日报区块的数据结构，并检查窄窗口布局。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Visual Studio Code", "secondary": null },
+        "distractions": [
+          {
+            "id": "daily-d-1",
+            "startTime": "10:36",
+            "endTime": "10:40",
+            "title": "查看通知",
+            "summary": "短暂查看消息后回到当前任务。",
+            "videoSummaryUrl": null
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 80
+      },
+      {
+        "id": 203,
+        "batchId": 33,
+        "day": "2026-09-11",
+        "start": "11:30",
+        "end": "11:50",
+        "startTs": 1789097400,
+        "endTs": 1789098600,
+        "category": "沟通",
+        "subcategory": "同步",
+        "title": "确认接口接入边界",
+        "summary": "记录暂不可用的写入能力。",
+        "detailedSummary": "确认只读切片的范围与后续接入点。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Messages", "secondary": "Daygo" },
+        "distractions": [],
+        "isIdle": false,
+        "durationMinutes": 20
+      },
+      {
+        "id": 204,
+        "batchId": 34,
+        "day": "2026-09-11",
+        "start": "13:00",
+        "end": "14:30",
+        "startTs": 1789102800,
+        "endTs": 1789108200,
+        "category": "专注工作",
+        "subcategory": "开发",
+        "title": "实现工作流概览",
+        "summary": "完成活动分布、指标和响应式布局。",
+        "detailedSummary": "将时间线活动整理成按分类分布的十五分钟概览。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Visual Studio Code", "secondary": "Safari" },
+        "distractions": [],
+        "isIdle": false,
+        "durationMinutes": 90
+      },
+      {
+        "id": 205,
+        "batchId": 35,
+        "day": "2026-09-11",
+        "start": "14:45",
+        "end": "15:10",
+        "startTs": 1789109100,
+        "endTs": 1789110600,
+        "category": "分心",
+        "subcategory": "浏览",
+        "title": "随手浏览资讯",
+        "summary": "离开了当前工作约二十五分钟。",
+        "detailedSummary": "浏览与当前任务无关的内容。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Safari", "secondary": null },
+        "distractions": [],
+        "isIdle": true,
+        "durationMinutes": 25
+      },
+      {
+        "id": 206,
+        "batchId": 36,
+        "day": "2026-09-11",
+        "start": "15:20",
+        "end": "16:10",
+        "startTs": 1789111200,
+        "endTs": 1789114200,
+        "category": "沟通",
+        "subcategory": "评审",
+        "title": "评审页面并整理反馈",
+        "summary": "检查信息层级、文案与交互状态。",
+        "detailedSummary": "逐项检查每日页面，记录仍需真实绑定验证的内容。",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": { "primary": "Daygo", "secondary": "Notes" },
+        "distractions": [],
+        "isIdle": false,
+        "durationMinutes": 50
+      }
+    ],
+    "processingRanges": [],
+    "failures": []
+  },
+  "recap": {
+    "standupDay": "2026-09-11",
+    "highlightsTitle": "今天完成了什么",
+    "highlights": [
+      "确定每日页面的前端数据边界与状态模型",
+      "完成工作流概览和窄窗口布局",
+      "将匿名样例与生产构建彻底隔离"
+    ],
+    "tasksTitle": "接下来",
+    "tasks": [
+      "接入真实 DailyRecap 与 Timeline 绑定",
+      "补充真实 macOS WebView 的键盘与滚动验收"
+    ],
+    "blockersTitle": "当前限制",
+    "blockersBody": "日报生成、编辑与自动保存依赖尚未交付的后端能力。",
+    "generatedAtTs": 1789114500
+  },
+  "capabilities": {
+    "canWrite": false,
+    "isCaptureOwner": true,
+    "features": [],
+    "appVersion": "dev-fixture",
+    "apiRevision": 0
+  }
+}

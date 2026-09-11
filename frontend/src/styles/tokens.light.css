@@ -112,6 +112,13 @@
   --dg-timeline-processing-border: rgba(103, 128, 177, 0.16);
   --dg-timeline-frame-fill: rgba(94, 84, 99, 0.055);
 
+  /* daily workflow */
+  --dg-daily-grid-line: rgba(65, 58, 70, 0.11);
+  --dg-daily-cell-empty: rgba(70, 63, 75, 0.055);
+  --dg-daily-cell-border: rgba(70, 63, 75, 0.045);
+  --dg-daily-distraction: #b8453d;
+  --dg-daily-footer-fill: rgba(247, 247, 249, 0.52);
+
   /* motion */
   --dg-motion-fast: 100ms;
   --dg-motion-base: 160ms;
