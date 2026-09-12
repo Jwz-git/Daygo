@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import PageHeader from '@/components/PageHeader.vue'
@@ -9,6 +9,15 @@ import { useChatStore } from '@/stores/chat'
 
 const { t, te } = useI18n()
 const store = useChatStore()
+const actionError = ref('')
+async function perform(action: () => Promise<unknown>): Promise<void> {
+  actionError.value = ''
+  try {
+    await action()
+  } catch {
+    actionError.value = t('chat.actionError')
+  }
+}
 
 onMounted(() => {
   void store.hydrate()
@@ -27,7 +36,7 @@ async function confirmRemove(): Promise<void> {
   const id = pendingRemoveId.value
   if (id === null) return
   pendingRemoveId.value = null
-  await store.removeConversation(id)
+  await perform(() => store.removeConversation(id))
 }
 
 // ---- transcript ----
@@ -41,7 +50,7 @@ async function scrollToBottom(): Promise<void> {
 }
 
 watch(
-  () => store.messages.length,
+  () => store.messages.at(-1)?.id,
   () => {
     void scrollToBottom()
   },
@@ -207,27 +216,27 @@ function prettyJSON(raw: string): string {
 
 // ---- composer ----
 
-const draft = ref('')
+const drafts = ref<Record<string, string>>({})
+const draft = computed({
+  get: () => drafts.value[store.activeId ?? ''] ?? '',
+  set: (value: string) => { drafts.value[store.activeId ?? ''] = value },
+})
 
 /** A thread without a provider cannot send; the composer is disabled then. */
-const providerMissing = ref(false)
-
-watch(
-  () => store.activeConversation?.providerId,
-  (providerId) => {
-    providerMissing.value = providerId === ''
-  },
-  { immediate: true },
-)
+const providerMissing = computed(() => !store.activeConversation?.providerId)
+const tooLong = computed(() => new TextEncoder().encode(draft.value.trim()).length > 32 * 1024)
 
 async function submit(): Promise<void> {
   const content = draft.value.trim()
-  if (content === '' || store.pending || store.activeId === null || providerMissing.value) return
-  draft.value = ''
-  await store.send(content)
+  const id = store.activeId
+  if (content === '' || store.pending || store.loading || id === null || providerMissing.value || tooLong.value) return
+  await perform(async () => {
+    if (await store.send(content)) drafts.value[id] = ''
+  })
 }
 
 function onComposerKeydown(event: KeyboardEvent): void {
+  if (event.isComposing || event.keyCode === 229) return
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
     void submit()
@@ -240,27 +249,38 @@ const memoryDraft = ref('')
 const memorySaved = ref(false)
 
 watch(sidebarView, (view) => {
-  if (view === 'memory' && memoryDraft.value === '' && !memoryLoaded) void loadMemory()
+  if (view === 'memory' && !memoryLoaded.value) void loadMemory()
 })
 
-let memoryLoaded = false
+const memoryLoaded = ref(false)
+const memorySaving = ref(false)
+let savedTimer: ReturnType<typeof setTimeout> | undefined
+onUnmounted(() => clearTimeout(savedTimer))
+watch(memoryDraft, () => {
+  memorySaved.value = false
+})
 
 async function loadMemory(): Promise<void> {
   try {
     const settings = await getSettings()
     memoryDraft.value = settings.chat?.memory ?? ''
+    memoryLoaded.value = true
   } catch {
-    // The panel simply starts empty; saving still works once settings load.
+    actionError.value = t('chat.loadError')
   }
-  memoryLoaded = true
 }
 
 async function saveMemory(): Promise<void> {
-  await store.saveMemory(memoryDraft.value)
-  memorySaved.value = true
-  setTimeout(() => {
-    memorySaved.value = false
-  }, 2000)
+  if (!memoryLoaded.value || memorySaving.value) return
+  memorySaving.value = true
+  const value = memoryDraft.value
+  await perform(async () => {
+    await store.saveMemory(value)
+    memorySaved.value = memoryDraft.value === value
+    clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => { memorySaved.value = false }, 2000)
+  })
+  memorySaving.value = false
 }
 
 // ---- provider select ----
@@ -268,17 +288,22 @@ async function saveMemory(): Promise<void> {
 function onProviderChange(event: Event): void {
   const target = event.target as HTMLSelectElement | null
   if (target === null) return
-  void store.pinProvider(target.value)
+  void perform(() => store.pinProvider(target.value))
 }
 </script>
 
 <template>
   <div class="page chat">
     <PageHeader :title="t('chat.title')" />
+    <p v-if="actionError || store.refreshFailed" class="chat-error" role="alert">
+      {{ actionError || t('chat.loadError') }}
+      <button v-if="store.activeId" type="button" class="dg-button" @click="perform(() => store.select(store.activeId!))">{{ t('chat.retry') }}</button>
+    </p>
 
     <div v-if="store.unavailable" class="unavailable">
       <h2>{{ t('chat.unavailableTitle') }}</h2>
       <p>{{ t('chat.unavailableDescription') }}</p>
+      <button class="dg-button" @click="store.hydrate">{{ t('chat.retry') }}</button>
     </div>
 
     <div v-else class="layout">
@@ -294,6 +319,7 @@ function onProviderChange(event: Event): void {
               <select
                 class="dg-input"
                 :value="store.activeConversation.providerId"
+                :disabled="store.pending || store.loading"
                 @change="onProviderChange"
               >
                 <option v-if="providerMissing" value="">
@@ -310,8 +336,8 @@ function onProviderChange(event: Event): void {
             </label>
           </header>
 
-          <div ref="scroller" class="main__messages dg-scroll">
-            <p v-if="store.messages.length === 0" class="main__empty">
+          <div ref="scroller" class="main__messages dg-scroll" :aria-busy="store.loading">
+            <p v-if="store.messages.length === 0 && !store.loading" class="main__empty">
               {{ t('chat.emptyConversations') }}
             </p>
             <template v-for="item in renderItems" :key="item.kind === 'message' ? item.message.id : groupKey(item)">
@@ -371,20 +397,23 @@ function onProviderChange(event: Event): void {
             </template>
           </div>
 
+          <p v-if="store.pending" class="working" role="status">{{ t('chat.working') }}</p>
+          <p v-if="tooLong" class="chat-error" role="alert">{{ t('chat.tooLong') }}</p>
           <form class="composer" @submit.prevent="submit">
             <textarea
               v-model="draft"
               class="dg-input composer__input"
               rows="1"
               :placeholder="t('chat.composer.placeholder')"
-              :disabled="store.pending || providerMissing"
+              :aria-label="t('chat.composer.placeholder')"
+              :disabled="store.pending || store.loading || providerMissing"
               @keydown="onComposerKeydown"
             />
             <button
               v-if="!store.pending"
               class="dg-button dg-button--primary"
               type="submit"
-              :disabled="draft.trim() === '' || providerMissing"
+              :disabled="draft.trim() === '' || providerMissing || store.loading || store.refreshFailed || tooLong"
             >
               {{ t('chat.composer.send') }}
             </button>
@@ -392,7 +421,7 @@ function onProviderChange(event: Event): void {
               v-else
               class="dg-button"
               type="button"
-              @click="store.cancel"
+              @click="perform(store.cancel)"
             >
               {{ t('chat.composer.cancel') }}
             </button>
@@ -430,7 +459,7 @@ function onProviderChange(event: Event): void {
           <button
             type="button"
             class="dg-button dg-button--primary side__new"
-            @click="store.newConversation"
+            @click="perform(store.newConversation)"
           >
             {{ t('chat.newConversation') }}
           </button>
@@ -448,7 +477,7 @@ function onProviderChange(event: Event): void {
               <button
                 type="button"
                 class="side__open"
-                @click="store.select(conversation.id)"
+                @click="perform(() => store.select(conversation.id))"
               >
                 <span class="side__title">{{ conversation.title || t('chat.newConversation') }}</span>
               </button>
@@ -483,12 +512,15 @@ function onProviderChange(event: Event): void {
           <p class="memory__hint">{{ t('chat.memory.hint') }}</p>
           <textarea
             v-model="memoryDraft"
+            :disabled="!memoryLoaded"
+            :aria-label="t('chat.memory.title')"
             class="dg-input memory__text"
             rows="14"
             :placeholder="t('chat.memory.placeholder')"
           />
+          <button v-if="!memoryLoaded" class="dg-button" @click="loadMemory">{{ t('chat.retry') }}</button>
           <div class="memory__row">
-            <button type="button" class="dg-button dg-button--primary" @click="saveMemory">
+            <button type="button" class="dg-button dg-button--primary" :disabled="!memoryLoaded || memorySaving" @click="saveMemory">
               {{ t('chat.memory.save') }}
             </button>
             <span v-if="memorySaved" class="memory__saved">
@@ -502,6 +534,14 @@ function onProviderChange(event: Event): void {
 </template>
 
 <style scoped>
+.chat-error { color: var(--dg-danger); padding: 0 var(--dg-page-padding); font-size: 12px; }
+
+.working {
+  margin: 0;
+  padding: 4px 0;
+  color: var(--dg-text-muted);
+  font-size: 11px;
+}
 .unavailable {
   display: flex;
   flex: 1;

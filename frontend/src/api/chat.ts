@@ -198,7 +198,7 @@ function chatUpdatedPayload(value: unknown): string | null {
   return typeof conversationId === 'string' ? conversationId : null
 }
 
-/** Subscribe to turn-completion invalidations. The payload is a conversation
+/** Subscribe to conversation and message invalidations. The payload is a conversation
  * id only; callers re-pull through getChatMessages. */
 export function onChatUpdated(callback: (conversationId: string) => void): () => void {
   if (!('runtime' in window) || !isWailsRuntime(window.runtime)) {

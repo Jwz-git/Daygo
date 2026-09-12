@@ -26,13 +26,33 @@ const PAGE_SIZE = 50
  * UpdateSettings({chat: {memory}}) — it is a setting, and the settings event
  * is the refresh signal for anyone who cares.
  */
-export const useChatStore = defineStore('chat', () => {
+const chatAPI = {
+  cancelChatTurn,
+  createChatConversation,
+  deleteChatConversation,
+  getChatMessages, listChatConversations, onChatUpdated, sendChatMessage,
+  setChatConversationProvider, listProviders, updateSettings,
+}
+
+export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
+  const {
+    cancelChatTurn, createChatConversation, deleteChatConversation,
+    getChatMessages, listChatConversations, onChatUpdated, sendChatMessage,
+    setChatConversationProvider, listProviders, updateSettings,
+  } = { ...chatAPI, ...overrides }
   const conversations = ref<ChatConversationDTO[]>([])
   const activeId = ref<string | null>(null)
   const messages = ref<ChatMessageDTO[]>([])
-  /** True between SendChatMessage and the completion event for the active
-   * conversation; drives the composer's cancel state. */
-  const pending = ref(false)
+  /** True while submission is entering the backend or the transcript ends in
+   * a non-terminal row. Tool invalidations therefore keep Stop available. */
+  const submitting = ref(new Set<string>())
+  const loading = ref(false)
+  const refreshFailed = ref(false)
+  const pending = computed(() => {
+    if (activeId.value !== null && submitting.value.has(activeId.value)) return true
+    const last = messages.value.at(-1)
+    return last !== undefined && last.role !== 'assistant'
+  })
   const providers = ref<{ id: string; displayName: string }[]>([])
 
   const hydrated = ref(false)
@@ -54,19 +74,34 @@ export const useChatStore = defineStore('chat', () => {
 
   let unsubscribe: (() => void) | null = null
 
+  let messageRequest = 0
+  let conversationRequest = 0
   async function loadMessages(conversationId: string): Promise<void> {
-    messages.value = await getChatMessages(conversationId, 0, PAGE_SIZE)
+    if (conversationId !== activeId.value) return
+    const request = ++messageRequest
+    try {
+      const rows = await getChatMessages(conversationId, 0, PAGE_SIZE)
+      if (request === messageRequest && conversationId === activeId.value) {
+        messages.value = rows
+        refreshFailed.value = false
+      }
+    } finally {
+      if (request === messageRequest) loading.value = false
+    }
   }
 
   async function refreshConversations(): Promise<void> {
-    conversations.value = await listChatConversations()
+    const request = ++conversationRequest
+    const rows = await listChatConversations()
+    if (request === conversationRequest) conversations.value = rows
   }
 
   async function select(conversationId: string): Promise<void> {
     activeId.value = conversationId
-    pending.value = false
+    messages.value = []
+    loading.value = true
     await loadMessages(conversationId)
-    await ensureProvider()
+    if (activeId.value === conversationId) await ensureProvider()
   }
 
   /**
@@ -98,6 +133,7 @@ export const useChatStore = defineStore('chat', () => {
   async function hydrate(): Promise<void> {
     if (hydrated.value) return
     hydrated.value = true
+    unavailable.value = false
 
     try {
       await refreshConversations()
@@ -107,21 +143,27 @@ export const useChatStore = defineStore('chat', () => {
       }))
     } catch {
       unavailable.value = true
+      hydrated.value = false
       return
     }
 
     unsubscribe?.()
     unsubscribe = onChatUpdated(async (conversationId) => {
-      await refreshConversations()
-      if (conversationId === activeId.value) {
-        await loadMessages(conversationId)
-        pending.value = false
+      try {
+        await Promise.all([refreshConversations(), loadMessages(conversationId)])
+      } catch {
+        refreshFailed.value = true
       }
     })
 
     // Entering the chat view lands on a fresh conversation screen, not an
     // empty state; past threads are one click away in the sidebar.
-    await openDraft()
+    try {
+      await openDraft()
+    } catch {
+      unavailable.value = true
+      hydrated.value = false
+    }
   }
 
   /** New conversation: a no-op when the current screen is already a fresh
@@ -137,19 +179,28 @@ export const useChatStore = defineStore('chat', () => {
     if (id === activeId.value) await openDraft()
   }
 
-  async function send(content: string): Promise<void> {
+  async function send(content: string): Promise<boolean> {
     const conversationId = activeId.value
     const text = content.trim()
-    if (conversationId === null || text === '') return
-    // Provider choice is explicit: a thread without one cannot send.
-    if (activeConversation.value?.providerId === '') return
-
-    await sendChatMessage(conversationId, text)
-    pending.value = true
-    // The user message is already committed server-side; re-pull now so it
-    // appears immediately rather than after the turn completes. The list
-    // refreshes too: the conversation may have just taken its title.
-    await Promise.all([loadMessages(conversationId), refreshConversations()])
+    if (
+      conversationId === null || text === '' || pending.value ||
+      loading.value || refreshFailed.value
+    ) return false
+    if (!activeConversation.value?.providerId) return false
+    submitting.value.add(conversationId)
+    try {
+      await sendChatMessage(conversationId, text)
+      // A successful binding means the user message is committed. A read
+      // failure must not invite resending that already accepted message.
+      try {
+        await Promise.all([loadMessages(conversationId), refreshConversations()])
+      } catch {
+        refreshFailed.value = true
+      }
+      return true
+    } finally {
+      submitting.value.delete(conversationId)
+    }
   }
 
   async function cancel(): Promise<void> {
@@ -171,6 +222,9 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     conversations,
+    loading,
+    refreshFailed,
+    refreshConversations,
     listedConversations,
     activeId,
     activeConversation,
@@ -187,4 +241,6 @@ export const useChatStore = defineStore('chat', () => {
     pinProvider,
     saveMemory,
   }
-})
+}
+
+export const useChatStore = defineStore('chat', () => createChatState())

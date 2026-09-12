@@ -1403,7 +1403,7 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 | `ListChatConversations() ([]ChatConversationDTO, error)` | 读 | — | `database_error` |
 | `CreateChatConversation() (ChatConversationDTO, error)` | 写 | — | `database_error` |
 | `DeleteChatConversation(id string) error` | 写·幂等 | `chat:updated` | `not_found` |
-| `SetChatConversationProvider(id string, providerID string) error` | 写（providerID 空串 = 回落路由链） | `chat:updated` | `invalid_argument`（未知 provider）`not_found` |
+| `SetChatConversationProvider(id string, providerID string) error` | 写（providerID 空串 = 清除选择；再次发送前必须重新选择） | `chat:updated` | `invalid_argument`（未知 provider）`not_found` |
 
 消息模型：**原子消息**，角色为 `user` / `assistant` / `tool_call` / `tool_result`。
 回合的失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` / `canceled`）。

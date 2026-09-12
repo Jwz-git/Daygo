@@ -1,4 +1,9 @@
 export default {
+  actionError: '操作失败，请重试。输入内容已保留。',
+  retry: '重试',
+  working: '正在处理，可随时停止…',
+  tooLong: '消息不能超过 32 KiB，请缩短后发送。',
+
   title: '对话',
   newConversation: '新对话',
   conversations: '对话列表',

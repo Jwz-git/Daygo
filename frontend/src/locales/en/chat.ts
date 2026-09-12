@@ -1,4 +1,9 @@
 export default {
+  actionError: 'The action failed. Please retry; your input has been kept.',
+  retry: 'Retry',
+  working: 'Working… You can stop at any time.',
+  tooLong: 'Messages must be no larger than 32 KiB. Please shorten your message.',
+
   title: 'Chat',
   newConversation: 'New chat',
   conversations: 'Conversations',
