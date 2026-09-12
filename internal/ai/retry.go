@@ -3,7 +3,6 @@ package ai
 import (
 	"context"
 	"math/rand/v2"
-	"sync"
 	"time"
 )
 
@@ -107,46 +106,9 @@ func sleepContext(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-type RouteState struct {
-	mu        sync.Mutex
-	secondary bool
-}
-
-func (s *RouteState) UsingSecondary() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.secondary
-}
-
-func (s *RouteState) useSecondary() {
-	s.mu.Lock()
-	s.secondary = true
-	s.mu.Unlock()
-}
-
-type fallbackProvider struct {
-	primary   Provider
-	secondary Provider
-	state     *RouteState
-}
-
-func WithFallback(primary, secondary Provider, state *RouteState) Provider {
-	if state == nil {
-		state = &RouteState{}
-	}
-	return &fallbackProvider{primary: primary, secondary: secondary, state: state}
-}
-
-func (p *fallbackProvider) Generate(ctx context.Context, request Request) (Result, error) {
-	if p.secondary == nil || !p.state.UsingSecondary() {
-		result, err := p.primary.Generate(ctx, request)
-		if err == nil || p.secondary == nil || !Retryable(err) {
-			return result, err
-		}
-		p.state.useSecondary()
-	}
-	return p.secondary.Generate(ctx, request)
-}
+// Fallback routing lives in chain.go (Chain). The former single-secondary
+// sticky model (WithFallback/RouteState) was replaced by the ordered cycling
+// chain per decisions/providers-fallback-chain.
 
 func canceledError(err error) error {
 	if ErrorKindOf(err) == ErrorTimeout {

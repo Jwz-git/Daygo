@@ -199,14 +199,23 @@ flowchart TD
 
 ### 4.3.3 重试与回退
 
-统一策略，不是每个 provider 各写一套：
+统一策略，不是每个 provider 各写一套。回退是**有序链**（`providers.routing.chain`，
+`chain[0]` 为主），不是主备二元组：
 
 ```text
-WithFallback( WithRetry(primary), WithRetry(secondary) )
+Chain: [ WithRetry(primary), WithRetry(fallback1), … WithRetry(fallbackN) ]
 ```
 
-顺序不能反：**先在主 provider 上按策略重试，仍失败才切到备用**。写反会把一次网络抖动
-升级成 provider 切换。回退具有**粘性**——同一批次切换到备用后不再回切。
+每个条目先按自己的重试策略耗尽，仍失败才走到链上下一个。链的语义
+（[decisions/providers-fallback-chain.md](decisions/providers-fallback-chain.md)）：
+
+- **回合内即时切换**：条目失败后本回合立即试下一个条目，环形遍历，一轮最多每条目一次。
+- **跨回合粘滞降级**：某条目连续失败 3 次（阈值常量 `ai.DefaultChainThreshold`）后，
+  后续回合从下一个存活条目开始，直到它再次成功。
+- **成功提升**：任何条目成功即清零其计数并把游标指向它——降级的条目仍每轮被环形
+  遍历到，恢复后自愈。
+- 状态仅存内存（按 provider ID 计数），重启清零；取消不计失败；一轮全败返回最后一个
+  错误。会话内编辑链（`Rebuild`）按 ID 保留计数。
 
 每次真实 HTTP attempt 都产出一条 `llm_calls` 元数据记录：批次 / purpose、尝试序号、
 provider / 协议 / 请求与实际模型、起止时间、耗时、结果 / 错误分类、HTTP 状态及可选 usage。

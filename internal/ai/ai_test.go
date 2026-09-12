@@ -135,25 +135,6 @@ func TestRetryHonorsCappedRetryAfter(t *testing.T) {
 	}
 }
 
-func TestFallbackIsSticky(t *testing.T) {
-	primary := &sequenceProvider{errors: []error{NewError(ErrorUnavailable, "offline", 503, nil)}}
-	secondary := &sequenceProvider{results: []Result{{Text: "one"}, {Text: "two"}}}
-	state := &RouteState{}
-	provider := WithFallback(primary, secondary, state)
-
-	first, err := provider.Generate(context.Background(), Request{})
-	if err != nil || first.Text != "one" {
-		t.Fatalf("first = %#v, %v", first, err)
-	}
-	second, err := provider.Generate(context.Background(), Request{})
-	if err != nil || second.Text != "two" {
-		t.Fatalf("second = %#v, %v", second, err)
-	}
-	if primary.calls != 1 || secondary.calls != 2 || !state.UsingSecondary() {
-		t.Fatalf("calls primary=%d secondary=%d sticky=%v", primary.calls, secondary.calls, state.UsingSecondary())
-	}
-}
-
 type sequenceProvider struct {
 	mu      sync.Mutex
 	calls   int

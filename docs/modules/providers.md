@@ -2,24 +2,25 @@
 
 ## 用户结果与范围
 
-用户可配置 Provider 的名称、协议、地址、模型与密钥，选择主 / 备用服务，测试连接，
-重启后仍能判断密钥是否已配置。负责 U7、F-S1–4；支持 openai（Chat Completions）、
-openai_responses、anthropic 三种协议。
-本模块交付可供 timeline / daily 消费的客户端，不拥有分批、卡片、摘要内容或批次状态。
+用户可配置 Provider 的名称、协议、地址、模型与密钥，编排有序回退链（主 + 多备用），
+获取模型列表，测试连接，重启后仍能判断密钥是否已配置。负责 U7、F-S1–4；支持
+openai（Chat Completions）、openai_responses、anthropic 三种协议。
+本模块交付可供 timeline / daily / chat 消费的客户端，不拥有分批、卡片、摘要内容或批次状态。
 
 公共依据：[05 Provider 绑定](../05-interface-contract.md#provider)、
 [05 服务契约](../05-interface-contract.md#564-ai--analysis)、
-[07 密钥](../07-privacy-security.md#73-密钥)、[04 重试](../04-data-flow.md#433-重试与回退)。
+[07 密钥](../07-privacy-security.md#73-密钥)、[04 重试](../04-data-flow.md#433-重试与回退)、
+[decisions/providers-fallback-chain](../decisions/providers-fallback-chain.md)、
+[decisions/providers-secrets-keychain](../decisions/providers-secrets-keychain.md)。
 
 ## 当前状态与证据
 
-实现进度：部分实现。前端类型检查通过；`internal/ai` 协议客户端、重试 / 回退 / 取消、
-连接探针与 factory 已落地并通过匿名 TLS fixture（见验证记录）。Secrets、Provider
-repository、真实网络集成与 Wails 绑定未验收。
-[store](../../frontend/src/stores/providers.ts) 与
-[设置界面](../../frontend/src/views/Settings/ProvidersSection.vue) 已存在，
-无密钥配置存 localStorage；密钥仅驻留内存。数据库、Secrets fake / 原生
-及 Provider Go 绑定尚未实现。当前 hasSecret 不证明钥匙串持久化。
+实现进度：部分实现。Go 侧已落地：三协议客户端、重试 / 回退链（`ai.Chain`，循环降级）、
+连接探针、迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 钥匙串经
+`security` CLI + fake）、Provider CRUD / 路由链 / 密钥 / `TestProvider` 共 10 个绑定
+（`internal/app/providers.go`）。设置层 `providers.routing` 为有序链并兼容旧形状。
+前端 store 仍指向 localStorage（迁移到绑定在下一切片）；真实网络集成与升级身份验证未验收。
+当前前端 hasSecret 不反映钥匙串状态，绑定返回的为准。
 
 ## 能力与跨层职责
 
@@ -38,8 +39,8 @@ JPEG / PNG / WebP，最多 20 张、单张 5 MiB、原始总量 20 MiB；调用�
 协议客户端归 internal/ai；上层任务通过消费者接口调用，不导入另一服务的内部实现。
 providers repository 在 internal/storage；Secrets.Get 只供 Go 客户端取密钥，
 任何绑定均不返回密钥。settings-access 由 preferences 维护，本模块拥有 providers.routing、
-llm.outputLanguage、llm.recognitionEnhancementEnabled 的字段规则和设置交互；批次内粘性由
-timeline 集成验证。
+llm.outputLanguage、llm.recognitionEnhancementEnabled 的字段规则和设置交互；回退链跨回合
+行为由消费方（chat / 分析流水线）集成验证。
 
 识别增强（`ai.GenerateRecognition`，由 `llm.recognitionEnhancementEnabled` 控制，默认关）：
 开启时识别用途的每张图片在内存中切成 2×2 四张重叠分片（每片约半幅加交叉覆盖）再发送，
@@ -50,7 +51,7 @@ timeline 集成验证。
 
 | 实验 | 输入与操作 | 预期结果 | 失败条件 / 证据 |
 |---|---|---|---|
-| 配置往返 | 匿名配置、主备相同 / 不存在、空密钥与显式删除 | 规范化后落库，空密钥保持不变，删除只能显式触发 | 重启丢配置、错误路由、误清密钥失败 |
+| 配置往返 | 匿名配置、链重复 / 不存在、空密钥与显式删除 | 规范化后落库，空密钥保持不变，删除只能显式触发 | 重启丢配置、错误路由、误清密钥失败 |
 | 密钥边界 | 测试专用临时密钥写入 / 删除，重启并检查 hasSecret | 值只在钥匙串 / Go 客户端；UI 仅布尔值 | DTO、日志、错误、localStorage 出现密钥立即阻塞 |
 | 协议 / 重试 | 匿名 HTTP 服务器返回成功、限流、超时、错误体；取消任务 | 请求符合各协议，错误脱敏，重试有界并传播取消 | 重试失控、请求目的地错误、后台任务无法结束失败 |
 | 真实连接 | 用户指定 Provider 与模型，显式运行 TestProvider | 一次实际测试调用，结果及耗时可见，不回显 payload | fake 成功不可替代此项；网络失败不谎报可用 |
@@ -81,7 +82,13 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 回退：禁用未验证调用路径、恢复原 store 接入，保留旧无密钥记录与新库；
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
-## 验证记录
+2026-09-12：Provider 落库与绑定——迁移 v4（providers / chat 表，`foreign_keys` 入固定
+pragma 集）、`ProviderRepo`、`providers.routing` 链化（旧形状读取时折叠）、Secrets 端口
+（`security` CLI + fake，真机钥匙串冒烟通过）、Provider CRUD / 路由链 / 密钥 / `TestProvider`
+绑定与金丝雀密钥泄漏断言。`go test ./internal/...`、`go vet`、`CGO_ENABLED=0` 构建与
+`GOOS=linux` 交叉构建通过。真实服务连接与升级身份验证未运行。
+
+## 验证记录（历史）
 
 2026-09-10：前端类型检查通过，见 [基线](../09-roadmap.md#当前代码证据)。
 2026-09-10：`internal/ai` 落地统一 Provider 接口、三种协议客户端（openai Chat Completions /

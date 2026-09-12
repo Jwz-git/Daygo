@@ -957,9 +957,12 @@ type ReplaceResult struct {
    本地提取 / 修复 JSON 并验证 schema。兼容端不支持时返回 `unsupported_feature`，
    不得静默降级为无约束文本。协议封闭集为 `openai` / `openai_responses` / `anthropic`，
    由 `internal/ai` 的 `Protocol` 类型与 factory 统一构造。
-3. 装饰器顺序固定为 `WithFallback(WithRetry(primary), WithRetry(secondary))`：先在主
-   provider 上按策略重试，仍失败才切到备用，且切换后该批次不再回切。粘性状态属于批次调用
-   作用域，不用全局标志。
+3. 路由是**有序链** `ai.Chain`（decisions/providers-fallback-chain）：每个条目预先包
+   `WithRetry`，先按自身策略重试，仍失败才走到链上下一个；环形遍历，一轮最多每条目一次。
+   连续失败 3 次（常量阈值）的条目被降级——后续回合从下一个存活条目开始；任何条目成功即
+   清零计数并把游标指向它。状态仅存内存、按 provider ID 计数，取消不计失败；链内编辑
+   （`Rebuild`）按 ID 保留计数。链为空时返回 `ai.ErrNoProvider`，绑定层映射
+   `provider_not_configured`。
 4. 默认每个 provider 最多 3 次 attempt；500 ms 指数退避、8 秒封顶并带 full jitter，
    `Retry-After` 等待不超过 30 秒。408 / 429 / 5xx、临时网络错误与超时可重试；认证、404、
    无效参数及取消不重试。结构化输出无效的额外重试仍计入该上限。
