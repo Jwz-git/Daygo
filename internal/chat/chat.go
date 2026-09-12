@@ -1,12 +1,11 @@
 // Package chat is the in-app conversational agent's service layer
-// (docs/modules/chat.md). This slice is plain conversation: a user message,
-// the conversation's history, and one assistant reply — no tool loop, no
-// sandbox editing (those arrive with the agent slice; the gates and budgets
-// in docs/05 §5.12 stay as specified).
+// (docs/modules/chat.md). A turn is a structured-output tool loop: the model
+// replies with an envelope asking for a tool or giving an answer, gated by
+// the editMode sandbox and bounded by the docs/05 §5.12 budgets.
 //
 // The package knows Wails nothing. It depends on consumer-side interfaces
-// (Store, Providers, Secrets, Settings) so the service is testable headless
-// and CGO_ENABLED=0 (docs/02 §2.1).
+// (Store, Providers, Settings, ToolExecutor, AttemptSink) so the service is
+// testable headless and CGO_ENABLED=0 (docs/02 §2.1).
 package chat
 
 import (
@@ -26,8 +25,17 @@ import (
 // message and keeps a runaway paste from ballooning the request.
 const maxContentBytes = 32 << 10
 
-// maxOutputTokens is the reply ceiling for a chat turn.
+// maxOutputTokens is the reply ceiling for one model call inside a turn.
 const maxOutputTokens = 4096
+
+// Agent budgets from docs/05 §5.12: at most 8 tool calls per user message,
+// one tool result clipped to 64 KiB, and a whole-turn time limit of 120 s
+// shared with user cancellation.
+const (
+	maxToolCallsPerTurn = 8
+	maxToolResultBytes  = 64 << 10
+	turnTimeout         = 120 * time.Second
+)
 
 // Message roles and assistant statuses mirror the closed sets in storage
 // (docs/03 §3.3.4).
@@ -196,8 +204,9 @@ func (s *Service) Send(ctx context.Context, conversationID, content string) erro
 		return ErrTurnInFlight
 	}
 	// The turn's lifetime is the service's, not the caller's: the binding
-	// method returns as soon as the user message is stored.
-	turnCtx, cancel := context.WithCancel(context.Background())
+	// method returns as soon as the user message is stored. The 120 s budget
+	// shares this context, so cancellation and expiry are one path.
+	turnCtx, cancel := context.WithTimeout(context.Background(), turnTimeout)
 	s.inflight[conversationID] = cancel
 	s.mu.Unlock()
 
@@ -219,8 +228,11 @@ func (s *Service) Send(ctx context.Context, conversationID, content string) erro
 	return nil
 }
 
-// runTurn executes one assistant turn: build the provider chain, generate,
-// persist the assistant message, notify.
+// runTurn executes one agent turn: resolve the provider, then loop —
+// generate an envelope, execute the tool it asks for (or none), feed the
+// result back — until the model answers, the budgets run out, or the turn is
+// canceled. Every intermediate step lands in the transcript as tool_call /
+// tool_result rows and notifies, so the UI tracks progress.
 func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Message) {
 	conversation, err := s.store.GetConversation(ctx, conversationID)
 	if err != nil {
@@ -242,22 +254,159 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 	s.rebuildChain(entries)
 	s.mu.Unlock()
 
-	request, err := s.buildRequest(ctx, conversationID, userMsg, "")
-	if err != nil {
-		s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed, Content: failureText(err)})
-		return
-	}
-
-	result, err := s.chain.Generate(ctx, request)
-	if err != nil {
-		status := StatusFailed
-		if ctx.Err() != nil || ai.ErrorKindOf(err) == ai.ErrorCanceled {
-			status = StatusCanceled
+	toolCalls := 0
+	correction := ""
+	for {
+		request, err := s.buildRequest(ctx, conversationID, userMsg, correction)
+		if err != nil {
+			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed, Content: failureText(err)})
+			return
 		}
-		s.complete(conversationID, Message{Role: RoleAssistant, Status: status, Content: failureText(err)})
+		request.Output = &envelopeOutput
+
+		result, err := s.chain.Generate(ctx, request)
+		correction = ""
+		if err != nil {
+			status := StatusFailed
+			if ctx.Err() != nil || ai.ErrorKindOf(err) == ai.ErrorCanceled {
+				status = StatusCanceled
+			} else if toolCalls >= maxToolCallsPerTurn {
+				status = StatusFailed
+			}
+			s.complete(conversationID, Message{Role: RoleAssistant, Status: status, Content: failureText(err)})
+			return
+		}
+
+		reply, err := decodeEnvelope(result.Text)
+		if err != nil {
+			// A malformed reply counts against the tool budget: without that,
+			// a model looping on garbage would never terminate.
+			toolCalls++
+			if toolCalls >= maxToolCallsPerTurn {
+				s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed,
+					Content: "已达到工具调用次数上限（8 次），回合终止。"})
+				return
+			}
+			correction = envelopeCorrection
+			continue
+		}
+
+		if reply.Kind == envelopeKindAnswer {
+			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusOK, Content: reply.Answer})
+			return
+		}
+
+		// The model asked for a tool. Record the call before doing anything:
+		// the transcript keeps the audit trail even when the turn dies here.
+		compactArgs, _ := json.Marshal(reply.Arguments)
+		if _, err := s.store.AppendMessage(ctx, conversationID, Message{
+			Role: RoleToolCall, ToolName: reply.Tool, ToolArguments: string(compactArgs),
+		}); err != nil {
+			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed, Content: failureText(err)})
+			return
+		}
+		s.notify(conversationID)
+
+		if toolCalls >= maxToolCallsPerTurn {
+			s.landToolResult(ctx, conversationID, reply.Tool, toolResultEnvelope(false, "budget_exceeded",
+				"已达到工具调用次数上限（8 次），本次调用不执行。"))
+			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed,
+				Content: "已达到工具调用次数上限（8 次），回合终止。"})
+			return
+		}
+		toolCalls++
+
+		outcome := s.executeTool(ctx, conversationID, reply)
+		s.landToolResult(ctx, conversationID, reply.Tool, outcome)
+		if ctx.Err() != nil {
+			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusCanceled, Content: failureText(ctx.Err())})
+			return
+		}
+	}
+}
+
+// executeTool runs one validated tool call. Gate and validation failures are
+// tool results, not turn failures (docs/05 §5.12): the model sees the closed
+// error and continues, typically by answering with what it has.
+func (s *Service) executeTool(ctx context.Context, conversationID string, reply envelope) json.RawMessage {
+	if _, known := toolByName(reply.Tool); !known {
+		return toolResultEnvelope(false, "unknown_tool", "未知工具 "+reply.Tool+"。")
+	}
+	if err := validateToolArguments(reply.Tool, reply.Arguments); err != nil {
+		return toolResultEnvelope(false, "invalid_argument", "工具参数不符合要求："+err.Error())
+	}
+	if isWriteTool(reply.Tool) && !s.writesAllowed(ctx) {
+		return toolResultEnvelope(false, "edits_disabled",
+			"当前为只读模式，写操作被拒绝。请用现有数据回答，并提示用户在设置中开启「应用内对话编辑」。")
+	}
+	if s.tools == nil {
+		return toolResultEnvelope(false, "internal_error", "工具执行器未接入。")
+	}
+	outcome := s.tools.Execute(ctx, ToolCall{Tool: reply.Tool, Arguments: reply.Arguments})
+	return clipToolResult(outcome.Data)
+}
+
+// writesAllowed reads the sandbox gate for this turn; it fails closed.
+func (s *Service) writesAllowed(ctx context.Context) bool {
+	if s.settings == nil {
+		return false
+	}
+	mode, err := s.settings.EditMode(ctx)
+	return err == nil && normalizeEditMode(mode) == editModeEdits
+}
+
+// landToolResult persists one tool_result row (paired by tool name) and
+// notifies. The transcript is the progress channel: each row triggers the
+// invalidation event the frontend re-pulls on.
+func (s *Service) landToolResult(ctx context.Context, conversationID, tool string, result json.RawMessage) {
+	if _, err := s.store.AppendMessage(ctx, conversationID, Message{
+		Role: RoleToolRes, ToolName: tool, Content: string(result),
+	}); err != nil {
 		return
 	}
-	s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusOK, Content: result.Text})
+	s.notify(conversationID)
+}
+
+// notify fires the invalidation callback for one conversation.
+func (s *Service) notify(conversationID string) {
+	if s.notifier != nil {
+		s.notifier(conversationID)
+	}
+}
+
+// toolResultEnvelope builds one result envelope. Success carries the data
+// JSON as-is; failure carries the closed error code and a fixed message.
+func toolResultEnvelope(ok bool, code, message string) json.RawMessage {
+	if ok {
+		return json.RawMessage(`{"ok":true,"data":null}`)
+	}
+	envelope, _ := json.Marshal(map[string]any{
+		"ok": false,
+		"error": map[string]string{
+			"code":    code,
+			"message": message,
+		},
+	})
+	return envelope
+}
+
+// clipToolResult applies the 64 KiB budget. An oversized success payload is
+// re-packed as a truncated JSON string so the row stays parseable.
+func clipToolResult(data json.RawMessage) json.RawMessage {
+	if len(data) <= maxToolResultBytes {
+		return data
+	}
+	budget := maxToolResultBytes - 128 // room for the envelope keys
+	if budget < 0 {
+		budget = 0
+	}
+	clipped := string(data[:budget])
+	envelope, _ := json.Marshal(map[string]any{
+		"ok":        true,
+		"truncated": true,
+		"data":      clipped,
+	})
+	return envelope
 }
 
 // resolveEntries picks the provider for a conversation: the pinned provider

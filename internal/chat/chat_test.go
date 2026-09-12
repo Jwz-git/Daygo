@@ -219,7 +219,7 @@ func waitTurn(t *testing.T, service *Service, conversationID string) {
 // overriding the chain — but rebuildChain constructs clients from fields.
 // The cleanest seam: run a local HTTP server speaking the openai protocol.
 func TestServiceHappyPathPersistsMessages(t *testing.T) {
-	server := newOpenAIServer(t, func(prompt string) string { return "你好，我是助手。" })
+	server := newOpenAIServer(t, func(prompt string) string { return `{ "kind": "answer", "answer": "你好，我是助手。" }` })
 	providers := newFakeProviders(ProviderEntry{
 		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "sk-test",
 	})
@@ -261,7 +261,7 @@ func TestServiceInjectsGlobalMemory(t *testing.T) {
 	var lastPrompt string
 	server := newOpenAIServer(t, func(prompt string) string {
 		lastPrompt = prompt
-		return "ok"
+		return `{ "kind": "answer", "answer": "ok" }`
 	})
 	providers := newFakeProviders(ProviderEntry{
 		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "k",
@@ -290,7 +290,7 @@ func TestServiceIncludesHistory(t *testing.T) {
 	var lastPrompt string
 	server := newOpenAIServer(t, func(prompt string) string {
 		lastPrompt = prompt
-		return "ok"
+		return `{ "kind": "answer", "answer": "ok" }`
 	})
 	providers := newFakeProviders(ProviderEntry{
 		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "k",
@@ -311,8 +311,8 @@ func TestServiceIncludesHistory(t *testing.T) {
 // A conversation pinned to a provider uses exactly that provider.
 func TestServicePinnedProviderNoFallback(t *testing.T) {
 	var calls atomic.Int64
-	primary := newOpenAIServer(t, func(string) string { return "primary" })
-	fallback := newOpenAIServerWithCalls(t, func(string) string { return "fallback" }, &calls)
+	primary := newOpenAIServer(t, func(string) string { return `{ "kind": "answer", "answer": "primary" }` })
+	fallback := newOpenAIServerWithCalls(t, func(string) string { return `{ "kind": "answer", "answer": "fallback" }` }, &calls)
 
 	providers := newFakeProviders(
 		ProviderEntry{ID: "p1", Protocol: "openai", Endpoint: primary.URL, Model: "m", Secret: "k"},
@@ -370,7 +370,7 @@ func TestNewConversationDefaultsToPrimaryProvider(t *testing.T) {
 // A thread with no pinned provider fails the turn instead of falling back to
 // the routing chain.
 func TestServiceSendWithoutProviderFails(t *testing.T) {
-	server := newOpenAIServer(t, func(string) string { return "ok" })
+	server := newOpenAIServer(t, func(string) string { return `{ "kind": "answer", "answer": "ok" }` })
 	providers := newFakeProviders(ProviderEntry{
 		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "k",
 	})
@@ -437,7 +437,7 @@ func TestServiceProviderFailureLandsAsFailedMessage(t *testing.T) {
 
 // Two turns may run concurrently in different conversations.
 func TestServiceConcurrentTurnsAcrossConversations(t *testing.T) {
-	server := newOpenAIServer(t, func(string) string { return "ok" })
+	server := newOpenAIServer(t, func(string) string { return `{ "kind": "answer", "answer": "ok" }` })
 	providers := newFakeProviders(ProviderEntry{
 		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "k",
 	})
