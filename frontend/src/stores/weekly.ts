@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import type { WeeklyDashboardDTO } from '@/api/dto'
+import type { DayContextDTO, WeeklyDashboardDTO } from '@/api/dto'
 import { getWeeklyDevelopmentFixture } from '@/api/developmentFixtures'
+import { getDailyContext, DailyUnavailableError } from '@/api/daily'
 import { onTimelineUpdated } from '@/api/timeline'
 import { getWeeklyDashboard, hasWeeklyBinding, WeeklyUnavailableError } from '@/api/weekly'
 import { shiftWeekStart } from '@/lib/calendarDate'
@@ -41,6 +42,13 @@ export const useWeeklyStore = defineStore('weekly', () => {
       dashboard.value?.weekStart !== currentWeekStart.value,
   )
 
+  // Resolving the current week goes through the backend: the frontend never
+  // derives week boundaries itself (docs/05 §5.3.2 rule 2).
+  async function currentWeekStartFromBackend(): Promise<string> {
+    const context: DayContextDTO = await getDailyContext('')
+    return context.weekStart
+  }
+
   async function load(requestedWeekStart = ''): Promise<void> {
     const version = ++requestVersion
     loading.value = true
@@ -49,7 +57,15 @@ export const useWeeklyStore = defineStore('weekly', () => {
     usingDevelopmentFixture.value = false
 
     try {
-      const nextDashboard = await getWeeklyDashboard(requestedWeekStart)
+      // In a plain browser there is no bridge at all: both the context call
+      // and the dashboard call are unavailable, and the fixture path decides.
+      const weekStart = requestedWeekStart === ''
+        ? await currentWeekStartFromBackend().catch((cause: unknown) => {
+            if (cause instanceof DailyUnavailableError) throw new WeeklyUnavailableError()
+            throw cause
+          })
+        : requestedWeekStart
+      const nextDashboard = await getWeeklyDashboard(weekStart)
       if (version !== requestVersion) return
       dashboard.value = nextDashboard
       if (requestedWeekStart === '') currentWeekStart.value = nextDashboard.weekStart

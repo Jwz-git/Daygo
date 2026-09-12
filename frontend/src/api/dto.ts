@@ -179,6 +179,8 @@ export interface ProviderTestResult {
 export interface DayContextDTO {
   day: string
   standupDay: string
+  /** Monday yyyy-MM-dd of the week containing the logical day; the backend owns week boundaries. */
+  weekStart: string
   dayStartTs: number
   dayEndTs: number
   nowTs: number
@@ -269,6 +271,37 @@ export interface DailyRecapDTO {
   blockersTitle: string
   blockersBody: string
   generatedAtTs: number | null
+}
+
+export interface JournalDayDTO {
+  day: string
+  intentions: string | null
+  notes: string | null
+  goals: string | null
+  reflections: string | null
+  /** AI generated, read-only for users. */
+  summary: string | null
+  /** draft | intentions_set | complete; empty means no entry exists yet. */
+  status: string
+  updatedAtTs: number | null
+}
+
+export interface GoalCategoryRefDTO {
+  categoryId: string
+  name: string
+  colorHex: string
+  sortOrder: number
+}
+
+export interface DayGoalDTO {
+  day: string
+  focusTargetMinutes: number
+  distractionLimitMinutes: number
+  isSkipped: boolean
+  focusCategories: GoalCategoryRefDTO[]
+  distractionCategories: GoalCategoryRefDTO[]
+  /** false when no goal is set for the day yet. */
+  exists: boolean
 }
 
 export interface CapabilitiesDTO {

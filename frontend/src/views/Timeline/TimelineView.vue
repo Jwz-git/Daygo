@@ -105,6 +105,7 @@ onMounted(() => {
   stopRecordingEvents = onRecordingState((state) => { recordingState.value = state })
   void getRecordingState().then((value) => { recordingState.value = value.state }).catch(() => undefined)
 })
+watch(() => route.query.day, () => { void timeline.load(routeDay()) }, { immediate: true })
 onBeforeUnmount(() => { timeline.stopListening(); stopRecordingEvents?.() })
 </script>
 
