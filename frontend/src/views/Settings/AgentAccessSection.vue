@@ -10,11 +10,16 @@ const { t } = useI18n()
 const { state, settings, load, persist } = useSettingsSection()
 
 const enabled = computed(() => settings.value?.system.agentEditsEnabled ?? false)
+const chatEdits = computed(() => settings.value?.chat.editMode === 'edits')
 
 onMounted(() => void load())
 
 function onToggle(next: boolean): void {
   void persist({ agentEditsEnabled: next })
+}
+
+function onToggleChatEdits(next: boolean): void {
+  void persist({ chatEditMode: next ? 'edits' : 'readonly' })
 }
 </script>
 
@@ -28,6 +33,17 @@ function onToggle(next: boolean): void {
       :disabled="state !== 'ready'"
       :label="t('settings.agentAccess.editsTitle')"
       @toggle="onToggle"
+    />
+  </SettingRow>
+  <SettingRow
+    :title="t('settings.agentAccess.chatEditsTitle')"
+    :hint="t('settings.agentAccess.chatEditsHint')"
+  >
+    <SwitchControl
+      :checked="chatEdits"
+      :disabled="state !== 'ready'"
+      :label="t('settings.agentAccess.chatEditsTitle')"
+      @toggle="onToggleChatEdits"
     />
   </SettingRow>
 </template>

@@ -36,6 +36,9 @@ export default {
     editsTitle: 'External write channel',
     editsHint:
       'Allow local CLI / MCP clients to modify cards, categories and goals. The channel arrives in v1.1; for now this preference is only stored.',
+    chatEditsTitle: 'In-app chat editing',
+    chatEditsHint:
+      'Allow the in-app chat assistant to modify cards, categories and goals (limited to the six sandboxed operations). Off by default; independent of the external channel above.',
   },
   appearance: {
     theme: 'Theme',

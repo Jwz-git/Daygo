@@ -40,6 +40,7 @@ const (
 	KeyLLMOutputLanguage            = "llm.outputLanguage"
 	KeyLLMRecognitionEnhancement    = "llm.recognitionEnhancementEnabled"
 	KeyChatMemory                   = "chat.memory"
+	KeyChatEditMode                 = "chat.editMode"
 )
 
 // AllKeys lists every setting key. It exists so a test can assert the stored
@@ -64,6 +65,7 @@ func AllKeys() []string {
 		KeyLLMOutputLanguage,
 		KeyLLMRecognitionEnhancement,
 		KeyChatMemory,
+		KeyChatEditMode,
 	}
 }
 
@@ -75,6 +77,14 @@ var (
 	AllowedCaptureIntervals = []int{1, 5, 10, 20, 30, 60}
 	AllowedCaptureHeights   = []int{720, 1080}
 	AllowedThemes           = []string{"system", "light", "dark"}
+	AllowedChatEditModes    = []string{ChatEditModeReadonly, ChatEditModeEdits}
+)
+
+// Chat edit modes (docs/03 §3.3.5, docs/05 §5.12): the chat agent sandbox gate.
+// Readonly is the default and the fallback for any stored value outside the set.
+const (
+	ChatEditModeReadonly = "readonly"
+	ChatEditModeEdits    = "edits"
 )
 
 // DefaultCaptureIntervalSeconds and friends are the defaults from
@@ -96,6 +106,7 @@ const (
 	DefaultOutputLanguage         = ""
 	DefaultRecognitionEnhancement = false
 	DefaultChatMemory             = ""
+	DefaultChatEditMode           = ChatEditModeReadonly
 )
 
 // MaxRoutingChain bounds the fallback chain. Eight entries is far beyond any
@@ -146,6 +157,7 @@ type Snapshot struct {
 	OutputLanguage         string
 	RecognitionEnhancement bool
 	ChatMemory             string
+	ChatEditMode           string
 }
 
 // Routing is the stored form of providers.routing (docs/03 §3.3.5). Chain is
@@ -202,6 +214,7 @@ type Patch struct {
 	AnalyticsOptIn         *bool
 	CrashReportingOptIn    *bool
 	ChatMemory             *string
+	ChatEditMode           *string
 }
 
 // Apply writes the keys the patch actually carries and returns the full
@@ -344,6 +357,11 @@ func (s *Settings) encodePatch(p Patch) (map[string]string, []string, error) {
 			return nil, nil, err
 		}
 	}
+	if p.ChatEditMode != nil {
+		if err := put(KeyChatEditMode, normalizeChatEditMode(*p.ChatEditMode)); err != nil {
+			return nil, nil, err
+		}
+	}
 	return values, changed, nil
 }
 
@@ -367,6 +385,7 @@ func (s *Settings) snapshotFrom(raw map[string]string) Snapshot {
 		OutputLanguage:         normalizeLanguage(decodeString(raw[KeyLLMOutputLanguage], DefaultOutputLanguage)),
 		RecognitionEnhancement: decodeBool(raw[KeyLLMRecognitionEnhancement], DefaultRecognitionEnhancement),
 		ChatMemory:             normalizeChatMemory(decodeString(raw[KeyChatMemory], DefaultChatMemory)),
+		ChatEditMode:           normalizeChatEditMode(decodeString(raw[KeyChatEditMode], DefaultChatEditMode)),
 	}
 }
 
@@ -507,6 +526,8 @@ func defaultFor(key string) string {
 		return encodeScalar(DefaultRecognitionEnhancement)
 	case KeyChatMemory:
 		return encodeScalar(DefaultChatMemory)
+	case KeyChatEditMode:
+		return encodeScalar(DefaultChatEditMode)
 	default:
 		return ""
 	}
@@ -528,6 +549,8 @@ func normalizeScalar(key, raw string) string {
 		return encodeScalar(normalizeLanguage(decodeString(raw, "")))
 	case KeyNotificationsReminderTime:
 		return encodeScalar(normalizeClockTime(decodeString(raw, DefaultReminderTime)))
+	case KeyChatEditMode:
+		return encodeScalar(normalizeChatEditMode(decodeString(raw, DefaultChatEditMode)))
 	default:
 		return raw
 	}
@@ -607,6 +630,13 @@ func decodeStrings(raw string) []string {
 // beyond the patch layer's own bound, no structure to validate.
 func normalizeChatMemory(value string) string {
 	return strings.TrimRight(value, " \t\r\n")
+}
+
+// normalizeChatEditMode snaps the chat sandbox gate to the closed set. Any
+// value outside readonly/edits — including one written by an older or edited
+// database — reads as readonly, the safe side of the gate.
+func normalizeChatEditMode(value string) string {
+	return normalizeMember(strings.TrimSpace(value), AllowedChatEditModes, ChatEditModeReadonly)
 }
 
 // Routing reads providers.routing with its default applied.

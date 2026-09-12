@@ -33,6 +33,9 @@ export default {
     editsTitle: '外部写入通道',
     editsHint:
       '允许本地 CLI / MCP 客户端修改卡片、分类与目标。通道在 v1.1 提供，当前版本仅保存此偏好。',
+    chatEditsTitle: '应用内对话编辑',
+    chatEditsHint:
+      '允许应用内聊天助手修改卡片、分类与目标（仅限沙箱内的六个受控操作）。默认关闭；与上方外部通道相互独立。',
   },
   appearance: {
     theme: '主题',

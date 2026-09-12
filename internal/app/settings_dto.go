@@ -60,9 +60,12 @@ type SystemSettingsDTO struct {
 
 // ChatSettingsDTO carries the global chat memory: user-authored free text
 // (like a CLAUDE.md) injected into every conversation's system prompt
-// (decisions/chat-session-model). editMode arrives with the agent slice.
+// (decisions/chat-session-model). EditMode is the chat agent sandbox gate
+// (docs/05 §5.12): "readonly" (default) or "edits"; it is independent of
+// SystemSettingsDTO.AgentEditsEnabled, which gates the agent.sock channel.
 type ChatSettingsDTO struct {
-	Memory string `json:"memory"`
+	Memory   string `json:"memory"`
+	EditMode string `json:"editMode"`
 }
 
 type TelemetrySettingsDTO struct {
@@ -86,6 +89,7 @@ type SettingsPatchDTO struct {
 	OutputLanguage                *string   `json:"outputLanguage"`
 	RecognitionEnhancementEnabled *bool     `json:"recognitionEnhancementEnabled"`
 	ChatMemory                    *string   `json:"chatMemory"`
+	ChatEditMode                  *string   `json:"chatEditMode"`
 	LaunchAtLogin                 *bool     `json:"launchAtLogin"`
 	ShowDockIcon                  *bool     `json:"showDockIcon"`
 	AgentEditsEnabled             *bool     `json:"agentEditsEnabled"`

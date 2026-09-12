@@ -89,11 +89,18 @@ export interface SettingsPatch {
   recognitionEnhancementEnabled?: boolean
   agentEditsEnabled?: boolean
   chatMemory?: string
+  chatEditMode?: 'readonly' | 'edits'
 }
 
-/** ChatSettingsDTO — the global chat memory, injected into every conversation. */
+/**
+ * ChatSettingsDTO — the global chat memory, injected into every conversation,
+ * plus the agent sandbox gate. `editMode` is "readonly" (default) or "edits";
+ * it gates the in-app chat assistant only, independent of the external
+ * agent.sock channel.
+ */
 export interface ChatSettingsDTO {
   memory: string
+  editMode: 'readonly' | 'edits'
 }
 
 

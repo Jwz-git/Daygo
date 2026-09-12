@@ -97,6 +97,7 @@ func TestLoadDefaultsOnEmptyDatabase(t *testing.T) {
 		OutputLanguage:         DefaultOutputLanguage,
 		RecognitionEnhancement: DefaultRecognitionEnhancement,
 		ChatMemory:             DefaultChatMemory,
+		ChatEditMode:           DefaultChatEditMode,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("defaults mismatch:\ngot  %+v\nwant %+v", got, want)
@@ -527,6 +528,50 @@ func TestChatMemoryRoundTrips(t *testing.T) {
 	}
 	if want := "回答保持简洁。\n关注时间跟踪场景。"; snapshot.ChatMemory != want {
 		t.Fatalf("chat.memory = %q, want %q", snapshot.ChatMemory, want)
+	}
+}
+
+// chat.editMode is a closed set: the two valid values round-trip and anything
+// else — written by a patch or found already stored — reads as readonly, the
+// safe side of the sandbox gate.
+func TestChatEditModeNormalization(t *testing.T) {
+	repo := newFakeRepo()
+	s := New(repo)
+
+	for _, mode := range []string{ChatEditModeReadonly, ChatEditModeEdits} {
+		if _, _, err := s.Apply(context.Background(), Patch{ChatEditMode: ptr(mode)}); err != nil {
+			t.Fatalf("Apply %s: %v", mode, err)
+		}
+		snapshot, err := s.Load(context.Background())
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if snapshot.ChatEditMode != mode {
+			t.Fatalf("chat.editMode = %q, want %q", snapshot.ChatEditMode, mode)
+		}
+	}
+
+	if _, _, err := s.Apply(context.Background(), Patch{ChatEditMode: ptr("yolo")}); err != nil {
+		t.Fatalf("Apply invalid mode: %v", err)
+	}
+	snapshot, err := s.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if snapshot.ChatEditMode != ChatEditModeReadonly {
+		t.Fatalf("chat.editMode = %q after invalid patch, want readonly", snapshot.ChatEditMode)
+	}
+
+	// A stray stored value reads as readonly without being rewritten.
+	if err := repo.Set(context.Background(), KeyChatEditMode, `"write"`); err != nil {
+		t.Fatalf("seed stray value: %v", err)
+	}
+	got, err := s.Get(context.Background(), KeyChatEditMode)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if want := `"readonly"`; got != want {
+		t.Fatalf("Get(chat.editMode) = %s, want %s", got, want)
 	}
 }
 
