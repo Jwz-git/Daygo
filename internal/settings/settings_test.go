@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -92,9 +93,10 @@ func TestLoadDefaultsOnEmptyDatabase(t *testing.T) {
 		AgentEditsEnabled:      DefaultAgentEditsEnabled,
 		AnalyticsOptIn:         DefaultAnalyticsOptIn,
 		CrashReportingOptIn:    DefaultCrashReportingOptIn,
-		ProvidersRouting:       Routing{},
+		ProvidersRouting:       Routing{Chain: []string{}},
 		OutputLanguage:         DefaultOutputLanguage,
 		RecognitionEnhancement: DefaultRecognitionEnhancement,
+		ChatMemory:             DefaultChatMemory,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("defaults mismatch:\ngot  %+v\nwant %+v", got, want)
@@ -426,9 +428,9 @@ func TestNegativeSizeLimitClampsToUnlimited(t *testing.T) {
 	}
 }
 
-// Routing round-trips through the JSON object form, keeping the two fields
-// distinct.
-func TestRoutingRoundTrips(t *testing.T) {
+// A pre-chain build stored {"primary": "...", "secondary": "..."}; reading it
+// must fold into a chain, not drop the routing.
+func TestRoutingLegacyShapeFoldsIntoChain(t *testing.T) {
 	repo := newFakeRepo()
 	repo.values[KeyProvidersRouting] = `{"primary":"p1","secondary":"p2"}`
 
@@ -436,8 +438,95 @@ func TestRoutingRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if snapshot.ProvidersRouting.Primary != "p1" || snapshot.ProvidersRouting.Secondary != "p2" {
-		t.Fatalf("routing = %+v, want p1/p2", snapshot.ProvidersRouting)
+	want := []string{"p1", "p2"}
+	if !reflect.DeepEqual(snapshot.ProvidersRouting.Chain, want) {
+		t.Fatalf("routing chain = %v, want %v", snapshot.ProvidersRouting.Chain, want)
+	}
+}
+
+// A legacy shape with only a primary folds to a one-entry chain.
+func TestRoutingLegacyPrimaryOnly(t *testing.T) {
+	repo := newFakeRepo()
+	repo.values[KeyProvidersRouting] = `{"primary":"p1","secondary":""}`
+
+	snapshot, err := New(repo).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := []string{"p1"}
+	if !reflect.DeepEqual(snapshot.ProvidersRouting.Chain, want) {
+		t.Fatalf("routing chain = %v, want %v", snapshot.ProvidersRouting.Chain, want)
+	}
+}
+
+// The chain form round-trips through Load and SetRouting, normalized.
+func TestRoutingChainRoundTrips(t *testing.T) {
+	repo := newFakeRepo()
+	s := New(repo)
+
+	if err := s.SetRouting(context.Background(), Routing{Chain: []string{"p2", "p1", "p2", ""}}); err != nil {
+		t.Fatalf("SetRouting: %v", err)
+	}
+	snapshot, err := s.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := []string{"p2", "p1"}
+	if !reflect.DeepEqual(snapshot.ProvidersRouting.Chain, want) {
+		t.Fatalf("routing chain = %v, want %v (deduped, empties dropped)", snapshot.ProvidersRouting.Chain, want)
+	}
+}
+
+func TestRoutingChainCapsAtEight(t *testing.T) {
+	repo := newFakeRepo()
+	s := New(repo)
+
+	chain := make([]string, 12)
+	for i := range chain {
+		chain[i] = fmt.Sprintf("p%d", i)
+	}
+	if err := s.SetRouting(context.Background(), Routing{Chain: chain}); err != nil {
+		t.Fatalf("SetRouting: %v", err)
+	}
+	snapshot, err := s.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(snapshot.ProvidersRouting.Chain) != MaxRoutingChain {
+		t.Fatalf("chain length = %d, want %d", len(snapshot.ProvidersRouting.Chain), MaxRoutingChain)
+	}
+}
+
+// Unparseable routing degrades to an empty chain, never to a partial one.
+func TestRoutingUnparseableDegradesToEmpty(t *testing.T) {
+	repo := newFakeRepo()
+	repo.values[KeyProvidersRouting] = `not json`
+
+	snapshot, err := New(repo).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(snapshot.ProvidersRouting.Chain) != 0 {
+		t.Fatalf("chain = %v, want empty", snapshot.ProvidersRouting.Chain)
+	}
+}
+
+// chat.memory is user-authored free text: round-trip must preserve it, only
+// trimming trailing whitespace.
+func TestChatMemoryRoundTrips(t *testing.T) {
+	repo := newFakeRepo()
+	s := New(repo)
+
+	memory := "回答保持简洁。\n关注时间跟踪场景。  \n"
+	if _, _, err := s.Apply(context.Background(), Patch{ChatMemory: ptr(memory)}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	snapshot, err := s.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if want := "回答保持简洁。\n关注时间跟踪场景。"; snapshot.ChatMemory != want {
+		t.Fatalf("chat.memory = %q, want %q", snapshot.ChatMemory, want)
 	}
 }
 

@@ -102,6 +102,28 @@ func TestUpdateSettingsReturnsEffectiveValue(t *testing.T) {
 	}
 }
 
+// chat.memory round-trips through the chat group and an omitted patch field
+// leaves it alone.
+func TestUpdateSettingsChatMemoryRoundTrip(t *testing.T) {
+	backend, _ := backendWithStore(t)
+
+	dto, err := backend.UpdateSettings(SettingsPatchDTO{ChatMemory: ptrString("保持简洁")})
+	if err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	if dto.Chat.Memory != "保持简洁" {
+		t.Fatalf("chat.memory = %q, want it echoed back", dto.Chat.Memory)
+	}
+
+	dto, err = backend.UpdateSettings(SettingsPatchDTO{Theme: ptrString("dark")})
+	if err != nil {
+		t.Fatalf("UpdateSettings second: %v", err)
+	}
+	if dto.Chat.Memory != "保持简洁" {
+		t.Fatalf("chat.memory = %q after an unrelated patch; omitted keys must not change", dto.Chat.Memory)
+	}
+}
+
 // A patch that omits a key must not change it. This is the property pointer
 // fields exist for.
 func TestUpdateSettingsLeavesOmittedKeysAlone(t *testing.T) {
@@ -237,11 +259,16 @@ func TestSettingsDTOJSONShape(t *testing.T) {
 	}
 	for _, group := range []string{
 		"capture", "privacy", "storage", "notifications",
-		"appearance", "llm", "system", "telemetry",
+		"appearance", "llm", "chat", "system", "telemetry",
 	} {
 		if _, ok := decoded[group]; !ok {
 			t.Errorf("group %q missing from the payload", group)
 		}
+	}
+
+	chat, _ := decoded["chat"].(map[string]any)
+	if _, ok := chat["memory"]; !ok {
+		t.Error("chat.memory missing from the payload")
 	}
 
 	capture, _ := decoded["capture"].(map[string]any)

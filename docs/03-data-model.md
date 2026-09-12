@@ -324,13 +324,20 @@ CREATE TABLE providers (
 | `system.agentEditsEnabled` | bool | `false` |
 | `telemetry.analyticsOptIn` | bool | `false` |
 | `telemetry.crashReportingOptIn` | bool | `false` |
-| `providers.routing` | `{primary, secondary}` | 空 |
+| `providers.routing` | `{"chain": ["id", …]}`（有序，`chain[0]` 为主，上限 8） | `{"chain":[]}` |
 | `llm.outputLanguage` | string（空串=跟随界面语言） | `""` |
 | `llm.recognitionEnhancementEnabled` | bool | `false` |
+| `chat.memory` | string（全局聊天记忆，自由文本） | `""` |
 | `chat.editMode` | string（`readonly` \| `edits`） | `"readonly"` |
 
-`chat.editMode` 是 chat 沙箱门禁（[05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现)），
-随 chat 功能落盘；当前不在 `internal/settings` 已实现的 16 个键内。
+`providers.routing` 的旧存储形状 `{"primary","secondary"}` 在**读取时**折叠为
+`[primary, secondary?]` 链（值级迁移，无需 SQL 迁移）。会话级 provider 选择不在设置里：
+它存在 `chat_conversations.provider_id` 列（decisions/chat-session-model）。
+
+`chat.memory` 是用户自定义的全局聊天指令（类似 CLAUDE.md），非空时注入每个会话的系统
+提示尾部；`chat.editMode` 是 chat 沙箱门禁
+（[05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现)），
+随 agent 工具循环切片落盘。
 
 `llm.outputLanguage` 与 `appearance.language` 是**两个独立设置**：前者决定模型生成的卡片
 标题与摘要用什么语言，后者只影响界面文案。不得复用同一个字段。

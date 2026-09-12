@@ -39,6 +39,7 @@ const (
 	KeyProvidersRouting             = "providers.routing"
 	KeyLLMOutputLanguage            = "llm.outputLanguage"
 	KeyLLMRecognitionEnhancement    = "llm.recognitionEnhancementEnabled"
+	KeyChatMemory                   = "chat.memory"
 )
 
 // AllKeys lists every setting key. It exists so a test can assert the stored
@@ -62,6 +63,7 @@ func AllKeys() []string {
 		KeyProvidersRouting,
 		KeyLLMOutputLanguage,
 		KeyLLMRecognitionEnhancement,
+		KeyChatMemory,
 	}
 }
 
@@ -93,7 +95,13 @@ const (
 	DefaultCrashReportingOptIn    = false
 	DefaultOutputLanguage         = ""
 	DefaultRecognitionEnhancement = false
+	DefaultChatMemory             = ""
 )
+
+// MaxRoutingChain bounds the fallback chain. Eight entries is far beyond any
+// real provider list and keeps the stored value and the chain walk trivially
+// small.
+const MaxRoutingChain = 8
 
 // repo is the storage side of this package. It is an interface defined here,
 // at the consumer, so settings does not depend on storage's concrete type and a
@@ -137,14 +145,15 @@ type Snapshot struct {
 	ProvidersRouting       Routing
 	OutputLanguage         string
 	RecognitionEnhancement bool
+	ChatMemory             string
 }
 
-// Routing is the stored form of providers.routing (docs/03 §3.3.5). An empty
-// secondary means no fallback, which is why it is a pointer-free empty string
-// rather than a sentinel.
+// Routing is the stored form of providers.routing (docs/03 §3.3.5). Chain is
+// ordered: Chain[0] is the primary provider, the rest are fallbacks tried in
+// order (decisions/providers-fallback-chain). An empty chain means no provider
+// is configured.
 type Routing struct {
-	Primary   string `json:"primary"`
-	Secondary string `json:"secondary"`
+	Chain []string `json:"chain"`
 }
 
 // Load reads every setting and applies defaults and normalization.
@@ -192,6 +201,7 @@ type Patch struct {
 	AgentEditsEnabled      *bool
 	AnalyticsOptIn         *bool
 	CrashReportingOptIn    *bool
+	ChatMemory             *string
 }
 
 // Apply writes the keys the patch actually carries and returns the full
@@ -329,6 +339,11 @@ func (s *Settings) encodePatch(p Patch) (map[string]string, []string, error) {
 			return nil, nil, err
 		}
 	}
+	if p.ChatMemory != nil {
+		if err := put(KeyChatMemory, normalizeChatMemory(*p.ChatMemory)); err != nil {
+			return nil, nil, err
+		}
+	}
 	return values, changed, nil
 }
 
@@ -351,6 +366,7 @@ func (s *Settings) snapshotFrom(raw map[string]string) Snapshot {
 		ProvidersRouting:       decodeRouting(raw[KeyProvidersRouting]),
 		OutputLanguage:         normalizeLanguage(decodeString(raw[KeyLLMOutputLanguage], DefaultOutputLanguage)),
 		RecognitionEnhancement: decodeBool(raw[KeyLLMRecognitionEnhancement], DefaultRecognitionEnhancement),
+		ChatMemory:             normalizeChatMemory(decodeString(raw[KeyChatMemory], DefaultChatMemory)),
 	}
 }
 
@@ -484,11 +500,13 @@ func defaultFor(key string) string {
 	case KeyTelemetryCrashReportingOptIn:
 		return encodeScalar(DefaultCrashReportingOptIn)
 	case KeyProvidersRouting:
-		return `{"primary":"","secondary":""}`
+		return `{"chain":[]}`
 	case KeyLLMOutputLanguage:
 		return encodeScalar(DefaultOutputLanguage)
 	case KeyLLMRecognitionEnhancement:
 		return encodeScalar(DefaultRecognitionEnhancement)
+	case KeyChatMemory:
+		return encodeScalar(DefaultChatMemory)
 	default:
 		return ""
 	}
@@ -584,13 +602,74 @@ func decodeStrings(raw string) []string {
 	return value
 }
 
+// normalizeChatMemory trims trailing whitespace from the user-authored global
+// memory text. It is free-form by design (like a CLAUDE.md): no length clamping
+// beyond the patch layer's own bound, no structure to validate.
+func normalizeChatMemory(value string) string {
+	return strings.TrimRight(value, " \t\r\n")
+}
+
+// Routing reads providers.routing with its default applied.
+func (s *Settings) Routing(ctx context.Context) (Routing, error) {
+	raw, ok, err := s.repo.Get(ctx, KeyProvidersRouting)
+	if err != nil {
+		return Routing{}, err
+	}
+	if !ok {
+		return Routing{}, nil
+	}
+	return decodeRouting(raw), nil
+}
+
+// SetRouting writes providers.routing after normalization. Existence of the
+// referenced provider ids is the app layer's check, not this one's: settings
+// owns the value's shape, not referential integrity across tables.
+func (s *Settings) SetRouting(ctx context.Context, r Routing) error {
+	value, err := json.Marshal(normalizeRouting(r))
+	if err != nil {
+		return fmt.Errorf("settings: encode %s: %w", KeyProvidersRouting, err)
+	}
+	return s.repo.Set(ctx, KeyProvidersRouting, string(value))
+}
+
+// normalizeRouting dedupes, drops empty ids, and caps the chain. A nil chain
+// normalizes to an empty slice so the stored form is always a list.
+func normalizeRouting(r Routing) Routing {
+	chain := dedupeStrings(r.Chain)
+	if len(chain) > MaxRoutingChain {
+		chain = chain[:MaxRoutingChain]
+	}
+	if chain == nil {
+		chain = []string{}
+	}
+	return Routing{Chain: chain}
+}
+
 func decodeRouting(raw string) Routing {
 	if raw == "" {
-		return Routing{}
+		return Routing{Chain: []string{}}
 	}
 	var value Routing
 	if err := json.Unmarshal([]byte(raw), &value); err != nil {
-		return Routing{}
+		return Routing{Chain: []string{}}
 	}
-	return value
+	// A pre-chain build stored {"primary": "...", "secondary": "..."}; both
+	// shapes could not be told apart by field presence alone, so decode the
+	// legacy form explicitly and fold it into a one- or two-entry chain.
+	if value.Chain == nil {
+		var legacy struct {
+			Primary   string `json:"primary"`
+			Secondary string `json:"secondary"`
+		}
+		if err := json.Unmarshal([]byte(raw), &legacy); err == nil && (legacy.Primary != "" || legacy.Secondary != "") {
+			value.Chain = []string{}
+			if legacy.Primary != "" {
+				value.Chain = append(value.Chain, legacy.Primary)
+			}
+			if legacy.Secondary != "" {
+				value.Chain = append(value.Chain, legacy.Secondary)
+			}
+		}
+	}
+	return normalizeRouting(value)
 }

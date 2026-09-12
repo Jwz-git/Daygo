@@ -116,6 +116,9 @@ func settingsToDTO(s settings.Snapshot) SettingsDTO {
 			OutputLanguage:                s.OutputLanguage,
 			RecognitionEnhancementEnabled: s.RecognitionEnhancement,
 		},
+		Chat: ChatSettingsDTO{
+			Memory: s.ChatMemory,
+		},
 		System: SystemSettingsDTO{
 			LaunchAtLogin:     s.LaunchAtLogin,
 			ShowDockIcon:      s.ShowDockIcon,
@@ -143,6 +146,7 @@ func patchFromDTO(p SettingsPatchDTO) settings.Patch {
 		Language:               p.Language,
 		OutputLanguage:         p.OutputLanguage,
 		RecognitionEnhancement: p.RecognitionEnhancementEnabled,
+		ChatMemory:             p.ChatMemory,
 		LaunchAtLogin:          p.LaunchAtLogin,
 		ShowDockIcon:           p.ShowDockIcon,
 		AgentEditsEnabled:      p.AgentEditsEnabled,

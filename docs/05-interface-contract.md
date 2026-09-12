@@ -536,6 +536,7 @@ type SettingsDTO struct {
     Notifications NotificationSettingsDTO `json:"notifications"`
     Appearance    AppearanceSettingsDTO   `json:"appearance"`
     LLM           LLMSettingsDTO          `json:"llm"`
+    Chat          ChatSettingsDTO         `json:"chat"`
     System        SystemSettingsDTO       `json:"system"`
     Telemetry     TelemetrySettingsDTO    `json:"telemetry"`
 }
@@ -570,6 +571,13 @@ type LLMSettingsDTO struct {
     RecognitionEnhancementEnabled bool   `json:"recognitionEnhancementEnabled"` // 识别图片切四片发送；默认 false
 }
 
+// ChatSettingsDTO.ChatMemory 是全局聊天记忆（decisions/chat-session-model）：
+// 用户自定义自由文本（类似 CLAUDE.md），非空时注入每个会话系统提示尾部。
+// editMode 随 agent 工具循环切片加入。
+type ChatSettingsDTO struct {
+    Memory string `json:"memory"` // → chat.memory
+}
+
 type SystemSettingsDTO struct {
     LaunchAtLogin     bool `json:"launchAtLogin"`
     ShowDockIcon      bool `json:"showDockIcon"`
@@ -594,6 +602,7 @@ type SettingsPatchDTO struct {
     Language               *string   `json:"language"`
     OutputLanguage         *string   `json:"outputLanguage"`
     RecognitionEnhancement *bool     `json:"recognitionEnhancementEnabled"`
+    ChatMemory             *string   `json:"chatMemory"`
     LaunchAtLogin          *bool     `json:"launchAtLogin"`
     ShowDockIcon           *bool     `json:"showDockIcon"`
     AgentEditsEnabled      *bool     `json:"agentEditsEnabled"`

@@ -13,6 +13,7 @@ type SettingsDTO struct {
 	Notifications NotificationSettingsDTO `json:"notifications"`
 	Appearance    AppearanceSettingsDTO   `json:"appearance"`
 	LLM           LLMSettingsDTO          `json:"llm"`
+	Chat          ChatSettingsDTO         `json:"chat"`
 	System        SystemSettingsDTO       `json:"system"`
 	Telemetry     TelemetrySettingsDTO    `json:"telemetry"`
 }
@@ -57,6 +58,13 @@ type SystemSettingsDTO struct {
 	AgentEditsEnabled bool `json:"agentEditsEnabled"`
 }
 
+// ChatSettingsDTO carries the global chat memory: user-authored free text
+// (like a CLAUDE.md) injected into every conversation's system prompt
+// (decisions/chat-session-model). editMode arrives with the agent slice.
+type ChatSettingsDTO struct {
+	Memory string `json:"memory"`
+}
+
 type TelemetrySettingsDTO struct {
 	AnalyticsOptIn      bool `json:"analyticsOptIn"`
 	CrashReportingOptIn bool `json:"crashReportingOptIn"`
@@ -77,6 +85,7 @@ type SettingsPatchDTO struct {
 	Language                      *string   `json:"language"`
 	OutputLanguage                *string   `json:"outputLanguage"`
 	RecognitionEnhancementEnabled *bool     `json:"recognitionEnhancementEnabled"`
+	ChatMemory                    *string   `json:"chatMemory"`
 	LaunchAtLogin                 *bool     `json:"launchAtLogin"`
 	ShowDockIcon                  *bool     `json:"showDockIcon"`
 	AgentEditsEnabled             *bool     `json:"agentEditsEnabled"`
