@@ -41,41 +41,48 @@ finally {
     Pop-Location
 }
 
-# The Go binding generator compiles the project with the `bindings` build tag,
-# but frontend/embed.go is still compiled and requires at least one file under
-# frontend/dist. Seed that directory for a fresh checkout; Vite replaces it
-# with the real bundle below.
-$FrontendEntry = Join-Path $FrontendDir 'dist\index.html'
-$FrontendBootstrapMarker = Join-Path $FrontendDir 'dist\.daygo-embed-bootstrap'
-$NeedsFrontendBuild =
-    (-not (Test-Path -LiteralPath $FrontendEntry -PathType Leaf)) -or
-    (Test-Path -LiteralPath $FrontendBootstrapMarker -PathType Leaf)
-if ($NeedsFrontendBuild) {
-    $FrontendDist = Split-Path -Parent $FrontendEntry
-    New-Item -ItemType Directory -Path $FrontendDist -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $FrontendDir 'index.html') -Destination $FrontendEntry -Force
-    New-Item -ItemType File -Path $FrontendBootstrapMarker -Force | Out-Null
+# frontend/dist/ must contain something or `go:embed all:dist` fails to compile
+# and no Go command runs at all. Seed it ONLY when there is no entry point:
+# writing one unconditionally would destroy a real bundle's index.html while
+# leaving its assets/ in place, and the app then serves a blank page.
+$FrontendDist = Join-Path $FrontendDir 'dist'
+$FrontendEntry = Join-Path $FrontendDist 'index.html'
+New-Item -ItemType Directory -Path $FrontendDist -Force | Out-Null
+if (-not (Test-Path -LiteralPath $FrontendEntry -PathType Leaf)) {
+    Set-Content -LiteralPath $FrontendEntry -Value '<!doctype html>' -NoNewline
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $FrontendDir 'wailsjs') -PathType Container)) {
-    Write-Host 'Generating Wails frontend bindings...'
-    Push-Location (Join-Path $RootDir 'cmd\daygo')
-    try {
-        Invoke-Native go @('run', $WailsPackage, 'generate', 'module')
-    }
-    finally {
-        Pop-Location
-    }
+# frontend/wailsjs/ is generated and not committed, but src/api/*.ts imports it,
+# so vue-tsc and vite both fail without it. It drifts as soon as a binding is
+# added, renamed or removed, and a stale copy produces errors that name the
+# missing member rather than the stale file — so regenerate unconditionally
+# instead of testing for existence. scripts/bootstrap-frontend.sh applies the
+# same rule on macOS/Linux.
+Write-Host 'Generating Wails frontend bindings...'
+Push-Location (Join-Path $RootDir 'cmd\daygo')
+try {
+    Invoke-Native go @('run', $WailsPackage, 'generate', 'module')
+}
+finally {
+    Pop-Location
 }
 
-if ($NeedsFrontendBuild) {
-    Write-Host 'Building frontend bundle once for go:embed...'
+# Build the real bundle. The test is the entry point's content: a real bundle's
+# index.html references its hashed asset files and a seed does not, whereas
+# assets/ can survive a seed write and would make this skip the rebuild that is
+# needed. A marker file would work too, except that losing it leaves the seed in
+# place permanently and the app blank.
+$HasRealBundle = $false
+if (Test-Path -LiteralPath $FrontendEntry -PathType Leaf) {
+    if (Select-String -LiteralPath $FrontendEntry -Pattern 'assets/' -Quiet) {
+        $HasRealBundle = $true
+    }
+}
+if (-not $HasRealBundle) {
+    Write-Host 'Building frontend bundle for go:embed...'
     Push-Location $FrontendDir
     try {
         Invoke-Native npm @('run', 'build')
-        if (Test-Path -LiteralPath $FrontendBootstrapMarker -PathType Leaf) {
-            Remove-Item -LiteralPath $FrontendBootstrapMarker -Force
-        }
     }
     finally {
         Pop-Location

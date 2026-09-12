@@ -313,7 +313,13 @@ npm --prefix frontend run build
 ```
 
 引导逻辑本身在 `scripts/bootstrap-frontend.sh`，`scripts/dev.sh` 与 `gate.sh` 共用；
-顺序为「占位 `dist` → 生成绑定 → 真实 bundle」，每步幂等。
+顺序为「占位 `dist` → 生成绑定 → 真实 bundle」。两条规则对每个平台都成立，因此 Windows 的
+`scripts/dev.ps1` 也内置同一顺序（不同 shell 无法共用脚本，只能各写一份，改一处要同时改另一处）：
+
+1. **占位 `dist` 只在缺失时写。** 无条件写会毁掉真实 bundle 的 `index.html` 却留下它的
+   `assets/`，应用随后提供的是一张空白页。
+2. **绑定无条件重新生成。** 绑定一旦过期，`vue-tsc` 报的是「缺少某个成员」而不是「绑定陈旧」，
+   指向的是前端文件；按存在性判断会让这个状态一直留着。
 
 `gate.sh` 最后还会跑 `scripts/check-docs.py`：检查 markdown 链接与小节锚点是否存在、
 有没有没被任何文档链接到的孤立文档。它只保证文档**内部自洽**；文档与代码是否一致仍然
