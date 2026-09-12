@@ -133,7 +133,8 @@ real Media 未就绪仅阻塞真实清理验收，不阻塞连接、迁移和设
 | 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
 |---|---|---|---|
 | 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/storage/`、`-race`、`go build ./...`、`go vet ./...`、`gofmt -l .` | 全部通过；DB-1/2/4/6/7/8(smoke)/IT-13 在已实现范围通过 | 非 Linux 实机；`internal/app` 需 `frontend/dist` 才能编译 |
-| 2026-09-11 / 同上 | `go test -tags long -run TestConcurrentReaderWriterOneHour -timeout 25s` | 25 秒后被超时中断，无死锁、无 busy 报错、无损坏 | **仅为逻辑验证，不是 DB-8 通过**；1 小时全量未运行 |
+| 2026-09-11 / 同上 | `go test -tags long -run TestConcurrentReaderWriterOneHour -timeout 25s` | 25 秒后被超时中断，无死锁、无 busy 报错、无损坏 | **仅为逻辑验证，不是 DB-8 通过**；当时一小时全量未运行 |
+| 2026-09-12 / `893f2b3` / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test -tags long -run TestConcurrentReaderWriterOneHour -timeout 70m` | **DB-8 通过**：3600.11 秒内 writer 完成 35431 次写入、reader 完成 69654 次读取，零 `SQLITE_BUSY` 风暴、零损坏，结束后 `integrity_check` 为 `ok` | 单次运行；DB-8 只断言一小时内的行为，长期稳定性仍属 G-stability 的 14 天窗口 |
 | 2026-09-11 / 同上 | `go test -count=1 -race ./internal/app/` | 通过；绑定层所有权来自真实锁、诊断映射与维护路径均有断言 | 未在真实 Wails 宿主中运行；`GetDiagnostics` 无 UI |
 | 2026-09-11 / 同上 | `go test -count=1 ./internal/storage/`（settings / 维护 / 诊断用例） | 通过；settings 往返与重启读回、单事务原子性、Watch 交付与关闭、备份可读且轮换、恢复保留原库、并发备份互不碰撞 | 未接真实用户设置；清理未接线 |
 | 2026-09-11 / 当前工作树 / Windows 11 amd64 · go1.25.4 | `go test -count=1 ./internal/storage ./internal/settings`；子进程持锁、正常退出与强制终止夹具 | 通过；`LockFileEx` 对第二实例返回 `ErrLockBusy`，正常关闭和进程终止后均可重取；`Open` 只读降级、捕获所有者互斥与 `Close` 释放通过 | 仅短时 smoke；DB-8 一小时并发与录制清理未运行 |
@@ -146,7 +147,11 @@ real Media 未就绪仅阻塞真实清理验收，不阻塞连接、迁移和设
 DB-3 已运行：所有只读 repository 方法在空库、v0/v1 迁移夹具与代表性数据上均返回非错误
 （`internal/storage/db_gate_test.go`）。
 DB-5 已运行：`timeline_cards.metadata` 可解码，`appSites` / `distractions` 往返一致。
-**DB-9 与 IT-12 未运行**：两者都依赖分段生命周期与 `Media`，而 `Media.ProbeSegment` 尚无实现
-（连 fake 都没有），因此无法判断分段边界与活跃段。这是 data 目前唯一的硬前置依赖。
+DB-8 已运行且通过：一 writer + 一只读实例并发一小时，零忙锁风暴、零损坏（见下方验证记录）。
+**DB-9 与 IT-12 未运行**：两者都要按分段枚举，而所需的两项前置都归 recording——
+`recording_segments` 表尚未创建（其 schema 由 recording 的迁移夹具决定），且 `Media` 无实现。
+这是 data 目前唯一的硬前置依赖。
+
+**至此所交付 schema 的 DB-1–8 全部运行过且通过**；只剩 DB-9 因上述前置无法运行。
 
 后续记录驱动 / 系统、commit、匿名夹具、并发时长、回读 PRAGMA 与完整性结果。

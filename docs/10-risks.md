@@ -106,8 +106,10 @@
 - 检测：IT-13，以及定期查询"来自不同分段前缀但 `captured_at` 重叠"的行。
 
 **残余风险。** 主目录在网络挂载卷上时 `flock` 不可靠。应检测 `~` 是否在本地存储并告警。
-Windows 已用 `LockFileEx` 接通实例锁并通过短时跨进程 smoke，但一小时 DB-8 尚未运行；
-因此长期并发稳定性仍是残余风险（[决策](decisions/data-locking.md)）。
+macOS 已通过一小时 DB-8（`893f2b3`，见 [data 验证记录](modules/data.md#验证记录)）。
+Windows 已用 `LockFileEx` 接通实例锁并通过短时跨进程 smoke，但**一小时 DB-8 尚未在
+Windows 上运行**；因此该平台的长期并发稳定性仍是残余风险
+（[决策](decisions/data-locking.md)）。
 
 ---
 
@@ -169,9 +171,10 @@ System 卡片保留）。一旦偏差，卡片被放到错误的日期——**�
 交互是验证最少的路径。
 
 **缓解。** data 的 db-core 独立验收：一个写入实例 + 一个只读实例并发一小时（DB-8），
-回读 PRAGMA（DB-6）。失败时记录最小匿名复现和受阻接入，调查驱动 / 连接配置并重新决策。
-**不得自动切换为 cgo 驱动**：internal/storage 属于 Go Core，仍受 CGO_ENABLED=0 与 Linux
-测试门禁约束。其他模块的接口、fake 与无数据库逻辑可继续推进。
+回读 PRAGMA（DB-6）。**macOS 已通过**（`893f2b3`：3600 秒内 35431 次写入、69654 次读取，
+零忙锁风暴、零损坏），Windows 未运行。失败时记录最小匿名复现和受阻接入，调查驱动 /
+连接配置并重新决策。**不得自动切换为 cgo 驱动**：internal/storage 属于 Go Core，
+仍受 CGO_ENABLED=0 与 Linux 测试门禁约束。其他模块的接口、fake 与无数据库逻辑可继续推进。
 
 ### M-2：WebView 渲染帧条的性能
 

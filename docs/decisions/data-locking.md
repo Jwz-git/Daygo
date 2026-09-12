@@ -67,7 +67,7 @@ Windows 使用等价的 `LockFileEx` 字节范围锁。Windows 发布范围本�
   的性质：测试依赖它来覆盖双实例路径。
 - **Windows 锁已接通，但只完成短时验证。** 跨进程争用、正常关闭释放、进程被强制终止后的
   内核释放、`storage.Open` 只读降级与捕获所有者互斥均有 Windows 测试；DB-8 的一小时并发
-  仍未运行，因此不能据此宣称 Windows Store 长期稳定。
+  **在 Windows 上仍未运行**（macOS 已通过），因此不能据此宣称 Windows Store 长期稳定。
 
 ## 5. 回退
 
