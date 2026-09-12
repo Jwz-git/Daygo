@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
+	"github.com/Jwz-git/Daygo/internal/chat"
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/storage"
@@ -87,6 +88,11 @@ type Backend struct {
 	// a Backend built through NewBackend or newBackend gets at least the
 	// no-op emitter.
 	emitter EventEmitter
+
+	// chat is the chat service, wired lazily on first use by chatService.
+	// chatMu guards the wiring; the service itself is concurrency-safe.
+	chat   *chat.Service
+	chatMu sync.Mutex
 }
 
 // setEventEmitter installs the Wails-backed emitter. It is called once during

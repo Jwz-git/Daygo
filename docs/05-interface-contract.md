@@ -92,6 +92,7 @@ flowchart TD
 | recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
 | recording（联调） | `CaptureTest`、`PickCaptureTestApplication`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；macOS picker 只返回 ScreenCaptureKit 使用的 `{bundle id, name}`，路径不跨绑定；均不接 recorder / storage / config |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
+| chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4 表；`SendChatMessage` 异步发起回合、完成发 `chat:updated`；纯对话无工具循环 |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
 这不代表录制开关、Provider 持久化或 Secrets 已实现。fake 的覆盖以 §5.7.4 为准。
@@ -1383,28 +1384,47 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 | 审计 | 真实 HTTP attempt 计入 `llm_calls`（purpose=`chat`）；chat 触发的写入追加 `agent-writes.log` 并带来源标记 | 与 §5.9.2 同一条审计日志 |
 | 核心可测 | `internal/chat` 在 `CGO_ENABLED=0` 下可构建，Linux 可测（脚本化 fake provider） | §5.10.3 的 CI 门禁反向约束接口设计 |
 
-设计中的绑定与事件（实现时进 §5.2.1 / §5.5.1 / §5.5.3 的正式目录，反射清单测试同步；
-`SettingsDTO` 增加 `chat` 分组属非破坏性扩张）：
+设计中的绑定与事件（**纯对话切片已实现会话作用域签名**；工具循环相关的扩展随 agent
+切片进 §5.2.1 / §5.5.1 / §5.5.3 的正式目录，反射清单测试同步）：
 
 | 方法 | 类型 | 事件 | 主要错误码 |
 |------|------|------|-----------|
-| `SendChatMessage(content string) error` | 写·非幂等（发起一个回合） | `chat:updated` | `provider_not_configured` `provider_failed` `invalid_argument` |
-| `CancelChatTurn() error` | 写·幂等 | `chat:updated` | — |
-| `GetChatMessages(beforeID int64, limit int) ([]ChatMessageDTO, error)` | 读 | — | `invalid_argument` |
+| `SendChatMessage(conversationID string, content string) error` | 写·非幂等（发起一个回合；user 消息落库即返回） | `chat:updated`（两次：发送与完成） | `provider_not_configured`（结果消息）`invalid_argument` |
+| `CancelChatTurn(conversationID string) error` | 写·幂等（空闲会话为 no-op） | `chat:updated` | `invalid_argument` |
+| `GetChatMessages(conversationID string, beforeID int64, limit int) ([]ChatMessageDTO, error)` | 读（oldest-first，beforeID 向前翻页） | — | `invalid_argument` |
+| `ListChatConversations() ([]ChatConversationDTO, error)` | 读 | — | `database_error` |
+| `CreateChatConversation() (ChatConversationDTO, error)` | 写 | — | `database_error` |
+| `DeleteChatConversation(id string) error` | 写·幂等 | `chat:updated` | `not_found` |
+| `SetChatConversationProvider(id string, providerID string) error` | 写（providerID 空串 = 回落路由链） | `chat:updated` | `invalid_argument`（未知 provider）`not_found` |
 
-消息模型：**原子消息**，角色为 `user` / `assistant` / `tool_call` / `tool_result`；回合的
-失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` / `canceled`）。`chat:updated`
-是失效通知，前端靠 `GetChatMessages` 重拉，符合 §5.5.3 "事件不是数据源"。
+消息模型：**原子消息**，纯对话切片角色为 `user` / `assistant`（`tool_call` / `tool_result`
+随 agent 切片）；回合的失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` /
+`canceled`）。`chat:updated` 是失效通知（payload `{conversationId}`），前端靠
+`GetChatMessages` 重拉，符合 §5.5.3 "事件不是数据源"。DTO：
 
-待定候选（[09 §9.8](09-roadmap.md#98-待定设计清单) #23）：
+```go
+type ChatConversationDTO struct {
+    ID         string `json:"id"`
+    Title      string `json:"title"`
+    ProviderID string `json:"providerId"` // "" = 跟随路由链
+    UpdatedAt  int64  `json:"updatedAt"`
+}
+type ChatMessageDTO struct {
+    ID        int64  `json:"id"`
+    Role      string `json:"role"`    // user | assistant
+    Content   string `json:"content"`
+    Status    string `json:"status"`  // assistant: ok | failed | canceled
+    CreatedAt int64  `json:"createdAt"`
+}
+```
 
-| 决策点 | 候选 | 含义与代价 |
+待定候选（[09 §9.8](09-roadmap.md#98-待定设计清单) #23；前三项已落定，见
+[decisions/chat-session-model.md](decisions/chat-session-model.md)）：
+
+| 决策点 | 结论 / 候选 | 含义与代价 |
 |--------|------|-----------|
-| 会话模型 | 单一滚动会话 | 最简：一张 `chat_messages` 表即可，`chat_conversations` 可省 |
-| | 多会话（标题、切换） | 更接近聊天产品，但需要会话管理 UI 与 `chat_conversations` 表 |
-| 流式输出 | 保持原子消息 | 首屏简单，长回答有等待感 |
-| | token 级增量 | 需要按 §5.5.3 增加带 `seq` 的流式增量事件与重建协议，三协议流式能力不一 |
-| 消息留存 | 无限期 vs 按天数 / 条数上限 | 上限策略与 [07 §7.6](07-privacy-security.md#76-数据留存与删除) 的留存原则一并定 |
-| provider 路由 | 复用 `providers.routing` | 零新增配置；分析失败回退会波及 chat 体验 |
-| | chat 独立选择 provider | 需要新增设置项与 UI |
-| 审计来源标记 | `agent-writes.log` 中区分 UI / agent.sock / MCP / chat 来源 | 与 §5.9.3 的候选共通，一并定 |
+| 会话模型 | **已定：多会话**（标题、列表、切换） | `chat_conversations` + `chat_messages` 已落盘（迁移 v4） |
+| 流式输出 | **已定：保持原子消息** | 回答完整落库后一次 `chat:updated`；等待感由"发送中可取消"缓解 |
+| provider 路由 | **已定：会话级选择**，默认跟随路由链 | `chat_conversations.provider_id`（NULL = 链）；指定时不回退 |
+| 消息留存 | 无限期 vs 按天数 / 条数上限（仍待定） | 上限策略与 [07 §7.6](07-privacy-security.md#76-数据留存与删除) 的留存原则一并定 |
+| 审计来源标记 | `agent-writes.log` 中区分 UI / agent.sock / MCP / chat 来源（仍待定） | 与 §5.9.3 的候选共通，一并定 |

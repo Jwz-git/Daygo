@@ -17,6 +17,7 @@ const (
 	EventBatchFailed         EventName = "batch:failed"
 	EventRecordingWarning    EventName = "recording:warning"
 	EventUpdateAvailable     EventName = "update:available"
+	EventChatUpdated         EventName = "chat:updated"
 )
 
 var eventNames = [...]EventName{
@@ -31,6 +32,7 @@ var eventNames = [...]EventName{
 	EventBatchFailed,
 	EventRecordingWarning,
 	EventUpdateAvailable,
+	EventChatUpdated,
 }
 
 // EventNames returns a defensive copy of the complete event-name contract.
