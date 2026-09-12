@@ -1,5 +1,5 @@
 export default {
-  title: '每周',
+  title: '周报',
   developmentFixture: '示例数据 · 仅开发环境',
   navigation: {
     label: '周导航',

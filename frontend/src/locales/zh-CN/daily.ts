@@ -1,5 +1,5 @@
 export default {
-  title: '每日',
+  title: '日报',
   developmentFixture: '样例数据 · 仅开发',
   navigation: {
     label: '每日复盘日期导航',
