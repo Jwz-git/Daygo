@@ -94,7 +94,7 @@ flowchart TD
 | recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
 | recording（联调） | `CaptureTest`、`PickCaptureTestApplication`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；macOS picker 只返回 ScreenCaptureKit 使用的 `{bundle id, name}`，路径不跨绑定；均不接 recorder / storage / config |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
-| chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4 表；`SendChatMessage` 异步发起回合、完成发 `chat:updated`；纯对话无工具循环 |
+| chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
 这不代表录制开关、Provider 持久化或 Secrets 已实现。fake 的覆盖以 §5.7.4 为准。
@@ -795,6 +795,7 @@ type UpdaterStateDTO struct {
 | `journal:updated` | 失效 | `{day: string}` | 日记保存或 AI 摘要生成 |
 | `goal:updated` | 失效 | `{day: string}` | 目标保存或外部写入 |
 | `settings:changed` | 失效 | `{keys: string[]}` | 设置、分类或 provider 写入成功后 |
+| `chat:updated` | 失效 | `{conversationId: string}` | chat 会话或消息落库（新建 / 删除 / 回合内每条消息 / 回合结束） |
 | `recording:state` | 状态 | `RecordingStateDTO` | 状态机转换、权限变化、暂停到期 |
 | `capabilities:changed` | 状态 | `CapabilitiesDTO` | 获得或失去写入 / 捕获所有者锁 |
 | `permission:changed` | 状态 | `PermissionDTO` | 系统授权变化 |
@@ -1363,7 +1364,7 @@ CGO_ENABLED=0 go build ./... && CGO_ENABLED=0 go test ./internal/...
 
 ---
 
-## 5.12 Chat：应用内对话式 Agent（设计准备，未实现）
+## 5.12 Chat：应用内对话式 Agent
 
 Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分类 / 搜索，并在沙箱授权内
 完成增删改查。它**不属于 B6 对外接口**：不经 CLI、`agent.sock` 或 MCP，是宿主内功能
@@ -1371,28 +1372,32 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 读面等于 §5.9.1 的读命令语义，写面不超出 §5.9.2 的六个操作——三条通道共享一套查询与
 写入语义，不出现第四套。v1 不交付；执行册见 [modules/chat](modules/chat.md)。
 
+**实现状态**：会话模型（多会话、会话级 provider、全局记忆）与工具循环（信封解析、
+门禁、预算、`llm_calls` 审计、折叠式工具消息 UI）均已实现；`search` 读工具
+（语义随 §5.9.1 一并定案）、`agent-writes.log` 来源标记（#23）与消息留存策略仍缓后。
+
 已定约束：
 
 | 约束 | 值 | 理由 |
 |------|-----|------|
 | 形态 | 宿主内 chat 服务（`internal/chat`）+ B1 绑定 | 用户在应用内发起，无需外部进程或第二条协议 |
-| 工具读面 | timeline / card / daily / weekly / categories / search，语义与 §5.9.1 同源 | 与 CLI / MCP 一套查询语义 |
-| 工具写面 | 恰为 §5.9.2 的六个操作：`category_add` `category_update` `category_remove` `card_update` `card_delete` `goal_set` | 不为 chat 引入绑定层没有的写能力 |
+| 工具读面 | timeline / card / daily / weekly / categories（**已实现**）；search 缓后，语义随 §5.9.1 一并定案 | 与 CLI / MCP 一套查询语义 |
+| 工具写面 | 恰为 §5.9.2 的六个操作：`category_add` `category_update` `category_remove` `card_update` `card_delete` `goal_set`（**已实现**） | 不为 chat 引入绑定层没有的写能力 |
 | 写入路径 | 与绑定层同一条服务路径：同校验、同事件；实例不持写入锁时写工具一律拒绝 | 同源；只读实例不因 chat 破坏 |
 | 沙箱门禁 | 设置 `chat.editMode`：`readonly`（默认）/ `edits`；**服务端独立校验**，UI 不承担门禁 | 与 `system.agentEditsEnabled` 分离——那是 `agent.sock` 外部通道的开关，两者独立生效 |
-| 工具调用机制 | 协议无关 JSON 模式：模型经结构化输出返回 `{tool, arguments}` 或最终回答；不依赖各家原生 function-calling API | 三协议统一，复用 `internal/ai` 现有能力 |
-| 预算 | 每条用户消息最多 **8** 次工具调用；单次工具结果截断 **64 KiB**；回合总时限 **120 s**；可取消 | 防循环与内存放大 |
-| 校验 | 工具参数按固定 JSON Schema 服务端校验；未知工具或非法参数返回封闭错误给模型，回合不中断 | LLM 输出是数据（[07 §7.5](07-privacy-security.md#75-本地攻击面)） |
+| 工具调用机制 | 协议无关 JSON 模式：模型经结构化输出返回信封 `{"kind":"answer\|tool","answer","tool","arguments"}`（`Strict:false`，语义校验在 Go 侧）；不依赖各家原生 function-calling API | 三协议统一，复用 `internal/ai` 现有能力 |
+| 预算 | 每条用户消息最多 **8** 次工具调用；单次工具结果截断 **64 KiB**；回合总时限 **120 s**；可取消（取消与总时限共用一个 context） | 防循环与内存放大 |
+| 校验 | 工具参数按固定 JSON Schema 服务端校验；未知工具或非法参数返回封闭错误给模型，回合不中断；畸形信封回复以纠正指令重试并计入预算 | LLM 输出是数据（[07 §7.5](07-privacy-security.md#75-本地攻击面)） |
 | 隐私 | 工具输出与错误 `message` 不含原始帧、分段路径、文件路径、密钥、LLM payload | 07 的边界对 chat 生效 |
-| 审计 | 真实 HTTP attempt 计入 `llm_calls`（purpose=`chat`）；chat 触发的写入追加 `agent-writes.log` 并带来源标记 | 与 §5.9.2 同一条审计日志 |
+| 审计 | 真实 HTTP attempt 计入 `llm_calls`（purpose=`chat`，**已实现**）；chat 触发的写入追加 `agent-writes.log` 并带来源标记（**缓后**，#23） | 与 §5.9.2 同一条审计日志 |
 | 核心可测 | `internal/chat` 在 `CGO_ENABLED=0` 下可构建，Linux 可测（脚本化 fake provider） | §5.10.3 的 CI 门禁反向约束接口设计 |
 
-设计中的绑定与事件（**纯对话切片已实现会话作用域签名**；工具循环相关的扩展随 agent
-切片进 §5.2.1 / §5.5.1 / §5.5.3 的正式目录，反射清单测试同步）：
+绑定与事件（已实现，签名与 §5.2.1 chat 行、§5.5.3 `chat:updated` 行一致；工具循环完全
+在 `SendChatMessage` 现有签名内，无新增绑定）：
 
 | 方法 | 类型 | 事件 | 主要错误码 |
 |------|------|------|-----------|
-| `SendChatMessage(conversationID string, content string) error` | 写·非幂等（发起一个回合；user 消息落库即返回） | `chat:updated`（两次：发送与完成） | `provider_not_configured`（结果消息）`invalid_argument` |
+| `SendChatMessage(conversationID string, content string) error` | 写·非幂等（发起一个回合；user 消息落库即返回） | `chat:updated`（回合内每条消息落库后各发一次：user、tool_call、tool_result、assistant，前端重拉获得渐进进度） | `provider_not_configured`（结果消息）`invalid_argument` |
 | `CancelChatTurn(conversationID string) error` | 写·幂等（空闲会话为 no-op） | `chat:updated` | `invalid_argument` |
 | `GetChatMessages(conversationID string, beforeID int64, limit int) ([]ChatMessageDTO, error)` | 读（oldest-first，beforeID 向前翻页） | — | `invalid_argument` |
 | `ListChatConversations() ([]ChatConversationDTO, error)` | 读 | — | `database_error` |
@@ -1400,10 +1405,15 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 | `DeleteChatConversation(id string) error` | 写·幂等 | `chat:updated` | `not_found` |
 | `SetChatConversationProvider(id string, providerID string) error` | 写（providerID 空串 = 回落路由链） | `chat:updated` | `invalid_argument`（未知 provider）`not_found` |
 
-消息模型：**原子消息**，纯对话切片角色为 `user` / `assistant`（`tool_call` / `tool_result`
-随 agent 切片）；回合的失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` /
-`canceled`）。`chat:updated` 是失效通知（payload `{conversationId}`），前端靠
-`GetChatMessages` 重拉，符合 §5.5.3 "事件不是数据源"。DTO：
+消息模型：**原子消息**，角色为 `user` / `assistant` / `tool_call` / `tool_result`。
+回合的失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` / `canceled`）。
+`tool_call` 行的 `toolName` / `toolArguments` 携带工具名与参数 JSON（content 为空）；相邻的
+`tool_result` 行以 `toolName` 配对，content 为结果信封
+`{"ok":true,"data":…}` 或 `{"ok":false,"error":{"code","message"}}`。既往回合的 tool_result
+渲染进历史 prompt 时截 2048 字符（当前回合完整保留）。前端将相邻对折叠为一行摘要
+（工具名 + 关键参数 + 结果状态），展开显示参数与结果 JSON。`chat:updated` 是失效通知
+（payload `{conversationId}`），前端靠 `GetChatMessages` 重拉，符合 §5.5.3 "事件不是数据源"。
+DTO：
 
 ```go
 type ChatConversationDTO struct {
@@ -1413,11 +1423,13 @@ type ChatConversationDTO struct {
     UpdatedAt  int64  `json:"updatedAt"`
 }
 type ChatMessageDTO struct {
-    ID        int64  `json:"id"`
-    Role      string `json:"role"`    // user | assistant
-    Content   string `json:"content"`
-    Status    string `json:"status"`  // assistant: ok | failed | canceled
-    CreatedAt int64  `json:"createdAt"`
+    ID            int64  `json:"id"`
+    Role          string `json:"role"`    // user | assistant | tool_call | tool_result
+    Content       string `json:"content"` // tool_call 为空；tool_result 为结果信封 JSON
+    Status        string `json:"status"`  // assistant: ok | failed | canceled
+    ToolName      string `json:"toolName"`
+    ToolArguments string `json:"toolArguments"` // 紧凑参数 JSON，仅 tool_call 行
+    CreatedAt     int64  `json:"createdAt"`
 }
 ```
 

@@ -346,7 +346,7 @@ CREATE TABLE providers (
 
 `chat.memory` 是用户自定义的全局聊天指令（类似 CLAUDE.md），非空时注入每个会话的系统
 提示尾部；`chat.editMode` 是 chat 沙箱门禁
-（[05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现)），
+（[05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent)），
 两键均已随各自切片落盘。
 
 `llm.outputLanguage` 与 `appearance.language` 是**两个独立设置**：前者决定模型生成的卡片

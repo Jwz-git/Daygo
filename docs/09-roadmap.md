@@ -217,7 +217,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 13 | 每周丰富图表与 DTO 子模型 | weekly / 产品 + 设计 | 热力图、应用关系或流向图进入范围前；现有聚合首屏不扩 DTO，见 05 §5.11 |
 | 14 | 导出与批量删除入口 | data / 产品 | 新入口实现前；不据此自动扩大 v1 范围 |
 | 15 | llm_calls 与卡片留存上限 | data / 产品 | 相关留存策略实现前；07 §7.6 |
-| 16 | Chat 是否进入后续版本 | delivery / 范围 | 首个公开版本后评估；v1 不实现。设计准备见 [modules/chat](modules/chat.md) 与 [05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现) |
+| 16 | Chat 是否进入后续版本 | delivery / 范围 | 首个公开版本后评估；v1 不实现。设计准备见 [modules/chat](modules/chat.md) 与 [05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent) |
 | 17 | apiRevision 的生产检查 | preferences / 工程 | 前后端版本不一致处理接入前；05 §5.10 |
 | 18 | Windows 发布范围 | delivery / 范围，recording 提供证据 | **仍未决定**。DXGI 单次真实像素 smoke 与 `LockFileEx` 实例锁已验证（[决策记录](decisions/recording-screen-capture-windows.md)），只移除了两个工程阻塞。进入发布前仍需：[08 §8.6.3](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 其余 WC 全部通过（尤其隐私能力）、捕获指示、长期资源与分发身份结论 |
 | 19 | 每日摘要 / 日记 summary 的生成触发、刷新与失败交互 | daily / 产品 + 工程 | 生成切片实现前；若新增绑定先补 05 与双侧契约，不假定现有查询方法就是生成入口 |

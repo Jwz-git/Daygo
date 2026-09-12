@@ -1,7 +1,7 @@
 # chat — 应用内对话式 Agent
 
 > 公共执行规则和门禁见 [09](../09-roadmap.md)，字段级契约唯一出处是
-> [05 §5.12](../05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现)。
+> [05 §5.12](../05-interface-contract.md#512-chat应用内对话式-agent)。
 
 ## 用户结果与范围
 
@@ -14,22 +14,35 @@ Chat **不借助外部 CLI、agent.sock 或 MCP**：它是宿主内功能（UI �
 
 非目标：不做通用助手或自由工具执行（工具集封闭）；不执行任意 SQL、不访问文件系统与
 shell；不暴露原始帧、分段路径、密钥或 LLM payload；token 级流式输出为候选（多会话已定）；
-不做团队 / 远程视角。**v1 不交付**，本册目前是设计准备 + 纯对话切片实现。
+不做团队 / 远程视角。**v1 不交付**，本册目前是纯对话 + agent 工具循环两个切片的实现记录。
 
-依据：[05 §5.12](../05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现)、
+依据：[05 §5.12](../05-interface-contract.md#512-chat应用内对话式-agent)、
 [07 §7.5](../07-privacy-security.md#75-本地攻击面)、
 [02](../02-architecture.md#21-模块图)（chat 服务）、[01 §1.7](../01-product-requirements.md#17-待决的产品问题)、
 [decisions/chat-session-model](../decisions/chat-session-model.md)。
 
 ## 当前状态与证据
 
-实现进度：**纯对话切片已实现（含绑定与 UI）**（decisions/chat-session-model）。已落地：
-多会话模型（`chat_conversations` / `chat_messages`，迁移 v4）、`internal/chat` 服务（回合
-状态机、全局记忆注入、会话级 provider 必选、失败 / 取消落库）、每会话单在途回合、
-32 KiB 消息上限、`internal/app` 会话作用域绑定与 `chat:updated` 事件、前端 store / 视图
-（对话列表在右侧、全局指令与列表并列页签、进入即新会话草稿、对话有标题后才入列表）。
-**尚未实现**：工具循环与 `chat.editMode` 门禁（agent 切片）、`llm_calls` purpose=`chat`
-审计行、消息留存策略（待定）。
+实现进度：**纯对话切片与 agent 工具循环切片均已实现**（decisions/chat-session-model）。
+
+纯对话切片已落地：多会话模型（`chat_conversations` / `chat_messages`，迁移 v4）、
+`internal/chat` 服务（回合状态机、全局记忆注入、会话级 provider 必选、失败 / 取消落库）、
+每会话单在途回合、32 KiB 消息上限、`internal/app` 会话作用域绑定与 `chat:updated` 事件、
+前端 store / 视图（对话列表在右侧、全局指令与列表并列页签、进入即新会话草稿、对话有
+标题后才入列表）。
+
+agent 切片已落地（迁移 v6 起）：11 工具封闭目录（读 5：timeline / card / daily / weekly /
+categories；写 6 与 §5.9.2 一致）与逐工具 JSON Schema、协议无关信封
+`{"kind":"answer|tool",…}`（`Strict:false` + Go 侧紧校验，畸形回复纠正重试计入预算）、
+`chat.editMode` 门禁（服务端每回合重读，readonly 下写工具收 `edits_disabled` 工具结果、
+回合继续）+ 只读实例双层守卫（`not_capture_owner`）、预算（8 次调用 / 64 KiB 结果截断 /
+120 s 总时限，取消与总时限共用 context）、`llm_calls` purpose=`chat` 审计行（observer 在
+retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共享写路径（`internal/app/writes.go`，
+同源由测试断言）、前端工具消息折叠渲染（一行摘要 + 展开参数 / 结果 JSON）。
+
+**尚未实现**：search 读工具（语义随 CLI §5.9.1 一并定案）、status 读命令（依赖 recorder）、
+`agent-writes.log`（归 agent 模块，来源标记待定 #23）、消息留存策略（待定）、`wails dev`
+真机端到端。
 
 ## 能力与跨层职责
 
@@ -38,8 +51,8 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；token 级流
 | provider-client（`internal/ai` 统一 Generate、重试 / 回退、结构化输出） | providers | 回合状态机用脚本化 fake provider 做匿名夹具单测 | 已达成（协议客户端）；chat 是否复用 `providers.routing` 是候选 |
 | cards / time / insight 读查询 | timeline | 工具读面在匿名卡片库上的查询契约测试 | cards repository 存储层已达成；insight 聚合未实现 |
 | 日记 / 目标 repository | daily | `goal_set` 等写工具的夹具库协议测试 | daily 表与 repository 落盘 |
-| 写入服务路径 | timeline / daily | 同源断言：绑定层与 chat 工具执行同一实现，副作用、事件、审计一致 | 绑定层写方法实现后 |
-| settings-access（`chat.editMode` 门禁） | preferences | 门禁拒绝路径的协议测试（服务端独立校验） | 设置变更事件已接 |
+| 写入服务路径 | timeline / daily | 同源断言：绑定层与 chat 工具执行同一实现，副作用、事件、审计一致 | **已达成**（`internal/app/writes.go` 共享函数，绑定转发，测试断言同库同终态同事件） |
+| settings-access（`chat.editMode` 门禁） | preferences | 门禁拒绝路径的协议测试（服务端独立校验） | **已达成**（键已落盘，门禁每回合重读、fail closed） |
 | db-core | data | chat 消息持久化走统一迁移链 | 已达成 |
 
 输出能力：无。chat 是终端功能，不向其他模块输出能力。职责指定：chat 服务在
@@ -60,19 +73,26 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；token 级流
 ## 实现切片与集成
 
 1. **夹具与常量先行**：固定工具清单、参数 JSON Schema、门禁与预算常量（05 §5.12）；
-   沙箱拒绝与参数校验的匿名夹具。
+   沙箱拒绝与参数校验的匿名夹具。**已落盘**（`internal/chat/tools.go` / `envelope.go` /
+   `prompt.go`；search 与 status 缓后）。
 2. chat 服务：回合状态机（结构化输出驱动的工具循环）、`llm_calls` purpose=`chat`、
-   取消传播；脚本化 fake provider 的单元测试。
-3. 持久化：chat 表迁移与 repository（**已落盘**：多会话模型，迁移 v4，切片 5）。
+   取消传播；脚本化 fake provider 的单元测试。**已落盘**（`internal/chat/chat.go` +
+   `agent_test.go`；observer 接线在 `rebuildChain`）。
+3. 持久化：chat 表迁移与 repository（**已落盘**：多会话模型，迁移 v4；tool 列与
+   `llm_calls` 表，迁移 v6）。
 4. 绑定与事件：`SendChatMessage` / `CancelChatTurn` / `GetChatMessages`（会话作用域签名）、
-   `chat:updated`；绑定清单反射测试与 05 §5.2.1 同步。
+   `chat:updated`；绑定清单反射测试与 05 §5.2.1 同步。**已落盘**（工具循环无新增绑定，
+   回合内每条消息落库后各发一次 `chat:updated`）。
 5. UI：chat 视图与 store、`chat.editMode` 设置项、空态 / 错误态 / i18n；受 G-host 约束。
-   **纯对话部分已先落**：多会话列表、全局记忆（`chat.memory`）、会话级 provider 选择。
-6. 真实闭环与诊断计数：工具错误、预算终止、取消计入 data 的诊断框架。
+   **已落盘**：多会话列表、全局记忆（`chat.memory`）、会话级 provider 选择、
+   `chat.editMode` 开关（AgentAccessSection）、工具消息折叠渲染（一行摘要 + 展开参数 /
+   结果 JSON）。
+6. 真实闭环与诊断计数：工具错误、预算终止、取消计入 data 的诊断框架。**未落盘**
+   （data 诊断框架未实现；`llm_calls` 行已可作为手工核对依据）。
 
-每个切片独立可验证；读工具依赖 cards / insight 聚合，写工具依赖对应 repository 落盘，
-不要求 timeline / daily 的 UI 完成。**纯对话先行**（无工具循环）已由
-decisions/chat-session-model 定为当前实现路径；工具循环与门禁按上列切片 1–2 顺序随后。
+每个切片独立可验证；读工具依赖 cards repository（已落盘），写工具依赖对应 repository
+落盘（已落盘），不要求 timeline / daily 的 UI 完成。纯对话先行 → agent 工具循环的路径
+已按 decisions/chat-session-model 走完。
 
 ## 验收、阻塞与回退
 
@@ -95,3 +115,7 @@ token 级流式输出（已定：原子消息）、消息留存策略、审计�
 | 2026-09-12（纯对话服务，Go） | `go test ./internal/chat/`、`go vet`、`CGO_ENABLED=0 go build ./...`、`GOOS=linux` 交叉构建 | 通过；happy path、全局记忆注入、历史拼装、会话级 provider 固定（无回退）、无供应商失败态、密钥不泄漏断言、跨会话并发、空/超长消息拒绝、删除会话级联 | 绑定层与前端未接；取消中途回合仅单测路径；`llm_calls` 审计未落 |
 | 2026-09-12（provider 必选改版，Go） | `go test ./internal/chat/` 全量 | 通过；新会话默认路由链首位、清空 pin 后发送落「尚未选择供应商」失败消息（不回退链） | — |
 | 2026-09-12（UI 重做，Vite 预览） | `npm run typecheck`、`npm run build`、Playwright `#/chat` | 通过；对话列表移至右侧、全局指令与列表并列页签、进入即新草稿（无空态）、首条消息后入列表、供应商默认无空位、深浅主题、中英文、420px 窄宽无横向溢出 | dev 固定回复非真实供应商；`wails dev` 真机端到端未运行 |
+| 2026-09-12 `484838d`–`91983c0`（agent 切片基础，Go） | `go test ./internal/...`、`go vet`、`CGO_ENABLED=0 go build ./...`、`GOOS=linux` 交叉构建、迁移夹具（v5 旧库 → v6） | 通过；`llm_calls` DDL 与 docs/03 一致、旧库数据保全、`chat.editMode` 键往返与非法值回落 readonly、共享写路径重构后现有绑定测试零改动全过（同源 refactor 证据）、`ai.ValidateJSON` 抽出无行为变化 | — |
+| 2026-09-12 `0832f9d`–`99ad197`（工具循环，Go） | `go test ./internal/chat/` 全量（agent_test + tools_test） | 通过；happy path 四行 transcript、readonly 门禁（`edits_disabled` 回模型、executor 0 调用、回合继续）、unknown_tool / invalid_argument 封闭错误、第 9 次调用 `budget_exceeded` 不执行、64 KiB 截断恒为合法 JSON、中途取消三行收束、畸形回复计入预算、纯垃圾终止、历史截断、密钥不泄漏 | 120 s 超时未单测（常量路径与取消同构，靠 ctx 共用保证） |
+| 2026-09-12 `9f16744`（执行器与审计，Go） | `go test ./internal/app/`（chat_tools_test + chat_binding_test 端到端） | 通过；同源断言（card_update / goal_set executor vs 绑定同库同终态同事件）、分类工具全生命周期（含内置分类保护）、读工具隐私断言（无路径字段）、真实只读实例降级 `not_capture_owner`、全 11 工具分发、`llm_calls` 落行 purpose=chat/protocol/latency | — |
+| 2026-09-12 `a994c69`（工具消息 UI，Vite 预览） | `npm run typecheck`、`npm run test:unit`、`npm run build`、Playwright `#/chat`（dev 替身产出工具回合） | 通过；tool_call+tool_result 折叠为一行摘要（工具名 + 关键参数 + 结果状态）、展开显示参数 / 结果 pretty JSON、深浅主题、400px 窄宽无溢出、连续多轮发送正常（dev 替身补 `chat:updated` 通知修复了发送后锁死） | 错误信封折叠态（`失败（code）`）仅逻辑核对未截图；`wails dev` 真机端到端未运行 |
