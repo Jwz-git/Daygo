@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !windows
 
 package secrets
 
@@ -12,10 +12,9 @@ var _ platform.Secrets = (*unavailableSecrets)(nil)
 
 type unavailableSecrets struct{}
 
-// New returns a Secrets implementation that refuses every operation: the
-// keychain is a macOS capability, and a silent in-memory stand-in in a
-// production binary would let a caller believe a key was stored when it was
-// not. Tests use NewFake.
+// New returns a Secrets implementation that refuses every operation. A silent
+// in-memory stand-in in a production binary would let a caller believe a key
+// was stored when it was not. Tests use NewFake.
 func New() platform.Secrets { return unavailableSecrets{} }
 
 func (unavailableSecrets) Get(context.Context, string) (string, error) {

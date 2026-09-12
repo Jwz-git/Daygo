@@ -1,8 +1,8 @@
-# providers 密钥存储：`security` CLI 子进程访问钥匙串
+# providers 密钥存储：macOS Keychain 与 Windows Credential Manager
 
-> **状态：已决定（本轮实现范围内）。** 本文记录 `platform.Secrets` 端口在 macOS 上的
-> 实现手段与边界，解决 `09 §9.8` #4 的「钥匙串访问方式」部分；发布身份（签名 / 公证后
-> 钥匙串行为）仍属 delivery 范围，不因本文关闭。
+> **状态：已决定（本轮实现范围内）。** 本文记录 `platform.Secrets` 端口在 macOS 与
+> Windows 上的实现手段与边界，解决 `09 §9.8` #4 的「系统密钥存储访问方式」部分；发布
+> 身份（签名 / 公证后的系统密钥存储行为）仍属 delivery 范围，不因本文关闭。
 
 ## 1. 决定
 
@@ -21,7 +21,24 @@ macOS 适配层用 **`/usr/bin/security` 命令行子进程**实现 `Secrets` �
   not-found 结果，不是错误。
 - 密钥值**绝不进入任何 error 文案**；`Get` 的值只供 Go 侧 provider 客户端构造使用，
   绑定层只暴露 `hasSecret` 布尔（05 §5.5.2 既有规则）。
-- 非 darwin 平台返回 `native_unavailable`；测试与 Linux CI 使用 `NewFake()` 内存实现。
+- Windows 使用当前用户 Credential Manager 中的 `CRED_TYPE_GENERIC` 条目；其他平台返回
+  `native_unavailable`，测试与 Linux CI 使用 `NewFake()` 内存实现。
+
+### 1.1 Windows 映射
+
+Windows 适配层以纯 Go 动态调用 `Advapi32.dll` 的 `CredWriteW`、`CredReadW`、
+`CredDeleteW` 与 `CredFree`：
+
+| Daygo 字段 | Credential Manager 字段 |
+|---|---|
+| `ServiceName(providerID)` | `TargetName` |
+| `api-key` | `UserName` |
+| provider API key 的 UTF-8 字节 | `CredentialBlob` |
+| 本机当前用户持久化 | `CRED_PERSIST_LOCAL_MACHINE` |
+
+`ERROR_NOT_FOUND` 映射为既有 `SecretNotFound`；其他 Win32 失败映射为 `SecretNative`。
+generic credential blob 的 2560-byte 上限在调用原生 API 前校验，超限返回
+`SecretInvalidArgument`，不截断密钥。
 
 ## 2. 候选与取舍
 

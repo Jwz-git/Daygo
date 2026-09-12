@@ -1,10 +1,10 @@
 // Package secrets implements the platform Secrets port.
 //
 // On macOS the keychain is reached through the /usr/bin/security command-line
-// tool as a subprocess (decisions/providers-secrets-keychain): no cgo, so the
-// CGO_ENABLED=0 gate and Linux testability hold. Other platforms return
-// SecretUnsupported, and NewFake provides an in-memory implementation for
-// tests.
+// tool. On Windows, generic credentials are stored in the current user's
+// Credential Manager through the Win32 credential-management API. Both paths
+// are pure Go and preserve the CGO_ENABLED=0 gate. Other platforms return
+// SecretUnsupported, and NewFake provides an in-memory implementation for tests.
 //
 // Secret values never appear in errors from this package: a leaked command or
 // a failed lookup is reported by provider id and error code only.
