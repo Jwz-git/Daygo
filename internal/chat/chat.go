@@ -12,6 +12,7 @@ package chat
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -33,6 +34,8 @@ const maxOutputTokens = 4096
 const (
 	RoleUser      = "user"
 	RoleAssistant = "assistant"
+	RoleToolCall  = "tool_call"
+	RoleToolRes   = "tool_result"
 
 	StatusOK       = "ok"
 	StatusFailed   = "failed"
@@ -48,13 +51,17 @@ type Conversation struct {
 	UpdatedAt  time.Time
 }
 
-// Message is one atomic chat message.
+// Message is one atomic chat message. ToolName/ToolArguments are set only on
+// agent rows: tool_call fills both, tool_result pairs by ToolName with empty
+// ToolArguments and carries its result envelope in Content.
 type Message struct {
 	ID             int64
 	ConversationID string
 	Role           string
 	Content        string
 	Status         string
+	ToolName       string
+	ToolArguments  string
 	CreatedAt      time.Time
 }
 
@@ -89,10 +96,41 @@ type Providers interface {
 	ByID(ctx context.Context, id string) (ProviderEntry, error)
 }
 
-// Settings supplies the global chat memory. Memory returns the user-authored
-// text injected into every conversation's system prompt.
+// Settings supplies the global chat memory and the agent sandbox gate.
+// Memory returns the user-authored text injected into every conversation's
+// system prompt; EditMode returns the chat.editMode value ("readonly" or
+// "edits"), which the service re-reads each turn.
 type Settings interface {
 	Memory(ctx context.Context) (string, error)
+	EditMode(ctx context.Context) (string, error)
+}
+
+// ToolCall is one requested tool invocation from the model.
+type ToolCall struct {
+	Tool      string
+	Arguments json.RawMessage
+}
+
+// ToolResult is the envelope JSON handed back to the model. Data is always a
+// complete result envelope ({"ok":true,...} or {"ok":false,"error":{...}});
+// Err records which of the two it is.
+type ToolResult struct {
+	Data json.RawMessage
+	Err  bool
+}
+
+// ToolExecutor runs one tool call. It is defined here, at the consumer, and
+// implemented by the app layer over the same shared write paths the bindings
+// use; the chat package never touches storage or Wails.
+type ToolExecutor interface {
+	Execute(ctx context.Context, call ToolCall) ToolResult
+}
+
+// AttemptSink records one sanitized provider attempt (llm_calls audit,
+// purpose=chat). Defined here so the service can wrap its chain with
+// ai.WithAttemptObserver without depending on storage.
+type AttemptSink interface {
+	RecordAttempt(ctx context.Context, attempt ai.Attempt)
 }
 
 // Clock is the title/id source, injectable for tests.
@@ -103,6 +141,8 @@ type Service struct {
 	store     Store
 	providers Providers
 	settings  Settings
+	tools     ToolExecutor
+	sink      AttemptSink
 	notifier  func(conversationID string)
 
 	mu       sync.Mutex
@@ -110,12 +150,16 @@ type Service struct {
 	chain    *ai.Chain
 }
 
-// Options wires the service.
-func New(store Store, providers Providers, settings Settings) *Service {
+// New wires the service. tools may be nil (plain-conversation mode: the
+// envelope stays in force and the model can only answer); sink may be nil
+// (no llm_calls audit).
+func New(store Store, providers Providers, settings Settings, tools ToolExecutor, sink AttemptSink) *Service {
 	return &Service{
 		store:     store,
 		providers: providers,
 		settings:  settings,
+		tools:     tools,
+		sink:      sink,
 		inflight:  make(map[string]context.CancelFunc),
 		chain:     ai.NewChain(nil, 0),
 	}
@@ -198,7 +242,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 	s.rebuildChain(entries)
 	s.mu.Unlock()
 
-	request, err := s.buildRequest(ctx, conversationID, userMsg)
+	request, err := s.buildRequest(ctx, conversationID, userMsg, "")
 	if err != nil {
 		s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed, Content: failureText(err)})
 		return
@@ -252,9 +296,11 @@ func (s *Service) rebuildChain(entries []ProviderEntry) {
 	s.chain.Rebuild(chainEntries)
 }
 
-// buildRequest assembles the prompt: system text (base + global memory), the
-// conversation history as labelled text, and the new user message.
-func (s *Service) buildRequest(ctx context.Context, conversationID string, userMsg Message) (ai.Request, error) {
+// buildRequest assembles the prompt: agent system text (catalog + gate +
+// today/monday), global memory, the conversation history as labelled text,
+// and the new user message. History tool rows render as labelled exchanges
+// so the model sees its own past calls.
+func (s *Service) buildRequest(ctx context.Context, conversationID string, userMsg Message, extra string) (ai.Request, error) {
 	history, err := // beforeID pages to strictly older messages; 0 asks for the latest page,
 		// which the repo clamps to its full-history cap for prompt assembly.
 		s.store.Messages(ctx, conversationID, userMsg.ID, 0)
@@ -262,35 +308,92 @@ func (s *Service) buildRequest(ctx context.Context, conversationID string, userM
 		return ai.Request{}, err
 	}
 
-	var prompt strings.Builder
-	prompt.WriteString(systemPrompt)
-	if s.settings != nil {
-		memory, err := s.settings.Memory(ctx)
-		if err == nil && strings.TrimSpace(memory) != "" {
-			prompt.WriteString("\n\n用户的全局指令：\n")
-			prompt.WriteString(memory)
-		}
-	}
+	prompt := s.basePrompt(ctx)
 	for _, message := range history {
 		switch message.Role {
 		case RoleUser:
 			prompt.WriteString("\n\nUser: ")
+			prompt.WriteString(message.Content)
 		case RoleAssistant:
 			prompt.WriteString("\n\nAssistant: ")
-		default:
-			continue
+			prompt.WriteString(message.Content)
+		case RoleToolCall:
+			prompt.WriteString("\n\nAssistant: ")
+			prompt.WriteString(`{"kind":"tool","tool":` + jsonString(message.ToolName) +
+				`,"arguments":` + orEmptyJSON(message.ToolArguments) + "}")
+		case RoleToolRes:
+			prompt.WriteString("\n\nTool result (" + message.ToolName + "): ")
+			prompt.WriteString(clipHistory(message.Content))
 		}
-		prompt.WriteString(message.Content)
 	}
 	// The new user message itself: history was paged to strictly older ids.
 	prompt.WriteString("\n\nUser: ")
 	prompt.WriteString(userMsg.Content)
+	if extra != "" {
+		prompt.WriteString(extra)
+	}
 
 	return ai.Request{
 		Purpose:         ai.PurposeChat,
 		Parts:           []ai.Part{ai.TextPart(prompt.String())},
 		MaxOutputTokens: maxOutputTokens,
 	}, nil
+}
+
+// basePrompt renders the agent system prompt plus the global memory.
+func (s *Service) basePrompt(ctx context.Context) *strings.Builder {
+	now := time.Now()
+	today := now.Format("2006-01-02")
+	if offset := (int(now.Weekday()) + 6) % 7; offset > 0 {
+		today = now.AddDate(0, 0, -offset).Format("2006-01-02")
+	}
+	// The prompt dates are a convenience for the model, derived once per
+	// request; exact logical-day arithmetic stays in timeutil at the
+	// executor, where day arguments are validated.
+	editMode := ""
+	if s.settings != nil {
+		if mode, err := s.settings.EditMode(ctx); err == nil {
+			editMode = mode
+		}
+	}
+	prompt := &strings.Builder{}
+	prompt.WriteString(agentSystemPrompt(normalizeEditMode(editMode), today, mondayOf(now)))
+	if s.settings != nil {
+		if memory, err := s.settings.Memory(ctx); err == nil && strings.TrimSpace(memory) != "" {
+			prompt.WriteString("\n\n用户的全局指令：\n")
+			prompt.WriteString(memory)
+		}
+	}
+	return prompt
+}
+
+// mondayOf returns the Monday of the week containing t, as yyyy-MM-dd.
+func mondayOf(t time.Time) string {
+	offset := (int(t.Weekday()) + 6) % 7
+	return t.AddDate(0, 0, -offset).Format("2006-01-02")
+}
+
+// jsonString quotes a value for inline JSON in the prompt.
+func jsonString(value string) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
+}
+
+// orEmptyJSON substitutes {} for a blank arguments string so the rendered
+// envelope stays parseable.
+func orEmptyJSON(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "{}"
+	}
+	return value
+}
+
+// clipHistory bounds a past tool result replayed into the prompt.
+func clipHistory(content string) string {
+	if len(content) <= historyToolResultLimit {
+		return content
+	}
+	return content[:historyToolResultLimit] + "…（已截断）"
 }
 
 // complete persists the assistant message and clears the turn. Notifications

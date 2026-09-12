@@ -61,6 +61,7 @@ func (f fakeStore) ListConversations(ctx context.Context) ([]Conversation, error
 func (f fakeStore) AppendMessage(ctx context.Context, conversationID string, m Message) (Message, error) {
 	saved, err := f.ChatRepo.AppendMessage(ctx, conversationID, storage.ChatMessage{
 		Role: m.Role, Content: m.Content, Status: m.Status,
+		ToolName: m.ToolName, ToolArguments: m.ToolArguments,
 	})
 	m.ID = saved.ID
 	m.ConversationID = saved.ConversationID
@@ -74,7 +75,9 @@ func (f fakeStore) Messages(ctx context.Context, conversationID string, beforeID
 	for i, row := range rows {
 		out[i] = Message{
 			ID: row.ID, ConversationID: row.ConversationID, Role: row.Role,
-			Content: row.Content, Status: row.Status, CreatedAt: row.CreatedAt,
+			Content: row.Content, Status: row.Status,
+			ToolName: row.ToolName, ToolArguments: row.ToolArguments,
+			CreatedAt: row.CreatedAt,
 		}
 	}
 	return out, err
@@ -119,12 +122,15 @@ func (p *fakeProviders) ByID(_ context.Context, id string) (ProviderEntry, error
 	return entry, nil
 }
 
-// fakeSettings carries the global memory.
+// fakeSettings carries the global memory and the sandbox gate.
 type fakeSettings struct {
-	memory string
+	memory   string
+	editMode string
 }
 
 func (s *fakeSettings) Memory(context.Context) (string, error) { return s.memory, nil }
+
+func (s *fakeSettings) EditMode(context.Context) (string, error) { return s.editMode, nil }
 
 // scriptedProvider is a fake ai.Provider with controllable outcomes.
 type scriptedProvider struct {
@@ -177,7 +183,7 @@ func (p *scriptedProvider) calls() int {
 func testService(t *testing.T, providers *fakeProviders, settings *fakeSettings) (*Service, *fakeStore) {
 	t.Helper()
 	store := newFakeStore(t)
-	service := New(store, providers, settings)
+	service := New(store, providers, settings, nil, nil)
 	done := make(chan string, 16)
 	service.SetNotifier(func(conversationID string) { done <- conversationID })
 	t.Cleanup(func() { close(done) })
@@ -271,7 +277,7 @@ func TestServiceInjectsGlobalMemory(t *testing.T) {
 	if !strings.Contains(lastPrompt, "回答必须简短。") {
 		t.Fatalf("prompt missing global memory:\n%s", lastPrompt)
 	}
-	if !strings.Contains(lastPrompt, systemPrompt) {
+	if !strings.Contains(lastPrompt, "你是 Daygo 的时间跟踪助手") {
 		t.Fatal("prompt missing the base system prompt")
 	}
 	if !strings.Contains(lastPrompt, "User: hi") {

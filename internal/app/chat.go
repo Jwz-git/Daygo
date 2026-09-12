@@ -26,13 +26,17 @@ type ChatConversationDTO struct {
 }
 
 // ChatMessageDTO is one transcript row. Status is set for assistant messages
-// only (ok | failed | canceled).
+// only (ok | failed | canceled); ToolName/ToolArguments are set only on
+// tool_call rows (tool_result rows pair by toolName with empty toolArguments
+// and carry their result envelope in content).
 type ChatMessageDTO struct {
-	ID        int64  `json:"id"`
-	Role      string `json:"role"`
-	Content   string `json:"content"`
-	Status    string `json:"status"`
-	CreatedAt int64  `json:"createdAt"`
+	ID            int64  `json:"id"`
+	Role          string `json:"role"` // user | assistant | tool_call | tool_result
+	Content       string `json:"content"`
+	Status        string `json:"status"`
+	ToolName      string `json:"toolName"`
+	ToolArguments string `json:"toolArguments"`
+	CreatedAt     int64  `json:"createdAt"`
 }
 
 // chatService returns the service, wiring it on first use. Wiring here rather
@@ -59,7 +63,9 @@ func (b *Backend) chatService() (*chat.Service, error) {
 		// turn with an opaque error.
 		return nil, apperr.E(apperr.NativeUnavailable, "keychain is unavailable", nil)
 	}
-	service := chat.New(storeChatAdapter{repo: store.Chat()}, backendProviders{backend: b}, backendChatSettings{backend: b})
+	// The tool executor and llm_calls sink arrive with the wiring slice; nil
+	// keeps plain-conversation behavior.
+	service := chat.New(storeChatAdapter{repo: store.Chat()}, backendProviders{backend: b}, backendChatSettings{backend: b}, nil, nil)
 	service.SetNotifier(func(conversationID string) {
 		b.emitter.Emit(EventChatUpdated, ChatUpdatedPayload{ConversationID: conversationID})
 	})
@@ -165,11 +171,13 @@ func (b *Backend) GetChatMessages(conversationID string, beforeID int64, limit i
 	out := make([]ChatMessageDTO, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, ChatMessageDTO{
-			ID:        m.ID,
-			Role:      m.Role,
-			Content:   m.Content,
-			Status:    m.Status,
-			CreatedAt: m.CreatedAt.Unix(),
+			ID:            m.ID,
+			Role:          m.Role,
+			Content:       m.Content,
+			Status:        m.Status,
+			ToolName:      m.ToolName,
+			ToolArguments: m.ToolArguments,
+			CreatedAt:     m.CreatedAt.Unix(),
 		})
 	}
 	return out, nil
@@ -282,6 +290,7 @@ func (a storeChatAdapter) ListConversations(ctx context.Context) ([]chat.Convers
 func (a storeChatAdapter) AppendMessage(ctx context.Context, conversationID string, m chat.Message) (chat.Message, error) {
 	saved, err := a.repo.AppendMessage(ctx, conversationID, storage.ChatMessage{
 		Role: m.Role, Content: m.Content, Status: m.Status,
+		ToolName: m.ToolName, ToolArguments: m.ToolArguments,
 	})
 	m.ID = saved.ID
 	m.ConversationID = saved.ConversationID
@@ -298,7 +307,9 @@ func (a storeChatAdapter) Messages(ctx context.Context, conversationID string, b
 	for i, row := range rows {
 		out[i] = chat.Message{
 			ID: row.ID, ConversationID: row.ConversationID, Role: row.Role,
-			Content: row.Content, Status: row.Status, CreatedAt: row.CreatedAt,
+			Content: row.Content, Status: row.Status,
+			ToolName: row.ToolName, ToolArguments: row.ToolArguments,
+			CreatedAt: row.CreatedAt,
 		}
 	}
 	return out, nil
@@ -368,4 +379,13 @@ func (s backendChatSettings) Memory(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return snapshot.ChatMemory, nil
+}
+
+func (s backendChatSettings) EditMode(ctx context.Context) (string, error) {
+	snapshot, err := settings.New(s.backend.store().Settings()).Load(ctx)
+	if err != nil {
+		// The gate fails closed: an unreadable setting means readonly.
+		return "", err
+	}
+	return snapshot.ChatEditMode, nil
 }
