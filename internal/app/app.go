@@ -10,6 +10,7 @@ import (
 	"github.com/Jwz-git/Daygo/frontend"
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
+	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v2"
@@ -50,6 +51,7 @@ func Run() error {
 	backend := NewBackend(factory.NewSystem(), nil)
 	backend.setCapture(factory.NewCapture())
 	backend.setApplicationInspector(factory.NewApplicationInspector())
+	backend.setSecrets(secrets.New())
 	backend.startSystemEventPump()
 	// OnStartup; before that it drops events, which is correct because a window
 	// that does not exist yet has no listener.

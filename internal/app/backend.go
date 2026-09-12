@@ -57,6 +57,7 @@ type Backend struct {
 	capture              platform.Capture
 	applicationInspector platform.ApplicationInspector
 	applicationPicker    applicationPicker
+	secrets              platform.Secrets
 	storage              *storage.Store
 	recorder             *recorder.Recorder
 	recorderMu           sync.Mutex
@@ -116,6 +117,12 @@ func (b *Backend) setApplicationInspector(inspector platform.ApplicationInspecto
 // runtime context. It stays separate from identity inspection for headless tests.
 func (b *Backend) setApplicationPicker(picker applicationPicker) {
 	b.applicationPicker = picker
+}
+
+// setSecrets installs the keychain adapter at the composition root. Unexported
+// for the same reason as setCapture: the adapter is not a binding surface.
+func (b *Backend) setSecrets(s platform.Secrets) {
+	b.secrets = s
 }
 
 // emitSettingsChanged publishes the keys a settings write committed.

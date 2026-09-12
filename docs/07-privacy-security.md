@@ -57,6 +57,7 @@ Windows 适配器就返回 `privacy_unsupported`（[决策记录](decisions/reco
 | 项 | 规则 |
 |----|------|
 | 存放位置 | 系统钥匙串，service `io.github.jwz-git.daygo.apikeys.<provider>` |
+| 访问方式 | `security` CLI 子进程（无 cgo），见 [decisions/providers-secrets-keychain.md](decisions/providers-secrets-keychain.md) |
 | 跨界方向 | **只写不读。** 没有任何绑定方法返回密钥内容 |
 | 前端可见性 | 只有 `ProviderDTO.hasSecret` 布尔值 |
 | 绑定就绪前 | 只驻留进程内存；`hasSecret` 由内存派生，**不从磁盘读回**，这样重启后不会谎称"已配置" |
