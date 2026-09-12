@@ -63,9 +63,13 @@ func (b *Backend) chatService() (*chat.Service, error) {
 		// turn with an opaque error.
 		return nil, apperr.E(apperr.NativeUnavailable, "keychain is unavailable", nil)
 	}
-	// The tool executor and llm_calls sink arrive with the wiring slice; nil
-	// keeps plain-conversation behavior.
-	service := chat.New(storeChatAdapter{repo: store.Chat()}, backendProviders{backend: b}, backendChatSettings{backend: b}, nil, nil)
+	service := chat.New(
+		storeChatAdapter{repo: store.Chat()},
+		backendProviders{backend: b},
+		backendChatSettings{backend: b},
+		chatToolExecutor{backend: b},
+		attemptSink{repo: store.LlmCalls()},
+	)
 	service.SetNotifier(func(conversationID string) {
 		b.emitter.Emit(EventChatUpdated, ChatUpdatedPayload{ConversationID: conversationID})
 	})

@@ -439,6 +439,18 @@ func (s *Service) rebuildChain(entries []ProviderEntry) {
 			// is a chain without it, which the remaining entries still serve.
 			continue
 		}
+		if s.sink != nil {
+			sink := s.sink
+			provider = ai.WithAttemptObserver(provider, entry.ID, ai.Protocol(entry.Protocol), entry.Model,
+				ai.AttemptObserverFunc(func(_ context.Context, attempt ai.Attempt) {
+					// The attempt's own ctx may already be canceled; audit
+					// landing must not be, or a canceled turn loses its final
+					// failure row.
+					dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					sink.RecordAttempt(dbCtx, attempt)
+				}))
+		}
 		provider = ai.WithRetry(provider, ai.DefaultRetryPolicy())
 		chainEntries = append(chainEntries, ai.ChainEntry{ID: entry.ID, Provider: provider})
 	}

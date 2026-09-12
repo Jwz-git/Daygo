@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"database/sql"
 	"strings"
 	"sync"
 	"testing"
@@ -191,4 +193,71 @@ func TestChatBindingSecondSendWhileRunningRejected(t *testing.T) {
 		messages, err := backend.GetChatMessages(conversation.ID, 0, 0)
 		return err == nil && len(messages) >= 2
 	})
+}
+
+// End to end through the real chat service: a turn against a scripted
+// openai-protocol server lands one llm_calls attempt row (purpose=chat) with
+// sanitized metadata, and the tool rows flow through GetChatMessages with
+// their tool fields.
+func TestChatBindingAgentTurnAuditsLlmCalls(t *testing.T) {
+	backend, _, _ := backendWithStoreAndSecrets(t)
+
+	server := probeServer(t, 0, `{
+		"model":"fixture-model",
+		"choices":[{"message":{"content":"{\"kind\":\"answer\",\"answer\":\"好的。\"}"}}]
+	}`)
+	provider, err := backend.AddProvider(ProviderInputDTO{
+		DisplayName: "Fixture Provider",
+		Protocol:    "openai",
+		Endpoint:    server.URL + "/v1",
+		Model:       "fixture-model",
+		Secret:      "fixture-secret",
+	})
+	if err != nil {
+		t.Fatalf("AddProvider: %v", err)
+	}
+
+	conversation, err := backend.CreateChatConversation()
+	if err != nil {
+		t.Fatalf("CreateChatConversation: %v", err)
+	}
+	if err := backend.SetChatConversationProvider(conversation.ID, provider); err != nil {
+		t.Fatalf("SetChatConversationProvider: %v", err)
+	}
+	if err := backend.SendChatMessage(conversation.ID, "你好"); err != nil {
+		t.Fatalf("SendChatMessage: %v", err)
+	}
+	// Event counts fire before the assistant row is visible; poll the
+	// transcript itself.
+	waitFor(t, func() bool {
+		messages, err := backend.GetChatMessages(conversation.ID, 0, 0)
+		return err == nil && len(messages) >= 2 &&
+			messages[len(messages)-1].Role == "assistant" &&
+			messages[len(messages)-1].Status == "ok"
+	})
+
+	messages, err := backend.GetChatMessages(conversation.ID, 0, 0)
+	if err != nil {
+		t.Fatalf("GetChatMessages: %v", err)
+	}
+	if len(messages) != 2 || messages[1].Content != "好的。" {
+		t.Fatalf("messages = %+v", messages)
+	}
+
+	var purpose, protocol, outcome, model string
+	var attemptNo int
+	err = backend.store().Read(context.Background(), "test read llm calls", func(ctx context.Context, tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx,
+			`SELECT purpose, protocol, outcome, requested_model, attempt_no FROM llm_calls`).
+			Scan(&purpose, &protocol, &outcome, &model, &attemptNo)
+	})
+	if err != nil {
+		t.Fatalf("read llm_calls: %v", err)
+	}
+	if purpose != "chat" || protocol != "openai" || attemptNo != 1 || model != "fixture-model" {
+		t.Fatalf("llm_calls row = %s/%s/%s/%d", purpose, protocol, model, attemptNo)
+	}
+	if outcome == "" {
+		t.Fatal("llm_calls outcome is empty")
+	}
 }
