@@ -26,14 +26,21 @@ WAILS_VERSION="${WAILS_VERSION:-v2.15.0}"
 # instead of testing for existence.
 printf 'Generating Wails bindings...\n'
 mkdir -p "$ROOT_DIR/frontend/dist"
-printf '<!doctype html>\n' > "$ROOT_DIR/frontend/dist/index.html"
+# go:embed all:dist fails to compile when the pattern matches no files, so the
+# directory must hold something. Write the placeholder ONLY when there is no
+# index.html: overwriting one unconditionally destroys a real bundle's entry
+# point while leaving its assets/ in place, and the app then serves a blank page.
+if [[ ! -f "$ROOT_DIR/frontend/dist/index.html" ]]; then
+  printf '<!doctype html>\n' > "$ROOT_DIR/frontend/dist/index.html"
+fi
 (cd "$ROOT_DIR/cmd/daygo" \
   && go run "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION" build -s -m -nopackage)
 
-# Build the real bundle, replacing the placeholder if one was written above.
-# The Go binary compiles dist via go:embed, so this must run before any Go
-# command that imports the frontend package.
-if [[ ! -d "$ROOT_DIR/frontend/dist/assets" ]]; then
+# Build the real bundle. The test is the entry point's content, not the presence
+# of assets/: a real index.html references its hashed asset files and a
+# placeholder does not, whereas assets/ can survive a placeholder write and
+# would make this skip the rebuild that is needed.
+if ! grep -q 'assets/' "$ROOT_DIR/frontend/dist/index.html" 2>/dev/null; then
   printf 'Building frontend bundle for go:embed...\n'
   npm --prefix "$ROOT_DIR/frontend" run build
 fi
