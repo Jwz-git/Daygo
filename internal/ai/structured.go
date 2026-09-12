@@ -14,28 +14,39 @@ func ParseStructuredOutput(text string, output OutputSchema) (json.RawMessage, e
 	if err != nil {
 		return nil, NewError(ErrorInvalidOutput, "model output does not contain valid JSON", 0, err)
 	}
+	if err := ValidateJSON(raw, output); err != nil {
+		return nil, err
+	}
+	return append(json.RawMessage(nil), raw...), nil
+}
 
+// ValidateJSON checks an already-extracted JSON value against an output
+// schema. It is the schema half of ParseStructuredOutput, exported so callers
+// that hold raw JSON from elsewhere — chat tool arguments decoded from a
+// model's envelope, for instance — validate against the same library and the
+// same error kinds instead of growing a second validator.
+func ValidateJSON(raw json.RawMessage, output OutputSchema) error {
 	var schemaValue any
 	if err := decodeJSON(output.Schema, &schemaValue); err != nil {
-		return nil, NewError(ErrorInvalidRequest, "output schema is invalid", 0, err)
+		return NewError(ErrorInvalidRequest, "output schema is invalid", 0, err)
 	}
 	compiler := jsonschema.NewCompiler()
 	const schemaURL = "urn:daygo:output-schema"
 	if err := compiler.AddResource(schemaURL, schemaValue); err != nil {
-		return nil, NewError(ErrorInvalidRequest, "output schema cannot be loaded", 0, err)
+		return NewError(ErrorInvalidRequest, "output schema cannot be loaded", 0, err)
 	}
 	schema, err := compiler.Compile(schemaURL)
 	if err != nil {
-		return nil, NewError(ErrorInvalidRequest, "output schema cannot be compiled", 0, err)
+		return NewError(ErrorInvalidRequest, "output schema cannot be compiled", 0, err)
 	}
 	var value any
 	if err := decodeJSON(raw, &value); err != nil {
-		return nil, NewError(ErrorInvalidOutput, "model output JSON is invalid", 0, err)
+		return NewError(ErrorInvalidOutput, "model output JSON is invalid", 0, err)
 	}
 	if err := schema.Validate(value); err != nil {
-		return nil, NewError(ErrorInvalidOutput, "model output does not match schema", 0, err)
+		return NewError(ErrorInvalidOutput, "model output does not match schema", 0, err)
 	}
-	return append(json.RawMessage(nil), raw...), nil
+	return nil
 }
 
 func extractJSON(text string) (json.RawMessage, error) {

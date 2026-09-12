@@ -62,6 +62,40 @@ func TestParseStructuredOutput(t *testing.T) {
 	}
 }
 
+// ValidateJSON is the schema half of ParseStructuredOutput; callers holding
+// already-extracted JSON (chat tool arguments) depend on it rejecting the same
+// shapes with the same error kinds.
+func TestValidateJSON(t *testing.T) {
+	output := OutputSchema{Name: "args", Schema: []byte(`{
+		"type":"object",
+		"properties":{
+			"day":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},
+			"limit":{"type":"integer","minimum":1}
+		},
+		"required":["day"],
+		"additionalProperties":false
+	}`)}
+
+	if err := ValidateJSON([]byte(`{"day":"2026-09-12"}`), output); err != nil {
+		t.Fatalf("ValidateJSON valid: %v", err)
+	}
+	if err := ValidateJSON([]byte(`{"day":"2026-09-12","limit":3}`), output); err != nil {
+		t.Fatalf("ValidateJSON optional field: %v", err)
+	}
+	if err := ValidateJSON([]byte(`{"day":"today"}`), output); ErrorKindOf(err) != ErrorInvalidOutput {
+		t.Fatalf("pattern mismatch error = %v", err)
+	}
+	if err := ValidateJSON([]byte(`{"limit":3}`), output); ErrorKindOf(err) != ErrorInvalidOutput {
+		t.Fatalf("missing required error = %v", err)
+	}
+	if err := ValidateJSON([]byte(`{"day":"2026-09-12","extra":true}`), output); ErrorKindOf(err) != ErrorInvalidOutput {
+		t.Fatalf("unknown field error = %v", err)
+	}
+	if err := ValidateJSON([]byte(`{"day":`), output); ErrorKindOf(err) != ErrorInvalidOutput {
+		t.Fatalf("invalid JSON error = %v", err)
+	}
+}
+
 func TestRetryStopsOnCancellation(t *testing.T) {
 	provider := &sequenceProvider{errors: []error{
 		NewError(ErrorUnavailable, "temporary", 503, nil),
