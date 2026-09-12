@@ -3,7 +3,12 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ApplicationDTO } from '@/api/application'
-import { getBlockedApplications, pickApplication } from '@/api/application'
+import {
+  getBlockedApplications,
+  getPrivacyCompatibility,
+  pickApplication,
+  type PrivacyCompatibilityDTO,
+} from '@/api/application'
 import { WAILS_UNAVAILABLE } from '@/api/settings'
 
 import { useSettingsSection } from './useSettingsSection'
@@ -14,7 +19,7 @@ const { t } = useI18n()
 const { state, settings, load, persist, writeFailed } = useSettingsSection()
 
 /*
- * The privacy list keeps only bundle identifiers in settings; names and icons
+ * The privacy list keeps only platform application identifiers in settings; names and icons
  * are resolved on every read. A missing name means the platform could not
  * resolve the bundle, and the row then shows the identifier — the only label
  * that is actually known.
@@ -23,6 +28,7 @@ const applications = ref<ApplicationDTO[]>([])
 const listState = ref<ListState>('loading')
 const selecting = ref(false)
 const pickError = ref('')
+const compatibility = ref<PrivacyCompatibilityDTO | null>(null)
 
 const blockedIds = computed(() => settings.value?.privacy.blockedApplicationIds ?? [])
 const canEdit = computed(() => state.value === 'ready' && listState.value === 'ready')
@@ -30,8 +36,16 @@ const canEdit = computed(() => state.value === 'ready' && listState.value === 'r
 onMounted(() => void loadSection())
 
 async function loadSection(): Promise<void> {
-  await load()
-  await refreshApplications()
+	await load()
+	await Promise.all([refreshApplications(), refreshCompatibility()])
+}
+
+async function refreshCompatibility(): Promise<void> {
+  try {
+    compatibility.value = await getPrivacyCompatibility()
+  } catch {
+    compatibility.value = null
+  }
 }
 
 async function refreshApplications(): Promise<void> {
@@ -77,6 +91,25 @@ function labelOf(application: ApplicationDTO): string {
     <div class="blocked__text">
       <h2 class="blocked__title">{{ t('settings.privacy.blockedTitle') }}</h2>
       <p class="blocked__hint">{{ t('settings.privacy.blockedHint') }}</p>
+    </div>
+
+    <div
+      v-if="compatibility?.platform === 'windows'"
+      class="blocked__compatibility"
+      :class="{ 'blocked__compatibility--unsupported': !compatibility.supported }"
+      role="status"
+    >
+      <strong>
+        {{ compatibility.supported
+          ? t('settings.privacy.compatibility.supported')
+          : t('settings.privacy.compatibility.unsupported') }}
+      </strong>
+      <span>
+        {{ t('settings.privacy.compatibility.version', {
+          version: compatibility.version,
+          minimumBuild: compatibility.minimumBuild,
+        }) }}
+      </span>
     </div>
 
     <p v-if="listState === 'loading'" class="blocked__empty">
@@ -155,6 +188,32 @@ function labelOf(application: ApplicationDTO): string {
   color: var(--dg-text-secondary);
   font-size: 12px;
   max-width: 52ch;
+}
+
+.blocked__compatibility {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--dg-success, #3d8b58) 35%, var(--dg-card-border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--dg-success, #3d8b58) 8%, transparent);
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+}
+
+.blocked__compatibility strong {
+  color: var(--dg-text-primary);
+  font-size: 13px;
+}
+
+.blocked__compatibility--unsupported {
+  border-color: color-mix(in srgb, var(--dg-danger) 38%, var(--dg-card-border));
+  background: color-mix(in srgb, var(--dg-danger) 8%, transparent);
+}
+
+.blocked__compatibility--unsupported strong {
+  color: var(--dg-danger);
 }
 
 .blocked__list {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"runtime"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
@@ -22,17 +23,29 @@ type wailsApplicationPicker struct {
 }
 
 func (p wailsApplicationPicker) PickApplication() (string, error) {
-	return wailsruntime.OpenFileDialog(p.ctx, wailsruntime.OpenDialogOptions{
+	options := wailsruntime.OpenDialogOptions{
 		DefaultDirectory: "/Applications",
 		// Wails v2 maps "*.app" to NSOpenPanel.allowedFileTypes, which leaves
 		// application packages disabled on macOS. Leave the panel unfiltered;
 		// ApplicationInspector remains the authoritative fail-closed .app check.
 		ResolvesAliases:            true,
 		TreatPackagesAsDirectories: false,
-	})
+	}
+	if runtime.GOOS == "windows" {
+		// The Windows common-item dialog is Explorer's native file picker. The
+		// inspector still validates the chosen file; the filter is only a usable
+		// affordance and not a security boundary.
+		options.DefaultDirectory = ""
+		options.Title = "Choose an application"
+		options.Filters = []wailsruntime.FileFilter{{
+			DisplayName: "Windows applications (*.exe)",
+			Pattern:     "*.exe",
+		}}
+	}
+	return wailsruntime.OpenFileDialog(p.ctx, options)
 }
 
-// ApplicationDTO is the display identity of one application bundle.
+// ApplicationDTO is the display identity of one platform application.
 //
 // Name and IconDataURL are display data, not product state: the persisted
 // privacy setting holds only ID (docs/03 §3.3.5). IconDataURL is a base64 PNG
@@ -44,8 +57,39 @@ type ApplicationDTO struct {
 	IconDataURL string `json:"iconDataUrl"`
 }
 
+// PrivacyCompatibilityDTO reports the operating-system gate for image-level
+// application exclusion. It contains no selected application or file path.
+type PrivacyCompatibilityDTO struct {
+	Platform     string `json:"platform"`
+	Version      string `json:"version"`
+	Build        uint32 `json:"build"`
+	MinimumBuild uint32 `json:"minimumBuild"`
+	Supported    bool   `json:"supported"`
+}
+
+// GetPrivacyCompatibility returns the actual platform capability used by the
+// recorder. Windows requires build 26100 because that is where the tested WGC
+// window-exclusion contract appears.
+func (b *Backend) GetPrivacyCompatibility() (PrivacyCompatibilityDTO, error) {
+	reporter, ok := b.capture.(platform.CapturePrivacyReporter)
+	if !ok {
+		return PrivacyCompatibilityDTO{}, apperr.E(apperr.NativeUnavailable, "privacy compatibility is unavailable", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	compatibility, err := reporter.CapturePrivacyCompatibility(ctx)
+	if err != nil {
+		return PrivacyCompatibilityDTO{}, apperr.E(apperr.NativeUnavailable, "privacy compatibility query failed", err)
+	}
+	return PrivacyCompatibilityDTO{
+		Platform: compatibility.Platform, Version: compatibility.Version,
+		Build: compatibility.Build, MinimumBuild: compatibility.MinimumBuild,
+		Supported: compatibility.Supported,
+	}, nil
+}
+
 // PickApplication opens the native application picker and resolves the chosen
-// bundle through the platform identity ABI. Cancellation returns nil without
+// application through the platform identity ABI. Cancellation returns nil without
 // changing anything.
 func (b *Backend) PickApplication() (*ApplicationDTO, error) {
 	if b.applicationPicker == nil || b.applicationInspector == nil {

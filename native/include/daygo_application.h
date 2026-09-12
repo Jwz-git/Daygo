@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 #define DG_APPLICATION_ABI_MAJOR 2u
-#define DG_APPLICATION_ABI_MINOR 0u
+#define DG_APPLICATION_ABI_MINOR 1u
 
 typedef struct dg_application_string_view_v1 {
     const uint8_t *data;
@@ -43,7 +43,8 @@ typedef struct dg_application_buffer_v1 {
 enum {
     DG_APPLICATION_NATIVE_NONE = 0,
     DG_APPLICATION_NATIVE_POSIX = 1,
-    DG_APPLICATION_NATIVE_APPLE = 2
+    DG_APPLICATION_NATIVE_APPLE = 2,
+    DG_APPLICATION_NATIVE_WINDOWS = 3
 };
 
 enum {
@@ -57,11 +58,11 @@ enum {
 };
 
 /*
- * Caller-owned output for one macOS application.
+ * Caller-owned output for one platform application.
  *
  * The caller zero-initializes this struct, sets struct_size, and supplies all
- * three buffers. On success identifier is the bundle identifier used by Daygo's
- * capture privacy filter, name is a localized display label, and icon_png is a
+ * three buffers. On success identifier is the platform application identifier
+ * used by Daygo's capture privacy filter, name is a localized display label, and icon_png is a
  * square PNG rendering of the application icon. icon_png.len is 0 when the
  * application has no loadable icon or when the encoded icon does not fit the
  * caller's buffer; an absent icon is never an error. The implementation never
@@ -87,9 +88,9 @@ DG_APPLICATION_API void DG_APPLICATION_CALL dg_application_abi_version(
 );
 
 /*
- * Inspects an absolute path to a user-selected .app bundle. The bundle must
- * contain a non-empty CFBundleIdentifier. No path, handle, or result is
- * retained after return.
+ * Inspects an absolute path selected by the platform picker (.app on macOS,
+ * .exe on Windows). The returned identifier is the value consumed by the
+ * capture privacy filter. No path or handle is retained after return.
  */
 DG_APPLICATION_API int32_t DG_APPLICATION_CALL dg_application_inspect(
     uint32_t requested_abi_major,
@@ -99,13 +100,14 @@ DG_APPLICATION_API int32_t DG_APPLICATION_CALL dg_application_inspect(
 );
 
 /*
- * Resolves an already-known bundle identifier without a user-selected path.
+ * Resolves an already-known platform application identifier without a
+ * user-selected path.
  * Returns DG_APPLICATION_E_NOT_FOUND when the system has no installed
  * application with that identifier.
  */
 DG_APPLICATION_API int32_t DG_APPLICATION_CALL dg_application_lookup(
     uint32_t requested_abi_major,
-    dg_application_string_view_v1 bundle_identifier,
+    dg_application_string_view_v1 application_identifier,
     dg_application_info_v2 *out_info,
     dg_application_error_v1 *out_error
 );

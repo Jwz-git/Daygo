@@ -8,6 +8,14 @@ type Capture interface {
 	Capture(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 }
 
+// CapturePrivacyReporter describes whether the platform can exclude selected
+// applications from an image. It is separate from Capture so headless and
+// older adapters remain source-compatible while the settings UI can report an
+// honest OS gate.
+type CapturePrivacyReporter interface {
+	CapturePrivacyCompatibility(ctx context.Context) (CapturePrivacyCompatibility, error)
+}
+
 // ApplicationInspector resolves application identities for the screenshot
 // privacy list. It owns no picker UI and never retains a supplied path.
 type ApplicationInspector interface {

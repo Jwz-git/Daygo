@@ -34,6 +34,11 @@ export default {
     empty: 'No apps are blocked yet.',
     loading: 'Reading blocked apps…',
     unavailable: 'The blocked app list is unavailable.',
+    compatibility: {
+      supported: 'This Windows version supports private-window exclusion',
+      unsupported: 'This Windows version cannot exclude private windows',
+      version: 'Current: {version}; requires Windows 11 build {minimumBuild} or newer.',
+    },
     remove: 'Remove {name}',
     writeError: 'Saving failed; the value was restored from the database.',
     error: {

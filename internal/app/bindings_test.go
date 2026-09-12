@@ -26,6 +26,7 @@ var contractBindings = []string{
 	"GetDiagnostics",
 	"GetJournalDay",
 	"GetPermissionState",
+	"GetPrivacyCompatibility",
 	"GetProviderRouting",
 	"GetRecordingDirectory",
 	"GetRecordingState",

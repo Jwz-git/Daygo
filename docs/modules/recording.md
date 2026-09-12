@@ -27,7 +27,7 @@ OnStartup 在状态栏安装后调用 `maybeAutoStartRecording`，三重防呆�
 已知偏差：无「停止后不自启」记忆（每次启动都录，设置项后续切片）、G-host 未跑
 （退出即停，空窗由分析流水线 24h 未分批回看补齐）。production、隐私实机矩阵和长期观察
 未验收。
-Windows 侧另有一份同 ABI 的 DXGI 实现（`internal/platform/windows` + `native/windows`），
+Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows` + `native/windows`），
 已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke，但仍**不在发布范围**；
 完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
 无法打开数据库。以上不改变本模块的验收口径。
@@ -39,8 +39,9 @@ Windows 侧另有一份同 ABI 的 DXGI 实现（`internal/platform/windows` + `
 
 截图测试页现在按平台切换：macOS 面板保留直接 ABI 单次 / 定时联调；Windows 面板通过正式
 `SetRecording` / `GetRecordingState` 与 `recording:state` 驱动并观测共享 Go recorder，截图成功且
-`screenshots` 提交完成后才更新 `lastFrameAtTs` 和本轮帧数。Windows 面板不调用尚未实现的隐私
-应用和睡眠事件 ABI；隐私名单非空时失败关闭，不会为测试清空或绕过用户设置。
+`screenshots` 提交完成后才更新 `lastFrameAtTs` 和本轮帧数。Windows 面板不会为测试清空或
+绕过用户隐私设置；build 26100+ 的非空名单由 WGC `SetWindowExclusionList` 做画面排除，
+更旧系统返回 `privacy_unsupported`。
 
 ## 能力与跨层职责
 
@@ -110,7 +111,7 @@ darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子�
 2026-09-11（当前工作树，Windows 11 NT 10.0.26200、NVIDIA RTX 4060 Laptop GPU、双显示器）：
 原生 smoke 与 Go cgo smoke 均生成并解码 1280×720 非黑 JPEG。调试记录确认首个 pointer-only
 全零帧被跳过，后续桌面更新由 DXGI 返回非零 BGRA，没有命中 GDI fallback。非空屏蔽名单返回
-`privacy_unsupported` 且不生成文件，证明失败关闭而非隐私能力完整。仅 WC-1 有限通过；
+`privacy_unsupported` 且不生成文件；该旧行为已被下方 2026-09-13 WGC 证据替代。仅 WC-1 有限通过；
 目标冲突、多屏切换/旋转、受保护内容、光标与 24 小时资源矩阵未运行。
 
 2026-09-12（Windows 11 amd64）：最新 macOS 状态栏接线曾在 Wails `OnStartup` 无条件调用
@@ -135,3 +136,11 @@ Wails 原生 `.app` 面板等待人工视觉验收；helper / XPC 和 MC 隐私�
 代码签名资源完整性作为屏蔽名单接入条件。资源被 Custom UI Style 修改的 VS Code smoke 返回
 `Code` / `com.microsoft.VSCode`；无签名测试 bundle 的回归测试通过。前台兜底同步改用
 `NSRunningApplication.bundleIdentifier`，避免与 ScreenCaptureKit 使用不同身份来源。
+
+2026-09-13（Windows 11 build 26200）：Windows 正式设置页接入 Explorer `.exe` picker、
+应用 ABI 2.1 的哈希身份 / 名称 / 64×64 PNG 图标与回查，并显示 `RtlGetVersion` 得到的当前 build
+及 26100 最低门禁。非空隐私名单改走 MSVC C++/WinRT helper 的 WGC monitor capture，调用
+`IDisplayGraphicsCaptureSession.SetWindowExclusionList` 后等待帧的 `ConfigurationIteration` 达标。
+Edge 实测基线图含 Edge，排除图露出其下方窗口且两图均为非黑 1280×720 JPEG；应用 identity
+往返、原生 smoke、Go app/platform 测试、前端 typecheck/build 通过。全部 WC 竞态、受保护内容、
+便携应用冷启动回查和长期资源仍未验收。

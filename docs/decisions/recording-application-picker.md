@@ -1,6 +1,6 @@
-# recording macOS 应用身份解析与 ABI
+# recording 跨平台应用身份解析与 ABI
 
-> **状态：有限实现。** 本记录冻结“用户选择一个 `.app`”与“已配置的 Bundle ID 回查展示身份”
+> **状态：两平台有限实现。** 本记录冻结“用户选择一个平台应用”与“已配置 ID 回查展示身份”
 > 两条路径的最小边界。它不完成 `System.InstalledApplications`、recorder、占位帧或 MC 隐私
 > 矩阵，也不决定其余平台能力的适配形态。
 
@@ -8,11 +8,12 @@
 
 ### 1.1 选择路径
 
-`PickApplication`（正式绑定）通过 Wails v2 `OpenFileDialog` 调起 macOS `NSOpenPanel`，默认打开
+`PickApplication`（正式绑定）通过 Wails v2 `OpenFileDialog` 调起原生文件面板。macOS 默认打开
 `/Applications`。Wails v2 把 `*.app` filter 映射到 `allowedFileTypes` 后会使 `.app` package
 呈灰色不可选，因此当前不向面板下发文件 filter；用户仍选择 `.app`，Go 与原生 inspector
 负责权威校验，任何非应用输入失败关闭。Wails 返回的路径只在一次绑定调用中使用，不持久化、
-不返回前端、不写日志。
+不返回前端、不写日志。Windows 调起 Explorer common-item dialog，并用 `*.exe` filter 帮助选择；
+原生 inspector 仍会二次校验绝对路径、文件类型和存在性。
 
 Go 通过 `platform.ApplicationInspector.InspectApplication` 调用
 [`daygo_application.h`](../../native/include/daygo_application.h) ABI。原生实现使用
@@ -22,6 +23,11 @@ Foundation / AppKit：
 2. 通过 `object(forInfoDictionaryKey:)` 读取本地化显示名称；
 3. 用 `NSWorkspace.icon(forFile:)` 取图标，绘制到 64×64 私有 bitmap 后编码为 PNG；
 4. 只向 Go 返回 `ApplicationIdentity{ID, Name, IconPNG}`。
+
+Windows 实现位于同一 ABI 后面：规范化所选 `.exe` 的最终路径并仅对其做 SHA-256，返回
+`win32.exe.sha256:<hex>`（路径本身不跨 Wails 边界）；名称取版本资源并回退文件名，图标由 Shell
+取得并用 WIC 编码为 64×64 PNG。截图端按运行进程的规范路径计算同一种 ID，因此设置与原生
+WGC 排除不需要第二套身份协议。
 
 `CFBundleIdentifier` 是本接口的身份，而不是代码签名 identifier。ScreenCaptureKit 的
 `SCRunningApplication.bundleIdentifier` 正是应用的 bundle identifier；前台兜底也从
@@ -40,8 +46,8 @@ Foundation / AppKit：
 - 系统没有该应用的安装记录时返回 `DG_APPLICATION_E_NOT_FOUND`；
 - 解析不到的 ID **保留在列表中**，只回 `{id, name: "", iconDataUrl: ""}`，前端回退显示
   ID 本身——这是唯一已知的标签，不伪造名称；
-- 没有解析能力的平台（非 darwin）返回同样的 ID-only 结果，因此隐私名单在 Windows 上仍可
-  查看与删除，只是没有名称与图标。
+- Windows 回查优先使用本进程缓存，再检查运行进程以及 `App Paths` / `Uninstall` 注册表；
+  便携应用既未运行又没有注册表记录时会诚实降级为 ID-only，而不会保存或猜测路径。
 
 ### 1.3 图标边界
 
@@ -63,7 +69,7 @@ resources；只要扩展或本地定制修改过应用资源，即使应用仍�
 `bundleIdentifier`，不把代码签名验证作为隐私名单的接入条件。Daygo 采用这一更贴合
 ScreenCaptureKit 接口的身份边界，但保留自身既有的两次前台检查、失败关闭和严格 `.app` 路径校验。
 
-原生层只做 macOS bundle 身份解析。对话框、取消语义、超时、DTO、去重和设置写入仍归 Go /
+原生层只做平台应用身份解析。对话框、取消语义、超时、DTO、去重和设置写入仍归 Go /
 Wails；ABI 使用 caller-owned buffer，不跨语言分配返回字符串，也不保留路径或指针。
 
 Dayflow 的“已安装应用搜索网格 + 已屏蔽列表”仍比文件面板更适合作为最终的“添加应用”交互；但
@@ -92,7 +98,7 @@ Dayflow 的“已安装应用搜索网格 + 已屏蔽列表”仍比文件面板
 
 ## 4. ABI 与错误
 
-应用 ABI 为 **2.0**。相对 1.0 的变化：`dg_application_info_v2` 增加 `icon_png` buffer，
+应用 ABI 为 **2.1**。相对 1.0 的变化：`dg_application_info_v2` 增加 `icon_png` buffer，
 新增 `dg_application_lookup`，新增错误码 `DG_APPLICATION_E_NOT_FOUND`。major 提升意味着旧
 prebuilt archive 会被 Go 侧握手明确拒绝，而不是静默返回缺图标的旧结构。
 
@@ -101,7 +107,7 @@ prebuilt archive 会被 Go 侧握手明确拒绝，而不是静默返回缺图�
 `ApplicationError.Code` 分支，`NativeCode` 仅作本机数值诊断；`ApplicationNotFound` 在
 `DescribeApplications` 内部降级为 ID-only 条目，不上抛。
 
-`darwin && !cgo` 和非 macOS factory 返回 `unsupported`，因此不破坏
+`darwin/windows && !cgo` 和其他平台 factory 返回 `unsupported`，因此不破坏
 `CGO_ENABLED=0 go build ./...` 与 Linux 核心门禁。
 
 ## 5. 验证与限制
@@ -122,7 +128,7 @@ prebuilt archive 会被 Go 侧握手明确拒绝，而不是静默返回缺图�
   返回 `Code` / `com.microsoft.VSCode`；无签名测试 bundle 的回归测试也通过，防止重新引入
   代码签名门禁。
 
-2026-09-13（ABI 2.0）：
+2026-09-13（ABI 2.0 macOS 基线）：
 
 - `DAYGO_APPLICATION_SMOKE_PATH=/System/Applications/Calculator.app go test -run TestApplicationInspectorSmoke -v ./internal/platform/darwin`
   返回 `Calculator` / `com.apple.calculator`，图标 6045 字节 PNG，且同一次运行用
@@ -132,6 +138,15 @@ prebuilt archive 会被 Go 侧握手明确拒绝，而不是静默返回缺图�
   `database_error`、无解析能力时保留 ID；
 - 前端 typecheck / build 通过；无 Wails 桥的 Vite 页用夹具渲染了设置页隐私名单（图标占位
   + 名称 + 删除），点击选择与 `testData=off` 的不可用态均已确认。
+
+2026-09-13（Windows ABI 2.1）：
+
+- Explorer `.exe` picker 已接正式 `PickApplication`；选择 Edge 返回 `Microsoft Edge`、稳定
+  `win32.exe.sha256:*` ID 与 2849 字节 PNG，应用 ABI inspect → lookup 往返测试通过；
+- 当前系统版本由 `RtlGetVersion` 读取并在设置页展示；build 26100 是 WGC 窗口排除最低门禁；
+- 同一 Edge 窗口的基线 JPEG 能看到页面，带所选 ID 的 JPEG 中 Edge 完全消失并露出底层窗口，
+  两张图均为 1280×720 非黑画面；原生 smoke、Go adapter/app 测试、前端 typecheck/build 通过。
+- 尚未覆盖便携应用重启后且未运行时的名称/图标回查、全部 WC 竞态和 24 小时资源矩阵。
 
 仍未验收：picker 原生面板的视觉与交互、沙盒 / 发行身份、缺失 Bundle ID 的应用、helper / XPC
 子进程、多 Space、多显示器与快速前台切换；图标分辨率与暗色模式观感未做视觉验收。选择一个主

@@ -93,7 +93,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | daily | `GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals`；用户保存不触碰 AI summary 列；`GetDailyRecap` 未实现（待定 #19） |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
-| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`，其他未接 System 的调用仍返回 `native_unavailable`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID |
+| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；均不接 recorder / storage / config |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
@@ -310,6 +310,7 @@ export function toApiError(e: unknown): ApiError {
 | `OpenCaptureTestFolder(path string) error` | recording（联调） | 系统文件管理器 | 写·测试 | — | `invalid_argument` `not_found` `native_unavailable` |
 | `PickApplication() (*ApplicationDTO, error)` **已实现** | recording | Wails picker / ApplicationInspector | 写·用户交互 | — | `invalid_argument` `not_found` `native_unavailable` |
 | `GetBlockedApplications() ([]ApplicationDTO, error)` **已实现** | recording | settings-access / ApplicationInspector | 读 | — | `database_error` |
+| `GetPrivacyCompatibility() (PrivacyCompatibilityDTO, error)` **已实现** | recording | CapturePrivacyReporter | 读 | — | `native_unavailable` |
 | `SetRecording(enabled bool) error` | recording | capture / db-core / 授权 | 写·幂等 | `recording:state` | `permission_denied` `not_capture_owner` `native_unavailable` |
 | `PauseRecording(minutes int) error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | `invalid_argument` `not_capture_owner` |
 | `ResumeRecording() error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | 同上 |
@@ -561,11 +562,19 @@ type PrivacySettingsDTO struct {
 // ApplicationDTO 是 picker 与隐私名单的展示身份（§5.5.1 录制组）。
 // Name 与 IconDataURL 是展示数据，不是产品状态：设置只持久化 ID，名称与图标每次读取时
 // 经 ApplicationInspector 解析。IconDataURL 是 `data:image/png;base64,` 前缀的方形 PNG，
-// 系统没有图标时为空串。Name 为空串表示平台无法解析该 bundle，调用方回退显示 ID。
+// 系统没有图标时为空串。Name 为空串表示平台无法解析该应用，调用方回退显示 ID。
 type ApplicationDTO struct {
     ID          string `json:"id"`
     Name        string `json:"name"`
     IconDataURL string `json:"iconDataUrl"`
+}
+
+type PrivacyCompatibilityDTO struct {
+    Platform     string `json:"platform"`
+    Version      string `json:"version"`
+    Build        uint32 `json:"build"`
+    MinimumBuild uint32 `json:"minimumBuild"`
+    Supported    bool   `json:"supported"`
 }
 
 type StorageSettingsDTO struct {

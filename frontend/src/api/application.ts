@@ -1,11 +1,15 @@
-import { GetBlockedApplications, PickApplication } from '../../wailsjs/go/app/Backend'
+import {
+  GetBlockedApplications,
+  GetPrivacyCompatibility,
+  PickApplication,
+} from '../../wailsjs/go/app/Backend'
 
 import { getApplicationNamesDevelopmentFixture } from '@/api/developmentFixtures'
 import { WAILS_UNAVAILABLE, getSettings } from '@/api/settings'
 
 /**
  * ApplicationDTO mirrors docs/05 §5.5.2: the display identity of one
- * application bundle. `name` and `iconDataUrl` are display data resolved by the
+ * application. `name` and `iconDataUrl` are display data resolved by the
  * native layer; the persisted privacy setting holds only `id`. A name that came
  * back empty means the platform could not resolve the bundle, and the caller
  * shows `id` instead of inventing a label.
@@ -16,8 +20,21 @@ export interface ApplicationDTO {
   iconDataUrl: string
 }
 
+export interface PrivacyCompatibilityDTO {
+  platform: string
+  version: string
+  build: number
+  minimumBuild: number
+  supported: boolean
+}
+
+export async function getPrivacyCompatibility(): Promise<PrivacyCompatibilityDTO | null> {
+  if (!('go' in window) || window.go === undefined) return null
+  return (await GetPrivacyCompatibility()) as unknown as PrivacyCompatibilityDTO
+}
+
 /**
- * Opens the native macOS application picker. Returns null when the user
+ * Opens the platform's native application picker. Returns null when the user
  * cancels. Outside the Wails app there is no picker and no stand-in, so this
  * reports the unavailable state rather than opening a text prompt.
  */

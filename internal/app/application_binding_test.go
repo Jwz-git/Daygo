@@ -10,6 +10,33 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
 
+type privacyCaptureStub struct {
+	compatibility platform.CapturePrivacyCompatibility
+}
+
+func (s privacyCaptureStub) Capture(context.Context, platform.CaptureRequest) (platform.CaptureResult, error) {
+	return platform.CaptureResult{}, nil
+}
+
+func (s privacyCaptureStub) CapturePrivacyCompatibility(context.Context) (platform.CapturePrivacyCompatibility, error) {
+	return s.compatibility, nil
+}
+
+func TestGetPrivacyCompatibility(t *testing.T) {
+	backend := newBackend(fixedClock{}, nil, nil, true, true)
+	backend.setCapture(privacyCaptureStub{compatibility: platform.CapturePrivacyCompatibility{
+		Platform: "windows", Version: "Windows 11 10.0 (build 26100)",
+		Build: 26100, MinimumBuild: 26100, Supported: true,
+	}})
+	got, err := backend.GetPrivacyCompatibility()
+	if err != nil {
+		t.Fatalf("GetPrivacyCompatibility: %v", err)
+	}
+	if got.Platform != "windows" || got.Build != 26100 || !got.Supported {
+		t.Fatalf("compatibility = %#v", got)
+	}
+}
+
 type fixedApplicationPicker struct {
 	path string
 	err  error

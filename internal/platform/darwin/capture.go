@@ -9,12 +9,20 @@ import (
 )
 
 var _ platform.Capture = (*Capture)(nil)
+var _ platform.CapturePrivacyReporter = (*Capture)(nil)
 
 // Capture is the stateless macOS adapter for one primary-display screenshot.
 type Capture struct{}
 
 func NewCapture() *Capture {
 	return &Capture{}
+}
+
+func (c *Capture) CapturePrivacyCompatibility(ctx context.Context) (platform.CapturePrivacyCompatibility, error) {
+	if err := ctx.Err(); err != nil {
+		return platform.CapturePrivacyCompatibility{}, err
+	}
+	return platform.CapturePrivacyCompatibility{Platform: "darwin", Supported: true}, nil
 }
 
 func (c *Capture) Capture(ctx context.Context, req platform.CaptureRequest) (platform.CaptureResult, error) {

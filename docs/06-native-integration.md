@@ -137,17 +137,18 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 | 能力 | macOS | Windows | 说明 |
 |---|---|---|---|
 | 单次截图（第 5 / 7 / 12 项） | 有限实现，已跑通真机 smoke | 有限实现，真机非黑 JPEG smoke 通过 | macOS 用 ScreenCaptureKit，Windows 优先 DXGI Desktop Duplication；GDI 只在有效桌面更新仍为全零时回退 |
-| 隐私屏蔽（第 6 / 13 项） | 前台兜底 + 画面排除，两层齐备 | **无画面排除原语**：名单非空即 `privacy_unsupported` | Windows 上配置了屏蔽应用就拿不到画面，这是失败关闭而非缺陷 |
+| 隐私屏蔽（第 6 / 13 项） | 前台兜底 + 画面排除，两层齐备 | build 26100+：前台兜底 + WGC `SetWindowExclusionList`；更旧系统失败关闭 | Windows 11 24H2（26100）是明确最低门禁；名单非空时改走 WGC，并等待对应 configuration iteration 后才接收帧 |
 | 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 实现与 ABI 语义之间的已知缺口 |
 | 屏幕录制授权（第 1–3 项） | 端口已定义，适配层未实现 | 系统无对应授权 | macOS 未接入前，绑定返回 `native_unavailable` |
 | 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
-| 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.0（身份 + 名称 + 图标 + 按 Bundle ID 回查） | unsupported：非 darwin 工厂只回 ID | 支持用户选择与已配置 ID 的展示身份解析；不等于 `InstalledApplications` 已实现 |
+| 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.x（身份 + 名称 + 图标 + 按 Bundle ID 回查） | 有限实现：Explorer `.exe` picker + 同一 ABI；路径哈希 ID、名称、PNG 图标和回查 | Windows 路径不进入 Wails DTO；回查优先内存、运行进程与 App Paths / Uninstall 注册表，不等于 `InstalledApplications` 已实现 |
 | 其余 14 项（第 4、8–11、14–22 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
 `native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是
 `build/native/darwin/universal/libdaygo_capture.a` 与
-`build/native/windows/amd64/libdaygo_capture.a`。截图与应用身份分别使用
+`build/native/windows/amd64/libdaygo_capture.a`；Windows 26100 隐私路径另生成并随 EXE 放置
+`daygo_windows_native.dll`。截图与应用身份分别使用
 [`native/include/daygo_capture.h`](../native/include/daygo_capture.h) 和
 [`native/include/daygo_application.h`](../native/include/daygo_application.h) 两份独立 ABI；
 Swift 编译通过 `daygo_native.h` 同时导入，截图请求布局未改变。

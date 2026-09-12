@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,46 @@ constexpr int kMaxPathBytes = 32768;
 constexpr int kMaxApplicationIDBytes = 4096;
 constexpr int kMaxApplicationIDs = 4096;
 constexpr int kMaxApplicationIDTotalBytes = 1 << 20;
+constexpr wchar_t kNativeDLLName[] = L"daygo_windows_native.dll";
+
+int32_t fail(int32_t status, HRESULT native_code, dg_capture_error_v1* error);
+
+HMODULE load_native_dll() {
+  static HMODULE module = []() -> HMODULE {
+    wchar_t executable[32768] = {};
+    const DWORD executable_size = GetModuleFileNameW(
+        nullptr, executable, static_cast<DWORD>(std::size(executable)));
+    if (executable_size > 0 && executable_size < std::size(executable)) {
+      std::wstring sibling(executable, executable_size);
+      const size_t slash = sibling.find_last_of(L"\\/");
+      if (slash != std::wstring::npos) {
+        sibling.resize(slash + 1);
+        sibling += kNativeDLLName;
+        if (HMODULE value = LoadLibraryW(sibling.c_str())) return value;
+      }
+    }
+    return LoadLibraryExW(kNativeDLLName, nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+  }();
+  return module;
+}
+
+int32_t capture_with_privacy_helper(const dg_capture_request_v1* request,
+                                    dg_capture_result_v1* result,
+                                    dg_capture_error_v1* error) {
+  using Function = int32_t(DG_CAPTURE_CALL*)(
+      uint32_t, const dg_capture_request_v1*, dg_capture_result_v1*,
+      dg_capture_error_v1*);
+  HMODULE module = load_native_dll();
+  FARPROC procedure = module ? GetProcAddress(module, "dg_windows_wgc_capture_once") : nullptr;
+  Function function = nullptr;
+  static_assert(sizeof(function) == sizeof(procedure), "unexpected function pointer size");
+  std::memcpy(&function, &procedure, sizeof(function));
+  if (!function) {
+    const DWORD code = GetLastError() == ERROR_SUCCESS ? ERROR_MOD_NOT_FOUND : GetLastError();
+    return fail(DG_CAPTURE_E_PRIVACY_UNSUPPORTED, HRESULT_FROM_WIN32(code), error);
+  }
+  return function(DG_CAPTURE_ABI_MAJOR, request, result, error);
+}
 
 template <typename T>
 class ComPtr {
@@ -104,40 +145,6 @@ struct DecodedRequest {
   bool shows_cursor = false;
   std::vector<std::string> blocked_ids;
 };
-
-HRESULT frontmost_application_id(std::string* identifier) {
-  HWND window = GetForegroundWindow();
-  if (!window) return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
-  DWORD process_id = 0;
-  if (!GetWindowThreadProcessId(window, &process_id) || process_id == 0) return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
-  HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process_id);
-  if (!process) return HRESULT_FROM_WIN32(GetLastError());
-  using GetApplicationUserModelIdFn = LONG(WINAPI*)(HANDLE, UINT32*, PWSTR);
-  FARPROC proc = GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetApplicationUserModelId");
-  GetApplicationUserModelIdFn get_application_user_model_id = nullptr;
-  static_assert(sizeof(get_application_user_model_id) == sizeof(proc), "unexpected function pointer size");
-  std::memcpy(&get_application_user_model_id, &proc, sizeof(proc));
-  if (!get_application_user_model_id) {
-    CloseHandle(process);
-    return E_NOTIMPL;
-  }
-  UINT32 length = 0;
-  LONG result = get_application_user_model_id(process, &length, nullptr);
-  if (result != ERROR_INSUFFICIENT_BUFFER || length == 0 || length > 4096) {
-    CloseHandle(process);
-    return HRESULT_FROM_WIN32(result == ERROR_SUCCESS ? ERROR_NOT_FOUND : result);
-  }
-  std::wstring value(length, L'\0');
-  result = get_application_user_model_id(process, &length, value.data());
-  CloseHandle(process);
-  if (result != ERROR_SUCCESS || length <= 1) return HRESULT_FROM_WIN32(result == ERROR_SUCCESS ? ERROR_NOT_FOUND : result);
-  value.resize(length - 1);
-  int bytes = WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
-  if (bytes <= 0) return HRESULT_FROM_WIN32(GetLastError());
-  identifier->resize(static_cast<size_t>(bytes));
-  if (WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), identifier->data(), bytes, nullptr, nullptr) != bytes) return HRESULT_FROM_WIN32(GetLastError());
-  return S_OK;
-}
 
 bool decode_request(const dg_capture_request_v1& request, DecodedRequest* decoded) {
   if ((request.flags & ~static_cast<uint32_t>(DG_CAPTURE_SHOWS_CURSOR)) != 0 ||
@@ -394,6 +401,7 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
   UINT source_height = 0;
   DXGI_OUTDUPL_FRAME_INFO frame_info{};
   bool dxgi_all_zero = false;
+  bool dxgi_timed_out = false;
   const ULONGLONG acquire_started = GetTickCount64();
   for (;;) {
     ComPtr<IDXGIResource> resource;
@@ -401,7 +409,11 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
     if (elapsed >= request.timeout_ms) return DXGI_ERROR_WAIT_TIMEOUT;
     const UINT remaining = request.timeout_ms - static_cast<UINT>(elapsed);
     debug_stage("duplication.acquire.begin");
-    hr = duplication->AcquireNextFrame(remaining, &frame_info, resource.put());
+    hr = duplication->AcquireNextFrame(std::min<UINT>(remaining, 1000), &frame_info, resource.put());
+    if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+      dxgi_timed_out = true;
+      break;
+    }
     if (FAILED(hr)) return hr;
     if (debug_enabled) {
       char message[256];
@@ -489,7 +501,7 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
   DXGI_OUTPUT_DESC output_desc{};
   output->GetDesc(&output_desc);
   DXGI_MODE_ROTATION source_rotation = output_desc.Rotation;
-  if (dxgi_all_zero) {
+  if (dxgi_all_zero || dxgi_timed_out || raw.empty()) {
     std::vector<uint8_t> gdi_pixels;
     UINT gdi_width = 0;
     UINT gdi_height = 0;
@@ -498,7 +510,7 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
     source_width = gdi_width;
     source_height = gdi_height;
     source_rotation = DXGI_MODE_ROTATION_IDENTITY;
-    debug_stage("dxgi.all_zero.gdi_fallback");
+    debug_stage(dxgi_timed_out ? "dxgi.timeout.gdi_fallback" : "dxgi.all_zero.gdi_fallback");
   }
   std::vector<uint8_t> oriented;
   UINT oriented_width = 0, oriented_height = 0;
@@ -551,13 +563,7 @@ DG_CAPTURE_API int32_t DG_CAPTURE_CALL dg_capture_once(uint32_t requested_abi_ma
   ComScope com;
   if (!com.usable()) return fail(DG_CAPTURE_E_UNSUPPORTED, com.result, error);
   if (!decoded.blocked_ids.empty()) {
-    std::string frontmost;
-    HRESULT privacy_hr = frontmost_application_id(&frontmost);
-    if (FAILED(privacy_hr)) return fail(DG_CAPTURE_E_PRIVACY_UNSUPPORTED, privacy_hr, error);
-    if (std::find(decoded.blocked_ids.begin(), decoded.blocked_ids.end(), frontmost) != decoded.blocked_ids.end()) return DG_CAPTURE_BLOCKED;
-    // Desktop Duplication has no application-exclusion primitive. Do not
-    // capture a potentially blocked window when the list is non-empty.
-    return fail(DG_CAPTURE_E_PRIVACY_UNSUPPORTED, S_OK, error);
+    return capture_with_privacy_helper(request, result, error);
   }
   std::vector<uint8_t> pixels;
   UINT width = 0, height = 0;

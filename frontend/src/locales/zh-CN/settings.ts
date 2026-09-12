@@ -31,6 +31,11 @@ export default {
     empty: '尚未屏蔽任何应用。',
     loading: '正在读取已屏蔽的应用…',
     unavailable: '无法读取应用列表。',
+    compatibility: {
+      supported: '此 Windows 版本支持隐私窗口排除',
+      unsupported: '此 Windows 版本不支持隐私窗口排除',
+      version: '当前：{version}；要求 Windows 11 build {minimumBuild} 或更高版本。',
+    },
     remove: '移除 {name}',
     writeError: '保存失败，已恢复为数据库中的值。',
     error: {

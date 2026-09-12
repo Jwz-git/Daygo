@@ -58,6 +58,16 @@ type CaptureResult struct {
 	FileSize   int64
 }
 
+// CapturePrivacyCompatibility is platform capability data, not a setting.
+// Version is display-only; callers gate behavior on Supported.
+type CapturePrivacyCompatibility struct {
+	Platform     string
+	Version      string
+	Build        uint32
+	MinimumBuild uint32
+	Supported    bool
+}
+
 // CaptureError is the stable Go-facing classification of a failed screenshot.
 // NativeCode is diagnostic only; callers branch on Code.
 type CaptureError struct {

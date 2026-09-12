@@ -124,17 +124,19 @@ int main() {
   DeleteFileW(privacy_output_wide.c_str());
   const std::string privacy_output = utf8(privacy_output_wide);
   request.output_path = {reinterpret_cast<const uint8_t*>(privacy_output.data()), privacy_output.size()};
-  const char blocked_id[] = "com.example.blocked";
+  const char blocked_id[] = "win32.exe.sha256:0000000000000000000000000000000000000000000000000000000000000000";
   dg_capture_string_view_v1 blocked_view{reinterpret_cast<const uint8_t*>(blocked_id), sizeof(blocked_id) - 1};
   request.blocked_application_id_count = 1;
   request.blocked_application_ids = &blocked_view;
   dg_capture_result_v1 blocked_result{sizeof(blocked_result)};
   dg_capture_error_v1 blocked_error{sizeof(blocked_error)};
   const int32_t blocked_status = dg_capture_once(DG_CAPTURE_ABI_MAJOR, &request, &blocked_result, &blocked_error);
-  if (blocked_status != DG_CAPTURE_E_PRIVACY_UNSUPPORTED || GetFileAttributesW(privacy_output_wide.c_str()) != INVALID_FILE_ATTRIBUTES) {
-    std::fprintf(stderr, "privacy guard expected privacy_unsupported, got status=%ld\n", static_cast<long>(blocked_status));
+  if (blocked_status != DG_CAPTURE_OK || GetFileAttributesW(privacy_output_wide.c_str()) == INVALID_FILE_ATTRIBUTES ||
+      !jpeg_has_nonblack_pixel(privacy_output_wide)) {
+    std::fprintf(stderr, "privacy capture expected a non-black image, got status=%ld native=0x%llx\n",
+                 static_cast<long>(blocked_status), static_cast<unsigned long long>(blocked_error.native_code));
     return 1;
   }
-  std::printf("privacy guard ok: privacy_unsupported\n");
+  std::printf("privacy capture ok: WGC exclusion path is available\n");
   return 0;
 }

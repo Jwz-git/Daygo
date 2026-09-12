@@ -1,4 +1,4 @@
-# recording 屏幕截屏（Windows）：DXGI 实现、差异与限制
+# recording 屏幕截屏（Windows）：DXGI/WGC 实现、差异与限制
 
 > **状态：已落盘并完成有限真机 smoke 的实验性原生切片，不在发布范围。** 提交 `c2950cf` 为 Windows 实现了与 macOS
 > 同一套 C ABI v1 的 `dg_capture_once`。Windows 是否进入发布仍是
@@ -17,12 +17,17 @@
        └─ internal/platform/windows               bridge_windows.go 是唯一 import "C" 的文件
             └─ daygo_capture.h                    与 macOS 共用的同一份头文件
                  └─ dg_capture_once(...)
-                      └─ C++ / DXGI Desktop Duplication
+                      ├─ 无隐私名单：C++ / DXGI Desktop Duplication
                            ├─ 解析系统主监视器
                            ├─ AcquireNextFrame（使用本次 timeout_ms）
                            ├─ 旋转与等比缩放到 target_height
                            ├─ WIC 编码 JPEG
                            └─ 排他发布结果文件（不覆盖已有路径）
+                      └─ 有隐私名单且 build 26100+：MSVC C++/WinRT helper
+                           ├─ 按 exe 哈希 ID 枚举目标 HWND
+                           ├─ WGC SetWindowExclusionList
+                           ├─ 等待 ConfigurationIteration 生效
+                           └─ WIC 编码并排他发布 JPEG
 ```
 
 Go 侧没有任何 Windows 专用分支：`windows.NewCapture()` 与 `darwin.NewCapture()` 实现同一个
@@ -51,19 +56,22 @@ Go 侧没有任何 Windows 专用分支：`windows.NewCapture()` 与 `darwin.New
 8. `DAYGO_CAPTURE_DEBUG=1` 输出阶段日志，不含路径、窗口标题、应用标识或图像内容。
 9. `windows && !cgo` 构建返回 `unsupported`，保证 `CGO_ENABLED=0` 的核心门禁不受影响
    （已验证：`GOOS=windows CGO_ENABLED=0 go build ./internal/...`）。
+10. 非空隐私名单在 Windows build 26100+ 改走 Windows.Graphics.Capture：前台目标先返回
+    `blocked`；后台窗口全部写入 `SetWindowExclusionList`，且仅接受达到该配置 iteration 的帧。
+    捕获前后 HWND 集合变化时丢弃本帧并返回 `blocked`，旧系统仍返回 `privacy_unsupported`。
 
 ## 3. 与 macOS 的差异——四条不能忽略
 
 | 项 | macOS | Windows | 后果 |
 |---|---|---|---|
-| 画面级屏蔽 | `SCContentFilter(excludingApplications:)` | **无公开等价能力** | 屏蔽名单非空且前台未命中时直接返回 `privacy_unsupported`，**不产生图片** |
-| 前台应用标识 | Security framework 读签名 identifier，对所有应用可用 | `GetApplicationUserModelId`，只有打包（MSIX）应用有 AUMID | 传统 Win32 应用在前台时取不到标识，同样返回 `privacy_unsupported` |
+| 画面级屏蔽 | `SCContentFilter(excludingApplications:)` | build 26100+ 的 `IDisplayGraphicsCaptureSession.SetWindowExclusionList` | 名单非空改走 WGC；更旧系统 `privacy_unsupported` 且不产生图片 |
+| 前台应用标识 | Bundle ID | 规范化 exe 路径的 SHA-256 ID | picker 与运行进程使用同一算法；原始路径不进入前端或设置 |
 | 屏幕录制授权 | TCC，`CGPreflightScreenCaptureAccess` 预检 | 系统无对应授权 | Windows 路径不会产生 `permission_denied` |
 | 光标 | 尊重 `showsCursor` | **忽略** `DG_CAPTURE_SHOWS_CURSOR` | Desktop Duplication 不含指针，实现也未合成；置位不报错但无效果 |
 
-第一、二行合起来意味着：**只要用户配置了任何屏蔽应用，Windows 上这一路调用就永远拿不到画面。**
-这是 [单次调用契约 §7](recording-screen-capture.md#7-windows-约束) 要求的"失败关闭"，不是缺陷；
-但它决定了 Windows 在隐私能力补齐前不能承载真实录制，也不能进入发布构建。
+Windows 隐私能力的硬门禁是 build 26100。更旧系统继续按
+[单次调用契约 §7](recording-screen-capture.md#7-windows-约束) 失败关闭；不会降级为只检查前台、
+不会忽略屏蔽名单，也不会用 GDI 生成可能泄漏的图片。
 
 第四行是当前实现与 ABI 语义之间的**真实缺口**：`flags` 被接受却未生效。补齐方式是合成
 `DXGI_OUTDUPL_FRAME_INFO.PointerPosition` 指针，或在 ABI 上明确"该 flag 为平台尽力而为"。
@@ -88,15 +96,15 @@ native\windows\build.ps1 -RunSmoke  # 额外链接并运行原生 smoke
 
 | 项 | 值 |
 |---|---|
-| 工具链 | MinGW-w64 `g++` / `ar`（**不是 MSVC**），`-std=c++17` |
-| 产物 | `build/native/windows/amd64/libdaygo_capture.a` |
+| 工具链 | 外层 cgo ABI：MinGW-w64 C++17；WGC/应用 ABI helper：VS 2022 MSVC C++20 + Windows SDK 26100 |
+| 产物 | `build/native/windows/amd64/libdaygo_capture.a` + `daygo_windows_native.dll`（复制到 `build/bin` 与 EXE 同目录） |
 | 链接库 | `d3d11 dxgi dxguid ole32 oleaut32 windowscodecs user32 gdi32 advapi32`，外加 MinGW 运行时 `stdc++ gcc gcc_eh` |
 | Go 侧 | `internal/platform/windows/bridge_windows.go`（`windows && cgo`） |
 | 构建接线 | `cmd/daygo/wails.json` 的 `preBuildHooks["windows/*"]` |
 | 开发入口 | `scripts/dev.ps1`（与 `scripts/dev.sh` 对应的 PowerShell 版本；Go 1.25 自动启用 `GOEXPERIMENT=nodwarf5`） |
 
-`native/windows/smoke.cpp` 直接链接静态库跑一次截图，并用 WIC 解码校验存在非黑像素——
-它证明"这台机器上能出图"，不证明隐私、指示器或长期行为。
+`native/windows/smoke.cpp` 直接链接静态库跑 DXGI 与 WGC 两条截图路径，并用 WIC 解码校验
+存在非黑像素；单独的 Edge 基线 / 排除集成图用于验证目标窗口确实不在结果中。
 
 Go 1.25 的 Windows+cgo debug 链接存在已知 DWARF5 PE 布局缺陷
 （[golang/go#75077](https://github.com/golang/go/issues/75077)）：Wails `dev` 可完成编译，但生成的
@@ -112,7 +120,7 @@ Go 1.25 时，为 Wails 子进程临时设置 `GOEXPERIMENT=nodwarf5` 并在退�
 - `native/windows/build.ps1 -RunSmoke` 通过；WIC 回读 JPEG 为 1280×720 且含非黑像素；
 - Go cgo smoke 通过，`CaptureResult` 的宽高/字节数与落盘一致；
 - 调试记录显示首帧为 pointer-only 全零纹理，重试后 DXGI 返回 3840×2160 非零 BGRA，最终未命中 GDI；
-- 非空屏蔽名单返回 `privacy_unsupported` 且没有目标文件，符合失败关闭；
+- 当时非空屏蔽名单返回 `privacy_unsupported`；该限制已由下方 2026-09-13 实现替代；
 - `go test ./internal/platform/...`、`go vet ./internal/platform/windows` 与无 cgo 构建通过。
 
 因此 WC-1 只能记为**本机有限通过**；WC-2–8 的完整构造条件、目标路径冲突、多屏切换/旋转、
@@ -123,10 +131,20 @@ Go 1.25 时，为 Wails 子进程临时设置 `GOEXPERIMENT=nodwarf5` 并在退�
 `1536/512`，loader 正常启动。随后发现 macOS 状态栏接线在 Windows 的 nil `System` 上调用导致
 panic；composition root 增加可选能力守卫后，按 Wails dev 等价 tags 构建的 EXE 持续运行 5 秒。
 
+2026-09-13（同一 Windows 主机，build 26200、SDK 26100）：
+
+- Explorer `.exe` 选择与 application ABI 往返返回 Edge 的稳定哈希 ID、`Microsoft Edge` 名称和
+  2849 字节 PNG 图标；设置页显示真实 Windows 版本及 26100 门禁；
+- `SetWindowExclusionList` 返回 configuration iteration，集成路径等待对应 frame iteration；
+- 1280×720 基线 JPEG 中可见 Edge，排除 JPEG 中 Edge 完全消失并露出下方窗口，两张均非黑；
+- `native/windows/build.ps1 -RunSmoke`、Windows platform/app 测试、`go vet`、前端
+  typecheck/build 通过。完整 WC 竞态、受保护内容、HDR/旋转及长期资源仍未验收。
+
 ## 7. 边界与回退
 
 - 不得为了让 Windows 出图而放宽隐私规则：把 `privacy_unsupported` 降级成"只检查前台"
   或"忽略屏蔽名单"都是隐私回归，直接否决。
 - 不得为 Windows 引入第二套 `Capture` 契约、第二个 ABI 或平台专用 DTO。
-- 回退方式：composition root 不注入 `windows.NewCapture()`（当前也尚未注入），
-  并保留 `unavailable_windows.go` 的 `unsupported` 路径。删除静态库产物即可回到纯 Go 构建。
+- 回退方式：composition root 不注入 `windows.NewCapture()`，并保留
+  `unavailable_windows.go` 的 `unsupported` 路径。移除 DLL 与代理对象即可恢复仅 DXGI 且隐私
+  失败关闭的旧实现。
