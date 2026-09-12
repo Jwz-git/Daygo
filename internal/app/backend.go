@@ -93,6 +93,11 @@ type Backend struct {
 	// chatMu guards the wiring; the service itself is concurrency-safe.
 	chat   *chat.Service
 	chatMu sync.Mutex
+
+	// timelineEvents tracks pending merged timeline:updated emits, one timer
+	// per day within the 200 ms merge window (docs/05 §5.5.3).
+	timelineEvents   map[string]*time.Timer
+	timelineEventsMu sync.Mutex
 }
 
 // setEventEmitter installs the Wails-backed emitter. It is called once during
@@ -287,7 +292,7 @@ func (b *Backend) features() []string {
 	features := []string{"settings"}
 	if b.storage != nil {
 		// Persistence is real only when a database is actually open.
-		features = append(features, "storage")
+		features = append(features, "storage", "timeline")
 	}
 	return features
 }
