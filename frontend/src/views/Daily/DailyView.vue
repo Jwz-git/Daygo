@@ -8,6 +8,8 @@ import PageHeader from '@/components/PageHeader.vue'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { useDailyStore } from '@/stores/daily'
 
+import DailyGoalPanel from './DailyGoalPanel.vue'
+import DailyJournalPanel from './DailyJournalPanel.vue'
 import DailyMetricsPanel from './DailyMetricsPanel.vue'
 import DailyRecapPanel from './DailyRecapPanel.vue'
 import DailyStatePanel from './DailyStatePanel.vue'
@@ -20,6 +22,14 @@ const {
   recap,
   recapUnavailable,
   recapError,
+  journal,
+  journalUnavailable,
+  journalError,
+  journalSaving,
+  goal,
+  goalUnavailable,
+  goalError,
+  goalSaving,
   state,
   presentation,
   usingDevelopmentFixture,
@@ -130,12 +140,12 @@ onBeforeUnmount(() => daily.stopListening())
     <main class="daily-body dg-scroll">
       <div class="daily-content">
         <DailyStatePanel
-          v-if="state !== 'populated'"
+          v-if="state !== 'populated' && state !== 'empty'"
           :state="state"
           @retry="daily.load(context?.day ?? '')"
         />
 
-        <template v-else-if="context && presentation">
+        <template v-else-if="context">
           <div class="daily-intro">
             <div>
               <span>{{ t('daily.overview.eyebrow') }}</span>
@@ -144,16 +154,38 @@ onBeforeUnmount(() => daily.stopListening())
             <p>{{ t('daily.overview.description') }}</p>
           </div>
 
-          <DailyWorkflowOverview
-            :presentation="presentation"
-            :time-zone="context.timeZone"
+          <template v-if="presentation">
+            <DailyWorkflowOverview
+              :presentation="presentation"
+              :time-zone="context.timeZone"
+            />
+            <DailyMetricsPanel :metrics="presentation.metrics" />
+          </template>
+          <DailyStatePanel
+            v-else
+            state="empty"
+            @retry="daily.load(context.day)"
           />
-          <DailyMetricsPanel :metrics="presentation.metrics" />
           <DailyRecapPanel
             :recap="recap"
             :unavailable="recapUnavailable"
             :failed="recapError !== null"
             :time-zone="context.timeZone"
+          />
+          <DailyGoalPanel
+            :goal="goal"
+            :categories="day?.categories ?? []"
+            :unavailable="goalUnavailable"
+            :failed="goalError !== null"
+            :saving="goalSaving"
+            @save="daily.saveGoal"
+          />
+          <DailyJournalPanel
+            :journal="journal"
+            :unavailable="journalUnavailable"
+            :failed="journalError !== null"
+            :saving="journalSaving"
+            @save="daily.saveJournal"
           />
         </template>
       </div>
