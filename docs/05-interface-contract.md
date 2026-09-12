@@ -91,7 +91,7 @@ flowchart TD
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
 | recording（联调） | `CaptureTest`、`PickCaptureTestApplication`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；macOS picker 只返回 ScreenCaptureKit 使用的 `{bundle id, name}`，路径不跨绑定；均不接 recorder / storage / config |
-| providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针 |
+| providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
 这不代表录制开关、Provider 持久化或 Secrets 已实现。fake 的覆盖以 §5.7.4 为准。
@@ -340,6 +340,7 @@ export function toApiError(e: unknown): ApiError {
 | `SetProviderSecret(id string, secret string) error` | providers | **已实现**：Secrets / Provider repository | 写·幂等 | — | `not_found` `invalid_argument` `native_unavailable` |
 | `DeleteProviderSecret(id string) error` | providers | **已实现**：Secrets（删不存在的条目不是错误） | 写·幂等 | — | `invalid_argument` `native_unavailable` |
 | `TestProvider(id string) (ProviderTestResultDTO, error)` | providers | **已实现**：provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`provider_failed`（结果行） |
+| `ListProviderModels(req ProviderModelsRequestDTO) (ProviderModelsResultDTO, error)` | providers | **已实现**：provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`native_unavailable` |
 | `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | **已实现**：provider-client | 读·有网络副作用 | — | `invalid_argument` |
 
 两个测试方法**不是重复**，区别必须保留：
@@ -649,6 +650,24 @@ type ProviderInputDTO struct {
 // 其余按序为备用；上限 8 项，重复与空项在写入时归一化掉。
 type ProviderRoutingDTO struct {
     Chain []string `json:"chain"`
+}
+
+// ListProviderModels 的入参：ProviderID 非空时走已保存 provider（密钥从钥匙串取），
+// 否则按草稿处理（Protocol/Endpoint/Secret 随调用跨界，不落盘）。
+type ProviderModelsRequestDTO struct {
+    ProviderID string `json:"providerId"`
+    Protocol   string `json:"protocol"`
+    Endpoint   string `json:"endpoint"`
+    Secret     string `json:"secret"`
+}
+
+// ListProviderModels 的返回。失败是结果而不是 error（与探针同惯用法）：
+// 网关没有 /models 端点时 ok=false，模型字段仍可手填。
+type ProviderModelsResultDTO struct {
+    OK        bool     `json:"ok"`
+    Models    []string `json:"models"`
+    ErrorCode string   `json:"errorCode"`
+    Message   string   `json:"message"`
 }
 
 // TestProvider 的返回（针对已保存的 provider）。与 TestProviderConnection 的

@@ -22,6 +22,7 @@ var contractBindings = []string{
 	"GetRecordingDirectory",
 	"GetRecordingState",
 	"GetSettings",
+	"ListProviderModels",
 	"ListProviders",
 	"OpenCaptureTestFolder",
 	"PickCaptureTestApplication",
