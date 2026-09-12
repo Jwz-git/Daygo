@@ -93,10 +93,16 @@ native\windows\build.ps1 -RunSmoke  # 额外链接并运行原生 smoke
 | 链接库 | `d3d11 dxgi dxguid ole32 oleaut32 windowscodecs user32 gdi32 advapi32`，外加 MinGW 运行时 `stdc++ gcc gcc_eh` |
 | Go 侧 | `internal/platform/windows/bridge_windows.go`（`windows && cgo`） |
 | 构建接线 | `cmd/daygo/wails.json` 的 `preBuildHooks["windows/*"]` |
-| 开发入口 | `scripts/dev.ps1`（与 `scripts/dev.sh` 对应的 PowerShell 版本） |
+| 开发入口 | `scripts/dev.ps1`（与 `scripts/dev.sh` 对应的 PowerShell 版本；Go 1.25 自动启用 `GOEXPERIMENT=nodwarf5`） |
 
 `native/windows/smoke.cpp` 直接链接静态库跑一次截图，并用 WIC 解码校验存在非黑像素——
 它证明"这台机器上能出图"，不证明隐私、指示器或长期行为。
+
+Go 1.25 的 Windows+cgo debug 链接存在已知 DWARF5 PE 布局缺陷
+（[golang/go#75077](https://github.com/golang/go/issues/75077)）：Wails `dev` 可完成编译，但生成的
+EXE 会被 Windows loader 以 `%1 is not a valid Win32 application` 拒绝。`dev.ps1` 只在检测到
+Go 1.25 时，为 Wails 子进程临时设置 `GOEXPERIMENT=nodwarf5` 并在退出后恢复原环境；这保留调试
+信息，仅切回旧 DWARF 布局。不要把该错误归因于 DXGI、WebView2 或 CPU 架构。
 
 ## 6. 验证状态
 
@@ -111,6 +117,11 @@ native\windows\build.ps1 -RunSmoke  # 额外链接并运行原生 smoke
 
 因此 WC-1 只能记为**本机有限通过**；WC-2–8 的完整构造条件、目标路径冲突、多屏切换/旋转、
 受保护内容、GDI 是否绕过保护、光标与 24 小时资源仍未验证。Windows 仍不在发布范围。
+
+2026-09-12（同一 Windows 主机，go1.25.4）：复现 Wails debug EXE 的 PE
+`SizeOfHeaders=1352`、`FileAlignment=512`，Windows loader 拒绝启动；启用 `nodwarf5` 后为
+`1536/512`，loader 正常启动。随后发现 macOS 状态栏接线在 Windows 的 nil `System` 上调用导致
+panic；composition root 增加可选能力守卫后，按 Wails dev 等价 tags 构建的 EXE 持续运行 5 秒。
 
 ## 7. 边界与回退
 

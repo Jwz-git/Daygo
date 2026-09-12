@@ -327,6 +327,10 @@ npm --prefix frontend run build
 2. **绑定无条件重新生成。** 绑定一旦过期，`vue-tsc` 报的是「缺少某个成员」而不是「绑定陈旧」，
    指向的是前端文件；按存在性判断会让这个状态一直留着。
 
+2026-09-12 已在 Windows 11 amd64 / PowerShell 7 上执行合并后的 `scripts/dev.ps1`：依赖同步、
+无条件 Wails bindings 生成、真实 bundle 判断、Go 1.25 `nodwarf5` 局部 workaround、开发 EXE
+编译及 WebView2 启动全部通过；运行前后 `frontend/package-lock.json` SHA-256 未变化。
+
 `gate.sh` 最后还会跑 `scripts/check-docs.py`：检查 markdown 链接与小节锚点是否存在、
 有没有没被任何文档链接到的孤立文档。它只保证文档**内部自洽**；文档与代码是否一致仍然
 靠“同一个 commit 内修正文档”这条纪律，不靠脚本。

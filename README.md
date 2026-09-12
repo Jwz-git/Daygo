@@ -71,7 +71,7 @@ internal/
 native/                     原生截图实现（共用一份 C ABI）
   include/daygo_capture.h   ABI v1
   darwin/                   Swift + ScreenCaptureKit
-  windows/                  C++ + DXGI（实验，未验证）
+  windows/                  C++ + DXGI（实验，有限真机 smoke）
 frontend/                   Vue 3 + TypeScript 前端
 scripts/                    引导、门禁与开发脚本
 build/                      Wails 构建资源与产物
@@ -81,8 +81,9 @@ docs/                       设计文档
 `docs/` 中描述的多数目录与接口仍属于目标状态。分析流水线、时间线 / 每日 / 每周、
 recorder 与后台生命周期尚未实现。开发路线见 [docs/09-roadmap.md](docs/09-roadmap.md)。
 
-**关于 Windows：** 仓库里有一份实验性的 Windows 截图实现，它未经任何实机验证、不在发布
-范围，而且 Windows 上尚无实例锁实现（因而没有数据库）。目标平台仍然只有 macOS，
+**关于 Windows：** 仓库里有一份实验性的 Windows 截图实现，单次真机截图与 Store 实例锁已做
+有限 smoke，但隐私、状态栏/系统事件、长期资源和分发均未验收，因此不在发布范围。目标平台仍然
+只有 macOS，
 细节见 [决策记录](docs/decisions/recording-screen-capture-windows.md)。
 
 ## 构建与运行
@@ -105,6 +106,8 @@ cd Daygo
 `frontend/wailsjs` 被前端源码引用（缺失则 `vue-tsc` 失败），而生成它又需要可编译的 Go 树。
 `scripts/bootstrap-frontend.sh` 按“占位 dist → 生成绑定 → 真实 bundle”解开这个环，
 `dev.sh` 与 `gate.sh` 都会调用它。Windows 上用 `scripts/dev.ps1`。
+Go 1.25 的 Windows+cgo debug 构建受链接器缺陷影响；`dev.ps1` 会在调用 Wails 时临时设置
+`GOEXPERIMENT=nodwarf5`，避免生成 Windows loader 无法接受的 PE，并在退出时恢复原环境。
 
 打包应用：
 

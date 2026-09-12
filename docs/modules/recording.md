@@ -29,11 +29,13 @@ Windows 侧另有一份同 ABI 的 DXGI 实现（`internal/platform/windows` + `
 `internal/recorder` 提供可停止的 Go 状态机：`idle → starting → capturing`，支持 `paused`
 与恢复；Capture 前写入 pending intent，完成后幂等提交 `screenshots`。`Backend` 已接入
 `SetRecording`、`PauseRecording`、`ResumeRecording`，绑定首次调用时读取真实 settings 并装配
-macOS Capture；后续设置更新会下发给运行中的 recorder。系统事件桥与 recorder 处理已有代码，
+当前平台 Capture；后续设置更新会下发给运行中的 recorder。系统事件桥与 recorder 处理已有代码，
 但真实权限请求和睡眠 / 锁屏 / 屏保矩阵尚未验收。
 
-临时 `CaptureTest` binding 与页面仍只用于原生联调；页面上的正式录制按钮调用 recorder，
-但它的单次 / 定时 ABI 表单仍不写入正式设置。
+截图测试页现在按平台切换：macOS 面板保留直接 ABI 单次 / 定时联调；Windows 面板通过正式
+`SetRecording` / `GetRecordingState` 与 `recording:state` 驱动并观测共享 Go recorder，截图成功且
+`screenshots` 提交完成后才更新 `lastFrameAtTs` 和本轮帧数。Windows 面板不调用尚未实现的隐私
+应用和睡眠事件 ABI；隐私名单非空时失败关闭，不会为测试清空或绕过用户设置。
 
 ## 能力与跨层职责
 
@@ -95,6 +97,14 @@ darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子�
 全零帧被跳过，后续桌面更新由 DXGI 返回非零 BGRA，没有命中 GDI fallback。非空屏蔽名单返回
 `privacy_unsupported` 且不生成文件，证明失败关闭而非隐私能力完整。仅 WC-1 有限通过；
 目标冲突、多屏切换/旋转、受保护内容、光标与 24 小时资源矩阵未运行。
+
+2026-09-12（Windows 11 amd64）：最新 macOS 状态栏接线曾在 Wails `OnStartup` 无条件调用
+Windows 上不存在的 `System` 适配器并触发 nil panic。现将状态栏保持为可选平台能力；Windows
+跳过该调用，录制 core 与截图端口不伪造状态栏支持。Wails dev 真实启动后，从 Windows 测试页
+以 1 秒间隔运行共享 recorder 6 秒，观察到 `idle → capturing → idle` 和 6 次提交；正式录制目录
+生成 6 张连续的 1920×1080 JPEG，视觉检查为真实非黑桌面，SQLite `screenshots` 查询得到对应
+6 行、文件大小一致且路径统一为 `staging/...`。该测试同时发现并修复 Windows 上误用
+`filepath.Join` 生成反斜杠数据库路径的问题。隐私应用、睡眠 / 锁屏事件、状态栏及长期矩阵仍未验收。
 
 2026-09-11：临时 `CaptureTest` binding 使用真实 macOS `darwin.Capture` 完成 one-shot smoke，生成并
 检查 JPEG 文件存在、非空且返回文件大小一致；fake binding 行为测试、Go 全量测试、前端 typecheck/build

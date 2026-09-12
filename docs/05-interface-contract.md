@@ -11,7 +11,8 @@
 > `platformtest` 的四套契约套件、macOS 与 Windows 的真实 Capture 适配器、
 > `internal/app` 的正式绑定方法和临时 `CaptureTest` 联调绑定、`apperr` 错误类型与事件常量、
 > 前端外壳 / 设置页及其本地存储层。
-> fake 的其余端口（Media / System / Secrets / Updater）、recorder、时间线与洞察尚未实现。
+> fake 的其余端口（Media / System / Secrets / Updater）、时间线分析流水线与部分洞察尚未实现；
+> Go recorder 与 pending/screenshots 提交已落盘。
 > 平台适配边界（§5.8）仍为 **待定设计**：只定义任何实现都必须满足的要求，不定义协议本身。
 
 ## 5.1 本文的定位
@@ -80,9 +81,9 @@ flowchart TD
 | delivery | 更新状态和检查 | Updater、安全重启与身份 / 分发验证 |
 
 当前挂在 `Backend` 上、属于正式契约的绑定方法仍按 §5.2.1 计数；另有明确标注为临时用途的
-`CaptureTest`、`PickCaptureTestApplication` 与 `OpenCaptureTestFolder` 联调绑定，用于在 recorder
-尚未装配前验证真实 Capture 和应用身份 ABI。它们不读写数据库、不读取正式配置，且不应被正式
-产品页面依赖。
+`CaptureTest`、`PickCaptureTestApplication` 与 `OpenCaptureTestFolder` 联调绑定，用于隔离验证
+真实 Capture 和应用身份 ABI。它们不读写数据库、不读取正式配置，且不应被正式产品页面依赖。
+Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，以验证文件与数据库提交闭环。
 
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
@@ -91,7 +92,7 @@ flowchart TD
 | daily | `GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals`；用户保存不触碰 AI summary 列；`GetDailyRecap` 未实现（待定 #19） |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
-| recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
+| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`，其他未接 System 的调用仍返回 `native_unavailable` |
 | recording（联调） | `CaptureTest`、`PickCaptureTestApplication`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；macOS picker 只返回 ScreenCaptureKit 使用的 `{bundle id, name}`，路径不跨绑定；均不接 recorder / storage / config |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |

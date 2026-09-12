@@ -14,12 +14,14 @@ import (
 type testStore struct {
 	mu                     sync.Mutex
 	next, commits, blocked int
+	relativePaths          []string
 }
 
-func (s *testStore) Begin(context.Context, string, time.Time, *int, int, int, bool) (int64, error) {
+func (s *testStore) Begin(_ context.Context, relativePath string, _ time.Time, _ *int, _, _ int, _ bool) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.next++
+	s.relativePaths = append(s.relativePaths, relativePath)
 	return int64(s.next), nil
 }
 func (s *testStore) Commit(context.Context, int64, int64) error {
@@ -74,6 +76,15 @@ func TestRecorderPauseResumeAndStop(t *testing.T) {
 	}
 	waitState(t, events, StateCapturing)
 	waitForCommit(t, store)
+	if lastFrameAt := r.LastFrameAt(); lastFrameAt == nil {
+		t.Fatal("LastFrameAt is nil after a committed capture")
+	}
+	store.mu.Lock()
+	relativePath := store.relativePaths[0]
+	store.mu.Unlock()
+	if !platform.ValidSegmentPath(relativePath) {
+		t.Fatalf("relative capture path %q is not canonical", relativePath)
+	}
 	if err := r.Pause(); err != nil {
 		t.Fatal(err)
 	}
@@ -138,6 +149,41 @@ func TestRecorderUpdateSettingsAffectsNextCapture(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+func TestRecorderWaitsForEverySystemBlockerBeforeResuming(t *testing.T) {
+	dir := t.TempDir()
+	store := &testStore{}
+	events := make(chan Event, 16)
+	r, err := New(Config{
+		Capture:   fake.NewCapture(),
+		Store:     store,
+		Settings:  settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18},
+		Directory: dir,
+		OnEvent:   func(event Event) { events <- event },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	waitState(t, events, StateCapturing)
+
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventSleep})
+	waitState(t, events, StatePaused)
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenLocked})
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventWake})
+	if state := r.State(); state != StatePaused {
+		t.Fatalf("state after wake while locked = %q, want paused", state)
+	}
+	if err := r.Resume(); err == nil {
+		t.Fatal("manual resume succeeded while the screen is locked")
+	}
+
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenUnlocked})
+	waitState(t, events, StateCapturing)
 }
 func waitForCommit(t *testing.T, s *testStore) {
 	deadline := time.Now().Add(3 * time.Second)

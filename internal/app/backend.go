@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"time"
 
@@ -339,13 +340,30 @@ func (b *Backend) GetRecordingState() (RecordingStateDTO, error) {
 	}
 	_, isCaptureOwner := b.instanceOwnership()
 	state := RecordingState(b.recorderState())
-	return RecordingStateDTO{State: state, Permission: permission, IsCaptureOwner: isCaptureOwner}, nil
+	var lastFrameAtTs *int64
+	b.recorderMu.Lock()
+	activeRecorder := b.recorder
+	b.recorderMu.Unlock()
+	if activeRecorder != nil {
+		if lastFrameAt := activeRecorder.LastFrameAt(); lastFrameAt != nil {
+			value := lastFrameAt.Unix()
+			lastFrameAtTs = &value
+		}
+	}
+	return RecordingStateDTO{State: state, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
 }
 
 // recordingPermission is GetRecordingState's single query: system unavailability
 // is a legitimate answer here (state becomes unknown), not an error.
 func (b *Backend) recordingPermission() (string, error) {
 	if b.system == nil {
+		// Windows desktop capture has no macOS-style TCC permission prompt.
+		// The System adapter (sleep, lock, app inspection, and notifications)
+		// is intentionally still unavailable; that must not prevent the
+		// independent Capture port and Go recorder from being exercised.
+		if runtime.GOOS == "windows" && b.capture != nil {
+			return string(platform.PermissionGranted), nil
+		}
 		return "", apperr.E(apperr.NativeUnavailable, "platform services are unavailable", nil)
 	}
 	return b.permissionState("screen recording", b.system.ScreenRecordingPermission)

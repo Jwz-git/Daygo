@@ -73,3 +73,9 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 签名、公证、干净机器、升级、Updater 与崩溃上报实验均未运行。
 记录 commit、构建身份、设备、步骤及匿名结果；证书、密钥、用户数据不入库。
+
+2026-09-12（Windows 11 amd64、go1.25.4）：Wails 2.15 debug+cgo 构建触发 Go
+[链接器缺陷 #75077](https://github.com/golang/go/issues/75077)，坏 PE 的 header/file alignment 为
+1352/512。`scripts/dev.ps1` 临时启用 `GOEXPERIMENT=nodwarf5` 后变为 1536/512，Windows loader
+可启动；Windows 无状态栏适配器时的 nil `System` 启动 panic 也已失败关闭。此记录只证明本机
+开发构建可启动，不构成签名、安装、升级或 Windows 发布证据。
