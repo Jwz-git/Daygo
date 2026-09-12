@@ -5,9 +5,11 @@ import { useI18n } from 'vue-i18n'
 import {
   PROVIDER_PROTOCOLS,
   type ProviderDTO,
+  type ProviderModelsResult,
   type ProviderProtocol,
   type ProviderTestResult,
 } from '@/api/dto'
+import { listProviderModels, testProvider } from '@/api/providers'
 import { testProviderConnection, WAILS_UNAVAILABLE } from '@/api/providerTest'
 import {
   DEFAULT_ENDPOINTS,
@@ -31,10 +33,6 @@ const pendingRemoveId = ref<string | null>(null)
 const errors = ref<ProviderErrors>({})
 const draft = reactive<ProviderDraft>(emptyDraft())
 
-const secondaryChoices = computed(() =>
-  store.providers.filter((provider) => provider.id !== store.routing.primary),
-)
-
 const nameInput = ref<HTMLInputElement | null>(null)
 
 const modelPlaceholder = computed(() =>
@@ -51,28 +49,46 @@ type TestState =
 
 const testState = ref<TestState>({ phase: 'idle' })
 
+type ModelsState =
+  | { phase: 'idle' }
+  | { phase: 'fetching' }
+  | { phase: 'done'; result: ProviderModelsResult }
+  | { phase: 'picked'; model: string }
+
+const modelsState = ref<ModelsState>({ phase: 'idle' })
+
 // A result describes the draft as it was when tested; any later edit makes it
 // stale, so it clears instead of lingering next to a different configuration.
 watch(draft, () => {
   testState.value = { phase: 'idle' }
+  if (modelsState.value.phase === 'done' || modelsState.value.phase === 'picked') {
+    modelsState.value = { phase: 'idle' }
+  }
 })
 
-/** The typed key, or — while editing — the one already held for this session. */
-const keyForTest = computed(() => {
-  const typed = draft.secret.trim()
-  if (typed !== '') return typed
-  const id = editingId.value
-  return id === null ? '' : (store.secretOf(id) ?? '')
-})
-
+/** The typed key, or — while editing — nothing: the stored key is in the
+ * keychain and never comes back, so a saved provider with no new key cannot
+ * run a draft probe; the card's test button covers that case. */
 const canTest = computed(
   () =>
     draft.endpoint.trim() !== '' &&
     draft.model.trim() !== '' &&
-    keyForTest.value !== '',
+    draft.secret.trim() !== '',
+)
+
+const canFetchModels = computed(
+  () =>
+    draft.endpoint.trim() !== '' &&
+    draft.secret.trim() !== '',
 )
 
 function testFailureText(result: ProviderTestResult): string {
+  const key = `settings.providers.test.error.${result.errorCode}`
+  const known = te(key) ? t(key) : ''
+  return known === '' ? result.message : known
+}
+
+function modelsFailureText(result: ProviderModelsResult): string {
   const key = `settings.providers.test.error.${result.errorCode}`
   const known = te(key) ? t(key) : ''
   return known === '' ? result.message : known
@@ -86,7 +102,7 @@ async function runTest(): Promise<void> {
       protocol: draft.protocol,
       endpoint: draft.endpoint.trim(),
       model: draft.model.trim(),
-      secret: keyForTest.value,
+      secret: draft.secret.trim(),
     })
     testState.value = { phase: 'done', result }
   } catch (error) {
@@ -103,6 +119,51 @@ async function runTest(): Promise<void> {
         message: error instanceof Error ? error.message : String(error),
       },
     }
+  }
+}
+
+async function fetchModels(): Promise<void> {
+  if (modelsState.value.phase === 'fetching' || !canFetchModels.value) return
+  modelsState.value = { phase: 'fetching' }
+  try {
+    const result = await listProviderModels({
+      protocol: draft.protocol,
+      endpoint: draft.endpoint.trim(),
+      secret: draft.secret.trim(),
+    })
+    modelsState.value = { phase: 'done', result }
+  } catch {
+    modelsState.value = {
+      phase: 'done',
+      result: {
+        ok: false,
+        models: [],
+        errorCode: 'unavailable',
+        message: t('settings.providers.models.unavailable'),
+      },
+    }
+  }
+}
+
+function pickModel(model: string): void {
+  draft.model = model
+  modelsState.value = { phase: 'picked', model }
+}
+
+/** Probe a saved provider with its keychain key. */
+const testingSavedId = ref<string | null>(null)
+
+async function runSavedTest(provider: ProviderDTO): Promise<void> {
+  if (testingSavedId.value !== null) return
+  testingSavedId.value = provider.id
+  try {
+    await testProvider(provider.id)
+    // The result toast is future work; the binding's outcome is visible
+    // through latency/capabilities in the diagnostics slice. Not blocking.
+  } catch {
+    // Binding errors surface through the section's error copy.
+  } finally {
+    testingSavedId.value = null
   }
 }
 
@@ -142,6 +203,7 @@ function closeForm(): void {
   errors.value = {}
   formOpen.value = false
   testState.value = { phase: 'idle' }
+  modelsState.value = { phase: 'idle' }
 }
 
 async function submit(): Promise<void> {
@@ -166,13 +228,52 @@ function onProtocolChange(event: Event): void {
   draft.protocol = next
 }
 
-function onPrimaryChange(event: Event): void {
-  void store.setPrimary((event.target as HTMLSelectElement).value)
+// ---- Routing chain editor ----
+
+/** Providers not yet in the chain; the "add fallback" dropdown options. */
+const unchained = computed(() =>
+  store.providers.filter((provider) => !store.routing.chain.includes(provider.id)),
+)
+
+/** The chain rows with their provider, resilient to a vanished id. */
+const chainRows = computed(() =>
+  store.routing.chain
+    .map((id) => store.providers.find((provider) => provider.id === id))
+    .filter((provider): provider is ProviderDTO => provider !== undefined),
+)
+
+async function setPrimary(id: string): Promise<void> {
+  const rest = store.routing.chain.filter((entry) => entry !== id)
+  await store.setChain([id, ...rest])
 }
 
-function onSecondaryChange(event: Event): void {
-  const value = (event.target as HTMLSelectElement).value
-  void store.setSecondary(value === '' ? null : value)
+async function addFallback(id: string): Promise<void> {
+  await store.setChain([...store.routing.chain, id])
+}
+
+async function removeEntry(id: string): Promise<void> {
+  await store.setChain(store.routing.chain.filter((entry) => entry !== id))
+}
+
+/** Swap two adjacent chain positions. */
+async function moveEntry(index: number, offset: -1 | 1): Promise<void> {
+  const chain = [...store.routing.chain]
+  const target = index + offset
+  if (target < 0 || target >= chain.length) return
+  ;[chain[index], chain[target]] = [chain[target], chain[index]]
+  await store.setChain(chain)
+}
+
+function onPrimaryChange(event: Event): void {
+  void setPrimary((event.target as HTMLSelectElement).value)
+}
+
+function onAddFallbackChange(event: Event): void {
+  const target = event.target as HTMLSelectElement | null
+  const value = target?.value ?? ''
+  if (value !== '') void addFallback(value)
+  // The select resets to its placeholder once the option list refreshes.
+  if (target !== null) target.value = ''
 }
 
 async function confirmRemove(id: string): Promise<void> {
@@ -190,16 +291,16 @@ async function confirmRemove(id: string): Promise<void> {
       <header class="item__head">
         <h2 class="item__name">{{ provider.displayName }}</h2>
         <span
-          v-if="store.routing.primary === provider.id"
+          v-if="store.routing.chain[0] === provider.id"
           class="badge badge--accent"
         >
           {{ t('settings.providers.routing.primaryBadge') }}
         </span>
         <span
-          v-else-if="store.routing.secondary === provider.id"
-          class="badge badge--accent"
+          v-else-if="store.routing.chain.includes(provider.id)"
+          class="badge"
         >
-          {{ t('settings.providers.routing.secondaryBadge') }}
+          {{ t('settings.providers.routing.fallbackBadge') }}
         </span>
         <span class="badge">{{ protocolLabel(provider.protocol) }}</span>
       </header>
@@ -239,6 +340,14 @@ async function confirmRemove(id: string): Promise<void> {
       <div v-else class="actions">
         <button type="button" class="dg-button" @click="openEdit(provider)">
           {{ t('common.action.edit') }}
+        </button>
+        <button
+          type="button"
+          class="dg-button"
+          :disabled="!provider.hasSecret || testingSavedId !== null"
+          @click="runSavedTest(provider)"
+        >
+          {{ t('settings.providers.test.run') }}
         </button>
         <button
           v-if="provider.hasSecret"
@@ -318,15 +427,51 @@ async function confirmRemove(id: string): Promise<void> {
 
       <label class="form__cell">
         <span class="dg-field-label">{{ t('settings.providers.form.model') }}</span>
-        <input
-          v-model="draft.model"
-          class="dg-input"
-          type="text"
-          spellcheck="false"
-          :placeholder="modelPlaceholder"
-          :aria-invalid="errors.model ? 'true' : undefined"
-        />
+        <div class="form__key-row">
+          <input
+            v-model="draft.model"
+            class="dg-input"
+            type="text"
+            spellcheck="false"
+            :placeholder="modelPlaceholder"
+            :aria-invalid="errors.model ? 'true' : undefined"
+          />
+          <button
+            type="button"
+            class="dg-button"
+            :disabled="!canFetchModels || modelsState.phase === 'fetching'"
+            @click="fetchModels"
+          >
+            {{ t('settings.providers.models.fetch') }}
+          </button>
+        </div>
         <p v-if="errors.model" class="form__error">{{ errorText('model') }}</p>
+        <p v-else-if="modelsState.phase === 'fetching'" class="form__hint">
+          {{ t('settings.providers.models.fetching') }}
+        </p>
+        <p v-else-if="modelsState.phase === 'done' && !modelsState.result.ok" class="form__error">
+          {{ modelsFailureText(modelsState.result) }}
+        </p>
+        <div
+          v-else-if="modelsState.phase === 'done' && modelsState.result.models.length > 0"
+          class="form__models"
+        >
+          <button
+            v-for="model in modelsState.result.models"
+            :key="model"
+            type="button"
+            class="badge badge--button"
+            @click="pickModel(model)"
+          >
+            {{ model }}
+          </button>
+        </div>
+        <p v-else-if="modelsState.phase === 'done'" class="form__hint">
+          {{ t('settings.providers.models.empty') }}
+        </p>
+        <p v-else-if="modelsState.phase === 'picked'" class="form__test-ok">
+          {{ t('settings.providers.models.picked', { model: modelsState.model }) }}
+        </p>
       </label>
 
       <label class="form__cell">
@@ -392,6 +537,44 @@ async function confirmRemove(id: string): Promise<void> {
   <section v-if="!store.isEmpty" class="routing dg-card">
     <h2 class="routing__title">{{ t('settings.providers.routing.title') }}</h2>
     <p class="routing__hint">{{ t('settings.providers.routing.description') }}</p>
+
+    <ol v-if="chainRows.length > 0" class="routing__chain">
+      <li v-for="(provider, index) in chainRows" :key="provider.id" class="routing__entry">
+        <span class="routing__position">{{ index + 1 }}</span>
+        <span class="routing__name">{{ provider.displayName }}</span>
+        <span v-if="index === 0" class="badge badge--accent">
+          {{ t('settings.providers.routing.primaryBadge') }}
+        </span>
+        <span class="routing__move">
+          <button
+            type="button"
+            class="dg-button"
+            :disabled="index === 0"
+            :aria-label="t('settings.providers.routing.moveUp')"
+            @click="moveEntry(index, -1)"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            class="dg-button"
+            :disabled="index === chainRows.length - 1"
+            :aria-label="t('settings.providers.routing.moveDown')"
+            @click="moveEntry(index, 1)"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            class="dg-button"
+            @click="removeEntry(provider.id)"
+          >
+            {{ t('common.action.delete') }}
+          </button>
+        </span>
+      </li>
+    </ol>
+
     <div class="routing__grid">
       <label class="form__cell">
         <span class="dg-field-label">
@@ -399,26 +582,25 @@ async function confirmRemove(id: string): Promise<void> {
         </span>
         <select
           class="dg-input"
-          :value="store.routing.primary"
+          :value="store.routing.chain[0] ?? ''"
           @change="onPrimaryChange"
         >
+          <option v-if="store.routing.chain.length === 0" value="">
+            {{ t('settings.providers.routing.none') }}
+          </option>
           <option v-for="provider in store.providers" :key="provider.id" :value="provider.id">
             {{ provider.displayName }}
           </option>
         </select>
       </label>
 
-      <label class="form__cell">
+      <label v-if="unchained.length > 0" class="form__cell">
         <span class="dg-field-label">
-          {{ t('settings.providers.routing.secondary') }}
+          {{ t('settings.providers.routing.addFallback') }}
         </span>
-        <select
-          class="dg-input"
-          :value="store.routing.secondary ?? ''"
-          @change="onSecondaryChange"
-        >
-          <option value="">{{ t('settings.providers.routing.none') }}</option>
-          <option v-for="provider in secondaryChoices" :key="provider.id" :value="provider.id">
+        <select class="dg-input" value="" @change="onAddFallbackChange">
+          <option value="">{{ t('settings.providers.routing.pickFallback') }}</option>
+          <option v-for="provider in unchained" :key="provider.id" :value="provider.id">
             {{ provider.displayName }}
           </option>
         </select>
@@ -428,9 +610,9 @@ async function confirmRemove(id: string): Promise<void> {
 
   <section class="notice">
     <h2 class="notice__title">
-      {{ t('settings.providers.secret.sessionOnlyTitle') }}
+      {{ t('settings.providers.secret.keychainTitle') }}
     </h2>
-    <p class="notice__body">{{ t('settings.providers.secret.sessionOnly') }}</p>
+    <p class="notice__body">{{ t('settings.providers.secret.keychain') }}</p>
   </section>
 </template>
 
@@ -496,6 +678,15 @@ async function confirmRemove(id: string): Promise<void> {
   border-color: transparent;
   background: var(--dg-control-fill);
   color: var(--dg-accent-text);
+}
+
+.badge--button {
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.badge--button:hover {
+  border-color: var(--dg-accent-text);
 }
 
 .meta {
@@ -583,6 +774,13 @@ async function confirmRemove(id: string): Promise<void> {
   min-width: 0;
 }
 
+.form__models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 .form__test-ok {
   color: var(--dg-accent-text);
 }
@@ -594,6 +792,53 @@ async function confirmRemove(id: string): Promise<void> {
 
 .routing__hint {
   font-size: 12px;
+}
+
+.routing__chain {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routing__entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--dg-chip-border);
+  border-radius: 6px;
+}
+
+.routing__position {
+  flex: none;
+  width: 18px;
+  color: var(--dg-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.routing__name {
+  flex: 1;
+  min-width: 0;
+  color: var(--dg-text-primary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routing__move {
+  display: flex;
+  gap: 4px;
+}
+
+.routing__move .dg-button {
+  padding: 3px 8px;
+  font-size: 11px;
 }
 
 .form__actions {

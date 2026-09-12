@@ -87,6 +87,12 @@ export interface SettingsPatch {
   outputLanguage?: string
   recognitionEnhancementEnabled?: boolean
   agentEditsEnabled?: boolean
+  chatMemory?: string
+}
+
+/** ChatSettingsDTO — the global chat memory, injected into every conversation. */
+export interface ChatSettingsDTO {
+  memory: string
 }
 
 
@@ -112,12 +118,37 @@ export interface ProviderDTO {
 }
 
 /**
- * ProviderRoutingDTO. `secondary` must be null when it would equal `primary` —
- * a routing that falls back to itself is a routing with no fallback.
+ * ProviderRoutingDTO: the ordered fallback chain. `chain[0]` is the primary;
+ * the rest are fallbacks tried in order. The backend dedupes, drops empties,
+ * and caps the chain at 8 on write.
  */
 export interface ProviderRoutingDTO {
-  primary: string
-  secondary: string | null
+  chain: string[]
+}
+
+/** ProviderInputDTO. `secret` "" means "keep the stored key", never "clear". */
+export interface ProviderInput {
+  displayName: string
+  protocol: ProviderProtocol
+  endpoint: string
+  model: string
+  secret: string
+}
+
+/** ListProviderModels request: a saved provider id, or a draft's fields. */
+export interface ProviderModelsRequest {
+  providerId?: string
+  protocol?: ProviderProtocol
+  endpoint?: string
+  secret?: string
+}
+
+/** One model-listing outcome. A failed listing is a result, not an exception. */
+export interface ProviderModelsResult {
+  ok: boolean
+  models: string[]
+  errorCode: string
+  message: string
 }
 
 /**
@@ -260,4 +291,22 @@ export interface WeeklyDashboardDTO {
   trackedMinutes: number
   focusMinutes: number
   categories: CategoryTotalDTO[]
+}
+
+/** ChatConversationDTO — one thread in the sidebar list. */
+export interface ChatConversationDTO {
+  id: string
+  title: string
+  /** "" = follow the routing chain. */
+  providerId: string
+  updatedAt: number
+}
+
+/** ChatMessageDTO — one transcript row. Status is set on assistant messages. */
+export interface ChatMessageDTO {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  status: 'ok' | 'failed' | 'canceled' | ''
+  createdAt: number
 }

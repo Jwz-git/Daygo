@@ -2,14 +2,24 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import {
-  PROVIDER_PROTOCOLS,
   type ProviderDTO,
   type ProviderProtocol,
   type ProviderRoutingDTO,
+  PROVIDER_PROTOCOLS,
 } from '@/api/dto'
+import {
+  addProvider,
+  deleteProvider,
+  deleteProviderSecret,
+  getProviderRouting,
+  listProviders,
+  setProviderRouting,
+  setProviderSecret,
+  updateProvider,
+} from '@/api/providers'
 import { asMember, asRecordArray, asString, asText } from '@/storage/decode'
 import { STORAGE_KEYS } from '@/storage/keys'
-import { readRecord, writeRecord } from '@/storage/local'
+import { readRecord, removeKey } from '@/storage/local'
 
 /** Prefilled when a protocol is picked; the user is free to replace it. */
 export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
@@ -24,7 +34,7 @@ export type ProviderFieldError = 'required' | 'invalidUrl'
 
 export type ProviderErrors = Partial<Record<ProviderField, ProviderFieldError>>
 
-/** What the form hands back. `secret` is never stored on a ProviderDTO. */
+/** What the form hands back. `secret` goes to the keychain, never to a DTO. */
 export interface ProviderDraft {
   displayName: string
   protocol: ProviderProtocol
@@ -32,9 +42,6 @@ export interface ProviderDraft {
   model: string
   secret: string
 }
-
-/** The persisted half of a provider — credential-free by construction. */
-type StoredProvider = Omit<ProviderDTO, 'hasSecret'>
 
 export function emptyDraft(): ProviderDraft {
   return {
@@ -79,40 +86,32 @@ function normalizeEndpoint(raw: string): string | null {
   return url.toString().replace(/\/+$/, '')
 }
 
-function newProviderId(): string {
-  const source = globalThis.crypto
-  if (typeof source?.randomUUID === 'function') return source.randomUUID()
-
-  // randomUUID needs a secure context. wails:// and http://localhost are one,
-  // a plain-http preview is not. Ids only have to be unique, not unguessable.
-  return `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function validate(
-  draft: ProviderDraft,
-): { ok: true; fields: Omit<StoredProvider, 'id'> } | { ok: false; errors: ProviderErrors } {
+function validate(draft: ProviderDraft): { ok: true } | { ok: false; errors: ProviderErrors } {
   const errors: ProviderErrors = {}
 
-  const displayName = draft.displayName.trim()
-  if (displayName === '') errors.displayName = 'required'
+  if (draft.displayName.trim() === '') errors.displayName = 'required'
+  if (draft.model.trim() === '') errors.model = 'required'
 
-  const model = draft.model.trim()
-  if (model === '') errors.model = 'required'
-
-  const endpoint = normalizeEndpoint(draft.endpoint)
   if (draft.endpoint.trim() === '') {
     errors.endpoint = 'required'
-  } else if (endpoint === null) {
+  } else if (normalizeEndpoint(draft.endpoint) === null) {
     errors.endpoint = 'invalidUrl'
   }
 
-  if (endpoint === null || Object.keys(errors).length > 0) {
-    return { ok: false, errors }
-  }
-  return { ok: true, fields: { displayName, protocol: draft.protocol, endpoint, model } }
+  if (Object.keys(errors).length > 0) return { ok: false, errors }
+  return { ok: true }
 }
 
-function decodeProvider(raw: Record<string, unknown>): StoredProvider | null {
+/** One localStorage row from the pre-binding era. */
+interface LegacyProvider {
+  id: string
+  displayName: string
+  protocol: ProviderProtocol
+  endpoint: string
+  model: string
+}
+
+function decodeLegacyProvider(raw: Record<string, unknown>): LegacyProvider | null {
   const id = asText(raw.id)
   const displayName = asText(raw.displayName)
   const protocol = asMember(raw.protocol, PROVIDER_PROTOCOLS)
@@ -121,92 +120,84 @@ function decodeProvider(raw: Record<string, unknown>): StoredProvider | null {
 
   if (id === null || displayName === null || protocol === null) return null
   if (endpoint === null || model === null) return null
-  if (normalizeEndpoint(endpoint) === null) return null
-
   return { id, displayName, protocol, endpoint, model }
 }
 
-function decodeRouting(
-  raw: unknown,
-  known: readonly StoredProvider[],
-): ProviderRoutingDTO {
-  const ids = new Set(known.map((provider) => provider.id))
-  const empty: ProviderRoutingDTO = { primary: '', secondary: null }
-  if (typeof raw !== 'object' || raw === null) return empty
-
-  const record = raw as Record<string, unknown>
-  const primary = asString(record.primary) ?? ''
-  const secondary = asString(record.secondary)
-
-  return normalizeRouting({
-    primary: ids.has(primary) ? primary : '',
-    secondary: secondary !== null && ids.has(secondary) ? secondary : null,
-  })
-}
-
-/** Enforces the contract rule that `secondary` is null, never a copy of `primary`. */
-function normalizeRouting(routing: ProviderRoutingDTO): ProviderRoutingDTO {
-  const primary = routing.primary
-  const secondary =
-    routing.secondary === null || routing.secondary === primary || primary === ''
-      ? null
-      : routing.secondary
-  return { primary, secondary }
-}
-
 /**
- * User-defined LLM providers and the routing between them.
+ * User-defined LLM providers and the routing chain between them.
  *
- * A provider is a name, one of two wire protocols, a base URL and a model id.
- * There is no built-in provider roster — see api/dto.ts ProviderDTO.
+ * Persistence is the Go side: the providers table and the keychain via the
+ * provider CRUD bindings (docs/05 §5.5.1). This store is a thin cache: every
+ * write goes through the bindings and the authoritative list is re-pulled —
+ * no optimistic updates (project rule).
  *
- * SECRETS ARE NOT PERSISTED HERE.
- * §5.5.2 makes provider keys write-only and the system keychain their home
- * (service io.github.jwz-git.daygo.apikeys.<provider>), reached through
- * SetProviderSecret once that binding exists. Until then a key entered in the
- * UI is kept in memory for this session only (the connection-test binding
- * draws from it); writing it to localStorage would put a plaintext credential
- * in the WebView store. `hasSecret` is therefore derived from memory, never
- * read back from disk — so it cannot claim a key that is no longer there.
+ * SECRETS ARE NOT PERSISTED OR HELD HERE. A key entered in the form crosses
+ * to Go with the add/update call and lands in the keychain; `hasSecret` comes
+ * back from the backend, which derives it from the keychain on read.
  */
 export const useProvidersStore = defineStore('providers', () => {
-  const entries = ref<StoredProvider[]>([])
-  const routing = ref<ProviderRoutingDTO>({ primary: '', secondary: null })
+  const providers = ref<ProviderDTO[]>([])
+  const routing = ref<ProviderRoutingDTO>({ chain: [] })
 
   const hydrated = ref(false)
+  /** Set when hydrate ran but bindings are unavailable (plain browser). */
+  const unavailable = ref(false)
 
-  /** Ids whose key was entered this session. Reactive half of `secrets`. */
-  const secretIds = ref<string[]>([])
-  /** id -> key. In-process only: never persisted, never logged, never rendered. */
-  const secrets = new Map<string, string>()
+  const isEmpty = computed(() => providers.value.length === 0)
 
-  const providers = computed<ProviderDTO[]>(() =>
-    entries.value.map((entry) => ({
-      ...entry,
-      hasSecret: secretIds.value.includes(entry.id),
-    })),
-  )
+  /**
+   * One-time migration from the pre-binding localStorage record. Runs only
+   * when the Go list is empty and the legacy record exists; the record is
+   * removed once processed so the migration is idempotent. Keys were never
+   * persisted (memory-only by design), so they are genuinely lost — the user
+   * re-enters them; providers and routing survive.
+   */
+  async function migrateLegacyRecord(): Promise<void> {
+    const raw = readRecord(STORAGE_KEYS.providers)
+    if (raw === null) return
 
-  const isEmpty = computed(() => entries.value.length === 0)
+    const legacyProviders = asRecordArray(raw.providers)
+      .map(decodeLegacyProvider)
+      .filter((provider): provider is LegacyProvider => provider !== null)
+    if (legacyProviders.length === 0) {
+      removeKey(STORAGE_KEYS.providers)
+      return
+    }
 
-  function persist(): void {
-    writeRecord(STORAGE_KEYS.providers, {
-      providers: entries.value.map((entry) => ({ ...entry })),
-      routing: { ...routing.value },
-    })
+    // Old shape {primary, secondary} → ordered chain.
+    const record = typeof raw.routing === 'object' && raw.routing !== null
+      ? raw.routing as Record<string, unknown>
+      : {}
+    const primary = asString(record.primary) ?? ''
+    const secondary = asString(record.secondary)
+
+    const idMap = new Map<string, string>()
+    for (const legacy of legacyProviders) {
+      const id = await addProvider({
+        displayName: legacy.displayName,
+        protocol: legacy.protocol,
+        endpoint: legacy.endpoint,
+        model: legacy.model,
+        secret: '',
+      })
+      idMap.set(legacy.id, id)
+    }
+
+    const chain: string[] = []
+    for (const legacyId of [primary, secondary]) {
+      if (legacyId === null || legacyId === '') continue
+      const mapped = idMap.get(legacyId)
+      if (mapped !== undefined && !chain.includes(mapped)) chain.push(mapped)
+    }
+    if (chain.length > 0) await setProviderRouting({ chain })
+
+    removeKey(STORAGE_KEYS.providers)
   }
 
-  function rememberSecret(id: string, secret: string): void {
-    const trimmed = secret.trim()
-    if (trimmed === '') return
-
-    secrets.set(id, trimmed)
-    if (!secretIds.value.includes(id)) secretIds.value = [...secretIds.value, id]
-  }
-
-  function forgetSecret(id: string): void {
-    secrets.delete(id)
-    secretIds.value = secretIds.value.filter((entry) => entry !== id)
+  async function refresh(): Promise<void> {
+    const [list, chain] = await Promise.all([listProviders(), getProviderRouting()])
+    providers.value = list
+    routing.value = chain
   }
 
   async function hydrate(): Promise<void> {
@@ -214,30 +205,35 @@ export const useProvidersStore = defineStore('providers', () => {
     if (hydrated.value) return
     hydrated.value = true
 
-    const raw = readRecord(STORAGE_KEYS.providers)
-    if (raw === null) return
-
-    const decoded = asRecordArray(raw.providers)
-      .map(decodeProvider)
-      .filter((provider): provider is StoredProvider => provider !== null)
-
-    entries.value = decoded
-    routing.value = decodeRouting(raw.routing, decoded)
+    try {
+      const existing = await listProviders()
+      if (existing.length === 0) await migrateLegacyRecord()
+      await refresh()
+    } catch {
+      // Plain browser without the dev fixtures: the section shows its
+      // unavailable state rather than pretending there are no providers.
+      unavailable.value = true
+    }
   }
 
   async function add(draft: ProviderDraft): Promise<ProviderErrors | null> {
     const result = validate(draft)
     if (!result.ok) return result.errors
 
-    const id = newProviderId()
-    entries.value = [...entries.value, { id, ...result.fields }]
-    rememberSecret(id, draft.secret)
+    const id = await addProvider({
+      displayName: draft.displayName.trim(),
+      protocol: draft.protocol,
+      endpoint: normalizeEndpoint(draft.endpoint) ?? draft.endpoint.trim(),
+      model: draft.model.trim(),
+      secret: draft.secret.trim(),
+    })
+    await refresh()
 
     // First provider has nothing to choose between: make it the primary.
-    if (routing.value.primary === '') {
-      routing.value = normalizeRouting({ ...routing.value, primary: id })
+    if (routing.value.chain.length === 0) {
+      await setProviderRouting({ chain: [id] })
+      await refresh()
     }
-    persist()
     return null
   }
 
@@ -245,62 +241,53 @@ export const useProvidersStore = defineStore('providers', () => {
     const result = validate(draft)
     if (!result.ok) return result.errors
 
-    entries.value = entries.value.map((entry) =>
-      entry.id === id ? { id, ...result.fields } : entry,
-    )
     // An empty key field means "leave it alone", not "clear it" — clearing is
     // its own action, so a rename cannot silently drop the credential.
-    rememberSecret(id, draft.secret)
-    persist()
+    await updateProvider(id, {
+      displayName: draft.displayName.trim(),
+      protocol: draft.protocol,
+      endpoint: normalizeEndpoint(draft.endpoint) ?? draft.endpoint.trim(),
+      model: draft.model.trim(),
+      secret: draft.secret.trim(),
+    })
+    await refresh()
     return null
   }
 
   async function remove(id: string): Promise<void> {
-    entries.value = entries.value.filter((entry) => entry.id !== id)
-    forgetSecret(id)
-
-    const next = { ...routing.value }
-    if (next.primary === id) {
-      // Promote the fallback rather than leaving the app with no primary.
-      next.primary = next.secondary ?? entries.value[0]?.id ?? ''
-    }
-    if (next.secondary === id || next.secondary === next.primary) next.secondary = null
-
-    routing.value = normalizeRouting(next)
-    persist()
+    // DeleteProvider prunes routing and the keychain entry server-side.
+    await deleteProvider(id)
+    await refresh()
   }
 
-  async function setPrimary(id: string): Promise<void> {
-    routing.value = normalizeRouting({ ...routing.value, primary: id })
-    persist()
-  }
-
-  async function setSecondary(id: string | null): Promise<void> {
-    routing.value = normalizeRouting({ ...routing.value, secondary: id })
-    persist()
+  async function setChain(chain: string[]): Promise<void> {
+    await setProviderRouting({ chain })
+    await refresh()
   }
 
   async function clearSecret(id: string): Promise<void> {
-    forgetSecret(id)
+    await deleteProviderSecret(id)
+    await refresh()
   }
 
-  /** The in-memory key for a provider, if entered this session. Feeds the
-   * connection-test binding; it is never rendered or persisted. */
-  function secretOf(id: string): string | undefined {
-    return secrets.get(id)
+  /** Save a key without touching other fields (the secret-entry row). */
+  async function saveSecret(id: string, secret: string): Promise<void> {
+    if (secret.trim() === '') return
+    await setProviderSecret(id, secret.trim())
+    await refresh()
   }
 
   return {
     providers,
     routing,
     isEmpty,
+    unavailable,
     hydrate,
     add,
     update,
     remove,
-    setPrimary,
-    setSecondary,
+    setChain,
     clearSecret,
-    secretOf,
+    saveSecret,
   }
 })

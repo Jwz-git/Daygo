@@ -143,21 +143,32 @@ export default {
         'This address is not encrypted (HTTP): your key and screenshots travel the network in plain text.',
     },
     routing: {
-      title: 'Call order',
-      description: 'The secondary provider is used when the primary call fails.',
-      primary: 'Primary',
-      secondary: 'Secondary',
+      title: 'Fallback chain',
+      description:
+        'Tried in order: after 3 consecutive failures an entry is skipped in favor of the next, and rejoin happens automatically once it succeeds again; the last entry wraps back to the first.',
+      primary: 'Set as primary',
+      addFallback: 'Add fallback',
+      pickFallback: 'Pick a provider',
       none: 'None',
       primaryBadge: '1st',
-      secondaryBadge: '2nd',
+      fallbackBadge: 'Fallback',
+      moveUp: 'Move up',
+      moveDown: 'Move down',
     },
     secret: {
-      configured: 'Key entered this session',
+      configured: 'Key stored in the keychain',
       missing: 'No key',
       clear: 'Clear key',
-      sessionOnlyTitle: 'Keys are never written to disk',
-      sessionOnly:
-        'A key stays in this process memory and has to be entered again after a restart. Persistence arrives through SetProviderSecret, which writes to the system keychain rather than to browser storage.',
+      keychainTitle: 'Keys live in the system keychain',
+      keychain:
+        'Keys are written to the macOS keychain only — never the database, logs, or the UI. After clearing one, the key must be entered again to use the provider.',
+    },
+    models: {
+      fetch: 'Fetch models',
+      fetching: 'Fetching model list…',
+      empty: 'This service returned no models; type the model name by hand.',
+      picked: 'Picked {model}',
+      unavailable: 'Fetching the model list runs inside the Daygo app',
     },
     error: {
       required: 'Required',
