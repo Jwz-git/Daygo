@@ -9,6 +9,7 @@ import type {
   TimelineCardDTO,
   TimelineFailureDTO,
 } from '@/api/dto'
+import { safeTimeZone } from '@/lib/timeZone'
 
 import TimelineActivityCard from './TimelineActivityCard.vue'
 import {
@@ -52,7 +53,7 @@ const hourMarks = computed(() => {
       label: new Intl.DateTimeFormat(locale.value, {
         hour: 'numeric',
         minute: '2-digit',
-        timeZone: props.context.timeZone,
+        timeZone: safeTimeZone(props.context.timeZone),
       }).format(new Date(ts * 1000)),
       top: positionRange(
         ts,

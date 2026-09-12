@@ -61,11 +61,11 @@ export const useTimelineStore = defineStore('timeline', () => {
   })
 
   const selectedCard = computed(
-    () => day.value?.cards.find((card) => card.id === selectedCardID.value) ?? null,
+    () => day.value?.cards?.find((card) => card.id === selectedCardID.value) ?? null,
   )
 
   const actionAvailability = computed(() => {
-    const enabled = capabilities.value?.features.includes('timeline') ?? false
+    const enabled = capabilities.value?.features?.includes('timeline') ?? false
     return {
       updateCategory: enabled && actionBindings.updateCategory,
       updateTitle: enabled && actionBindings.updateTitle,
@@ -78,10 +78,10 @@ export const useTimelineStore = defineStore('timeline', () => {
   const state = computed<TimelineState>(() => {
     if (loading.value) return 'loading'
     if (unavailable.value) return 'unavailable'
-    if (error.value !== null && (day.value?.cards.length ?? 0) === 0) return 'failure'
-    if ((day.value?.cards.length ?? 0) > 0) return 'populated'
-    if ((day.value?.processingRanges.length ?? 0) > 0) return 'processing'
-    if ((day.value?.failures.length ?? 0) > 0) return 'failure'
+    if (error.value !== null && (day.value?.cards?.length ?? 0) === 0) return 'failure'
+    if ((day.value?.cards?.length ?? 0) > 0) return 'populated'
+    if ((day.value?.processingRanges?.length ?? 0) > 0) return 'processing'
+    if ((day.value?.failures?.length ?? 0) > 0) return 'failure'
     return 'empty'
   })
 

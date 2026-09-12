@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { DailyPresentation, DailyWorkflowCell } from '@/stores/daily'
+import { safeTimeZone } from '@/lib/timeZone'
 
 const props = defineProps<{
   presentation: DailyPresentation
@@ -30,7 +31,7 @@ function cellStyle(cell: DailyWorkflowCell, color: string) {
 function formatTime(timestamp: number): string {
   return new Intl.DateTimeFormat(locale.value, {
     hour: 'numeric',
-    timeZone: props.timeZone,
+    timeZone: safeTimeZone(props.timeZone),
   }).format(new Date(timestamp * 1000))
 }
 

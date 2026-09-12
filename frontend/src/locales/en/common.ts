@@ -23,4 +23,12 @@ export default {
   placeholder: {
     planned: 'Planned',
   },
+  fatal: {
+    title: 'Something went wrong',
+    description: 'An error occurred and the page stopped rendering to avoid a blank screen. You can copy the details to report it, or reload the app.',
+    reload: 'Reload',
+    dismiss: 'Dismiss',
+    copy: 'Copy details',
+    copied: 'Copied',
+  },
 }

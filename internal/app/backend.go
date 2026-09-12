@@ -326,7 +326,7 @@ func (b *Backend) GetDayContext(day string) (DayContextDTO, error) {
 		DayStartTs:      start.Unix(),
 		DayEndTs:        end.Unix(),
 		NowTs:           now.Unix(),
-		TimeZone:        loc.String(),
+		TimeZone:        daytime.ZoneName(loc),
 		DayBoundaryHour: daytime.BoundaryHour,
 	}, nil
 }

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -58,6 +59,15 @@ func TestGetTimelineDayEmpty(t *testing.T) {
 	}
 	if dto.TrackedMinutes != 0 || dto.IdleMinutes != 0 {
 		t.Fatalf("totals = %v/%v, want 0/0", dto.TrackedMinutes, dto.IdleMinutes)
+	}
+	encoded, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatalf("marshal empty day: %v", err)
+	}
+	for _, field := range []string{"cards", "categories", "failures", "processingRanges"} {
+		if strings.Contains(string(encoded), `"`+field+`":null`) {
+			t.Fatalf("empty day field %q encoded as null: %s", field, encoded)
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { DailyRecapDTO } from '@/api/dto'
+import { safeTimeZone } from '@/lib/timeZone'
 
 const props = defineProps<{
   recap: DailyRecapDTO | null
@@ -22,7 +23,7 @@ const generatedAt = computed(() => {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: props.timeZone,
+    timeZone: safeTimeZone(props.timeZone),
   }).format(new Date(props.recap.generatedAtTs * 1000))
 })
 

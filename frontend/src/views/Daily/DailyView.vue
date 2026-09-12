@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import PageHeader from '@/components/PageHeader.vue'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
+import { safeTimeZone } from '@/lib/timeZone'
 import { useDailyStore } from '@/stores/daily'
 
 import DailyGoalPanel from './DailyGoalPanel.vue'
@@ -45,7 +46,7 @@ const dateTitle = computed(() => {
     weekday: 'short',
     month: 'long',
     day: 'numeric',
-    timeZone: context.value.timeZone,
+    timeZone: safeTimeZone(context.value.timeZone),
   }).format(new Date(context.value.dayStartTs * 1000))
 })
 

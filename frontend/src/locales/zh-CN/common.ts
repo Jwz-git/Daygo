@@ -23,4 +23,12 @@ export default {
   placeholder: {
     planned: '规划中',
   },
+  fatal: {
+    title: '出错了',
+    description: '刚刚发生了一处错误，页面已停止渲染以避免整屏空白。你可以复制详情反馈，或重新加载应用。',
+    reload: '重新加载',
+    dismiss: '关闭',
+    copy: '复制详情',
+    copied: '已复制',
+  },
 }

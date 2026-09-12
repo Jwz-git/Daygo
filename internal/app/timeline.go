@@ -58,7 +58,9 @@ func categoryFlagsFrom(list []domain.Category) categoryFlags {
 // batch failures renders as one panel entry with all their ids.
 func mergeFailures(batches []failedBatchView) []TimelineFailureDTO {
 	if len(batches) == 0 {
-		return nil
+		// The wire contract declares failures as an array. A nil slice encodes
+		// as null and violates the generated TimelineFailureDTO[] type.
+		return []TimelineFailureDTO{}
 	}
 	groups := make([]TimelineFailureDTO, 0, len(batches))
 	current := TimelineFailureDTO{

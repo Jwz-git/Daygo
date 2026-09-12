@@ -8,6 +8,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import { onRecordingState, getRecordingState, setRecording } from '@/api/recording'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
+import { safeTimeZone } from '@/lib/timeZone'
 import { useTimelineStore } from '@/stores/timeline'
 import TimelineInspector from './TimelineInspector.vue'
 import TimelineStatePanel from './TimelineStatePanel.vue'
@@ -44,7 +45,7 @@ async function startRecording(): Promise<void> {
 const dateTitle = computed(() => {
   if (context.value === null) return t('timeline.title')
   return new Intl.DateTimeFormat(locale.value, {
-    weekday: 'short', month: 'short', day: 'numeric', timeZone: context.value.timeZone,
+    weekday: 'short', month: 'short', day: 'numeric', timeZone: safeTimeZone(context.value.timeZone),
   }).format(new Date(context.value.dayStartTs * 1000))
 })
 
