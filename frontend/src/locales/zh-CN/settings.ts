@@ -77,7 +77,7 @@ export default {
     noOwner: '当前实例不是捕获者',
     limit: '录制占用上限',
     limitHint: '保存目标上限；0 表示不限。实际清理由录制分段能力接入后执行。',
-    cleanupPending: '当前尚无 screenshots 表和 Media 分段清理，因此修改上限不会删除任何文件。',
+    cleanupPending: '分段清理尚未实现，因此修改上限目前不会删除任何文件。',
     writeError: '上限保存失败，已恢复数据库中的值。',
     interval: '截图间隔',
     intervalHint: '每隔多久截取一张屏幕。',

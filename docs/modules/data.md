@@ -14,7 +14,8 @@
 
 ## 当前状态与证据
 
-实现进度：**部分实现**（切片 1–4 已落盘，切片 5 长期观察未开始）。
+实现进度：**部分实现**。切片 1、2、4 已落盘，切片 3 的 checkpoint / 备份 / 损坏恢复已完成、
+**清理未开始**，切片 5 长期观察未开始。
 
 已交付能力：
 
@@ -38,7 +39,7 @@
   `DiagnosticsDTO.RecoveredFromBackup` 暴露。流程见
   [decisions/data-corruption-recovery.md](../decisions/data-corruption-recovery.md)。
 
-录制清理仍未开始（阻塞于 `Media`，见下）。
+录制清理仍未开始；原因见下。
 
 **跨模块边界已由各模块自行补齐**：诊断原先依赖 recording 的 `screenshots` 与 timeline 的
 `analysis_batches`，两张表当时都不存在，data 按「禁止一次性建设未使用的全部目标表」选择了
@@ -48,12 +49,12 @@
 改为查询真实数据源；`lastCaptureAtTs` 用指针表达「尚无已提交帧」，不把缺失压成零。
 
 诊断的「来源不存在」分支仍然保留，但已无法由正常迁移链触达，因此其测试改为显式删除表来构造
-（`internal/storage/db_gate_test.go`）。**录制清理仍阻塞**于 `Media`（`media-read`，recording
-负责）：`ProbeSegment` 没有实现，连 fake 都没有，清理无法判断分段边界与活跃段。
+（`internal/storage/db_gate_test.go`）。**录制清理仍被阻塞**，两个前置都归 recording，
+详见「能力与跨层职责」。
 
-已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者和真实可用性；录制占用上限可持久化写入 `app_settings`。当录制表尚未存在时，页面明确显示“尚未接入”，不会把零误报为没有录制数据，也不会因修改上限删除文件。
+已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者和真实可用性；录制占用上限可持久化写入 `app_settings`。页面在数据源不可用时显示“尚未接入”，不把零误报为没有录制数据。**上限本身还没有消费者**：修改它只写库，不会删除任何文件——清理逻辑尚未实现（见下）。
 
-落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,settings,cards,categories,captures,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，匿名夹具与生成器在 `internal/storage/testdata/`；前端接入位于 `frontend/src/views/Settings/StorageSection.vue` 与 `frontend/src/api/diagnostics.ts`。
+落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,recover,settings,cards,categories,captures,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，匿名夹具与生成器在 `internal/storage/testdata/`；前端接入位于 `frontend/src/views/Settings/StorageSection.vue` 与 `frontend/src/api/diagnostics.ts`。
 
 诊断现在已有真实设置页消费者；不可用来源会在 UI 中显式显示，生产构建不会加载开发夹具。
 
@@ -66,7 +67,15 @@
 这些是切片，不要求一次完成 data 才解锁其他功能。
 
 **已可供消费者接入**（`09 §9.3`）：db-core、settings-store、diagnostics。
-维护的 checkpoint 与备份已可用；**录制清理仍阻塞**于 `screenshots` 表与 real `Media`。
+维护的 checkpoint、备份与损坏恢复已可用；**录制清理未实现，且有两个前置都归 recording**：
+
+1. **`recording_segments` 表不存在**。清理按分段而非单帧工作，需要枚举 `closed` 分段、
+   排除 building 段与被分析租用的段（见 [图片存储决策 §7](../decisions/recording-image-storage.md#7-清理流程)）。
+   该表**由 recording 的迁移夹具定义**，决策明确要求「不要在没有恢复测试时先冻结 schema」，
+   因此 data 不代它建表。
+2. **`Media` 无任何实现**（连 fake 都没有）。删除整个分段文件、探测分段帧数都经它。
+
+`pending_captures` 与 `screenshots` 已由 recording 的 v3 迁移创建，不再是阻塞项。
 
 | 输入 | 可独立推进 | 真实接入条件 |
 |---|---|---|
@@ -102,7 +111,9 @@ Go 负责清理决策、备份与诊断；像素读取经 Media，适配层不�
    其他模块的业务表逐项走同一迁移链，data 协调迁移合入顺序。
 3. 在匿名分段 fixture 上实现 checkpoint、备份恢复与清理；真实 media-read 就绪后跑 IT-12。
    retention 决策落盘后再启用相应策略，禁止删除活跃分段。
-4. 增加 GetDiagnostics 与匿名指标、磁盘和遥测设置、store 与 UI；当前已接入诊断 UI 和磁盘上限设置，遥测写入仍待实际 telemetry 消费者。
+   **checkpoint、备份、轮换、损坏恢复已完成**；清理未开始，前置见「能力与跨层职责」。
+4. 增加 GetDiagnostics 与匿名指标、磁盘和遥测设置、store 与 UI；当前已接入诊断 UI 和磁盘上限设置，
+   遥测写入仍待实际 telemetry 消费者，**磁盘上限也还没有消费者**（清理未实现）。
 5. 累计 14 天磁盘 / 内存观察，与录制 / 更新共同验证关停和恢复；长期状态单列。
 
 ## 验收、阻塞与回退

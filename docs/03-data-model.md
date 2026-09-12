@@ -409,7 +409,7 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 |------|------|------|------|
 | WAL checkpoint | 300 秒 | ★ 已实现 | `PASSIVE`：不阻塞读写，宁可 WAL 大一会儿也不要卡住一次捕获写入 |
 | 数据库备份 | 启动后 1 小时，之后每 24 小时 | ★ 已实现 | `VACUUM INTO`（不是文件复制，避免撕裂的 WAL），保留最近 **7** 份（[决策](decisions/data-backup-retention.md)） |
-| 录制清理 | 启动后 1 小时，之后每小时 | 未实现 | 超出上限时按 closed segment 从旧到新两阶段删除；阻塞于业务表与 `Media`，见[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
+| 录制清理 | 启动后 1 小时，之后每小时 | 未实现 | 超出上限时按 closed segment 从旧到新两阶段删除。两个前置都归 recording：`recording_segments` 表尚未创建（其 schema 由 recording 的迁移夹具决定），且 `Media` 无实现。见[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
 | `llm_calls` 元数据留存 | 待定 | 未实现 | 只含 attempt 元数据，不含正文 |
 
 维护循环由 app 生命周期持有（`storage.Maintainer`），`ctx` 取消即退出，不存在全局单例。

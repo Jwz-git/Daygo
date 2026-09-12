@@ -67,8 +67,13 @@ func NewMaintainer(store *Store, opts MaintainerOptions) *Maintainer {
 // Run performs maintenance until ctx is cancelled. It blocks, so callers run it
 // in their own goroutine and are responsible for cancelling ctx at shutdown.
 //
-// The schedule follows docs/03 §3.6: checkpoint every 300 seconds, and the
-// backup + recording-cleanup pass one hour after startup and hourly after that.
+// The schedule follows docs/03 §3.6: checkpoint every 300 seconds, and backups
+// one hour after startup and every 24 hours after that.
+//
+// Recording cleanup (§3.6's third row) is NOT part of this loop yet. It needs
+// platform.Media to identify segment boundaries and the active segment, and
+// Media has no implementation — not even a fake. Adding it here without that
+// would mean guessing which segments are safe to delete.
 //
 // A read-only instance still runs the loop. Its maintenance actions are refused
 // by the store, and a refusal is reported once per action rather than treated as

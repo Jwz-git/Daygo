@@ -95,7 +95,7 @@ export default {
     directory: 'Recording directory',
     directoryHint: 'Images produced by background recording are stored here.',
     directoryUnavailable: 'Unavailable',
-    cleanupPending: 'There is no screenshots table or Media segment cleanup yet, so changing this limit does not delete files.',
+    cleanupPending: 'Segment cleanup is not implemented yet, so changing this limit does not delete files.',
     writeError: 'Could not save the limit. The database value has been restored.',
     status: {
       ok: 'Healthy',
