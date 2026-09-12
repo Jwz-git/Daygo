@@ -7,6 +7,15 @@ import { router } from './router'
 import { useAppearanceStore } from './stores/appearance'
 import './styles/index.css'
 
+/*
+ * Suppress the webview context menu in every build. Wails' own switch
+ * (options.App.EnableDefaultContextMenu) is forced on in debug builds, so the
+ * guard lives here — production relies on it too, so behaviour never depends
+ * on which build is running. WKWebView honours preventDefault on contextmenu,
+ * which is the same mechanism the Wails runtime itself uses.
+ */
+window.addEventListener('contextmenu', (event) => event.preventDefault())
+
 async function bootstrap(): Promise<void> {
   const app = createApp(App)
 

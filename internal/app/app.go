@@ -92,6 +92,11 @@ func Run() error {
 		 */
 		CSSDragProperty: "--wails-draggable",
 		CSSDragValue:    "drag",
+		// No webview context menu in production. Debug builds force it on
+		// regardless of this flag, so the frontend installs its own
+		// contextmenu guard (frontend/src/main.ts) to keep both builds
+		// behaving the same.
+		EnableDefaultContextMenu: false,
 		// Shown only between window creation and the first webview paint. The
 		// light palette base is the least jarring default: macOS defaults to a
 		// light system appearance, and the app follows it until the user says
