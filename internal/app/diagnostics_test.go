@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,8 +81,6 @@ func TestDiagnosticsReportsReadOnlyInstance(t *testing.T) {
 	}
 }
 
-// Counters whose data source does not exist must say so rather than report a
-// zero that reads as "nothing happened".
 // The recording and analysis schemas ship in the migration chain, so these
 // fields have real data sources. An empty schema reports zero — or no capture
 // at all — which is a different fact from an unavailable source and must not be
@@ -197,6 +198,67 @@ func TestDiagnosticsNativeStateReflectsSystemAvailability(t *testing.T) {
 	}
 	if withSystem.NativeState != NativeStateOK {
 		t.Fatalf("NativeState = %q with a system, want %q", withSystem.NativeState, NativeStateOK)
+	}
+}
+
+// A healthy open is not a recovery. Reporting one would make the signal
+// meaningless the first time it mattered.
+func TestDiagnosticsReportsNoRecoveryOnHealthyOpen(t *testing.T) {
+	store := openTestStore(t, t.TempDir(), false)
+
+	dto, err := newBackend(fixedClock{}, nil, store, false, false).GetDiagnostics()
+	if err != nil {
+		t.Fatalf("GetDiagnostics: %v", err)
+	}
+	if dto.RecoveredFromBackup != "" {
+		t.Fatalf("recoveredFromBackup = %q on a healthy open", dto.RecoveredFromBackup)
+	}
+}
+
+// Recovery is a loss of data relative to what the user had, so diagnostics must
+// surface it. Without this the app would silently show an older timeline.
+func TestDiagnosticsReportsRecoveryFromBackup(t *testing.T) {
+	dir := t.TempDir()
+	ctx := context.Background()
+
+	store := openTestStore(t, dir, false)
+	if _, err := store.Backup(ctx, filepath.Join(dir, storage.BackupDirName), 7); err != nil {
+		t.Fatalf("Backup: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// Truncating the database and dropping the WAL is the torn write DB-7
+	// describes; it makes Open fail with a corruption classification.
+	database := filepath.Join(dir, storage.DatabaseFileName)
+	info, err := os.Stat(database)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if err := os.Truncate(database, info.Size()/3); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		_ = os.Remove(database + suffix)
+	}
+
+	recovered := openTestStore(t, dir, false)
+	if recovered.RecoveredFrom() == "" {
+		t.Fatal("the store did not report a recovery")
+	}
+
+	dto, err := newBackend(fixedClock{}, nil, recovered, false, false).GetDiagnostics()
+	if err != nil {
+		t.Fatalf("GetDiagnostics: %v", err)
+	}
+	if dto.RecoveredFromBackup == "" {
+		t.Fatal("diagnostics did not report the recovery")
+	}
+	// The name carries the timestamp of the restored data; the directory is
+	// already reported separately.
+	if strings.Contains(dto.RecoveredFromBackup, string(filepath.Separator)) {
+		t.Fatalf("recoveredFromBackup = %q, want a bare file name", dto.RecoveredFromBackup)
 	}
 }
 

@@ -48,4 +48,8 @@ const (
 	breadcrumbLockBusy     = "storage.lock.busy"
 	breadcrumbDegradedOpen = "storage.open.degraded_readonly"
 	breadcrumbMigrated     = "storage.migrate.applied"
+	// breadcrumbRecovered marks a database replaced from backup after
+	// corruption. It is the only signal that the user is looking at older data
+	// than they had, so it must not be silent.
+	breadcrumbRecovered = "storage.open.recovered_from_backup"
 )

@@ -167,12 +167,16 @@ func (s *Store) IntegrityCheck(ctx context.Context) error {
 }
 
 // RestoreFromBackup replaces the database at dir with a backup, keeping the
-// previous file as a .replaced copy.
+// previous file beside it under a .replaced name.
 //
-// It is NOT wired to any automatic path: docs/modules/data.md requires that an
-// actual schema upgrade cannot be undone with git revert, and a restore is the
-// same class of irreversible action. It exists for the documented recovery
-// procedure, to be invoked deliberately.
+// Corruption recovery calls this automatically (see recoverFromNewestBackup);
+// it is exported because the documented manual procedure uses the same code
+// path rather than a second, untested one.
+//
+// Nothing is deleted. The replaced database is renamed aside, and a name
+// collision from an earlier recovery is resolved by suffixing rather than
+// overwriting, so no previous copy is lost (docs/modules/data.md: 故障先停止
+// 写入、保留原库与备份).
 //
 // The caller must have closed the store first; this function operates on files.
 func RestoreFromBackup(backupPath, dir string) error {
@@ -181,12 +185,8 @@ func RestoreFromBackup(backupPath, dir string) error {
 	}
 	current := filepath.Join(dir, DatabaseFileName)
 
-	// Move the damaged file aside rather than deleting it: the recovery
-	// procedure must never be the step that loses the only copy of what the
-	// user had.
 	if _, err := os.Stat(current); err == nil {
-		aside := current + ".replaced"
-		if err := os.Rename(current, aside); err != nil {
+		if err := os.Rename(current, preservedPath(current)); err != nil {
 			return fmt.Errorf("storage: restore: preserve current database: %w", err)
 		}
 	}

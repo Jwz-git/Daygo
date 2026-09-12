@@ -430,6 +430,9 @@ type DiagnosticsDTO struct {
     // 语义均未改变。目的见下方说明。
     DBStatus    string            `json:"dbStatus"`              // "ok" | "read_only" | "unavailable"
     Unavailable map[string]string `json:"unavailable,omitempty"` // 字段名 → 不可用原因
+
+    // 损坏恢复后写回被还原的备份文件名，未恢复时为空。
+    RecoveredFromBackup string `json:"recoveredFromBackup,omitempty"`
 }
 
 `DBStatus` 与 `Unavailable` 的存在理由：`RecordingsBytes`、`PendingBatches`、`FailedBatches`

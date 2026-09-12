@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -89,10 +90,35 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	}
 
 	if err := store.connect(ctx); err != nil {
-		// connect owns the descriptors it opened, but the locks taken above
-		// belong to this function, so releasing them is this function's job.
-		_ = store.Close()
-		return nil, err
+		// A corrupt database on the writer is the one failure that has a
+		// defined remedy: docs/05 §5.6.2 rule 5 requires the open-and-recover
+		// path, and DB-7 asserts it. Environment failures must NOT come here —
+		// restoring over an intact database on a full disk would destroy it.
+		if !IsCorrupt(err) || store.mode != ModeReadWrite {
+			// connect owns the descriptors it opened, but the locks taken above
+			// belong to this function, so releasing them is this function's job.
+			_ = store.Close()
+			return nil, err
+		}
+
+		backup, recoverErr := store.recoverFromNewestBackup()
+		if recoverErr != nil {
+			// Nothing to restore from, or the restore failed. Report the
+			// original corruption: that is the fact the caller can act on, and
+			// every file involved is still on disk.
+			_ = store.Close()
+			return nil, err
+		}
+		store.observeBreadcrumb(breadcrumbRecovered)
+
+		if retryErr := store.connect(ctx); retryErr != nil {
+			// The backup is also unusable. Both files remain, so nothing is
+			// lost that can be recovered by hand.
+			_ = store.Close()
+			return nil, fmt.Errorf("recovered from %s but the database still fails to open: %w",
+				filepath.Base(backup), retryErr)
+		}
+		store.recoveredFrom = backup
 	}
 
 	if opts.CaptureOwnerRequested && store.mode == ModeReadWrite {

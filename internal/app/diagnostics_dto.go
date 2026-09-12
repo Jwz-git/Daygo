@@ -27,6 +27,15 @@ type DiagnosticsDTO struct {
 	// feature that has not shipped, and reporting a bare zero would be a
 	// silent lie.
 	Unavailable map[string]string `json:"unavailable,omitempty"`
+
+	// RecoveredFromBackup is the backup this database was restored from after
+	// corruption, or empty when no recovery happened.
+	//
+	// A recovered database holds less than the user had, so this is the one
+	// field that says "you are looking at older data". Leaving it unreported
+	// would make corruption recovery a silent loss, which docs/01 §1.5 lists
+	// as a defect rather than a tradeoff.
+	RecoveredFromBackup string `json:"recoveredFromBackup,omitempty"`
 }
 
 // DBStatus values.

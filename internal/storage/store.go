@@ -73,6 +73,23 @@ type Store struct {
 	// the set and the sends, so a notify never races with a Watch teardown.
 	subMu       sync.Mutex
 	subscribers map[chan SettingsChanged]struct{}
+
+	// recoveredFrom records the backup this database was restored from after
+	// corruption, or "" when recovery did not happen. The user is then looking
+	// at older data than they had, which diagnostics must be able to report.
+	recoveredFrom string
+}
+
+// RecoveredFrom reports the backup path this database was restored from after
+// corruption, or "" when no recovery happened on this open.
+//
+// A recovered database holds less than the user had. Reporting it is what keeps
+// the recovery from being a silent loss of data.
+func (s *Store) RecoveredFrom() string {
+	if s == nil {
+		return ""
+	}
+	return s.recoveredFrom
 }
 
 // now reports the current time through the store's clock.

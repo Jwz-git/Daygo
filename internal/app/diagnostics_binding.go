@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
@@ -65,6 +66,12 @@ func (b *Backend) GetDiagnostics() (DiagnosticsDTO, error) {
 		dto.DBStatus = DBStatusReadOnly
 	} else {
 		dto.DBStatus = DBStatusOK
+	}
+	// Report recovery, if it happened. Only the file name: the directory is
+	// already DatabasePath, and the name carries the timestamp that says how
+	// far back the restored data goes.
+	if backup := store.RecoveredFrom(); backup != "" {
+		dto.RecoveredFromBackup = filepath.Base(backup)
 	}
 	if store.Instance().CaptureOwner {
 		if pid := currentPID(); pid > 0 {

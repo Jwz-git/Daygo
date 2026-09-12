@@ -30,10 +30,15 @@
   说明原因，不返回会读作"没有活动"的裸零。storage → apperr 的错误映射集中在
   `mapStorageError`（`05 §5.6.1` 要求单点）。
 - **维护**：`Checkpoint`（WAL，300 秒）、`Backup`（`VACUUM INTO`，每日，保留 7 份）、
-  `Backup` 轮换、`RestoreFromBackup`、`IntegrityCheck`，以及由 app 生命周期持有的
-  `Maintainer` goroutine（ctx 取消即退出，无全局单例）。
+  `Backup` 轮换、`IntegrityCheck`，以及由 app 生命周期持有的 `Maintainer` goroutine
+  （ctx 取消即退出，无全局单例）。
+- **损坏恢复（DB-7）**：`Open` 在写入实例上遇到归类为损坏的连接失败时，自动还原 `backups/`
+  中最新一份并重试一次；无备份、环境故障、只读实例三种情形都不碰文件。原库改名为
+  `.replaced`（重名时追加序号，不覆盖），恢复来源经 `RecoveredFrom()` 与
+  `DiagnosticsDTO.RecoveredFromBackup` 暴露。流程见
+  [decisions/data-corruption-recovery.md](../decisions/data-corruption-recovery.md)。
 
-录制清理仍未开始（阻塞于 `screenshots` 表与 `Media`，见下）。
+录制清理仍未开始（阻塞于 `Media`，见下）。
 
 **跨模块边界已由各模块自行补齐**：诊断原先依赖 recording 的 `screenshots` 与 timeline 的
 `analysis_batches`，两张表当时都不存在，data 按「禁止一次性建设未使用的全部目标表」选择了
@@ -121,13 +126,16 @@ real Media 未就绪仅阻塞真实清理验收，不阻塞连接、迁移和设
 | 2026-09-11 / 同上 | `go test -count=1 -race ./internal/app/` | 通过；绑定层所有权来自真实锁、诊断映射与维护路径均有断言 | 未在真实 Wails 宿主中运行；`GetDiagnostics` 无 UI |
 | 2026-09-11 / 同上 | `go test -count=1 ./internal/storage/`（settings / 维护 / 诊断用例） | 通过；settings 往返与重启读回、单事务原子性、Watch 交付与关闭、备份可读且轮换、恢复保留原库、并发备份互不碰撞 | 未接真实用户设置；清理未接线 |
 | 2026-09-11 / 当前工作树 / Windows 11 amd64 · go1.25.4 | `go test -count=1 ./internal/storage ./internal/settings`；子进程持锁、正常退出与强制终止夹具 | 通过；`LockFileEx` 对第二实例返回 `ErrLockBusy`，正常关闭和进程终止后均可重取；`Open` 只读降级、捕获所有者互斥与 `Close` 释放通过 | 仅短时 smoke；DB-8 一小时并发与录制清理未运行 |
+| 2026-09-12 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test -count=1 ./internal/storage/ ./internal/app/`、`-race` | 通过；**DB-7 在已实现范围通过**：截断的库触发还原、还原后备份中的值回读一致、备份之后写入的值按预期消失、损坏原库以 `.replaced` 保留、无备份时报错且文件大小不变、只读实例不恢复、连续两次恢复各留一份副本、健康打开不报恢复 | 未在真实 Wails 宿主中触发过恢复；诊断界面尚未渲染 `recoveredFromBackup` |
 
 **测试发现的一个真实缺陷**：并发调用 `Store.Backup` 时，先前基于秒级时间的文件名会让两次
 备份取到同名，`VACUUM INTO` 拒绝覆盖导致双双失败。现改为在互斥区内使用单调序号命名，
 并发备份用例覆盖此路径。
 
-DB-3、DB-5、DB-9 未运行：分别依赖只读 repository 方法、`timeline_cards.metadata`、
-分段生命周期与 `Media`，这些表与能力尚未交付，与 db-core 无关。
-IT-12 未运行：real Media 未就绪，仅阻塞真实清理验收（见下）。
+DB-3 已运行：所有只读 repository 方法在空库、v0/v1 迁移夹具与代表性数据上均返回非错误
+（`internal/storage/db_gate_test.go`）。
+DB-5 已运行：`timeline_cards.metadata` 可解码，`appSites` / `distractions` 往返一致。
+**DB-9 与 IT-12 未运行**：两者都依赖分段生命周期与 `Media`，而 `Media.ProbeSegment` 尚无实现
+（连 fake 都没有），因此无法判断分段边界与活跃段。这是 data 目前唯一的硬前置依赖。
 
 后续记录驱动 / 系统、commit、匿名夹具、并发时长、回读 PRAGMA 与完整性结果。
