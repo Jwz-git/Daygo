@@ -218,12 +218,16 @@ CREATE TABLE categories (
 ### 3.3.4 洞察与用户输入
 
 ```sql
+-- daily_standup_entries 尚未落盘：无写入方（recap 生成切片，待定 #19），
+-- db-core 不预创建设计未定消费者就绪的表。
 CREATE TABLE daily_standup_entries (
   standup_day  TEXT PRIMARY KEY,   -- 日历日 yyyy-MM-dd
   payload      TEXT NOT NULL,      -- JSON：highlights / tasks / blockers
   generated_at INTEGER
 );
 
+-- journal_entries（v5 已落盘）。summary 由 AI 生成、用户只读：repository 的
+-- 用户写入路径不触碰该列。
 CREATE TABLE journal_entries (
   day          TEXT PRIMARY KEY,   -- 逻辑日
   intentions   TEXT,
@@ -235,6 +239,7 @@ CREATE TABLE journal_entries (
   updated_at   INTEGER NOT NULL
 );
 
+-- day_goals / day_goal_categories（v5 已落盘）。保存时分类引用整体替换。
 CREATE TABLE day_goals (
   day                       TEXT PRIMARY KEY,
   focus_target_minutes      INTEGER NOT NULL,

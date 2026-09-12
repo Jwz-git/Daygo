@@ -361,3 +361,41 @@ func copyFile(t *testing.T, src, dst string) {
 		t.Fatalf("write %s: %v", dst, err)
 	}
 }
+
+// DB-2 for v5: upgrade a database written by a v4-only build and assert the
+// new daily tables exist and the pre-existing chat data survives.
+func TestMigrateV4FixturePreservesDataAndCreatesV5Tables(t *testing.T) {
+	fixture := filepath.Join("testdata", "v4-chat.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	for _, table := range []string{"journal_entries", "day_goals", "day_goal_categories"} {
+		var name string
+		err := store.db.QueryRowContext(context.Background(),
+			"SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
+		if err != nil {
+			t.Fatalf("table %s missing after migration: %v", table, err)
+		}
+	}
+
+	// Pre-existing chat data must survive untouched.
+	var role, content string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT role, content FROM chat_messages WHERE id = 1").Scan(&role, &content); err != nil {
+		t.Fatalf("read chat message after upgrade: %v", err)
+	}
+	if role != "user" || content != "fixture question" {
+		t.Fatalf("chat message = %q/%q; the migration altered existing data", role, content)
+	}
+}

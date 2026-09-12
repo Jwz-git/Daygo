@@ -193,6 +193,47 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 5,
+		name:    "daily: journal entries and day goals",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// Columns follow docs/03 §3.3.4 verbatim. daily_standup_entries is
+			// deliberately absent: no writer exists for it yet (the recap
+			// generation slice, pending decision #19) and db-core does not
+			// pre-create tables whose design is not settled with a consumer.
+			for _, stmt := range []string{
+				`CREATE TABLE journal_entries (
+					day          TEXT PRIMARY KEY,
+					intentions   TEXT,
+					notes        TEXT,
+					goals        TEXT,
+					reflections  TEXT,
+					summary      TEXT,
+					status       TEXT NOT NULL,
+					updated_at   INTEGER NOT NULL
+				)`,
+				`CREATE TABLE day_goals (
+					day                       TEXT PRIMARY KEY,
+					focus_target_minutes      INTEGER NOT NULL,
+					distraction_limit_minutes INTEGER NOT NULL,
+					is_skipped                INTEGER NOT NULL DEFAULT 0,
+					updated_at                INTEGER NOT NULL
+				)`,
+				`CREATE TABLE day_goal_categories (
+					day         TEXT NOT NULL REFERENCES day_goals(day) ON DELETE CASCADE,
+					category_id TEXT NOT NULL REFERENCES categories(id),
+					role        TEXT NOT NULL,
+					sort_order  INTEGER NOT NULL,
+					PRIMARY KEY (day, category_id, role)
+				)`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v5 daily tables", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // seedBuiltInCategories inserts the two built-in categories. IDs are fixed
