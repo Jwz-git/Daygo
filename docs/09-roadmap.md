@@ -12,7 +12,7 @@
 | 模块 / 执行册 | 用户结果与职责 | 当前实现进度 | 当前验证状态 |
 |---|---|---|---|
 | [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、macOS / Windows 单次截图、macOS 应用身份 picker、权限绑定骨架 | fake 契约通过；两平台各有一次真实像素 smoke，macOS Calculator 身份 ABI smoke 通过；picker 视觉、MC / WC 完整矩阵与真实集成未验收 |
-| [providers AI 接入](modules/providers.md) | Provider、密钥、主备路由、协议客户端和连接测试 | 部分实现：三协议客户端、重试 / 回退、连接探针绑定；前端配置存无密钥 localStorage | Go 单元与匿名 TLS fixture 通过；Secrets、Provider 落库与真实服务未验收 |
+| [providers AI 接入](modules/providers.md) | Provider、密钥、回退链路由、协议客户端、连接测试与模型列表 | 部分实现：三协议客户端、重试 / 回退、连接探针绑定；前端配置存无密钥 localStorage。回退链与密钥存储方式已决定（[chain](decisions/providers-fallback-chain.md)、[keychain](decisions/providers-secrets-keychain.md)），落库 / 钥匙串 / 模型列表实现中 | Go 单元与匿名 TLS fixture 通过；Secrets、Provider 落库与真实服务未验收 |
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、日期绑定、碰撞分栏轨道、详情及写操作接入界面、开发专用匿名样例 | 时间函数单元、前端类型 / 构建和匿名视觉夹具通过；卡片 / 分析真实绑定与闭环未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：工作流 / 指标 / 只读日报前端切片、与 Timeline 共享路由日期、开发专用匿名样例 | 前端类型 / 构建、浅深主题、窄窗口及中英文样例检查通过；真实绑定与闭环未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、开发专用匿名样例 | 前端类型 / 构建、浅深主题、窄窗口及中英文样例检查通过；真实聚合、绑定与周边界未验收 |
@@ -20,7 +20,7 @@
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者未验收 |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：开发构建链 | 原生身份、签名、公证、更新未验收 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 未开始：仅 05 §5.9 契约与执行册（2026-09-12 建立，设计准备） | 未运行；MCP 传输决策见 §9.8 #22 |
-| [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：仅 UI 占位（路由、侧栏入口、禁用输入区）；契约见 05 §5.12 与执行册 | 前端 typecheck / build 与浏览器占位 smoke 通过；服务端、工具循环与绑定未开始；会话模型等待决项 #23 |
+| [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：UI 占位（路由、侧栏入口）；会话模型已决定（多会话、原子消息、会话级 provider 选择，[decisions/chat-session-model.md](decisions/chat-session-model.md)），纯对话服务端与绑定实现中；工具循环属后续切片 | 前端 typecheck / build 与浏览器占位 smoke 通过；服务端实现与验证未开始 |
 
 ### 当前代码证据
 
@@ -205,7 +205,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 1 | 平台适配形态及宿主 | recording / 工程，delivery 协作 | 大规模原生实现前；06 §6.6、G-host/G-native |
 | 2 | 屏幕捕获方式 | recording / 工程 | 扩大真实接入或标记“已决定”前；[v2 实现与调用](decisions/recording-screen-capture-v2.md)、[实验规格](decisions/recording-screen-capture.md) |
 | 3 | 系统事件订阅方式 | recording / 工程 | 恢复状态机真实接入前；06 §6.2 |
-| 4 | 钥匙串访问方式与身份 | providers / 工程，delivery 协作 | 真实密钥接入前；Secrets、G-native |
+| 4 | 钥匙串访问方式与身份 | providers / 工程，delivery 协作 | **访问方式已决定**：macOS 用 `security` CLI 子进程（无 cgo），见 [decisions/providers-secrets-keychain.md](decisions/providers-secrets-keychain.md)；签名 / 公证后的钥匙串身份行为仍属 G-native，未关闭 |
 | 5 | 状态栏与激活策略 | recording / 工程 | G-host 验收前 |
 | 6 | 适配协议（若进程外） | recording / 工程 | 两侧实现前；05 §5.8 |
 | 7 | 分段容器与编码格式 | recording / 工程 | 分段落盘真实实现前；03 §3.4 |
@@ -224,7 +224,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 20 | 多显示器是否恢复"跟随光标的活跃显示器" | recording / 产品 + 工程 | recorder 接入真实捕获前；当前冻结为系统主显示器（[04 §4.1.2](04-data-flow.md#412-只截一块显示器系统主显示器)），改动会给端口加字段和跨调用状态 |
 | 21 | Windows 截图是否合成鼠标指针 | recording / 工程 | Windows 进入任何真实使用前；当前实现接受 `ShowsCursor` 但不生效，要么补合成要么在 ABI 上明确降级语义 |
 | 22 | MCP 传输与进程模型（stdio 子进程 vs 宿主内 HTTP；工具粒度与审计来源标记随之一并定） | agent / 工程，delivery 协作 | MCP 实现前，agent 执行册切片 1 前必须落决策；已定约束与候选见 [05 §5.9.3](05-interface-contract.md#593-mcp-服务器设计准备未实现)，决策落 `decisions/agent-mcp-transport.md` |
-| 23 | Chat 会话模型、流式输出、消息留存与 provider 路由 | chat / 产品 + 工程 | chat 实现切片前；候选与代价见 [05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现) 待定表，执行册 [modules/chat](modules/chat.md)。沙箱门禁与工具集不是待定项 |
+| 23 | Chat 会话模型、流式输出、消息留存与 provider 路由 | chat / 产品 + 工程 | **会话模型、流式、provider 路由已决定**：多会话、原子消息、会话级 provider 选择（默认跟随路由链），见 [decisions/chat-session-model.md](decisions/chat-session-model.md)；消息留存与审计来源标记仍待定，与 #15 / #22 一并定 |
 
 决定写入 `docs/decisions/<module>-<topic>.md`，记录候选、实验、结果、边界与回退，
 同步相应公共规范。无证据不标为已决定。捕获旧文档路径仅保留历史跳转。
