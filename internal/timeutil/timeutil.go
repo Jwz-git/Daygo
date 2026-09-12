@@ -53,3 +53,33 @@ func DayWindow(day string, loc *time.Location) (start, end time.Time, err error)
 func CalendarDay(at time.Time, loc *time.Location) string {
 	return at.In(loc).Format(dayLayout)
 }
+
+// WeekStart returns the yyyy-MM-dd Monday of the week containing day, per
+// decisions/weekly-boundary-monday: weeks start Monday and align to the 4 AM
+// logical-day boundary, so day is interpreted as a logical day.
+func WeekStart(day string, loc *time.Location) (string, error) {
+	date, err := ParseDay(day, loc)
+	if err != nil {
+		return "", err
+	}
+	offset := (int(date.Weekday()) - int(time.Monday) + 7) % 7
+	monday := date.AddDate(0, 0, -offset)
+	return monday.Format(dayLayout), nil
+}
+
+// WeekWindow returns the left-closed, right-open week window for weekStart:
+// [weekStart 04:00, weekStart+7d 04:00) in loc. weekStart must be a Monday
+// (the output of WeekStart); other weekdays are rejected.
+func WeekWindow(weekStart string, loc *time.Location) (start, end time.Time, err error) {
+	monday, err := ParseDay(weekStart, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	if monday.Weekday() != time.Monday {
+		return time.Time{}, time.Time{}, fmt.Errorf("parse week start %q: not a Monday", weekStart)
+	}
+	start = time.Date(monday.Year(), monday.Month(), monday.Day(), BoundaryHour, 0, 0, 0, loc)
+	next := monday.AddDate(0, 0, 7)
+	end = time.Date(next.Year(), next.Month(), next.Day(), BoundaryHour, 0, 0, 0, loc)
+	return start, end, nil
+}

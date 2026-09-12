@@ -141,7 +141,7 @@ Daygo/
 │   │   ├── platformtest/            ★ fake 与真实适配层共用的契约套件
 │   │   ├── darwin/                  ★ cgo → ScreenCaptureKit
 │   │   └── windows/                 ★ cgo → DXGI（实验，有限真机 smoke，不在发布范围）
-│   ├── timeutil/                    ★ 凌晨 4 点逻辑日（时钟串派生与周边界 ☐）
+│   ├── timeutil/                    ★ 凌晨 4 点逻辑日（时钟串派生与周边界 ★ 周一 4 点对齐）
 │   ├── analysis/                    ☐ scheduler / batcher / pipeline / idle / reprocess
 │   ├── insight/                     ☐ timeline / daily / weekly
 │   ├── chat/                        ☐ 应用内对话式 agent：回合状态机、工具沙箱与预算（chat 模块，推迟到 v1.1；契约见 05 §5.12）

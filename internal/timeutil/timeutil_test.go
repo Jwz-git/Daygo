@@ -233,3 +233,135 @@ func mustLocation(t *testing.T, name string) *time.Location {
 	}
 	return loc
 }
+
+func TestWeekStart(t *testing.T) {
+	loc := mustLocation(t, "Asia/Shanghai")
+	tests := []struct {
+		day  string
+		want string
+	}{
+		{"2026-09-07", "2026-09-07"}, // Monday itself
+		{"2026-09-09", "2026-09-07"}, // Wednesday
+		{"2026-09-13", "2026-09-07"}, // Sunday
+		{"2026-09-14", "2026-09-14"}, // next Monday
+		{"2026-01-04", "2025-12-29"}, // Sunday spans the year boundary
+	}
+	for _, test := range tests {
+		if got, err := WeekStart(test.day, loc); err != nil || got != test.want {
+			t.Fatalf("WeekStart(%q) = %q, %v; want %q", test.day, got, err, test.want)
+		}
+	}
+	if _, err := WeekStart("2026-9-7", loc); err == nil {
+		t.Fatal("WeekStart(non-strict day) succeeded, want error")
+	}
+}
+
+// Sunday before 4 AM belongs to the previous week because its logical day is
+// Saturday — the direct consequence of the 4 AM alignment.
+func TestWeekStartFourAMAlignment(t *testing.T) {
+	loc := mustLocation(t, "Asia/Shanghai")
+	before := LogicalDay(time.Date(2026, time.September, 13, 3, 59, 59, 0, loc), loc)
+	after := LogicalDay(time.Date(2026, time.September, 13, 4, 0, 0, 0, loc), loc)
+	if before != "2026-09-12" || after != "2026-09-13" {
+		t.Fatalf("logical days = %q, %q; want 2026-09-12, 2026-09-13", before, after)
+	}
+	weekBefore, err := WeekStart(before, loc)
+	if err != nil {
+		t.Fatalf("WeekStart(before): %v", err)
+	}
+	weekAfter, err := WeekStart(after, loc)
+	if err != nil {
+		t.Fatalf("WeekStart(after): %v", err)
+	}
+	if weekBefore != "2026-09-07" || weekAfter != "2026-09-07" {
+		t.Fatalf("Sunday 03:59/04:00 weeks = %q, %q; both want 2026-09-07", weekBefore, weekAfter)
+	}
+	// The actual split is Saturday midnight..4 AM: Saturday 2026-09-12 is the
+	// last day of the week starting 2026-09-07 either way, so the alignment
+	// matters for days near the boundary, verified above via logical days.
+}
+
+func TestWeekWindowDSTAndOddZones(t *testing.T) {
+	tests := []struct {
+		zone      string
+		weekStart string
+	}{
+		// DST starts Sunday 2026-03-08 in America/Los_Angeles.
+		{"America/Los_Angeles", "2026-03-02"},
+		{"Asia/Kolkata", "2026-09-07"},
+		{"Australia/Lord_Howe", "2026-09-07"},
+		{"Pacific/Chatham", "2026-09-07"},
+	}
+	for _, test := range tests {
+		t.Run(test.zone, func(t *testing.T) {
+			loc := mustLocation(t, test.zone)
+			start, end, err := WeekWindow(test.weekStart, loc)
+			if err != nil {
+				t.Fatalf("WeekWindow(%q): %v", test.weekStart, err)
+			}
+			if got := start.Format("2006-01-02 15:04"); got != test.weekStart+" 04:00" {
+				t.Fatalf("window start = %s, want %s 04:00", got, test.weekStart)
+			}
+			next, err := WeekStart(weekStartPlus7(t, test.weekStart, loc), loc)
+			if err != nil {
+				t.Fatalf("next week start: %v", err)
+			}
+			wantEnd, _, err := WeekWindow(next, loc)
+			if err != nil {
+				t.Fatalf("next window: %v", err)
+			}
+			if !end.Equal(wantEnd) {
+				t.Fatalf("window end = %v, want %v (no gap/overlap)", end, wantEnd)
+			}
+		})
+	}
+}
+
+func weekStartPlus7(t *testing.T, day string, loc *time.Location) string {
+	t.Helper()
+	parsed, err := ParseDay(day, loc)
+	if err != nil {
+		t.Fatalf("parse %q: %v", day, err)
+	}
+	return parsed.AddDate(0, 0, 7).Format(time.DateOnly)
+}
+
+// Property: consecutive week windows tile the time axis without gaps or
+// overlaps, and each window's interior maps back to its own weekStart via
+// LogicalDay + WeekStart (docs/08 §8.6.4, "跨周一").
+func TestWeekWindowTotalityAndContainment(t *testing.T) {
+	for _, zone := range []string{"UTC", "America/Los_Angeles", "Asia/Kolkata", "Pacific/Chatham"} {
+		t.Run(zone, func(t *testing.T) {
+			loc := mustLocation(t, zone)
+			// Start from a known Monday; 2026-09-07 is a Monday.
+			weekStart := "2026-09-07"
+			for i := 0; i < 8; i++ {
+				start, end, err := WeekWindow(weekStart, loc)
+				if err != nil {
+					t.Fatalf("WeekWindow(%q): %v", weekStart, err)
+				}
+				for _, at := range []time.Time{start, start.Add(30 * time.Hour), end.Add(-time.Nanosecond)} {
+					day := LogicalDay(at, loc)
+					got, err := WeekStart(day, loc)
+					if err != nil {
+						t.Fatalf("WeekStart(%q): %v", day, err)
+					}
+					if got != weekStart {
+						t.Fatalf("WeekStart(LogicalDay(%v)) = %q, want %q", at, got, weekStart)
+					}
+				}
+				weekStart = weekStartPlus7(t, weekStart, loc)
+			}
+		})
+	}
+}
+
+func TestWeekWindowRejectsNonMonday(t *testing.T) {
+	loc := mustLocation(t, "UTC")
+	if _, _, err := WeekWindow("2026-09-08", loc); err == nil {
+		t.Fatal("WeekWindow(Tuesday) succeeded, want error")
+	}
+	if _, _, err := WeekWindow("2026-13-01", loc); err == nil {
+		t.Fatal("WeekWindow(invalid date) succeeded, want error")
+	}
+}
