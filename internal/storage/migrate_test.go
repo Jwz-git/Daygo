@@ -297,6 +297,60 @@ func TestMigrateV1FixturePreservesDataAndCreatesCardsTables(t *testing.T) {
 	}
 }
 
+// DB-2 for v4: upgrade a database written by a v3-only build and assert the
+// new providers/chat tables exist and the pre-existing data survives.
+func TestMigrateV3FixturePreservesDataAndCreatesV4Tables(t *testing.T) {
+	fixture := filepath.Join("testdata", "v3-recording.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	for _, table := range []string{"providers", "chat_conversations", "chat_messages"} {
+		var name string
+		err := store.db.QueryRowContext(context.Background(),
+			"SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
+		if err != nil {
+			t.Fatalf("table %s missing after migration: %v", table, err)
+		}
+	}
+	var index string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT name FROM sqlite_master WHERE type='index' AND name='idx_chat_messages_conversation'").Scan(&index); err != nil {
+		t.Fatalf("index idx_chat_messages_conversation missing after migration: %v", err)
+	}
+
+	// Pre-existing recording data must survive untouched.
+	var state string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT state FROM pending_captures WHERE id = 7").Scan(&state); err != nil {
+		t.Fatalf("read pending capture after upgrade: %v", err)
+	}
+	if state != "pending" {
+		t.Fatalf("pending capture state = %q; the migration altered existing data", state)
+	}
+
+	// The old-shape routing setting stays byte-identical: value-level
+	// normalization belongs to internal/settings on read, not to the migration.
+	var routing string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT value FROM app_settings WHERE key = 'providers.routing'").Scan(&routing); err != nil {
+		t.Fatalf("read providers.routing after upgrade: %v", err)
+	}
+	if routing != `{"primary":"fixture-primary","secondary":"fixture-secondary"}` {
+		t.Fatalf("providers.routing = %q; the migration rewrote the stored value", routing)
+	}
+}
+
 func copyFile(t *testing.T, src, dst string) {
 	t.Helper()
 	data, err := os.ReadFile(src)

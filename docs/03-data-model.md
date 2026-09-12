@@ -1,11 +1,12 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 2`）有四张表**：`app_settings`（v1，
-> `internal/storage/migrate.go`）与 cards 能力的 `analysis_batches`、`timeline_cards`、
-> `categories`（v2，含 `System` / `Idle` 内置种子）。本文其余表都是目标结构，由对应功能模块
-> 随需求沿同一条迁移链逐版本追加（规划：v3 = 截图 / 批次关联 / observations / llm_calls，
-> v4 = providers，v5+ = daily）。实现与本文冲突时以代码为准，并在同一 commit 修正本文。
+> **当前数据库（`PRAGMA user_version = 4`）有九张表**：`app_settings`（v1）、
+> cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
+> 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
+> `chat_conversations`、`chat_messages`（v4）。本文其余表都是目标结构，由对应功能模块
+> 随需求沿同一条迁移链逐版本追加（规划：v5+ = daily、llm_calls 等）。
+> 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
 功能模块按需求增量落盘表与 repository，全部位于 internal/storage。
 [data](modules/data.md) 负责唯一连接、迁移机制 / 编号、锁与可观测封装；功能负责业务表和查询，
@@ -61,8 +62,10 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
 ## 3.3 表结构
 
 `PRAGMA user_version` 从 `1` 起，配套版本化迁移链（`internal/storage/migrate.go`）。
-连接层固定 `journal_mode=WAL`、`synchronous=NORMAL`、`busy_timeout=5000`，并在打开后
-**回读校验**这三项确实生效（DB-6）——只检查“没报错”发现不了被静默忽略的 PRAGMA。
+连接层固定 `journal_mode=WAL`、`synchronous=NORMAL`、`busy_timeout=5000`、`foreign_keys=1`，
+并在打开后**回读校验**这四项确实生效（DB-6）——只检查“没报错”发现不了被静默忽略的 PRAGMA。
+`foreign_keys` 自 v4 起必须开启：`chat_messages` 的外键与级联删除依赖它，SQLite 默认
+按连接关闭。
 
 迁移链的三条纪律，违反其中任何一条都会让用户库和代码分叉：
 
@@ -259,22 +262,21 @@ CREATE TABLE timeline_review_ratings (
 ```
 
 ```sql
--- Chat 会话与消息。随 chat 功能落盘（推迟到 v1.1，契约见 05 §5.12）；会话模型待定，
--- 若选择单一滚动会话，chat_conversations 可省。
+-- Chat 会话与消息（v4 已落盘）。多会话模型已决定（decisions/chat-session-model.md）；
+-- tool_name / tool_arguments 随 agent 工具循环切片追加，本轮纯对话只有 user / assistant。
 CREATE TABLE chat_conversations (
-  id         TEXT PRIMARY KEY,   -- UUID
-  title      TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  id          TEXT PRIMARY KEY,   -- UUID
+  title       TEXT,
+  provider_id TEXT,               -- NULL = 跟随 providers.routing 链
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
 );
 
 CREATE TABLE chat_messages (
   id              INTEGER PRIMARY KEY,
   conversation_id TEXT NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
-  role            TEXT NOT NULL,  -- user | assistant | tool_call | tool_result
+  role            TEXT NOT NULL,  -- user | assistant（tool_call / tool_result 随 agent 切片）
   content         TEXT NOT NULL,
-  tool_name       TEXT,           -- role = tool_call 时
-  tool_arguments  TEXT,           -- JSON，已过 schema 校验
   status          TEXT,           -- assistant 消息：ok | failed | canceled
   created_at      INTEGER NOT NULL
 );
@@ -291,14 +293,14 @@ CREATE TABLE app_settings (
   updated_at INTEGER NOT NULL
 );
 
--- 用户自定义 provider。密钥不在此表。
+-- 用户自定义 provider（v4 已落盘）。密钥不在此表。无 sort_order：展示顺序按
+-- display_name，路由顺序由 providers.routing 链表达。
 CREATE TABLE providers (
   id           TEXT PRIMARY KEY,   -- 生成的不透明标识
   display_name TEXT NOT NULL,
   protocol     TEXT NOT NULL,      -- openai | openai_responses | anthropic
   endpoint     TEXT NOT NULL,      -- 绝对 http(s) 基地址，不含凭据
   model        TEXT NOT NULL,
-  sort_order   INTEGER NOT NULL,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL
 );

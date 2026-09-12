@@ -151,6 +151,48 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 4,
+		name:    "providers and chat conversations/messages",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// provider_id and role/status follow the shape docs/03 §3.3.4/§3.3.5
+			// specifies; the tool_call/tool_result columns arrive with the chat
+			// agent slice, not now. provider_id is nullable: NULL means the
+			// conversation follows the routing chain (decisions/chat-session-model).
+			for _, stmt := range []string{
+				`CREATE TABLE providers (
+					id           TEXT PRIMARY KEY,
+					display_name TEXT    NOT NULL,
+					protocol     TEXT    NOT NULL,
+					endpoint     TEXT    NOT NULL,
+					model        TEXT    NOT NULL,
+					created_at   INTEGER NOT NULL,
+					updated_at   INTEGER NOT NULL
+				)`,
+				`CREATE TABLE chat_conversations (
+					id          TEXT    PRIMARY KEY,
+					title       TEXT,
+					provider_id TEXT,
+					created_at  INTEGER NOT NULL,
+					updated_at  INTEGER NOT NULL
+				)`,
+				`CREATE TABLE chat_messages (
+					id              INTEGER PRIMARY KEY,
+					conversation_id TEXT    NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+					role            TEXT    NOT NULL,
+					content         TEXT    NOT NULL,
+					status          TEXT,
+					created_at      INTEGER NOT NULL
+				)`,
+				`CREATE INDEX idx_chat_messages_conversation ON chat_messages (conversation_id, id)`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v4 providers and chat tables", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // seedBuiltInCategories inserts the two built-in categories. IDs are fixed

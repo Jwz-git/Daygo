@@ -41,8 +41,26 @@ func shell(start, end, category, title string) domain.CardShell {
 	}
 }
 
+// seedBatch inserts an analysis_batches row. The analysis pipeline that will
+// create batches does not exist yet, so card tests reference batch ids that
+// must exist for the timeline_cards foreign key — enabled for every connection
+// since v4 (pragma.go).
+func seedBatch(t *testing.T, store *Store, id int64) {
+	t.Helper()
+	err := store.Write(context.Background(), "seed batch", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO analysis_batches (id, start_ts, end_ts, status, created_at, updated_at)
+			 VALUES (?, 0, 0, 'succeeded', 0, 0)`, id)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("seed batch %d: %v", id, err)
+	}
+}
+
 func TestReplaceCardsInRangeInsertsAndDerivesTimestamps(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
 	ctx := context.Background()
 	loc := store.location()
 
@@ -81,6 +99,7 @@ func TestReplaceCardsInRangeInsertsAndDerivesTimestamps(t *testing.T) {
 // three day candidates, and end < start crosses midnight.
 func TestReplaceCardsInRangeNearMidnightAndCrossesMidnight(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
 	ctx := context.Background()
 	loc := store.location()
 
@@ -121,6 +140,7 @@ func TestReplaceCardsInRangeNearMidnightAndCrossesMidnight(t *testing.T) {
 // disappear, and the resolvable siblings still commit.
 func TestReplaceCardsInRangeSkipsUnparseableButCommitsRest(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
 	ctx := context.Background()
 	loc := store.location()
 
@@ -156,6 +176,8 @@ func TestReplaceCardsInRangeSkipsUnparseableButCommitsRest(t *testing.T) {
 // keeps System cards from other batches (docs/03 §3.5 overlap predicate).
 func TestReplaceCardsInRangeKeepsOtherBatchesSystemCards(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
+	seedBatch(t, store, 2)
 	ctx := context.Background()
 	loc := store.location()
 
@@ -209,6 +231,7 @@ func TestReplaceCardsInRangeKeepsOtherBatchesSystemCards(t *testing.T) {
 
 func TestReplaceCardsInRangeCollectsDeletedVideoPaths(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
 	ctx := context.Background()
 	loc := store.location()
 
@@ -237,6 +260,7 @@ func TestReplaceCardsInRangeCollectsDeletedVideoPaths(t *testing.T) {
 
 func TestCardUpdateCategoryTitleAndSoftDelete(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
 	ctx := context.Background()
 	loc := store.location()
 
@@ -277,6 +301,8 @@ func TestCardUpdateCategoryTitleAndSoftDelete(t *testing.T) {
 
 func TestCardsInRangeAndTotalMinutesExcludesSystem(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
+	seedBatch(t, store, 2)
 	ctx := context.Background()
 	loc := store.location()
 
@@ -314,6 +340,7 @@ func TestCardsInRangeAndTotalMinutesExcludesSystem(t *testing.T) {
 // still derive both candidates from local wall time, not UTC arithmetic.
 func TestReplaceCardsInRangeAcrossDSTFallBack(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "America/New_York")
+	seedBatch(t, store, 1)
 	ctx := context.Background()
 	loc := store.location()
 
@@ -379,6 +406,9 @@ func mustResolveClock(t *testing.T, clock string, loc *time.Location) time.Time 
 // whoever wins, exactly one rewrite's cards are visible.
 func TestReplaceCardsInRangeConcurrentOverlapStaysConsistent(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	for id := int64(1); id <= 4; id++ {
+		seedBatch(t, store, id)
+	}
 	ctx := context.Background()
 	loc := store.location()
 	from, to := window(loc, 10, 0, 11, 0)

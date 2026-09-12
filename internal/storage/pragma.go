@@ -14,6 +14,11 @@ const (
 	pragmaJournalMode = "WAL"
 	pragmaSynchronous = "NORMAL"
 	pragmaBusyTimeout = 5000
+	// pragmaForeignKeys is on for every connection. SQLite defaults it OFF per
+	// connection, so without this the v4 chat_messages foreign key (and its
+	// ON DELETE CASCADE) would be silently inert: appends to a deleted
+	// conversation would succeed and cascades would never run.
+	pragmaForeignKeys = true
 )
 
 // pragmaDSN builds the connection query string for the requested mode.
@@ -29,8 +34,8 @@ const (
 // caller later resets query_only.
 func pragmaDSN(path string, mode Mode) string {
 	params := fmt.Sprintf(
-		"?_pragma=journal_mode(%s)&_pragma=synchronous(%s)&_pragma=busy_timeout(%d)",
-		pragmaJournalMode, pragmaSynchronous, pragmaBusyTimeout,
+		"?_pragma=journal_mode(%s)&_pragma=synchronous(%s)&_pragma=busy_timeout(%d)&_pragma=foreign_keys(%d)",
+		pragmaJournalMode, pragmaSynchronous, pragmaBusyTimeout, boolInt(pragmaForeignKeys),
 	)
 	if mode == ModeReadOnly {
 		return "file:" + path + params + "&mode=ro&_pragma=query_only(1)"
@@ -79,6 +84,14 @@ func verifyPragmas(ctx context.Context, db *sql.DB, mode Mode) error {
 		if queryOnly != 1 {
 			return fmt.Errorf("%w: query_only is %d, want 1", ErrPragmaMismatch, queryOnly)
 		}
+	}
+
+	var foreignKeys int
+	if err := db.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+		return wrap("read foreign_keys", err)
+	}
+	if foreignKeys != boolInt(pragmaForeignKeys) {
+		return fmt.Errorf("%w: foreign_keys is %d, want %d", ErrPragmaMismatch, foreignKeys, boolInt(pragmaForeignKeys))
 	}
 	return nil
 }
