@@ -87,7 +87,9 @@ flowchart TD
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
-| timeline | `GetDayContext` | 真实 4 点边界计算 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`UpdateCardCategory`、`UpdateCardTitle`、`DeleteCard` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；视频 URL 与失败重试 / 整日重处理仍属后续切片 |
+| daily | `GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals`；用户保存不触碰 AI summary 列；`GetDailyRecap` 未实现（待定 #19） |
+| weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
 | recording（联调） | `CaptureTest`、`PickCaptureTestApplication`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；macOS picker 只返回 ScreenCaptureKit 使用的 `{bundle id, name}`，路径不跨绑定；均不接 recorder / storage / config |
@@ -366,11 +368,11 @@ export function toApiError(e: unknown): ApiError {
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
 | `GetDailyRecap(standupDay string) (DailyRecapDTO, error)` | daily | time / 摘要持久化 / 生成结果 | 读 | — | `not_found` `invalid_argument` |
-| `GetJournalDay(day string) (JournalDayDTO, error)` | daily | time / 日记 repository | 读 | — | `invalid_argument` |
-| `SaveJournalDay(entry JournalDayDTO) error` | daily | 日记 repository / 写入锁 | 写·幂等 | `journal:updated` | `invalid_argument` |
-| `GetDayGoal(day string) (DayGoalDTO, error)` | daily | time / 目标 repository | 读 | — | `invalid_argument` |
-| `SaveDayGoal(goal DayGoalDTO) error` | daily | 目标 / 分类 / 写入锁 | 写·幂等 | `goal:updated` | `invalid_argument` |
-| `GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, error)` | weekly | time 周边界 / cards | 读 | — | `invalid_argument` |
+| `GetJournalDay(day string) (JournalDayDTO, error)` **已实现** | daily | time / 日记 repository | 读 | — | `invalid_argument` |
+| `SaveJournalDay(entry JournalDayDTO) error` **已实现** | daily | 日记 repository / 写入锁 | 写·幂等 | `journal:updated` | `invalid_argument` |
+| `GetDayGoal(day string) (DayGoalDTO, error)` **已实现** | daily | time / 目标 repository | 读 | — | `invalid_argument` |
+| `SaveDayGoal(goal DayGoalDTO) error` **已实现** | daily | 目标 / 分类 / 写入锁 | 写·幂等 | `goal:updated` | `invalid_argument` |
+| `GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, error)` **已实现** | weekly | time 周边界 / cards | 读 | — | `invalid_argument` |
 
 `GetDailyRecap` 的参数是**日历日**而不是逻辑日（见 §5.3.2）。这是唯一的例外，字段名
 `standupDay` 就是提醒。
@@ -401,6 +403,7 @@ package app
 type DayContextDTO struct {
     Day             string `json:"day"`        // 逻辑日，凌晨 4 点边界
     StandupDay      string `json:"standupDay"` // 日历日，午夜边界
+    WeekStart       string `json:"weekStart"`  // 周一 yyyy-MM-dd（周报导航起点，前端不自算）
     DayStartTs      int64  `json:"dayStartTs"` // 逻辑日窗口 [start, end)
     DayEndTs        int64  `json:"dayEndTs"`
     NowTs           int64  `json:"nowTs"`

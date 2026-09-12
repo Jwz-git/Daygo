@@ -315,9 +315,14 @@ func (b *Backend) GetDayContext(day string) (DayContextDTO, error) {
 	if err != nil {
 		return DayContextDTO{}, apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
 	}
+	weekStart, err := daytime.WeekStart(day, loc)
+	if err != nil {
+		return DayContextDTO{}, apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
+	}
 	return DayContextDTO{
 		Day:             day,
 		StandupDay:      standupDay,
+		WeekStart:       weekStart,
 		DayStartTs:      start.Unix(),
 		DayEndTs:        end.Unix(),
 		NowTs:           now.Unix(),

@@ -24,6 +24,7 @@ func (s RecordingState) Valid() bool {
 type DayContextDTO struct {
 	Day             string `json:"day"`
 	StandupDay      string `json:"standupDay"`
+	WeekStart       string `json:"weekStart"` // Monday of the week containing the logical day
 	DayStartTs      int64  `json:"dayStartTs"`
 	DayEndTs        int64  `json:"dayEndTs"`
 	NowTs           int64  `json:"nowTs"`

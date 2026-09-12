@@ -45,13 +45,14 @@ func TestM1DTOJSONShapes(t *testing.T) {
 			value: DayContextDTO{
 				Day:             "2026-09-10",
 				StandupDay:      "2026-09-11",
+				WeekStart:       "2026-09-07",
 				DayStartTs:      1789038000,
 				DayEndTs:        1789124400,
 				NowTs:           1789052400,
 				TimeZone:        "Asia/Kathmandu",
 				DayBoundaryHour: 4,
 			},
-			want: `{"day":"2026-09-10","standupDay":"2026-09-11","dayStartTs":1789038000,"dayEndTs":1789124400,"nowTs":1789052400,"timeZone":"Asia/Kathmandu","dayBoundaryHour":4}`,
+			want: `{"day":"2026-09-10","standupDay":"2026-09-11","weekStart":"2026-09-07","dayStartTs":1789038000,"dayEndTs":1789124400,"nowTs":1789052400,"timeZone":"Asia/Kathmandu","dayBoundaryHour":4}`,
 		},
 		{
 			name: "capabilities",
