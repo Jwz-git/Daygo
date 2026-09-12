@@ -91,7 +91,7 @@ flowchart TD
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
 | recording（联调） | `CaptureTest`、`PickCaptureTestApplication`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；macOS picker 只返回 ScreenCaptureKit 使用的 `{bundle id, name}`，路径不跨绑定；均不接 recorder / storage / config |
-| providers | `TestProviderConnection` | 真实 HTTP 探针；provider 的增删改查与密钥存储尚未实现 |
+| providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针 |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
 这不代表录制开关、Provider 持久化或 Secrets 已实现。fake 的覆盖以 §5.7.4 为准。
@@ -331,15 +331,15 @@ export function toApiError(e: unknown): ApiError {
 
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
-| `ListProviders() ([]ProviderDTO, error)` | providers | Provider repository / settings-access | 读 | — | — |
-| `AddProvider(p ProviderInputDTO) (string, error)` | providers | Provider repository / settings-access | 写·非幂等 | `settings:changed` | `invalid_argument` |
-| `UpdateProvider(id string, p ProviderInputDTO) error` | providers | Provider repository / settings-access | 写·幂等 | `settings:changed` | `not_found` `invalid_argument` |
-| `DeleteProvider(id string) error` | providers | Provider repository / settings-access | 写·幂等 | `settings:changed` | `not_found` |
-| `GetProviderRouting() (ProviderRoutingDTO, error)` | providers | Provider repository / settings-access | 读 | — | — |
-| `SetProviderRouting(r ProviderRoutingDTO) error` | providers | Provider repository / settings-access | 写·幂等 | `settings:changed` | `invalid_argument` |
-| `SetProviderSecret(id string, secret string) error` | providers | Secrets / Provider repository | 写·幂等 | `settings:changed` | `not_found` `native_unavailable` |
-| `DeleteProviderSecret(id string) error` | providers | Secrets / Provider repository | 写·幂等 | `settings:changed` | `not_found` |
-| `TestProvider(id string) (ProviderTestDTO, error)` | providers | provider-client / Secrets / 用户配置 | 读·有网络副作用 | — | `provider_not_configured` `provider_failed` |
+| `ListProviders() ([]ProviderDTO, error)` | providers | **已实现**：Provider repository / settings-access | 读 | — | — |
+| `AddProvider(p ProviderInputDTO) (string, error)` | providers | **已实现**：Provider repository / settings-access | 写·非幂等 | `settings:changed` | `invalid_argument` `native_unavailable` |
+| `UpdateProvider(id string, p ProviderInputDTO) error` | providers | **已实现**：Provider repository / settings-access | 写·幂等 | `settings:changed` | `not_found` `invalid_argument` `native_unavailable` |
+| `DeleteProvider(id string) error` | providers | **已实现**：Provider repository / settings-access；连带剪除路由链、钥匙串条目与会话级 provider 绑定 | 写·幂等 | `settings:changed` | `not_found` |
+| `GetProviderRouting() (ProviderRoutingDTO, error)` | providers | **已实现**：settings-access | 读 | — | — |
+| `SetProviderRouting(r ProviderRoutingDTO) error` | providers | **已实现**：Provider repository（校验 id 存在且不重复） | 写·幂等 | `settings:changed` | `invalid_argument` |
+| `SetProviderSecret(id string, secret string) error` | providers | **已实现**：Secrets / Provider repository | 写·幂等 | — | `not_found` `invalid_argument` `native_unavailable` |
+| `DeleteProviderSecret(id string) error` | providers | **已实现**：Secrets（删不存在的条目不是错误） | 写·幂等 | — | `invalid_argument` `native_unavailable` |
+| `TestProvider(id string) (ProviderTestResultDTO, error)` | providers | **已实现**：provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`provider_failed`（结果行） |
 | `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | **已实现**：provider-client | 读·有网络副作用 | — | `invalid_argument` |
 
 两个测试方法**不是重复**，区别必须保留：
@@ -347,7 +347,7 @@ export function toApiError(e: unknown): ApiError {
 - `TestProviderConnection` 测的是**表单里还没保存的草稿**，密钥随调用传入、只进 Go 内存，
   不落盘、不进日志、不回显。它已经实现，是用户在密钥输入框旁点击“测试”时走的路径。
 - `TestProvider` 测的是**已保存的 provider**，密钥由 Go 从钥匙串取，调用方只给 id。
-  它依赖 Secrets 与 Provider repository，尚未实现。
+  无已存密钥时返回 `invalid_argument`，不发探针。
 
 两者都只发一次探针（30 秒上限、不重试、不回退），**失败是返回值而不是 error**：
 `ok=false` 加分类后的错误码，让 UI 把结果显示在输入框旁而不是弹窗。探针的通过标准见
@@ -625,7 +625,8 @@ type CategoryDTO struct {
 // ---------- Provider ----------
 
 // Daygo 只有用户自定义 provider：id 是生成的不透明标识，protocol 是独立字段，
-// 不由 id 隐含。名称、地址、模型全部由用户填写。
+// 不由 id 隐含。名称、地址、模型全部由用户填写。无 sortOrder：展示顺序按
+// displayName，路由顺序由 ProviderRoutingDTO 表达。
 type ProviderDTO struct {
     ID          string `json:"id"`
     DisplayName string `json:"displayName"`
@@ -633,7 +634,6 @@ type ProviderDTO struct {
     Endpoint    string `json:"endpoint"` // 绝对 http(s) 基地址，不含凭据
     Model       string `json:"model"`
     HasSecret   bool   `json:"hasSecret"` // 只暴露"是否已配置"，永不返回密钥内容
-    SortOrder   int    `json:"sortOrder"`
 }
 
 // ProviderInputDTO 是写入形状。Secret 为空串表示"保持不变"，不是"清空"。
@@ -645,12 +645,14 @@ type ProviderInputDTO struct {
     Secret      string `json:"secret"`
 }
 
+// 有序回退链（decisions/providers-fallback-chain）：Chain[0] 是主 provider，
+// 其余按序为备用；上限 8 项，重复与空项在写入时归一化掉。
 type ProviderRoutingDTO struct {
-    Primary   string  `json:"primary"`
-    Secondary *string `json:"secondary"` // 与 primary 相同时必须写成 null
+    Chain []string `json:"chain"`
 }
 
-// TestProvider 的返回（针对已保存的 provider；尚未实现）。
+// TestProvider 的返回（针对已保存的 provider）。与 TestProviderConnection 的
+// ProviderTestResultDTO 同形（见下）；两者共用该类型。
 type ProviderTestDTO struct {
     OK        bool    `json:"ok"`
     LatencyMs int     `json:"latencyMs"`

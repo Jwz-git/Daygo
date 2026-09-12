@@ -10,23 +10,32 @@ import (
 // mirroring the catalog in docs/05 §5.2.1. Adding a name here is a wire change
 // and belongs in the same commit as the documentation update (docs/05 §5.10.2).
 var contractBindings = []string{
+	"AddProvider",
 	"CaptureTest",
+	"DeleteProvider",
+	"DeleteProviderSecret",
 	"GetCapabilities",
 	"GetDayContext",
 	"GetDiagnostics",
 	"GetPermissionState",
+	"GetProviderRouting",
 	"GetRecordingDirectory",
 	"GetRecordingState",
 	"GetSettings",
+	"ListProviders",
 	"OpenCaptureTestFolder",
 	"PickCaptureTestApplication",
 	"OpenSystemSettings",
 	"PauseRecording",
 	"RequestScreenRecordingPermission",
 	"ResumeRecording",
+	"SetProviderRouting",
+	"SetProviderSecret",
 	"SetRecording",
 	"PollSystemEvents",
+	"TestProvider",
 	"TestProviderConnection",
+	"UpdateProvider",
 	"UpdateSettings",
 }
 
