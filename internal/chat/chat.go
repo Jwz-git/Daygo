@@ -125,6 +125,10 @@ func New(store Store, providers Providers, settings Settings) *Service {
 // It is a value, not an apperr: the binding layer maps it to invalid_argument.
 var ErrTurnInFlight = fmt.Errorf("chat: a turn is already running in this conversation")
 
+// errNoProviderSelected reports a thread with no pinned provider. Selecting
+// one is explicit; there is no implicit chain fallback in chat.
+var errNoProviderSelected = fmt.Errorf("chat: conversation has no provider selected")
+
 // Send appends the user message and runs one assistant turn asynchronously.
 // It returns once the user message is persisted; the assistant message lands
 // later and is announced through the emitter the caller installed
@@ -212,18 +216,18 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 	s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusOK, Content: result.Text})
 }
 
-// resolveEntries picks the provider list for a conversation: the pinned
-// provider as a single entry (no fallback — the user asked for that one), or
-// the routing chain.
+// resolveEntries picks the provider for a conversation: the pinned provider
+// as a single entry, no fallback. A thread without a pin is a hard error —
+// chat never implicitly follows the routing chain.
 func (s *Service) resolveEntries(ctx context.Context, conversation Conversation) ([]ProviderEntry, error) {
-	if conversation.ProviderID != nil && *conversation.ProviderID != "" {
-		entry, err := s.providers.ByID(ctx, *conversation.ProviderID)
-		if err != nil {
-			return nil, err
-		}
-		return []ProviderEntry{entry}, nil
+	if conversation.ProviderID == nil || *conversation.ProviderID == "" {
+		return nil, errNoProviderSelected
 	}
-	return s.providers.Chain(ctx)
+	entry, err := s.providers.ByID(ctx, *conversation.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+	return []ProviderEntry{entry}, nil
 }
 
 // rebuildChain swaps the chain's entries, preserving failure counters by id
@@ -321,13 +325,20 @@ func (s *Service) Conversations(ctx context.Context) ([]Conversation, error) {
 	return s.store.ListConversations(ctx)
 }
 
-// NewConversation creates a thread with a generated id.
+// NewConversation creates a thread with a generated id. The thread is pinned
+// to the routing chain's primary provider when one exists; provider selection
+// is always explicit (decisions/chat-session-model).
 func (s *Service) NewConversation(ctx context.Context) (Conversation, error) {
 	id, err := newConversationID()
 	if err != nil {
 		return Conversation{}, err
 	}
-	return s.store.CreateConversation(ctx, Conversation{ID: id})
+	c := Conversation{ID: id}
+	if chain, err := s.providers.Chain(ctx); err == nil && len(chain) > 0 {
+		primary := chain[0].ID
+		c.ProviderID = &primary
+	}
+	return s.store.CreateConversation(ctx, c)
 }
 
 // DeleteConversation removes a thread; the store cascades messages.
@@ -336,7 +347,7 @@ func (s *Service) DeleteConversation(ctx context.Context, id string) error {
 }
 
 // SetConversationProvider pins a thread to one provider. providerID "" clears
-// the pin, returning the thread to the routing chain.
+// the pin; the thread then has no provider until one is picked again.
 func (s *Service) SetConversationProvider(ctx context.Context, id string, providerID string) error {
 	var pinned *string
 	if providerID != "" {
@@ -401,6 +412,9 @@ func failureText(err error) string {
 	}
 	if err == ai.ErrNoProvider {
 		return "没有已配置的供应商；请先在设置中添加。"
+	}
+	if err == errNoProviderSelected {
+		return "该会话尚未选择供应商，请先在右上角选择。"
 	}
 	switch ai.ErrorKindOf(err) {
 	case ai.ErrorCanceled:

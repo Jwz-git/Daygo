@@ -9,6 +9,7 @@ import {
 } from '../../wailsjs/go/app/Backend'
 
 import type { ChatConversationDTO, ChatMessageDTO } from '@/api/dto'
+import { listProviders } from '@/api/providers'
 
 /** Thrown when the page runs in a plain browser, outside the Wails WebView. */
 export const WAILS_UNAVAILABLE = 'wails_unavailable'
@@ -50,10 +51,13 @@ export async function createChatConversation(): Promise<ChatConversationDTO> {
     return (await CreateChatConversation()) as unknown as ChatConversationDTO
   }
   if (import.meta.env.DEV) {
+    // Mirror the backend: a new thread defaults to the first configured
+    // provider (the routing chain's primary).
+    const providers = await listProviders()
     const dto: ChatConversationDTO = {
       id: `dev-conv-${devNextConversationId++}`,
       title: '',
-      providerId: '',
+      providerId: providers[0]?.id ?? '',
       updatedAt: Math.floor(Date.now() / 1000),
     }
     devState().unshift({ dto, messages: [], nextMessageId: 1 })

@@ -157,8 +157,8 @@ var migrations = []migration{
 		apply: func(ctx context.Context, tx *sql.Tx) error {
 			// provider_id and role/status follow the shape docs/03 §3.3.4/§3.3.5
 			// specifies; the tool_call/tool_result columns arrive with the chat
-			// agent slice, not now. provider_id is nullable: NULL means the
-			// conversation follows the routing chain (decisions/chat-session-model).
+			// agent slice, not now. provider_id is nullable: NULL means no
+			// provider is selected yet (decisions/chat-session-model).
 			for _, stmt := range []string{
 				`CREATE TABLE providers (
 					id           TEXT PRIMARY KEY,

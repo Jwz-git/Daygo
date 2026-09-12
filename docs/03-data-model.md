@@ -267,7 +267,7 @@ CREATE TABLE timeline_review_ratings (
 CREATE TABLE chat_conversations (
   id          TEXT PRIMARY KEY,   -- UUID
   title       TEXT,
-  provider_id TEXT,               -- NULL = 跟随 providers.routing 链
+  provider_id TEXT,               -- 该会话显式选择的供应商；NULL = 尚未选择
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
 );

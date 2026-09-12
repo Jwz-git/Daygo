@@ -22,8 +22,9 @@ const (
 // caller can request.
 const ChatMessageLimit = 200
 
-// Conversation is one row of chat_conversations. ProviderID nil means the
-// conversation follows the routing chain (decisions/chat-session-model).
+// Conversation is one row of chat_conversations. ProviderID nil means no
+// provider is selected yet; chat never implicitly falls back to the chain
+// (decisions/chat-session-model).
 type Conversation struct {
 	ID         string
 	Title      string

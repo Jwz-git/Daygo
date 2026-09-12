@@ -43,7 +43,22 @@ interface DevState {
 let dev: DevState | null = null
 
 function devState(): DevState {
-  dev ??= { providers: [], routing: { chain: [] }, nextId: 1 }
+  // One seeded provider so the chat flow is exercisable in the dev browser:
+  // a conversation without any configured provider cannot send.
+  dev ??= {
+    providers: [
+      {
+        id: 'dev-1',
+        displayName: '开发供应商',
+        protocol: 'openai',
+        endpoint: 'https://example.invalid/v1',
+        model: 'dev-model',
+        hasSecret: false,
+      },
+    ],
+    routing: { chain: ['dev-1'] },
+    nextId: 2,
+  }
   return dev
 }
 

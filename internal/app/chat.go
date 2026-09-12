@@ -21,7 +21,7 @@ const chatTimeout = 10 * time.Second
 type ChatConversationDTO struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
-	ProviderID string `json:"providerId"` // "" = follow the routing chain
+	ProviderID string `json:"providerId"` // "" = no provider selected yet
 	UpdatedAt  int64  `json:"updatedAt"`
 }
 
@@ -122,8 +122,8 @@ func (b *Backend) DeleteChatConversation(id string) error {
 	return nil
 }
 
-// SetChatConversationProvider pins a thread to one provider; "" returns it to
-// the routing chain.
+// SetChatConversationProvider pins a thread to one provider; "" clears the
+// selection.
 func (b *Backend) SetChatConversationProvider(id string, providerID string) error {
 	service, err := b.chatService()
 	if err != nil {

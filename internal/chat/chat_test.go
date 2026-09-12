@@ -344,6 +344,50 @@ func TestServicePinnedProviderMustExist(t *testing.T) {
 	}
 }
 
+// New threads default to the routing chain's primary provider.
+func TestNewConversationDefaultsToPrimaryProvider(t *testing.T) {
+	providers := newFakeProviders(
+		ProviderEntry{ID: "p1", Protocol: "openai", Endpoint: "http://localhost:1", Model: "m", Secret: "k"},
+		ProviderEntry{ID: "p2", Protocol: "openai", Endpoint: "http://localhost:1", Model: "m", Secret: "k"},
+	)
+	service, _ := testService(t, providers, &fakeSettings{})
+
+	conversation, err := service.NewConversation(context.Background())
+	if err != nil {
+		t.Fatalf("NewConversation: %v", err)
+	}
+	if conversation.ProviderID == nil || *conversation.ProviderID != "p1" {
+		t.Fatalf("default provider = %+v, want p1", conversation.ProviderID)
+	}
+}
+
+// A thread with no pinned provider fails the turn instead of falling back to
+// the routing chain.
+func TestServiceSendWithoutProviderFails(t *testing.T) {
+	server := newOpenAIServer(t, func(string) string { return "ok" })
+	providers := newFakeProviders(ProviderEntry{
+		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "k",
+	})
+	service, _ := testService(t, providers, &fakeSettings{})
+
+	conversation, _ := service.NewConversation(context.Background())
+	if err := service.SetConversationProvider(context.Background(), conversation.ID, ""); err != nil {
+		t.Fatalf("clear provider pin: %v", err)
+	}
+	if err := service.Send(context.Background(), conversation.ID, "hi"); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	waitTurn(t, service, conversation.ID)
+
+	messages, _ := service.Messages(context.Background(), conversation.ID, 0, 0)
+	if len(messages) != 2 || messages[1].Status != StatusFailed {
+		t.Fatalf("messages = %+v", messages)
+	}
+	if !strings.Contains(messages[1].Content, "尚未选择供应商") {
+		t.Fatalf("failure text = %q", messages[1].Content)
+	}
+}
+
 // No configured providers → a failed assistant message, no request.
 func TestServiceNoProviderFailsGracefully(t *testing.T) {
 	providers := newFakeProviders()

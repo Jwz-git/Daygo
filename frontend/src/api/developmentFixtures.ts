@@ -118,6 +118,7 @@ export function applyDevelopmentSettingsPatch(
     storage: { ...current.storage },
     appearance: { ...current.appearance },
     llm: { ...current.llm },
+    chat: { ...current.chat },
     system: { ...current.system },
   }
   if (patch.intervalSeconds !== undefined) next.capture.intervalSeconds = patch.intervalSeconds
@@ -135,6 +136,7 @@ export function applyDevelopmentSettingsPatch(
     next.llm.recognitionEnhancementEnabled = patch.recognitionEnhancementEnabled
   }
   if (patch.agentEditsEnabled !== undefined) next.system.agentEditsEnabled = patch.agentEditsEnabled
+  if (patch.chatMemory !== undefined) next.chat.memory = patch.chatMemory
   return next
 }
 

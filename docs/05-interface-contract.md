@@ -1406,7 +1406,7 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 type ChatConversationDTO struct {
     ID         string `json:"id"`
     Title      string `json:"title"`
-    ProviderID string `json:"providerId"` // "" = 跟随路由链
+    ProviderID string `json:"providerId"` // "" = 尚未选择；发送前必须指定
     UpdatedAt  int64  `json:"updatedAt"`
 }
 type ChatMessageDTO struct {
@@ -1425,6 +1425,6 @@ type ChatMessageDTO struct {
 |--------|------|-----------|
 | 会话模型 | **已定：多会话**（标题、列表、切换） | `chat_conversations` + `chat_messages` 已落盘（迁移 v4） |
 | 流式输出 | **已定：保持原子消息** | 回答完整落库后一次 `chat:updated`；等待感由"发送中可取消"缓解 |
-| provider 路由 | **已定：会话级选择**，默认跟随路由链 | `chat_conversations.provider_id`（NULL = 链）；指定时不回退 |
+| provider 路由 | **已定：会话级选择（必选）** | `chat_conversations.provider_id` 存用户显式选择；新会话默认路由链首位；不回退到链 |
 | 消息留存 | 无限期 vs 按天数 / 条数上限（仍待定） | 上限策略与 [07 §7.6](07-privacy-security.md#76-数据留存与删除) 的留存原则一并定 |
 | 审计来源标记 | `agent-writes.log` 中区分 UI / agent.sock / MCP / chat 来源（仍待定） | 与 §5.9.3 的候选共通，一并定 |

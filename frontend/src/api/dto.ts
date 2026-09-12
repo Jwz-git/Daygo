@@ -73,6 +73,7 @@ export interface SettingsDTO {
   storage: StorageSettingsDTO
   appearance: AppearanceSettingsDTO
   llm: LLMSettingsDTO
+  chat: ChatSettingsDTO
   system: SystemSettingsDTO
 }
 
@@ -297,7 +298,7 @@ export interface WeeklyDashboardDTO {
 export interface ChatConversationDTO {
   id: string
   title: string
-  /** "" = follow the routing chain. */
+  /** "" = no provider selected yet; the user must pick one before sending. */
   providerId: string
   updatedAt: number
 }
