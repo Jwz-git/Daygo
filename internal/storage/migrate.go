@@ -59,7 +59,9 @@ type migration struct {
 // here rather than on first read means every database, including one whose
 // only writer crashed mid-migration, either has both rows or neither.
 // v5 lands the daily tables (journal entries and day goals). v6 lands the chat
-// agent slice: the llm_calls audit table and the chat tool columns.
+// agent slice: the llm_calls audit table and the chat tool columns. v7 adds the
+// per-conversation chat model override: the empty string follows the
+// provider's configured model, any other value is used for that thread's turns.
 var migrations = []migration{
 	{
 		version: 1,
@@ -272,6 +274,19 @@ var migrations = []migration{
 				if _, err := tx.ExecContext(ctx, stmt); err != nil {
 					return wrap("create v6 llm_calls and chat tool columns", err)
 				}
+			}
+			return nil
+		},
+	},
+	{
+		version: 7,
+		name:    "chat: per-conversation model override",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// '' (the default) means "use the provider's configured model";
+			// a non-empty value overrides it for that conversation's turns.
+			if _, err := tx.ExecContext(ctx,
+				`ALTER TABLE chat_conversations ADD COLUMN model TEXT NOT NULL DEFAULT ''`); err != nil {
+				return wrap("add chat conversation model column", err)
 			}
 			return nil
 		},

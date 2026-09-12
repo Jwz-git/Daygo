@@ -35,7 +35,7 @@ func newFakeStore(t *testing.T) *fakeStore {
 // (one definition per concept, storage owns persistence, chat owns behavior).
 func (f fakeStore) CreateConversation(ctx context.Context, c Conversation) (Conversation, error) {
 	created, err := f.ChatRepo.CreateConversation(ctx, storage.Conversation{
-		ID: c.ID, Title: c.Title, ProviderID: c.ProviderID,
+		ID: c.ID, Title: c.Title, ProviderID: c.ProviderID, Model: c.Model,
 	})
 	return toConversation(created), err
 }
@@ -45,8 +45,8 @@ func (f fakeStore) GetConversation(ctx context.Context, id string) (Conversation
 	return toConversation(c), err
 }
 
-func (f fakeStore) UpdateConversation(ctx context.Context, id string, title string, providerID *string) error {
-	return f.ChatRepo.UpdateConversation(ctx, id, title, providerID)
+func (f fakeStore) UpdateConversation(ctx context.Context, id string, title string, providerID *string, model string) error {
+	return f.ChatRepo.UpdateConversation(ctx, id, title, providerID, model)
 }
 
 func (f fakeStore) ListConversations(ctx context.Context) ([]Conversation, error) {
@@ -85,7 +85,7 @@ func (f fakeStore) Messages(ctx context.Context, conversationID string, beforeID
 
 func toConversation(c storage.Conversation) Conversation {
 	return Conversation{
-		ID: c.ID, Title: c.Title, ProviderID: c.ProviderID,
+		ID: c.ID, Title: c.Title, ProviderID: c.ProviderID, Model: c.Model,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }

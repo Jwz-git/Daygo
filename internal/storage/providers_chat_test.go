@@ -137,7 +137,7 @@ func TestChatRepoConversationLifecycle(t *testing.T) {
 	provider := "provider-a"
 	// Advance the clock past second granularity so updated_at strictly advances.
 	store.setClock(func() time.Time { return time.Now().Add(2 * time.Second) })
-	if err := repo.UpdateConversation(ctx, "conv-a", "New title", &provider); err != nil {
+	if err := repo.UpdateConversation(ctx, "conv-a", "New title", &provider, ""); err != nil {
 		t.Fatalf("UpdateConversation: %v", err)
 	}
 	got, err := repo.GetConversation(ctx, "conv-a")
@@ -152,7 +152,7 @@ func TestChatRepoConversationLifecycle(t *testing.T) {
 	}
 
 	// Nulling the provider (the deleted-provider prune) must also work.
-	if err := repo.UpdateConversation(ctx, "conv-a", "New title", nil); err != nil {
+	if err := repo.UpdateConversation(ctx, "conv-a", "New title", nil, ""); err != nil {
 		t.Fatalf("UpdateConversation null: %v", err)
 	}
 	got, err = repo.GetConversation(ctx, "conv-a")

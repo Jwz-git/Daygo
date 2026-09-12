@@ -22,6 +22,7 @@ type ChatConversationDTO struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
 	ProviderID string `json:"providerId"` // "" = no provider selected yet
+	Model      string `json:"model"`      // "" = follow the provider's configured model
 	UpdatedAt  int64  `json:"updatedAt"`
 }
 
@@ -133,7 +134,7 @@ func (b *Backend) DeleteChatConversation(id string) error {
 }
 
 // SetChatConversationProvider pins a thread to one provider; "" clears the
-// selection.
+// selection. Changing the pin resets the thread's model override.
 func (b *Backend) SetChatConversationProvider(id string, providerID string) error {
 	service, err := b.chatService()
 	if err != nil {
@@ -150,6 +151,32 @@ func (b *Backend) SetChatConversationProvider(id string, providerID string) erro
 			return apperr.E(apperr.InvalidArgument, "unknown provider", nil)
 		}
 		return mapStorageError("set conversation provider", err)
+	}
+	b.emitter.Emit(EventChatUpdated, ChatUpdatedPayload{ConversationID: id})
+	return nil
+}
+
+// SetChatConversationModel sets one thread's model override; "" follows the
+// provider's configured model.
+func (b *Backend) SetChatConversationModel(id string, model string) error {
+	service, err := b.chatService()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(id) == "" {
+		return apperr.E(apperr.InvalidArgument, "conversation id is required", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), chatTimeout)
+	defer cancel()
+
+	if err := service.SetConversationModel(ctx, id, model); err != nil {
+		if strings.Contains(err.Error(), "chat: conversation has no provider") {
+			return apperr.E(apperr.InvalidArgument, "select a provider before choosing a model", nil)
+		}
+		if strings.Contains(err.Error(), "chat: model") {
+			return apperr.E(apperr.InvalidArgument, err.Error(), nil)
+		}
+		return mapStorageError("set conversation model", err)
 	}
 	b.emitter.Emit(EventChatUpdated, ChatUpdatedPayload{ConversationID: id})
 	return nil
@@ -230,6 +257,7 @@ func conversationToDTO(c chat.Conversation) ChatConversationDTO {
 	dto := ChatConversationDTO{
 		ID:        c.ID,
 		Title:     c.Title,
+		Model:     c.Model,
 		UpdatedAt: c.UpdatedAt.Unix(),
 	}
 	if c.ProviderID != nil {
@@ -261,7 +289,7 @@ type storeChatAdapter struct {
 
 func (a storeChatAdapter) CreateConversation(ctx context.Context, c chat.Conversation) (chat.Conversation, error) {
 	created, err := a.repo.CreateConversation(ctx, storage.Conversation{
-		ID: c.ID, Title: c.Title, ProviderID: c.ProviderID,
+		ID: c.ID, Title: c.Title, ProviderID: c.ProviderID, Model: c.Model,
 	})
 	return chatConversationFromStorage(created), err
 }
@@ -275,8 +303,8 @@ func (a storeChatAdapter) DeleteConversation(ctx context.Context, id string) err
 	return a.repo.DeleteConversation(ctx, id)
 }
 
-func (a storeChatAdapter) UpdateConversation(ctx context.Context, id string, title string, providerID *string) error {
-	return a.repo.UpdateConversation(ctx, id, title, providerID)
+func (a storeChatAdapter) UpdateConversation(ctx context.Context, id string, title string, providerID *string, model string) error {
+	return a.repo.UpdateConversation(ctx, id, title, providerID, model)
 }
 
 func (a storeChatAdapter) ListConversations(ctx context.Context) ([]chat.Conversation, error) {
@@ -321,7 +349,7 @@ func (a storeChatAdapter) Messages(ctx context.Context, conversationID string, b
 
 func chatConversationFromStorage(c storage.Conversation) chat.Conversation {
 	return chat.Conversation{
-		ID: c.ID, Title: c.Title, ProviderID: c.ProviderID,
+		ID: c.ID, Title: c.Title, ProviderID: c.ProviderID, Model: c.Model,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }

@@ -225,7 +225,8 @@ func (b *Backend) DeleteProvider(id string) error {
 		}
 	}
 
-	// Unpin conversations that referenced this provider.
+	// Unpin conversations that referenced this provider; the model override
+	// goes with the pin, since it only ever applied to that provider.
 	if chat := b.store().Chat(); chat != nil {
 		conversations, err := chat.ListConversations(ctx)
 		if err != nil {
@@ -233,7 +234,7 @@ func (b *Backend) DeleteProvider(id string) error {
 		}
 		for _, c := range conversations {
 			if c.ProviderID != nil && *c.ProviderID == id {
-				if err := chat.UpdateConversation(ctx, c.ID, c.Title, nil); err != nil {
+				if err := chat.UpdateConversation(ctx, c.ID, c.Title, nil, ""); err != nil {
 					return mapStorageError("unpin conversation", err)
 				}
 			}

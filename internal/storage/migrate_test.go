@@ -467,3 +467,44 @@ func TestMigrateV5FixturePreservesDataAndCreatesV6Tables(t *testing.T) {
 		t.Fatalf("focus_target_minutes = %d; the migration altered existing data", focusMinutes)
 	}
 }
+
+// DB-2 for v7: upgrade a database written by a v6-only build and assert the
+// conversation model column exists with ” on pre-existing rows, and chat and
+// daily data survives.
+func TestMigrateV6FixturePreservesDataAndAddsConversationModel(t *testing.T) {
+	fixture := filepath.Join("testdata", "v6-chat-tools.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	// The model column arrives as '' on pre-existing rows: '' follows the
+	// provider's configured model, which is what every pre-v7 conversation did.
+	var model string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT model FROM chat_conversations WHERE id = 'fixture-conversation'").Scan(&model); err != nil {
+		t.Fatalf("read conversation model after upgrade: %v", err)
+	}
+	if model != "" {
+		t.Fatalf("model = %q on a pre-existing conversation; the migration wrote data", model)
+	}
+
+	// Pre-existing chat data must survive untouched.
+	var role, content string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT role, content FROM chat_messages WHERE id = 1").Scan(&role, &content); err != nil {
+		t.Fatalf("read chat message after upgrade: %v", err)
+	}
+	if role != "user" || content != "fixture question" {
+		t.Fatalf("chat message = %q/%q; the migration altered existing data", role, content)
+	}
+}

@@ -3,6 +3,9 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -521,4 +524,114 @@ type attemptSinkFunc func(ctx context.Context, attempt ai.Attempt)
 
 func (f attemptSinkFunc) RecordAttempt(ctx context.Context, attempt ai.Attempt) {
 	f(ctx, attempt)
+}
+
+// The per-thread model override replaces the provider's configured model, and
+// switching providers resets it (an override chosen under one provider has no
+// meaning under another).
+func TestAgentLoopModelOverride(t *testing.T) {
+	var mu sync.Mutex
+	var requestedModels []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var payload struct {
+			Model string `json:"model"`
+		}
+		_ = json.Unmarshal(body, &payload)
+		mu.Lock()
+		requestedModels = append(requestedModels, payload.Model)
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"model": payload.Model,
+			"choices": []map[string]any{
+				{"message": map[string]string{"role": "assistant", "content": `{"kind":"answer","answer":"ok"}`}},
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	providers := newFakeProviders(ProviderEntry{
+		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "configured-model", Secret: "k",
+	})
+	store := newFakeStore(t)
+	service := New(store, providers, &fakeSettings{editMode: "edits"}, nil, nil)
+	service.SetNotifier(func(string) {})
+
+	conversation, _ := service.NewConversation(context.Background())
+
+	// Without an override the provider's configured model is used.
+	_ = service.Send(context.Background(), conversation.ID, "one")
+	waitTurn(t, service, conversation.ID)
+
+	// An override replaces the configured model.
+	if err := service.SetConversationModel(context.Background(), conversation.ID, "override-model"); err != nil {
+		t.Fatalf("SetConversationModel: %v", err)
+	}
+	_ = service.Send(context.Background(), conversation.ID, "two")
+	waitTurn(t, service, conversation.ID)
+
+	// Switching providers (via clearing the pin — the delete-provider path)
+	// resets the override: it only ever applied to the previous provider.
+	if err := service.SetConversationProvider(context.Background(), conversation.ID, ""); err != nil {
+		t.Fatalf("clear pin: %v", err)
+	}
+	if err := service.SetConversationProvider(context.Background(), conversation.ID, "p1"); err != nil {
+		t.Fatalf("re-pin: %v", err)
+	}
+	_ = service.Send(context.Background(), conversation.ID, "three")
+	waitTurn(t, service, conversation.ID)
+
+	mu.Lock()
+	defer mu.Unlock()
+	want := []string{"configured-model", "override-model", "configured-model"}
+	if len(requestedModels) != len(want) {
+		t.Fatalf("requested models = %v, want %v", requestedModels, want)
+	}
+	for i := range want {
+		if requestedModels[i] != want[i] {
+			t.Fatalf("requested models = %v, want %v", requestedModels, want)
+		}
+	}
+}
+
+// A model cannot be set on a thread with no provider, and the override is
+// persisted (survives re-reading the conversation).
+func TestAgentLoopModelOverrideRules(t *testing.T) {
+	server := newOpenAIServer(t, func(string) string { return `{"kind":"answer","answer":"ok"}` })
+	providers := newFakeProviders(ProviderEntry{
+		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "k",
+	})
+	store := newFakeStore(t)
+	service := New(store, providers, &fakeSettings{editMode: "edits"}, nil, nil)
+	service.SetNotifier(func(string) {})
+
+	conversation, _ := service.NewConversation(context.Background())
+	if err := service.SetConversationProvider(context.Background(), conversation.ID, ""); err != nil {
+		t.Fatalf("clear pin: %v", err)
+	}
+	if err := service.SetConversationModel(context.Background(), conversation.ID, "m2"); err == nil {
+		t.Fatal("setting a model without a provider must fail")
+	}
+
+	if err := service.SetConversationProvider(context.Background(), conversation.ID, "p1"); err != nil {
+		t.Fatalf("re-pin: %v", err)
+	}
+	if err := service.SetConversationModel(context.Background(), conversation.ID, "m2"); err != nil {
+		t.Fatalf("SetConversationModel: %v", err)
+	}
+	read, err := store.GetConversation(context.Background(), conversation.ID)
+	if err != nil {
+		t.Fatalf("GetConversation: %v", err)
+	}
+	if read.Model != "m2" {
+		t.Fatalf("persisted model = %q, want m2", read.Model)
+	}
+	if err := service.SetConversationModel(context.Background(), conversation.ID, strings.Repeat("x", maxModelBytes+1)); err == nil {
+		t.Fatal("oversized model accepted")
+	}
 }

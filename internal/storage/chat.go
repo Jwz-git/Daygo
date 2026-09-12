@@ -26,11 +26,13 @@ const ChatMessageLimit = 200
 
 // Conversation is one row of chat_conversations. ProviderID nil means no
 // provider is selected yet; chat never implicitly falls back to the chain
-// (decisions/chat-session-model).
+// (decisions/chat-session-model). Model is the per-thread override: the empty
+// string follows the provider's configured model.
 type Conversation struct {
 	ID         string
 	Title      string
 	ProviderID *string
+	Model      string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -69,9 +71,9 @@ func (r *ChatRepo) CreateConversation(ctx context.Context, c Conversation) (Conv
 	at := r.store.now()
 	err := r.store.Write(ctx, "chat create conversation", func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
-			`INSERT INTO chat_conversations (id, title, provider_id, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?)`,
-			c.ID, c.Title, c.ProviderID, at.Unix(), at.Unix())
+			`INSERT INTO chat_conversations (id, title, provider_id, model, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			c.ID, c.Title, c.ProviderID, c.Model, at.Unix(), at.Unix())
 		return err
 	})
 	if err != nil {
@@ -88,7 +90,7 @@ func (r *ChatRepo) ListConversations(ctx context.Context) ([]Conversation, error
 	var out []Conversation
 	err := r.store.Read(ctx, "chat list conversations", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
-			`SELECT id, title, provider_id, created_at, updated_at
+			`SELECT id, title, provider_id, model, created_at, updated_at
 			 FROM chat_conversations ORDER BY updated_at DESC, id`)
 		if err != nil {
 			return err
@@ -114,7 +116,7 @@ func (r *ChatRepo) GetConversation(ctx context.Context, id string) (Conversation
 	var c Conversation
 	err := r.store.Read(ctx, "chat get conversation", func(ctx context.Context, tx *sql.Tx) error {
 		row := tx.QueryRowContext(ctx,
-			`SELECT id, title, provider_id, created_at, updated_at
+			`SELECT id, title, provider_id, model, created_at, updated_at
 			 FROM chat_conversations WHERE id = ?`, id)
 		var err error
 		c, err = scanConversation(row)
@@ -138,15 +140,15 @@ func (r *ChatRepo) DeleteConversation(ctx context.Context, id string) error {
 	})
 }
 
-// UpdateConversation sets the title and provider of one conversation and bumps
-// updated_at. Deleting a provider prunes it from conversations by calling this
-// with a nil ProviderID.
-func (r *ChatRepo) UpdateConversation(ctx context.Context, id string, title string, providerID *string) error {
+// UpdateConversation sets the title, provider, and model override of one
+// conversation and bumps updated_at. Deleting a provider prunes it from
+// conversations by calling this with a nil ProviderID.
+func (r *ChatRepo) UpdateConversation(ctx context.Context, id string, title string, providerID *string, model string) error {
 	at := r.store.now()
 	return r.store.Write(ctx, "chat update conversation", func(ctx context.Context, tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
-			`UPDATE chat_conversations SET title = ?, provider_id = ?, updated_at = ? WHERE id = ?`,
-			title, providerID, at.Unix(), id)
+			`UPDATE chat_conversations SET title = ?, provider_id = ?, model = ?, updated_at = ? WHERE id = ?`,
+			title, providerID, model, at.Unix(), id)
 		if err != nil {
 			return err
 		}
@@ -234,8 +236,9 @@ func (r *ChatRepo) Messages(ctx context.Context, conversationID string, beforeID
 func scanConversation(row scanner) (Conversation, error) {
 	var c Conversation
 	var title, providerID sql.NullString
+	var model sql.NullString
 	var createdAt, updatedAt int64
-	if err := row.Scan(&c.ID, &title, &providerID, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&c.ID, &title, &providerID, &model, &createdAt, &updatedAt); err != nil {
 		return Conversation{}, err
 	}
 	c.Title = title.String
@@ -243,6 +246,7 @@ func scanConversation(row scanner) (Conversation, error) {
 		id := providerID.String
 		c.ProviderID = &id
 	}
+	c.Model = model.String
 	c.CreatedAt = time.Unix(createdAt, 0)
 	c.UpdatedAt = time.Unix(updatedAt, 0)
 	return c, nil

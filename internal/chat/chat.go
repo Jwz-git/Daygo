@@ -29,6 +29,9 @@ const maxContentBytes = 32 << 10
 // maxOutputTokens is the reply ceiling for one model call inside a turn.
 const maxOutputTokens = 4096
 
+// maxModelBytes bounds one conversation model override.
+const maxModelBytes = 256
+
 // Agent budgets from docs/05 §5.12: at most 8 tool calls per user message,
 // one tool result clipped to 64 KiB, and a whole-turn time limit of 120 s
 // shared with user cancellation.
@@ -51,11 +54,13 @@ const (
 	StatusCanceled = "canceled"
 )
 
-// Conversation is one chat thread.
+// Conversation is one chat thread. Model is the per-thread override: the
+// empty string follows the provider's configured model.
 type Conversation struct {
 	ID         string
 	Title      string
 	ProviderID *string
+	Model      string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -80,7 +85,7 @@ type Store interface {
 	CreateConversation(ctx context.Context, c Conversation) (Conversation, error)
 	GetConversation(ctx context.Context, id string) (Conversation, error)
 	DeleteConversation(ctx context.Context, id string) error
-	UpdateConversation(ctx context.Context, id string, title string, providerID *string) error
+	UpdateConversation(ctx context.Context, id string, title string, providerID *string, model string) error
 	ListConversations(ctx context.Context) ([]Conversation, error)
 	AppendMessage(ctx context.Context, conversationID string, m Message) (Message, error)
 	Messages(ctx context.Context, conversationID string, beforeID int64, limit int) ([]Message, error)
@@ -222,7 +227,7 @@ func (s *Service) Send(ctx context.Context, conversationID, content string) erro
 	// First user message titles the conversation.
 	conversation, err := s.store.GetConversation(ctx, conversationID)
 	if err == nil && conversation.Title == "" {
-		_ = s.store.UpdateConversation(ctx, conversationID, titleFrom(content), conversation.ProviderID)
+		_ = s.store.UpdateConversation(ctx, conversationID, titleFrom(content), conversation.ProviderID, conversation.Model)
 	}
 
 	go s.runTurn(turnCtx, conversationID, userMsg)
@@ -412,7 +417,8 @@ func clipToolResult(data json.RawMessage) json.RawMessage {
 
 // resolveEntries picks the provider for a conversation: the pinned provider
 // as a single entry, no fallback. A thread without a pin is a hard error —
-// chat never implicitly follows the routing chain.
+// chat never implicitly follows the routing chain. A non-empty model override
+// replaces the entry's configured model.
 func (s *Service) resolveEntries(ctx context.Context, conversation Conversation) ([]ProviderEntry, error) {
 	if conversation.ProviderID == nil || *conversation.ProviderID == "" {
 		return nil, errNoProviderSelected
@@ -420,6 +426,9 @@ func (s *Service) resolveEntries(ctx context.Context, conversation Conversation)
 	entry, err := s.providers.ByID(ctx, *conversation.ProviderID)
 	if err != nil {
 		return nil, err
+	}
+	if conversation.Model != "" {
+		entry.Model = conversation.Model
 	}
 	return []ProviderEntry{entry}, nil
 }
@@ -631,7 +640,9 @@ func (s *Service) DeleteConversation(ctx context.Context, id string) error {
 }
 
 // SetConversationProvider pins a thread to one provider. providerID "" clears
-// the pin; the thread then has no provider until one is picked again.
+// the pin; the thread then has no provider until one is picked again. Changing
+// the pin resets the model override: a model chosen under the previous
+// provider has no meaning under the new one.
 func (s *Service) SetConversationProvider(ctx context.Context, id string, providerID string) error {
 	var pinned *string
 	if providerID != "" {
@@ -644,7 +655,37 @@ func (s *Service) SetConversationProvider(ctx context.Context, id string, provid
 	if err != nil {
 		return err
 	}
-	return s.store.UpdateConversation(ctx, id, conversation.Title, pinned)
+	model := conversation.Model
+	if providerID != conversation.providerKey() {
+		model = ""
+	}
+	return s.store.UpdateConversation(ctx, id, conversation.Title, pinned, model)
+}
+
+// SetConversationModel sets the thread's model override. model "" follows the
+// provider's configured model. Setting a model on a thread with no provider is
+// rejected: there is nothing for the override to apply to.
+func (s *Service) SetConversationModel(ctx context.Context, id string, model string) error {
+	model = strings.TrimSpace(model)
+	conversation, err := s.store.GetConversation(ctx, id)
+	if err != nil {
+		return err
+	}
+	if conversation.ProviderID == nil || *conversation.ProviderID == "" {
+		return fmt.Errorf("chat: conversation has no provider selected")
+	}
+	if model != "" && len(model) > maxModelBytes {
+		return fmt.Errorf("chat: model name exceeds %d bytes", maxModelBytes)
+	}
+	return s.store.UpdateConversation(ctx, id, conversation.Title, conversation.ProviderID, model)
+}
+
+// providerKey renders the pinned provider id, "" when none.
+func (c Conversation) providerKey() string {
+	if c.ProviderID == nil {
+		return ""
+	}
+	return *c.ProviderID
 }
 
 // Messages pages one conversation's transcript, oldest first.

@@ -94,7 +94,7 @@ flowchart TD
 | recording | `GetRecordingState`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings` | 权限相关调用未接 System 适配器时返回 `native_unavailable`；`GetRecordingState` 恒为 `idle` |
 | recording（联调） | `CaptureTest`、`PickCaptureTestApplication`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；macOS picker 只返回 ScreenCaptureKit 使用的 `{bundle id, name}`，路径不跨绑定；均不接 recorder / storage / config |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
-| chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
+| chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
 这不代表录制开关、Provider 持久化或 Secrets 已实现。fake 的覆盖以 §5.7.4 为准。
@@ -1403,7 +1403,8 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 | `ListChatConversations() ([]ChatConversationDTO, error)` | 读 | — | `database_error` |
 | `CreateChatConversation() (ChatConversationDTO, error)` | 写 | — | `database_error` |
 | `DeleteChatConversation(id string) error` | 写·幂等 | `chat:updated` | `not_found` |
-| `SetChatConversationProvider(id string, providerID string) error` | 写（providerID 空串 = 清除选择；再次发送前必须重新选择） | `chat:updated` | `invalid_argument`（未知 provider）`not_found` |
+| `SetChatConversationProvider(id string, providerID string) error` | 写（providerID 空串 = 清除选择；再次发送前必须重新选择；换 pin 会重置会话的模型覆盖） | `chat:updated` | `invalid_argument`（未知 provider）`not_found` |
+| `SetChatConversationModel(id string, model string) error` | 写（model 空串 = 跟随 provider 配置的模型；非空即覆盖，上限 256 字节） | `chat:updated` | `invalid_argument`（无 provider、超长）`not_found` |
 
 消息模型：**原子消息**，角色为 `user` / `assistant` / `tool_call` / `tool_result`。
 回合的失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` / `canceled`）。

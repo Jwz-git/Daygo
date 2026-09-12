@@ -5,7 +5,8 @@
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
-> `day_goal_categories`（v5）、`llm_calls`（v6）。本文其余表都是目标结构，由对应功能模块
+> `day_goal_categories`（v5）、`llm_calls`（v6）、`chat_conversations.model` 会话模型
+> 覆盖列（v7）。本文其余表都是目标结构，由对应功能模块
 > 随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -276,6 +277,7 @@ CREATE TABLE chat_conversations (
   id          TEXT PRIMARY KEY,   -- UUID
   title       TEXT,
   provider_id TEXT,               -- 该会话显式选择的供应商；NULL = 尚未选择
+  model       TEXT NOT NULL DEFAULT '',  -- v7：该会话的模型覆盖；'' = 跟随 provider 配置的模型
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
 );

@@ -43,6 +43,7 @@ var contractBindings = []string{
 	"SaveDayGoal",
 	"SaveJournalDay",
 	"SendChatMessage",
+	"SetChatConversationModel",
 	"SetChatConversationProvider",
 	"SetProviderRouting",
 	"SetProviderSecret",
