@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -318,6 +319,84 @@ func TestAgentLoopNeverValidEnvelopeTerminates(t *testing.T) {
 	}
 	if messages[1].Status != StatusFailed {
 		t.Fatalf("final status = %q, want failed", messages[1].Status)
+	}
+}
+
+// The second generation of a tool turn must include the tool result that
+// landed between the two calls: the model answers from the result, and the
+// user message is not duplicated. Regression guard for the cursor bug where
+// buildRequest paged history by the user message's id and hid every row of
+// the running turn, making the model re-request the same tool forever.
+func TestAgentLoopSecondGenerationSeesToolResult(t *testing.T) {
+	var generation atomic.Int64
+	server := newOpenAIServer(t, func(prompt string) string {
+		if generation.Add(1) == 1 {
+			return `{"kind":"tool","tool":"timeline","arguments":{"day":"2026-09-12"}}`
+		}
+		if !strings.Contains(prompt, "Tool result (timeline): ") ||
+			!strings.Contains(prompt, `"trackedMinutes":245`) {
+			return `{"kind":"answer","answer":"PROMPT_MISSING_TOOL_RESULT"}`
+		}
+		return `{"kind":"answer","answer":"今天你工作了 245 分钟。"}`
+	})
+	providers := newFakeProviders(ProviderEntry{
+		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "k",
+	})
+	executor := &fakeExecutor{result: func(ToolCall) ToolResult {
+		return okResult(`{"ok":true,"data":{"trackedMinutes":245}}`)
+	}}
+	store := newFakeStore(t)
+	service := New(store, providers, &fakeSettings{editMode: "edits"}, executor, nil)
+	service.SetNotifier(func(string) {})
+
+	conversation, _ := service.NewConversation(context.Background())
+	if err := service.Send(context.Background(), conversation.ID, "我今天干了什么"); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	waitTurn(t, service, conversation.ID)
+
+	messages, _ := service.Messages(context.Background(), conversation.ID, 0, 0)
+	if len(messages) != 4 {
+		t.Fatalf("messages = %d, want 4 (user, tool_call, tool_result, assistant): %+v", len(messages), messages)
+	}
+	if messages[3].Content == "PROMPT_MISSING_TOOL_RESULT" {
+		t.Fatal("second generation prompt did not contain the tool result")
+	}
+	if messages[3].Status != StatusOK || messages[3].Content != "今天你工作了 245 分钟。" {
+		t.Fatalf("answer = %+v", messages[3])
+	}
+	if executor.callCount() != 1 {
+		t.Fatalf("executor calls = %d, want 1 (no retry loop)", executor.callCount())
+	}
+}
+
+// The prompt's convenience dates come from timeutil: today is the logical day
+// (4 AM boundary), monday its week's Monday. Regression guard for the bug
+// where today was computed as the Monday itself, sending the model to the
+// wrong day for every "今天" question.
+func TestAgentLoopPromptTodayIsLogicalDay(t *testing.T) {
+	var lastPrompt string
+	server := newOpenAIServer(t, func(prompt string) string {
+		lastPrompt = prompt
+		return `{"kind":"answer","answer":"ok"}`
+	})
+	providers := newFakeProviders(ProviderEntry{
+		ID: "p1", Protocol: "openai", Endpoint: server.URL, Model: "m", Secret: "k",
+	})
+	store := newFakeStore(t)
+	service := New(store, providers, &fakeSettings{editMode: "edits"}, nil, nil)
+	service.SetNotifier(func(string) {})
+
+	conversation, _ := service.NewConversation(context.Background())
+	_ = service.Send(context.Background(), conversation.ID, "hi")
+	waitTurn(t, service, conversation.ID)
+
+	wantToday, wantMonday := todayAndMonday(time.Now())
+	if !strings.Contains(lastPrompt, "今天的逻辑日是 "+wantToday) {
+		t.Fatalf("prompt missing logical today %q:\n%s", wantToday, lastPrompt)
+	}
+	if !strings.Contains(lastPrompt, "本周一是 "+wantMonday) {
+		t.Fatalf("prompt missing monday %q:\n%s", wantMonday, lastPrompt)
 	}
 }
 

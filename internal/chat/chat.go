@@ -19,6 +19,7 @@ import (
 
 	"github.com/Jwz-git/Daygo/internal/ai"
 	"github.com/Jwz-git/Daygo/internal/ai/factory"
+	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
 // maxContentBytes bounds one message. 32 KiB is far beyond a normal chat
@@ -460,17 +461,22 @@ func (s *Service) rebuildChain(entries []ProviderEntry) {
 // buildRequest assembles the prompt: agent system text (catalog + gate +
 // today/monday), global memory, the conversation history as labelled text,
 // and the new user message. History tool rows render as labelled exchanges
-// so the model sees its own past calls.
+// so the model sees its own past calls. The page is the latest one (no
+// beforeID): this turn's own tool_call / tool_result rows are newer than the
+// user message, so paging by userMsg.ID would hide them and the model would
+// re-request the same tool forever.
 func (s *Service) buildRequest(ctx context.Context, conversationID string, userMsg Message, extra string) (ai.Request, error) {
-	history, err := // beforeID pages to strictly older messages; 0 asks for the latest page,
-		// which the repo clamps to its full-history cap for prompt assembly.
-		s.store.Messages(ctx, conversationID, userMsg.ID, 0)
+	history, err := s.store.Messages(ctx, conversationID, 0, 0)
 	if err != nil {
 		return ai.Request{}, err
 	}
 
 	prompt := s.basePrompt(ctx)
+	sawUser := false
 	for _, message := range history {
+		if message.ID == userMsg.ID {
+			sawUser = true
+		}
 		switch message.Role {
 		case RoleUser:
 			prompt.WriteString("\n\nUser: ")
@@ -484,12 +490,23 @@ func (s *Service) buildRequest(ctx context.Context, conversationID string, userM
 				`,"arguments":` + orEmptyJSON(message.ToolArguments) + "}")
 		case RoleToolRes:
 			prompt.WriteString("\n\nTool result (" + message.ToolName + "): ")
-			prompt.WriteString(clipHistory(message.Content))
+			// Current-turn results stay whole (the 64 KiB budget already
+			// clipped them at landing); older ones are clipped so eight past
+			// tools cannot refill the context.
+			if message.ID > userMsg.ID {
+				prompt.WriteString(message.Content)
+			} else {
+				prompt.WriteString(clipHistory(message.Content))
+			}
 		}
 	}
-	// The new user message itself: history was paged to strictly older ids.
-	prompt.WriteString("\n\nUser: ")
-	prompt.WriteString(userMsg.Content)
+	// The user row is always inside the latest page (a turn adds at most 17
+	// rows after it, the page holds 200), but a prompt that silently lost the
+	// question is worse than one duplicate check.
+	if !sawUser {
+		prompt.WriteString("\n\nUser: ")
+		prompt.WriteString(userMsg.Content)
+	}
 	if extra != "" {
 		prompt.WriteString(extra)
 	}
@@ -504,10 +521,7 @@ func (s *Service) buildRequest(ctx context.Context, conversationID string, userM
 // basePrompt renders the agent system prompt plus the global memory.
 func (s *Service) basePrompt(ctx context.Context) *strings.Builder {
 	now := time.Now()
-	today := now.Format("2006-01-02")
-	if offset := (int(now.Weekday()) + 6) % 7; offset > 0 {
-		today = now.AddDate(0, 0, -offset).Format("2006-01-02")
-	}
+	today, monday := todayAndMonday(now)
 	// The prompt dates are a convenience for the model, derived once per
 	// request; exact logical-day arithmetic stays in timeutil at the
 	// executor, where day arguments are validated.
@@ -518,7 +532,7 @@ func (s *Service) basePrompt(ctx context.Context) *strings.Builder {
 		}
 	}
 	prompt := &strings.Builder{}
-	prompt.WriteString(agentSystemPrompt(normalizeEditMode(editMode), today, mondayOf(now)))
+	prompt.WriteString(agentSystemPrompt(normalizeEditMode(editMode), today, monday))
 	if s.settings != nil {
 		if memory, err := s.settings.Memory(ctx); err == nil && strings.TrimSpace(memory) != "" {
 			prompt.WriteString("\n\n用户的全局指令：\n")
@@ -528,10 +542,16 @@ func (s *Service) basePrompt(ctx context.Context) *strings.Builder {
 	return prompt
 }
 
-// mondayOf returns the Monday of the week containing t, as yyyy-MM-dd.
-func mondayOf(t time.Time) string {
-	offset := (int(t.Weekday()) + 6) % 7
-	return t.AddDate(0, 0, -offset).Format("2006-01-02")
+// todayAndMonday derives the prompt's convenience dates from timeutil: today
+// is the logical day (4 AM boundary) containing t, monday the Monday of that
+// logical day's week.
+func todayAndMonday(t time.Time) (today, monday string) {
+	today = timeutil.LogicalDay(t, t.Location())
+	monday, err := timeutil.WeekStart(today, t.Location())
+	if err != nil {
+		monday = today
+	}
+	return today, monday
 }
 
 // jsonString quotes a value for inline JSON in the prompt.
