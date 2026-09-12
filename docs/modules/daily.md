@@ -17,8 +17,13 @@
 [API wrapper](../../frontend/src/api/daily.ts)：按后端 `dayStartTs/dayEndTs` 和卡片时间戳呈现
 15 分钟工作流、派生指标及只读日报，并区分整页不可用与仅日报不可用 / 失败。
 [开发专用匿名样例](../../frontend/dev-fixtures/daily.json) 由 Vite dev middleware 提供，生产构建
-无该数据路径。存储、文本生成、编辑、目标、日记和通知仍未实现；现有 timeutil 可复用，
-但不证明这些能力可用。
+无该数据路径。**2026-09-12：日记与目标切片已落盘**——迁移 v5（`journal_entries` / `day_goals` /
+`day_goal_categories`，`daily_standup_entries` 因无写入方不预建）、
+`storage.JournalRepo`（用户 upsert 不触碰 AI summary 列）与 `storage.GoalRepo`
+（分类引用单事务整体替换）、绑定 `GetJournalDay` / `SaveJournalDay` / `GetDayGoal` /
+`SaveDayGoal`（分类 id 预检、`journal:updated` / `goal:updated` 事件）、前端
+DailyJournalPanel / DailyGoalPanel（写后不乐观更新，等事件重拉）。
+文本生成（`GetDailyRecap`，待定 #19）、摘要 AI 写入、通知仍未实现。
 
 ## 能力与跨层职责
 
@@ -80,3 +85,9 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。
 `GetDayContext` 返回同名 `standupDay`，避免历史工作流误读当天日报。空参数在凌晨 4 点前仍
 保持“当前逻辑日 + 当前日历日”的既定双日期语义。真实 `GetTimelineDay` / `GetDailyRecap`
 尚未实现，此项只打通日期选择与查询参数，不代表 Daily 数据闭环。
+
+2026-09-12（日记 / 目标绑定与编辑 UI）：`go test ./internal/app/`、前端 typecheck /
+build、Vite 浏览器 smoke 通过。journal 往返（summary 保留断言）、goal 分类整体替换、
+非法 status / 未知分类 → `invalid_argument`、只读实例 → `not_capture_owner`、事件
+payload 均有 Go 断言；浏览器预览验证面板降级态（无桥 unavailable）、中英文、420px
+窄宽无横向溢出。`wails dev` 真机保存 → 重启读回未运行。

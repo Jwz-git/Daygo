@@ -14,9 +14,13 @@
 ## 当前状态与证据
 
 实现进度：部分实现。已有时间函数单元通过；可接真实 DTO 的小时轨道、卡片、失败 / 处理中
-状态和详情检查器已落盘；卡片标题 / 分类独立写入、软删除、失败批次重试、整日重处理及
-后端已给出的视频 URL 也有薄 wrapper 与界面路径，但对应 Go 方法尚未实现，因此生产界面不会
-把这些入口标成可用。复制当前筛选后的时间线是纯前端显式操作，已经可用。分析与真实时间线
+状态和详情检查器已落盘。**2026-09-12：查询与卡片写操作绑定已落盘**——
+`GetTimelineDay`（一次带回卡片 / 分类 / 合计 / 失败分组，metadata 宽容解析）、
+`UpdateCardCategory`（未知分类拒绝、不自动创建）、`UpdateCardTitle`、`DeleteCard`（软删除），
+写后发按 day 合并（200 ms）的 `timeline:updated`；只读实例返回 `not_capture_owner`；
+`features` 含 `timeline`。
+失败批次重试（`RetryBatches`）、整日重处理（`ReprocessDay`）与视频 URL 仍无 Go 方法
+（依赖分析流水线与媒体切片），前端按方法探测自动禁用对应入口。分析与真实时间线
 仍未验收。
 [timeutil](../../internal/timeutil/timeutil.go)、[日期绑定](../../internal/app/backend.go)
 和 [时间线前端切片](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
@@ -118,3 +122,9 @@ fixture endpoint。这是开发验收便利设施，不构成生产数据或 G-l
 `features` 含 `timeline`、实例持有写锁且对应绑定存在；写后不乐观更新，等待
 `timeline:updated` 重拉。浏览器开发夹具只用于检查禁用态、详情层、短卡片和复制反馈，不能
 验证真实写入、事件顺序、媒体解码或分析恢复。
+
+2026-09-12（查询与卡片写操作绑定，Go）：`go test ./internal/app/`、`go vet`、
+`CGO_ENABLED=0 go build ./...` 通过。空日 / 有卡日（metadata 解析、合计排 System、
+Idle 单列）、非法 day、未知分类、卡片不存在、只读实例拒绝、写后事件合并（同 day
+三次写一条 `timeline:updated`）、失败 60 秒容差分组均有断言。`wails dev` 真机端到端
+（真实库写入 → 事件刷新）未运行。

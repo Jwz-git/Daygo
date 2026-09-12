@@ -20,8 +20,13 @@
 [匿名聚合夹具](../../frontend/dev-fixtures/weekly.json)。组件不直接调用 Wails；
 `timeline:updated` 只触发重新拉取。
 
-Go 聚合、生成绑定、真实卡片读取、周边界行为和跨周观察仍未实现或验收；这次前端切片不能记为
-weekly 用户闭环完成。生产构建缺少绑定时明确显示能力不可用，不加载开发夹具。
+**2026-09-12：周聚合与绑定已落盘**——`timeutil.WeekStart` / `WeekWindow`
+（周一 4 点对齐，decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`
+（与 `TotalMinutesTracked` 同一重叠谓词 + categories join 取 is_idle）、
+`internal/insight.AggregateWeekly`（tracked 排 System、focus 排 isIdle、share 分母 0
+为 0、minutes DESC）、绑定 `GetWeeklyDashboard`（非周一拒绝）、
+`DayContextDTO.weekStart`（前端初始周不再自算）。跨周观察（G-stability）仍未运行；
+这次不能记为 weekly 用户闭环完成。生产构建缺少绑定时明确显示能力不可用，不加载开发夹具。
 
 ## 能力与跨层职责
 
@@ -76,3 +81,8 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 
 这只证明前端切片和开发夹具路径；绑定行为、聚合正确性、真实卡片、DST / 半小时 / 45 分钟
 时区周边界和跨周一观察均未运行。
+
+2026-09-12（周聚合绑定，Go）：`go test ./internal/...`（timeutil 周边界夹具与属性
+测试、insight 表驱动、storage 聚合查询、app 端到端周聚合）、`go vet`、交叉构建通过。
+周窗口无重叠 / 无间隙拼接（DST 与半时区 / 45 分钟时区）、空周零值、System / Idle
+排除、非周一拒绝均有断言。真实卡片一周的独立验收与跨周一长期观察未运行。
