@@ -110,22 +110,49 @@ export async function sendChatMessage(conversationId: string, content: string): 
   if (import.meta.env.DEV) {
     const conversation = devState().find((entry) => entry.dto.id === conversationId)
     if (conversation === undefined) throw new Error(WAILS_UNAVAILABLE)
+    const now = Math.floor(Date.now() / 1000)
+    const nextId = (): number => conversation.nextMessageId++
     conversation.messages.push({
-      id: conversation.nextMessageId++,
+      id: nextId(),
       role: 'user',
       content,
       status: '',
-      createdAt: Math.floor(Date.now() / 1000),
+      toolName: '',
+      toolArguments: '',
+      createdAt: now,
+    })
+    // One scripted tool turn so the collapsed tool rendering is exercisable
+    // in the dev browser, mirroring the real agent transcript shape.
+    conversation.messages.push({
+      id: nextId(),
+      role: 'tool_call',
+      content: '',
+      status: '',
+      toolName: 'timeline',
+      toolArguments: '{"day":"2026-09-12"}',
+      createdAt: now,
     })
     conversation.messages.push({
-      id: conversation.nextMessageId++,
+      id: nextId(),
+      role: 'tool_result',
+      content: '{"ok":true,"data":{"day":"2026-09-12","cards":[]}}',
+      status: '',
+      toolName: 'timeline',
+      toolArguments: '',
+      createdAt: now,
+    })
+    conversation.messages.push({
+      id: nextId(),
       role: 'assistant',
       content: '（开发环境固定回复）当前没有接入真实供应商。',
       status: 'ok',
-      createdAt: Math.floor(Date.now() / 1000),
+      toolName: '',
+      toolArguments: '',
+      createdAt: now,
     })
     if (conversation.dto.title === '') conversation.dto.title = content.slice(0, 30)
     conversation.dto.updatedAt = Math.floor(Date.now() / 1000)
+    devNotifyChatUpdated(conversationId)
     return
   }
   throw new Error(WAILS_UNAVAILABLE)
@@ -135,6 +162,21 @@ export async function cancelChatTurn(conversationId: string): Promise<void> {
   if (hasBridge()) return CancelChatTurn(conversationId)
   if (import.meta.env.DEV) return
   throw new Error(WAILS_UNAVAILABLE)
+}
+
+/**
+ * Dev-browser stand-in for the chat:updated event. The store resets its
+ * pending flag only on that event; without a stand-in the dev composer locks
+ * after one message per page load.
+ */
+let devChatUpdatedListeners: ((conversationId: string) => void)[] = []
+
+function devNotifyChatUpdated(conversationId: string): void {
+  // A macrotask: the store sets pending=true only after sendChatMessage
+  // resolves, so the notification must land after that continuation.
+  setTimeout(() => {
+    for (const callback of [...devChatUpdatedListeners]) callback(conversationId)
+  }, 0)
 }
 
 interface WailsRuntime {
@@ -159,7 +201,15 @@ function chatUpdatedPayload(value: unknown): string | null {
 /** Subscribe to turn-completion invalidations. The payload is a conversation
  * id only; callers re-pull through getChatMessages. */
 export function onChatUpdated(callback: (conversationId: string) => void): () => void {
-  if (!('runtime' in window) || !isWailsRuntime(window.runtime)) return () => undefined
+  if (!('runtime' in window) || !isWailsRuntime(window.runtime)) {
+    if (import.meta.env.DEV) {
+      devChatUpdatedListeners.push(callback)
+      return () => {
+        devChatUpdatedListeners = devChatUpdatedListeners.filter((entry) => entry !== callback)
+      }
+    }
+    return () => undefined
+  }
   return window.runtime.EventsOnMultiple('chat:updated', (raw: unknown) => {
     const conversationId = chatUpdatedPayload(raw)
     if (conversationId !== null) callback(conversationId)

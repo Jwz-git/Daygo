@@ -343,11 +343,16 @@ export interface ChatConversationDTO {
   updatedAt: number
 }
 
-/** ChatMessageDTO — one transcript row. Status is set on assistant messages. */
+/** ChatMessageDTO — one transcript row. Status is set on assistant messages.
+ * tool_call rows carry the tool name and its arguments JSON in toolName /
+ * toolArguments; the following tool_result row pairs by toolName with the
+ * result envelope JSON in content. */
 export interface ChatMessageDTO {
   id: number
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'tool_call' | 'tool_result'
   content: string
   status: 'ok' | 'failed' | 'canceled' | ''
+  toolName: string
+  toolArguments: string
   createdAt: number
 }
