@@ -6,12 +6,14 @@ import (
 	"time"
 )
 
-// Chat roles and assistant statuses are the closed sets from docs/05 §5.12:
-// this slice stores only user/assistant; tool_call and tool_result arrive with
-// the agent slice.
+// Chat roles and assistant statuses are the closed sets from docs/05 §5.12.
+// tool_call/tool_result rows arrive with the agent slice: their tool name and
+// compact-JSON arguments live in the dedicated columns below.
 const (
 	ChatRoleUser      = "user"
 	ChatRoleAssistant = "assistant"
+	ChatRoleToolCall  = "tool_call"
+	ChatRoleToolRes   = "tool_result"
 
 	ChatStatusOK       = "ok"
 	ChatStatusFailed   = "failed"
@@ -34,13 +36,18 @@ type Conversation struct {
 }
 
 // ChatMessage is one row of chat_messages. Status is set only for assistant
-// messages; user messages leave it empty.
+// messages. ToolName/ToolArguments are set only on agent rows: tool_call fills
+// both, tool_result pairs by ToolName with an empty ToolArguments; success or
+// failure of a tool step is part of the row's content JSON envelope, not a
+// column (status stays reserved for the assistant terminal message).
 type ChatMessage struct {
 	ID             int64
 	ConversationID string
 	Role           string
 	Content        string
 	Status         string
+	ToolName       string
+	ToolArguments  string
 	CreatedAt      time.Time
 }
 
@@ -155,9 +162,9 @@ func (r *ChatRepo) AppendMessage(ctx context.Context, conversationID string, m C
 	at := r.store.now()
 	err := r.store.Write(ctx, "chat append message", func(ctx context.Context, tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
-			`INSERT INTO chat_messages (conversation_id, role, content, status, created_at)
-			 VALUES (?, ?, ?, ?, ?)`,
-			conversationID, m.Role, m.Content, m.Status, at.Unix())
+			`INSERT INTO chat_messages (conversation_id, role, content, status, tool_name, tool_arguments, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			conversationID, m.Role, m.Content, m.Status, m.ToolName, m.ToolArguments, at.Unix())
 		if err != nil {
 			return err
 		}
@@ -186,7 +193,7 @@ func (r *ChatRepo) Messages(ctx context.Context, conversationID string, beforeID
 	if limit <= 0 || limit > ChatMessageLimit {
 		limit = ChatMessageLimit
 	}
-	query := `SELECT id, conversation_id, role, content, status, created_at
+	query := `SELECT id, conversation_id, role, content, status, tool_name, tool_arguments, created_at
 		FROM chat_messages WHERE conversation_id = ?`
 	args := []any{conversationID}
 	if beforeID > 0 {
@@ -243,12 +250,14 @@ func scanConversation(row scanner) (Conversation, error) {
 
 func scanChatMessage(row scanner) (ChatMessage, error) {
 	var m ChatMessage
-	var status sql.NullString
+	var status, toolName, toolArguments sql.NullString
 	var createdAt int64
-	if err := row.Scan(&m.ID, &m.ConversationID, &m.Role, &m.Content, &status, &createdAt); err != nil {
+	if err := row.Scan(&m.ID, &m.ConversationID, &m.Role, &m.Content, &status, &toolName, &toolArguments, &createdAt); err != nil {
 		return ChatMessage{}, err
 	}
 	m.Status = status.String
+	m.ToolName = toolName.String
+	m.ToolArguments = toolArguments.String
 	m.CreatedAt = time.Unix(createdAt, 0)
 	return m, nil
 }

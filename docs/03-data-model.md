@@ -1,11 +1,12 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 4`）有九张表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 6`）有十一张表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
-> `chat_conversations`、`chat_messages`（v4）。本文其余表都是目标结构，由对应功能模块
-> 随需求沿同一条迁移链逐版本追加（规划：v5+ = daily、llm_calls 等）。
+> `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
+> `day_goal_categories`（v5）、`llm_calls`（v6）。本文其余表都是目标结构，由对应功能模块
+> 随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
 功能模块按需求增量落盘表与 repository，全部位于 internal/storage。
@@ -126,6 +127,7 @@ CREATE TABLE observations (
 );
 
 -- 每次真实 HTTP attempt 的脱敏元数据；不保存 endpoint、正文、图片、密钥或费用。
+-- （v6 已落盘，当前唯一写入方是 chat 的 purpose='chat'。）
 CREATE TABLE llm_calls (
   id                 INTEGER PRIMARY KEY,
   batch_id           INTEGER REFERENCES analysis_batches(id),
@@ -268,7 +270,8 @@ CREATE TABLE timeline_review_ratings (
 
 ```sql
 -- Chat 会话与消息（v4 已落盘）。多会话模型已决定（decisions/chat-session-model.md）；
--- tool_name / tool_arguments 随 agent 工具循环切片追加，本轮纯对话只有 user / assistant。
+-- tool_name / tool_arguments 随 agent 工具循环切片落盘（v6 加列）：tool_call 行两者皆填，
+-- tool_result 行按 tool_name 配对、tool_arguments 为空。
 CREATE TABLE chat_conversations (
   id          TEXT PRIMARY KEY,   -- UUID
   title       TEXT,
@@ -280,9 +283,11 @@ CREATE TABLE chat_conversations (
 CREATE TABLE chat_messages (
   id              INTEGER PRIMARY KEY,
   conversation_id TEXT NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
-  role            TEXT NOT NULL,  -- user | assistant（tool_call / tool_result 随 agent 切片）
-  content         TEXT NOT NULL,
+  role            TEXT NOT NULL,  -- user | assistant | tool_call | tool_result
+  content         TEXT NOT NULL,  -- tool_result 行为结果 JSON 信封
   status          TEXT,           -- assistant 消息：ok | failed | canceled
+  tool_name       TEXT,           -- tool_call / tool_result 行的工具名
+  tool_arguments  TEXT,           -- 仅 tool_call：紧凑 JSON 参数
   created_at      INTEGER NOT NULL
 );
 CREATE INDEX idx_chat_messages_conversation ON chat_messages (conversation_id, id);
@@ -425,7 +430,7 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 | WAL checkpoint | 300 秒 | ★ 已实现 | `PASSIVE`：不阻塞读写，宁可 WAL 大一会儿也不要卡住一次捕获写入 |
 | 数据库备份 | 启动后 1 小时，之后每 24 小时 | ★ 已实现 | `VACUUM INTO`（不是文件复制，避免撕裂的 WAL），保留最近 **7** 份（[决策](decisions/data-backup-retention.md)） |
 | 录制清理 | 启动后 1 小时，之后每小时 | 未实现 | 超出上限时按 closed segment 从旧到新两阶段删除。两个前置都归 recording：`recording_segments` 表尚未创建（其 schema 由 recording 的迁移夹具决定），且 `Media` 无实现。见[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
-| `llm_calls` 元数据留存 | 待定 | 未实现 | 只含 attempt 元数据，不含正文 |
+| `llm_calls` 元数据留存 | 待定 | 写入已实现（chat）；清理未实现 | 只含 attempt 元数据，不含正文 |
 
 维护循环由 app 生命周期持有（`storage.Maintainer`），`ctx` 取消即退出，不存在全局单例。
 只读实例照常跑循环，它的写操作被存储层拒绝——第二个实例是预期状态，不是故障。

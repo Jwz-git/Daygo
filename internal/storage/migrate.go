@@ -58,6 +58,8 @@ type migration struct {
 // System (excluded from totals) and Idle (counts toward idle time). Seeding
 // here rather than on first read means every database, including one whose
 // only writer crashed mid-migration, either has both rows or neither.
+// v5 lands the daily tables (journal entries and day goals). v6 lands the chat
+// agent slice: the llm_calls audit table and the chat tool columns.
 var migrations = []migration{
 	{
 		version: 1,
@@ -229,6 +231,46 @@ var migrations = []migration{
 			} {
 				if _, err := tx.ExecContext(ctx, stmt); err != nil {
 					return wrap("create v5 daily tables", err)
+				}
+			}
+			return nil
+		},
+	},
+	{
+		version: 6,
+		name:    "chat agent: llm_calls audit and chat tool columns",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// llm_calls follows docs/03 §3.3.1: attempt metadata only — no
+			// endpoint, request/response body, image, key, or cost columns, ever.
+			// The chat_messages columns were deferred from v4 per docs/03 §3.3.4
+			// and arrive with the agent slice that writes them.
+			for _, stmt := range []string{
+				`CREATE TABLE llm_calls (
+					id                 INTEGER PRIMARY KEY,
+					batch_id           INTEGER REFERENCES analysis_batches(id),
+					purpose            TEXT    NOT NULL,
+					attempt_no         INTEGER NOT NULL,
+					provider_id        TEXT    NOT NULL,
+					protocol           TEXT    NOT NULL,
+					requested_model    TEXT    NOT NULL,
+					actual_model       TEXT,
+					started_at         INTEGER NOT NULL,
+					finished_at        INTEGER NOT NULL,
+					latency_ms         INTEGER NOT NULL,
+					outcome            TEXT    NOT NULL,
+					error_kind         TEXT,
+					http_status        INTEGER,
+					input_tokens       INTEGER,
+					output_tokens      INTEGER,
+					cache_read_tokens  INTEGER,
+					cache_write_tokens INTEGER
+				)`,
+				`CREATE INDEX idx_llm_calls_batch ON llm_calls (batch_id, purpose, attempt_no)`,
+				`ALTER TABLE chat_messages ADD COLUMN tool_name TEXT`,
+				`ALTER TABLE chat_messages ADD COLUMN tool_arguments TEXT`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v6 llm_calls and chat tool columns", err)
 				}
 			}
 			return nil

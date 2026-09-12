@@ -241,6 +241,47 @@ func TestChatRepoAppendMessageSetsIDAndBumpsConversation(t *testing.T) {
 	}
 }
 
+func TestChatRepoToolMessageRoundTrip(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	repo := store.Chat()
+	ctx := context.Background()
+
+	if _, err := repo.CreateConversation(ctx, newTestConversation("conv-a", nil)); err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+
+	call, err := repo.AppendMessage(ctx, "conv-a", ChatMessage{
+		Role: ChatRoleToolCall, ToolName: "timeline", ToolArguments: `{"day":"2026-09-12"}`})
+	if err != nil {
+		t.Fatalf("AppendMessage tool_call: %v", err)
+	}
+	result, err := repo.AppendMessage(ctx, "conv-a", ChatMessage{
+		Role: ChatRoleToolRes, ToolName: "timeline", Content: `{"ok":true}`})
+	if err != nil {
+		t.Fatalf("AppendMessage tool_result: %v", err)
+	}
+
+	msgs, err := repo.Messages(ctx, "conv-a", 0, 0)
+	if err != nil {
+		t.Fatalf("Messages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("messages = %d, want 2", len(msgs))
+	}
+	gotCall, gotResult := msgs[0], msgs[1]
+	if gotCall.Role != ChatRoleToolCall || gotCall.ToolName != "timeline" ||
+		gotCall.ToolArguments != `{"day":"2026-09-12"}` || gotCall.Content != "" || gotCall.Status != "" {
+		t.Fatalf("tool_call round trip = %+v", gotCall)
+	}
+	if gotResult.Role != ChatRoleToolRes || gotResult.ToolName != "timeline" ||
+		gotResult.ToolArguments != "" || gotResult.Content != `{"ok":true}` {
+		t.Fatalf("tool_result round trip = %+v", gotResult)
+	}
+	if result.ID <= call.ID {
+		t.Fatalf("tool_result id %d must follow tool_call id %d", result.ID, call.ID)
+	}
+}
+
 func TestChatRepoMessagesPagination(t *testing.T) {
 	store := openWriter(t, newDir(t))
 	repo := store.Chat()

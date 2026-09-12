@@ -399,3 +399,71 @@ func TestMigrateV4FixturePreservesDataAndCreatesV5Tables(t *testing.T) {
 		t.Fatalf("chat message = %q/%q; the migration altered existing data", role, content)
 	}
 }
+
+// DB-2 for v6: upgrade a database written by a v5-only build and assert the
+// llm_calls table and chat tool columns exist, and pre-existing chat and daily
+// data survives.
+func TestMigrateV5FixturePreservesDataAndCreatesV6Tables(t *testing.T) {
+	fixture := filepath.Join("testdata", "v5-daily.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	var name string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT name FROM sqlite_master WHERE type='table' AND name='llm_calls'").Scan(&name); err != nil {
+		t.Fatalf("table llm_calls missing after migration: %v", err)
+	}
+	var index string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT name FROM sqlite_master WHERE type='index' AND name='idx_llm_calls_batch'").Scan(&index); err != nil {
+		t.Fatalf("index idx_llm_calls_batch missing after migration: %v", err)
+	}
+
+	// The tool columns arrive as NULL on pre-existing rows; the extension is
+	// purely additive.
+	var toolName, toolArguments sql.NullString
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT tool_name, tool_arguments FROM chat_messages WHERE id = 1").Scan(&toolName, &toolArguments); err != nil {
+		t.Fatalf("read chat message tool columns after upgrade: %v", err)
+	}
+	if toolName.Valid || toolArguments.Valid {
+		t.Fatalf("tool columns = %q/%q on a pre-agent row; the migration wrote data", toolName.String, toolArguments.String)
+	}
+
+	// Pre-existing chat and daily data must survive untouched.
+	var role, content string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT role, content FROM chat_messages WHERE id = 1").Scan(&role, &content); err != nil {
+		t.Fatalf("read chat message after upgrade: %v", err)
+	}
+	if role != "user" || content != "fixture question" {
+		t.Fatalf("chat message = %q/%q; the migration altered existing data", role, content)
+	}
+	var status string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT status FROM journal_entries WHERE day = '2026-09-12'").Scan(&status); err != nil {
+		t.Fatalf("read journal entry after upgrade: %v", err)
+	}
+	if status != "draft" {
+		t.Fatalf("journal status = %q; the migration altered existing data", status)
+	}
+	var focusMinutes int
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT focus_target_minutes FROM day_goals WHERE day = '2026-09-12'").Scan(&focusMinutes); err != nil {
+		t.Fatalf("read day goal after upgrade: %v", err)
+	}
+	if focusMinutes != 120 {
+		t.Fatalf("focus_target_minutes = %d; the migration altered existing data", focusMinutes)
+	}
+}

@@ -46,6 +46,9 @@ func main() {
 	if err := writeV4(filepath.Join(outDir, "v4-chat.db")); err != nil {
 		log.Fatalf("v4-chat.db: %v", err)
 	}
+	if err := writeV5(filepath.Join(outDir, "v5-daily.db")); err != nil {
+		log.Fatalf("v5-daily.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -201,6 +204,62 @@ func writeV4(path string) error {
 		`INSERT INTO chat_messages (id, conversation_id, role, content, status, created_at)
 			VALUES (1, 'fixture-conversation', 'user', 'fixture question', NULL, 1700000002)`,
 		`PRAGMA user_version = 4`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("exec %q: %w", stmt, err)
+		}
+	}
+	return nil
+}
+
+// writeV5 builds a version-5 database (the daily tables are the last state a
+// v5-only build can produce) with anonymous rows, so the v6 migration test can
+// prove the upgrade creates llm_calls and the chat tool columns without
+// disturbing pre-existing data. llm_calls first exists in v6, so its rows
+// cannot predate the migration.
+func writeV5(path string) error {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`CREATE TABLE app_settings (
+			key        TEXT PRIMARY KEY,
+			value      TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE TABLE analysis_batches (id INTEGER PRIMARY KEY, start_ts INTEGER NOT NULL, end_ts INTEGER NOT NULL, status TEXT NOT NULL, failure_kind TEXT, failure_note TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
+		`CREATE TABLE timeline_cards (id INTEGER PRIMARY KEY, batch_id INTEGER REFERENCES analysis_batches(id), day TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL, start_ts INTEGER NOT NULL, end_ts INTEGER NOT NULL, category TEXT NOT NULL, subcategory TEXT, title TEXT NOT NULL, summary TEXT NOT NULL, detailed_summary TEXT, video_summary_path TEXT, metadata TEXT, is_deleted INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
+		`CREATE TABLE categories (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, color_hex TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL, is_system INTEGER NOT NULL DEFAULT 0, is_idle INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
+		`INSERT INTO categories (id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at) VALUES
+			('00000000-0000-4000-8000-000000000001', 'System', '#8E8E93', '', 0, 1, 0, 0, 0),
+			('00000000-0000-4000-8000-000000000002', 'Idle', '#C7C7CC', '', 0, 1, 1, 0, 0)`,
+		`CREATE TABLE pending_captures (id INTEGER PRIMARY KEY, relative_path TEXT NOT NULL UNIQUE, captured_at INTEGER NOT NULL, idle_seconds INTEGER, width INTEGER NOT NULL, height INTEGER NOT NULL, redacted INTEGER NOT NULL DEFAULT 0, file_size INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+		`CREATE TABLE screenshots (id INTEGER PRIMARY KEY, segment_path TEXT NOT NULL, frame_index INTEGER NOT NULL, captured_at INTEGER NOT NULL, idle_seconds_at_capture INTEGER, width INTEGER NOT NULL, height INTEGER NOT NULL, redacted INTEGER NOT NULL DEFAULT 0, file_size INTEGER, is_deleted INTEGER NOT NULL DEFAULT 0, UNIQUE(segment_path, frame_index))`,
+		`CREATE TABLE providers (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, protocol TEXT NOT NULL, endpoint TEXT NOT NULL, model TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
+		`CREATE TABLE chat_conversations (id TEXT PRIMARY KEY, title TEXT, provider_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
+		`CREATE TABLE chat_messages (id INTEGER PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE, role TEXT NOT NULL, content TEXT NOT NULL, status TEXT, created_at INTEGER NOT NULL)`,
+		`CREATE TABLE journal_entries (day TEXT PRIMARY KEY, intentions TEXT, notes TEXT, goals TEXT, reflections TEXT, summary TEXT, status TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
+		`CREATE TABLE day_goals (day TEXT PRIMARY KEY, focus_target_minutes INTEGER NOT NULL, distraction_limit_minutes INTEGER NOT NULL, is_skipped INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`,
+		`CREATE TABLE day_goal_categories (day TEXT NOT NULL REFERENCES day_goals(day) ON DELETE CASCADE, category_id TEXT NOT NULL REFERENCES categories(id), role TEXT NOT NULL, sort_order INTEGER NOT NULL, PRIMARY KEY (day, category_id, role))`,
+		// Anonymous rows the migration must leave untouched.
+		`INSERT INTO providers (id, display_name, protocol, endpoint, model, created_at, updated_at)
+			VALUES ('fixture-provider', 'Fixture Provider', 'openai', 'https://example.invalid/v1', 'fixture-model', 1700000000, 1700000000)`,
+		`INSERT INTO chat_conversations (id, title, provider_id, created_at, updated_at)
+			VALUES ('fixture-conversation', 'fixture title', 'fixture-provider', 1700000001, 1700000002)`,
+		`INSERT INTO chat_messages (id, conversation_id, role, content, status, created_at)
+			VALUES (1, 'fixture-conversation', 'user', 'fixture question', NULL, 1700000002)`,
+		`INSERT INTO journal_entries (day, intentions, notes, goals, reflections, summary, status, updated_at)
+			VALUES ('2026-09-12', 'fixture intentions', NULL, NULL, NULL, NULL, 'draft', 1700000003)`,
+		`INSERT INTO day_goals (day, focus_target_minutes, distraction_limit_minutes, is_skipped, updated_at)
+			VALUES ('2026-09-12', 120, 30, 0, 1700000003)`,
+		`PRAGMA user_version = 5`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
