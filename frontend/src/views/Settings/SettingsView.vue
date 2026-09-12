@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 
 import PageHeader from '@/components/PageHeader.vue'
-import PlannedNotice from '@/components/PlannedNotice.vue'
 
 import AgentAccessSection from './AgentAccessSection.vue'
 import AppearanceSection from './AppearanceSection.vue'
@@ -12,8 +12,10 @@ import ProvidersSection from './ProvidersSection.vue'
 import RecognitionSection from './RecognitionSection.vue'
 import StorageSection from './StorageSection.vue'
 import OutputLanguageSection from './OutputLanguageSection.vue'
+import { SETTINGS_SECTIONS, settingsSectionFromQuery, type SettingsSection } from './navigation'
 
 const { t } = useI18n()
+const isDevelopment = import.meta.env.DEV
 
 /*
  * A section is either implemented or a planned placeholder. The implemented
@@ -26,18 +28,18 @@ const { t } = useI18n()
  * consumer (recorder, cleanup loop, agent.sock) is still unimplemented — the
  * agentAccess hint says so explicitly.
  */
-const sections = [
-  'providers',
-  'storage',
-  'privacy',
-  'agentAccess',
-  'dataExport',
-  'other',
-] as const
+const sections = SETTINGS_SECTIONS
 
-type SectionKey = (typeof sections)[number]
+const route = useRoute()
+const router = useRouter()
 
-const active = ref<SectionKey>('other')
+const active = ref<SettingsSection>(settingsSectionFromQuery(route.query.section))
+watch(() => route.query.section, (value) => { active.value = settingsSectionFromQuery(value) })
+
+function selectSection(section: SettingsSection): void {
+  active.value = section
+  void router.replace({ query: { ...route.query, section } })
+}
 </script>
 
 <template>
@@ -53,7 +55,7 @@ const active = ref<SectionKey>('other')
               class="nav__item"
               :class="{ 'is-active': active === section }"
               :aria-current="active === section ? 'true' : undefined"
-              @click="active = section"
+              @click="selectSection(section)"
             >
               {{ t(`settings.nav.${section}`) }}
             </button>
@@ -63,26 +65,24 @@ const active = ref<SectionKey>('other')
 
       <div class="content dg-scroll">
         <div class="content__inner">
-          <ProvidersSection v-if="active === 'providers'" />
-          <StorageSection v-else-if="active === 'storage'" />
-          <PrivacySection v-else-if="active === 'privacy'" />
-          <AgentAccessSection v-else-if="active === 'agentAccess'" />
-
-          <template v-else-if="active === 'other'">
+          <template v-if="active === 'general'">
             <AppearanceSection />
+          </template>
+          <template v-else-if="active === 'recording'">
+            <PrivacySection />
+          </template>
+          <template v-else-if="active === 'ai'">
+            <ProvidersSection />
             <OutputLanguageSection />
             <RecognitionSection />
-            <PlannedNotice
-              title-key="settings.nav.other"
-              description-key="settings.section.otherDescription"
-            />
           </template>
-
-          <PlannedNotice
-            v-else
-            :title-key="`settings.nav.${active}`"
-            :description-key="`settings.section.${active}Description`"
-          />
+          <template v-else-if="active === 'storage'">
+            <StorageSection />
+            <RouterLink v-if="isDevelopment" class="diagnostics-link dg-button" :to="{ name: 'capture-test' }">
+              {{ t('settings.diagnostics.captureTest') }}
+            </RouterLink>
+          </template>
+          <AgentAccessSection v-else-if="active === 'agentAccess'" />
         </div>
       </div>
     </div>
@@ -153,6 +153,12 @@ const active = ref<SectionKey>('other')
   gap: 14px;
   max-width: var(--dg-settings-content-max);
   padding: 2px 4px 12px 0;
+}
+
+.diagnostics-link {
+  align-self: flex-start;
+  color: var(--dg-button-secondary-text);
+  text-decoration: none;
 }
 
 @media (max-width: 860px) {

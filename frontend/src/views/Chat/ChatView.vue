@@ -492,7 +492,7 @@ function onModelChange(model: string): void {
         </p>
       </section>
 
-      <!-- Sidebar, on the right -->
+      <!-- Conversation navigation -->
       <aside class="side">
         <nav class="side__tabs" :aria-label="t('chat.title')">
           <button
@@ -655,11 +655,12 @@ function onModelChange(model: string): void {
   padding: 0 var(--dg-page-padding) var(--dg-page-padding);
 }
 
-/* ---- sidebar (right) ---- */
+/* ---- conversation navigation (left) ---- */
 
 .side {
   display: flex;
   flex-direction: column;
+  order: -1;
   flex: none;
   width: 260px;
   min-width: 0;
@@ -1071,7 +1072,7 @@ function onModelChange(model: string): void {
 
 /* ---- narrow ---- */
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .layout {
     flex-direction: column;
   }
@@ -1081,7 +1082,7 @@ function onModelChange(model: string): void {
   }
 
   .side__list {
-    max-height: 160px;
+    max-height: 120px;
   }
 
   .memory__text {

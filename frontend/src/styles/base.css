@@ -33,6 +33,10 @@ body {
   letter-spacing: var(--dg-font-display-tracking);
 }
 
+.dg-reading {
+  font-family: var(--dg-font-reading);
+}
+
 .dg-panel {
   border: 1px solid var(--dg-panel-border);
   border-radius: var(--dg-panel-radius);

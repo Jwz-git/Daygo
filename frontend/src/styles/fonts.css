@@ -1,39 +1,4 @@
-/*
- * Bundled UI faces — no system-font dependency or network loading.
- * Figtree covers Latin/UI text; LXGW WenKai covers Chinese text.
- */
-
-@font-face {
-  font-family: 'Figtree';
-  src: url('../assets/fonts/Figtree-VariableFont_wght.ttf') format('truetype');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'Figtree';
-  src: url('../assets/fonts/Figtree-Italic-VariableFont_wght.ttf') format('truetype');
-  font-weight: 100 900;
-  font-style: italic;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'Instrument Serif';
-  src: url('../assets/fonts/InstrumentSerif-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'Instrument Serif';
-  src: url('../assets/fonts/InstrumentSerif-Italic.ttf') format('truetype');
-  font-weight: 400;
-  font-style: italic;
-  font-display: block;
-}
+/* Bundled reading faces. Controls use the native macOS UI stack below. */
 
 @font-face {
   font-family: 'LXGW WenKai';
@@ -53,19 +18,18 @@
 
 :root {
   --dg-font-ui:
-    'Figtree', 'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB',
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
     'Helvetica Neue', sans-serif;
   --dg-font-mono:
     ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
   --dg-font-display:
-    'Instrument Serif', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif;
-  --dg-font-display-weight: 400;
-  --dg-font-display-tracking: -0.01em;
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC',
+    'Helvetica Neue', sans-serif;
+  --dg-font-display-weight: 650;
+  --dg-font-display-tracking: -0.02em;
+  --dg-font-reading: 'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB', serif;
 }
 
 :root[data-dg-lang-script='hans'] {
-  --dg-font-display:
-    'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB', 'Figtree', sans-serif;
-  --dg-font-display-weight: 500;
-  --dg-font-display-tracking: 0.02em;
+  --dg-font-display-tracking: -0.01em;
 }

@@ -1,12 +1,18 @@
 export default {
   title: 'Settings',
   nav: {
+    general: 'General & appearance',
+    recording: 'Recording & privacy',
+    ai: 'AI & models',
     storage: 'Storage',
     privacy: 'Privacy',
     providers: 'Providers',
     agentAccess: 'MCP / CLI',
     dataExport: 'Export',
     other: 'Other',
+  },
+  diagnostics: {
+    captureTest: 'Open capture diagnostics',
   },
   section: {
     storageDescription: 'Capture interval and resolution, disk usage limit.',

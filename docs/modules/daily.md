@@ -91,3 +91,6 @@ build、Vite 浏览器 smoke 通过。journal 往返（summary 保留断言）�
 非法 status / 未知分类 → `invalid_argument`、只读实例 → `not_capture_owner`、事件
 payload 均有 Go 断言；浏览器预览验证面板降级态（无桥 unavailable）、中英文、420px
 窄宽无横向溢出。`wails dev` 真机保存 → 重启读回未运行。
+
+2026-09-12（全局界面重构，Vite 预览）：深色中文匿名日报检查通过；操作界面改用系统字体，
+日记编辑与摘要正文保留文楷阅读字体。真实 Wails 保存与浅色 / 英文矩阵仍未重跑。

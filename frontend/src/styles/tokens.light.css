@@ -15,7 +15,7 @@
   color-scheme: light;
 
   /* window */
-  --dg-window-bg: #e8e8eb;
+  --dg-window-bg: #eceef1;
   --dg-window-padding: 8px;
 
   /* panel */
@@ -31,16 +31,17 @@
   --dg-text-muted: #96939c;
 
   /* accent and controls */
-  --dg-accent: #ef7d48;
-  --dg-accent-strong: #dc6834;
-  --dg-accent-text: #c9582c;
-  --dg-focus-ring: rgba(239, 125, 72, 0.24);
-  --dg-control-fill: rgba(244, 135, 83, 0.18);
-  --dg-control-fill-hover: rgba(244, 135, 83, 0.25);
+  --dg-accent: #3977c3;
+  --dg-accent-strong: #2866b2;
+  --dg-accent-text: #2866b2;
+  --dg-focus-ring: rgba(57, 119, 195, 0.24);
+  --dg-control-fill: rgba(57, 119, 195, 0.14);
+  --dg-control-fill-hover: rgba(57, 119, 195, 0.21);
   /* selected item in a secondary nav list: a whisper of the accent, not a block */
-  --dg-nav-active-fill: rgba(244, 135, 83, 0.13);
-  --dg-nav-active-text: #b64f27;
+  --dg-nav-active-fill: rgba(57, 119, 195, 0.12);
+  --dg-nav-active-text: #2866b2;
   --dg-danger: #c84f43;
+  --dg-success: #39815e;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
   --dg-warning: #9a6d14;
 
@@ -65,9 +66,9 @@
   --dg-chip-text: #3e3c44;
 
   /* buttons (→ primaryButton* / secondaryButton*) */
-  --dg-button-primary-fill: #ef7d48;
-  --dg-button-primary-hover: #e5703e;
-  --dg-button-primary-border: rgba(208, 91, 41, 0.3);
+  --dg-button-primary-fill: #3977c3;
+  --dg-button-primary-hover: #286bb9;
+  --dg-button-primary-border: rgba(40, 102, 178, 0.35);
   --dg-button-primary-text: #ffffff;
   --dg-button-secondary-fill: rgba(255, 255, 255, 0.66);
   --dg-button-secondary-hover: rgba(255, 255, 255, 0.94);
@@ -78,7 +79,7 @@
   --dg-danger-fill: rgba(211, 73, 57, 0.1);
 
   /* sidebar rail */
-  --dg-rail-width: 80px;
+  --dg-rail-width: 76px;
   --dg-rail-item-size: 62px;
   --dg-rail-icon-size: 18px;
   --dg-rail-selection-size: 33px;
@@ -87,6 +88,8 @@
   --dg-rail-selection-border: rgba(0, 0, 0, 0.08);
   --dg-rail-selection-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   --dg-rail-label-size: 12px;
+  --dg-popover-fill: rgba(253, 253, 254, 0.98);
+  --dg-popover-shadow: 0 12px 32px rgba(28, 34, 45, 0.16), 0 2px 8px rgba(28, 34, 45, 0.1);
 
   /* cards */
   --dg-card-fill: rgba(255, 255, 255, 0.64);
@@ -120,7 +123,7 @@
   --dg-daily-footer-fill: rgba(247, 247, 249, 0.52);
 
   /* weekly summary */
-  --dg-weekly-focus: #ef7d48;
+  --dg-weekly-focus: #3977c3;
   --dg-weekly-ring-track: rgba(82, 76, 88, 0.1);
   --dg-weekly-ring-center: rgba(252, 252, 253, 0.96);
   --dg-weekly-summary-fill: rgba(247, 247, 249, 0.56);

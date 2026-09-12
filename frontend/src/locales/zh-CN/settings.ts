@@ -1,12 +1,18 @@
 export default {
   title: '设置',
   nav: {
+    general: '通用与外观',
+    recording: '录制与隐私',
+    ai: 'AI 与模型',
     storage: '存储',
     privacy: '隐私',
     providers: '模型服务',
     agentAccess: 'MCP / CLI',
     dataExport: '导出',
     other: '其他',
+  },
+  diagnostics: {
+    captureTest: '打开截图诊断',
   },
   section: {
     storageDescription: '录制间隔与分辨率、磁盘占用上限。',

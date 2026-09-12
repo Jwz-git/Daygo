@@ -89,24 +89,24 @@ function submit(): void {
       <div class="journal-grid dg-card">
         <label class="journal-field">
           <span>{{ t('daily.journal.intentions') }}</span>
-          <textarea v-model="draft.intentions" rows="3" :placeholder="t('daily.journal.intentionsPlaceholder')" />
+          <textarea v-model="draft.intentions" class="dg-reading" rows="3" :placeholder="t('daily.journal.intentionsPlaceholder')" />
         </label>
         <label class="journal-field">
           <span>{{ t('daily.journal.notes') }}</span>
-          <textarea v-model="draft.notes" rows="3" :placeholder="t('daily.journal.notesPlaceholder')" />
+          <textarea v-model="draft.notes" class="dg-reading" rows="3" :placeholder="t('daily.journal.notesPlaceholder')" />
         </label>
         <label class="journal-field">
           <span>{{ t('daily.journal.goals') }}</span>
-          <textarea v-model="draft.goals" rows="2" :placeholder="t('daily.journal.goalsPlaceholder')" />
+          <textarea v-model="draft.goals" class="dg-reading" rows="2" :placeholder="t('daily.journal.goalsPlaceholder')" />
         </label>
         <label class="journal-field">
           <span>{{ t('daily.journal.reflections') }}</span>
-          <textarea v-model="draft.reflections" rows="2" :placeholder="t('daily.journal.reflectionsPlaceholder')" />
+          <textarea v-model="draft.reflections" class="dg-reading" rows="2" :placeholder="t('daily.journal.reflectionsPlaceholder')" />
         </label>
       </div>
       <div v-if="journal?.summary" class="journal-summary dg-card">
         <h3>{{ t('daily.journal.summary') }}</h3>
-        <p>{{ journal.summary }}</p>
+        <p class="dg-reading">{{ journal.summary }}</p>
       </div>
     </template>
   </section>

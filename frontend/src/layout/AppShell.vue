@@ -1,5 +1,11 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from 'vue'
+import { useRecordingStore } from '@/stores/recording'
 import SideRail from './SideRail.vue'
+
+const recording = useRecordingStore()
+onMounted(() => recording.startListening())
+onBeforeUnmount(() => recording.stopListening())
 </script>
 
 <template>

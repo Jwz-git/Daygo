@@ -23,8 +23,9 @@
 - `internal/app`：`GetSettings` / `UpdateSettings` 绑定与 `SettingsDTO` / `SettingsPatchDTO`；
   `UpdateSettings` 返回生效后的完整设置，`settings:changed` 只带改动键名且仅在提交后发出。
   事件经可注入的 `EventEmitter` 发布，绑定层测试不需要 Wails runtime。
-- `frontend`：路由、侧栏、浅 / 深 / 跟随系统主题、双语切换和设置分区；界面使用 macOS 系统
-  字体优先的中性视觉层级，交互仅保留短促颜色 / 透明度反馈和开关位置过渡。
+- `frontend`：路由、分组侧栏、浅 / 深 / 跟随系统主题、双语切换和按用户任务重组的设置分区；
+  设置分区写入查询参数，可从其他功能深链进入。界面使用 macOS 系统字体与低饱和蓝色强调层级，
+  录制状态及控制已提升至全局外壳，截图测试仅从开发环境的存储与诊断分区进入。
 
 未交付：前端所有 DTO 的生成类型替换、统一错误模型、localStorage 全量接管迁移，以及尚无产品消费者的启动项 / Dock / 遥测行为接入。
 `frontend/src/api/dto.ts` 仍保留时间线 / Provider 等尚未生成绑定的手写类型；主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。模型输出语言、识别增强和存储上限已通过生成绑定接入设置页。
@@ -88,5 +89,7 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 |---|---|---|---|
 | 2026-09-10 | `npm --prefix frontend run typecheck` | 通过，见 [基线](../09-roadmap.md#当前代码证据) | — |
 | 2026-09-12 / 当前工作树 / macOS arm64 | `npm --prefix frontend run typecheck`、`npm --prefix frontend run test:unit`、`npm --prefix frontend run build`；浏览器预览设置页 | 通过；设置页可读取诊断、展示未接入数据源、选择录制上限，输出语言可编辑 / 重置，主题语言在有 Wails 桥时走后端 | Wails 真实重启交互、真实存储压力和 recorder 清理未验收 |
+| 2026-09-12 / 当前工作树 / macOS arm64 | 前端 typecheck、unit、build；Vite 匿名时间线视觉与 AX 树 | 通过；全局录制状态、上下导航分组、时间线样板在深色中文界面可见，截图测试不再占主导航 | 浏览器无 Wails 桥，录制控制真机操作和浅色 / 英文矩阵待验收 |
+| 2026-09-12 / 当前工作树 / macOS arm64 | Vite `#/settings?section=ai` 深链、深色中文视觉与 AX 树 | 通过；设置按通用、录制、AI、存储和 Agent 五个任务分区，刷新保持 AI 分区 | 浅色 / 英文和 Wails 真实设置写入待验收 |
 
 前端仍未完成全量绑定生成类型替换、真实重启交互和 localStorage 迁移的独立实机实验。

@@ -7,5 +7,6 @@ import nav from './nav'
 import settings from './settings'
 import timeline from './timeline'
 import weekly from './weekly'
+import recording from './recording'
 
-export default { common, nav, timeline, daily, weekly, chat, settings, errors, captureTest }
+export default { common, nav, recording, timeline, daily, weekly, chat, settings, errors, captureTest }

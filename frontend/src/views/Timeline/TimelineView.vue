@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import PageHeader from '@/components/PageHeader.vue'
-import { onRecordingState, getRecordingState, setRecording } from '@/api/recording'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { safeTimeZone } from '@/lib/timeZone'
@@ -35,13 +34,6 @@ const { locale, t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
-const recordingState = ref('idle')
-const recordingError = ref('')
-let stopRecordingEvents: (() => void) | undefined
-async function startRecording(): Promise<void> {
-  recordingError.value = ''
-  try { await setRecording(true); recordingState.value = (await getRecordingState()).state } catch (cause: unknown) { recordingError.value = cause instanceof Error ? cause.message : String(cause) }
-}
 const dateTitle = computed(() => {
   if (context.value === null) return t('timeline.title')
   return new Intl.DateTimeFormat(locale.value, {
@@ -103,11 +95,9 @@ async function copyTimeline(): Promise<void> {
 
 onMounted(() => {
   timeline.startEvents()
-  stopRecordingEvents = onRecordingState((state) => { recordingState.value = state })
-  void getRecordingState().then((value) => { recordingState.value = value.state }).catch(() => undefined)
 })
 watch(() => route.query.day, () => { void timeline.load(routeDay()) }, { immediate: true })
-onBeforeUnmount(() => { timeline.stopListening(); stopRecordingEvents?.() })
+onBeforeUnmount(() => { timeline.stopListening() })
 </script>
 
 <template>
@@ -147,9 +137,6 @@ onBeforeUnmount(() => { timeline.stopListening(); stopRecordingEvents?.() })
       </template>
 
       <template #trail>
-        <button v-if="recordingState === 'idle'" type="button" class="dg-chip dg-chip--filled" @click="startRecording">{{ t('timeline.recording.start') }}</button>
-        <span v-else class="development-badge">{{ recordingState }}</span>
-        <span v-if="recordingError" class="timeline-error">{{ recordingError }}</span>
         <span v-if="usingDevelopmentFixture" class="development-badge">{{ t('timeline.developmentFixture') }}</span>
         <div v-if="day" class="day-meta">
           <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>

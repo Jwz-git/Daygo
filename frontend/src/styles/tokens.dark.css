@@ -25,16 +25,16 @@
   --dg-text-tertiary: #a7a3af;
   --dg-text-muted: #918d99;
 
-  /* Keep the same warm Daygo accent in both appearances. */
-  --dg-accent: #ff8a55;
-  --dg-accent-strong: #ff9a6b;
-  --dg-accent-text: #ffa276;
-  --dg-focus-ring: rgba(255, 138, 85, 0.28);
-  --dg-control-fill: rgba(255, 138, 85, 0.17);
-  --dg-control-fill-hover: rgba(255, 138, 85, 0.23);
-  --dg-nav-active-fill: rgba(255, 138, 85, 0.14);
-  --dg-nav-active-text: #ffab84;
+  --dg-accent: #6aa7ed;
+  --dg-accent-strong: #82b7f2;
+  --dg-accent-text: #86bafa;
+  --dg-focus-ring: rgba(106, 167, 237, 0.3);
+  --dg-control-fill: rgba(106, 167, 237, 0.17);
+  --dg-control-fill-hover: rgba(106, 167, 237, 0.24);
+  --dg-nav-active-fill: rgba(106, 167, 237, 0.15);
+  --dg-nav-active-text: #8dc0fa;
   --dg-danger: #ff8278;
+  --dg-success: #68b98e;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
   --dg-warning: #e3b25e;
 
@@ -52,9 +52,9 @@
   --dg-chip-border: rgba(255, 255, 255, 0.13);
   --dg-chip-text: #ebe8ef;
 
-  --dg-button-primary-fill: #e97845;
-  --dg-button-primary-hover: #f18450;
-  --dg-button-primary-border: rgba(255, 169, 128, 0.32);
+  --dg-button-primary-fill: #3e7fc9;
+  --dg-button-primary-hover: #5190d6;
+  --dg-button-primary-border: rgba(139, 191, 250, 0.34);
   --dg-button-primary-text: #ffffff;
   --dg-button-secondary-fill: rgba(255, 255, 255, 0.075);
   --dg-button-secondary-hover: rgba(255, 255, 255, 0.12);
@@ -66,6 +66,8 @@
   --dg-rail-selection-fill: rgba(255, 255, 255, 0.1);
   --dg-rail-selection-border: rgba(255, 255, 255, 0.16);
   --dg-rail-selection-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --dg-popover-fill: rgba(43, 43, 46, 0.98);
+  --dg-popover-shadow: 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 8px rgba(0, 0, 0, 0.28);
 
   --dg-card-fill: rgba(255, 255, 255, 0.07);
   --dg-card-border: rgba(255, 255, 255, 0.12);
@@ -92,7 +94,7 @@
   --dg-daily-distraction: #ff8278;
   --dg-daily-footer-fill: rgba(8, 8, 10, 0.14);
 
-  --dg-weekly-focus: #ff8a55;
+  --dg-weekly-focus: #6aa7ed;
   --dg-weekly-ring-track: rgba(255, 255, 255, 0.09);
   --dg-weekly-ring-center: rgba(35, 35, 38, 0.98);
   --dg-weekly-summary-fill: rgba(8, 8, 10, 0.13);
