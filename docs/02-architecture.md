@@ -195,7 +195,7 @@ Daygo/
 
 - 库与模式：`vue-i18n`，Composition 模式（`legacy: false` + `globalInjection: true`）。
 - 语言包：`src/locales/<locale>/<domain>.ts`，域划分 `common / nav / timeline / daily /
-  weekly / settings / errors`，与 `views/` 一一对应。key 命名 `<domain>.<区块>.<语义>`，
+  weekly / chat / settings / errors`，与 `views/` 一一对应。key 命名 `<domain>.<区块>.<语义>`，
   camelCase，禁止用英文原文当 key。
 - 类型：语言包映射为 `Record<AppLocale, LocaleSchema>`，某个语言包缺 key 时 `vue-tsc`
   直接失败，而不是运行时静默回退。
