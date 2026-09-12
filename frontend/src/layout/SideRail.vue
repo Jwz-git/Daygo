@@ -3,6 +3,7 @@ import type { Component } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 
 import IconCaptureTest from '@/components/icons/IconCaptureTest.vue'
+import IconChat from '@/components/icons/IconChat.vue'
 import IconDaily from '@/components/icons/IconDaily.vue'
 import IconSettings from '@/components/icons/IconSettings.vue'
 import IconTimeline from '@/components/icons/IconTimeline.vue'
@@ -19,14 +20,15 @@ interface RailItem {
 }
 
 /*
- * v1 ships exactly these four destinations. A rail entry that leads nowhere is
- * worse than a missing one, so adding a page means adding one entry here — not
- * the other way round.
+ * A rail entry exists only when its page exists (a placeholder page counts;
+ * a dead link does not). Adding a page means adding one entry here — not the
+ * other way round.
  */
 const items: readonly RailItem[] = [
   { navKey: 'timeline', to: { name: 'timeline' }, labelKey: 'nav.timeline', icon: IconTimeline },
   { navKey: 'daily', to: { name: 'daily' }, labelKey: 'nav.daily', icon: IconDaily },
   { navKey: 'weekly', to: { name: 'weekly' }, labelKey: 'nav.weekly', icon: IconWeekly },
+  { navKey: 'chat', to: { name: 'chat' }, labelKey: 'nav.chat', icon: IconChat },
   { navKey: 'settings', to: { name: 'settings' }, labelKey: 'nav.settings', icon: IconSettings },
   { navKey: 'capture-test', to: { name: 'capture-test' }, labelKey: 'nav.captureTest', icon: IconCaptureTest },
 ]

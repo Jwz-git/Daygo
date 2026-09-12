@@ -33,6 +33,12 @@ const routes: RouteRecordRaw[] = [
     meta: { navKey: 'weekly' },
   },
   {
+    path: '/chat',
+    name: 'chat',
+    component: () => import('@/views/Chat/ChatView.vue'),
+    meta: { navKey: 'chat' },
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/Settings/SettingsView.vue'),
