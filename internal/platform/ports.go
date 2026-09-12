@@ -8,10 +8,17 @@ type Capture interface {
 	Capture(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 }
 
-// ApplicationInspector resolves the stable identity of one user-selected
-// application bundle. It owns no picker UI and never retains the supplied path.
+// ApplicationInspector resolves application identities for the screenshot
+// privacy list. It owns no picker UI and never retains a supplied path.
 type ApplicationInspector interface {
-	InspectApplication(ctx context.Context, path string) (AppInfo, error)
+	// InspectApplication resolves one user-selected .app bundle.
+	InspectApplication(ctx context.Context, path string) (ApplicationIdentity, error)
+	// DescribeApplications resolves already-configured bundle identifiers in
+	// input order, one result per identifier. An identifier the system cannot
+	// resolve comes back with only ID set; only invalid input is an error.
+	// Adapters without the capability return ID-only results rather than
+	// failing, so the privacy list stays readable and editable everywhere.
+	DescribeApplications(ctx context.Context, ids []string) ([]ApplicationIdentity, error)
 }
 
 // Media decodes frames out of segments and encodes timelapses. These signatures

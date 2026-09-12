@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 
-#define DG_APPLICATION_ABI_MAJOR 1u
+#define DG_APPLICATION_ABI_MAJOR 2u
 #define DG_APPLICATION_ABI_MINOR 0u
 
 typedef struct dg_application_string_view_v1 {
@@ -52,23 +52,28 @@ enum {
     DG_APPLICATION_E_ABI_MISMATCH = -2,
     DG_APPLICATION_E_UNSUPPORTED = -3,
     DG_APPLICATION_E_NOT_APPLICATION = -4,
-    DG_APPLICATION_E_INTERNAL = -5
+    DG_APPLICATION_E_INTERNAL = -5,
+    DG_APPLICATION_E_NOT_FOUND = -6
 };
 
 /*
- * Caller-owned output for one selected macOS application bundle.
+ * Caller-owned output for one macOS application.
  *
- * The caller zero-initializes this struct, sets struct_size, and supplies both
- * buffers. On success identifier is the bundle identifier used by Daygo's
- * capture privacy filter, and name is a localized display label. The
- * implementation never retains or allocates memory for the caller.
+ * The caller zero-initializes this struct, sets struct_size, and supplies all
+ * three buffers. On success identifier is the bundle identifier used by Daygo's
+ * capture privacy filter, name is a localized display label, and icon_png is a
+ * square PNG rendering of the application icon. icon_png.len is 0 when the
+ * application has no loadable icon or when the encoded icon does not fit the
+ * caller's buffer; an absent icon is never an error. The implementation never
+ * retains or allocates memory for the caller.
  */
-typedef struct dg_application_info_v1 {
+typedef struct dg_application_info_v2 {
     uint32_t struct_size;
     uint32_t reserved0;
     dg_application_buffer_v1 identifier;
     dg_application_buffer_v1 name;
-} dg_application_info_v1;
+    dg_application_buffer_v1 icon_png;
+} dg_application_info_v2;
 
 typedef struct dg_application_error_v1 {
     uint32_t struct_size;
@@ -89,7 +94,19 @@ DG_APPLICATION_API void DG_APPLICATION_CALL dg_application_abi_version(
 DG_APPLICATION_API int32_t DG_APPLICATION_CALL dg_application_inspect(
     uint32_t requested_abi_major,
     dg_application_string_view_v1 application_path,
-    dg_application_info_v1 *out_info,
+    dg_application_info_v2 *out_info,
+    dg_application_error_v1 *out_error
+);
+
+/*
+ * Resolves an already-known bundle identifier without a user-selected path.
+ * Returns DG_APPLICATION_E_NOT_FOUND when the system has no installed
+ * application with that identifier.
+ */
+DG_APPLICATION_API int32_t DG_APPLICATION_CALL dg_application_lookup(
+    uint32_t requested_abi_major,
+    dg_application_string_view_v1 bundle_identifier,
+    dg_application_info_v2 *out_info,
     dg_application_error_v1 *out_error
 );
 
@@ -112,16 +129,20 @@ DG_APPLICATION_STATIC_ASSERT(
     "dg_application_buffer_v1 ABI drift"
 );
 DG_APPLICATION_STATIC_ASSERT(
-    sizeof(dg_application_info_v1) == 56,
-    "dg_application_info_v1 ABI drift"
+    sizeof(dg_application_info_v2) == 80,
+    "dg_application_info_v2 ABI drift"
 );
 DG_APPLICATION_STATIC_ASSERT(
-    offsetof(dg_application_info_v1, identifier) == 8,
-    "dg_application_info_v1.identifier ABI drift"
+    offsetof(dg_application_info_v2, identifier) == 8,
+    "dg_application_info_v2.identifier ABI drift"
 );
 DG_APPLICATION_STATIC_ASSERT(
-    offsetof(dg_application_info_v1, name) == 32,
-    "dg_application_info_v1.name ABI drift"
+    offsetof(dg_application_info_v2, name) == 32,
+    "dg_application_info_v2.name ABI drift"
+);
+DG_APPLICATION_STATIC_ASSERT(
+    offsetof(dg_application_info_v2, icon_png) == 56,
+    "dg_application_info_v2.icon_png ABI drift"
 );
 DG_APPLICATION_STATIC_ASSERT(
     sizeof(dg_application_error_v1) == 16,

@@ -29,13 +29,16 @@ export default {
     blockedTitle: 'Blocked apps',
     blockedHint:
       'While a blocked app is in the foreground, a redacted placeholder frame is written: the timeline still shows the activity, but no content.',
-    add: 'Add',
-    addPlaceholder: 'Bundle ID, e.g. com.apple.Safari',
+    choose: 'Choose application…',
+    selecting: 'Choosing…',
     empty: 'No apps are blocked yet.',
-    remove: 'Remove {id}',
+    loading: 'Reading blocked apps…',
+    unavailable: 'The blocked app list is unavailable.',
+    remove: 'Remove {name}',
+    writeError: 'Saving failed; the value was restored from the database.',
     error: {
-      duplicate: 'Already in the list',
-      invalid: 'Enter a bundle ID without spaces',
+      unavailable: 'Open this page in the Daygo desktop app.',
+      pickFailed: 'The selected application could not be resolved. Try again.',
     },
   },
   agentAccess: {

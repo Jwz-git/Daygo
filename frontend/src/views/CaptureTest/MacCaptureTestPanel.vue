@@ -5,12 +5,12 @@ import { useI18n } from 'vue-i18n'
 import {
   captureTest,
   openCaptureTestFolder,
-  pickCaptureTestApplication,
   pollSystemEvents,
   WAILS_UNAVAILABLE,
   type CaptureTestResult,
   type SystemEventTest,
 } from '@/api/captureTest'
+import { pickApplication } from '@/api/application'
 
 const { t } = useI18n()
 const outputDirectory = ref('/tmp/daygo-capture-test')
@@ -60,7 +60,7 @@ async function chooseBlockedApplication(): Promise<void> {
   selectingApplication.value = true
   error.value = ''
   try {
-    const application = await pickCaptureTestApplication()
+    const application = await pickApplication()
     if (application === null) return
     if (!blockedApplicationIds.value.includes(application.id)) {
       const current = blockedApplicationIdsText.value.trim()

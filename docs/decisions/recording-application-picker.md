@@ -1,30 +1,53 @@
-# recording macOS 应用选择与 Bundle ID ABI
+# recording macOS 应用身份解析与 ABI
 
-> **状态：有限实现。** 本记录只冻结“用户选择一个 `.app` 后，解析截图隐私名单所需稳定身份”
-> 的最小边界。它不完成 `System.InstalledApplications`、正式隐私设置页、recorder、占位帧或
-> MC 隐私矩阵，也不决定其余平台能力的适配形态。
+> **状态：有限实现。** 本记录冻结“用户选择一个 `.app`”与“已配置的 Bundle ID 回查展示身份”
+> 两条路径的最小边界。它不完成 `System.InstalledApplications`、recorder、占位帧或 MC 隐私
+> 矩阵，也不决定其余平台能力的适配形态。
 
 ## 1. 决定
 
-临时 `CaptureTest` 页面通过 Wails v2 `OpenFileDialog` 调起 macOS `NSOpenPanel`，默认打开
+### 1.1 选择路径
+
+`PickApplication`（正式绑定）通过 Wails v2 `OpenFileDialog` 调起 macOS `NSOpenPanel`，默认打开
 `/Applications`。Wails v2 把 `*.app` filter 映射到 `allowedFileTypes` 后会使 `.app` package
 呈灰色不可选，因此当前不向面板下发文件 filter；用户仍选择 `.app`，Go 与原生 inspector
 负责权威校验，任何非应用输入失败关闭。Wails 返回的路径只在一次绑定调用中使用，不持久化、
 不返回前端、不写日志。
 
-Go 通过独立的 `platform.ApplicationInspector` 调用
-[`daygo_application.h`](../../native/include/daygo_application.h) ABI。原生实现使用 Foundation：
+Go 通过 `platform.ApplicationInspector.InspectApplication` 调用
+[`daygo_application.h`](../../native/include/daygo_application.h) ABI。原生实现使用
+Foundation / AppKit：
 
 1. 加载所选 `Bundle`，读取非空 `CFBundleIdentifier`；
 2. 通过 `object(forInfoDictionaryKey:)` 读取本地化显示名称；
-3. 只向 Go 返回 `AppInfo{ID, Name}`。
+3. 用 `NSWorkspace.icon(forFile:)` 取图标，绘制到 64×64 私有 bitmap 后编码为 PNG；
+4. 只向 Go 返回 `ApplicationIdentity{ID, Name, IconPNG}`。
 
 `CFBundleIdentifier` 是本接口的身份，而不是代码签名 identifier。ScreenCaptureKit 的
 `SCRunningApplication.bundleIdentifier` 正是应用的 bundle identifier；前台兜底也从
 `NSRunningApplication.bundleIdentifier` 读取同一种身份。签名完整性不参与屏蔽匹配。
 
-截图 ABI `dg_capture_once` 不变。返回的 `ID` 加入现有 `BlockedApplicationIDs` 后，仍通过
+截图 ABI `dg_capture_once` 不变。返回的 `ID` 进入 `privacy.blockedApplicationIds` 后，仍通过
 `dg_capture_request_v1.blocked_application_ids` 的完整单次快照进入截图实现。
+
+### 1.2 回查路径
+
+设置只持久化 ID（[03 §3.3.5](../03-data-model.md)）。名称与图标是展示数据，每次读取时由
+`GetBlockedApplications` 经 `ApplicationInspector.DescribeApplications` 解析：
+
+- 原生 `dg_application_lookup` 用 `NSWorkspace.urlForApplication(withBundleIdentifier:)`
+  找到 bundle 后走同一套身份 + 图标逻辑；
+- 系统没有该应用的安装记录时返回 `DG_APPLICATION_E_NOT_FOUND`；
+- 解析不到的 ID **保留在列表中**，只回 `{id, name: "", iconDataUrl: ""}`，前端回退显示
+  ID 本身——这是唯一已知的标签，不伪造名称；
+- 没有解析能力的平台（非 darwin）返回同样的 ID-only 结果，因此隐私名单在 Windows 上仍可
+  查看与删除，只是没有名称与图标。
+
+### 1.3 图标边界
+
+图标是装饰，不是身份：没有可加载图标、编码失败或 PNG 超过调用方缓冲区时 `icon_png.len`
+为 0，调用本身仍成功。图标在离主线程的私有 bitmap 上绘制，不使用 `DispatchQueue.main.sync`
+——Go 宿主的主线程不跑 AppKit run loop，同步派发会死锁。
 
 ## 2. 为什么不校验代码签名
 
@@ -43,32 +66,40 @@ ScreenCaptureKit 接口的身份边界，但保留自身既有的两次前台检
 原生层只做 macOS bundle 身份解析。对话框、取消语义、超时、DTO、去重和设置写入仍归 Go /
 Wails；ABI 使用 caller-owned buffer，不跨语言分配返回字符串，也不保留路径或指针。
 
-Dayflow 的“已安装应用搜索网格 + 已屏蔽列表”比文件面板更适合作为正式设置界面；但当前
-`CaptureTest` 是有限联调页，仓库的 `System.InstalledApplications`、正式设置持久化和 G-host
-尚未过门禁。此处不把应用扫描与第二套设置状态临时塞进测试页；正式 recording 设置切片应复用
-该交互结构并通过既定 System 端口供数。
+Dayflow 的“已安装应用搜索网格 + 已屏蔽列表”仍比文件面板更适合作为最终的“添加应用”交互；但
+`System.InstalledApplications` 尚未实现（darwin 适配器返回空列表），因此当前正式设置界面复用
+已验证的 picker 交互，并把已配置 ID 的展示身份交给 `DescribeApplications`。
 
 ## 3. 当前调用路径
 
 ```text
-CaptureTest Vue
-  → PickCaptureTestApplication Wails binding
+设置页 / 录制联调页
+  → PickApplication（正式 Wails binding）
     → Wails OpenFileDialog（默认 /Applications；无文件 filter）
-      → platform.ApplicationInspector
+      → platform.ApplicationInspector.InspectApplication
         → cgo → dg_application_inspect
-          → Foundation Bundle identifier
-    ← CaptureTestApplicationDTO { id, name }
-  → 把 id 加入临时 blockedApplicationIds 文本框
-  → 现有 CaptureTest → dg_capture_once
-```
+          → Foundation Bundle identifier/名称 + AppKit 图标
+    ← ApplicationDTO { id, name, iconDataUrl }
+  → 设置页把 id 追加进 privacy.blockedApplicationIds
 
-正式设置页接入时只保存 ID；名称是展示信息，路径不是产品数据。
+设置页（读取）
+  → GetBlockedApplications（正式 Wails binding）
+    → settings.privacy.blockedApplicationIds
+      → ApplicationInspector.DescribeApplications
+        → cgo → dg_application_lookup（逐个 ID）
+    ← []ApplicationDTO（解析不到的条目只带 id）
+```
 
 ## 4. ABI 与错误
 
-应用 ABI 独立版本为 `1.0`。`dg_application_info_v1` 由调用方提供 identifier/name buffer，原生层
-只写实际长度。稳定结果码包括：参数错误、ABI 不匹配、非应用和未分类原生错误。业务只按 Go
-`ApplicationError.Code` 分支，`NativeCode` 仅作本机数值诊断。
+应用 ABI 为 **2.0**。相对 1.0 的变化：`dg_application_info_v2` 增加 `icon_png` buffer，
+新增 `dg_application_lookup`，新增错误码 `DG_APPLICATION_E_NOT_FOUND`。major 提升意味着旧
+prebuilt archive 会被 Go 侧握手明确拒绝，而不是静默返回缺图标的旧结构。
+
+`dg_application_info_v2` 由调用方提供 identifier / name / icon buffer，原生层只写实际长度。
+稳定结果码包括：参数错误、ABI 不匹配、非应用、未找到和未分类原生错误。业务只按 Go
+`ApplicationError.Code` 分支，`NativeCode` 仅作本机数值诊断；`ApplicationNotFound` 在
+`DescribeApplications` 内部降级为 ID-only 条目，不上抛。
 
 `darwin && !cgo` 和非 macOS factory 返回 `unsupported`，因此不破坏
 `CGO_ENABLED=0 go build ./...` 与 Linux 核心门禁。
@@ -81,10 +112,9 @@ CaptureTest Vue
 - `DAYGO_APPLICATION_SMOKE_PATH=/System/Applications/Calculator.app go test -run TestApplicationInspectorSmoke -v ./internal/platform/darwin`
   经 Go → cgo → Swift → Foundation 返回 `Calculator`、`com.apple.calculator`；
 - binding 测试覆盖成功、取消不调用 inspector、非应用输入映射为 `invalid_argument`；
-- 前端 typecheck 通过，Wails 生成绑定含 `PickCaptureTestApplication` 和
-  `CaptureTestApplicationDTO`。
+- 前端 typecheck 通过。
 - 首轮人工视觉验收发现带 `*.app` filter 时所有应用呈灰色不可选；已移除该 Wails filter，
-  由既有 inspector 保持 `.app` 与 Bundle ID 校验，修复后的原生面板等待复验。
+  由既有 inspector 保持 `.app` 与 Bundle ID 校验。
 - VS Code 拒绝问题已定位到资源被扩展修改导致代码签名完整性检查失败；应用本身有
   `com.microsoft.VSCode` identity、Microsoft Developer ID 与 notarization ticket，不是未签名。
 - 修复后
@@ -92,11 +122,23 @@ CaptureTest Vue
   返回 `Code` / `com.microsoft.VSCode`；无签名测试 bundle 的回归测试也通过，防止重新引入
   代码签名门禁。
 
-仍未验收：Wails 原生面板视觉与交互、沙盒 / 发行身份、缺失 Bundle ID 的应用、helper / XPC
-子进程、多 Space、多显示器与快速前台切换。选择一个主 `.app` 不保证其 helper 使用相同 ID；
-MC 隐私矩阵通过前不得宣称应用已被完整屏蔽。
+2026-09-13（ABI 2.0）：
+
+- `DAYGO_APPLICATION_SMOKE_PATH=/System/Applications/Calculator.app go test -run TestApplicationInspectorSmoke -v ./internal/platform/darwin`
+  返回 `Calculator` / `com.apple.calculator`，图标 6045 字节 PNG，且同一次运行用
+  `com.apple.calculator` 走回查路径得到同一身份；
+- `go test ./internal/platform/darwin/` 覆盖未安装 ID 回查降级为 ID-only 条目；
+- `go test ./internal/app/` 覆盖 picker 图标 data URL、解析 / 未解析混排顺序、无 store 时
+  `database_error`、无解析能力时保留 ID；
+- 前端 typecheck / build 通过；无 Wails 桥的 Vite 页用夹具渲染了设置页隐私名单（图标占位
+  + 名称 + 删除），点击选择与 `testData=off` 的不可用态均已确认。
+
+仍未验收：picker 原生面板的视觉与交互、沙盒 / 发行身份、缺失 Bundle ID 的应用、helper / XPC
+子进程、多 Space、多显示器与快速前台切换；图标分辨率与暗色模式观感未做视觉验收。选择一个主
+`.app` 不保证其 helper 使用相同 ID；MC 隐私矩阵通过前不得宣称应用已被完整屏蔽。
 
 ## 6. 回退
 
-删除临时 picker binding、`ApplicationInspector` 端口与独立 application ABI 即可回退；
-`dg_capture_request_v1`、截图文件、数据库 schema 和已保存设置均未改变。
+删除 `PickApplication` / `GetBlockedApplications` 两个 binding、`ApplicationInspector` 端口与
+独立 application ABI 即可回退；`privacy.blockedApplicationIds` 仍是 `[]string`，
+`dg_capture_request_v1`、截图文件、数据库 schema 与已保存设置均未改变。

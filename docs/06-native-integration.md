@@ -141,7 +141,7 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 | 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 实现与 ABI 语义之间的已知缺口 |
 | 屏幕录制授权（第 1–3 项） | 端口已定义，适配层未实现 | 系统无对应授权 | macOS 未接入前，绑定返回 `native_unavailable` |
 | 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
-| 应用选择身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 Bundle ID ABI | unsupported | 只解析一个用户选择的 bundle；不等于 `InstalledApplications` 已实现 |
+| 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.0（身份 + 名称 + 图标 + 按 Bundle ID 回查） | unsupported：非 darwin 工厂只回 ID | 支持用户选择与已配置 ID 的展示身份解析；不等于 `InstalledApplications` 已实现 |
 | 其余 14 项（第 4、8–11、14–22 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用

@@ -4,7 +4,7 @@
 
 用户授权后可开启、关闭或定时暂停记录；关窗后继续离散截图，状态栏可查看状态并重开窗口。
 屏蔽应用既从截图排除，前台命中时又生成脱敏占位帧；睡眠、锁屏、屏保、退出的分段安全收尾。
-包含间隔 / 分辨率、屏蔽名单与已安装应用选择器、自启和 Dock 设置。
+包含间隔 / 分辨率、屏蔽名单与原生应用选择器、自启和 Dock 设置。
 负责 U6/8/10、F-C1–9、F-S5/8、F-L1–3；不包含 AI 分析、时间线页面或 Windows 发布承诺。
 
 公共依据：[04 §4.1](../04-data-flow.md#41-捕获流水线)、
@@ -91,6 +91,16 @@ recording 工程，身份协同 delivery；均须在相应大规模实现前决�
 恢复外壳。禁止以清空数据目录代替恢复。
 
 ## 验证记录
+
+2026-09-13：正式隐私名单接入原生应用身份解析。ABI 升到 2.0（`dg_application_info_v2` 增加
+`icon_png`、新增 `dg_application_lookup`、新增 `not_found`），Go 侧 `ApplicationInspector`
+增加 `DescribeApplications`，绑定层把临时 `PickCaptureTestApplication` 换成正式
+`PickApplication` 并新增 `GetBlockedApplications`（只读 `privacy.blockedApplicationIds`）。
+设置页录制与隐私改为“选择应用 + 图标名称列表”，不再输入或展示 Bundle ID；解析不到的 ID 保留
+在列表中并回退显示 ID。验证：Calculator 的 Go → cgo → Swift smoke 返回身份 + 6045 字节 PNG，
+同一 ID 回查成功；darwin / app 单元覆盖未知 ID 降级、无解析能力保留 ID、无 store 报
+`database_error`；前端 typecheck / build 通过，Vite 页面用夹具确认列表、删除与不可用态渲染。
+原生 picker 面板视觉与 MC 隐私矩阵仍未验收。
 
 2026-09-10：单次 Capture fake 契约测试通过；Swift arm64/x86_64 通用静态库构建通过；
 darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子落盘验证为 32×18、777 bytes。

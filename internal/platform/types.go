@@ -122,6 +122,16 @@ type AppInfo struct {
 	Name string
 }
 
+// ApplicationIdentity is the display identity of one installed application
+// bundle. IconPNG is a square PNG rendering of the bundle icon and may be nil:
+// an application without a loadable icon still has a usable identity. Name and
+// IconPNG are display data only — the privacy filter matches on ID.
+type ApplicationIdentity struct {
+	ID      string
+	Name    string
+	IconPNG []byte
+}
+
 // StatusItemState describes the public menu-bar surface. Labels are supplied
 // by the app layer so the native adapter never owns product state or locale.
 type StatusItemState struct {

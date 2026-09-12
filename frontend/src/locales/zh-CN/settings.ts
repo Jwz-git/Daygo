@@ -26,13 +26,16 @@ export default {
     blockedTitle: '屏蔽应用',
     blockedHint:
       '前台应用在名单内时，该时段写入脱敏占位帧：时间线上仍能看到有活动，但没有画面内容。',
-    add: '添加',
-    addPlaceholder: 'Bundle ID，例如 com.apple.Safari',
+    choose: '选择应用…',
+    selecting: '正在选择…',
     empty: '尚未屏蔽任何应用。',
-    remove: '移除 {id}',
+    loading: '正在读取已屏蔽的应用…',
+    unavailable: '无法读取应用列表。',
+    remove: '移除 {name}',
+    writeError: '保存失败，已恢复为数据库中的值。',
     error: {
-      duplicate: '该应用已在名单中',
-      invalid: '请输入不含空格的 Bundle ID',
+      unavailable: '请在 Daygo 桌面应用中操作。',
+      pickFailed: '无法解析所选应用，请重试。',
     },
   },
   agentAccess: {

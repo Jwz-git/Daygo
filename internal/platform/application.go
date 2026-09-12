@@ -1,7 +1,7 @@
 package platform
 
-// ApplicationErrorCode is the stable classification for inspecting a
-// user-selected application bundle. Callers branch on Code, never NativeCode.
+// ApplicationErrorCode is the stable classification for resolving an
+// application bundle. Callers branch on Code, never NativeCode.
 type ApplicationErrorCode string
 
 const (
@@ -9,6 +9,7 @@ const (
 	ApplicationABIMismatch     ApplicationErrorCode = "abi_mismatch"
 	ApplicationUnsupported     ApplicationErrorCode = "unsupported"
 	ApplicationNotApplication  ApplicationErrorCode = "not_application"
+	ApplicationNotFound        ApplicationErrorCode = "not_found"
 	ApplicationNative          ApplicationErrorCode = "native"
 )
 
@@ -18,6 +19,7 @@ func (c ApplicationErrorCode) Valid() bool {
 		ApplicationABIMismatch,
 		ApplicationUnsupported,
 		ApplicationNotApplication,
+		ApplicationNotFound,
 		ApplicationNative:
 		return true
 	default:
@@ -25,7 +27,7 @@ func (c ApplicationErrorCode) Valid() bool {
 	}
 }
 
-// ApplicationError describes a failed application-bundle inspection.
+// ApplicationError describes a failed application-bundle resolution.
 // NativeCode is numeric local diagnostics only and must not cross the UI API.
 type ApplicationError struct {
 	Code       ApplicationErrorCode

@@ -119,8 +119,9 @@ func (b *Backend) setCapture(capture platform.Capture) {
 	b.capture = capture
 }
 
-// setApplicationInspector installs the native identity resolver used by the
-// temporary capture test picker.
+// setApplicationInspector installs the native identity resolver behind the
+// privacy list: the picker's .app inspection and the name/icon lookup for
+// already-configured bundle identifiers.
 func (b *Backend) setApplicationInspector(inspector platform.ApplicationInspector) {
 	b.applicationInspector = inspector
 }

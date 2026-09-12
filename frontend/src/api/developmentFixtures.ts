@@ -220,3 +220,16 @@ export async function getWeeklyDevelopmentFixture(): Promise<WeeklyDevelopmentFi
 export async function getSettingsDevelopmentFixture(): Promise<SettingsDTO | null> {
   return fetchDevelopmentFixture('/__daygo_dev__/settings', isSettingsFixture)
 }
+
+function isApplicationNamesFixture(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((name) => typeof name === 'string')
+}
+
+/**
+ * Bundle identifier to display name for the dev-browser privacy list. The real
+ * native layer resolves names and icons; this fixture only keeps the settings
+ * screen renderable outside the Wails app.
+ */
+export async function getApplicationNamesDevelopmentFixture(): Promise<Record<string, string> | null> {
+  return fetchDevelopmentFixture('/__daygo_dev__/applications', isApplicationNamesFixture)
+}
