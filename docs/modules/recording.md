@@ -21,7 +21,12 @@
 实现进度：部分实现。单元 / fake 契约已覆盖单次截图语义；macOS 原生单次截图与 cgo 适配已
 落盘并完成一轮真实像素 smoke；Go recorder、pending capture 提交 / 恢复已落盘并通过 fake
 生命周期测试。录制设置、主页开始控制、`recording:state` 前端同步和 macOS 状态栏的有限接入
-已经落盘，用户已确认 dev 基本功能正常。production、隐私实机矩阵和长期观察未验收。
+已经落盘，用户已确认 dev 基本功能正常。**2026-09-12：启动自动录制已落盘**——
+OnStartup 在状态栏安装后调用 `maybeAutoStartRecording`，三重防呆（capture owner /
+屏幕授权 granted / 路由链主 provider 存在）全过才 `SetRecording(true)`，否则静默跳过；
+已知偏差：无「停止后不自启」记忆（每次启动都录，设置项后续切片）、G-host 未跑
+（退出即停，空窗由分析流水线 24h 未分批回看补齐）。production、隐私实机矩阵和长期观察
+未验收。
 Windows 侧另有一份同 ABI 的 DXGI 实现（`internal/platform/windows` + `native/windows`），
 已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke，但仍**不在发布范围**；
 完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而

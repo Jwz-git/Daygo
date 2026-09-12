@@ -159,6 +159,10 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 	if err != nil {
 		return TimelineDayDTO{}, mapStorageError("get timeline day", err)
 	}
+	processingBatches, err := store.Analysis().ProcessingBatchesInRange(ctx, start, end)
+	if err != nil {
+		return TimelineDayDTO{}, mapStorageError("get timeline day", err)
+	}
 
 	flags := categoryFlagsFrom(categories)
 	dto := TimelineDayDTO{
@@ -168,7 +172,13 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 		Cards:            make([]TimelineCardDTO, 0, len(cards)),
 		Categories:       make([]CategoryDTO, 0, len(categories)),
 		GeneratedAtTs:    b.clock.Now().Unix(),
-		ProcessingRanges: []RangeDTO{},
+		ProcessingRanges: make([]RangeDTO, 0, len(processingBatches)),
+	}
+	for _, batch := range processingBatches {
+		dto.ProcessingRanges = append(dto.ProcessingRanges, RangeDTO{
+			StartTs: batch.Start.Unix(),
+			EndTs:   batch.End.Unix(),
+		})
 	}
 	for _, card := range cards {
 		dto.Cards = append(dto.Cards, sharedCardDTO(card, flags))

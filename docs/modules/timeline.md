@@ -19,18 +19,27 @@
 `UpdateCardCategory`（未知分类拒绝、不自动创建）、`UpdateCardTitle`、`DeleteCard`（软删除），
 写后发按 day 合并（200 ms）的 `timeline:updated`；只读实例返回 `not_capture_owner`；
 `features` 含 `timeline`。
+**2026-09-12：分析流水线初版已落盘**——`internal/analysis`
+（分批器含差一间隔算术、空闲判定、两阶段转录/卡片流水线：帧分组转录为 observations
+（模型只引用帧序号）、卡片阶段在互斥区内读→生成→改写（45 分钟滑动窗上下文、
+未知分类归 System、窗外卡片丢弃）、`ReplaceCardsInRange` 单事务提交）、
+storage v8（`batch_screenshots` / `observations` + v7 夹具）、`AnalysisRepo`
+（未分批查询 / 批次状态机 / 收养 / 冷却重排 / observations 读写）、
+`GetTimelineDay` 填充 `ProcessingRanges`；卡片提交自动触发既有 `timeline:updated`，
+批次失败发既有 `batch:failed`。启动自动录制随本切片落盘（无 provider 不录）。
+Go 单元覆盖：分批 / 空闲逐边界、六条流水线路径（正常 / 空闲零调用 / 失败 / 空 / 短批 /
+取消保持 processing）、auto-start 三重防呆。
+已知偏差：帧读取经 app 层 `stagingFrameSource` 而非 `platform.Media`（#7/#8 未定，
+provisional）；卡片阶段全局互斥（比按重叠范围粗）；`wails dev` 真机端到端未运行。
 失败批次重试（`RetryBatches`）、整日重处理（`ReprocessDay`）与视频 URL 仍无 Go 方法
-（依赖分析流水线与媒体切片），前端按方法探测自动禁用对应入口。分析与真实时间线
-仍未验收。
+（依赖媒体切片），前端按方法探测自动禁用对应入口。
 [timeutil](../../internal/timeutil/timeutil.go)、[日期绑定](../../internal/app/backend.go)
 和 [时间线前端切片](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
 **2026-09-12：cards 存储切片已落盘**——迁移 v2（`analysis_batches` / `timeline_cards` /
 `categories`，含 System / Idle 种子与 v1 夹具）、`internal/domain` 卡片值类型、
 `timeutil.ResolveClock`（三日锚点 + 跨午夜 + 五时区夹具）、`storage.CardRepo`
 （查询 / 更新 / 软删除 / `ReplaceCardsInRange` 单事务改写，保留其它批次 System 卡片，
-SkippedCards 计入诊断）。Go 单元覆盖时钟派生四规则、DST、并发重叠与分类重命名事务；
-`internal/app` 绑定与真实闭环未接。周边界、完整属性测试、analysis / ai 服务、帧资源
-和真实绑定尚未实现；
+SkippedCards 计入诊断）。Go 单元覆盖时钟派生四规则、DST、并发重叠与分类重命名事务。
 生产页在 `GetTimelineDay` 缺失时明确显示不可用，不返回 fixture 数据。Vite 开发服务会在绑定
 缺失时从 `frontend/dev-fixtures/timeline.json` 提供一组匿名只读样例，并在页面上明确标记
 “仅开发”；夹具位于 `src` 外且 production bundle 不包含其 payload 或请求路径。

@@ -82,6 +82,16 @@ func Run() error {
 		// (docs/modules/data.md).
 		maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{BackupDir: dir})
 		go maintainer.Run(ctx)
+
+		// The analysis pipeline runs only on the read-write instance; a
+		// read-only second instance holds neither lock the pipeline's writes
+		// need. Its recordings root is the staging directory the recorder
+		// commits frames into.
+		if _, err := startAnalysis(ctx, backend, store, filepath.Join(dir, "recordings")); err != nil {
+			// Analysis failing to start must not take the shell down: the UI
+			// still renders stored cards, and diagnostics reports the gap.
+			log.Printf("analysis pipeline unavailable: %v", err)
+		}
 	}
 	err = wails.Run(&options.App{
 		Title:             "Daygo",
@@ -157,6 +167,9 @@ func Run() error {
 					}
 				}
 			})
+			// After the status action is installed so the status item reflects
+			// the state the auto-start produces.
+			backend.maybeAutoStartRecording()
 		},
 		Mac: &mac.Options{
 			/*

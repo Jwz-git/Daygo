@@ -143,3 +143,46 @@ func TestResolveClockRejectsMalformedInput(t *testing.T) {
 		t.Fatal("ResolveClock accepted a nil location")
 	}
 }
+
+// FormatClock must round-trip through ResolveClock with a same-day anchor:
+// resolving the formatted string against the original instant returns the
+// same instant. Midnight and noon are the meridiem edge cases.
+func TestFormatClockRoundTrips(t *testing.T) {
+	loc := mustLoc(t, "Asia/Shanghai")
+	for _, in := range []time.Time{
+		time.Date(2026, 9, 12, 0, 0, 0, 0, loc),
+		time.Date(2026, 9, 12, 0, 30, 0, 0, loc),
+		time.Date(2026, 9, 12, 12, 0, 0, 0, loc),
+		time.Date(2026, 9, 12, 12, 59, 0, 0, loc),
+		time.Date(2026, 9, 12, 23, 59, 0, 0, loc),
+		time.Date(2026, 9, 12, 10, 21, 0, 0, loc),
+	} {
+		clock := FormatClock(in, loc)
+		got, err := ResolveClock(clock, in, loc)
+		if err != nil {
+			t.Fatalf("ResolveClock(FormatClock(%v)) = %q: %v", in, clock, err)
+		}
+		if !got.Equal(in) {
+			t.Fatalf("round trip %v -> %q -> %v, want %v", in, clock, got, in)
+		}
+	}
+}
+
+func TestFormatClockShape(t *testing.T) {
+	loc := mustLoc(t, "Asia/Shanghai")
+	cases := []struct {
+		in   time.Time
+		want string
+	}{
+		{time.Date(2026, 9, 12, 10, 21, 0, 0, loc), "10:21 AM"},
+		{time.Date(2026, 9, 12, 13, 5, 0, 0, loc), "1:05 PM"},
+		{time.Date(2026, 9, 12, 0, 0, 0, 0, loc), "12:00 AM"},
+		{time.Date(2026, 9, 12, 12, 0, 0, 0, loc), "12:00 PM"},
+		{time.Date(2026, 9, 12, 23, 59, 0, 0, loc), "11:59 PM"},
+	}
+	for _, tc := range cases {
+		if got := FormatClock(tc.in, loc); got != tc.want {
+			t.Fatalf("FormatClock(%v) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

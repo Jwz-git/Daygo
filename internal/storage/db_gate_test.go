@@ -189,7 +189,9 @@ func TestStatsReportsUnavailableSourcesWhenTablesAbsent(t *testing.T) {
 	store := openWriter(t, newDir(t))
 	ctx := context.Background()
 
-	for _, table := range []string{"screenshots", "analysis_batches"} {
+	// batch_screenshots references screenshots and analysis_batches, so it must
+	// go before either of them.
+	for _, table := range []string{"batch_screenshots", "screenshots", "analysis_batches"} {
 		if err := store.Write(ctx, "drop "+table, func(ctx context.Context, tx *sql.Tx) error {
 			_, err := tx.ExecContext(ctx, "DROP TABLE "+table)
 			return err

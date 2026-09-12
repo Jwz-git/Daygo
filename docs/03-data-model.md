@@ -1,13 +1,14 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 6`）有十一张表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 8`）有十四张表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
 > `day_goal_categories`（v5）、`llm_calls`（v6）、`chat_conversations.model` 会话模型
-> 覆盖列（v7）。本文其余表都是目标结构，由对应功能模块
-> 随需求沿同一条迁移链逐版本追加。
+> 覆盖列（v7）、分析流水线的 `batch_screenshots`、`observations`（v8，含
+> `idx_batch_screenshots_screenshot`——schema 之上的加法，服务未分批帧查询）。本文其余表
+> 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
 功能模块按需求增量落盘表与 repository，全部位于 internal/storage。

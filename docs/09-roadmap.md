@@ -11,9 +11,9 @@
 
 | 模块 / 执行册 | 用户结果与职责 | 当前实现进度 | 当前验证状态 |
 |---|---|---|---|
-| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、macOS / Windows 单次截图、共享 Go recorder 与 pending/screenshots 提交、macOS 应用身份 picker、权限绑定骨架 | fake 契约与两平台真实像素 smoke 通过；Windows Wails recorder 6 帧落盘 + SQL 提交闭环通过；picker 视觉、隐私、系统事件、MC / WC 完整矩阵未验收 |
+| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：端口、Capture fake、macOS / Windows 单次截图、共享 Go recorder 与 pending/screenshots 提交、macOS 应用身份 picker、权限绑定骨架、启动自动录制（三重防呆） | fake 契约与两平台真实像素 smoke 通过；Windows Wails recorder 6 帧落盘 + SQL 提交闭环通过；auto-start 单元通过；picker 视觉、隐私、系统事件、MC / WC 完整矩阵未验收 |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、回退链路由、协议客户端、连接测试与模型列表 | 部分实现：三协议客户端、重试 / 回退、连接探针绑定；前端配置存无密钥 localStorage。回退链与密钥存储方式已决定（[chain](decisions/providers-fallback-chain.md)、[keychain](decisions/providers-secrets-keychain.md)），落库 / 钥匙串 / 模型列表实现中 | Go 单元与匿名 TLS fixture 通过；Secrets、Provider 落库与真实服务未验收 |
-| [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、周边界、日期绑定、`GetTimelineDay` 与卡片写操作绑定（`timeline:updated` 合并发射）、碰撞分栏轨道、详情及写操作接入界面、开发专用匿名样例 | Go 单元（含周边界属性测试与事件合并）、前端类型 / 构建和匿名视觉夹具通过；`wails dev` 真机端到端、分析流水线（重试 / 重处理）与闭环未验收 |
+| [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间函数、周边界、日期绑定、`GetTimelineDay` 与卡片写操作绑定（`timeline:updated` 合并发射）、碰撞分栏轨道、详情及写操作接入界面、开发专用匿名样例；**分析流水线初版已落盘**（v8 迁移、AnalysisRepo、分批/空闲纯函数、两阶段转录/卡片服务、app 接线、ProcessingRanges 填充） | Go 单元（含周边界属性测试与事件合并、分批差一间隔与空闲逐边界、六条流水线路径）、前端类型 / 构建和匿名视觉夹具通过；`wails dev` 真机端到端（真实卡片生成）与重试 / 重处理未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：工作流 / 指标 / 只读日报前端切片、日记与目标编辑（迁移 v5 + repository + 绑定 + UI）、与 Timeline 共享路由日期、开发专用匿名样例 | Go 单元（journal summary 保留、goal 分类替换、只读守卫）、前端类型 / 构建与浏览器 smoke 通过；摘要生成（待定 #19）、通知与 `wails dev` 真机闭环未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定）、开发专用匿名样例 | Go 单元（周边界夹具与属性测试、聚合排除规则、非周一拒绝）、前端类型 / 构建通过；真实卡片周独立验收与跨周长期观察未运行 |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：跨平台 db-core、settings-store、diagnostics、checkpoint、备份与损坏恢复；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）、Windows LockFileEx 跨进程 smoke、存储设置浏览器 smoke；DB-9/IT-12 清理与真实 Wails 重启未运行 |

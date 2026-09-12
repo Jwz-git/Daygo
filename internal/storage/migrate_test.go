@@ -508,3 +508,64 @@ func TestMigrateV6FixturePreservesDataAndAddsConversationModel(t *testing.T) {
 		t.Fatalf("chat message = %q/%q; the migration altered existing data", role, content)
 	}
 }
+
+// DB-2 for v8: upgrading a v7 database creates the analysis tables empty and
+// leaves the conversation model override and the screenshot row untouched.
+// Nothing may be auto-enrolled into a batch.
+func TestMigrateV7FixturePreservesDataAndCreatesAnalysisTables(t *testing.T) {
+	fixture := filepath.Join("testdata", "v7-chat-model.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	for _, table := range []string{"batch_screenshots", "observations"} {
+		var count int
+		if err := store.db.QueryRowContext(context.Background(),
+			"SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+			t.Fatalf("query %s after upgrade: %v", table, err)
+		}
+		if count != 0 {
+			t.Fatalf("%s has %d rows after upgrade; the migration must not enroll anything", table, count)
+		}
+	}
+
+	// The three indexes that make the scheduler's per-tick queries cheap must
+	// exist (the screenshot-id index is the one the composite PK cannot serve).
+	for _, index := range []string{
+		"idx_batch_screenshots_screenshot", "idx_observations_batch", "idx_observations_span",
+	} {
+		var name string
+		if err := store.db.QueryRowContext(context.Background(),
+			"SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?", index).Scan(&name); err != nil {
+			t.Fatalf("index %s missing after upgrade: %v", index, err)
+		}
+	}
+
+	var model string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT model FROM chat_conversations WHERE id = 'fixture-conversation'").Scan(&model); err != nil {
+		t.Fatalf("read conversation model after upgrade: %v", err)
+	}
+	if model != "fixture-override-model" {
+		t.Fatalf("model = %q; the migration altered the override", model)
+	}
+
+	var segmentPath string
+	if err := store.db.QueryRowContext(context.Background(),
+		"SELECT segment_path FROM screenshots WHERE id = 11").Scan(&segmentPath); err != nil {
+		t.Fatalf("read screenshot after upgrade: %v", err)
+	}
+	if segmentPath != "staging/frame-0011.jpg" {
+		t.Fatalf("segment_path = %q; the migration altered the screenshot", segmentPath)
+	}
+}

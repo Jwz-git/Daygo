@@ -62,6 +62,8 @@ type migration struct {
 // agent slice: the llm_calls audit table and the chat tool columns. v7 adds the
 // per-conversation chat model override: the empty string follows the
 // provider's configured model, any other value is used for that thread's turns.
+// v8 lands the analysis pipeline tables: the batch/frame join and the
+// per-batch frame transcriptions.
 var migrations = []migration{
 	{
 		version: 1,
@@ -287,6 +289,41 @@ var migrations = []migration{
 			if _, err := tx.ExecContext(ctx,
 				`ALTER TABLE chat_conversations ADD COLUMN model TEXT NOT NULL DEFAULT ''`); err != nil {
 				return wrap("add chat conversation model column", err)
+			}
+			return nil
+		},
+	},
+	{
+		version: 8,
+		name:    "analysis: batch_screenshots and observations",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// Tables follow docs/03 §3.3.1 verbatim. idx_batch_screenshots_screenshot
+			// is an addition over that schema: the unbatched-frames query probes
+			// NOT EXISTS by screenshot_id, and the composite PK's leading column
+			// is batch_id, which that probe cannot use — without this index every
+			// scheduler tick would scan the whole join table.
+			for _, stmt := range []string{
+				`CREATE TABLE batch_screenshots (
+					batch_id      INTEGER NOT NULL REFERENCES analysis_batches(id) ON DELETE CASCADE,
+					screenshot_id INTEGER NOT NULL REFERENCES screenshots(id),
+					PRIMARY KEY (batch_id, screenshot_id)
+				)`,
+				`CREATE INDEX idx_batch_screenshots_screenshot ON batch_screenshots (screenshot_id)`,
+				`CREATE TABLE observations (
+					id          INTEGER PRIMARY KEY,
+					batch_id    INTEGER NOT NULL REFERENCES analysis_batches(id) ON DELETE CASCADE,
+					start_ts    INTEGER NOT NULL,
+					end_ts      INTEGER NOT NULL,
+					observation TEXT    NOT NULL,
+					metadata    TEXT,
+					created_at  INTEGER NOT NULL
+				)`,
+				`CREATE INDEX idx_observations_batch ON observations (batch_id, start_ts)`,
+				`CREATE INDEX idx_observations_span ON observations (start_ts, end_ts)`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v8 analysis tables", err)
+				}
 			}
 			return nil
 		},
