@@ -65,3 +65,54 @@ test('submission is locked before binding resolves and failures release it', asy
   assert.equal(state.pending.value, false)
   assert.equal(sends, 1)
 })
+
+test('provider writes announced via settings:changed refresh the provider list', async () => {
+  let settingsListener: ((keys: readonly string[]) => void) | null = null
+  const providers = [{ id: 'p1', displayName: 'One', model: 'm1' }]
+  const state = createChatState({
+    listChatConversations: async () => [],
+    getChatMessages: async () => [],
+    listProviders: async () => providers,
+    onChatUpdated: () => () => {},
+    onSettingsChanged: (callback) => { settingsListener = callback; return () => {} },
+  })
+  await state.hydrate()
+  assert.deepEqual(state.providers.value, [providers[0]])
+  providers.push({ id: 'p2', displayName: 'Two', model: 'm2' })
+  assert.ok(settingsListener !== null)
+  settingsListener!(['providers.routing'])
+  await new Promise((done) => setTimeout(done, 0))
+  assert.equal(state.providers.value.length, 2)
+})
+
+test('a settings event with unrelated keys does not re-pull providers', async () => {
+  let settingsListener: ((keys: readonly string[]) => void) | null = null
+  let pulls = 0
+  const state = createChatState({
+    listChatConversations: async () => [],
+    getChatMessages: async () => [],
+    listProviders: async () => { pulls++; return [] },
+    onChatUpdated: () => () => {},
+    onSettingsChanged: (callback) => { settingsListener = callback; return () => {} },
+  })
+  await state.hydrate()
+  assert.equal(pulls, 1)
+  settingsListener!(['appearance.theme'])
+  await new Promise((done) => setTimeout(done, 0))
+  assert.equal(pulls, 1)
+})
+
+test('pinModel forwards to the binding', async () => {
+  const pinned: Array<[string, string]> = []
+  const state = createChatState({
+    listChatConversations: async () => [{ id: 'a', title: 'a', providerId: 'p', model: '', updatedAt: 0 }],
+    getChatMessages: async () => [],
+    listProviders: async () => [],
+    onChatUpdated: () => () => {},
+    setChatConversationModel: async (id: string, model: string) => { pinned.push([id, model]) },
+  })
+  await state.refreshConversations()
+  await state.select('a')
+  await state.pinModel('gpt-x')
+  assert.deepEqual(pinned, [['a', 'gpt-x']])
+})

@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import ComboBox from '@/components/ComboBox.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { getSettings } from '@/api/settings'
 import type { ChatMessageDTO } from '@/api/dto'
@@ -247,6 +248,19 @@ function onComposerKeydown(event: KeyboardEvent): void {
 
 const memoryDraft = ref('')
 const memorySaved = ref(false)
+const memoryInput = ref<HTMLTextAreaElement | null>(null)
+
+/** The textarea grows with its content; the user cannot drag-resize it. */
+function autoGrow(element: HTMLTextAreaElement | null): void {
+  if (element === null) return
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight}px`
+}
+
+watch(memoryDraft, async () => {
+  await nextTick()
+  autoGrow(memoryInput.value)
+})
 
 watch(sidebarView, (view) => {
   if (view === 'memory' && !memoryLoaded.value) void loadMemory()
@@ -265,6 +279,8 @@ async function loadMemory(): Promise<void> {
     const settings = await getSettings()
     memoryDraft.value = settings.chat?.memory ?? ''
     memoryLoaded.value = true
+    await nextTick()
+    autoGrow(memoryInput.value)
   } catch {
     actionError.value = t('chat.loadError')
   }
@@ -283,12 +299,37 @@ async function saveMemory(): Promise<void> {
   memorySaving.value = false
 }
 
-// ---- provider select ----
+// ---- provider & model select ----
 
 function onProviderChange(event: Event): void {
   const target = event.target as HTMLSelectElement | null
   if (target === null) return
   void perform(() => store.pinProvider(target.value))
+}
+
+/** The pinned provider's row, for its configured model. */
+const activeProvider = computed(() =>
+  store.providers.find((provider) => provider.id === store.activeConversation?.providerId) ?? null,
+)
+
+/** The model the thread will actually use: the override, else the provider's. */
+const effectiveModel = computed(() => {
+  const conversation = store.activeConversation
+  if (conversation === null) return ''
+  return conversation.model !== '' ? conversation.model : activeProvider.value?.model ?? ''
+})
+
+const modelOptions = computed(() => {
+  const provider = activeProvider.value
+  if (provider === null) return []
+  return [
+    { value: '', label: t('chat.model.follow', { model: provider.model }) },
+    { value: provider.model, label: provider.model },
+  ]
+})
+
+function onModelChange(model: string): void {
+  void perform(() => store.pinModel(model))
 }
 </script>
 
@@ -314,26 +355,6 @@ function onProviderChange(event: Event): void {
             <h2 class="main__title">
               {{ store.activeConversation.title || t('chat.newConversation') }}
             </h2>
-            <label class="main__provider">
-              <span class="dg-field-label">{{ t('chat.provider.label') }}</span>
-              <select
-                class="dg-input"
-                :value="store.activeConversation.providerId"
-                :disabled="store.pending || store.loading"
-                @change="onProviderChange"
-              >
-                <option v-if="providerMissing" value="">
-                  {{ t('chat.provider.placeholder') }}
-                </option>
-                <option
-                  v-for="provider in store.providers"
-                  :key="provider.id"
-                  :value="provider.id"
-                >
-                  {{ provider.displayName }}
-                </option>
-              </select>
-            </label>
           </header>
 
           <div ref="scroller" class="main__messages dg-scroll" :aria-busy="store.loading">
@@ -397,8 +418,46 @@ function onProviderChange(event: Event): void {
             </template>
           </div>
 
-          <p v-if="store.pending" class="working" role="status">{{ t('chat.working') }}</p>
+          <p v-if="store.pending" class="working" role="status">
+            <span class="working__spinner" aria-hidden="true" />
+            {{ t('chat.working') }}
+            <span v-if="effectiveModel !== ''" class="working__model">{{ effectiveModel }}</span>
+          </p>
           <p v-if="tooLong" class="chat-error" role="alert">{{ t('chat.tooLong') }}</p>
+          <div class="composer-bar">
+            <label class="composer-bar__field">
+              <span class="dg-field-label">{{ t('chat.provider.label') }}</span>
+              <select
+                class="dg-input"
+                :value="store.activeConversation.providerId"
+                :disabled="store.pending || store.loading"
+                @change="onProviderChange"
+              >
+                <option v-if="providerMissing" value="">
+                  {{ t('chat.provider.placeholder') }}
+                </option>
+                <option
+                  v-for="provider in store.providers"
+                  :key="provider.id"
+                  :value="provider.id"
+                >
+                  {{ provider.displayName }}
+                </option>
+              </select>
+            </label>
+            <label v-if="!providerMissing" class="composer-bar__field">
+              <span class="dg-field-label">{{ t('chat.model.label') }}</span>
+              <ComboBox
+                :model-value="store.activeConversation.model"
+                :options="modelOptions"
+                :fallback-label="t('chat.model.custom')"
+                :placeholder="activeProvider?.model ?? ''"
+                :aria-label="t('chat.model.label')"
+                :disabled="store.pending || store.loading"
+                @update:model-value="onModelChange"
+              />
+            </label>
+          </div>
           <form class="composer" @submit.prevent="submit">
             <textarea
               v-model="draft"
@@ -511,12 +570,14 @@ function onProviderChange(event: Event): void {
         <div v-else class="side__pane memory">
           <p class="memory__hint">{{ t('chat.memory.hint') }}</p>
           <textarea
+            ref="memoryInput"
             v-model="memoryDraft"
             :disabled="!memoryLoaded"
             :aria-label="t('chat.memory.title')"
             class="dg-input memory__text"
-            rows="14"
+            rows="6"
             :placeholder="t('chat.memory.placeholder')"
+            @input="autoGrow(memoryInput)"
           />
           <button v-if="!memoryLoaded" class="dg-button" @click="loadMemory">{{ t('chat.retry') }}</button>
           <div class="memory__row">
@@ -537,10 +598,34 @@ function onProviderChange(event: Event): void {
 .chat-error { color: var(--dg-danger); padding: 0 var(--dg-page-padding); font-size: 12px; }
 
 .working {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   padding: 4px 0;
   color: var(--dg-text-muted);
   font-size: 11px;
+}
+
+.working__spinner {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--dg-chip-border);
+  border-top-color: var(--dg-accent-text);
+  border-radius: 50%;
+  animation: working-spin 0.8s linear infinite;
+}
+
+@keyframes working-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.working__model {
+  color: var(--dg-text-muted);
+  font-family: var(--dg-font-mono);
 }
 .unavailable {
   display: flex;
@@ -724,7 +809,9 @@ function onProviderChange(event: Event): void {
   flex: 1;
   width: 100%;
   min-height: 120px;
-  resize: vertical;
+  max-height: 100%;
+  resize: none;
+  overflow-y: auto;
   font-size: 12px;
 }
 
@@ -782,6 +869,10 @@ function onProviderChange(event: Event): void {
 
 .main__provider .dg-input {
   width: 180px;
+}
+
+.main__model {
+  width: 200px;
 }
 
 .main__messages {
@@ -938,6 +1029,30 @@ function onProviderChange(event: Event): void {
   overflow-x: auto;
 }
 
+/* ---- composer bar (provider & model, above the input) ---- */
+
+.composer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  flex: none;
+  padding-top: 10px;
+  border-top: 1px solid var(--dg-card-border);
+}
+
+.composer-bar__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.composer-bar__field .dg-input,
+.composer-bar__field .combo {
+  width: 190px;
+}
+
 /* ---- composer ---- */
 
 .composer {
@@ -945,7 +1060,6 @@ function onProviderChange(event: Event): void {
   flex: none;
   gap: 10px;
   padding-top: 10px;
-  border-top: 1px solid var(--dg-card-border);
 }
 
 .composer__input {

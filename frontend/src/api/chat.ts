@@ -5,6 +5,7 @@ import {
   GetChatMessages,
   ListChatConversations,
   SendChatMessage,
+  SetChatConversationModel,
   SetChatConversationProvider,
 } from '../../wailsjs/go/app/Backend'
 
@@ -59,6 +60,7 @@ export async function createChatConversation(): Promise<ChatConversationDTO> {
       id: `dev-conv-${devNextConversationId++}`,
       title: '',
       providerId: providers[0]?.id ?? '',
+      model: '',
       updatedAt: Math.floor(Date.now() / 1000),
     }
     devState().unshift({ dto, messages: [], nextMessageId: 1 })
@@ -80,7 +82,21 @@ export async function setChatConversationProvider(id: string, providerId: string
   if (hasBridge()) return SetChatConversationProvider(id, providerId)
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     for (const conversation of devState()) {
-      if (conversation.dto.id === id) conversation.dto.providerId = providerId
+      if (conversation.dto.id === id) {
+        conversation.dto.providerId = providerId
+        conversation.dto.model = ''
+      }
+    }
+    return
+  }
+  throw new Error(WAILS_UNAVAILABLE)
+}
+
+export async function setChatConversationModel(id: string, model: string): Promise<void> {
+  if (hasBridge()) return SetChatConversationModel(id, model)
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
+    for (const conversation of devState()) {
+      if (conversation.dto.id === id) conversation.dto.model = model
     }
     return
   }

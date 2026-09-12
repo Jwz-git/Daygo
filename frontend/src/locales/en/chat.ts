@@ -17,6 +17,11 @@ export default {
     label: 'Provider',
     placeholder: 'No provider selected',
   },
+  model: {
+    label: 'Model',
+    follow: 'Follow provider ({model})',
+    custom: 'Custom model',
+  },
   composer: {
     placeholder: 'Type a message… (Enter to send)',
     send: 'Send',

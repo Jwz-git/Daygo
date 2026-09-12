@@ -17,6 +17,11 @@ export default {
     label: '供应商',
     placeholder: '未选择供应商',
   },
+  model: {
+    label: '模型',
+    follow: '跟随供应商（{model}）',
+    custom: '自定义模型',
+  },
   composer: {
     placeholder: '输入消息…（Enter 发送）',
     send: '发送',

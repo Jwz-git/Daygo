@@ -340,6 +340,8 @@ export interface ChatConversationDTO {
   title: string
   /** "" = no provider selected yet; the user must pick one before sending. */
   providerId: string
+  /** "" = follow the provider's configured model; otherwise an override. */
+  model: string
   updatedAt: number
 }
 

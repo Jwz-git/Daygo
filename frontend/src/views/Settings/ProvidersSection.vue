@@ -2,6 +2,8 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import ComboBox from '@/components/ComboBox.vue'
+
 import {
   PROVIDER_PROTOCOLS,
   type ProviderDTO,
@@ -53,15 +55,21 @@ type ModelsState =
   | { phase: 'idle' }
   | { phase: 'fetching' }
   | { phase: 'done'; result: ProviderModelsResult }
-  | { phase: 'picked'; model: string }
 
 const modelsState = ref<ModelsState>({ phase: 'idle' })
+
+/** Dropdown options for the model combobox; free text stays allowed. */
+const modelOptions = computed(() => {
+  const state = modelsState.value
+  if (state.phase !== 'done' || !state.result.ok) return []
+  return state.result.models.map((model) => ({ value: model, label: model }))
+})
 
 // A result describes the draft as it was when tested; any later edit makes it
 // stale, so it clears instead of lingering next to a different configuration.
 watch(draft, () => {
   testState.value = { phase: 'idle' }
-  if (modelsState.value.phase === 'done' || modelsState.value.phase === 'picked') {
+  if (modelsState.value.phase === 'done') {
     modelsState.value = { phase: 'idle' }
   }
 })
@@ -143,11 +151,6 @@ async function fetchModels(): Promise<void> {
       },
     }
   }
-}
-
-function pickModel(model: string): void {
-  draft.model = model
-  modelsState.value = { phase: 'picked', model }
 }
 
 /** Probe a saved provider with its keychain key. */
@@ -428,13 +431,12 @@ async function confirmRemove(id: string): Promise<void> {
       <label class="form__cell">
         <span class="dg-field-label">{{ t('settings.providers.form.model') }}</span>
         <div class="form__key-row">
-          <input
+          <ComboBox
             v-model="draft.model"
-            class="dg-input"
-            type="text"
-            spellcheck="false"
+            class="form__model-combo"
+            :options="modelOptions"
             :placeholder="modelPlaceholder"
-            :aria-invalid="errors.model ? 'true' : undefined"
+            :aria-label="t('settings.providers.form.model')"
           />
           <button
             type="button"
@@ -452,25 +454,8 @@ async function confirmRemove(id: string): Promise<void> {
         <p v-else-if="modelsState.phase === 'done' && !modelsState.result.ok" class="form__error">
           {{ modelsFailureText(modelsState.result) }}
         </p>
-        <div
-          v-else-if="modelsState.phase === 'done' && modelsState.result.models.length > 0"
-          class="form__models"
-        >
-          <button
-            v-for="model in modelsState.result.models"
-            :key="model"
-            type="button"
-            class="badge badge--button"
-            @click="pickModel(model)"
-          >
-            {{ model }}
-          </button>
-        </div>
-        <p v-else-if="modelsState.phase === 'done'" class="form__hint">
+        <p v-else-if="modelsState.phase === 'done' && modelsState.result.models.length === 0" class="form__hint">
           {{ t('settings.providers.models.empty') }}
-        </p>
-        <p v-else-if="modelsState.phase === 'picked'" class="form__test-ok">
-          {{ t('settings.providers.models.picked', { model: modelsState.model }) }}
         </p>
       </label>
 
@@ -541,7 +526,7 @@ async function confirmRemove(id: string): Promise<void> {
     <ol v-if="chainRows.length > 0" class="routing__chain">
       <li v-for="(provider, index) in chainRows" :key="provider.id" class="routing__entry">
         <span class="routing__position">{{ index + 1 }}</span>
-        <span class="routing__name">{{ provider.displayName }}</span>
+        <span class="routing__name">{{ provider.displayName }} · {{ provider.model }}</span>
         <span v-if="index === 0" class="badge badge--accent">
           {{ t('settings.providers.routing.primaryBadge') }}
         </span>
@@ -589,7 +574,7 @@ async function confirmRemove(id: string): Promise<void> {
             {{ t('settings.providers.routing.none') }}
           </option>
           <option v-for="provider in store.providers" :key="provider.id" :value="provider.id">
-            {{ provider.displayName }}
+            {{ provider.displayName }} · {{ provider.model }}
           </option>
         </select>
       </label>
@@ -601,7 +586,7 @@ async function confirmRemove(id: string): Promise<void> {
         <select class="dg-input" value="" @change="onAddFallbackChange">
           <option value="">{{ t('settings.providers.routing.pickFallback') }}</option>
           <option v-for="provider in unchained" :key="provider.id" :value="provider.id">
-            {{ provider.displayName }}
+            {{ provider.displayName }} · {{ provider.model }}
           </option>
         </select>
       </label>
@@ -678,15 +663,6 @@ async function confirmRemove(id: string): Promise<void> {
   border-color: transparent;
   background: var(--dg-control-fill);
   color: var(--dg-accent-text);
-}
-
-.badge--button {
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.badge--button:hover {
-  border-color: var(--dg-accent-text);
 }
 
 .meta {
@@ -769,16 +745,10 @@ async function confirmRemove(id: string): Promise<void> {
   gap: 8px;
 }
 
-.form__key-row .dg-input {
+.form__key-row .dg-input,
+.form__key-row .combo {
   flex: 1;
   min-width: 0;
-}
-
-.form__models {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
 }
 
 .form__test-ok {

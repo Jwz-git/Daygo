@@ -10,10 +10,11 @@ import {
   listChatConversations,
   onChatUpdated,
   sendChatMessage,
+  setChatConversationModel,
   setChatConversationProvider,
 } from '@/api/chat'
 import { listProviders } from '@/api/providers'
-import { updateSettings } from '@/api/settings'
+import { onSettingsChanged, updateSettings } from '@/api/settings'
 
 /** Newest messages kept per conversation on first load. */
 const PAGE_SIZE = 50
@@ -31,14 +32,16 @@ const chatAPI = {
   createChatConversation,
   deleteChatConversation,
   getChatMessages, listChatConversations, onChatUpdated, sendChatMessage,
-  setChatConversationProvider, listProviders, updateSettings,
+  setChatConversationProvider, setChatConversationModel,
+  listProviders, updateSettings, onSettingsChanged,
 }
 
 export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
   const {
     cancelChatTurn, createChatConversation, deleteChatConversation,
     getChatMessages, listChatConversations, onChatUpdated, sendChatMessage,
-    setChatConversationProvider, listProviders, updateSettings,
+    setChatConversationProvider, setChatConversationModel,
+    listProviders, updateSettings, onSettingsChanged,
   } = { ...chatAPI, ...overrides }
   const conversations = ref<ChatConversationDTO[]>([])
   const activeId = ref<string | null>(null)
@@ -53,7 +56,15 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     const last = messages.value.at(-1)
     return last !== undefined && last.role !== 'assistant'
   })
-  const providers = ref<{ id: string; displayName: string }[]>([])
+  const providers = ref<{ id: string; displayName: string; model: string }[]>([])
+
+  async function refreshProviders(): Promise<void> {
+    providers.value = (await listProviders()).map((provider) => ({
+      id: provider.id,
+      displayName: provider.displayName,
+      model: provider.model,
+    }))
+  }
 
   const hydrated = ref(false)
   const unavailable = ref(false)
@@ -73,6 +84,7 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
   )
 
   let unsubscribe: (() => void) | null = null
+  let settingsUnsubscribe: (() => void) | null = null
 
   let messageRequest = 0
   let conversationRequest = 0
@@ -136,11 +148,7 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     unavailable.value = false
 
     try {
-      await refreshConversations()
-      providers.value = (await listProviders()).map((provider) => ({
-        id: provider.id,
-        displayName: provider.displayName,
-      }))
+      await Promise.all([refreshConversations(), refreshProviders()])
     } catch {
       unavailable.value = true
       hydrated.value = false
@@ -154,6 +162,15 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
       } catch {
         refreshFailed.value = true
       }
+    })
+
+    // Providers edited in Settings must reach the chat picker without a
+    // remount: the backend announces every provider write as settings:changed
+    // with the providers.routing key (docs/05 §5.5.3).
+    settingsUnsubscribe?.()
+    settingsUnsubscribe = onSettingsChanged((keys) => {
+      if (!keys.includes('providers.routing')) return
+      void refreshProviders().then(() => ensureProvider())
     })
 
     // Entering the chat view lands on a fresh conversation screen, not an
@@ -215,6 +232,14 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     await refreshConversations()
   }
 
+  /** Set the thread's model override; '' follows the provider's model. */
+  async function pinModel(model: string): Promise<void> {
+    const conversationId = activeId.value
+    if (conversationId === null) return
+    await setChatConversationModel(conversationId, model)
+    await refreshConversations()
+  }
+
   /** Persist the global chat memory (like a CLAUDE.md). */
   async function saveMemory(memory: string): Promise<void> {
     await updateSettings({ chatMemory: memory })
@@ -239,6 +264,7 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     send,
     cancel,
     pinProvider,
+    pinModel,
     saveMemory,
   }
 }
