@@ -13,19 +13,22 @@ Chat **不借助外部 CLI、agent.sock 或 MCP**：它是宿主内功能（UI �
 六个操作，因此三条通道（CLI / 外部 agent / Chat）共享同一套查询与写入语义，不出现第四套。
 
 非目标：不做通用助手或自由工具执行（工具集封闭）；不执行任意 SQL、不访问文件系统与
-shell；不暴露原始帧、分段路径、密钥或 LLM payload；不做 token 级流式输出与多会话管理
-（均为候选，见待决）；不做团队 / 远程视角。**v1 不交付**，本册目前是设计准备。
+shell；不暴露原始帧、分段路径、密钥或 LLM payload；token 级流式输出为候选（多会话已定）；
+不做团队 / 远程视角。**v1 不交付**，本册目前是设计准备 + 纯对话切片实现。
 
 依据：[05 §5.12](../05-interface-contract.md#512-chat应用内对话式-agent设计准备未实现)、
 [07 §7.5](../07-privacy-security.md#75-本地攻击面)、
-[02](../02-architecture.md#21-模块图)（chat 服务）、[01 §1.7](../01-product-requirements.md#17-待决的产品问题)。
+[02](../02-architecture.md#21-模块图)（chat 服务）、[01 §1.7](../01-product-requirements.md#17-待决的产品问题)、
+[decisions/chat-session-model](../decisions/chat-session-model.md)。
 
 ## 当前状态与证据
 
-实现进度：未开始（功能本体）。已有 05 §5.12 契约（已定约束、绑定与事件形状、待定候选）、
-03 §3.3.4 的目标表与本执行册；前端已落盘 **UI 占位**（ChatView 路由与侧栏入口、
-禁用输入区、i18n `chat` 域，无 store / 绑定 / 事件，对应切片 5 的骨架）。
-无任何 Go 代码；`chat.editMode` 设置键随功能落盘，当前不在 `internal/settings` 的键集合内。
+实现进度：**纯对话切片已实现**（decisions/chat-session-model）。已落地：多会话模型
+（`chat_conversations` / `chat_messages`，迁移 v4）、`internal/chat` 服务（回合状态机、
+全局记忆注入、会话级 provider 选择、失败 / 取消落库、`ai.Chain` 回退）、每会话单在途
+回合、32 KiB 消息上限。**尚未实现**：绑定层与事件（下一切片）、前端 store / 视图重做、
+工具循环与 `chat.editMode` 门禁（agent 切片）、`llm_calls` purpose=`chat` 审计行、
+消息留存策略（待定）。
 
 ## 能力与跨层职责
 
@@ -59,23 +62,25 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；不做 token
    沙箱拒绝与参数校验的匿名夹具。
 2. chat 服务：回合状态机（结构化输出驱动的工具循环）、`llm_calls` purpose=`chat`、
    取消传播；脚本化 fake provider 的单元测试。
-3. 持久化：chat 表迁移与 repository（形状随会话模型决策定）。
-4. 绑定与事件：`SendChatMessage` / `CancelChatTurn` / `GetChatMessages`、`chat:updated`；
-   绑定清单反射测试与 05 §5.2.1 同步。
+3. 持久化：chat 表迁移与 repository（**已落盘**：多会话模型，迁移 v4，切片 5）。
+4. 绑定与事件：`SendChatMessage` / `CancelChatTurn` / `GetChatMessages`（会话作用域签名）、
+   `chat:updated`；绑定清单反射测试与 05 §5.2.1 同步。
 5. UI：chat 视图与 store、`chat.editMode` 设置项、空态 / 错误态 / i18n；受 G-host 约束。
+   **纯对话部分已先落**：多会话列表、全局记忆（`chat.memory`）、会话级 provider 选择。
 6. 真实闭环与诊断计数：工具错误、预算终止、取消计入 data 的诊断框架。
 
 每个切片独立可验证；读工具依赖 cards / insight 聚合，写工具依赖对应 repository 落盘，
-不要求 timeline / daily 的 UI 完成。
+不要求 timeline / daily 的 UI 完成。**纯对话先行**（无工具循环）已由
+decisions/chat-session-model 定为当前实现路径；工具循环与门禁按上列切片 1–2 顺序随后。
 
 ## 验收、阻塞与回退
 
 完成要求：沙箱门禁、参数校验、预算与取消全部有自动化证据；写操作同源断言通过；
 真实用户连续使用问答与受控编辑的闭环验收。UI 扩张与其他界面同样受 G-host 约束。
 
-待决（[09 §9.8](../09-roadmap.md#98-待定设计清单) #23）：会话模型（单一滚动会话 vs
-多会话）、token 级流式输出、消息留存策略、chat 的 provider 路由、审计来源标记
-（与 agent 模块共通）。
+待决（[09 §9.8](../09-roadmap.md#98-待定设计清单) #23）：~~会话模型~~（已定：多会话）、
+token 级流式输出（已定：原子消息）、消息留存策略、审计来源标记（与 agent 模块共通）、
+~~chat 的 provider 路由~~（已定：会话级选择，默认跟随路由链）。
 
 回退：`chat.editMode` 设为 `readonly` 即收回全部写能力；chat 整体是增量功能，移除不影响
 捕获与分析；会话数据独立于业务表，清除不伤及时间线。
@@ -86,3 +91,4 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；不做 token
 |------|------|------|------|
 | 2026-09-12（本册建立） | — | 未运行 | 仅设计准备；切片 1 前无代码可验证 |
 | 2026-09-12（UI 占位，Vite 预览） | `npm run typecheck`、`npm run build`、Playwright 访问 `#/chat` | 通过；侧栏入口激活态、禁用输入区、深浅主题、中英文与 420px 窄宽度均符合预期 | 占位无功能；切片 1 起补 Go 侧 |
+| 2026-09-12（纯对话服务，Go） | `go test ./internal/chat/`、`go vet`、`CGO_ENABLED=0 go build ./...`、`GOOS=linux` 交叉构建 | 通过；happy path、全局记忆注入、历史拼装、会话级 provider 固定（无回退）、无供应商失败态、密钥不泄漏断言、跨会话并发、空/超长消息拒绝、删除会话级联 | 绑定层与前端未接；取消中途回合仅单测路径；`llm_calls` 审计未落 |
