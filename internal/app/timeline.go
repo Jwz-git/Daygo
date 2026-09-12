@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
@@ -170,26 +169,7 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 		ProcessingRanges: []RangeDTO{},
 	}
 	for _, card := range cards {
-		appSites, distractions := parseCardMetadata(card.Metadata)
-		dto.Cards = append(dto.Cards, TimelineCardDTO{
-			ID:                    card.ID,
-			BatchID:               card.BatchID,
-			Day:                   card.Day,
-			Start:                 card.Start,
-			End:                   card.End,
-			StartTs:               card.StartTs,
-			EndTs:                 card.EndTs,
-			Category:              card.Category,
-			Subcategory:           card.Subcategory,
-			Title:                 card.Title,
-			Summary:               card.Summary,
-			DetailedSummary:       card.DetailedSummary,
-			OtherVideoSummaryURLs: []string{},
-			AppSites:              appSites,
-			Distractions:          distractions,
-			IsIdle:                flags.isIdle[card.Category],
-			DurationMinutes:       cardDurationMinutes(card),
-		})
+		dto.Cards = append(dto.Cards, sharedCardDTO(card, flags))
 		if card.Category == "System" {
 			continue
 		}
@@ -228,6 +208,33 @@ func cardDurationMinutes(card domain.TimelineCard) float64 {
 	return float64(card.EndTs-card.StartTs) / 60.0
 }
 
+// sharedCardDTO assembles one card's DTO. Both the day view and the chat card
+// read tool go through it, so a card renders identically wherever it appears.
+// videoSummaryUrl stays null and otherVideoSummaryUrls empty: real URLs are
+// the media slice's concern, not a path-to-URL guess.
+func sharedCardDTO(card domain.TimelineCard, flags categoryFlags) TimelineCardDTO {
+	appSites, distractions := parseCardMetadata(card.Metadata)
+	return TimelineCardDTO{
+		ID:                    card.ID,
+		BatchID:               card.BatchID,
+		Day:                   card.Day,
+		Start:                 card.Start,
+		End:                   card.End,
+		StartTs:               card.StartTs,
+		EndTs:                 card.EndTs,
+		Category:              card.Category,
+		Subcategory:           card.Subcategory,
+		Title:                 card.Title,
+		Summary:               card.Summary,
+		DetailedSummary:       card.DetailedSummary,
+		OtherVideoSummaryURLs: []string{},
+		AppSites:              appSites,
+		Distractions:          distractions,
+		IsIdle:                flags.isIdle[card.Category],
+		DurationMinutes:       cardDurationMinutes(card),
+	}
+}
+
 // requireTimelineWrite rejects write methods on instances without the write
 // lock (docs/05 §5.6.2 rule 7).
 func (b *Backend) requireTimelineWrite() error {
@@ -254,20 +261,9 @@ func (b *Backend) UpdateCardCategory(cardID int64, category string) error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
-	store := b.store()
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
-
-	if _, found, err := store.Categories().ByName(ctx, strings.TrimSpace(category)); err != nil {
-		return mapStorageError("update card category", err)
-	} else if !found {
-		return apperr.E(apperr.InvalidArgument, "unknown category: "+category, nil)
-	}
-	if err := store.Cards().UpdateCardCategory(ctx, cardID, category); err != nil {
-		return mapStorageError("update card category", err)
-	}
-	b.invalidateCardDay(cardID)
-	return nil
+	return b.updateCardCategory(ctx, cardID, category)
 }
 
 // UpdateCardTitle renames one card.
@@ -275,39 +271,19 @@ func (b *Backend) UpdateCardTitle(cardID int64, title string) error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(title) == "" {
-		return apperr.E(apperr.InvalidArgument, "title is required", nil)
-	}
-	store := b.store()
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
-
-	if err := store.Cards().UpdateCardTitle(ctx, cardID, title); err != nil {
-		return mapStorageError("update card title", err)
-	}
-	b.invalidateCardDay(cardID)
-	return nil
+	return b.updateCardTitle(ctx, cardID, title)
 }
 
-// DeleteCard soft-deletes one card. The returned timelapse path (cleanup is a
-// data-maintenance concern) is intentionally dropped here.
+// DeleteCard soft-deletes one card.
 func (b *Backend) DeleteCard(cardID int64) error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
-	store := b.store()
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
-
-	day, err := b.cardDay(ctx, cardID)
-	if err != nil {
-		return err
-	}
-	if _, err := store.Cards().SoftDeleteCard(ctx, cardID); err != nil {
-		return mapStorageError("delete card", err)
-	}
-	b.emitTimelineInvalidation(day)
-	return nil
+	return b.deleteCard(ctx, cardID)
 }
 
 // invalidateCardDay resolves a card's day after a successful write and

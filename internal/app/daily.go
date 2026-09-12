@@ -104,34 +104,9 @@ func (b *Backend) SaveJournalDay(entry JournalDayDTO) error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
-	day := strings.TrimSpace(entry.Day)
-	if _, _, err := timeutil.DayWindow(day, b.clock.Now().Location()); err != nil {
-		return apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
-	}
-	status := strings.TrimSpace(entry.Status)
-	if status == "" {
-		status = storage.JournalStatusDraft
-	}
-	if !validJournalStatus(status) {
-		return apperr.E(apperr.InvalidArgument, "unknown journal status: "+status, nil)
-	}
-
-	store := b.store()
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
-
-	if err := store.Journal().Upsert(ctx, storage.JournalEntry{
-		Day:         day,
-		Intentions:  trimToNil(entry.Intentions),
-		Notes:       trimToNil(entry.Notes),
-		Goals:       trimToNil(entry.Goals),
-		Reflections: trimToNil(entry.Reflections),
-		Status:      status,
-	}); err != nil {
-		return mapStorageError("save journal day", err)
-	}
-	b.emitter.Emit(EventJournalUpdated, JournalUpdatedPayload{Day: day})
-	return nil
+	return b.saveJournalDay(ctx, entry)
 }
 
 // trimToNil normalizes an optional text field: blank strings become NULL.
@@ -196,59 +171,12 @@ func (b *Backend) GetDayGoal(day string) (DayGoalDTO, error) {
 	return dto, nil
 }
 
-// SaveDayGoal upserts one day's goal. Category ids are validated against the
-// categories table first so an unknown id is a clear invalid_argument rather
-// than an FK backstop error.
+// SaveDayGoal upserts one day's goal.
 func (b *Backend) SaveDayGoal(goal DayGoalDTO) error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
-	day := strings.TrimSpace(goal.Day)
-	if _, _, err := timeutil.DayWindow(day, b.clock.Now().Location()); err != nil {
-		return apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
-	}
-	if goal.FocusTargetMinutes < 0 || goal.DistractionLimitMinutes < 0 {
-		return apperr.E(apperr.InvalidArgument, "goal minutes must not be negative", nil)
-	}
-
-	store := b.store()
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
-
-	categories, err := store.Categories().List(ctx)
-	if err != nil {
-		return mapStorageError("save day goal", err)
-	}
-	byID := make(map[string]struct{}, len(categories))
-	for _, c := range categories {
-		byID[c.ID] = struct{}{}
-	}
-	refs := make([]storage.GoalCategoryRef, 0, len(goal.FocusCategories)+len(goal.DistractionCategories))
-	for _, dtoRef := range goal.FocusCategories {
-		if _, ok := byID[dtoRef.CategoryID]; !ok {
-			return apperr.E(apperr.InvalidArgument, "unknown category id: "+dtoRef.CategoryID, nil)
-		}
-		refs = append(refs, storage.GoalCategoryRef{
-			CategoryID: dtoRef.CategoryID, Role: storage.GoalRoleFocus,
-		})
-	}
-	for _, dtoRef := range goal.DistractionCategories {
-		if _, ok := byID[dtoRef.CategoryID]; !ok {
-			return apperr.E(apperr.InvalidArgument, "unknown category id: "+dtoRef.CategoryID, nil)
-		}
-		refs = append(refs, storage.GoalCategoryRef{
-			CategoryID: dtoRef.CategoryID, Role: storage.GoalRoleDistraction,
-		})
-	}
-
-	if err := store.Goals().Save(ctx, storage.DayGoal{
-		Day:                     day,
-		FocusTargetMinutes:      goal.FocusTargetMinutes,
-		DistractionLimitMinutes: goal.DistractionLimitMinutes,
-		IsSkipped:               goal.IsSkipped,
-	}, refs); err != nil {
-		return mapStorageError("save day goal", err)
-	}
-	b.emitter.Emit(EventGoalUpdated, GoalUpdatedPayload{Day: day})
-	return nil
+	return b.saveDayGoal(ctx, goal)
 }
