@@ -176,6 +176,12 @@ L1 价值最高：`platform/fake` 提供合成帧，stub provider 返回预设�
 
 L3 用本地模型而不是云端 provider：本地、免费、足够可复现，适合每夜运行。
 
+Vite 浏览器测试可在 URL 中显式选择匿名测试数据：`testData=on` 覆盖有数据状态，
+`testData=off` 覆盖无 Wails bridge、无测试替身的不可用 / 空状态；参数可位于 hash 路由
+查询中（如 `#/timeline?testData=off`）。选择在当前页面的 SPA 路由切换期间保持，另开标签页
+可并行测试另一状态。省略参数沿用开发默认 `on`，生产构建无条件关闭。时间线、日报、周报、
+设置、Provider 与 Chat 必须共用该开关，禁止各自绕过。
+
 ### 8.6.1 L2 用例
 
 | ID | 测试 | 断言 |

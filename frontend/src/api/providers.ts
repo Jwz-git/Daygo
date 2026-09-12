@@ -21,6 +21,7 @@ import type {
   ProviderTestDraft,
   ProviderTestResult,
 } from '@/api/dto'
+import { canUseDevelopmentTestData } from '@/api/developmentFixtures'
 
 /** Thrown when the page runs in a plain browser, outside the Wails WebView. */
 export const WAILS_UNAVAILABLE = 'wails_unavailable'
@@ -31,8 +32,8 @@ function hasBridge(): boolean {
 
 /*
  * Dev-browser stand-in: an in-memory provider list, so the settings UI is
- * exercisable outside the WebView. It never runs in production
- * (import.meta.env.DEV) and never substitutes for the backend's validation.
+ * exercisable outside the WebView. The shared test-data selector guarantees
+ * it never runs in production or while the tester selected `testData=off`.
  */
 interface DevState {
   providers: ProviderDTO[]
@@ -64,13 +65,13 @@ function devState(): DevState {
 
 export async function listProviders(): Promise<ProviderDTO[]> {
   if (hasBridge()) return (await ListProviders()) as unknown as ProviderDTO[]
-  if (import.meta.env.DEV) return [...devState().providers]
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) return [...devState().providers]
   throw new Error(WAILS_UNAVAILABLE)
 }
 
 export async function addProvider(input: ProviderInput): Promise<string> {
   if (hasBridge()) return AddProvider(input as never)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const state = devState()
     const id = `dev-${state.nextId++}`
     state.providers = [
@@ -92,7 +93,7 @@ export async function addProvider(input: ProviderInput): Promise<string> {
 
 export async function updateProvider(id: string, input: ProviderInput): Promise<void> {
   if (hasBridge()) return UpdateProvider(id, input as never)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const state = devState()
     state.providers = state.providers.map((provider) =>
       provider.id === id
@@ -113,7 +114,7 @@ export async function updateProvider(id: string, input: ProviderInput): Promise<
 
 export async function deleteProvider(id: string): Promise<void> {
   if (hasBridge()) return DeleteProvider(id)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const state = devState()
     state.providers = state.providers.filter((provider) => provider.id !== id)
     state.routing = { chain: state.routing.chain.filter((entry) => entry !== id) }
@@ -124,13 +125,15 @@ export async function deleteProvider(id: string): Promise<void> {
 
 export async function getProviderRouting(): Promise<ProviderRoutingDTO> {
   if (hasBridge()) return (await GetProviderRouting()) as unknown as ProviderRoutingDTO
-  if (import.meta.env.DEV) return { chain: [...devState().routing.chain] }
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
+    return { chain: [...devState().routing.chain] }
+  }
   throw new Error(WAILS_UNAVAILABLE)
 }
 
 export async function setProviderRouting(routing: ProviderRoutingDTO): Promise<void> {
   if (hasBridge()) return SetProviderRouting(routing as never)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     devState().routing = { chain: [...routing.chain] }
     return
   }
@@ -139,7 +142,7 @@ export async function setProviderRouting(routing: ProviderRoutingDTO): Promise<v
 
 export async function setProviderSecret(id: string, secret: string): Promise<void> {
   if (hasBridge()) return SetProviderSecret(id, secret)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const state = devState()
     state.providers = state.providers.map((provider) =>
       provider.id === id ? { ...provider, hasSecret: true } : provider,
@@ -151,7 +154,7 @@ export async function setProviderSecret(id: string, secret: string): Promise<voi
 
 export async function deleteProviderSecret(id: string): Promise<void> {
   if (hasBridge()) return DeleteProviderSecret(id)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const state = devState()
     state.providers = state.providers.map((provider) =>
       provider.id === id ? { ...provider, hasSecret: false } : provider,
@@ -174,7 +177,7 @@ export async function listProviderModels(
   if (hasBridge()) {
     return (await ListProviderModels(request as never)) as unknown as ProviderModelsResult
   }
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     // A plausible fake list keeps the dropdown flow exercisable in a browser.
     return {
       ok: true,

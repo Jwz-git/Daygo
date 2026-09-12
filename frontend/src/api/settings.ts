@@ -2,6 +2,7 @@ import { GetSettings, UpdateSettings } from '../../wailsjs/go/app/Backend'
 
 import {
   applyDevelopmentSettingsPatch,
+  canUseDevelopmentTestData,
   getSettingsDevelopmentFixture,
 } from '@/api/developmentFixtures'
 import type { SettingsDTO, SettingsPatch } from '@/api/dto'
@@ -23,6 +24,7 @@ function hasBridge(): boolean {
 let developmentSettings: SettingsDTO | null = null
 
 async function loadDevelopmentSettings(): Promise<SettingsDTO | null> {
+  if (!import.meta.env.DEV || !canUseDevelopmentTestData()) return null
   developmentSettings ??= await getSettingsDevelopmentFixture()
   return developmentSettings
 }

@@ -25,6 +25,49 @@ export interface WeeklyDevelopmentFixture {
   dashboard: WeeklyDashboardDTO
 }
 
+export const TEST_DATA_QUERY_KEY = 'testData'
+
+function explicitDevelopmentTestData(href: string): boolean | null {
+  try {
+    const url = new URL(href)
+    const hashQuery = url.hash.includes('?') ? url.hash.slice(url.hash.indexOf('?') + 1) : ''
+    const value = new URLSearchParams(hashQuery).get(TEST_DATA_QUERY_KEY)
+      ?? url.searchParams.get(TEST_DATA_QUERY_KEY)
+    if (value === 'off' || value === 'false' || value === '0') return false
+    if (value === 'on' || value === 'true' || value === '1') return true
+  } catch {
+    // Invalid URLs have no explicit selection.
+  }
+  return null
+}
+
+/**
+ * Keep an explicit choice while the SPA changes routes and drops the query.
+ * Each browser page owns one selector, so separate tabs can exercise both
+ * states concurrently without persistent storage or cross-test leakage.
+ */
+export function createDevelopmentTestDataSelector(
+  isDevelopment: boolean,
+): (href: string) => boolean {
+  let selected = true
+  return (href: string) => {
+    if (!isDevelopment) return false
+    selected = explicitDevelopmentTestData(href) ?? selected
+    return selected
+  }
+}
+
+export function resolveDevelopmentTestData(href: string, isDevelopment: boolean): boolean {
+  return createDevelopmentTestDataSelector(isDevelopment)(href)
+}
+
+let selectDevelopmentTestData: ((href: string) => boolean) | null = null
+
+export function canUseDevelopmentTestData(): boolean {
+  selectDevelopmentTestData ??= createDevelopmentTestDataSelector(import.meta.env.DEV)
+  return selectDevelopmentTestData(window.location.href)
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -144,7 +187,7 @@ async function fetchDevelopmentFixture<T>(
   path: string,
   validate: (value: unknown) => value is T,
 ): Promise<T | null> {
-  if (!import.meta.env.DEV) return null
+  if (!import.meta.env.DEV || !canUseDevelopmentTestData()) return null
 
   try {
     const response = await fetch(path, { cache: 'no-store' })

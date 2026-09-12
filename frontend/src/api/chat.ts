@@ -9,6 +9,7 @@ import {
 } from '../../wailsjs/go/app/Backend'
 
 import type { ChatConversationDTO, ChatMessageDTO } from '@/api/dto'
+import { canUseDevelopmentTestData } from '@/api/developmentFixtures'
 import { listProviders } from '@/api/providers'
 
 /** Thrown when the page runs in a plain browser, outside the Wails WebView. */
@@ -40,7 +41,7 @@ export async function listChatConversations(): Promise<ChatConversationDTO[]> {
   if (hasBridge()) {
     return (await ListChatConversations()) as unknown as ChatConversationDTO[]
   }
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     return devState().map((conversation) => ({ ...conversation.dto }))
   }
   throw new Error(WAILS_UNAVAILABLE)
@@ -50,7 +51,7 @@ export async function createChatConversation(): Promise<ChatConversationDTO> {
   if (hasBridge()) {
     return (await CreateChatConversation()) as unknown as ChatConversationDTO
   }
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     // Mirror the backend: a new thread defaults to the first configured
     // provider (the routing chain's primary).
     const providers = await listProviders()
@@ -68,7 +69,7 @@ export async function createChatConversation(): Promise<ChatConversationDTO> {
 
 export async function deleteChatConversation(id: string): Promise<void> {
   if (hasBridge()) return DeleteChatConversation(id)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     devConversations = devState().filter((conversation) => conversation.dto.id !== id)
     return
   }
@@ -77,7 +78,7 @@ export async function deleteChatConversation(id: string): Promise<void> {
 
 export async function setChatConversationProvider(id: string, providerId: string): Promise<void> {
   if (hasBridge()) return SetChatConversationProvider(id, providerId)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     for (const conversation of devState()) {
       if (conversation.dto.id === id) conversation.dto.providerId = providerId
     }
@@ -94,7 +95,7 @@ export async function getChatMessages(
   if (hasBridge()) {
     return (await GetChatMessages(conversationId, beforeId, limit)) as unknown as ChatMessageDTO[]
   }
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const conversation = devState().find((entry) => entry.dto.id === conversationId)
     if (conversation === undefined) return []
     let messages = [...conversation.messages]
@@ -107,7 +108,7 @@ export async function getChatMessages(
 
 export async function sendChatMessage(conversationId: string, content: string): Promise<void> {
   if (hasBridge()) return SendChatMessage(conversationId, content)
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const conversation = devState().find((entry) => entry.dto.id === conversationId)
     if (conversation === undefined) throw new Error(WAILS_UNAVAILABLE)
     const now = Math.floor(Date.now() / 1000)
@@ -160,7 +161,7 @@ export async function sendChatMessage(conversationId: string, content: string): 
 
 export async function cancelChatTurn(conversationId: string): Promise<void> {
   if (hasBridge()) return CancelChatTurn(conversationId)
-  if (import.meta.env.DEV) return
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) return
   throw new Error(WAILS_UNAVAILABLE)
 }
 
@@ -202,7 +203,7 @@ function chatUpdatedPayload(value: unknown): string | null {
  * id only; callers re-pull through getChatMessages. */
 export function onChatUpdated(callback: (conversationId: string) => void): () => void {
   if (!('runtime' in window) || !isWailsRuntime(window.runtime)) {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && canUseDevelopmentTestData()) {
       devChatUpdatedListeners.push(callback)
       return () => {
         devChatUpdatedListeners = devChatUpdatedListeners.filter((entry) => entry !== callback)
