@@ -32,6 +32,7 @@ weekly 用户闭环完成。生产构建缺少绑定时明确显示能力不可�
 | preferences: ui-bridge | DTO / store / 错误与空态 fixture | 生成绑定、事件重拉与 G-host |
 
 internal/insight 负责只读周聚合；数据库查询只在 internal/storage，周边界只在 timeutil。
+周边界已决定：周一起始、凌晨 4 点逻辑日对齐（[decisions/weekly-boundary-monday](../decisions/weekly-boundary-monday.md)）。
 app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事件；组件只呈现。
 需要的查询由本模块在 storage 中交付，不复制 cards repository 或写第二套分类体系。
 本模块不新增 AI 调用，也不将 daily 日记的存在作为聚合前提。

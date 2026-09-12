@@ -85,7 +85,7 @@ flowchart TD
 | `insight` | 由卡片派生的只读视图（时间线段、每日、每周） | 写入 |
 | `storage` | schema、仓库、事务边界、维护任务 | 业务判断 |
 | `settings` | 类型化设置读写、规范化与夹取 | 设置的**语义**（谁在什么时候能改，由 `app` 判断） |
-| `timeutil` | 凌晨 4 点逻辑日、时钟串解析与格式化、周边界 | 其它一切 |
+| `timeutil` | 凌晨 4 点逻辑日、时钟串解析与格式化、周边界（已定：周一起始、4 点对齐，[decisions/weekly-boundary-monday](decisions/weekly-boundary-monday.md)） | 其它一切 |
 | `platform` | 端口接口定义 | 任何实现细节 |
 
 ## 2.4 目录结构
