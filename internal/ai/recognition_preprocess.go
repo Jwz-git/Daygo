@@ -12,8 +12,10 @@ import (
 const recognitionOverlapPixels = 40
 
 // GenerateRecognition applies recognition-only image preprocessing for one
-// provider call. Temporary tiles are kept in memory and cleared when the call
-// returns; they are never written to storage by this package.
+// provider call. Each image is replaced in place by four overlapping tiles
+// followed by the untouched original, so the model gets both the zoomed crops
+// and the full-screen layout. Temporary tiles are kept in memory and cleared
+// when the call returns; they are never written to storage by this package.
 func GenerateRecognition(ctx context.Context, provider Provider, request Request, enhancementEnabled bool) (Result, error) {
 	if provider == nil {
 		return Result{}, NewError(ErrorInvalidRequest, "provider is required", 0, nil)
@@ -34,7 +36,7 @@ func GenerateRecognition(ctx context.Context, provider Provider, request Request
 }
 
 func prepareRecognitionRequest(request Request) (Request, []Part, error) {
-	parts := make([]Part, 0, len(request.Parts)+3)
+	parts := make([]Part, 0, len(request.Parts)+4)
 	temporary := make([]Part, 0, 4)
 	for _, part := range request.Parts {
 		if part.Kind() != PartImage {
@@ -46,7 +48,10 @@ func prepareRecognitionRequest(request Request) (Request, []Part, error) {
 			clearTemporaryParts(temporary)
 			return Request{}, nil, err
 		}
+		// The original follows its tiles: the caller's part is reused as-is
+		// (never added to temporary, whose bytes are cleared on return).
 		parts = append(parts, tiles...)
+		parts = append(parts, part)
 		temporary = append(temporary, tiles...)
 	}
 	prepared := request

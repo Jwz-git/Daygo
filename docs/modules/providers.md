@@ -43,8 +43,9 @@ llm.outputLanguage、llm.recognitionEnhancementEnabled 的字段规则和设置�
 行为由消费方（chat / 分析流水线）集成验证。
 
 识别增强（`ai.GenerateRecognition`，由 `llm.recognitionEnhancementEnabled` 控制，默认关）：
-开启时识别用途的每张图片在内存中切成 2×2 四张重叠分片（每片约半幅加交叉覆盖）再发送，
-分片仅存在于单次请求生命周期、返回后清零，不落盘不入库；关闭时请求原样透传。生产识别
+开启时识别用途的每张图片在内存中切成 2×2 四张重叠分片（每片约半幅加交叉覆盖），四片
+之后附上未改动的原图一起发送，分片仅存在于单次请求生命周期、返回后清零，不落盘不入库；
+关闭时请求原样透传。生产识别
 调用方（timeline 分析流水线）尚未接入，该开关当前持久化设置值并由设置页读写。
 
 ## 实验与失败条件
@@ -108,3 +109,6 @@ Secrets、Provider repository、Wails 绑定、真实服务连接及升级身份
 `go test ./internal/ai/... ./internal/settings/... ./internal/app/...`、前端
 typecheck / build 通过，夹具为内存生成的匿名 PNG。真实 provider 四片请求与生产分析
 流水线接入未运行。
+2026-09-12：识别增强改为四分片 + 原图一起发送（原图走调用方 part 原样透传，不进临时
+清零集合）；测试改为断言 6 part（文本 + 4 分片 + 原图）且调用返回后原图未被清零。
+真实 provider 请求仍未运行。

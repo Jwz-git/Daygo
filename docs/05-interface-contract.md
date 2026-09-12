@@ -573,7 +573,7 @@ type AppearanceSettingsDTO struct {
 // 前者决定模型生成的卡片标题与摘要用什么语言，后者只影响界面文案。
 type LLMSettingsDTO struct {
     OutputLanguage                string `json:"outputLanguage"`                // BCP 47；空串表示跟随界面语言
-    RecognitionEnhancementEnabled bool   `json:"recognitionEnhancementEnabled"` // 识别图片切四片发送；默认 false
+    RecognitionEnhancementEnabled bool   `json:"recognitionEnhancementEnabled"` // 识别图片切四片并附原图发送；默认 false
 }
 
 // ChatSettingsDTO.ChatMemory 是全局聊天记忆（decisions/chat-session-model）：

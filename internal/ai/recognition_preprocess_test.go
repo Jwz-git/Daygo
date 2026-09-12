@@ -57,10 +57,10 @@ func TestGenerateRecognitionCreatesFourOverlappingTiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var retained []Part
+	var retainedTiles []Part
 	provider := &recordingProvider{inspect: func(got Request) {
-		if len(got.Parts) != 5 {
-			t.Fatalf("parts = %d, want text plus four images", len(got.Parts))
+		if len(got.Parts) != 6 {
+			t.Fatalf("parts = %d, want text plus four tiles plus the original", len(got.Parts))
 		}
 		if got.Parts[0].Kind() != PartText || got.Parts[0].Text() != "same text" {
 			t.Fatalf("text part changed: %#v", got.Parts[0])
@@ -83,17 +83,24 @@ func TestGenerateRecognitionCreatesFourOverlappingTiles(t *testing.T) {
 				t.Fatalf("tile %d origin = (%d,%d), want %v", i, pixel.R, pixel.G, want)
 			}
 		}
-		retained = append([]Part(nil), got.Parts[1:]...)
+		original := got.Parts[5]
+		if original.Kind() != PartImage || !bytes.Equal(original.Bytes(), imagePart.Bytes()) {
+			t.Fatalf("part 5 = %#v, want the untouched original image", original)
+		}
+		retainedTiles = append([]Part(nil), got.Parts[1:5]...)
 	}}
 
 	request := Request{Purpose: PurposeTranscribe, Parts: []Part{TextPart("same text"), imagePart}}
 	if _, err := GenerateRecognition(context.Background(), provider, request, true); err != nil {
 		t.Fatalf("GenerateRecognition: %v", err)
 	}
-	for i, part := range retained {
+	for i, part := range retainedTiles {
 		if !allZero(part.Bytes()) {
 			t.Fatalf("temporary tile %d was not cleared after provider returned", i)
 		}
+	}
+	if !bytes.Equal(imagePart.Bytes(), request.Parts[1].Bytes()) {
+		t.Fatal("caller's original image was cleared after provider returned")
 	}
 }
 
@@ -114,7 +121,10 @@ func TestRecognitionTileSizeMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := &recordingProvider{inspect: func(got Request) {
-		for i, tile := range got.Parts {
+		if len(got.Parts) != 5 {
+			t.Fatalf("parts = %d, want four tiles plus the original", len(got.Parts))
+		}
+		for i, tile := range got.Parts[:4] {
 			decoded, _, err := image.Decode(bytes.NewReader(tile.Bytes()))
 			if err != nil {
 				t.Fatalf("decode tile %d: %v", i, err)
@@ -122,6 +132,13 @@ func TestRecognitionTileSizeMatchesReference(t *testing.T) {
 			if size := decoded.Bounds().Size(); size.X != 660 || size.Y != 500 {
 				t.Fatalf("tile %d size = %v, want 660x500", i, size)
 			}
+		}
+		decoded, _, err := image.Decode(bytes.NewReader(got.Parts[4].Bytes()))
+		if err != nil {
+			t.Fatalf("decode original: %v", err)
+		}
+		if size := decoded.Bounds().Size(); size.X != 1280 || size.Y != 960 {
+			t.Fatalf("original size = %v, want 1280x960", size)
 		}
 	}}
 	if _, err := GenerateRecognition(context.Background(), provider, Request{Parts: []Part{part}}, true); err != nil {
