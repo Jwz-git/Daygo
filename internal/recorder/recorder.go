@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"os"
+	"path"
 	"path/filepath"
 	"sync"
 	"time"
@@ -52,13 +53,16 @@ type Config struct {
 }
 
 type Recorder struct {
-	mu              sync.Mutex
-	cfg             Config
-	state           State
-	userPaused      bool
-	cancel          context.CancelFunc
-	done            chan struct{}
-	settingsChanged chan struct{}
+	mu               sync.Mutex
+	cfg              Config
+	state            State
+	userPaused       bool
+	cancel           context.CancelFunc
+	done             chan struct{}
+	settingsChanged  chan struct{}
+	lastFrameAt      *time.Time
+	systemBlockers   map[platform.SystemEventKind]struct{}
+	resumeGeneration uint64
 }
 
 func New(cfg Config) (*Recorder, error) {
@@ -74,9 +78,22 @@ func New(cfg Config) (*Recorder, error) {
 	if cfg.Clock == nil {
 		cfg.Clock = realClock{}
 	}
-	return &Recorder{cfg: cfg, state: StateIdle, settingsChanged: make(chan struct{}, 1)}, nil
+	return &Recorder{cfg: cfg, state: StateIdle, settingsChanged: make(chan struct{}, 1), systemBlockers: make(map[platform.SystemEventKind]struct{})}, nil
 }
 func (r *Recorder) State() State { r.mu.Lock(); defer r.mu.Unlock(); return r.state }
+
+// LastFrameAt reports the last frame that was fully written and committed to
+// storage. A defensive copy keeps callers from sharing mutable state with the
+// recorder goroutine.
+func (r *Recorder) LastFrameAt() *time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lastFrameAt == nil {
+		return nil
+	}
+	value := *r.lastFrameAt
+	return &value
+}
 func (r *Recorder) setState(s State, err error) {
 	r.mu.Lock()
 	r.state = s
@@ -94,6 +111,8 @@ func (r *Recorder) Start(ctx context.Context) error {
 	r.cancel = cancel
 	r.done = make(chan struct{})
 	r.state = StateStarting
+	r.userPaused = false
+	r.resumeGeneration++
 	r.mu.Unlock()
 	r.emit(StateStarting, nil)
 	go r.run(runCtx)
@@ -119,6 +138,7 @@ func (r *Recorder) Pause() error {
 	}
 	r.userPaused = true
 	r.state = StatePaused
+	r.resumeGeneration++
 	r.mu.Unlock()
 	r.emit(StatePaused, nil)
 	return nil
@@ -129,8 +149,13 @@ func (r *Recorder) Resume() error {
 		r.mu.Unlock()
 		return fmt.Errorf("recorder: cannot resume from %s", r.state)
 	}
+	if len(r.systemBlockers) != 0 {
+		r.mu.Unlock()
+		return fmt.Errorf("recorder: cannot resume while system capture is blocked")
+	}
 	r.userPaused = false
 	r.state = StateCapturing
+	r.resumeGeneration++
 	r.mu.Unlock()
 	r.emit(StateCapturing, nil)
 	return nil
@@ -163,6 +188,8 @@ func (r *Recorder) HandleSystemEvent(event platform.SystemEvent) {
 	switch event.Kind {
 	case platform.EventSleep, platform.EventScreenLocked, platform.EventScreensaverStart:
 		r.mu.Lock()
+		r.systemBlockers[event.Kind] = struct{}{}
+		r.resumeGeneration++
 		if r.state == StateCapturing {
 			r.state = StatePaused
 			r.mu.Unlock()
@@ -172,17 +199,44 @@ func (r *Recorder) HandleSystemEvent(event platform.SystemEvent) {
 		}
 	case platform.EventWake, platform.EventScreenUnlocked, platform.EventScreensaverStop:
 		r.mu.Lock()
-		blocked := r.userPaused || r.state != StatePaused
-		r.mu.Unlock()
-		if blocked {
+		delete(r.systemBlockers, blockingEventFor(event.Kind))
+		if r.userPaused || r.state != StatePaused || len(r.systemBlockers) != 0 {
+			r.mu.Unlock()
 			return
 		}
 		delay := 5 * time.Second
 		if event.Kind != platform.EventWake {
 			delay = 500 * time.Millisecond
 		}
-		time.AfterFunc(delay, func() { _ = r.Resume() })
+		r.resumeGeneration++
+		generation := r.resumeGeneration
+		r.mu.Unlock()
+		time.AfterFunc(delay, func() { r.resumeAfterSystemEvent(generation) })
 	}
+}
+
+func blockingEventFor(event platform.SystemEventKind) platform.SystemEventKind {
+	switch event {
+	case platform.EventWake:
+		return platform.EventSleep
+	case platform.EventScreenUnlocked:
+		return platform.EventScreenLocked
+	case platform.EventScreensaverStop:
+		return platform.EventScreensaverStart
+	default:
+		return ""
+	}
+}
+
+func (r *Recorder) resumeAfterSystemEvent(generation uint64) {
+	r.mu.Lock()
+	if generation != r.resumeGeneration || r.userPaused || r.state != StatePaused || len(r.systemBlockers) != 0 {
+		r.mu.Unlock()
+		return
+	}
+	r.state = StateCapturing
+	r.mu.Unlock()
+	r.emit(StateCapturing, nil)
 }
 func (r *Recorder) emit(s State, e error) {
 	if r.cfg.OnEvent != nil {
@@ -196,13 +250,24 @@ func (r *Recorder) run(ctx context.Context) {
 		r.fail(err)
 		return
 	}
-	r.setState(StateCapturing, nil)
+	r.mu.Lock()
+	blocked := len(r.systemBlockers) != 0
+	if blocked {
+		r.state = StatePaused
+	} else {
+		r.state = StateCapturing
+	}
+	state := r.state
+	r.mu.Unlock()
+	r.emit(state, nil)
 	current := r.captureSettings()
 	ticker := time.NewTicker(time.Duration(current.CaptureIntervalSeconds) * time.Second)
 	defer ticker.Stop()
-	if err := r.capture(ctx); err != nil && ctx.Err() == nil {
-		r.fail(err)
-		return
+	if !blocked {
+		if err := r.capture(ctx); err != nil && ctx.Err() == nil {
+			r.fail(err)
+			return
+		}
 	}
 	for {
 		select {
@@ -229,8 +294,10 @@ func (r *Recorder) capture(ctx context.Context) error {
 	now := r.cfg.Clock.Now()
 	current := r.captureSettings()
 	name := now.UTC().Format("20060102-150405.000000000") + ".jpg"
-	rel := filepath.Join("staging", name)
-	abs := filepath.Join(r.cfg.Directory, rel)
+	// Persist slash-separated segment paths on every OS. Convert to the host
+	// filesystem form only when resolving the actual output file.
+	rel := path.Join("staging", name)
+	abs := filepath.Join(r.cfg.Directory, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(abs), 0700); err != nil {
 		return err
 	}
@@ -261,7 +328,18 @@ func (r *Recorder) capture(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return r.cfg.Store.Commit(ctx, id, info.Size())
+	if err := r.cfg.Store.Commit(ctx, id, info.Size()); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	r.lastFrameAt = &now
+	state := r.state
+	r.mu.Unlock()
+	// The externally visible recording snapshot changed even though the
+	// lifecycle state did not. Reusing the state event lets Wails clients
+	// invalidate GetRecordingState without introducing a test-only event.
+	r.emit(state, nil)
+	return nil
 }
 func writePlaceholder(path string, height, quality int) error {
 	f, err := os.Create(path)

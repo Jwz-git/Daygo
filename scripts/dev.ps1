@@ -92,8 +92,33 @@ if (-not $HasRealBundle) {
 Push-Location (Join-Path $RootDir 'cmd\daygo')
 try {
     Write-Host 'Starting wails dev (the first run may take a while to download the Wails CLI)...'
-    & go run $WailsPackage dev -s @args
-    exit $LASTEXITCODE
+    # Go 1.25's Windows linker can emit malformed PE files for cgo debug
+    # builds when DWARF v5 is enabled (golang/go#75077). Wails dev enables
+    # debug symbols, and Daygo uses cgo for the native capture ABI, so retain
+    # debuggability with the older DWARF layout until the toolchain fix lands.
+    $PreviousGoExperiment = $env:GOEXPERIMENT
+    $GoVersion = (& go env GOVERSION).Trim()
+    if ($GoVersion -match '^go1\.25(?:\.|$)') {
+        $ExperimentList = @(
+            $PreviousGoExperiment -split ',' |
+                Where-Object { $_ -and $_ -notin @('dwarf5', 'nodwarf5') }
+        )
+        $env:GOEXPERIMENT = (@($ExperimentList) + 'nodwarf5') -join ','
+        Write-Host 'Applying Go 1.25 Windows cgo workaround: GOEXPERIMENT=nodwarf5'
+    }
+    try {
+        & go run $WailsPackage dev -s @args
+        $WailsExitCode = $LASTEXITCODE
+    }
+    finally {
+        if ($null -eq $PreviousGoExperiment) {
+            Remove-Item Env:GOEXPERIMENT -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:GOEXPERIMENT = $PreviousGoExperiment
+        }
+    }
+    exit $WailsExitCode
 }
 finally {
     Pop-Location

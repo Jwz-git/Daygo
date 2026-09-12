@@ -48,7 +48,11 @@ func Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	backend := NewBackend(factory.NewSystem(), nil)
+	system := factory.NewSystem()
+	if closer, ok := system.(interface{ Close() }); ok {
+		defer closer.Close()
+	}
+	backend := NewBackend(system, nil)
 	backend.setCapture(factory.NewCapture())
 	backend.setApplicationInspector(factory.NewApplicationInspector())
 	backend.setSecrets(secrets.New())
@@ -107,8 +111,8 @@ func Run() error {
 		AssetServer: &assetserver.Options{
 			Assets: frontend.Assets,
 		},
-		// system is nil until the native adapter exists: capability and day
-		// methods work truthfully, permission methods return native_unavailable.
+		// System may still be nil when the current platform adapter cannot
+		// start; capability and day methods remain available in that mode.
 		Bind: []any{backend},
 		// OnStartup hands over the Wails context the event emitter needs. It is
 		// installed here rather than at construction because runtime events
@@ -117,6 +121,11 @@ func Run() error {
 			emitter.SetContext(ctx)
 			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx})
 			updateStatus := func(state recorder.State) {
+				// Status-item setup is an optional platform capability and must not
+				// make the desktop shell's startup depend on native tray availability.
+				if backend.system == nil {
+					return
+				}
 				title, pause := "Not recording", "Start Recording"
 				switch state {
 				case recorder.StateStarting, recorder.StateCapturing:
