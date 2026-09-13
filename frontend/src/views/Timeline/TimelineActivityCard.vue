@@ -22,7 +22,7 @@ const appSite = computed(() => preferredAppSite(props.card.appSites))
 
 // Visual gap between consecutive cards: the slot owns `height`, the card
 // renders slightly inset inside it, so neighbours never touch.
-const CARD_GAP = 5
+const CARD_GAP = 3
 
 function cardStyle(): CSSProperties {
   return {
@@ -74,18 +74,18 @@ function cardStyle(): CSSProperties {
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 28px;
+  min-height: 34px;
   padding: 5px 12px 5px 14px;
   overflow: hidden;
   border: 1px solid var(--dg-timeline-card-border);
-  border-radius: var(--dg-timeline-card-radius);
   background: var(--dg-timeline-card-fill);
   box-shadow: var(--dg-timeline-card-shadow);
   text-align: left;
   transition:
-    border-color var(--dg-motion-fast) ease,
-    background var(--dg-motion-fast) ease,
-    box-shadow var(--dg-motion-fast) ease;
+    border-color var(--dg-motion-base) ease-in-out,
+    background var(--dg-motion-base) ease-in-out,
+    box-shadow var(--dg-motion-base) ease-in-out,
+    transform var(--dg-motion-base) ease-in-out;
 }
 
 .activity-card__icon {
@@ -111,6 +111,18 @@ function cardStyle(): CSSProperties {
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--timeline-category) 15%, transparent),
     var(--dg-timeline-card-shadow);
+}
+
+/* The press sinks the card into the track; the fill previews the selected
+   state the click is about to lock in. */
+.activity-card:active {
+  z-index: 6;
+  border-color: color-mix(in srgb, var(--timeline-category) 52%, var(--dg-timeline-card-border));
+  background: var(--dg-timeline-card-selected);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--timeline-category) 15%, transparent),
+    inset 0 1px 3px rgba(20, 16, 25, 0.1);
+  transform: scale(0.985);
 }
 
 .activity-card__rail {
@@ -168,5 +180,11 @@ function cardStyle(): CSSProperties {
 
 @media (max-width: 720px) {
   .activity-card__time { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-card {
+    transition: none;
+  }
 }
 </style>

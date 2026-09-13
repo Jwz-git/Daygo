@@ -94,10 +94,10 @@
   --dg-card-fill: rgba(255, 255, 255, 0.07);
   --dg-card-border: rgba(255, 255, 255, 0.12);
   --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
-  --dg-card-time: #918d99;
+  --dg-card-time: #a7a3af;
 
-  --dg-timeline-grid: rgba(255, 255, 255, 0.065);
-  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.12);
+  --dg-timeline-grid: rgba(255, 255, 255, 0.14);
+  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.22);
   --dg-timeline-card-fill: rgba(255, 255, 255, 0.065);
   --dg-timeline-card-hover: rgba(255, 255, 255, 0.1);
   --dg-timeline-card-selected: rgba(255, 138, 85, 0.12);

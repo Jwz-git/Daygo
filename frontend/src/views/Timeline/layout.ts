@@ -1,7 +1,7 @@
 // 2.6px per minute: one 15-minute card (the default batch window) gets 39px
 // of vertical space — a single-line card with real breathing room between
 // neighbours. Shorter cards fall back to MIN_CARD_HEIGHT and lane-pack.
-export const MIN_CARD_HEIGHT = 32
+export const MIN_CARD_HEIGHT = 34
 export const PIXELS_PER_MINUTE = 2.6
 export const MIN_TRACK_HEIGHT = 960
 

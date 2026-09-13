@@ -220,13 +220,13 @@ watch(() => props.context.day, () => void revealRelevantTime())
   display: grid;
   grid-template-columns: var(--dg-timeline-time-width) minmax(0, 1fr);
   align-items: center;
-  transform: translateY(-7px);
+  transform: translateY(-8px);
 }
 
 .hour-mark time {
   padding-right: 14px;
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
@@ -248,14 +248,14 @@ watch(() => props.context.day, () => void revealRelevantTime())
 .range {
   position: absolute;
   z-index: 2;
-  right: 10px;
+  /* Tracks the single-lane activity-card edge: 2px left + (100% - 12px) lane span - 4px card inset. */
+  right: 14px;
   left: 2px;
   display: flex;
   align-items: center;
   min-height: 34px;
   padding: 8px 12px;
   overflow: hidden;
-  border-radius: var(--dg-timeline-card-radius);
   font-size: 11px;
 }
 
@@ -273,7 +273,10 @@ watch(() => props.context.day, () => void revealRelevantTime())
   color: var(--dg-danger);
   cursor: pointer;
   text-align: left;
-  transition: border-color var(--dg-motion-fast) ease, background var(--dg-motion-fast) ease;
+  transition:
+    border-color var(--dg-motion-base) ease-in-out,
+    background var(--dg-motion-base) ease-in-out,
+    transform var(--dg-motion-base) ease-in-out;
 }
 
 .range--failure:hover {
@@ -289,6 +292,11 @@ watch(() => props.context.day, () => void revealRelevantTime())
 .range--failure.is-selected {
   border-color: color-mix(in srgb, var(--dg-danger) 65%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dg-danger) 25%, transparent);
+}
+
+.range--failure:active {
+  box-shadow: inset 0 1px 3px rgba(20, 16, 25, 0.1);
+  transform: scale(0.985);
 }
 
 .range__copy { display: flex; min-width: 0; flex-direction: column; }
