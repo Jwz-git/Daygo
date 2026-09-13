@@ -3,10 +3,13 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/domain"
+	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
@@ -20,25 +23,26 @@ const timelineTimeout = 10 * time.Second
 const timelineEventMergeWindow = 200 * time.Millisecond
 
 // cardMetadata is the subset of timeline_cards.metadata the UI renders
-// (appSites, distractions). Parsing is tolerant: a card whose metadata is
-// absent or shaped differently renders without those decorations rather than
-// failing the whole day view.
+// (appSites, distractions, activityPoints). Parsing is tolerant: a card whose
+// metadata is absent or shaped differently renders without those decorations
+// rather than failing the whole day view.
 type cardMetadata struct {
-	AppSites     *AppSitesDTO     `json:"appSites"`
-	Distractions []DistractionDTO `json:"distractions"`
+	AppSites       *AppSitesDTO       `json:"appSites"`
+	Distractions   []DistractionDTO   `json:"distractions"`
+	ActivityPoints []ActivityPointDTO `json:"activityPoints"`
 }
 
 // parseCardMetadata decodes the opaque metadata JSON, returning zero
 // decorations on any parse failure.
-func parseCardMetadata(raw string) (appSites *AppSitesDTO, distractions []DistractionDTO) {
+func parseCardMetadata(raw string) (appSites *AppSitesDTO, distractions []DistractionDTO, activityPoints []ActivityPointDTO) {
 	if raw == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var meta cardMetadata
 	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return meta.AppSites, meta.Distractions
+	return meta.AppSites, meta.Distractions, meta.ActivityPoints
 }
 
 // categoryByID indexes categories by name for per-card isIdle resolution.
@@ -240,7 +244,16 @@ func cardDurationMinutes(card domain.TimelineCard) float64 {
 // videoSummaryUrl stays null and otherVideoSummaryUrls empty: real URLs are
 // the media slice's concern, not a path-to-URL guess.
 func sharedCardDTO(card domain.TimelineCard, flags categoryFlags) TimelineCardDTO {
-	appSites, distractions := parseCardMetadata(card.Metadata)
+	appSites, distractions, activityPoints := parseCardMetadata(card.Metadata)
+	// The wire contract declares these as arrays; nil slices encode as null
+	// and crash consumers doing .length on them (same rule mergeFailures
+	// already follows).
+	if distractions == nil {
+		distractions = []DistractionDTO{}
+	}
+	if activityPoints == nil {
+		activityPoints = []ActivityPointDTO{}
+	}
 	return TimelineCardDTO{
 		ID:                    card.ID,
 		BatchID:               card.BatchID,
@@ -257,6 +270,7 @@ func sharedCardDTO(card domain.TimelineCard, flags categoryFlags) TimelineCardDT
 		OtherVideoSummaryURLs: []string{},
 		AppSites:              appSites,
 		Distractions:          distractions,
+		ActivityPoints:        activityPoints,
 		IsIdle:                flags.isIdle[card.Category],
 		DurationMinutes:       cardDurationMinutes(card),
 	}
@@ -311,6 +325,52 @@ func (b *Backend) DeleteCard(cardID int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
 	return b.deleteCard(ctx, cardID)
+}
+
+// ClearHistoryData is the test-only one-click reset: it wipes recorded and
+// analyzed history (frames, batches, observations, cards, journal, goals,
+// chat) plus the recordings files, keeping configuration — settings,
+// providers, categories — untouched. Refused while the recorder is running:
+// an active capture writes into the very directories being removed.
+func (b *Backend) ClearHistoryData() error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	if state := b.recorderState(); state != recorder.StateIdle {
+		return apperr.E(apperr.Conflict, "stop recording before clearing history data", nil)
+	}
+	store := b.store()
+	if store == nil {
+		if err := b.storageFailure(); err != nil {
+			return mapStorageError("clear history data", err)
+		}
+		return apperr.E(apperr.DatabaseError, "history data requires a database", nil)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	if _, err := store.ClearHistoryData(ctx); err != nil {
+		return mapStorageError("clear history data", err)
+	}
+
+	// Files after the rows: file deletion cannot roll back with the database,
+	// so a failure here leaves orphan files for the next clear, not rows
+	// pointing at missing files.
+	recordings := filepath.Join(filepath.Dir(store.Path()), "recordings")
+	for _, dir := range []string{"staging", "segments", "timelapses"} {
+		if err := os.RemoveAll(filepath.Join(recordings, dir)); err != nil {
+			return apperr.E(apperr.Internal, "remove recordings "+dir+": "+err.Error(), nil)
+		}
+		if err := os.MkdirAll(filepath.Join(recordings, dir), 0o700); err != nil {
+			return apperr.E(apperr.Internal, "recreate recordings "+dir+": "+err.Error(), nil)
+		}
+	}
+
+	// Empty day means "every day": listeners re-pull whatever they show.
+	b.emitter.Emit(EventTimelineUpdated, TimelineUpdatedPayload{Day: ""})
+	b.emitter.Emit(EventJournalUpdated, JournalUpdatedPayload{Day: ""})
+	b.emitter.Emit(EventGoalUpdated, GoalUpdatedPayload{Day: ""})
+	return nil
 }
 
 // invalidateCardDay resolves a card's day after a successful write and

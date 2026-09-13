@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { CategoryDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
+import type { CategoryDTO, TimelineCardDTO, TimelineDayDTO, TimelineFailureDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import { appSiteValues } from '@/lib/appSiteIcon'
@@ -15,6 +15,7 @@ const props = defineProps<{
   card: TimelineCardDTO | null
   canWrite: boolean
   actions: TimelineActionAvailability
+  canClear: boolean
   pendingAction: TimelineAction | null
   actionFailed: boolean
 }>()
@@ -24,12 +25,23 @@ const emit = defineEmits<{
   updateTitle: [cardID: number, title: string]
   updateCategory: [cardID: number, category: string]
   delete: [cardID: number]
+  retry: [batchIDs: number[]]
+  reprocess: []
+  clearHistory: []
 }>()
 const { t } = useI18n()
 const editing = ref(false)
 const confirmingDelete = ref(false)
+const confirmingClear = ref(false)
 const draftTitle = ref('')
 const draftCategory = ref('')
+
+const retryableFailures = computed(() =>
+  props.day.failures.filter((failure) => failure.retryable && failure.batchIds.length > 0),
+)
+
+const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
+const canReprocess = computed(() => props.canWrite && props.actions.reprocessDay)
 
 interface CategoryTotal {
   category: CategoryDTO
@@ -101,6 +113,7 @@ watch(
   () => {
     editing.value = false
     confirmingDelete.value = false
+    confirmingClear.value = false
     draftTitle.value = props.card?.title ?? ''
     draftCategory.value = props.card?.category ?? ''
   },
@@ -191,6 +204,22 @@ function duration(minutes: number): string {
           </div>
         </div>
       </div>
+
+      <section v-if="retryableFailures.length > 0" class="inspector__section inspector__failures">
+        <h3>{{ t('timeline.failure.title') }}</h3>
+        <p class="inspector__failure-note">{{ t('timeline.failure.retryHint') }}</p>
+        <button
+          v-for="failure in retryableFailures"
+          :key="`${failure.startTs}-${failure.endTs}`"
+          type="button"
+          class="dg-button inspector__retry"
+          :disabled="!canRetry || props.pendingAction !== null"
+          :title="canRetry ? t('timeline.failure.retry') : t('timeline.failure.retryUnavailable')"
+          @click="emit('retry', failure.batchIds)"
+        >
+          {{ props.pendingAction === 'retry-batches' ? t('timeline.failure.retrying') : t('timeline.failure.retry') }}
+        </button>
+      </section>
     </template>
 
     <template v-else>
@@ -274,6 +303,16 @@ function duration(minutes: number): string {
         </ul>
       </section>
 
+      <section v-if="props.card.activityPoints.length > 0" class="inspector__section">
+        <h3>{{ t('timeline.inspector.activityPoints') }}</h3>
+        <ul class="activity-points">
+          <li v-for="(point, index) in props.card.activityPoints" :key="index">
+            <span class="activity-points__time">{{ point.time }}</span>
+            <span>{{ point.description }}</span>
+          </li>
+        </ul>
+      </section>
+
       <section v-if="props.card.distractions.length > 0" class="inspector__section">
         <h3>{{ t('timeline.inspector.distractions') }}</h3>
         <article
@@ -353,6 +392,46 @@ function duration(minutes: number): string {
         </span>
       </div>
     </template>
+
+    <section class="inspector__section inspector__tools">
+      <h3>{{ t('timeline.tools.title') }}</h3>
+      <div class="inspector__tool-row">
+        <button
+          type="button"
+          class="dg-button"
+          :disabled="!canReprocess || props.pendingAction !== null"
+          :title="canReprocess ? t('timeline.reprocess.action') : t('timeline.reprocess.unavailable')"
+          @click="emit('reprocess')"
+        >
+          {{ props.pendingAction === 'reprocess-day' ? t('timeline.reprocess.pending') : t('timeline.reprocess.action') }}
+        </button>
+        <template v-if="confirmingClear">
+          <span class="inspector__confirm">{{ t('timeline.clear.confirm') }}</span>
+          <button type="button" class="dg-button" :disabled="props.pendingAction !== null" @click="confirmingClear = false">
+            {{ t('common.action.cancel') }}
+          </button>
+          <button
+            type="button"
+            class="dg-button inspector__delete"
+            :disabled="props.pendingAction !== null"
+            @click="emit('clearHistory'); confirmingClear = false"
+          >
+            {{ props.pendingAction === 'clear-history' ? t('timeline.clear.pending') : t('common.action.delete') }}
+          </button>
+        </template>
+        <button
+          v-else
+          type="button"
+          class="dg-button inspector__danger"
+          :disabled="!props.canWrite || !props.canClear || props.pendingAction !== null"
+          :title="props.canClear ? t('timeline.clear.action') : t('timeline.clear.unavailable')"
+          @click="confirmingClear = true"
+        >
+          {{ t('timeline.clear.action') }}
+        </button>
+      </div>
+      <p class="inspector__tool-note">{{ t('timeline.clear.note') }}</p>
+    </section>
   </aside>
 </template>
 
@@ -501,6 +580,21 @@ function duration(minutes: number): string {
   color: var(--dg-text-secondary);
   font-size: 10px;
 }
+
+.activity-points { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.activity-points li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+}
+.activity-points__time {
+  flex: none;
+  min-width: 52px;
+  color: var(--dg-text-muted);
+  font-variant-numeric: tabular-nums;
+}
 .app-sites li > span {
   max-width: 180px;
   overflow: hidden;
@@ -519,6 +613,43 @@ function duration(minutes: number): string {
 .inspector__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 18px; border-top: 1px solid var(--dg-timeline-grid); }
 .inspector__readonly { width: 100%; color: var(--dg-text-muted); font-size: 10px; }
 .inspector__confirm { width: 100%; color: var(--dg-text-secondary); font-size: 11px; }
+
+.inspector__failures {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--dg-timeline-grid);
+}
+
+.inspector__failure-note { color: var(--dg-text-muted); font-size: 11px; }
+
+.inspector__retry { color: var(--dg-text-secondary); }
+
+.inspector__tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--dg-timeline-grid);
+}
+
+.inspector__tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.inspector__danger { color: var(--dg-danger); }
+
+.inspector__danger:not(:disabled):hover {
+  background: color-mix(in srgb, var(--dg-danger) 9%, transparent);
+}
+
+.inspector__tool-note { color: var(--dg-text-muted); font-size: 10px; }
 .inspector__delete { border-color: color-mix(in srgb, var(--dg-danger) 34%, transparent); color: var(--dg-danger); }
 .inspector__error { margin: 4px 0 12px; color: var(--dg-danger); font-size: 11px; }
 </style>

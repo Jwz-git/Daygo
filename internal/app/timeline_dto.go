@@ -23,24 +23,25 @@ type TimelineDayDTO struct {
 // belongs to the media slice, and returning a fabricated URL would create a
 // dead link the UI would render as a playable video.
 type TimelineCardDTO struct {
-	ID                    int64            `json:"id"`
-	BatchID               *int64           `json:"batchId"`
-	Day                   string           `json:"day"`
-	Start                 string           `json:"start"`
-	End                   string           `json:"end"`
-	StartTs               int64            `json:"startTs"`
-	EndTs                 int64            `json:"endTs"`
-	Category              string           `json:"category"`
-	Subcategory           string           `json:"subcategory"`
-	Title                 string           `json:"title"`
-	Summary               string           `json:"summary"`
-	DetailedSummary       string           `json:"detailedSummary"`
-	VideoSummaryURL       *string          `json:"videoSummaryUrl"`
-	OtherVideoSummaryURLs []string         `json:"otherVideoSummaryUrls"`
-	AppSites              *AppSitesDTO     `json:"appSites"`
-	Distractions          []DistractionDTO `json:"distractions"`
-	IsIdle                bool             `json:"isIdle"`
-	DurationMinutes       float64          `json:"durationMinutes"`
+	ID                    int64              `json:"id"`
+	BatchID               *int64             `json:"batchId"`
+	Day                   string             `json:"day"`
+	Start                 string             `json:"start"`
+	End                   string             `json:"end"`
+	StartTs               int64              `json:"startTs"`
+	EndTs                 int64              `json:"endTs"`
+	Category              string             `json:"category"`
+	Subcategory           string             `json:"subcategory"`
+	Title                 string             `json:"title"`
+	Summary               string             `json:"summary"`
+	DetailedSummary       string             `json:"detailedSummary"`
+	VideoSummaryURL       *string            `json:"videoSummaryUrl"`
+	OtherVideoSummaryURLs []string           `json:"otherVideoSummaryUrls"`
+	AppSites              *AppSitesDTO       `json:"appSites"`
+	Distractions          []DistractionDTO   `json:"distractions"`
+	ActivityPoints        []ActivityPointDTO `json:"activityPoints"`
+	IsIdle                bool               `json:"isIdle"`
+	DurationMinutes       float64            `json:"durationMinutes"`
 }
 
 type AppSitesDTO struct {
@@ -55,6 +56,13 @@ type DistractionDTO struct {
 	Title           string  `json:"title"`
 	Summary         string  `json:"summary"`
 	VideoSummaryURL *string `json:"videoSummaryUrl"`
+}
+
+// ActivityPointDTO is one concrete time point inside a card (Dayflow model:
+// one card per window, observations carried as per-point descriptions).
+type ActivityPointDTO struct {
+	Time        string `json:"time"`
+	Description string `json:"description"`
 }
 
 type TimelineFailureDTO struct {

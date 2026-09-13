@@ -34,7 +34,8 @@ var transcribeOutput = ai.OutputSchema{Name: "daygo_transcribe", Schema: json.Ra
 
 // cardsOutput is the card-generation contract. start/end are clock strings in
 // the contract format "h:mm AM/PM" — the same shape timeline_cards stores and
-// ResolveClock parses.
+// ResolveClock parses. One card per window (Dayflow model); activityPoints
+// carries the per-observation time points on the card.
 var cardsOutput = ai.OutputSchema{Name: "daygo_cards", Schema: json.RawMessage(`{
 	"type": "object",
 	"properties": {
@@ -51,10 +52,22 @@ var cardsOutput = ai.OutputSchema{Name: "daygo_cards", Schema: json.RawMessage(`
 					"summary": {"type": "string"},
 					"detailed_summary": {"type": "string"},
 					"appSites": {"type": "array", "items": {"type": "string"}},
-					"distractions": {"type": "array", "items": {"type": "string"}}
+					"distractions": {"type": "array", "items": {"type": "string"}},
+					"activityPoints": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"time": {"type": "string"},
+								"description": {"type": "string"}
+							},
+							"required": ["time", "description"],
+							"additionalProperties": false
+						}
+					}
 				},
 				"required": ["start", "end", "category", "subcategory", "title", "summary",
-					"detailed_summary", "appSites", "distractions"],
+					"detailed_summary", "appSites", "distractions", "activityPoints"],
 				"additionalProperties": false
 			}
 		}
@@ -83,5 +96,9 @@ type cardsEnvelope struct {
 		DetailedSummary string   `json:"detailed_summary"`
 		AppSites        []string `json:"appSites"`
 		Distractions    []string `json:"distractions"`
+		ActivityPoints  []struct {
+			Time        string `json:"time"`
+			Description string `json:"description"`
+		} `json:"activityPoints"`
 	} `json:"cards"`
 }

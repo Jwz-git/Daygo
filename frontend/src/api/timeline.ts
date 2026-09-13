@@ -13,6 +13,7 @@ interface TimelineBackend {
   DeleteCard?: (cardID: number) => Promise<void>
   RetryBatches?: (batchIDs: number[]) => Promise<void>
   ReprocessDay?: (day: string) => Promise<void>
+  ClearHistoryData?: () => Promise<void>
 }
 
 interface WailsRuntime {
@@ -43,6 +44,7 @@ export interface TimelineActionAvailability {
   deleteCard: boolean
   retryBatches: boolean
   reprocessDay: boolean
+  clearHistory: boolean
 }
 
 function backend(): TimelineBackend | null {
@@ -69,6 +71,7 @@ export function getTimelineActionAvailability(): TimelineActionAvailability {
     deleteCard: typeof current?.DeleteCard === 'function',
     retryBatches: typeof current?.RetryBatches === 'function',
     reprocessDay: typeof current?.ReprocessDay === 'function',
+    clearHistory: typeof current?.ClearHistoryData === 'function',
   }
 }
 
@@ -113,6 +116,10 @@ export async function retryBatches(batchIDs: number[]): Promise<void> {
 
 export async function reprocessDay(day: string): Promise<void> {
   return requiredMethod('ReprocessDay')(day)
+}
+
+export async function clearHistoryData(): Promise<void> {
+  return requiredMethod('ClearHistoryData')()
 }
 
 /**

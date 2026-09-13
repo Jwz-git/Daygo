@@ -29,6 +29,7 @@ const {
   pendingAction,
   actionError,
   actionAvailability,
+  clearAvailable,
 } = storeToRefs(timeline)
 const { locale, t } = useI18n()
 const route = useRoute()
@@ -177,15 +178,6 @@ onBeforeUnmount(() => { timeline.stopListening() })
       </button>
       <button
         type="button"
-        class="filter-manage filter-manage--available"
-        :disabled="!capabilities?.canWrite || !actionAvailability.reprocessDay || pendingAction !== null"
-        :title="actionAvailability.reprocessDay ? t('timeline.reprocess.action') : t('timeline.reprocess.unavailable')"
-        @click="timeline.reprocess()"
-      >
-        {{ pendingAction === 'reprocess-day' ? t('timeline.reprocess.pending') : t('timeline.reprocess.action') }}
-      </button>
-      <button
-        type="button"
         class="filter-manage"
         :title="t('timeline.filter.manageUnavailable')"
         disabled
@@ -214,10 +206,7 @@ onBeforeUnmount(() => { timeline.stopListening() })
           :failures="day.failures"
           :processing-ranges="day.processingRanges"
           :selected-card-i-d="selectedCardID"
-          :can-retry="Boolean(capabilities?.canWrite && actionAvailability.retryBatches)"
-          :retrying="pendingAction === 'retry-batches'"
           @select="timeline.selectCard"
-          @retry="timeline.retryFailure"
         />
         <TimelineInspector
           class="timeline-body__inspector"
@@ -226,12 +215,16 @@ onBeforeUnmount(() => { timeline.stopListening() })
           :card="selectedCard"
           :can-write="capabilities?.canWrite ?? false"
           :actions="actionAvailability"
+          :can-clear="clearAvailable"
           :pending-action="pendingAction"
           :action-failed="actionError !== null"
           @close="timeline.selectCard(null)"
           @update-title="timeline.changeCardTitle"
           @update-category="timeline.changeCardCategory"
           @delete="timeline.removeCard"
+          @retry="timeline.retryFailure"
+          @reprocess="timeline.reprocess()"
+          @clear-history="timeline.clearHistory()"
         />
       </template>
     </div>

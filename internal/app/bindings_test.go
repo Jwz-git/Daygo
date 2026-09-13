@@ -13,6 +13,7 @@ var contractBindings = []string{
 	"AddProvider",
 	"CancelChatTurn",
 	"CaptureTest",
+	"ClearHistoryData",
 	"CreateChatConversation",
 	"DeleteChatConversation",
 	"DeleteProvider",

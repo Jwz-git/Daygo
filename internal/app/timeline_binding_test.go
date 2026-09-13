@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -220,4 +222,47 @@ func TestMergeFailuresTolerance(t *testing.T) {
 	if strings.Contains(got[0].Message, "\n") {
 		t.Fatal("message must be the sanitized note verbatim")
 	}
+}
+
+func TestClearHistoryData(t *testing.T) {
+	dir := t.TempDir()
+	backend, emitter := writerBackendWithStore(t, dir)
+	seedTimelineDay(t, backend, []domain.CardShell{
+		{Start: "10:00 AM", End: "10:30 AM", Category: "Coding", Title: "c1", Summary: "s"},
+	})
+	store := backend.store()
+	if err := backend.ClearHistoryData(); err != nil {
+		t.Fatalf("ClearHistoryData: %v", err)
+	}
+
+	cards, err := store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if err != nil || len(cards) != 0 {
+		t.Fatalf("cards after clear = %d (err %v), want 0", len(cards), err)
+	}
+	var batches int
+	if err := store.Read(context.Background(), "count batches", func(ctx context.Context, tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM analysis_batches").Scan(&batches)
+	}); err != nil || batches != 0 {
+		t.Fatalf("batches after clear = %d (err %v), want 0", batches, err)
+	}
+	// Configuration survives: built-in categories stay seeded.
+	categories, err := store.Categories().List(context.Background())
+	if err != nil || len(categories) != 2 {
+		t.Fatalf("categories after clear = %d (err %v), want the two built-ins", len(categories), err)
+	}
+	// Recordings directories are recreated empty, not left missing.
+	for _, sub := range []string{"staging", "segments", "timelapses"} {
+		info, err := os.Stat(filepath.Join(filepath.Dir(store.Path()), "recordings", sub))
+		if err != nil || !info.IsDir() {
+			t.Fatalf("recordings/%s after clear: %v", sub, err)
+		}
+	}
+	if emitter.count(EventTimelineUpdated) == 0 {
+		t.Fatal("no timeline:updated emitted after clear")
+	}
+
+	// A second (read-only) instance on the same directory cannot clear.
+	reader := openTestStore(t, dir, false)
+	readBackend := newBackend(fixedClock{}, nil, reader, true, true)
+	assertAppCode(t, readBackend.ClearHistoryData(), apperr.NotCaptureOwner)
 }

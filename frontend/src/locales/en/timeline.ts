@@ -26,6 +26,7 @@ export default {
     retry: 'Retry this failed range',
     retrying: 'Retrying…',
     retryUnavailable: 'Batch retry is not connected or this instance is read-only',
+    retryHint: 'Failed ranges can be resubmitted for analysis here.',
   },
   copy: {
     action: 'Copy timeline',
@@ -36,6 +37,16 @@ export default {
     action: 'Reprocess',
     pending: 'Submitted…',
     unavailable: 'Full-day reprocessing is not connected yet',
+  },
+  clear: {
+    action: 'Clear history data',
+    confirm: 'This deletes all screenshots, batches, observations and timeline cards (providers and settings are kept). Continue?',
+    pending: 'Clearing…',
+    unavailable: 'Clear binding is not connected or this instance is read-only',
+    note: 'Test only: wipes recording and analysis history in one click; provider config is untouched.',
+  },
+  tools: {
+    title: 'Actions',
   },
   state: {
     loading: {
@@ -82,6 +93,7 @@ export default {
     summary: 'Summary',
     noSummary: 'This activity has no summary.',
     apps: 'Apps and sites',
+    activityPoints: 'Activity points',
     distractions: 'Distractions',
     media: 'Activity playback',
     mediaLabel: 'Activity playback {count}',

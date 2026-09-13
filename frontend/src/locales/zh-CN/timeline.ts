@@ -26,6 +26,7 @@ export default {
     retry: '重试这个失败时段',
     retrying: '正在重试…',
     retryUnavailable: '批次重试绑定尚未交付或当前实例只读',
+    retryHint: '失败时段可在这里重新提交分析。',
   },
   copy: {
     action: '复制时间线',
@@ -36,6 +37,16 @@ export default {
     action: '重新处理',
     pending: '已提交…',
     unavailable: '整日重处理绑定尚未交付',
+  },
+  clear: {
+    action: '清理历史数据',
+    confirm: '将删除全部截图、批次、观测与时间线卡片（保留 Provider 与设置）。确定继续吗？',
+    pending: '正在清理…',
+    unavailable: '清理绑定尚未交付或当前实例只读',
+    note: '测试专用：一键清空录制与分析历史，Provider 等配置不受影响。',
+  },
+  tools: {
+    title: '操作',
   },
   state: {
     loading: {
@@ -82,6 +93,7 @@ export default {
     summary: '摘要',
     noSummary: '这一活动没有摘要。',
     apps: '应用与站点',
+    activityPoints: '时间点',
     distractions: '分心片段',
     media: '活动回放',
     mediaLabel: '活动回放 {count}',

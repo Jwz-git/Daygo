@@ -221,6 +221,11 @@ export interface DistractionDTO {
   videoSummaryUrl: string | null
 }
 
+export interface ActivityPointDTO {
+  time: string
+  description: string
+}
+
 export interface TimelineCardDTO {
   id: number
   batchId: number | null
@@ -238,6 +243,7 @@ export interface TimelineCardDTO {
   otherVideoSummaryUrls: string[]
   appSites: AppSitesDTO | null
   distractions: DistractionDTO[]
+  activityPoints: ActivityPointDTO[]
   isIdle: boolean
   durationMinutes: number
 }

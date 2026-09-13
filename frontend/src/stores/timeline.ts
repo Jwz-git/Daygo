@@ -9,6 +9,7 @@ import type {
 } from '@/api/dto'
 import { getTimelineDevelopmentFixture } from '@/api/developmentFixtures'
 import {
+  clearHistoryData,
   deleteCard,
   getDayContext,
   getTimelineActionAvailability,
@@ -37,6 +38,7 @@ export type TimelineAction =
   | 'delete-card'
   | 'retry-batches'
   | 'reprocess-day'
+  | 'clear-history'
 
 export const useTimelineStore = defineStore('timeline', () => {
   const context = ref<DayContextDTO | null>(null)
@@ -72,8 +74,13 @@ export const useTimelineStore = defineStore('timeline', () => {
       deleteCard: enabled && actionBindings.deleteCard,
       retryBatches: enabled && actionBindings.retryBatches,
       reprocessDay: enabled && actionBindings.reprocessDay,
+      clearHistory: enabled && actionBindings.clearHistory,
     }
   })
+
+  const clearAvailable = computed(
+    () => (capabilities.value?.canWrite ?? false) && actionAvailability.value.clearHistory,
+  )
 
   const state = computed<TimelineState>(() => {
     if (loading.value) return 'loading'
@@ -186,6 +193,15 @@ export const useTimelineStore = defineStore('timeline', () => {
     return runAction('reprocess-day', () => reprocessDay(selectedDay))
   }
 
+  async function clearHistory(): Promise<boolean> {
+    const succeeded = await runAction('clear-history', () => clearHistoryData())
+    if (succeeded) {
+      selectedCardID.value = null
+      await load(context.value?.day ?? '')
+    }
+    return succeeded
+  }
+
   function startEvents(): void {
     if (stopEvents !== null) return
     stopEvents = onTimelineUpdated((updatedDay) => {
@@ -210,6 +226,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     pendingAction,
     actionError,
     actionAvailability,
+    clearAvailable,
     cards,
     selectedCard,
     state,
@@ -222,6 +239,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     removeCard,
     retryFailure,
     reprocess,
+    clearHistory,
     startEvents,
     stopListening,
   }

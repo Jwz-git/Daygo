@@ -1,5 +1,8 @@
-export const MIN_CARD_HEIGHT = 38
-export const PIXELS_PER_MINUTE = 1.05
+// 2.6px per minute: one 15-minute card (the default batch window) gets 39px
+// of vertical space — a single-line card with real breathing room between
+// neighbours. Shorter cards fall back to MIN_CARD_HEIGHT and lane-pack.
+export const MIN_CARD_HEIGHT = 32
+export const PIXELS_PER_MINUTE = 2.6
 export const MIN_TRACK_HEIGHT = 960
 
 export interface PositionedRange {
@@ -92,7 +95,10 @@ export function layoutTimelineCards(
   }
 
   for (const card of placed) {
-    if (cluster.length > 0 && card.top >= clusterBottom) finishCluster()
+    // Sub-pixel arithmetic: a 15-minute card at 2.6px/min can land
+    // 0.0000001px into its predecessor's slot; that rounding noise must not
+    // trigger lane packing.
+    if (cluster.length > 0 && card.top >= clusterBottom - 0.5) finishCluster()
     cluster.push(card)
     clusterBottom = Math.max(clusterBottom, card.top + card.height)
   }

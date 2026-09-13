@@ -12,8 +12,8 @@
     "day": "2026-09-11",
     "dayStartTs": 1789070400,
     "dayEndTs": 1789156800,
-    "trackedMinutes": 299,
-    "idleMinutes": 75,
+    "trackedMinutes": 870.0,
+    "idleMinutes": 210.0,
     "generatedAtTs": 1789110600,
     "categories": [
       {
@@ -63,168 +63,2054 @@
     ],
     "cards": [
       {
-        "id": 101,
-        "batchId": 21,
+        "id": 1000,
+        "batchId": 1000,
         "day": "2026-09-11",
-        "start": "09:20",
-        "end": "09:45",
-        "startTs": 1789089600,
-        "endTs": 1789091100,
-        "category": "规划",
-        "subcategory": "项目",
-        "title": "整理今天的工作顺序",
-        "summary": "确认待办范围并安排优先级。",
-        "detailedSummary": "检查当前进度，把需要集中处理的事项排在上午，低优先级工作留到下午。",
+        "start": "9:00 AM",
+        "end": "9:15 AM",
+        "startTs": 1789088400,
+        "endTs": 1789089300,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "planning.example", "secondary": "Notes" },
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
         "distractions": [],
-        "isIdle": false,
-        "durationMinutes": 25
-      },
-      {
-        "id": 102,
-        "batchId": 22,
-        "day": "2026-09-11",
-        "start": "10:15",
-        "end": "11:05",
-        "startTs": 1789092900,
-        "endTs": 1789095900,
-        "category": "专注工作",
-        "subcategory": "开发",
-        "title": "调整时间线布局与交互",
-        "summary": "收敛页面层级并检查窄窗口布局。",
-        "detailedSummary": "修改时间轨道和详情栏的布局，检查卡片最小高度、时间刻度对齐与键盘焦点。",
-        "videoSummaryUrl": null,
-        "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Visual Studio Code", "secondary": "Safari" },
-        "distractions": [
+        "activityPoints": [
           {
-            "id": "d-102-1",
-            "startTime": "10:37",
-            "endTime": "10:41",
-            "title": "短暂查看消息",
-            "summary": "查看通知后返回当前任务。",
-            "videoSummaryUrl": null
+            "time": "9:00 AM",
+            "description": "在聊天工具里回复同事的消息。"
           }
         ],
         "isIdle": false,
-        "durationMinutes": 50
+        "durationMinutes": 15.0
       },
       {
-        "id": 107,
-        "batchId": 23,
+        "id": 1001,
+        "batchId": 1001,
         "day": "2026-09-11",
-        "start": "12:00",
-        "end": "13:15",
-        "startTs": 1789099200,
-        "endTs": 1789103700,
+        "start": "9:15 AM",
+        "end": "9:30 AM",
+        "startTs": 1789089300,
+        "endTs": 1789090200,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "9:15 AM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1002,
+        "batchId": 1002,
+        "day": "2026-09-11",
+        "start": "9:30 AM",
+        "end": "9:45 AM",
+        "startTs": 1789090200,
+        "endTs": 1789091100,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "9:30 AM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1003,
+        "batchId": 1003,
+        "day": "2026-09-11",
+        "start": "9:45 AM",
+        "end": "10:00 AM",
+        "startTs": 1789091100,
+        "endTs": 1789092000,
         "category": "空闲",
-        "subcategory": "离开",
-        "title": "午间离开电脑",
-        "summary": "这一时段没有检测到持续活动。",
-        "detailedSummary": "匿名测试数据中的空闲时段，用于检查空闲统计与分类筛选。",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
         "appSites": null,
         "distractions": [],
+        "activityPoints": [
+          {
+            "time": "9:45 AM",
+            "description": "无用户活动。"
+          }
+        ],
         "isIdle": true,
-        "durationMinutes": 75
+        "durationMinutes": 15.0
       },
       {
-        "id": 103,
-        "batchId": 24,
+        "id": 1004,
+        "batchId": 1004,
         "day": "2026-09-11",
-        "start": "13:20",
-        "end": "14:55",
-        "startTs": 1789104000,
-        "endTs": 1789109700,
+        "start": "10:00 AM",
+        "end": "10:15 AM",
+        "startTs": 1789092000,
+        "endTs": 1789092900,
         "category": "专注工作",
-        "subcategory": "开发",
-        "title": "完成前端状态与详情面板",
-        "summary": "补齐加载、失败和选中状态。",
-        "detailedSummary": "集中完成时间线的数据状态、卡片详情以及分类汇总展示。",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Visual Studio Code", "secondary": null },
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
         "distractions": [],
+        "activityPoints": [
+          {
+            "time": "10:00 AM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
         "isIdle": false,
-        "durationMinutes": 95
+        "durationMinutes": 15.0
       },
       {
-        "id": 104,
-        "batchId": 25,
+        "id": 1005,
+        "batchId": 1005,
         "day": "2026-09-11",
-        "start": "15:00",
-        "end": "15:10",
-        "startTs": 1789110000,
-        "endTs": 1789110600,
+        "start": "10:15 AM",
+        "end": "10:30 AM",
+        "startTs": 1789092900,
+        "endTs": 1789093800,
         "category": "沟通",
-        "subcategory": "同步",
-        "title": "同步测试结果",
-        "summary": "记录构建结果和待确认项。",
-        "detailedSummary": "快速同步当前验证结果，并把仍需实机检查的内容单独列出。",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Messages", "secondary": null },
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
         "distractions": [],
+        "activityPoints": [
+          {
+            "time": "10:15 AM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
         "isIdle": false,
-        "durationMinutes": 10
+        "durationMinutes": 15.0
       },
       {
-        "id": 106,
-        "batchId": 25,
+        "id": 1006,
+        "batchId": 1006,
         "day": "2026-09-11",
-        "start": "15:10",
-        "end": "15:14",
-        "startTs": 1789110600,
-        "endTs": 1789110840,
+        "start": "10:30 AM",
+        "end": "10:45 AM",
+        "startTs": 1789093800,
+        "endTs": 1789094700,
         "category": "规划",
-        "subcategory": "记录",
-        "title": "补记下一步",
-        "summary": "记录一个紧邻上一活动的短片段。",
-        "detailedSummary": "这个四分钟片段用于检查最小点击高度不会遮住相邻活动。",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Notes", "secondary": null },
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
         "distractions": [],
+        "activityPoints": [
+          {
+            "time": "10:30 AM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
         "isIdle": false,
-        "durationMinutes": 4
+        "durationMinutes": 15.0
       },
       {
-        "id": 105,
-        "batchId": 26,
+        "id": 1007,
+        "batchId": 1007,
         "day": "2026-09-11",
-        "start": "16:00",
-        "end": "16:40",
+        "start": "10:45 AM",
+        "end": "11:00 AM",
+        "startTs": 1789094700,
+        "endTs": 1789095600,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "10:45 AM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1008,
+        "batchId": 1008,
+        "day": "2026-09-11",
+        "start": "11:00 AM",
+        "end": "11:15 AM",
+        "startTs": 1789095600,
+        "endTs": 1789096500,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "11:00 AM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1009,
+        "batchId": 1009,
+        "day": "2026-09-11",
+        "start": "11:15 AM",
+        "end": "11:30 AM",
+        "startTs": 1789096500,
+        "endTs": 1789097400,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "11:15 AM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1010,
+        "batchId": 1010,
+        "day": "2026-09-11",
+        "start": "11:30 AM",
+        "end": "11:45 AM",
+        "startTs": 1789097400,
+        "endTs": 1789098300,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "11:30 AM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1011,
+        "batchId": 1011,
+        "day": "2026-09-11",
+        "start": "11:45 AM",
+        "end": "12:00 PM",
+        "startTs": 1789098300,
+        "endTs": 1789099200,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "11:45 AM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1012,
+        "batchId": 1012,
+        "day": "2026-09-11",
+        "start": "12:00 PM",
+        "end": "12:15 PM",
+        "startTs": 1789099200,
+        "endTs": 1789100100,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "12:00 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1013,
+        "batchId": 1013,
+        "day": "2026-09-11",
+        "start": "12:15 PM",
+        "end": "12:30 PM",
+        "startTs": 1789100100,
+        "endTs": 1789101000,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "12:15 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1014,
+        "batchId": 1014,
+        "day": "2026-09-11",
+        "start": "12:30 PM",
+        "end": "12:45 PM",
+        "startTs": 1789101000,
+        "endTs": 1789101900,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "12:30 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1015,
+        "batchId": 1015,
+        "day": "2026-09-11",
+        "start": "12:45 PM",
+        "end": "1:00 PM",
+        "startTs": 1789101900,
+        "endTs": 1789102800,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "12:45 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1016,
+        "batchId": 1016,
+        "day": "2026-09-11",
+        "start": "1:00 PM",
+        "end": "1:15 PM",
+        "startTs": 1789102800,
+        "endTs": 1789103700,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "1:00 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1017,
+        "batchId": 1017,
+        "day": "2026-09-11",
+        "start": "1:15 PM",
+        "end": "1:30 PM",
+        "startTs": 1789103700,
+        "endTs": 1789104600,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "1:15 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1018,
+        "batchId": 1018,
+        "day": "2026-09-11",
+        "start": "1:30 PM",
+        "end": "1:45 PM",
+        "startTs": 1789104600,
+        "endTs": 1789105500,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "1:30 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1019,
+        "batchId": 1019,
+        "day": "2026-09-11",
+        "start": "1:45 PM",
+        "end": "2:00 PM",
+        "startTs": 1789105500,
+        "endTs": 1789106400,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "1:45 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1020,
+        "batchId": 1020,
+        "day": "2026-09-11",
+        "start": "2:00 PM",
+        "end": "2:15 PM",
+        "startTs": 1789106400,
+        "endTs": 1789107300,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "2:00 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1021,
+        "batchId": 1021,
+        "day": "2026-09-11",
+        "start": "2:15 PM",
+        "end": "2:30 PM",
+        "startTs": 1789107300,
+        "endTs": 1789108200,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "2:15 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1022,
+        "batchId": 1022,
+        "day": "2026-09-11",
+        "start": "2:30 PM",
+        "end": "2:45 PM",
+        "startTs": 1789108200,
+        "endTs": 1789109100,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "2:30 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1023,
+        "batchId": 1023,
+        "day": "2026-09-11",
+        "start": "2:45 PM",
+        "end": "3:00 PM",
+        "startTs": 1789109100,
+        "endTs": 1789110000,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "2:45 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1024,
+        "batchId": 1024,
+        "day": "2026-09-11",
+        "start": "3:00 PM",
+        "end": "3:15 PM",
+        "startTs": 1789110000,
+        "endTs": 1789110900,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "3:00 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1025,
+        "batchId": 1025,
+        "day": "2026-09-11",
+        "start": "3:15 PM",
+        "end": "3:30 PM",
+        "startTs": 1789110900,
+        "endTs": 1789111800,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "3:15 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1026,
+        "batchId": 1026,
+        "day": "2026-09-11",
+        "start": "3:30 PM",
+        "end": "3:45 PM",
+        "startTs": 1789111800,
+        "endTs": 1789112700,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "3:30 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1027,
+        "batchId": 1027,
+        "day": "2026-09-11",
+        "start": "3:45 PM",
+        "end": "4:00 PM",
+        "startTs": 1789112700,
+        "endTs": 1789113600,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "3:45 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1028,
+        "batchId": 1028,
+        "day": "2026-09-11",
+        "start": "4:00 PM",
+        "end": "4:15 PM",
         "startTs": 1789113600,
-        "endTs": 1789116000,
-        "category": "规划",
-        "subcategory": "复盘",
-        "title": "整理后续接入事项",
-        "summary": "列出后端接入和实机验证清单。",
-        "detailedSummary": "根据当前界面切片整理真实数据接入、事件重拉与媒体能力的后续事项。",
+        "endTs": 1789114500,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Daygo", "secondary": "Notes" },
+        "appSites": null,
         "distractions": [],
-        "isIdle": false,
-        "durationMinutes": 40
-      }
-    ],
-    "processingRanges": [
-      { "startTs": 1789116000, "endTs": 1789118400 }
-    ],
-    "failures": [
+        "activityPoints": [
+          {
+            "time": "4:00 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
       {
-        "batchIds": [27],
-        "startTs": 1789118400,
-        "endTs": 1789119300,
-        "kind": "analysis_timeout",
-        "message": "这个时段尚未完成分析",
-        "retryable": true
+        "id": 1029,
+        "batchId": 1029,
+        "day": "2026-09-11",
+        "start": "4:15 PM",
+        "end": "4:30 PM",
+        "startTs": 1789114500,
+        "endTs": 1789115400,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "4:15 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1030,
+        "batchId": 1030,
+        "day": "2026-09-11",
+        "start": "4:30 PM",
+        "end": "4:45 PM",
+        "startTs": 1789115400,
+        "endTs": 1789116300,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "4:30 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1031,
+        "batchId": 1031,
+        "day": "2026-09-11",
+        "start": "4:45 PM",
+        "end": "5:00 PM",
+        "startTs": 1789116300,
+        "endTs": 1789117200,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "4:45 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1032,
+        "batchId": 1032,
+        "day": "2026-09-11",
+        "start": "5:00 PM",
+        "end": "5:15 PM",
+        "startTs": 1789117200,
+        "endTs": 1789118100,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "5:00 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1033,
+        "batchId": 1033,
+        "day": "2026-09-11",
+        "start": "5:15 PM",
+        "end": "5:30 PM",
+        "startTs": 1789118100,
+        "endTs": 1789119000,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "5:15 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1034,
+        "batchId": 1034,
+        "day": "2026-09-11",
+        "start": "5:30 PM",
+        "end": "5:45 PM",
+        "startTs": 1789119000,
+        "endTs": 1789119900,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "5:30 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1035,
+        "batchId": 1035,
+        "day": "2026-09-11",
+        "start": "5:45 PM",
+        "end": "6:00 PM",
+        "startTs": 1789119900,
+        "endTs": 1789120800,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "5:45 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1036,
+        "batchId": 1036,
+        "day": "2026-09-11",
+        "start": "6:00 PM",
+        "end": "6:15 PM",
+        "startTs": 1789120800,
+        "endTs": 1789121700,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "6:00 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1037,
+        "batchId": 1037,
+        "day": "2026-09-11",
+        "start": "6:15 PM",
+        "end": "6:30 PM",
+        "startTs": 1789121700,
+        "endTs": 1789122600,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "6:15 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1038,
+        "batchId": 1038,
+        "day": "2026-09-11",
+        "start": "6:30 PM",
+        "end": "6:45 PM",
+        "startTs": 1789122600,
+        "endTs": 1789123500,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "6:30 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1039,
+        "batchId": 1039,
+        "day": "2026-09-11",
+        "start": "6:45 PM",
+        "end": "7:00 PM",
+        "startTs": 1789123500,
+        "endTs": 1789124400,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "6:45 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1040,
+        "batchId": 1040,
+        "day": "2026-09-11",
+        "start": "7:00 PM",
+        "end": "7:15 PM",
+        "startTs": 1789124400,
+        "endTs": 1789125300,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "7:00 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1041,
+        "batchId": 1041,
+        "day": "2026-09-11",
+        "start": "7:15 PM",
+        "end": "7:30 PM",
+        "startTs": 1789125300,
+        "endTs": 1789126200,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "7:15 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1042,
+        "batchId": 1042,
+        "day": "2026-09-11",
+        "start": "7:30 PM",
+        "end": "7:45 PM",
+        "startTs": 1789126200,
+        "endTs": 1789127100,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "7:30 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1043,
+        "batchId": 1043,
+        "day": "2026-09-11",
+        "start": "7:45 PM",
+        "end": "8:00 PM",
+        "startTs": 1789127100,
+        "endTs": 1789128000,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "7:45 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1044,
+        "batchId": 1044,
+        "day": "2026-09-11",
+        "start": "8:00 PM",
+        "end": "8:15 PM",
+        "startTs": 1789128000,
+        "endTs": 1789128900,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "8:00 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1045,
+        "batchId": 1045,
+        "day": "2026-09-11",
+        "start": "8:15 PM",
+        "end": "8:30 PM",
+        "startTs": 1789128900,
+        "endTs": 1789129800,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "8:15 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1046,
+        "batchId": 1046,
+        "day": "2026-09-11",
+        "start": "8:30 PM",
+        "end": "8:45 PM",
+        "startTs": 1789129800,
+        "endTs": 1789130700,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "8:30 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1047,
+        "batchId": 1047,
+        "day": "2026-09-11",
+        "start": "8:45 PM",
+        "end": "9:00 PM",
+        "startTs": 1789130700,
+        "endTs": 1789131600,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "8:45 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1048,
+        "batchId": 1048,
+        "day": "2026-09-11",
+        "start": "9:00 PM",
+        "end": "9:15 PM",
+        "startTs": 1789131600,
+        "endTs": 1789132500,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "9:00 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1049,
+        "batchId": 1049,
+        "day": "2026-09-11",
+        "start": "9:15 PM",
+        "end": "9:30 PM",
+        "startTs": 1789132500,
+        "endTs": 1789133400,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "9:15 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1050,
+        "batchId": 1050,
+        "day": "2026-09-11",
+        "start": "9:30 PM",
+        "end": "9:45 PM",
+        "startTs": 1789133400,
+        "endTs": 1789134300,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "9:30 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1051,
+        "batchId": 1051,
+        "day": "2026-09-11",
+        "start": "9:45 PM",
+        "end": "10:00 PM",
+        "startTs": 1789134300,
+        "endTs": 1789135200,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "9:45 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1052,
+        "batchId": 1052,
+        "day": "2026-09-11",
+        "start": "10:00 PM",
+        "end": "10:15 PM",
+        "startTs": 1789135200,
+        "endTs": 1789136100,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "10:00 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1053,
+        "batchId": 1053,
+        "day": "2026-09-11",
+        "start": "10:15 PM",
+        "end": "10:30 PM",
+        "startTs": 1789136100,
+        "endTs": 1789137000,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "10:15 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1054,
+        "batchId": 1054,
+        "day": "2026-09-11",
+        "start": "10:30 PM",
+        "end": "10:45 PM",
+        "startTs": 1789137000,
+        "endTs": 1789137900,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "10:30 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1055,
+        "batchId": 1055,
+        "day": "2026-09-11",
+        "start": "10:45 PM",
+        "end": "11:00 PM",
+        "startTs": 1789137900,
+        "endTs": 1789138800,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "10:45 PM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1056,
+        "batchId": 1056,
+        "day": "2026-09-11",
+        "start": "11:00 PM",
+        "end": "11:15 PM",
+        "startTs": 1789138800,
+        "endTs": 1789139700,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "11:00 PM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1057,
+        "batchId": 1057,
+        "day": "2026-09-11",
+        "start": "11:15 PM",
+        "end": "11:30 PM",
+        "startTs": 1789139700,
+        "endTs": 1789140600,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "11:15 PM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1058,
+        "batchId": 1058,
+        "day": "2026-09-11",
+        "start": "11:30 PM",
+        "end": "11:45 PM",
+        "startTs": 1789140600,
+        "endTs": 1789141500,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "11:30 PM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1059,
+        "batchId": 1059,
+        "day": "2026-09-11",
+        "start": "11:45 PM",
+        "end": "12:00 AM",
+        "startTs": 1789141500,
+        "endTs": 1789142400,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "11:45 PM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1060,
+        "batchId": 1060,
+        "day": "2026-09-11",
+        "start": "12:00 AM",
+        "end": "12:15 AM",
+        "startTs": 1789142400,
+        "endTs": 1789143300,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "12:00 AM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1061,
+        "batchId": 1061,
+        "day": "2026-09-11",
+        "start": "12:15 AM",
+        "end": "12:30 AM",
+        "startTs": 1789143300,
+        "endTs": 1789144200,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "12:15 AM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1062,
+        "batchId": 1062,
+        "day": "2026-09-11",
+        "start": "12:30 AM",
+        "end": "12:45 AM",
+        "startTs": 1789144200,
+        "endTs": 1789145100,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "12:30 AM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1063,
+        "batchId": 1063,
+        "day": "2026-09-11",
+        "start": "12:45 AM",
+        "end": "1:00 AM",
+        "startTs": 1789145100,
+        "endTs": 1789146000,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "12:45 AM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1064,
+        "batchId": 1064,
+        "day": "2026-09-11",
+        "start": "1:00 AM",
+        "end": "1:15 AM",
+        "startTs": 1789146000,
+        "endTs": 1789146900,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "1:00 AM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1065,
+        "batchId": 1065,
+        "day": "2026-09-11",
+        "start": "1:15 AM",
+        "end": "1:30 AM",
+        "startTs": 1789146900,
+        "endTs": 1789147800,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "1:15 AM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1066,
+        "batchId": 1066,
+        "day": "2026-09-11",
+        "start": "1:30 AM",
+        "end": "1:45 AM",
+        "startTs": 1789147800,
+        "endTs": 1789148700,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "1:30 AM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1067,
+        "batchId": 1067,
+        "day": "2026-09-11",
+        "start": "1:45 AM",
+        "end": "2:00 AM",
+        "startTs": 1789148700,
+        "endTs": 1789149600,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "代码评审",
+        "summary": "阅读并评论 PR。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "GitHub",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "1:45 AM",
+            "description": "阅读并评论 PR。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1068,
+        "batchId": 1068,
+        "day": "2026-09-11",
+        "start": "2:00 AM",
+        "end": "2:15 AM",
+        "startTs": 1789149600,
+        "endTs": 1789150500,
+        "category": "空闲",
+        "subcategory": "",
+        "title": "空闲",
+        "summary": "无用户活动。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": null,
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "2:00 AM",
+            "description": "无用户活动。"
+          }
+        ],
+        "isIdle": true,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1069,
+        "batchId": 1069,
+        "day": "2026-09-11",
+        "start": "2:15 AM",
+        "end": "2:30 AM",
+        "startTs": 1789150500,
+        "endTs": 1789151400,
+        "category": "专注工作",
+        "subcategory": "",
+        "title": "编辑器中写代码",
+        "summary": "在 IDE 里实现功能并修 bug。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "VS Code",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "2:15 AM",
+            "description": "在 IDE 里实现功能并修 bug。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1070,
+        "batchId": 1070,
+        "day": "2026-09-11",
+        "start": "2:30 AM",
+        "end": "2:45 AM",
+        "startTs": 1789151400,
+        "endTs": 1789152300,
+        "category": "沟通",
+        "subcategory": "",
+        "title": "回复消息",
+        "summary": "在聊天工具里回复同事的消息。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Slack",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "2:30 AM",
+            "description": "在聊天工具里回复同事的消息。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
+      },
+      {
+        "id": 1071,
+        "batchId": 1071,
+        "day": "2026-09-11",
+        "start": "2:45 AM",
+        "end": "3:00 AM",
+        "startTs": 1789152300,
+        "endTs": 1789153200,
+        "category": "规划",
+        "subcategory": "",
+        "title": "浏览任务面板",
+        "summary": "查看并整理任务列表。",
+        "detailedSummary": "",
+        "videoSummaryUrl": null,
+        "otherVideoSummaryUrls": [],
+        "appSites": {
+          "primary": "Notion",
+          "secondary": null
+        },
+        "distractions": [],
+        "activityPoints": [
+          {
+            "time": "2:45 AM",
+            "description": "查看并整理任务列表。"
+          }
+        ],
+        "isIdle": false,
+        "durationMinutes": 15.0
       }
-    ]
+    ],
+    "processingRanges": [],
+    "failures": []
   },
   "capabilities": {
     "canWrite": false,

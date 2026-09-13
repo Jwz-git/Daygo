@@ -33,6 +33,13 @@ Go 单元覆盖：分批 / 空闲逐边界、六条流水线路径（正常 / �
 provisional）；卡片阶段全局互斥（比按重叠范围粗）；`wails dev` 真机端到端未运行。
 失败批次重试（`RetryBatches`）、整日重处理（`ReprocessDay`）与视频 URL 仍无 Go 方法
 （依赖媒体切片），前端按方法探测自动禁用对应入口。
+**2026-09-13：卡片模型改为 Dayflow 式单卡窗口 + LLM 融合**——卡片阶段每批次窗口
+默认产出恰好一张卡（start/end 对齐窗口，或融合时取被融合卡片的 start）；转录阶段的
+observations 以 `activityPoints`（`[{time, description}]`）随卡片写入
+`timeline_cards.metadata`（宽容解析，无迁移）；prompt 携带邻近卡的 activityPoints，
+活动相同时指示模型合并为跨窗口单卡并把双方时间点并入；`TimelineCardDTO` 透出
+`activityPoints`，时间线检查器逐条展示（nil 归一为 `[]`，同 `distractions` 的 wire 规则）。
+Idle 直写路径不变。夹具：pipeline 六路径更新为含 `activityPoints` 的 schema 输出。
 **2026-09-13：卡片生成缺陷修复批次已落盘**——空闲判定所需的 idle 采样仍未接入端口
 （platform 缺能力，见 recording 执行册）；本批修复：时钟串接受无空格粘着形式
 （`10:21AM`，否则整批卡永久失败）、批失败尝试上限（`analysis_batches.attempts` v9 +

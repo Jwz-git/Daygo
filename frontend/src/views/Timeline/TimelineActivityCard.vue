@@ -5,6 +5,8 @@ import type { TimelineCardDTO } from '@/api/dto'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import { preferredAppSite } from '@/lib/appSiteIcon'
 
+import { MIN_CARD_HEIGHT } from './layout'
+
 const props = defineProps<{
   card: TimelineCardDTO
   color: string
@@ -18,10 +20,14 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [id: number] }>()
 const appSite = computed(() => preferredAppSite(props.card.appSites))
 
+// Visual gap between consecutive cards: the slot owns `height`, the card
+// renders slightly inset inside it, so neighbours never touch.
+const CARD_GAP = 5
+
 function cardStyle(): CSSProperties {
   return {
-    top: `${props.top}px`,
-    height: `${props.height}px`,
+    top: `${props.top + CARD_GAP / 2}px`,
+    height: `${Math.max(MIN_CARD_HEIGHT, props.height - CARD_GAP)}px`,
     '--timeline-category': props.color,
     '--timeline-lane-index': props.laneIndex,
     '--timeline-lane-count': props.laneCount,
@@ -35,7 +41,7 @@ function cardStyle(): CSSProperties {
     class="activity-card"
     :class="{
       'is-selected': props.selected,
-      'is-compact': props.height < 54,
+      'is-detailed': props.height >= 96,
       'is-collided': props.laneCount > 1,
     }"
     :style="cardStyle()"
@@ -53,7 +59,7 @@ function cardStyle(): CSSProperties {
     />
     <span class="activity-card__copy">
       <span class="activity-card__title">{{ props.card.title }}</span>
-      <span v-if="props.height >= 64" class="activity-card__summary">{{ props.card.summary }}</span>
+      <span v-if="props.height >= 96" class="activity-card__summary">{{ props.card.summary }}</span>
     </span>
     <span class="activity-card__time">{{ props.card.start }} – {{ props.card.end }}</span>
   </button>
@@ -66,10 +72,10 @@ function cardStyle(): CSSProperties {
   left: calc(2px + (100% - 12px) * var(--timeline-lane-index) / var(--timeline-lane-count));
   width: calc((100% - 12px) / var(--timeline-lane-count) - 4px);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 9px;
-  min-height: 38px;
-  padding: 9px 12px 9px 14px;
+  min-height: 28px;
+  padding: 5px 12px 5px 14px;
   overflow: hidden;
   border: 1px solid var(--dg-timeline-card-border);
   border-radius: var(--dg-timeline-card-radius);
@@ -109,8 +115,8 @@ function cardStyle(): CSSProperties {
 
 .activity-card__rail {
   position: absolute;
-  top: 7px;
-  bottom: 7px;
+  top: 6px;
+  bottom: 6px;
   left: 5px;
   width: 3px;
   border-radius: 99px;
@@ -154,11 +160,7 @@ function cardStyle(): CSSProperties {
   white-space: nowrap;
 }
 
-.activity-card.is-compact {
-  align-items: center;
-  padding-top: 6px;
-  padding-bottom: 6px;
-}
+.activity-card.is-detailed { align-items: flex-start; }
 
 .activity-card.is-collided .activity-card__time { display: none; }
 

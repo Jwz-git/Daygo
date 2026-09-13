@@ -454,9 +454,17 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		if !known[category] {
 			category = "System"
 		}
+		points := make([]cardActivityPoint, 0, len(c.ActivityPoints))
+		for _, p := range c.ActivityPoints {
+			if p.Description == "" {
+				continue
+			}
+			points = append(points, cardActivityPoint{Time: p.Time, Description: p.Description})
+		}
 		metadata, _ := json.Marshal(map[string]any{
-			"appSites":     c.AppSites,
-			"distractions": c.Distractions,
+			"appSites":       c.AppSites,
+			"distractions":   c.Distractions,
+			"activityPoints": points,
 		})
 		shell := domain.CardShell{
 			Start:           c.Start,

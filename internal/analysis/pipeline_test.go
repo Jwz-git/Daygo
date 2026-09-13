@@ -170,7 +170,7 @@ func (d dirFrameSource) FrameBytes(_ context.Context, segmentPath string, frameI
 func TestPipelineHappyPath(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"Working in an editor","apps":["Code"]}]}`,
-		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"editor","title":"Editing code","summary":"Working in an editor.","detailed_summary":"","appSites":["Code"],"distractions":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"editor","title":"Editing code","summary":"Working in an editor.","detailed_summary":"","appSites":["Code"],"distractions":[],"activityPoints":[]}]}`,
 	})
 
 	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
@@ -320,7 +320,7 @@ func TestPipelineLatestRunWaits(t *testing.T) {
 func TestPipelineUnknownCategoryBecomesSystem(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
-		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Not A Real Category","subcategory":"","title":"T","summary":"S","detailed_summary":"","appSites":[],"distractions":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Not A Real Category","subcategory":"","title":"T","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
 	})
 
 	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
@@ -372,7 +372,7 @@ func TestPipelineCancellationKeepsProcessing(t *testing.T) {
 func TestPipelineOutOfWindowCardDropped(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
-		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"In window","summary":"S","detailed_summary":"","appSites":[],"distractions":[]},{"start":"8:00 AM","end":"8:30 AM","category":"Coding","subcategory":"","title":"Way outside","summary":"S","detailed_summary":"","appSites":[],"distractions":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"In window","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},{"start":"8:00 AM","end":"8:30 AM","category":"Coding","subcategory":"","title":"Way outside","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
 	})
 
 	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
@@ -419,7 +419,7 @@ func (h *harness) frameID(path string) (int64, error) {
 func TestPipelineGluedMeridiemClocks(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"Working in an editor","apps":["Code"]}]}`,
-		string(ai.PurposeCards):      `{"cards":[{"start":"10:00AM","end":"10:15AM","category":"Coding","subcategory":"editor","title":"Glued clocks","summary":"Working in an editor.","detailed_summary":"","appSites":["Code"],"distractions":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00AM","end":"10:15AM","category":"Coding","subcategory":"editor","title":"Glued clocks","summary":"Working in an editor.","detailed_summary":"","appSites":["Code"],"distractions":[],"activityPoints":[]}]}`,
 	})
 
 	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
@@ -447,7 +447,7 @@ func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
 	// batch fails on SkippedCards every time it runs.
 	h := newHarness(t, map[string]string{
 		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
-		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"garbage","category":"Coding","subcategory":"","title":"T","summary":"S","detailed_summary":"","appSites":[],"distractions":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"garbage","category":"Coding","subcategory":"","title":"T","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
 	})
 
 	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)

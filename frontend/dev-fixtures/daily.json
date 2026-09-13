@@ -77,10 +77,19 @@
         "detailedSummary": "整理当天要处理的事项，并确定上午的重点。",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Daygo", "secondary": "Notes" },
+        "appSites": {
+          "primary": "Daygo",
+          "secondary": "Notes"
+        },
         "distractions": [],
         "isIdle": false,
-        "durationMinutes": 45
+        "durationMinutes": 45,
+        "activityPoints": [
+          {
+            "time": "9:00 AM",
+            "description": "开发夹具活动点示例。"
+          }
+        ]
       },
       {
         "id": 202,
@@ -97,7 +106,10 @@
         "detailedSummary": "完成工作流和日报区块的数据结构，并检查窄窗口布局。",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Visual Studio Code", "secondary": null },
+        "appSites": {
+          "primary": "Visual Studio Code",
+          "secondary": null
+        },
         "distractions": [
           {
             "id": "daily-d-1",
@@ -109,7 +121,13 @@
           }
         ],
         "isIdle": false,
-        "durationMinutes": 80
+        "durationMinutes": 80,
+        "activityPoints": [
+          {
+            "time": "10:00 AM",
+            "description": "开发夹具活动点示例。"
+          }
+        ]
       },
       {
         "id": 203,
@@ -126,10 +144,19 @@
         "detailedSummary": "确认只读切片的范围与后续接入点。",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Messages", "secondary": "Daygo" },
+        "appSites": {
+          "primary": "Messages",
+          "secondary": "Daygo"
+        },
         "distractions": [],
         "isIdle": false,
-        "durationMinutes": 20
+        "durationMinutes": 20,
+        "activityPoints": [
+          {
+            "time": "11:30 AM",
+            "description": "开发夹具活动点示例。"
+          }
+        ]
       },
       {
         "id": 204,
@@ -146,10 +173,19 @@
         "detailedSummary": "将时间线活动整理成按分类分布的十五分钟概览。",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Visual Studio Code", "secondary": "Safari" },
+        "appSites": {
+          "primary": "Visual Studio Code",
+          "secondary": "Safari"
+        },
         "distractions": [],
         "isIdle": false,
-        "durationMinutes": 90
+        "durationMinutes": 90,
+        "activityPoints": [
+          {
+            "time": "1:00 PM",
+            "description": "开发夹具活动点示例。"
+          }
+        ]
       },
       {
         "id": 205,
@@ -166,10 +202,19 @@
         "detailedSummary": "浏览与当前任务无关的内容。",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Safari", "secondary": null },
+        "appSites": {
+          "primary": "Safari",
+          "secondary": null
+        },
         "distractions": [],
         "isIdle": true,
-        "durationMinutes": 25
+        "durationMinutes": 25,
+        "activityPoints": [
+          {
+            "time": "2:45 PM",
+            "description": "开发夹具活动点示例。"
+          }
+        ]
       },
       {
         "id": 206,
@@ -186,10 +231,19 @@
         "detailedSummary": "逐项检查每日页面，记录仍需真实绑定验证的内容。",
         "videoSummaryUrl": null,
         "otherVideoSummaryUrls": [],
-        "appSites": { "primary": "Daygo", "secondary": "Notes" },
+        "appSites": {
+          "primary": "Daygo",
+          "secondary": "Notes"
+        },
         "distractions": [],
         "isIdle": false,
-        "durationMinutes": 50
+        "durationMinutes": 50,
+        "activityPoints": [
+          {
+            "time": "3:20 PM",
+            "description": "开发夹具活动点示例。"
+          }
+        ]
       }
     ],
     "processingRanges": [],

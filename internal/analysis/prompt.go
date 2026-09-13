@@ -34,26 +34,36 @@ func transcribePrompt(group []storage.AnalysisFrame, language string) string {
 // cardsPrompt renders the sliding-window context: existing cards around the
 // batch (what the model may continue or merge with), this batch's fresh
 // observations, the category list with details, and the output rules.
+//
+// Card granularity follows the Dayflow model: each batch window yields ONE
+// card covering the whole window, with the per-observation time points carried
+// on the card as activityPoints; similar activity in adjacent cards merges
+// into a single card spanning both windows.
 func cardsPrompt(batchStart, batchEnd time.Time,
 	existing []domain.TimelineCard, obs []storage.Observation,
 	categories []domain.Category, language string) string {
 
 	var b strings.Builder
-	b.WriteString("You are generating timeline activity cards for a time-tracking app. ")
+	b.WriteString("You are generating the activity card for one time window of a time-tracking app. ")
 	b.WriteString("You receive observations of screen activity and previously generated cards nearby. ")
-	b.WriteString("Rewrite the activity cards for the current window, continuing or merging with ")
-	b.WriteString("nearby cards when the activity is the same.\n\n")
+	b.WriteString("Emit exactly ONE card for the current window. If the window's activity continues ")
+	b.WriteString("a nearby card, MERGE: emit one card whose start is the nearby card's start, whose ")
+	b.WriteString("activityPoints include that card's points, and whose title/summary describe the ")
+	b.WriteString("combined activity.\n\n")
 
 	fmt.Fprintf(&b, "Current window: %s to %s.\n\n",
 		formatFrameClock(batchStart), formatFrameClock(batchEnd))
 
-	b.WriteString("Nearby existing cards (do not emit these again; use them for continuity and merge boundaries):\n")
+	b.WriteString("Nearby existing cards (do not re-emit these; merge into them when the activity is the same):\n")
 	if len(existing) == 0 {
 		b.WriteString("  (none)\n")
 	}
 	for _, c := range existing {
 		fmt.Fprintf(&b, "  %s – %s  %s / %s: %s\n",
 			c.Start, c.End, c.Category, c.Subcategory, c.Title)
+		for _, p := range activityPointsOfMetadata(c.Metadata) {
+			fmt.Fprintf(&b, "    %s  %s\n", p.Time, p.Description)
+		}
 	}
 
 	b.WriteString("\nFresh observations for the current window:\n")
@@ -81,13 +91,20 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	}
 
 	b.WriteString("\nOutput rules:\n")
-	b.WriteString("- start and end are clock strings like \"10:21 AM\" or \"3:05 PM\", inside the current window.\n")
-	b.WriteString("- Every card must overlap the current window; do not re-emit cards fully outside it.\n")
+	b.WriteString("- Emit exactly one card per call; it covers the current window or, when merging, ")
+	b.WriteString("the union of the window and the merged nearby card.\n")
+	b.WriteString("- start and end are clock strings like \"10:21 AM\" or \"3:05 PM\". Without a merge, ")
+	b.WriteString("start is the window start and end is the window end; with a merge, use the merged ")
+	b.WriteString("card's start and this window's end.\n")
+	b.WriteString("- Every card must overlap the current window; do not emit cards fully outside it.\n")
 	b.WriteString("- end after start; if an activity crosses midnight, end may be earlier than start.\n")
+	b.WriteString("- activityPoints lists the concrete time points of the window: one entry per ")
+	b.WriteString("observation, time formatted like \"10:21 AM\" and inside the window; when merging, ")
+	b.WriteString("include the merged card's earlier points too, in chronological order.\n")
 	b.WriteString("- subcategory, detailed_summary, appSites and distractions may be empty; never omit keys.\n")
 	b.WriteString("- distractions lists applications or sites that look unrelated to the main activity.\n")
 	if language != "" {
-		fmt.Fprintf(&b, "- Write title, summary and detailed_summary in %s.\n", language)
+		fmt.Fprintf(&b, "- Write title, summary, detailed_summary and activityPoint descriptions in %s.\n", language)
 	}
 	return b.String()
 }
@@ -113,4 +130,25 @@ func appsOfMetadata(raw string) []string {
 		return nil
 	}
 	return meta.Apps
+}
+
+// activityPointOfMetadata mirrors the shape generateCards stores in card
+// metadata (internal/analysis side); it exists so the prompt can re-render a
+// previously merged card's time points for the model.
+type cardActivityPoint struct {
+	Time        string `json:"time"`
+	Description string `json:"description"`
+}
+
+func activityPointsOfMetadata(raw string) []cardActivityPoint {
+	if raw == "" {
+		return nil
+	}
+	var meta struct {
+		ActivityPoints []cardActivityPoint `json:"activityPoints"`
+	}
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return nil
+	}
+	return meta.ActivityPoints
 }
