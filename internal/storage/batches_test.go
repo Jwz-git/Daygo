@@ -436,3 +436,140 @@ func TestProcessingBatchesInRange(t *testing.T) {
 	}
 	_ = pending
 }
+
+// failedBatchAt commits one batch and drives it into a failed state with the
+// given kind and attempts already burned.
+func failedBatchAt(t *testing.T, store *Store, at time.Time, kind string, burns int) Batch {
+	t.Helper()
+	ctx := context.Background()
+	batch, err := store.Analysis().CreateBatch(ctx, insertFrames(t, store, at, 2), BatchPending, at)
+	if err != nil {
+		t.Fatalf("CreateBatch: %v", err)
+	}
+	for i := 0; i < burns; i++ {
+		tick := at.Add(time.Duration(i+1) * time.Minute)
+		if err := store.Analysis().SetBatchStatus(ctx, batch.ID, BatchProcessing, "", "", tick); err != nil {
+			t.Fatalf("SetBatchStatus processing: %v", err)
+		}
+		if err := store.Analysis().SetBatchStatus(ctx, batch.ID, BatchFailed, kind, "note", tick); err != nil {
+			t.Fatalf("SetBatchStatus failed: %v", err)
+		}
+		if i < burns-1 {
+			if err := store.Analysis().SetBatchStatus(ctx, batch.ID, BatchPending, "", "", tick); err != nil {
+				t.Fatalf("SetBatchStatus pending: %v", err)
+			}
+		}
+	}
+	return batch
+}
+
+func TestRetryBatchesResetsAttemptsAndRequeues(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	// A batch past the attempt cap: the cooldown clock refuses it forever.
+	b := failedBatchAt(t, store, base, "network", MaxBatchAttempts)
+
+	retried, err := store.Analysis().RetryBatches(ctx, []int64{b.ID}, base.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("RetryBatches: %v", err)
+	}
+	if len(retried) != 1 {
+		t.Fatalf("retried = %d batches, want 1", len(retried))
+	}
+	batches, err := store.Analysis().BatchesInRange(ctx, base.Add(-time.Hour), base.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("BatchesInRange: %v", err)
+	}
+	if len(batches) != 1 || batches[0].Status != BatchPending || batches[0].Attempts != 0 || batches[0].FailureKind != "" {
+		t.Fatalf("batch after retry = %+v, want pending/0/cleared", batches[0])
+	}
+	// The requeued batch is pending work again.
+	if got := len(mustPending(t, store)); got != 1 {
+		t.Fatalf("pending after retry = %d, want 1", got)
+	}
+}
+
+func TestRetryBatchesRejectsMixedStatesAtomically(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	failed := failedBatchAt(t, store, base, "network", 1)
+	succeeded := failedBatchAt(t, store, base.Add(time.Hour), "network", 1)
+	if err := store.Analysis().SetBatchStatus(ctx, succeeded.ID, BatchPending, "", "", base.Add(2*time.Hour)); err != nil {
+		t.Fatalf("requeue succeeded prep: %v", err)
+	}
+	if err := store.Analysis().SetBatchStatus(ctx, succeeded.ID, BatchProcessing, "", "", base.Add(2*time.Hour)); err != nil {
+		t.Fatalf("processing prep: %v", err)
+	}
+	if err := store.Analysis().SetBatchStatus(ctx, succeeded.ID, BatchSucceeded, "", "", base.Add(2*time.Hour)); err != nil {
+		t.Fatalf("succeeded prep: %v", err)
+	}
+
+	_, err := store.Analysis().RetryBatches(ctx, []int64{failed.ID, succeeded.ID}, base.Add(3*time.Hour))
+	if err == nil {
+		t.Fatal("RetryBatches accepted a non-failed batch")
+	}
+	if kind, ok := KindOf(err); !ok || kind != KindConstraint {
+		t.Fatalf("RetryBatches error kind = %v/%v, want constraint", kind, ok)
+	}
+
+	// The whole call rolled back: the failed batch stays failed.
+	batches, err := store.Analysis().BatchesInRange(ctx, base.Add(-time.Hour), base.Add(3*time.Hour))
+	if err != nil {
+		t.Fatalf("BatchesInRange: %v", err)
+	}
+	for _, batch := range batches {
+		if batch.ID == failed.ID && batch.Status != BatchFailed {
+			t.Fatalf("failed batch became %s; the mixed call must roll back", batch.Status)
+		}
+	}
+	if _, err := store.Analysis().RetryBatches(ctx, []int64{9999}, base.Add(3*time.Hour)); err == nil {
+		t.Fatal("unknown id accepted")
+	} else if kind, ok := KindOf(err); !ok || kind != KindNotFound {
+		t.Fatalf("unknown id error kind = %v/%v, want not_found", kind, ok)
+	}
+	if _, err := store.Analysis().RetryBatches(ctx, nil, base.Add(3*time.Hour)); err == nil {
+		t.Fatal("empty ids accepted")
+	} else if kind, ok := KindOf(err); !ok || kind != KindConstraint {
+		t.Fatalf("empty ids error kind = %v/%v, want constraint", kind, ok)
+	}
+}
+
+func TestDeleteBatchesDismissesFailures(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	b := failedBatchAt(t, store, base, "llm_error", 1)
+	if _, err := store.Analysis().DeleteBatches(ctx, []int64{b.ID}, base.Add(time.Hour)); err != nil {
+		t.Fatalf("DeleteBatches: %v", err)
+	}
+
+	// The failure panel no longer reports it.
+	failed, err := store.Cards().FailedBatchesInRange(ctx, base.Add(-time.Hour), base.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("FailedBatchesInRange: %v", err)
+	}
+	if len(failed) != 0 {
+		t.Fatalf("failed in range after delete = %d, want 0", len(failed))
+	}
+	// Neither the cooldown clock nor the pending queue resurrects it.
+	if n, _ := store.Analysis().RequeueFailed(ctx, base.Add(2*time.Hour), base.Add(2*time.Hour)); n != 0 {
+		t.Fatalf("requeue after delete = %d, want 0", n)
+	}
+	if got := len(mustPending(t, store)); got != 0 {
+		t.Fatalf("pending after delete = %d, want 0", got)
+	}
+	// Membership survives, so the frames do not resurface as unbatched.
+	if got := len(mustUnbatched(t, store, base.Add(-time.Hour), base.Add(time.Hour))); got != 0 {
+		t.Fatalf("unbatched after delete = %d, want 0 (membership must survive)", got)
+	}
+
+	// A dismissed batch cannot be retried or dismissed again.
+	if _, err := store.Analysis().RetryBatches(ctx, []int64{b.ID}, base.Add(2*time.Hour)); err == nil {
+		t.Fatal("RetryBatches accepted a dismissed batch")
+	}
+}

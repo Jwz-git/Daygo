@@ -107,6 +107,7 @@ CREATE TABLE analysis_batches (
   failure_kind  TEXT,               -- 失败时的面向用户分类
   failure_note  TEXT,               -- 已脱敏
   attempts      INTEGER NOT NULL DEFAULT 0,  -- 进入失败状态的次数（v9）
+  is_deleted    INTEGER NOT NULL DEFAULT 0,  -- 用户忽略的失败批次（v10，软删除）
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL
 );

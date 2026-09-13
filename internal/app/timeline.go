@@ -327,6 +327,60 @@ func (b *Backend) DeleteCard(cardID int64) error {
 	return b.deleteCard(ctx, cardID)
 }
 
+// RetryBatches requeues failed batches by explicit user action: status back
+// to pending with the failure info cleared and the attempt counter reset
+// (docs/05 §5.2.1). It returns immediately; the scheduler picks the batches
+// up on its next tick and progress arrives as batch:progress /
+// timeline:updated events.
+func (b *Backend) RetryBatches(batchIDs []int64) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	store := b.store()
+	if store == nil {
+		if err := b.storageFailure(); err != nil {
+			return mapStorageError("retry batches", err)
+		}
+		return apperr.E(apperr.DatabaseError, "retry batches requires a database", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	batches, err := store.Analysis().RetryBatches(ctx, batchIDs, b.clock.Now())
+	if err != nil {
+		return mapStorageError("retry batches", err)
+	}
+	for _, batch := range batches {
+		b.emitTimelineInvalidation(timeutil.LogicalDay(batch.Start, b.clock.Now().Location()))
+	}
+	return nil
+}
+
+// DeleteBatches dismisses failed batches from the timeline's failure panel
+// (soft delete: the rows and frame membership stay, so the frames never get
+// re-analyzed). Configuration and cards are untouched.
+func (b *Backend) DeleteBatches(batchIDs []int64) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	store := b.store()
+	if store == nil {
+		if err := b.storageFailure(); err != nil {
+			return mapStorageError("delete batches", err)
+		}
+		return apperr.E(apperr.DatabaseError, "delete batches requires a database", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	batches, err := store.Analysis().DeleteBatches(ctx, batchIDs, b.clock.Now())
+	if err != nil {
+		return mapStorageError("delete batches", err)
+	}
+	for _, batch := range batches {
+		b.emitTimelineInvalidation(timeutil.LogicalDay(batch.Start, b.clock.Now().Location()))
+	}
+	return nil
+}
+
 // ClearHistoryData is the test-only one-click reset: it wipes recorded and
 // analyzed history (frames, batches, observations, cards, journal, goals,
 // chat) plus the recordings files, keeping configuration — settings,

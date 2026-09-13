@@ -266,3 +266,84 @@ func TestClearHistoryData(t *testing.T) {
 	readBackend := newBackend(fixedClock{}, nil, reader, true, true)
 	assertAppCode(t, readBackend.ClearHistoryData(), apperr.NotCaptureOwner)
 }
+
+// seedFailedBatch inserts a failed batch directly, mirroring what the
+// pipeline leaves behind after an llm_error.
+func seedFailedBatch(t *testing.T, b *Backend, id int64, at time.Time, attempts int) {
+	t.Helper()
+	store := b.store()
+	err := store.Write(context.Background(), "seed failed batch", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO analysis_batches (id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at)
+			 VALUES (?, ?, ?, 'failed', 'llm_error', 'provider rejected request with HTTP 502', ?, ?, ?)`,
+			id, at.Unix(), at.Add(15*time.Minute).Unix(), attempts, at.Unix(), at.Unix())
+		return err
+	})
+	if err != nil {
+		t.Fatalf("seed failed batch: %v", err)
+	}
+}
+
+func TestRetryAndDeleteBatches(t *testing.T) {
+	dir := t.TempDir()
+	backend, emitter := writerBackendWithStore(t, dir)
+	at := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	seedFailedBatch(t, backend, 1, at, 3)
+
+	// A succeeded batch cannot be retried or deleted: constraint.
+	assertAppCode(t, backend.RetryBatches([]int64{9999}), apperr.NotFound)
+	assertAppCode(t, backend.RetryBatches(nil), apperr.InvalidArgument)
+
+	if err := backend.RetryBatches([]int64{1}); err != nil {
+		t.Fatalf("RetryBatches: %v", err)
+	}
+	// The day is invalidated so views re-pull the failure panel.
+	waitForTimelineEmit(t, emitter)
+
+	store := backend.store()
+	var status string
+	var attempts int
+	if err := store.Read(context.Background(), "read batch", func(ctx context.Context, tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx,
+			`SELECT status, attempts FROM analysis_batches WHERE id = 1`).Scan(&status, &attempts)
+	}); err != nil {
+		t.Fatalf("read batch: %v", err)
+	}
+	if status != "pending" || attempts != 0 {
+		t.Fatalf("batch after retry = %s/%d, want pending/0", status, attempts)
+	}
+
+	// Drive it back to failed, then dismiss it from the failure panel.
+	if err := store.Analysis().SetBatchStatus(context.Background(), 1, "processing", "", "", at.Add(time.Hour)); err != nil {
+		t.Fatalf("processing: %v", err)
+	}
+	if err := store.Analysis().SetBatchStatus(context.Background(), 1, "failed", "llm_error", "", at.Add(time.Hour)); err != nil {
+		t.Fatalf("failed: %v", err)
+	}
+	if err := backend.DeleteBatches([]int64{1}); err != nil {
+		t.Fatalf("DeleteBatches: %v", err)
+	}
+
+	// The day view no longer reports the failure.
+	dto, err := backend.GetTimelineDay("2026-09-12")
+	if err != nil {
+		t.Fatalf("GetTimelineDay: %v", err)
+	}
+	if len(dto.Failures) != 0 {
+		t.Fatalf("failures after delete = %d, want 0", len(dto.Failures))
+	}
+	// A dismissed batch cannot be retried again.
+	assertAppCode(t, backend.RetryBatches([]int64{1}), apperr.InvalidArgument)
+}
+
+func TestBatchWritesRefuseReadOnlyInstance(t *testing.T) {
+	dir := t.TempDir()
+	writerBackendWithStore(t, dir) // holds the write lock
+
+	readerStore := openTestStore(t, dir, false)
+	backend := newBackend(fixedClock{}, nil, readerStore, false, false)
+	backend.setEventEmitter(&recordingEmitter{})
+
+	assertAppCode(t, backend.RetryBatches([]int64{1}), apperr.NotCaptureOwner)
+	assertAppCode(t, backend.DeleteBatches([]int64{1}), apperr.NotCaptureOwner)
+}

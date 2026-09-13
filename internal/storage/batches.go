@@ -206,8 +206,30 @@ func (r *AnalysisRepo) FramesForBatch(ctx context.Context, batchID int64) ([]Ana
 }
 
 // PendingBatches returns batches waiting to enter the pipeline, oldest first.
+// Dismissed batches never requeue.
 func (r *AnalysisRepo) PendingBatches(ctx context.Context) ([]Batch, error) {
-	return r.batchesByStatus(ctx, "analysis pending batches", BatchPending)
+	var out []Batch
+	err := r.store.Read(ctx, "analysis pending batches", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `
+			SELECT id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at
+			FROM analysis_batches WHERE status = ? AND is_deleted = 0 ORDER BY start_ts`, BatchPending)
+		if err != nil {
+			return wrap("select batches", err)
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			b, err := scanBatch(rows)
+			if err != nil {
+				return err
+			}
+			out = append(out, b)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // ProcessingBatchesInRange returns batches currently pending or processing
@@ -301,12 +323,107 @@ func (r *AnalysisRepo) AdoptStaleProcessing(ctx context.Context, now time.Time) 
 // measured on updated_at, which every state change refreshes — so the clock
 // restarts on each failure. A batch that has exhausted its attempts stays in
 // its failed terminal state; retrying it further would only repeat the same
-// LLM spend on the same deterministic error.
+// LLM spend on the same deterministic error. Dismissed batches (is_deleted)
+// stay dismissed: the user removed them from the failure panel, and
+// re-analyzing their frames would resurrect exactly that.
 func (r *AnalysisRepo) RequeueFailed(ctx context.Context, olderThan, now time.Time) (int, error) {
 	return r.requeue(ctx, "analysis requeue failed",
 		`UPDATE analysis_batches SET status = ?, updated_at = ?
-		 WHERE status IN (?, ?) AND updated_at < ? AND attempts < ?`,
+		 WHERE status IN (?, ?) AND updated_at < ? AND attempts < ? AND is_deleted = 0`,
 		[]any{BatchPending, now.Unix(), BatchFailed, BatchFailedEmpty, olderThan.Unix(), MaxBatchAttempts})
+}
+
+// RetryBatches requeues failed batches by explicit user action: status back
+// to pending with the failure info cleared and the attempt counter reset.
+// Unlike RequeueFailed it ignores the attempt cap — the cap exists to stop
+// the cooldown clock from re-spending LLM calls on a deterministic error,
+// not to overrule the user asking for one more run. It returns the requeued
+// batches so the caller can emit invalidation for their days.
+func (r *AnalysisRepo) RetryBatches(ctx context.Context, ids []int64, now time.Time) ([]Batch, error) {
+	return r.updateFailedBatches(ctx, "analysis retry batches", ids,
+		`UPDATE analysis_batches
+		 SET status = ?, failure_kind = NULL, failure_note = NULL, attempts = 0, updated_at = ?
+		 WHERE id = ?`,
+		[]any{BatchPending, now.Unix()})
+}
+
+// DeleteBatches dismisses failed batches from the timeline's failure panel.
+// It is a soft delete: the row and its batch_screenshots membership stay, so
+// the frames never resurface as unbatched and get re-analyzed — which would
+// resurrect the failure the user just removed. It returns the dismissed
+// batches so the caller can emit invalidation for their days.
+func (r *AnalysisRepo) DeleteBatches(ctx context.Context, ids []int64, now time.Time) ([]Batch, error) {
+	return r.updateFailedBatches(ctx, "analysis delete batches", ids,
+		`UPDATE analysis_batches SET is_deleted = 1, updated_at = ? WHERE id = ?`,
+		[]any{now.Unix()})
+}
+
+// updateFailedBatches applies per-id an UPDATE whose parameter list is
+// setArgs followed by the id, inside one transaction. Every id must name an
+// existing, non-deleted batch in a failed state — anything else is a
+// KindConstraint or KindNotFound error and rolls the whole call back.
+func (r *AnalysisRepo) updateFailedBatches(
+	ctx context.Context, op string, ids []int64,
+	update string,
+	setArgs []any,
+) ([]Batch, error) {
+	if r == nil || r.store == nil {
+		return nil, fmt.Errorf("analysis: store unavailable")
+	}
+	if len(ids) == 0 {
+		return nil, newError(KindConstraint, op+": no batch ids")
+	}
+	ordered := slices.Clone(ids)
+	slices.Sort(ordered)
+	ordered = slices.Compact(ordered)
+
+	var out []Batch
+	err := r.store.Write(ctx, op, func(ctx context.Context, tx *sql.Tx) error {
+		for _, id := range ordered {
+			// Read first: the caller needs the row (start_ts for day
+			// invalidation) and the state check before the UPDATE fires.
+			var batch Batch
+			var start, end, created, updated int64
+			var failureKind, failureNote sql.NullString
+			err := tx.QueryRowContext(ctx, `
+				SELECT id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at
+				FROM analysis_batches WHERE id = ?`, id).
+				Scan(&batch.ID, &start, &end, &batch.Status, &failureKind, &failureNote, &batch.Attempts, &created, &updated)
+			if err == sql.ErrNoRows {
+				return newError(KindNotFound, fmt.Sprintf("%s: batch %d", op, id))
+			}
+			if err != nil {
+				return wrap(op, err)
+			}
+			if batch.Status != BatchFailed && batch.Status != BatchFailedEmpty {
+				return newError(KindConstraint, fmt.Sprintf("%s: batch %d is %s, not a failed state", op, id, batch.Status))
+			}
+			if deleted := tx.QueryRowContext(ctx, `SELECT is_deleted FROM analysis_batches WHERE id = ?`, id); deleted != nil {
+				var isDeleted int
+				if err := deleted.Scan(&isDeleted); err != nil {
+					return wrap(op, err)
+				}
+				if isDeleted != 0 {
+					return newError(KindConstraint, fmt.Sprintf("%s: batch %d is dismissed", op, id))
+				}
+			}
+			if _, err := tx.ExecContext(ctx, update, append(append([]any{}, setArgs...), id)...); err != nil {
+				return wrap(op, err)
+			}
+			batch.Start = time.Unix(start, 0)
+			batch.End = time.Unix(end, 0)
+			batch.FailureKind = failureKind.String
+			batch.FailureNote = failureNote.String
+			batch.CreatedAt = time.Unix(created, 0)
+			batch.UpdatedAt = time.Unix(updated, 0)
+			out = append(out, batch)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // Observation is one frame-transcription row.
@@ -412,34 +529,6 @@ func (r *AnalysisRepo) observationsQuery(ctx context.Context, op, where string, 
 				return err
 			}
 			out = append(out, o)
-		}
-		return rows.Err()
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (r *AnalysisRepo) batchesByStatus(ctx context.Context, op string, status BatchStatus) ([]Batch, error) {
-	if r == nil || r.store == nil {
-		return nil, fmt.Errorf("analysis: store unavailable")
-	}
-	var out []Batch
-	err := r.store.Read(ctx, op, func(ctx context.Context, tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, `
-			SELECT id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at
-			FROM analysis_batches WHERE status = ? ORDER BY start_ts`, status)
-		if err != nil {
-			return wrap("select batches", err)
-		}
-		defer func() { _ = rows.Close() }()
-		for rows.Next() {
-			b, err := scanBatch(rows)
-			if err != nil {
-				return err
-			}
-			out = append(out, b)
 		}
 		return rows.Err()
 	})

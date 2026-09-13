@@ -27,10 +27,12 @@ const props = defineProps<{
   failures: TimelineFailureDTO[]
   processingRanges: RangeDTO[]
   selectedCardID: number | null
+  selectedFailureTs: number | null
 }>()
 
 const emit = defineEmits<{
   select: [id: number]
+  selectFailure: [startTs: number]
 }>()
 const { locale, t } = useI18n()
 const scroller = ref<HTMLElement | null>(null)
@@ -152,21 +154,25 @@ watch(() => props.context.day, () => void revealRelevantTime())
           <span>{{ t('timeline.processing') }}</span>
         </div>
 
-        <div
+        <button
           v-for="failure in props.failures"
           :key="`failure-${failure.startTs}-${failure.endTs}`"
+          type="button"
           class="range range--failure"
+          :class="{ 'is-selected': failure.startTs === props.selectedFailureTs }"
           :style="{
             top: `${placed(failure.startTs, failure.endTs, 42).top}px`,
             height: `${placed(failure.startTs, failure.endTs, 42).height}px`,
           }"
-          role="alert"
+          :aria-pressed="failure.startTs === props.selectedFailureTs"
+          :aria-label="`${t('timeline.failure.title')}, ${failure.message}`"
+          @click="emit('selectFailure', failure.startTs)"
         >
           <span class="range__copy">
             <span class="range__title">{{ t('timeline.failure.title') }}</span>
             <span class="range__message">{{ failure.message }}</span>
           </span>
-        </div>
+        </button>
 
         <TimelineActivityCard
           v-for="card in props.cards"
@@ -266,6 +272,24 @@ watch(() => props.context.day, () => void revealRelevantTime())
   border: 1px solid color-mix(in srgb, var(--dg-danger) 34%, transparent);
   background: var(--dg-danger-fill);
   color: var(--dg-danger);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--dg-motion-fast) ease, background var(--dg-motion-fast) ease;
+}
+
+.range--failure:hover {
+  border-color: color-mix(in srgb, var(--dg-danger) 55%, transparent);
+  background: color-mix(in srgb, var(--dg-danger) 12%, var(--dg-danger-fill));
+}
+
+.range--failure:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+.range--failure.is-selected {
+  border-color: color-mix(in srgb, var(--dg-danger) 65%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dg-danger) 25%, transparent);
 }
 
 .range__copy { display: flex; min-width: 0; flex-direction: column; }

@@ -47,8 +47,8 @@ type Stats struct {
 // Batch status values this package filters on. They mirror the closed set in
 // docs/03 §3.3.1; the query strings below are the only place they appear.
 const (
-	pendingBatchFilter = `status IN ('pending', 'processing')`
-	failedBatchFilter  = `status IN ('failed', 'failed_empty')`
+	pendingBatchFilter = `status IN ('pending', 'processing') AND is_deleted = 0`
+	failedBatchFilter  = `status IN ('failed', 'failed_empty') AND is_deleted = 0`
 )
 
 // skippedCards counts cards dropped because their clock string could not be

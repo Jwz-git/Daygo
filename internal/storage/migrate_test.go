@@ -637,3 +637,52 @@ func TestMigrateV8FixturePreservesDataAndAddsAttempts(t *testing.T) {
 		t.Fatalf("attempts after one failure = %d, want 1", attempts)
 	}
 }
+
+// DB-2 for v10: upgrade a database written by a v9-only build and assert the
+// is_deleted column arrives as 0 on the pre-existing failed batch while its
+// attempts, failure info, membership, and observations survive untouched.
+func TestMigrateV9FixturePreservesDataAndAddsSoftDelete(t *testing.T) {
+	fixture := filepath.Join("testdata", "v9-batch-attempts.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	var isDeleted, attempts int
+	var kind, note string
+	if err := store.db.QueryRowContext(context.Background(),
+		`SELECT is_deleted, attempts, failure_kind, failure_note FROM analysis_batches WHERE id = 9`).
+		Scan(&isDeleted, &attempts, &kind, &note); err != nil {
+		t.Fatalf("read batch after upgrade: %v", err)
+	}
+	if isDeleted != 0 || attempts != 2 || kind != "llm_error" || note != "fixture note" {
+		t.Fatalf("batch = (deleted:%d, attempts:%d, %q, %q), want (0, 2, llm_error, fixture note)", isDeleted, attempts, kind, note)
+	}
+
+	// Membership and observations survive untouched.
+	var members int
+	if err := store.db.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM batch_screenshots WHERE batch_id = 9`).Scan(&members); err != nil {
+		t.Fatalf("count batch_screenshots: %v", err)
+	}
+	if members != 2 {
+		t.Fatalf("batch members = %d, want 2", members)
+	}
+	var observation string
+	if err := store.db.QueryRowContext(context.Background(),
+		`SELECT observation FROM observations WHERE id = 5`).Scan(&observation); err != nil {
+		t.Fatalf("read observation: %v", err)
+	}
+	if observation != "fixture observation" {
+		t.Fatalf("observation = %q, the migration altered it", observation)
+	}
+}

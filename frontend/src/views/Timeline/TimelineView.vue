@@ -22,6 +22,8 @@ const {
   state,
   selectedCard,
   selectedCardID,
+  selectedFailure,
+  selectedFailureTs,
   categoryFilter,
   capabilities,
   dayNavigationAvailable,
@@ -206,13 +208,16 @@ onBeforeUnmount(() => { timeline.stopListening() })
           :failures="day.failures"
           :processing-ranges="day.processingRanges"
           :selected-card-i-d="selectedCardID"
+          :selected-failure-ts="selectedFailureTs"
           @select="timeline.selectCard"
+          @select-failure="timeline.selectFailure"
         />
         <TimelineInspector
           class="timeline-body__inspector"
-          :class="{ 'has-selection': selectedCard !== null }"
+          :class="{ 'has-selection': selectedCard !== null || selectedFailure !== null }"
           :day="day"
           :card="selectedCard"
+          :failure="selectedFailure"
           :can-write="capabilities?.canWrite ?? false"
           :actions="actionAvailability"
           :can-clear="clearAvailable"
@@ -223,6 +228,7 @@ onBeforeUnmount(() => { timeline.stopListening() })
           @update-category="timeline.changeCardCategory"
           @delete="timeline.removeCard"
           @retry="timeline.retryFailure"
+          @dismiss-failure="timeline.dismissFailure"
           @reprocess="timeline.reprocess()"
           @clear-history="timeline.clearHistory()"
         />

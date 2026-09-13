@@ -345,6 +345,22 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 10,
+		name:    "analysis: batch soft delete",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// is_deleted marks a failed batch the user dismissed from the
+			// timeline's failure panel. The row and its batch_screenshots
+			// membership stay: without the membership the frames would
+			// resurface as unbatched and be re-analyzed, resurrecting the
+			// failure the user just removed. Existing rows start at 0.
+			if _, err := tx.ExecContext(ctx,
+				`ALTER TABLE analysis_batches ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return wrap("add batch is_deleted column", err)
+			}
+			return nil
+		},
+	},
 }
 
 // seedBuiltInCategories inserts the two built-in categories. IDs are fixed

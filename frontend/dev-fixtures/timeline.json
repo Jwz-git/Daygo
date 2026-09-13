@@ -744,93 +744,6 @@
         "durationMinutes": 15.0
       },
       {
-        "id": 1024,
-        "batchId": 1024,
-        "day": "2026-09-11",
-        "start": "3:00 PM",
-        "end": "3:15 PM",
-        "startTs": 1789110000,
-        "endTs": 1789110900,
-        "category": "专注工作",
-        "subcategory": "",
-        "title": "编辑器中写代码",
-        "summary": "在 IDE 里实现功能并修 bug。",
-        "detailedSummary": "",
-        "videoSummaryUrl": null,
-        "otherVideoSummaryUrls": [],
-        "appSites": {
-          "primary": "VS Code",
-          "secondary": null
-        },
-        "distractions": [],
-        "activityPoints": [
-          {
-            "time": "3:00 PM",
-            "description": "在 IDE 里实现功能并修 bug。"
-          }
-        ],
-        "isIdle": false,
-        "durationMinutes": 15.0
-      },
-      {
-        "id": 1025,
-        "batchId": 1025,
-        "day": "2026-09-11",
-        "start": "3:15 PM",
-        "end": "3:30 PM",
-        "startTs": 1789110900,
-        "endTs": 1789111800,
-        "category": "沟通",
-        "subcategory": "",
-        "title": "回复消息",
-        "summary": "在聊天工具里回复同事的消息。",
-        "detailedSummary": "",
-        "videoSummaryUrl": null,
-        "otherVideoSummaryUrls": [],
-        "appSites": {
-          "primary": "Slack",
-          "secondary": null
-        },
-        "distractions": [],
-        "activityPoints": [
-          {
-            "time": "3:15 PM",
-            "description": "在聊天工具里回复同事的消息。"
-          }
-        ],
-        "isIdle": false,
-        "durationMinutes": 15.0
-      },
-      {
-        "id": 1026,
-        "batchId": 1026,
-        "day": "2026-09-11",
-        "start": "3:30 PM",
-        "end": "3:45 PM",
-        "startTs": 1789111800,
-        "endTs": 1789112700,
-        "category": "规划",
-        "subcategory": "",
-        "title": "浏览任务面板",
-        "summary": "查看并整理任务列表。",
-        "detailedSummary": "",
-        "videoSummaryUrl": null,
-        "otherVideoSummaryUrls": [],
-        "appSites": {
-          "primary": "Notion",
-          "secondary": null
-        },
-        "distractions": [],
-        "activityPoints": [
-          {
-            "time": "3:30 PM",
-            "description": "查看并整理任务列表。"
-          }
-        ],
-        "isIdle": false,
-        "durationMinutes": 15.0
-      },
-      {
         "id": 1027,
         "batchId": 1027,
         "day": "2026-09-11",
@@ -2110,7 +2023,19 @@
       }
     ],
     "processingRanges": [],
-    "failures": []
+    "failures": [
+      {
+        "batchIds": [
+          9001,
+          9002
+        ],
+        "startTs": 1789110000,
+        "endTs": 1789112700,
+        "kind": "llm_error",
+        "message": "ai: unavailable: provider rejected request with HTTP 502",
+        "retryable": true
+      }
+    ]
   },
   "capabilities": {
     "canWrite": false,

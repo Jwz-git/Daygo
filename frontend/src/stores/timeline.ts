@@ -10,6 +10,7 @@ import type {
 import { getTimelineDevelopmentFixture } from '@/api/developmentFixtures'
 import {
   clearHistoryData,
+  deleteBatches,
   deleteCard,
   getDayContext,
   getTimelineActionAvailability,
@@ -37,6 +38,7 @@ export type TimelineAction =
   | 'update-category'
   | 'delete-card'
   | 'retry-batches'
+  | 'delete-batches'
   | 'reprocess-day'
   | 'clear-history'
 
@@ -48,6 +50,7 @@ export const useTimelineStore = defineStore('timeline', () => {
   const unavailable = ref(false)
   const error = ref<unknown>(null)
   const selectedCardID = ref<number | null>(null)
+  const selectedFailureTs = ref<number | null>(null)
   const categoryFilter = ref<string | null>(null)
   const usingDevelopmentFixture = ref(false)
   const pendingAction = ref<TimelineAction | null>(null)
@@ -66,6 +69,10 @@ export const useTimelineStore = defineStore('timeline', () => {
     () => day.value?.cards?.find((card) => card.id === selectedCardID.value) ?? null,
   )
 
+  const selectedFailure = computed(
+    () => day.value?.failures?.find((failure) => failure.startTs === selectedFailureTs.value) ?? null,
+  )
+
   const actionAvailability = computed(() => {
     const enabled = capabilities.value?.features?.includes('timeline') ?? false
     return {
@@ -73,6 +80,7 @@ export const useTimelineStore = defineStore('timeline', () => {
       updateTitle: enabled && actionBindings.updateTitle,
       deleteCard: enabled && actionBindings.deleteCard,
       retryBatches: enabled && actionBindings.retryBatches,
+      deleteBatches: enabled && actionBindings.deleteBatches,
       reprocessDay: enabled && actionBindings.reprocessDay,
       clearHistory: enabled && actionBindings.clearHistory,
     }
@@ -116,6 +124,9 @@ export const useTimelineStore = defineStore('timeline', () => {
       if (selectedCardID.value !== null && selectedCard.value === null) {
         selectedCardID.value = null
       }
+      if (selectedFailureTs.value !== null && selectedFailure.value === null) {
+        selectedFailureTs.value = null
+      }
     } catch (cause: unknown) {
       if (version !== requestVersion) return
       if (cause instanceof TimelineUnavailableError) {
@@ -140,6 +151,13 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   function selectCard(id: number | null): void {
     selectedCardID.value = id
+    selectedFailureTs.value = null
+    actionError.value = null
+  }
+
+  function selectFailure(startTs: number | null): void {
+    selectedFailureTs.value = startTs
+    if (startTs !== null) selectedCardID.value = null
     actionError.value = null
   }
 
@@ -187,6 +205,10 @@ export const useTimelineStore = defineStore('timeline', () => {
     return runAction('retry-batches', () => retryBatches(batchIDs))
   }
 
+  function dismissFailure(batchIDs: number[]): Promise<boolean> {
+    return runAction('delete-batches', () => deleteBatches(batchIDs))
+  }
+
   function reprocess(): Promise<boolean> {
     const selectedDay = context.value?.day
     if (selectedDay === undefined) return Promise.resolve(false)
@@ -229,15 +251,19 @@ export const useTimelineStore = defineStore('timeline', () => {
     clearAvailable,
     cards,
     selectedCard,
+    selectedFailure,
+    selectedFailureTs,
     state,
     dayNavigationAvailable: computed(() => hasTimelineDayBinding()),
     load,
     selectCard,
+    selectFailure,
     setCategoryFilter,
     changeCardTitle,
     changeCardCategory,
     removeCard,
     retryFailure,
+    dismissFailure,
     reprocess,
     clearHistory,
     startEvents,

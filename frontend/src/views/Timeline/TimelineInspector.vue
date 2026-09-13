@@ -13,6 +13,7 @@ import { safeCategoryColor } from './layout'
 const props = defineProps<{
   day: TimelineDayDTO
   card: TimelineCardDTO | null
+  failure: TimelineFailureDTO | null
   canWrite: boolean
   actions: TimelineActionAvailability
   canClear: boolean
@@ -26,13 +27,15 @@ const emit = defineEmits<{
   updateCategory: [cardID: number, category: string]
   delete: [cardID: number]
   retry: [batchIDs: number[]]
+  dismissFailure: [batchIDs: number[]]
   reprocess: []
   clearHistory: []
 }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const editing = ref(false)
 const confirmingDelete = ref(false)
 const confirmingClear = ref(false)
+const confirmingFailureDelete = ref(false)
 const draftTitle = ref('')
 const draftCategory = ref('')
 
@@ -41,6 +44,17 @@ const retryableFailures = computed(() =>
 )
 
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
+const canDeleteFailure = computed(() => props.canWrite && props.actions.deleteBatches)
+
+const failureClock = computed(() => {
+  const failure = props.failure
+  if (failure === null) return null
+  const format = new Intl.DateTimeFormat(locale.value, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  return `${format.format(new Date(failure.startTs * 1000))} – ${format.format(new Date(failure.endTs * 1000))}`
+})
 const canReprocess = computed(() => props.canWrite && props.actions.reprocessDay)
 
 interface CategoryTotal {
@@ -120,6 +134,14 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => props.failure?.startTs ?? null,
+  () => {
+    confirmingFailureDelete.value = false
+  },
+  { immediate: true },
+)
+
 function beginEditing(): void {
   if (!canStartEditing.value || props.card === null) return
   draftTitle.value = props.card.title
@@ -163,7 +185,7 @@ function duration(minutes: number): string {
 
 <template>
   <aside class="inspector dg-card" :aria-label="t('timeline.inspector.title')">
-    <template v-if="props.card === null">
+    <template v-if="props.card === null && props.failure === null">
       <header class="inspector__header">
         <div>
           <p class="inspector__eyebrow">{{ t('timeline.overview.eyebrow') }}</p>
@@ -222,7 +244,93 @@ function duration(minutes: number): string {
       </section>
     </template>
 
-    <template v-else>
+    <template v-else-if="props.failure !== null">
+      <header class="inspector__header">
+        <div>
+          <p class="inspector__eyebrow inspector__eyebrow--danger">{{ t('timeline.failure.title') }}</p>
+          <h2 class="inspector__title inspector__title--card">{{ t('timeline.failure.detailTitle') }}</h2>
+        </div>
+        <button
+          type="button"
+          class="inspector__close"
+          :aria-label="t('timeline.inspector.close')"
+          @click="emit('close')"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="card-time card-time--failure">
+        <span :style="{ background: 'var(--dg-danger)' }"></span>
+        {{ failureClock }}
+      </div>
+
+      <section class="inspector__section">
+        <h3>{{ t('timeline.failure.detail.kind') }}</h3>
+        <p class="inspector__failure-kind">{{ props.failure.kind }}</p>
+      </section>
+
+      <section class="inspector__section">
+        <h3>{{ t('timeline.failure.detail.message') }}</h3>
+        <p class="inspector__failure-message">{{ props.failure.message }}</p>
+      </section>
+
+      <section class="inspector__section">
+        <h3>{{ t('timeline.failure.detail.batches') }}</h3>
+        <ul class="failure-batches">
+          <li v-for="id in props.failure.batchIds" :key="id">#{{ id }}</li>
+        </ul>
+        <p class="inspector__failure-note">
+          {{ props.failure.retryable ? t('timeline.failure.detail.retryable') : t('timeline.failure.detail.notRetryable') }}
+        </p>
+      </section>
+
+      <p v-if="props.actionFailed" class="inspector__error" role="alert">
+        {{ t('timeline.inspector.actionFailed') }}
+      </p>
+
+      <div class="inspector__actions">
+        <template v-if="confirmingFailureDelete">
+          <span class="inspector__confirm">{{ t('timeline.failure.deleteConfirm') }}</span>
+          <button type="button" class="dg-button" :disabled="props.pendingAction !== null" @click="confirmingFailureDelete = false">
+            {{ t('common.action.cancel') }}
+          </button>
+          <button
+            type="button"
+            class="dg-button inspector__delete"
+            :disabled="props.pendingAction !== null"
+            @click="emit('dismissFailure', props.failure.batchIds); confirmingFailureDelete = false"
+          >
+            {{ t('common.action.delete') }}
+          </button>
+        </template>
+        <template v-else>
+          <button
+            type="button"
+            class="dg-button"
+            :disabled="!canRetry || !props.failure.retryable || props.pendingAction !== null"
+            :title="canRetry ? t('timeline.failure.retry') : t('timeline.failure.retryUnavailable')"
+            @click="emit('retry', props.failure.batchIds)"
+          >
+            {{ props.pendingAction === 'retry-batches' ? t('timeline.failure.retrying') : t('common.action.retry') }}
+          </button>
+          <button
+            type="button"
+            class="dg-button inspector__danger"
+            :disabled="!canDeleteFailure || props.pendingAction !== null"
+            :title="canDeleteFailure ? t('timeline.failure.delete') : t('timeline.failure.deleteUnavailable')"
+            @click="confirmingFailureDelete = true"
+          >
+            {{ t('common.action.delete') }}
+          </button>
+        </template>
+        <span v-if="!props.canWrite" class="inspector__readonly">
+          {{ t('timeline.inspector.readOnly') }}
+        </span>
+      </div>
+    </template>
+
+    <template v-else-if="props.card !== null">
       <header class="inspector__header">
         <div>
           <p class="inspector__eyebrow">{{ props.card.category }}</p>
@@ -458,6 +566,53 @@ function duration(minutes: number): string {
   font-size: 10px;
   font-weight: 600;
 }
+
+.inspector__eyebrow--danger { color: var(--dg-danger); }
+
+.inspector__failure-kind {
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--dg-danger) 30%, transparent);
+  border-radius: 7px;
+  background: var(--dg-danger-fill);
+  color: var(--dg-danger);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.inspector__failure-message {
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.failure-batches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.failure-batches li {
+  padding: 3px 8px;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 6px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector__failure-note { margin-top: 8px; }
+
+.card-time--failure { color: var(--dg-danger); }
 
 .inspector__title {
   color: var(--dg-text-primary);

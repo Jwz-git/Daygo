@@ -23,10 +23,21 @@ export default {
   processing: 'Analysing this range…',
   failure: {
     title: 'Analysis incomplete',
+    detailTitle: 'Failure details',
     retry: 'Retry this failed range',
     retrying: 'Retrying…',
     retryUnavailable: 'Batch retry is not connected or this instance is read-only',
     retryHint: 'Failed ranges can be resubmitted for analysis here.',
+    delete: 'Delete this failed range',
+    deleteConfirm: 'This removes the failed range from the timeline. Its screenshots are kept and will not be re-analysed. Continue?',
+    deleteUnavailable: 'Batch delete is not connected or this instance is read-only',
+    detail: {
+      kind: 'Failure kind',
+      message: 'Error message',
+      batches: 'Batches involved',
+      retryable: 'These batches can be resubmitted for analysis.',
+      notRetryable: 'This error cannot be retried automatically or the retry budget is spent; the range can be deleted instead.',
+    },
   },
   copy: {
     action: 'Copy timeline',

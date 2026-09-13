@@ -282,7 +282,8 @@ export function toApiError(e: unknown): ApiError {
 | `UpdateCardCategory(cardID int64, category string) error` **已实现** | timeline | cards / 分类 / 写入锁 | 写·幂等 | `timeline:updated` | `not_found` `invalid_argument` |
 | `UpdateCardTitle(cardID int64, title string) error` **已实现** | timeline | cards / 写入锁 | 写·幂等 | `timeline:updated` | 同上 |
 | `DeleteCard(cardID int64) error` **已实现** | timeline | cards / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` |
-| `RetryBatches(batchIDs []int64) error` | timeline | 批次 / provider-client / media-read | 写·非幂等 | `batch:progress` `timeline:updated` | `not_found` `conflict` |
+| `RetryBatches(batchIDs []int64) error` **已实现** | timeline | 批次 / provider-client / media-read | 写·非幂等 | `batch:progress` `timeline:updated` | `not_found` `conflict` |
+| `DeleteBatches(batchIDs []int64) error` **已实现** | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
 | `ReprocessDay(day string) error` | timeline | time / capture / 分析流水线 | 写·非幂等 | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
 | `ClearHistoryData() error` **已实现**（测试专用） | timeline | storage / 写入锁 / 录制空闲 | 写·非幂等 | `timeline:updated` `journal:updated` `goal:updated` | `not_capture_owner` `conflict` `database_error` |
 
@@ -290,6 +291,10 @@ export function toApiError(e: unknown): ApiError {
   `invalid_argument`，**不得**自动创建分类。
 - `DeleteCard` 是软删除并返回可清理的 timelapse 路径给内部维护；对前端只是 `error`。
 - `RetryBatches` / `ReprocessDay` 立即返回，进度通过 `batch:progress` 推送。
+  `RetryBatches` 重置 `attempts` 并清空失败信息后回到 `pending`；调用方传入的
+  id 里只要有一个不是失败终态的批次，整个调用返回 `invalid_argument` 且不落任何改动。
+- `DeleteBatches` 软删除失败批次（`is_deleted = 1`）：行与 `batch_screenshots`
+  成员保留，帧不会重新进入未分批集合被再次分析。对时间线表现为失败面板条目消失。
 - `ClearHistoryData` 一键清空录制与分析历史（帧 / 批次 / 观测 / 卡片 / 日记 / 目标 /
   聊天 + recordings 文件），**保留** `app_settings`、`providers`、`categories` 等配置；
   仅限开发测试场景，录制运行中返回 `conflict`。

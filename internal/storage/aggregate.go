@@ -80,6 +80,7 @@ func (r *CardRepo) FailedBatchesInRange(ctx context.Context, from, to time.Time)
 			       COALESCE(failure_kind, ''), COALESCE(failure_note, ''), attempts
 			FROM analysis_batches
 			WHERE status IN ('failed', 'failed_empty')
+			  AND is_deleted = 0
 			  AND start_ts < ? AND end_ts > ?
 			ORDER BY start_ts`,
 			to.Unix(), from.Unix())

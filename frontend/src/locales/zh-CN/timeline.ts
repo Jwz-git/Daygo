@@ -23,10 +23,21 @@ export default {
   processing: '正在分析这一时段…',
   failure: {
     title: '分析未完成',
+    detailTitle: '失败详情',
     retry: '重试这个失败时段',
     retrying: '正在重试…',
     retryUnavailable: '批次重试绑定尚未交付或当前实例只读',
     retryHint: '失败时段可在这里重新提交分析。',
+    delete: '删除这个失败时段',
+    deleteConfirm: '将从时间线移除这个失败时段，对应截图保留且不会重新分析。确定继续吗？',
+    deleteUnavailable: '批次删除绑定尚未交付或当前实例只读',
+    detail: {
+      kind: '失败类型',
+      message: '错误信息',
+      batches: '涉及批次',
+      retryable: '可以重新提交这些批次进行分析。',
+      notRetryable: '该错误不可自动重试，或重试次数已用尽；可删除该时段。',
+    },
   },
   copy: {
     action: '复制时间线',
