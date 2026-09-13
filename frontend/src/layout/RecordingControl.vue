@@ -85,6 +85,10 @@ function choose(action: RecordingAction): void {
   position: absolute; z-index: 20; bottom: 0; left: calc(100% + 10px);
   width: 250px; padding: 14px; border: 1px solid var(--dg-panel-border);
   border-radius: 10px; background: var(--dg-popover-fill); box-shadow: var(--dg-popover-shadow);
+  /* Dense glass: a dropdown must stay readable over unpredictable content, so
+     the fill stays nearly opaque and the blur is only depth. */
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
   color: var(--dg-text-primary);
 }
 .recording-control__popover strong { font-size: 13px; }

@@ -26,7 +26,11 @@ onBeforeUnmount(() => recording.stopListening())
   height: 100vh;
   padding: 0;
   overflow: hidden;
-  background: var(--dg-window-bg);
+  /* The tonal field is what makes the panel's backdrop blur read as glass; a
+     flat colour behind it would only show transparent gray. The gradient is
+     broad and slow on purpose — no detail that competes with content. */
+  background-color: var(--dg-window-bg);
+  background-image: var(--dg-window-gradient);
 }
 
 .panel {

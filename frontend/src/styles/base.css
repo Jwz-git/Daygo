@@ -37,12 +37,52 @@ body {
   font-family: var(--dg-font-reading);
 }
 
+/*
+ * Shared liquid-glass surface primitive. The background field behind it (see
+ * AppShell) is what makes the blur read; without tonal variation glass is just
+ * transparent gray. The opaque fallback comes first, and the translucent
+ * surface is an enhancement inside @supports, so an engine without
+ * backdrop-filter still renders a readable panel. The sheen is the implied
+ * light source (upper-left) and lives on a negative-z pseudo-element so it sits
+ * above the tint but below content.
+ */
 .dg-panel {
+  position: relative;
+  isolation: isolate;
   border: 1px solid var(--dg-panel-border);
   border-radius: var(--dg-panel-radius);
-  background: var(--dg-panel-fill);
-  box-shadow: var(--dg-panel-shadow);
-  backdrop-filter: blur(24px) saturate(110%);
+  background: var(--dg-glass-fallback);
+  box-shadow: var(--dg-glass-shadow);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dg-panel {
+    background: var(--dg-glass-tint);
+    -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+    backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+  }
+}
+
+.dg-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--dg-glass-sheen);
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .dg-panel {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .dg-panel::before {
+    display: none;
+  }
 }
 
 .dg-card {

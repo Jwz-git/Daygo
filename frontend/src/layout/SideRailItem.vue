@@ -80,6 +80,11 @@ const props = defineProps<{
 .rail-item.is-active .rail-item__glyph {
   border-color: var(--dg-rail-selection-border);
   background: var(--dg-rail-selection-fill);
+  /* Air-level glass: a small chip needs only a light blur to read as a
+     separate material over the window gradient. Without backdrop-filter the
+     fill alone still renders readable, so no @supports gate is needed. */
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
   box-shadow: var(--dg-rail-selection-shadow);
 }
 

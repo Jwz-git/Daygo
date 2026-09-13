@@ -15,14 +15,33 @@
   color-scheme: light;
 
   /* window */
-  --dg-window-bg: #eceef1;
+  --dg-window-bg: #e9edf3;
   --dg-window-padding: 8px;
+  --dg-window-gradient: radial-gradient(
+      110% 80% at 8% -10%,
+      rgba(255, 255, 255, 0.9),
+      transparent 52%
+    ),
+    radial-gradient(120% 100% at 110% 115%, rgba(126, 156, 199, 0.26), transparent 58%),
+    linear-gradient(165deg, #eff2f7 0%, #e6eaf1 55%, #e0e5ee 100%);
 
   /* panel */
   --dg-panel-fill: rgba(249, 249, 250, 0.94);
   --dg-panel-border: rgba(0, 0, 0, 0.1);
   --dg-panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   --dg-panel-radius: 10px;
+
+  /*
+   * Liquid-glass surfaces (.dg-panel, the rail selection, popovers). The tint,
+   * fallback, shadow and sheen are colour and differ per appearance; blur and
+   * saturation are geometry and live here only.
+   */
+  --dg-glass-tint: rgba(250, 251, 253, 0.62);
+  --dg-glass-fallback: #f3f5f8;
+  --dg-glass-shadow: 0 12px 36px rgba(28, 34, 45, 0.14), 0 1px 2px rgba(28, 34, 45, 0.07);
+  --dg-glass-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 42%);
+  --dg-glass-blur: 28px;
+  --dg-glass-saturation: 160%;
 
   /* text */
   --dg-text-primary: #29282f;
