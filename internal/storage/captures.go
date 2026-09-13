@@ -120,12 +120,30 @@ func (r *CaptureRepo) Pending(ctx context.Context) ([]PendingCapture, error) {
 	return out, err
 }
 
-func (r *CaptureRepo) Reconcile(ctx context.Context) error {
+// Abandon drops a pending intent whose frame will never be written — the
+// recorder deleted the file mid-capture because recording was paused before
+// the image hit disk. Without it the pending_captures row would outlive its
+// file forever (Reconcile only reconciles files that exist or stat cleanly).
+func (r *CaptureRepo) Abandon(ctx context.Context, id int64) error {
+	if r == nil || r.store == nil {
+		return fmt.Errorf("captures: store unavailable")
+	}
+	return r.store.Write(ctx, "capture abandon", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `DELETE FROM pending_captures WHERE id=? AND state=?`, id, PendingCaptureState)
+		return err
+	})
+}
+
+// Reconcile walks pending intents at startup and settles them against the
+// filesystem: a file that exists and is non-empty is committed into
+// screenshots (the crash-recovery path — the pixels made it to disk but the
+// process died before Commit), and a file that is gone is dropped. root is
+// the recordings directory the recorder writes into.
+func (r *CaptureRepo) Reconcile(ctx context.Context, root string) error {
 	pending, err := r.Pending(ctx)
 	if err != nil {
 		return err
 	}
-	root := filepath.Join(filepath.Dir(r.store.Path()), "recordings")
 	for _, p := range pending {
 		info, e := os.Stat(filepath.Join(root, p.RelativePath))
 		if os.IsNotExist(e) {

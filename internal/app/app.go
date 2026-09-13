@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Jwz-git/Daygo/frontend"
 	"github.com/Jwz-git/Daygo/internal/platform"
@@ -87,7 +88,21 @@ func Run() error {
 		// read-only second instance holds neither lock the pipeline's writes
 		// need. Its recordings root is the staging directory the recorder
 		// commits frames into.
-		if _, err := startAnalysis(ctx, backend, store, filepath.Join(dir, "recordings")); err != nil {
+		recordingsRoot := filepath.Join(dir, "recordings")
+
+		// Crash recovery first (docs/modules/recording): settle pending
+		// capture intents against the filesystem before the analysis
+		// scheduler looks at frames. A commit the process died before
+		// making is completed here; an intent whose file never landed is
+		// dropped. Failures are logged, not fatal — the UI still works on
+		// committed data.
+		reconcileCtx, reconcileCancel := context.WithTimeout(ctx, 30*time.Second)
+		if err := store.Captures().Reconcile(reconcileCtx, recordingsRoot); err != nil {
+			log.Printf("capture reconcile: %v", err)
+		}
+		reconcileCancel()
+
+		if _, err := startAnalysis(ctx, backend, store, recordingsRoot); err != nil {
 			// Analysis failing to start must not take the shell down: the UI
 			// still renders stored cards, and diagnostics reports the gap.
 			log.Printf("analysis pipeline unavailable: %v", err)

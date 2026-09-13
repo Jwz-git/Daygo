@@ -1,8 +1,10 @@
 package analysis
 
 import (
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
@@ -252,4 +254,42 @@ func TestDetectIdleCoverageRatio(t *testing.T) {
 		t.Fatal("idle batch with a small tail hole refused")
 	}
 	_ = rules
+}
+
+// truncate must never split a multi-byte rune: a mid-rune cut corrupts
+// failure notes in every non-ASCII language.
+func TestTruncateKeepsRunesWhole(t *testing.T) {
+	long := strings.Repeat("活动记录", 200) // 4 bytes per rune
+	got := truncate(long, 200)
+	if got == "" {
+		t.Fatal("truncate returned empty")
+	}
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncated string is not valid UTF-8: %q", got[len(got)-8:])
+	}
+	if r, _ := utf8.DecodeLastRuneInString(got); r == utf8.RuneError {
+		t.Fatal("truncated string ends in a broken rune")
+	}
+	// A short string passes through untouched.
+	if got := truncate("活动", 200); got != "活动" {
+		t.Fatalf("short string altered: %q", got)
+	}
+}
+
+// appsOfMetadata feeds the card prompt with the transcription stage's apps
+// list; absent or malformed metadata yields nothing rather than an error.
+func TestAppsOfMetadata(t *testing.T) {
+	apps := appsOfMetadata(`{"apps":["Safari","Xcode"]}`)
+	if len(apps) != 2 || apps[0] != "Safari" || apps[1] != "Xcode" {
+		t.Fatalf("apps = %v", apps)
+	}
+	if got := appsOfMetadata(""); got != nil {
+		t.Fatalf("empty metadata apps = %v", got)
+	}
+	if got := appsOfMetadata("not json"); got != nil {
+		t.Fatalf("malformed metadata apps = %v", got)
+	}
+	if got := appsOfMetadata(`{"other":1}`); got != nil {
+		t.Fatalf("apps absent = %v", got)
+	}
 }

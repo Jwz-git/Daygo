@@ -1,19 +1,26 @@
 package recorder
 
 import (
+	"bytes"
 	"context"
-	"github.com/Jwz-git/Daygo/internal/platform"
-	"github.com/Jwz-git/Daygo/internal/platform/fake"
-	"github.com/Jwz-git/Daygo/internal/settings"
+	"errors"
+	"image"
+	"image/jpeg"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Jwz-git/Daygo/internal/platform"
+	"github.com/Jwz-git/Daygo/internal/platform/fake"
+	"github.com/Jwz-git/Daygo/internal/settings"
 )
 
 type testStore struct {
 	mu                     sync.Mutex
 	next, commits, blocked int
+	abandons               int
 	relativePaths          []string
 }
 
@@ -33,6 +40,12 @@ func (s *testStore) Commit(context.Context, int64, int64) error {
 func (s *testStore) MarkBlocked(context.Context, int64) error {
 	s.mu.Lock()
 	s.blocked++
+	s.mu.Unlock()
+	return nil
+}
+func (s *testStore) Abandon(context.Context, int64) error {
+	s.mu.Lock()
+	s.abandons++
 	s.mu.Unlock()
 	return nil
 }
@@ -219,3 +232,85 @@ func waitState(t *testing.T, ch <-chan Event, want State) {
 }
 
 var _ platform.Capture = (*fake.Capture)(nil)
+
+// A capture error must not stop the loop: a resident recorder survives
+// transient failures (display switch, permission hiccup) and keeps capturing.
+// Only captureFailureLimit consecutive failures give up.
+func TestRecorderSurvivesTransientCaptureErrors(t *testing.T) {
+	dir := t.TempDir()
+	store := &testStore{}
+	capture := &flakyCapture{failuresLeft: 1}
+	r, err := New(Config{Capture: capture, Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: dir, Clock: &testClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	waitForCommits(t, store, 1)
+	if r.State() != StateCapturing {
+		t.Fatalf("state after one transient failure = %q, want capturing", r.State())
+	}
+
+	// Beyond the limit the loop gives up: state returns to idle.
+	capture.mu.Lock()
+	capture.failuresLeft = captureFailureLimit + 5
+	capture.mu.Unlock()
+	waitStateIdle(t, r)
+}
+
+// waitForCommits blocks until the store has at least n commits.
+func waitForCommits(t *testing.T, s *testStore, n int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		s.mu.Lock()
+		got := s.commits
+		s.mu.Unlock()
+		if got >= n {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("commits did not reach %d", n)
+}
+
+func waitStateIdle(t *testing.T, r *Recorder) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if r.State() == StateIdle {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("recorder did not reach idle after %d consecutive failures", captureFailureLimit)
+}
+
+// flakyCapture fails its next N captures, then succeeds.
+type flakyCapture struct {
+	mu           sync.Mutex
+	failuresLeft int
+}
+
+func (c *flakyCapture) Capture(_ context.Context, req platform.CaptureRequest) (platform.CaptureResult, error) {
+	c.mu.Lock()
+	fail := c.failuresLeft > 0
+	if fail {
+		c.failuresLeft--
+	}
+	c.mu.Unlock()
+	if fail {
+		return platform.CaptureResult{}, errors.New("transient capture failure")
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 16, 9))
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 50}); err != nil {
+		return platform.CaptureResult{}, err
+	}
+	if err := os.MkdirAll(filepath.Dir(req.OutputPath), 0o700); err != nil {
+		return platform.CaptureResult{}, err
+	}
+	return platform.CaptureResult{Outcome: platform.CaptureWritten}, os.WriteFile(req.OutputPath, buf.Bytes(), 0o600)
+}

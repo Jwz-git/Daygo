@@ -412,3 +412,108 @@ func (h *harness) frameID(path string) (int64, error) {
 	}
 	return 0, fmt.Errorf("frame %s not found", path)
 }
+
+// A provider that emits glued meridiem clock strings ("10:21AM") — a common
+// model deviation from the prompt's format — must still land cards, not fail
+// the batch as unresolvable forever.
+func TestPipelineGluedMeridiemClocks(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"Working in an editor","apps":["Code"]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00AM","end":"10:15AM","category":"Coding","subcategory":"editor","title":"Glued clocks","summary":"Working in an editor.","detailed_summary":"","appSites":["Code"],"distractions":[]}]}`,
+	})
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+
+	h.service.tick(context.Background())
+
+	batches := mustBatches(t, h.store)
+	if len(batches) != 1 || batches[0].Status != storage.BatchSucceeded {
+		t.Fatalf("batches = %+v, want one succeeded", batches)
+	}
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 || cards[0].Title != "Glued clocks" {
+		t.Fatalf("cards = %+v, want the glued-clock card", cards)
+	}
+	if cards[0].StartTs != base.Unix() {
+		t.Fatalf("start_ts = %d, want %d (10:00 AM local)", cards[0].StartTs, base.Unix())
+	}
+}
+
+// A batch that fails deterministically stops being requeued once its attempts
+// are exhausted: the cooldown loop must not re-run LLM calls forever.
+func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
+	// The card stage returns a card whose end clock is unresolvable, so the
+	// batch fails on SkippedCards every time it runs.
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"garbage","category":"Coding","subcategory":"","title":"T","summary":"S","detailed_summary":"","appSites":[],"distractions":[]}]}`,
+	})
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+
+	// The harness clock is fixed at testNow, so the cooldown (updated_at <
+	// now - 10min) never passes on later ticks. Drive the requeue directly:
+	// one tick creates and fails the batch, then each iteration simulates
+	// the cooldown having elapsed by requeueing through the repository.
+	h.service.tick(context.Background())
+	cardCalls := h.provider.callCount(string(ai.PurposeCards))
+	if cardCalls != 1 {
+		t.Fatalf("card calls after first tick = %d, want 1", cardCalls)
+	}
+
+	ctx := context.Background()
+	for i := range storage.MaxBatchAttempts {
+		// Cooldown elapsed: requeue the failed batch and fail it again. The
+		// processBatch path stamps updated_at with the harness's fixed clock,
+		// so the requeue timestamp is derived from the batch's own updated_at
+		// (one second past it) rather than a wall clock.
+		ua := mustBatches(t, h.store)[0].UpdatedAt
+		at := ua.Add(time.Second)
+		n, err := h.store.Analysis().RequeueFailed(ctx, at, at)
+		if err != nil {
+			t.Fatalf("requeue %d: %v", i, err)
+		}
+		if n == 0 {
+			if i < storage.MaxBatchAttempts-1 {
+				t.Fatalf("requeue refused after %d failures, before the limit", i)
+			}
+			break
+		}
+		pending := mustPending(t, h.store)
+		if len(pending) != 1 {
+			t.Fatalf("pending after requeue %d = %d, want 1", i, len(pending))
+		}
+		if err := h.service.processBatch(ctx, pending[0]); err != nil {
+			h.service.failBatch(ctx, pending[0], err)
+		}
+	}
+
+	// After the loop the batch is terminal: further requeue attempts move
+	// nothing and no LLM call happens.
+	callsAfterLoop := h.provider.callCount(string(ai.PurposeCards))
+	ua := mustBatches(t, h.store)[0].UpdatedAt
+	at := ua.Add(time.Hour)
+	if _, err := h.store.Analysis().RequeueFailed(ctx, at, at); err != nil {
+		t.Fatalf("final requeue: %v", err)
+	}
+	if pending := mustPending(t, h.store); len(pending) != 0 {
+		t.Fatalf("pending after exhaustion = %d, want 0", len(pending))
+	}
+	if got := h.provider.callCount(string(ai.PurposeCards)); got != callsAfterLoop {
+		t.Fatalf("card calls after exhaustion = %d, want %d (no further LLM spend)", got, callsAfterLoop)
+	}
+	if got := h.provider.callCount(string(ai.PurposeCards)); got > storage.MaxBatchAttempts+1 {
+		t.Fatalf("card calls = %d, want at most %d (capped, not unbounded)", got, storage.MaxBatchAttempts+1)
+	}
+}
+
+func mustPending(t *testing.T, store *storage.Store) []storage.Batch {
+	t.Helper()
+	batches, err := store.Analysis().PendingBatches(context.Background())
+	if err != nil {
+		t.Fatalf("query pending: %v", err)
+	}
+	return batches
+}

@@ -110,6 +110,11 @@ func (s *Store) location() *time.Location {
 	return s.loc
 }
 
+// Location exposes the store's time zone for consumers outside this package
+// that must agree with it — the analysis service prefilters card windows with
+// the same zone ReplaceCardsInRange uses to derive start_ts/end_ts/day.
+func (s *Store) Location() *time.Location { return s.location() }
+
 // setClock replaces the store's clock. It exists for tests that need
 // deterministic timestamps without reaching into unexported fields, and is not
 // part of the production surface: nothing in this package calls it.

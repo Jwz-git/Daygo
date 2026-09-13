@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Jwz-git/Daygo/internal/ai"
 	"github.com/Jwz-git/Daygo/internal/domain"
@@ -58,16 +59,22 @@ type FrameSource interface {
 
 // Config assembles a Service. Now/TickInterval are injectable for tests.
 type Config struct {
-	Store            Store
-	Cards            CardStore
-	Categories       CategorySource
-	Providers        ChainSource
-	Media            FrameSource
-	Language         func(ctx context.Context) string
-	Now              func() time.Time
-	TickEvery        time.Duration
-	Workers          int
-	IdleRules        IdleRules
+	Store      Store
+	Cards      CardStore
+	Categories CategorySource
+	Providers  ChainSource
+	Media      FrameSource
+	Language   func(ctx context.Context) string
+	Now        func() time.Time
+	TickEvery  time.Duration
+	Workers    int
+	IdleRules  IdleRules
+	// Location is the zone for every local-time decision the service makes
+	// (idle card clocks, out-of-window prefiltering, day notification). It
+	// must match the storage layer's zone, because ReplaceCardsInRange
+	// derives start_ts/end_ts/day there; a mismatch would prefilter with one
+	// zone and insert with another. Nil means time.Local.
+	Location         *time.Location
 	OnCardsCommitted func(days []string)
 	OnBatchFailed    func(batch storage.Batch, kind, note string)
 }
@@ -97,8 +104,14 @@ func New(cfg Config) (*Service, error) {
 	if cfg.IdleRules == (IdleRules{}) {
 		cfg.IdleRules = DefaultIdleRules()
 	}
+	if cfg.Location == nil {
+		cfg.Location = time.Local
+	}
 	return &Service{cfg: cfg}, nil
 }
+
+// loc is the single zone accessor for the service.
+func (s *Service) loc() *time.Location { return s.cfg.Location }
 
 // Run is the scheduler loop (docs/04 §4.3). It blocks until ctx is done and
 // must be owned by the app lifetime, like storage.Maintainer. On cancellation
@@ -206,8 +219,13 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 		return fmt.Errorf("batch %d has no frames", batch.ID)
 	}
 
-	// Idle fast path: no LLM call at all (docs/04 §4.4).
+	// Idle fast path: no LLM call at all (docs/04 §4.4). It rewrites cards in
+	// a range like the LLM path, so it takes the same serialization lock —
+	// an idle commit interleaving a neighboring batch's read→generate→rewrite
+	// would clobber one of the two.
 	if DetectIdle(frames, s.cfg.IdleRules) {
+		s.cardsMu.Lock()
+		defer s.cardsMu.Unlock()
 		return s.commitIdleCard(ctx, batch)
 	}
 
@@ -271,23 +289,26 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error {
 	replaceFrom := batch.Start
 	shell := domain.CardShell{
-		Start:    timeutil.FormatClock(batch.Start, time.Local),
-		End:      timeutil.FormatClock(batch.End, time.Local),
+		Start:    timeutil.FormatClock(batch.Start, s.loc()),
+		End:      timeutil.FormatClock(batch.End, s.loc()),
 		Category: "Idle",
 		Title:    "Idle",
 		Summary:  "No user activity detected during this period.",
 	}
-	// Merge with a preceding Idle card within AdjacentIdleMergeGap.
+	// Merge with a preceding Idle card within AdjacentIdleMergeGap. A read
+	// failure propagates: silently opening a new card next to a mergeable
+	// one would split the idle span on a transient storage error.
 	preceding, err := s.cfg.Cards.CardsInRange(ctx,
 		batch.Start.Add(-s.cfg.IdleRules.AdjacentIdleMergeGap-time.Minute), batch.Start)
-	if err == nil {
-		for _, card := range slices.Backward(preceding) {
-			if card.Category == "Idle" && card.EndTs <= batch.Start.Unix() &&
-				batch.Start.Unix()-card.EndTs <= int64(s.cfg.IdleRules.AdjacentIdleMergeGap.Seconds()) {
-				replaceFrom = time.Unix(card.StartTs, 0)
-				shell.Start = card.Start
-				break
-			}
+	if err != nil {
+		return err
+	}
+	for _, card := range slices.Backward(preceding) {
+		if card.Category == "Idle" && card.EndTs <= batch.Start.Unix() &&
+			batch.Start.Unix()-card.EndTs <= int64(s.cfg.IdleRules.AdjacentIdleMergeGap.Seconds()) {
+			replaceFrom = time.Unix(card.StartTs, 0)
+			shell.Start = card.Start
+			break
 		}
 	}
 	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End,
@@ -462,7 +483,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 // kept — ReplaceCardsInRange reports them as SkippedCards, which fails the
 // batch loudly instead of silently here.
 func (s *Service) shellOverlapsWindow(shell domain.CardShell, batch storage.Batch) bool {
-	loc := time.Local
+	loc := s.loc()
 	anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
 	start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
 	if err != nil {
@@ -560,7 +581,7 @@ func (s *Service) notifyDays(from, to time.Time) {
 	if s.cfg.OnCardsCommitted == nil {
 		return
 	}
-	loc := time.Local
+	loc := s.loc()
 	days := []string{timeutil.LogicalDay(from, loc)}
 	if end := timeutil.LogicalDay(to, loc); end != days[0] {
 		days = append(days, end)
@@ -568,9 +589,22 @@ func (s *Service) notifyDays(from, to time.Time) {
 	s.cfg.OnCardsCommitted(days)
 }
 
+// truncate cuts s to at most n bytes without splitting a multi-byte rune:
+// a mid-rune cut would corrupt failure notes in every non-ASCII language.
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n]
+	cut := s[:n]
+	// Back off at most 3 bytes (the longest rune encoding minus one) until
+	// the cut point sits on a rune boundary. DecodeLastRuneInString reports
+	// RuneError with size 1 for an incomplete trailing sequence.
+	for i := 0; i < 3 && len(cut) > 0; i++ {
+		r, size := utf8.DecodeLastRuneInString(cut)
+		if r != utf8.RuneError || size > 1 {
+			break
+		}
+		cut = cut[:len(cut)-1]
+	}
+	return cut
 }

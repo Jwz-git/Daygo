@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -60,8 +61,14 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 		b.WriteString("  (none)\n")
 	}
 	for _, o := range obs {
-		fmt.Fprintf(&b, "  %s – %s: %s\n",
-			formatFrameClock(o.Start), formatFrameClock(o.End), o.Observation)
+		apps := appsOfMetadata(o.Metadata)
+		if len(apps) > 0 {
+			fmt.Fprintf(&b, "  %s – %s [apps: %s]: %s\n",
+				formatFrameClock(o.Start), formatFrameClock(o.End), strings.Join(apps, ", "), o.Observation)
+		} else {
+			fmt.Fprintf(&b, "  %s – %s: %s\n",
+				formatFrameClock(o.Start), formatFrameClock(o.End), o.Observation)
+		}
 	}
 
 	b.WriteString("\nCategories (category MUST be one of these names):\n")
@@ -90,4 +97,20 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 // anchor on insert, so this rendering is for the model's eyes only.
 func formatFrameClock(t time.Time) string {
 	return t.Format("3:04 PM")
+}
+
+// appsOfMetadata extracts the apps list the transcription stage stored in an
+// observation's metadata JSON, so the card prompt can carry it forward as
+// structured context instead of asking the model to re-extract it from prose.
+func appsOfMetadata(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	var meta struct {
+		Apps []string `json:"apps"`
+	}
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return nil
+	}
+	return meta.Apps
 }

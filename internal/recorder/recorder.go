@@ -31,6 +31,7 @@ type CaptureStore interface {
 	Begin(context.Context, string, time.Time, *int, int, int, bool) (int64, error)
 	Commit(context.Context, int64, int64) error
 	MarkBlocked(context.Context, int64) error
+	Abandon(context.Context, int64) error
 }
 type Clock interface{ Now() time.Time }
 type realClock struct{}
@@ -93,14 +94,6 @@ func (r *Recorder) LastFrameAt() *time.Time {
 	}
 	value := *r.lastFrameAt
 	return &value
-}
-func (r *Recorder) setState(s State, err error) {
-	r.mu.Lock()
-	r.state = s
-	r.mu.Unlock()
-	if r.cfg.OnEvent != nil {
-		r.cfg.OnEvent(Event{State: s, At: r.cfg.Clock.Now(), Err: err})
-	}
 }
 func (r *Recorder) Start(ctx context.Context) error {
 	r.mu.Lock()
@@ -265,10 +258,32 @@ func (r *Recorder) run(ctx context.Context) {
 	defer ticker.Stop()
 	if !blocked {
 		if err := r.capture(ctx); err != nil && ctx.Err() == nil {
+			// The initial capture gets the same tolerance as the loop: emit
+			// and continue rather than aborting a resident recorder.
 			r.fail(err)
-			return
+			consecutiveFailures := 1
+			for consecutiveFailures < captureFailureLimit {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(captureRetryDelay):
+				}
+				if err := r.capture(ctx); err != nil {
+					if ctx.Err() != nil {
+						return
+					}
+					r.fail(err)
+					consecutiveFailures++
+					continue
+				}
+				break
+			}
+			if consecutiveFailures >= captureFailureLimit {
+				return
+			}
 		}
 	}
+	consecutiveFailures := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -280,15 +295,44 @@ func (r *Recorder) run(ctx context.Context) {
 			r.mu.Lock()
 			paused := r.state == StatePaused
 			r.mu.Unlock()
-			if !paused {
-				if err := r.capture(ctx); err != nil && ctx.Err() == nil {
-					r.fail(err)
+			if paused {
+				continue
+			}
+			if err := r.capture(ctx); err != nil {
+				if ctx.Err() != nil {
 					return
 				}
+				// One failed frame is not a reason to stop a resident
+				// recorder: emit the error and keep the loop alive. Only
+				// captureFailureLimit consecutive failures give up.
+				r.fail(err)
+				consecutiveFailures++
+				if consecutiveFailures >= captureFailureLimit {
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(captureRetryDelay):
+				}
+				continue
 			}
+			consecutiveFailures = 0
 		}
 	}
 }
+
+// captureFailureLimit is how many consecutive single-capture failures the
+// loop tolerates before giving up. A display switch, a transient permission
+// hiccup, or a failed placeholder write fails one frame; stopping the whole
+// recorder on the first of those would silently end recording for a resident
+// agent. Three in a row with no success between them means something real.
+const captureFailureLimit = 3
+
+// captureRetryDelay is the pause after a failed capture before the next
+// ticker-driven attempt (the ticker itself stays on its interval).
+const captureRetryDelay = 2 * time.Second
+
 func (r *Recorder) fail(err error) { r.emit(r.State(), err) }
 func (r *Recorder) capture(ctx context.Context) error {
 	now := r.cfg.Clock.Now()
@@ -307,6 +351,10 @@ func (r *Recorder) capture(ctx context.Context) error {
 	}
 	result, err := r.cfg.Capture.Capture(ctx, platform.CaptureRequest{OutputPath: abs, ImageFormat: platform.CaptureImageJPEG, TargetHeight: current.CaptureHeightPixels, JPEGQuality: r.cfg.JPEGQuality, BlockedApplicationIDs: current.BlockedApplicationIDs})
 	if err != nil {
+		// The adapter failed before writing a usable file; whether the file
+		// exists is unknown, so the intent is abandoned rather than left for
+		// a Reconcile that might commit a half-written image.
+		_ = r.cfg.Store.Abandon(ctx, id)
 		return err
 	}
 	r.mu.Lock()
@@ -314,10 +362,18 @@ func (r *Recorder) capture(ctx context.Context) error {
 	r.mu.Unlock()
 	if paused {
 		_ = os.Remove(abs)
+		// The pending row must go with the file: Reconcile only settles
+		// intents whose files exist or stat cleanly, so a row left here
+		// would leak forever. Abandoning the just-begun intent is safe —
+		// nothing committed it, so no screenshots row references it.
+		if err := r.cfg.Store.Abandon(ctx, id); err != nil {
+			return err
+		}
 		return nil
 	}
 	if result.Outcome == platform.CaptureBlocked {
 		if err := writePlaceholder(abs, current.CaptureHeightPixels, r.cfg.JPEGQuality); err != nil {
+			_ = r.cfg.Store.Abandon(ctx, id)
 			return err
 		}
 		if err := r.cfg.Store.MarkBlocked(ctx, id); err != nil {
@@ -342,6 +398,7 @@ func (r *Recorder) capture(ctx context.Context) error {
 	return nil
 }
 func writePlaceholder(path string, height, quality int) error {
+	_ = height
 	f, err := os.Create(path)
 	if err != nil {
 		return err

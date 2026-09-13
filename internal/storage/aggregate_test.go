@@ -107,7 +107,7 @@ func TestFailedBatchesInRange(t *testing.T) {
 	dayEnd := time.Date(2026, 9, 13, 4, 0, 0, 0, loc).Unix()
 	hour := int64(3600)
 	seedBatchWithStatus(t, store, 1, "failed", dayStart, dayStart+hour)               // in window
-	seedBatchWithStatus(t, store, 2, "skipped_short", dayEnd-hour, dayEnd)            // touches end from inside
+	seedBatchWithStatus(t, store, 2, "skipped_short", dayEnd-hour, dayEnd)            // normal outcome, not a failure
 	seedBatchWithStatus(t, store, 3, "succeeded", dayStart, dayStart+hour)            // not a failure state
 	seedBatchWithStatus(t, store, 4, "failed", dayStart-hour, dayStart+hour)          // overlaps start
 	seedBatchWithStatus(t, store, 5, "failed_empty", dayStart+10*hour, dayEnd+2*hour) // overlaps end
@@ -125,13 +125,16 @@ func TestFailedBatchesInRange(t *testing.T) {
 			t.Fatalf("row %+v, want kind and note carried through", row)
 		}
 	}
-	for _, id := range []int64{1, 2, 4, 5} {
+	for _, id := range []int64{1, 4, 5} {
 		if !gotIDs[id] {
 			t.Fatalf("batch %d missing from %+v (overlap rule: touches window)", id, gotIDs)
 		}
 	}
 	if gotIDs[3] {
 		t.Fatal("succeeded batch reported as failed")
+	}
+	if gotIDs[2] {
+		t.Fatal("skipped_short batch reported as a failure (it is a normal outcome)")
 	}
 	if gotIDs[6] {
 		t.Fatal("batch starting at window end reported as overlapping (left-closed, right-open)")

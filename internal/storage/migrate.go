@@ -328,6 +328,23 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 9,
+		name:    "analysis: batch attempt counter",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// attempts counts how often a batch has entered a failed state.
+			// RequeueFailed refuses to requeue a batch whose attempts have
+			// reached MaxBatchAttempts, so a deterministically failing batch
+			// (unreadable frame file, provider that always emits unresolvable
+			// clock strings) stops consuming LLM calls instead of retrying
+			// forever on the cooldown clock. Existing rows start at 0.
+			if _, err := tx.ExecContext(ctx,
+				`ALTER TABLE analysis_batches ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return wrap("add batch attempts column", err)
+			}
+			return nil
+		},
+	},
 }
 
 // seedBuiltInCategories inserts the two built-in categories. IDs are fixed

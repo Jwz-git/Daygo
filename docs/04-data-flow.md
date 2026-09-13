@@ -230,6 +230,10 @@ provider / 协议 / 请求与实际模型、起止时间、耗时、结果 / 错
 失败分类映射到面向用户的类别，写入 `analysis_batches.failure_kind`，并通过
 `batch:failed` 事件推给 UI。
 
+批失败后在 10 分钟冷却后重新入队，但**每批最多进入失败状态 `MaxBatchAttempts`（5）次**；
+达到上限后该批保持失败终态，不再消耗 LLM 调用。auth / invalid_request 类失败的
+`Retryable` 标记为 false：它们不会自行恢复，UI 应提示需要用户处理而非"将自动重试"。
+
 ### 4.3.4 提示词与输出解析
 
 - 提示词按协议分组，允许用户覆盖，默认值随代码发布。

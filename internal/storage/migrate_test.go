@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // userVersionOf reads PRAGMA user_version through a raw connection, so the test
@@ -567,5 +568,72 @@ func TestMigrateV7FixturePreservesDataAndCreatesAnalysisTables(t *testing.T) {
 	}
 	if segmentPath != "staging/frame-0011.jpg" {
 		t.Fatalf("segment_path = %q; the migration altered the screenshot", segmentPath)
+	}
+}
+
+func TestMigrateV8FixturePreservesDataAndAddsAttempts(t *testing.T) {
+	fixture := filepath.Join("testdata", "v8-analysis-tables.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	// The pre-existing failed batch survives with its failure info and starts
+	// at attempts = 0: the counter only counts failures from this build on.
+	var status, kind, note string
+	var attempts int
+	if err := store.db.QueryRowContext(context.Background(),
+		`SELECT status, failure_kind, failure_note, attempts FROM analysis_batches WHERE id = 7`).
+		Scan(&status, &kind, &note, &attempts); err != nil {
+		t.Fatalf("read batch after upgrade: %v", err)
+	}
+	if status != "failed" || kind != "network" || note != "fixture note" || attempts != 0 {
+		t.Fatalf("batch = (%q, %q, %q, %d), want (failed, network, fixture note, 0)", status, kind, note, attempts)
+	}
+
+	// Membership and observations survive untouched.
+	var members int
+	if err := store.db.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM batch_screenshots WHERE batch_id = 7`).Scan(&members); err != nil {
+		t.Fatalf("count batch_screenshots: %v", err)
+	}
+	if members != 2 {
+		t.Fatalf("batch members = %d, want 2", members)
+	}
+	var observation string
+	if err := store.db.QueryRowContext(context.Background(),
+		`SELECT observation FROM observations WHERE id = 3`).Scan(&observation); err != nil {
+		t.Fatalf("read observation: %v", err)
+	}
+	if observation != "fixture observation" {
+		t.Fatalf("observation = %q, the migration altered it", observation)
+	}
+
+	// A new failure through this build increments the counter.
+	now := time.Unix(1700000400, 0)
+	if err := store.Analysis().SetBatchStatus(context.Background(), 7, BatchPending, "", "", now); err != nil {
+		t.Fatalf("requeue batch: %v", err)
+	}
+	if err := store.Analysis().SetBatchStatus(context.Background(), 7, BatchProcessing, "", "", now); err != nil {
+		t.Fatalf("process batch: %v", err)
+	}
+	if err := store.Analysis().SetBatchStatus(context.Background(), 7, BatchFailed, "network", "", now); err != nil {
+		t.Fatalf("fail batch: %v", err)
+	}
+	if err := store.db.QueryRowContext(context.Background(),
+		`SELECT attempts FROM analysis_batches WHERE id = 7`).Scan(&attempts); err != nil {
+		t.Fatalf("read attempts after failure: %v", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts after one failure = %d, want 1", attempts)
 	}
 }

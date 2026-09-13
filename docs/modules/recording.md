@@ -27,6 +27,17 @@ OnStartup 在状态栏安装后调用 `maybeAutoStartRecording`，三重防呆�
 已知偏差：无「停止后不自启」记忆（每次启动都录，设置项后续切片）、G-host 未跑
 （退出即停，空窗由分析流水线 24h 未分批回看补齐）。production、隐私实机矩阵和长期观察
 未验收。
+**2026-09-13：录制鲁棒性与崩溃恢复修复已落盘**——
+① 崩溃恢复接线：启动时 `Captures().Reconcile` 在分析流水线之前运行，把已落盘但未提交的
+pending intent 提交进 `screenshots`、把文件缺失的 intent 丢弃（此前该方法无调用点，崩溃
+帧静默丢失）；`Reconcile` 的 recordings 根目录改为调用方显式传入，不再从 store 路径反推。
+② 暂停竞态泄漏修复：capture 过程中被暂停的帧现在 `Abandon` 其 pending 行（此前文件删除
+但行永久泄漏）。
+③ 单帧失败容错：截图失败（含占位帧写失败）不再终止录制循环——适配器失败时 Abandon
+intent，连续失败计数达到 3 次才放弃，成功即清零；初始 capture 同样容错。
+④ 空闲采样仍未接入：`idle_seconds_at_capture` 恒为 NULL，空闲判定因此永不命中——
+platform 端口缺 idle 查询能力，属待定设计，需要在 `System` 或 `Capture` 端口决策后
+（docs/09 §9.8）补一个 `docs/decisions/` 记录再实现。
 Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows` + `native/windows`），
 已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke，但仍**不在发布范围**；
 完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
@@ -92,6 +103,13 @@ recording 工程，身份协同 delivery；均须在相应大规模实现前决�
 恢复外壳。禁止以清空数据目录代替恢复。
 
 ## 验证记录
+
+2026-09-13：录制鲁棒性修复通过 Go 单元测试（`go test ./internal/recorder/
+./internal/storage/`）：`TestRecorderSurvivesTransientCaptureErrors` 验证单次瞬时失败后
+继续 capturing、连续失败达上限后回 idle；`TestRequeueFailedStopsAtAttemptLimit`、
+`TestInsertObservationsReplacesPriorSet`、`TestMigrateV8FixturePreservesDataAndAddsAttempts`
+覆盖 storage 侧。Reconcile 的崩溃恢复路径仅经单元夹具验证，未做真实 kill -9 长期观察；
+真实显示器切换 / 授权抖动下的失败-恢复矩阵未验收。
 
 2026-09-13：正式隐私名单接入原生应用身份解析。ABI 升到 2.0（`dg_application_info_v2` 增加
 `icon_png`、新增 `dg_application_lookup`、新增 `not_found`），Go 侧 `ApplicationInspector`

@@ -60,11 +60,16 @@ func parseClockString(clock string) (hour, minute int, err error) {
 	}
 
 	// Split a trailing meridiem, if any. Fields collapses runs of whitespace,
-	// so "10:21  AM" parses the same as "10:21 AM".
+	// so "10:21  AM" parses the same as "10:21 AM"; models also emit the
+	// glued form "10:21AM", so a single field with an AM/PM suffix is split
+	// off the time part before the colon parse.
 	meridiem := ""
 	if fields := strings.Fields(s); len(fields) == 2 {
 		s = fields[0]
-		meridiem = strings.ToUpper(strings.ReplaceAll(fields[1], ".", ""))
+		meridiem = normalizeMeridiem(fields[1])
+	} else if m, trimmed := splitGluedMeridiem(s); m != "" {
+		s = trimmed
+		meridiem = m
 	}
 
 	parts := strings.Split(s, ":")
@@ -102,4 +107,22 @@ func parseClockString(clock string) (hour, minute int, err error) {
 		return 0, 0, fmt.Errorf("parse clock %q: unknown meridiem %q", clock, meridiem)
 	}
 	return hour, minute, nil
+}
+
+// normalizeMeridiem uppercases a meridiem and strips periods ("a.m." → "AM").
+func normalizeMeridiem(s string) string {
+	return strings.ToUpper(strings.ReplaceAll(s, ".", ""))
+}
+
+// splitGluedMeridiem splits "10:21AM" into ("AM", "10:21"). The suffix must be
+// at least two characters ("AM"/"PM" with optional periods) glued to the time.
+func splitGluedMeridiem(s string) (meridiem, trimmed string) {
+	if len(s) < 4 {
+		return "", s
+	}
+	tail := normalizeMeridiem(s[len(s)-2:])
+	if tail != "AM" && tail != "PM" {
+		return "", s
+	}
+	return tail, s[:len(s)-2]
 }

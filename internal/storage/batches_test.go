@@ -236,6 +236,63 @@ func TestAdoptAndRequeue(t *testing.T) {
 	}
 }
 
+// A batch that has failed MaxBatchAttempts times is never requeued again: a
+// deterministic failure (missing frame file, unresolvable clock strings)
+// would otherwise re-run its LLM calls on every cooldown forever.
+func TestRequeueFailedStopsAtAttemptLimit(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	b, err := store.Analysis().CreateBatch(ctx, insertFrames(t, store, base, 2), BatchPending, base)
+	if err != nil {
+		t.Fatalf("CreateBatch: %v", err)
+	}
+	failOnce := func(at time.Time) {
+		t.Helper()
+		if err := store.Analysis().SetBatchStatus(ctx, b.ID, BatchProcessing, "", "", at); err != nil {
+			t.Fatalf("SetBatchStatus processing: %v", err)
+		}
+		if err := store.Analysis().SetBatchStatus(ctx, b.ID, BatchFailed, "network", "", at); err != nil {
+			t.Fatalf("SetBatchStatus failed: %v", err)
+		}
+	}
+
+	// Burn attempts up to the limit: each entry into failed increments
+	// attempts. After MaxBatchAttempts failures the requeue refuses, so the
+	// loop drives MaxBatchAttempts-1 full cycles and expects each requeue to
+	// still allow one more. The cooldown convention: the first argument is
+	// the instant before which a batch must have failed (updated_at <
+	// olderThan), so it must lie after this failure's timestamp.
+	for i := range MaxBatchAttempts - 1 {
+		at := base.Add(time.Duration(i) * time.Minute)
+		failOnce(at)
+		if n, _ := store.Analysis().RequeueFailed(ctx, at.Add(time.Minute), at.Add(time.Minute)); n != 1 {
+			t.Fatalf("requeue after attempt %d = %d, want 1 (below the limit)", i+1, n)
+		}
+	}
+
+	// The final failure reaches the limit: requeue refuses for good.
+	finalAt := base.Add(time.Duration(MaxBatchAttempts) * time.Minute)
+	failOnce(finalAt)
+	if n, _ := store.Analysis().RequeueFailed(ctx, finalAt.Add(time.Minute), finalAt.Add(time.Minute)); n != 0 {
+		t.Fatalf("requeue at the attempt limit = %d, want 0", n)
+	}
+
+	batch, err := store.Analysis().FramesForBatch(ctx, b.ID) // shape check only
+	if err != nil || len(batch) == 0 {
+		t.Fatalf("frames after exhaustion: %v %d", err, len(batch))
+	}
+	// The row itself is queryable and reports its attempts.
+	batches, err := store.Analysis().BatchesInRange(ctx, base.Add(-time.Hour), base.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("BatchesInRange: %v", err)
+	}
+	if len(batches) != 1 || batches[0].Attempts != MaxBatchAttempts {
+		t.Fatalf("batch attempts = %+v, want %d", batches, MaxBatchAttempts)
+	}
+}
+
 func mustPending(t *testing.T, store *Store) []Batch {
 	t.Helper()
 	batches, err := store.Analysis().PendingBatches(context.Background())
@@ -294,6 +351,44 @@ func TestObservationsRoundTrip(t *testing.T) {
 	}
 	if len(empty) != 0 {
 		t.Fatalf("observations in far range = %d, want 0", len(empty))
+	}
+}
+
+// InsertObservations replaces a batch's previous set instead of appending: a
+// requeued batch re-transcribes, and duplicated observations would double
+// every activity window in the card prompt's context.
+func TestInsertObservationsReplacesPriorSet(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	now := base.Add(time.Hour)
+
+	frames := insertFrames(t, store, base, 3)
+	batch, err := store.Analysis().CreateBatch(ctx, frames, BatchPending, now)
+	if err != nil {
+		t.Fatalf("CreateBatch: %v", err)
+	}
+
+	first := []Observation{
+		{Start: base, End: base.Add(time.Minute), Observation: "first attempt"},
+		{Start: base.Add(time.Minute), End: base.Add(2 * time.Minute), Observation: "stale context"},
+	}
+	if err := store.Analysis().InsertObservations(ctx, batch.ID, first, now); err != nil {
+		t.Fatalf("InsertObservations first: %v", err)
+	}
+	second := []Observation{
+		{Start: base, End: base.Add(2 * time.Minute), Observation: "retry transcription"},
+	}
+	if err := store.Analysis().InsertObservations(ctx, batch.ID, second, now); err != nil {
+		t.Fatalf("InsertObservations second: %v", err)
+	}
+
+	got, err := store.Analysis().ObservationsForBatch(ctx, batch.ID)
+	if err != nil {
+		t.Fatalf("ObservationsForBatch: %v", err)
+	}
+	if len(got) != 1 || got[0].Observation != "retry transcription" {
+		t.Fatalf("observations after re-insert = %+v, want only the retry set", got)
 	}
 }
 

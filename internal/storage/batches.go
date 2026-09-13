@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -35,6 +36,15 @@ var validTransitions = map[BatchStatus][]BatchStatus{
 	BatchSkippedShort: {},
 }
 
+// MaxBatchAttempts is the number of times a batch may enter a failed state
+// before RequeueFailed leaves it there for good. Without the cap, a batch that
+// fails deterministically (a frame file deleted underneath the pipeline, a
+// provider that always emits unresolvable clock strings) would requeue on the
+// cooldown clock forever, re-running the full transcription/card LLM calls
+// each time. Reached attempts is terminal until a future RetryBatches
+// binding resets it explicitly.
+const MaxBatchAttempts = 5
+
 // Batch is one analysis_batches row.
 type Batch struct {
 	ID          int64
@@ -42,6 +52,7 @@ type Batch struct {
 	Status      BatchStatus
 	FailureKind string
 	FailureNote string
+	Attempts    int
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -246,24 +257,20 @@ func (r *AnalysisRepo) SetBatchStatus(ctx context.Context, batchID int64, to Bat
 			}
 			return wrap("select batch status", err)
 		}
-		allowed := validTransitions[from]
-		ok := false
-		for _, candidate := range allowed {
-			if candidate == to {
-				ok = true
-				break
-			}
-		}
-		if !ok {
+		if !slices.Contains(validTransitions[from], to) {
 			return newError(KindConstraint, fmt.Sprintf("set batch status: %s -> %s is not a valid transition", from, to))
 		}
 		var failureKindArg, failureNoteArg any
+		attemptsBump := ""
 		if to == BatchFailed || to == BatchFailedEmpty {
 			failureKindArg, failureNoteArg = failureKind, failureNote
+			// Each entry into a failed state is one attempt against
+			// MaxBatchAttempts; requeueing resets nothing.
+			attemptsBump = ", attempts = attempts + 1"
 		}
 		res, err := tx.ExecContext(ctx, `
 			UPDATE analysis_batches
-			SET status = ?, failure_kind = ?, failure_note = ?, updated_at = ?
+			SET status = ?, failure_kind = ?, failure_note = ?, updated_at = ?`+attemptsBump+`
 			WHERE id = ?`,
 			to, failureKindArg, failureNoteArg, now.Unix(), batchID)
 		if err != nil {
@@ -290,13 +297,16 @@ func (r *AnalysisRepo) AdoptStaleProcessing(ctx context.Context, now time.Time) 
 }
 
 // RequeueFailed moves failed and failed_empty batches older than olderThan
-// back to pending. The cooldown is measured on updated_at, which every state
-// change refreshes — so the clock restarts on each failure.
+// back to pending, up to MaxBatchAttempts failures each. The cooldown is
+// measured on updated_at, which every state change refreshes — so the clock
+// restarts on each failure. A batch that has exhausted its attempts stays in
+// its failed terminal state; retrying it further would only repeat the same
+// LLM spend on the same deterministic error.
 func (r *AnalysisRepo) RequeueFailed(ctx context.Context, olderThan, now time.Time) (int, error) {
 	return r.requeue(ctx, "analysis requeue failed",
 		`UPDATE analysis_batches SET status = ?, updated_at = ?
-		 WHERE status IN (?, ?) AND updated_at < ?`,
-		[]any{BatchPending, now.Unix(), BatchFailed, BatchFailedEmpty, olderThan.Unix()})
+		 WHERE status IN (?, ?) AND updated_at < ? AND attempts < ?`,
+		[]any{BatchPending, now.Unix(), BatchFailed, BatchFailedEmpty, olderThan.Unix(), MaxBatchAttempts})
 }
 
 // Observation is one frame-transcription row.
@@ -309,6 +319,9 @@ type Observation struct {
 }
 
 // InsertObservations writes a batch's transcriptions in one transaction.
+// A retry of the same batch replaces its previous observations instead of
+// appending: observations feed the card prompt's context, so a duplicate set
+// would double-count activity windows on every requeue.
 func (r *AnalysisRepo) InsertObservations(ctx context.Context, batchID int64, obs []Observation, now time.Time) error {
 	if r == nil || r.store == nil {
 		return fmt.Errorf("analysis: store unavailable")
@@ -322,6 +335,10 @@ func (r *AnalysisRepo) InsertObservations(ctx context.Context, batchID int64, ob
 		}
 	}
 	return r.store.Write(ctx, "analysis insert observations", func(ctx context.Context, tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM observations WHERE batch_id = ?`, batchID); err != nil {
+			return wrap("clear prior observations", err)
+		}
 		for _, o := range obs {
 			var metadata any
 			if o.Metadata != "" {
@@ -411,7 +428,7 @@ func (r *AnalysisRepo) batchesByStatus(ctx context.Context, op string, status Ba
 	var out []Batch
 	err := r.store.Read(ctx, op, func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `
-			SELECT id, start_ts, end_ts, status, failure_kind, failure_note, created_at, updated_at
+			SELECT id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at
 			FROM analysis_batches WHERE status = ? ORDER BY start_ts`, status)
 		if err != nil {
 			return wrap("select batches", err)
@@ -439,7 +456,7 @@ func (r *AnalysisRepo) batchesInRange(ctx context.Context, op, where string, arg
 	var out []Batch
 	err := r.store.Read(ctx, op, func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
-			`SELECT id, start_ts, end_ts, status, failure_kind, failure_note, created_at, updated_at
+			`SELECT id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at
 			 FROM analysis_batches `+where, args...)
 		if err != nil {
 			return wrap("select batches in range", err)
@@ -511,7 +528,7 @@ func scanBatch(row scanner) (Batch, error) {
 	var b Batch
 	var start, end, created, updated int64
 	var failureKind, failureNote sql.NullString
-	if err := row.Scan(&b.ID, &start, &end, &b.Status, &failureKind, &failureNote, &created, &updated); err != nil {
+	if err := row.Scan(&b.ID, &start, &end, &b.Status, &failureKind, &failureNote, &b.Attempts, &created, &updated); err != nil {
 		return b, wrap("scan batch", err)
 	}
 	b.Start = time.Unix(start, 0)

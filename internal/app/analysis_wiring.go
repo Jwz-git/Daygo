@@ -33,6 +33,18 @@ func (s stagingFrameSource) FrameBytes(_ context.Context, segmentPath string, fr
 	return os.ReadFile(filepath.Join(s.root, filepath.FromSlash(segmentPath)))
 }
 
+// retryableFailureKind reports whether a failed batch is worth retrying. An
+// exhausted attempt count means the cooldown/requeue loop already gave up;
+// auth failures do not heal on their own (the user must fix the key), so the
+// UI should say "needs attention" rather than "will retry".
+func retryableFailureKind(kind string, attempts int) bool {
+	switch kind {
+	case "auth", "invalid_request":
+		return false
+	}
+	return attempts < storage.MaxBatchAttempts
+}
+
 // analysisChainSource builds the provider chain from the routing setting and
 // the keychain, mirroring chat's rebuildChain wiring: factory client →
 // attempt observer (llm_calls audit) → retry, wrapped in an ai.Chain.
@@ -104,6 +116,10 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 		Providers:  analysisChainSource{backend: b},
 		Media:      stagingFrameSource{root: recordingsRoot},
 		Language:   analysisLanguage(b),
+		// The service's zone must be the storage layer's zone: it prefilters
+		// card windows here while ReplaceCardsInRange derives start_ts/end_ts
+		// and day with store.location(). Two zones would split one decision.
+		Location: store.Location(),
 		OnCardsCommitted: func(days []string) {
 			for _, day := range days {
 				b.emitTimelineInvalidation(day)
@@ -116,7 +132,7 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 				EndTs:     batch.End.Unix(),
 				Kind:      kind,
 				Message:   note,
-				Retryable: true,
+				Retryable: retryableFailureKind(kind, batch.Attempts),
 			})
 		},
 	})

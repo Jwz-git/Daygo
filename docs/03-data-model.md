@@ -106,6 +106,7 @@ CREATE TABLE analysis_batches (
   status        TEXT    NOT NULL,   -- 见下方枚举
   failure_kind  TEXT,               -- 失败时的面向用户分类
   failure_note  TEXT,               -- 已脱敏
+  attempts      INTEGER NOT NULL DEFAULT 0,  -- 进入失败状态的次数（v9）
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL
 );
@@ -160,11 +161,14 @@ CREATE INDEX idx_llm_calls_batch ON llm_calls (batch_id, purpose, attempt_no);
 | `pending` | 已创建，等待处理 |
 | `processing` | 正在处理（进程异常退出后由下次启动重新拾取） |
 | `succeeded` | 成功终态 |
-| `failed` | 失败，可重试 |
+| `failed` | 失败，冷却后可重试，`attempts` 达到上限后不再入队 |
 | `failed_empty` | provider 返回空结果 |
-| `skipped_short` | 跨度不足最小分析时长，不送 LLM |
+| `skipped_short` | 跨度不足最小分析时长，不送 LLM；正常终态，不进失败面板 |
 
 **只有一个成功终态。** 不设置语义重复的第二个成功值。
+`attempts` 在每次进入 `failed` / `failed_empty` 时自增；达到 `MaxBatchAttempts`（5）后
+`RequeueFailed` 拒绝重新入队——确定性失败（帧文件丢失、时钟串不可解析）不应在冷却时钟上
+无限重复消耗 LLM 调用。重置该计数需要未来的 `RetryBatches` 绑定显式执行。
 
 ### 3.3.2 时间线
 
@@ -411,6 +415,10 @@ day     = 由 startTs 按凌晨 4 点边界得出
 3. **`day` 用凌晨 4 点边界算**，不是日历日期。
 4. 全过程依赖宿主时区，必须在 DST 切换和非整点偏移时区中验证——这是基于属性的测试的
    首要候选（[08 §8.3](08-testing-strategy.md#83-行为测试)）。
+
+接受的时钟串形态：契约格式 `"h:mm a"`（`"10:21 AM"`，大小写不敏感、句点可选）、无空格的
+粘着形式（`"10:21AM"` / `"10:21pm"`——模型常见的偏差，拒绝它会让整批卡永久失败）、以及
+裸 24 小时制 `"H:mm"`。其他形态是解析错误，调用方必须当作 skipped card 上报，不得静默丢弃。
 
 改写窗口的重叠谓词：
 

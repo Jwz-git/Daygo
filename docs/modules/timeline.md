@@ -33,6 +33,18 @@ Go 单元覆盖：分批 / 空闲逐边界、六条流水线路径（正常 / �
 provisional）；卡片阶段全局互斥（比按重叠范围粗）；`wails dev` 真机端到端未运行。
 失败批次重试（`RetryBatches`）、整日重处理（`ReprocessDay`）与视频 URL 仍无 Go 方法
 （依赖媒体切片），前端按方法探测自动禁用对应入口。
+**2026-09-13：卡片生成缺陷修复批次已落盘**——空闲判定所需的 idle 采样仍未接入端口
+（platform 缺能力，见 recording 执行册）；本批修复：时钟串接受无空格粘着形式
+（`10:21AM`，否则整批卡永久失败）、批失败尝试上限（`analysis_batches.attempts` v9 +
+夹具，达 5 次后不再重排，杜绝确定性失败的无限 LLM 消耗）、observations 重写幂等
+（重试批次替换旧集合而非追加）、idle 卡提交纳入与 LLM 路径相同的互斥区、
+analysis 服务时区统一为 store 的 `Location()`（消除了三处 `time.Local` 与存储层注入
+时区的分叉）、失败 note 截断不再切断多字节 rune、转录阶段 apps 元数据回放进卡片
+prompt、失败面板排除 `skipped_short` 且 `Retryable` 按 failure kind / attempts 分类
+（auth / invalid_request 为 false）。夹具：v8 迁移保数据、尝试上限逐周期、粘着时钟
+流水线路径、UTF-8 截断、apps 解析。跨 4AM 边界卡片在日视图与聚合中的口径冲突
+（双计 / 隐形时段）与用户编辑被相邻批次回滚两项**仍未修**，需先对 docs/03 §3.5 明确
+语义归属再动 SQL。
 [timeutil](../../internal/timeutil/timeutil.go)、[日期绑定](../../internal/app/backend.go)
 和 [时间线前端切片](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
 **2026-09-12：cards 存储切片已落盘**——迁移 v2（`analysis_batches` / `timeline_cards` /
@@ -99,6 +111,13 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 事务改写失败不提交，不以删除卡片重建的方式回退。schema 回退遵循 data 的备份恢复策略。
 
 ## 验证记录
+
+2026-09-13：卡片生成缺陷修复批次通过 Go 单元测试（`go test ./internal/analysis/
+./internal/storage/ ./internal/timeutil/`）。夹具覆盖：`10:21AM` 粘着时钟整批路径
+（否则模型偏差导致永久失败循环）、批次尝试上限逐周期拒绝（配合 v8 → v9 迁移夹具
+证明旧库保数据且 attempts 从 0 起）、observations 重写幂等、UTF-8 截断不切断多字节
+rune、apps 元数据解析。失败面板排除 skipped_short 的语义变更已同步
+`TestFailedBatchesInRange` 期望（显式决定：skipped_short 是正常终态）。
 
 2026-09-12：cards 存储切片通过 Go 单元测试（`go test ./internal/storage/
 ./internal/timeutil/`）与 `CGO_ENABLED=0` 的 macOS / Linux / Windows 构建。夹具覆盖：

@@ -64,20 +64,22 @@ type FailedBatch struct {
 	Status      string
 	FailureKind string
 	FailureNote string
+	Attempts    int
 }
 
 // FailedBatchesInRange returns failed batches overlapping [from, to). The
-// statuses are the non-success terminal states of the batch state machine
-// (docs/03 §3.3.1); pending and processing batches are reported separately as
-// processing ranges by the pipeline slice, not here.
+// statuses are the failed terminal states of the batch state machine
+// (docs/03 §3.3.1) — pending and processing batches are reported separately
+// as processing ranges by the pipeline slice, not here. skipped_short is a
+// normal outcome, not a failure, so it does not appear in the failure panel.
 func (r *CardRepo) FailedBatchesInRange(ctx context.Context, from, to time.Time) ([]FailedBatch, error) {
 	var out []FailedBatch
 	err := r.store.Read(ctx, "failed batches in range", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `
 			SELECT id, start_ts, end_ts, status,
-			       COALESCE(failure_kind, ''), COALESCE(failure_note, '')
+			       COALESCE(failure_kind, ''), COALESCE(failure_note, ''), attempts
 			FROM analysis_batches
-			WHERE status IN ('failed', 'failed_empty', 'skipped_short')
+			WHERE status IN ('failed', 'failed_empty')
 			  AND start_ts < ? AND end_ts > ?
 			ORDER BY start_ts`,
 			to.Unix(), from.Unix())
@@ -87,7 +89,7 @@ func (r *CardRepo) FailedBatchesInRange(ctx context.Context, from, to time.Time)
 		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var row FailedBatch
-			if err := rows.Scan(&row.ID, &row.StartTs, &row.EndTs, &row.Status, &row.FailureKind, &row.FailureNote); err != nil {
+			if err := rows.Scan(&row.ID, &row.StartTs, &row.EndTs, &row.Status, &row.FailureKind, &row.FailureNote, &row.Attempts); err != nil {
 				return err
 			}
 			out = append(out, row)

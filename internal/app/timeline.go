@@ -7,6 +7,7 @@ import (
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/domain"
+	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
@@ -53,9 +54,22 @@ func categoryFlagsFrom(list []domain.Category) categoryFlags {
 	return flags
 }
 
+// retryableFailure reports whether a failed batch is worth retrying, for the
+// day view's failure panel. Mirrors the batch:failed event's classification
+// (retryableFailureKind in analysis_wiring.go).
+func retryableFailure(kind string, attempts int) bool {
+	switch kind {
+	case "auth", "invalid_request":
+		return false
+	}
+	return attempts < storage.MaxBatchAttempts
+}
+
 // mergeFailures groups failed batches whose windows are adjacent within the
 // 60-second tolerance (docs/05 §5.5.2 TimelineFailureDTO), so a burst of small
-// batch failures renders as one panel entry with all their ids.
+// batch failures renders as one panel entry with all their ids. A group carries
+// the retryable flag of its first batch; merged entries are adjacent in time
+// and produced by the same failure event, so the flags agree in practice.
 func mergeFailures(batches []failedBatchView) []TimelineFailureDTO {
 	if len(batches) == 0 {
 		// The wire contract declares failures as an array. A nil slice encodes
@@ -69,7 +83,7 @@ func mergeFailures(batches []failedBatchView) []TimelineFailureDTO {
 		EndTs:     batches[0].EndTs,
 		Kind:      batches[0].FailureKind,
 		Message:   batches[0].FailureNote,
-		Retryable: true,
+		Retryable: retryableFailure(batches[0].FailureKind, batches[0].Attempts),
 	}
 	for _, b := range batches[1:] {
 		if b.StartTs-current.EndTs <= 60 {
@@ -86,7 +100,7 @@ func mergeFailures(batches []failedBatchView) []TimelineFailureDTO {
 			EndTs:     b.EndTs,
 			Kind:      b.FailureKind,
 			Message:   b.FailureNote,
-			Retryable: true,
+			Retryable: retryableFailure(b.FailureKind, b.Attempts),
 		}
 	}
 	return append(groups, current)
@@ -100,6 +114,7 @@ type failedBatchView struct {
 	Status      string
 	FailureKind string
 	FailureNote string
+	Attempts    int
 }
 
 // emitTimelineInvalidation schedules a merged timeline:updated emit for day.
