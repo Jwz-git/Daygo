@@ -148,8 +148,6 @@ function duration(minutes: number): string {
 .workflow-scroll {
   padding: 19px 20px 15px;
   overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--dg-hover-fill-strong) transparent;
 }
 
 .workflow-grid {
@@ -248,10 +246,8 @@ function duration(minutes: number): string {
   border-top: 1px solid var(--dg-card-border);
   background: var(--dg-daily-footer-fill);
   white-space: nowrap;
-  scrollbar-width: none;
 }
 
-.workflow-totals::-webkit-scrollbar { display: none; }
 .workflow-totals__title { color: var(--dg-text-muted); font-size: 11px; }
 
 .workflow-total {

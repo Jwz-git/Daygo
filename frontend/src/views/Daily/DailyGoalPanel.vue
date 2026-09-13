@@ -130,6 +130,7 @@ function submit(): void {
           <span>{{ t('daily.goal.focusTarget') }}</span>
           <input
             v-model.number="draft.focusTargetMinutes"
+            class="dg-input"
             type="number"
             min="0"
             step="15"
@@ -139,6 +140,7 @@ function submit(): void {
           <span>{{ t('daily.goal.distractionLimit') }}</span>
           <input
             v-model.number="draft.distractionLimitMinutes"
+            class="dg-input"
             type="number"
             min="0"
             step="15"
@@ -147,6 +149,7 @@ function submit(): void {
         <label class="goal-skip">
           <input
             v-model="draft.isSkipped"
+            class="dg-checkbox"
             type="checkbox"
           >
           <span>{{ t('daily.goal.skipped') }}</span>
@@ -228,23 +231,6 @@ function submit(): void {
   color: var(--dg-text-secondary);
   font-size: 11px;
   font-weight: 600;
-}
-
-.goal-number input {
-  width: 100%;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 8px;
-  background: var(--dg-input-fill);
-  color: var(--dg-text-primary);
-  font: inherit;
-  font-size: 12px;
-  padding: 8px 10px;
-}
-
-.goal-number input:focus-visible {
-  outline: none;
-  border-color: var(--dg-accent, var(--dg-focus-ring));
-  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .goal-skip { display: flex; align-items: center; gap: 7px; padding-bottom: 8px; }

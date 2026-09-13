@@ -164,7 +164,7 @@ onBeforeUnmount(() => {
         <input v-model.number="jpegQuality" class="dg-input" type="number" min="1" max="100">
       </label>
     </div>
-    <label class="check"><input v-model="showsCursor" type="checkbox"><span>{{ t('captureTest.showsCursor') }}</span></label>
+    <label class="check"><input v-model="showsCursor" class="dg-checkbox" type="checkbox"><span>{{ t('captureTest.showsCursor') }}</span></label>
     <div class="field">
       <span class="dg-field-label">{{ t('captureTest.blockedApplicationIds') }}</span>
       <textarea v-model="blockedApplicationIdsText" class="dg-input textarea" rows="3" :placeholder="t('captureTest.blockedPlaceholder')" />

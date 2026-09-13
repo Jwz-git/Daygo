@@ -300,10 +300,7 @@ onBeforeUnmount(() => { timeline.stopListening() })
   min-height: 43px;
   padding: 0 var(--dg-page-padding) 13px;
   overflow-x: auto;
-  scrollbar-width: none;
 }
-
-.filter-bar::-webkit-scrollbar { display: none; }
 
 .filter-chip,
 .filter-manage {

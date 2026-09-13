@@ -100,6 +100,7 @@ function onLimitChange(event: Event): void {
     <div class="limit">
       <label class="limit__unlimited">
         <input
+          class="dg-checkbox"
           type="checkbox"
           :checked="unlimited"
           :disabled="state !== 'ready'"

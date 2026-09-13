@@ -79,6 +79,18 @@
      background image cannot read currentColor), so it is redefined per theme. */
   --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%237d7a84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
+  /* switch (→ SwitchControl). Solid on purpose: a control this small must
+     render predictably over glass, not sample it. */
+  --dg-switch-track: #c6c3cb;
+  --dg-switch-track-hover: #b9b6be;
+  --dg-switch-knob: #ffffff;
+  --dg-switch-knob-shadow: 0 1px 2px rgba(28, 34, 45, 0.3), 0 0 0 0.5px rgba(28, 34, 45, 0.07);
+
+  /* Checkmark drawn inside a checked .dg-checkbox. Like the select chevron,
+     the colour is baked into the SVG; white reads on the accent in both
+     appearances, so no dark override is needed. */
+  --dg-checkbox-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='9' viewBox='0 0 9 9' fill='none'%3E%3Cpath d='M1.4 4.7 3.6 6.9 7.7 2.5' stroke='%23ffffff' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
   /* chips (→ chipFill / chipBorder / chipText) */
   --dg-chip-fill: rgba(255, 255, 255, 0.62);
   --dg-chip-border: rgba(74, 67, 79, 0.14);

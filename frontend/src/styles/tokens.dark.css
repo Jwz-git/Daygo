@@ -64,6 +64,12 @@
   --dg-input-border: rgba(255, 255, 255, 0.13);
   --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%23a7a3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
+  /* switch; the white knob and its checkmark sibling token are
+     appearance-independent and stay in tokens.light.css */
+  --dg-switch-track: #413f47;
+  --dg-switch-track-hover: #4a4852;
+  --dg-switch-knob-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+
   --dg-chip-fill: rgba(255, 255, 255, 0.075);
   --dg-chip-border: rgba(255, 255, 255, 0.13);
   --dg-chip-text: #ebe8ef;

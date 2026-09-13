@@ -92,25 +92,24 @@ body {
   box-shadow: var(--dg-card-shadow);
 }
 
+/*
+ * Scrollbars are hidden shell-wide: wheel, trackpad and keyboard remain the
+ * scroll affordances, and the chrome stays clean. Both mechanisms are set —
+ * the standard property does not inherit, so it needs the universal
+ * selector, and a visible value would make engines ignore the webkit rule.
+ */
+* {
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
 /* Scroll containers inside the panel; the page itself never scrolls. */
 .dg-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: var(--dg-hover-fill-strong) transparent;
-}
-
-.dg-scroll::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
-}
-
-.dg-scroll::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background: var(--dg-hover-fill-strong);
-  background-clip: padding-box;
 }
 
 /*
@@ -174,6 +173,71 @@ select.dg-input {
   background-repeat: no-repeat;
   background-position: right 11px center;
   background-size: 12px 12px;
+}
+
+/*
+ * Number fields drop the native steppers: the Aqua arrows clash with the
+ * custom surface, and the value stays editable by typing or arrow keys.
+ */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/*
+ * Custom checkbox, same surface language as .dg-input. The checkmark is a
+ * background SVG carried by a token, mirroring the select chevron above.
+ */
+.dg-checkbox {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--dg-input-border);
+  border-radius: 4px;
+  background-color: var(--dg-input-fill);
+  cursor: pointer;
+  transition:
+    background-color var(--dg-motion-fast) ease,
+    border-color var(--dg-motion-fast) ease;
+}
+
+.dg-checkbox:hover {
+  background-color: var(--dg-input-fill-hover);
+  border-color: var(--dg-chip-border);
+}
+
+.dg-checkbox:checked {
+  border-color: transparent;
+  background-color: var(--dg-accent);
+  background-image: var(--dg-checkbox-glyph);
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.dg-checkbox:checked:hover {
+  background-color: var(--dg-accent-strong);
+}
+
+.dg-checkbox:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.dg-checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+@media (forced-colors: active) {
+  .dg-checkbox {
+    -webkit-appearance: auto;
+    appearance: auto;
+    border: none;
+    background: none;
+  }
 }
 
 .dg-button {
@@ -261,6 +325,7 @@ select.dg-input {
 
 @media (prefers-reduced-motion: reduce) {
   .dg-button,
+  .dg-checkbox,
   .dg-chip,
   .dg-input {
     transition: none;

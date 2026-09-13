@@ -206,7 +206,6 @@ watch(() => props.context.day, () => void revealRelevantTime())
   padding-top: 7px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
 .timeline-track__canvas {
