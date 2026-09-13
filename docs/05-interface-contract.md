@@ -1436,6 +1436,7 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 | `ListChatConversations() ([]ChatConversationDTO, error)` | 读 | — | `database_error` |
 | `CreateChatConversation() (ChatConversationDTO, error)` | 写 | — | `database_error` |
 | `DeleteChatConversation(id string) error` | 写·幂等 | `chat:updated` | `not_found` |
+| `RenameChatConversation(id string, title string) error` | 写（标题去除首尾空白后不能为空） | `chat:updated` | `invalid_argument` `not_found` |
 | `SetChatConversationProvider(id string, providerID string) error` | 写（providerID 空串 = 清除选择；再次发送前必须重新选择；换 pin 会重置会话的模型覆盖） | `chat:updated` | `invalid_argument`（未知 provider）`not_found` |
 | `SetChatConversationModel(id string, model string) error` | 写（model 空串 = 跟随 provider 配置的模型；非空即覆盖，上限 256 字节） | `chat:updated` | `invalid_argument`（无 provider、超长）`not_found` |
 

@@ -133,6 +133,28 @@ func (b *Backend) DeleteChatConversation(id string) error {
 	return nil
 }
 
+// RenameChatConversation changes the user-visible title of one thread.
+func (b *Backend) RenameChatConversation(id string, title string) error {
+	service, err := b.chatService()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(id) == "" {
+		return apperr.E(apperr.InvalidArgument, "conversation id is required", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), chatTimeout)
+	defer cancel()
+
+	if err := service.RenameConversation(ctx, id, title); err != nil {
+		if strings.Contains(err.Error(), "title is required") {
+			return apperr.E(apperr.InvalidArgument, "conversation title is required", nil)
+		}
+		return mapStorageError("rename conversation", err)
+	}
+	b.emitter.Emit(EventChatUpdated, ChatUpdatedPayload{ConversationID: id})
+	return nil
+}
+
 // SetChatConversationProvider pins a thread to one provider; "" clears the
 // selection. Changing the pin resets the thread's model override.
 func (b *Backend) SetChatConversationProvider(id string, providerID string) error {
@@ -301,6 +323,10 @@ func (a storeChatAdapter) GetConversation(ctx context.Context, id string) (chat.
 
 func (a storeChatAdapter) DeleteConversation(ctx context.Context, id string) error {
 	return a.repo.DeleteConversation(ctx, id)
+}
+
+func (a storeChatAdapter) RenameConversation(ctx context.Context, id string, title string) error {
+	return a.repo.RenameConversation(ctx, id, title)
 }
 
 func (a storeChatAdapter) UpdateConversation(ctx context.Context, id string, title string, providerID *string, model string) error {

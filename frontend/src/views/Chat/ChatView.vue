@@ -28,6 +28,7 @@ onMounted(() => {
 
 type SidebarView = 'conversations' | 'memory'
 const sidebarView = ref<SidebarView>('conversations')
+const sidebarVisible = ref(true)
 
 // ---- conversation list ----
 
@@ -492,9 +493,20 @@ function onModelChange(model: string): void {
         </p>
       </section>
 
+      <button
+        v-if="!sidebarVisible"
+        type="button"
+        class="side__toggle side__toggle--show"
+        :aria-label="t('chat.showSidebar')"
+        @click="sidebarVisible = true"
+      >
+        ‹
+      </button>
+
       <!-- Conversation navigation -->
-      <aside class="side">
-        <nav class="side__tabs" :aria-label="t('chat.title')">
+      <aside v-else class="side">
+        <div class="side__header">
+          <nav class="side__tabs" :aria-label="t('chat.title')">
           <button
             type="button"
             class="side__tab"
@@ -511,7 +523,16 @@ function onModelChange(model: string): void {
           >
             {{ t('chat.memory.title') }}
           </button>
-        </nav>
+          </nav>
+          <button
+            type="button"
+            class="side__toggle"
+            :aria-label="t('chat.hideSidebar')"
+            @click="sidebarVisible = false"
+          >
+            ›
+          </button>
+        </div>
 
         <!-- Conversations view -->
         <div v-if="sidebarView === 'conversations'" class="side__pane">
@@ -655,20 +676,53 @@ function onModelChange(model: string): void {
   padding: 0 var(--dg-page-padding) var(--dg-page-padding);
 }
 
-/* ---- conversation navigation (left) ---- */
+/* ---- conversation navigation (right) ---- */
 
 .side {
   display: flex;
   flex-direction: column;
-  order: -1;
   flex: none;
   width: 260px;
   min-width: 0;
 }
 
+.side__header {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.side__toggle {
+  flex: none;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid var(--dg-chip-border);
+  border-radius: 8px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.side__toggle:hover {
+  background: var(--dg-control-fill);
+  color: var(--dg-text-primary);
+}
+
+.side__toggle:focus-visible {
+  outline: 2px solid var(--dg-accent-text);
+  outline-offset: 2px;
+}
+
+.side__toggle--show {
+  align-self: flex-start;
+}
+
 .side__tabs {
   display: flex;
-  flex: none;
+  flex: 1;
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--dg-chip-border);
@@ -778,8 +832,8 @@ function onModelChange(model: string): void {
 
 .side__confirm {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
   gap: 4px;
   padding: 6px 8px;
 }

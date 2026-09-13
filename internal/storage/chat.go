@@ -140,6 +140,20 @@ func (r *ChatRepo) DeleteConversation(ctx context.Context, id string) error {
 	})
 }
 
+// RenameConversation updates only the user-visible title and modification time.
+func (r *ChatRepo) RenameConversation(ctx context.Context, id string, title string) error {
+	at := r.store.now()
+	return r.store.Write(ctx, "chat rename conversation", func(ctx context.Context, tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx,
+			`UPDATE chat_conversations SET title = ?, updated_at = ? WHERE id = ?`,
+			title, at.Unix(), id)
+		if err != nil {
+			return err
+		}
+		return requireUpdated(result, "chat rename conversation")
+	})
+}
+
 // UpdateConversation sets the title, provider, and model override of one
 // conversation and bumps updated_at. Deleting a provider prunes it from
 // conversations by calling this with a nil ProviderID.
