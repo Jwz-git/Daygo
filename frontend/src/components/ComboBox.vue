@@ -204,12 +204,16 @@ function onInputBlur(): void {
   max-height: 240px;
   margin: 0;
   padding: 4px;
-  border: 1px solid var(--dg-chip-border);
+  border: 1px solid var(--dg-panel-border);
   border-radius: 8px;
-  background: var(--dg-card-fill);
+  background: var(--dg-popover-fill);
   list-style: none;
   overflow-y: auto;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+  box-shadow: var(--dg-popover-shadow);
+  /* Dense glass, as the recording popover: the fill stays nearly opaque so the
+     options survive arbitrary content behind it; the blur is depth only. */
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
 }
 
 .combo__empty {

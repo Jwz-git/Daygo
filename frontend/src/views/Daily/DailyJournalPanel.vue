@@ -152,7 +152,7 @@ function submit(): void {
   resize: vertical;
   border: 1px solid var(--dg-chip-border);
   border-radius: 8px;
-  background: var(--dg-surface);
+  background: var(--dg-input-fill);
   color: var(--dg-text-primary);
   font: inherit;
   font-size: 12px;

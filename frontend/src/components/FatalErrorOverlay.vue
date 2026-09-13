@@ -72,6 +72,7 @@ async function copyDetails(): Promise<void> {
   place-items: center;
   padding: 24px;
   background: color-mix(in srgb, var(--dg-window-bg) 78%, transparent);
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
 

@@ -357,9 +357,20 @@ onBeforeUnmount(() => { timeline.stopListening() })
     bottom: 12px;
     display: block;
     width: min(var(--dg-inspector-width), calc(100% - 24px));
-    background: var(--dg-panel-fill);
-    box-shadow: var(--dg-panel-shadow);
-    backdrop-filter: blur(24px) saturate(110%);
+    border: 1px solid var(--dg-panel-border);
+    border-radius: var(--dg-panel-radius);
+    background: var(--dg-glass-fallback);
+    box-shadow: var(--dg-glass-shadow);
+  }
+
+  /* Mirrors the .dg-panel glass in base.css; kept local because the class
+     itself cannot be conditional on this breakpoint. */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .timeline-body__inspector.has-selection {
+      background: var(--dg-glass-tint);
+      -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+      backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+    }
   }
 }
 
