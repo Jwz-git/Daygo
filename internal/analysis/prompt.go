@@ -25,6 +25,7 @@ func transcribePrompt(group []storage.AnalysisFrame, language string) string {
 	}
 	b.WriteString("\nWrite plain, factual one-to-two-sentence observations. List the applications or ")
 	b.WriteString("web sites visible. Do not speculate about content you cannot read.\n")
+	b.WriteString("Return only a json object matching the requested schema; do not include markdown.\n")
 	if language != "" {
 		fmt.Fprintf(&b, "Write observations in %s.\n", language)
 	}
@@ -103,6 +104,7 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	b.WriteString("include the merged card's earlier points too, in chronological order.\n")
 	b.WriteString("- subcategory, detailed_summary, appSites and distractions may be empty; never omit keys.\n")
 	b.WriteString("- distractions lists applications or sites that look unrelated to the main activity.\n")
+	b.WriteString("- Return only a json object matching the requested schema; do not include markdown.\n")
 	if language != "" {
 		fmt.Fprintf(&b, "- Write title, summary, detailed_summary and activityPoint descriptions in %s.\n", language)
 	}

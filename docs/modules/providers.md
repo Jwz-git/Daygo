@@ -112,3 +112,7 @@ typecheck / build 通过，夹具为内存生成的匿名 PNG。真实 provider 
 2026-09-12：识别增强改为四分片 + 原图一起发送（原图走调用方 part 原样透传，不进临时
 清零集合）；测试改为断言 6 part（文本 + 4 分片 + 原图）且调用返回后原图未被清零。
 真实 provider 请求仍未运行。
+2026-09-13：分析服务在进入转录阶段前将 `batch_id` 写入 attempt context，使转录与卡片
+生成两阶段的 `llm_calls` 都能关联所属批次；此前卡片失败重试记录的 `batch_id` 为空。
+`gofmt`、`go test ./internal/analysis/... ./internal/app/... ./internal/ai/...` 与对应 `go vet`
+通过；真实 DeepSeek 请求仍未因密钥安全边界写入日志或夹具。

@@ -233,9 +233,13 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	if err != nil {
 		return err
 	}
+	// All provider calls in this batch, including the text-only card stage,
+	// carry the batch id so attempt diagnostics can identify the failing stage.
+	batchID := batch.ID
+	ctx = ai.WithAttemptMetadata(ctx, ai.AttemptMetadata{BatchID: &batchID})
 
 	// Transcription: consecutive groups of at most ai.MaxImages frames.
-	observations, err := s.transcribe(ctx, chain, batch, frames)
+	observations, err := s.transcribe(ctx, chain, frames)
 	if err != nil {
 		return err
 	}
@@ -323,8 +327,9 @@ func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error
 }
 
 // transcribe groups frames and runs the transcription stage with bounded
-// parallelism. Attempt metadata ties llm_calls rows to the batch.
-func (s *Service) transcribe(ctx context.Context, chain *ai.Chain, batch storage.Batch,
+// parallelism. The context already carries the batch id from processBatch,
+// which also covers the later card-generation call.
+func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 	frames []storage.AnalysisFrame) ([]storage.Observation, error) {
 
 	groups := groupFrames(frames)
@@ -335,8 +340,6 @@ func (s *Service) transcribe(ctx context.Context, chain *ai.Chain, batch storage
 	results := make([]outcome, len(groups))
 	sem := make(chan struct{}, s.cfg.Workers)
 	var wg sync.WaitGroup
-	batchID := batch.ID
-	ctx = ai.WithAttemptMetadata(ctx, ai.AttemptMetadata{BatchID: &batchID})
 
 	for i, group := range groups {
 		wg.Add(1)
