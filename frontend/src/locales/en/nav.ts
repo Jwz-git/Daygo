@@ -5,5 +5,5 @@ export default {
   chat: 'Chat',
   weekly: 'Weekly',
   settings: 'Settings',
-  captureTest: 'Capture test',
+  test: 'Test',
 }

@@ -21,7 +21,8 @@
     "language": "zh-CN"
   },
   "system": {
-    "agentEditsEnabled": false
+    "agentEditsEnabled": false,
+    "testToolsEnabled": false
   },
   "chat": {
     "memory": ""

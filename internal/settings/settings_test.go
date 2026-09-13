@@ -91,6 +91,7 @@ func TestLoadDefaultsOnEmptyDatabase(t *testing.T) {
 		LaunchAtLogin:          DefaultLaunchAtLogin,
 		ShowDockIcon:           DefaultShowDockIcon,
 		AgentEditsEnabled:      DefaultAgentEditsEnabled,
+		TestToolsEnabled:       DefaultTestToolsEnabled,
 		AnalyticsOptIn:         DefaultAnalyticsOptIn,
 		CrashReportingOptIn:    DefaultCrashReportingOptIn,
 		ProvidersRouting:       Routing{Chain: []string{}},
@@ -375,6 +376,40 @@ func TestRecognitionEnhancementIsIndependentAndPersistent(t *testing.T) {
 	}
 	if !reloaded.RecognitionEnhancement {
 		t.Fatal("recognition enhancement was not read back")
+	}
+}
+
+// TestToolsEnabled persists and survives a reload; a patch that omits it
+// leaves the stored value alone.
+func TestTestToolsEnabledIsPersistent(t *testing.T) {
+	repo := newFakeRepo()
+	s := New(repo)
+
+	snapshot, changed, err := s.Apply(context.Background(), Patch{TestToolsEnabled: ptr(true)})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if !snapshot.TestToolsEnabled {
+		t.Fatal("test tools remained disabled")
+	}
+	if len(changed) != 1 || changed[0] != KeySystemTestToolsEnabled {
+		t.Fatalf("changed = %v, want the test tools key", changed)
+	}
+
+	reloaded, err := New(repo).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !reloaded.TestToolsEnabled {
+		t.Fatal("test tools was not read back")
+	}
+
+	after, _, err := s.Apply(context.Background(), Patch{})
+	if err != nil {
+		t.Fatalf("empty patch: %v", err)
+	}
+	if !after.TestToolsEnabled {
+		t.Fatal("an empty patch reset test tools")
 	}
 }
 

@@ -56,6 +56,9 @@ type SystemSettingsDTO struct {
 	LaunchAtLogin     bool `json:"launchAtLogin"`
 	ShowDockIcon      bool `json:"showDockIcon"`
 	AgentEditsEnabled bool `json:"agentEditsEnabled"`
+	// TestToolsEnabled reveals the sidebar test page, which gathers the
+	// test-only features (capture test, history reset). Default off.
+	TestToolsEnabled bool `json:"testToolsEnabled"`
 }
 
 // ChatSettingsDTO carries the global chat memory: user-authored free text
@@ -93,6 +96,7 @@ type SettingsPatchDTO struct {
 	LaunchAtLogin                 *bool     `json:"launchAtLogin"`
 	ShowDockIcon                  *bool     `json:"showDockIcon"`
 	AgentEditsEnabled             *bool     `json:"agentEditsEnabled"`
+	TestToolsEnabled              *bool     `json:"testToolsEnabled"`
 	AnalyticsOptIn                *bool     `json:"analyticsOptIn"`
 	CrashReportingOptIn           *bool     `json:"crashReportingOptIn"`
 }

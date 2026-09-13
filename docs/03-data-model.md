@@ -340,6 +340,7 @@ CREATE TABLE providers (
 | `system.launchAtLogin` | bool | `false` |
 | `system.showDockIcon` | bool | `true` |
 | `system.agentEditsEnabled` | bool | `false` |
+| `system.testToolsEnabled` | bool | `false` |
 | `telemetry.analyticsOptIn` | bool | `false` |
 | `telemetry.crashReportingOptIn` | bool | `false` |
 | `providers.routing` | `{"chain": ["id", …]}`（有序，`chain[0]` 为主，上限 8） | `{"chain":[]}` |

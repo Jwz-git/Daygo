@@ -11,9 +11,6 @@ export default {
     dataExport: '导出',
     other: '其他',
   },
-  diagnostics: {
-    captureTest: '打开截图诊断',
-  },
   section: {
     storageDescription: '录制间隔与分辨率、磁盘占用上限。',
     privacyDescription: '被屏蔽的应用不会进入截图。',
@@ -50,6 +47,11 @@ export default {
     chatEditsTitle: '应用内对话编辑',
     chatEditsHint:
       '允许应用内聊天助手修改卡片、分类与目标（仅限沙箱内的六个受控操作）。默认关闭；与上方外部通道相互独立。',
+  },
+  general: {
+    testTools: '测试工具',
+    testToolsHint: '在侧边栏显示测试页，集中放置捕获测试、数据清理等测试专用功能。',
+    writeError: '保存失败，已恢复为数据库中的值。',
   },
   appearance: {
     theme: '主题',

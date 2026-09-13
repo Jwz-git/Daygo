@@ -4,6 +4,11 @@ import { RouterView } from 'vue-router'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import FatalErrorOverlay from '@/components/FatalErrorOverlay.vue'
 import AppShell from '@/layout/AppShell.vue'
+import { useTestToolsStore } from '@/stores/testTools'
+
+// Root-level init: the shell never unmounts, so the subscription needs no teardown.
+const testTools = useTestToolsStore()
+void testTools.initialize()
 </script>
 
 <template>

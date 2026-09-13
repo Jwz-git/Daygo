@@ -2,12 +2,14 @@
 import type { Component } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 
+import IconCaptureTest from '@/components/icons/IconCaptureTest.vue'
 import IconChat from '@/components/icons/IconChat.vue'
 import IconDaily from '@/components/icons/IconDaily.vue'
 import IconSettings from '@/components/icons/IconSettings.vue'
 import IconTimeline from '@/components/icons/IconTimeline.vue'
 import IconWeekly from '@/components/icons/IconWeekly.vue'
 import { calendarDayQuery } from '@/lib/calendarDate'
+import { useTestToolsStore } from '@/stores/testTools'
 
 import SideRailItem from './SideRailItem.vue'
 import RecordingControl from './RecordingControl.vue'
@@ -35,6 +37,7 @@ const utilityItems: readonly RailItem[] = [
 ]
 
 const route = useRoute()
+const testTools = useTestToolsStore()
 
 function destination(item: RailItem): RouteLocationRaw {
   if (item.navKey !== 'timeline' && item.navKey !== 'daily') return item.to
@@ -57,6 +60,13 @@ function destination(item: RailItem): RouteLocationRaw {
     </ul>
     <div class="rail__utility">
       <RecordingControl />
+      <SideRailItem
+        v-if="testTools.enabled"
+        :to="{ name: 'test' }"
+        :label="$t('nav.test')"
+        :icon="IconCaptureTest"
+        :active="route.meta.navKey === 'test'"
+      />
       <SideRailItem
         v-for="item in utilityItems"
         :key="item.navKey"

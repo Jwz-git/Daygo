@@ -34,6 +34,7 @@ const (
 	KeySystemLaunchAtLogin          = "system.launchAtLogin"
 	KeySystemShowDockIcon           = "system.showDockIcon"
 	KeySystemAgentEditsEnabled      = "system.agentEditsEnabled"
+	KeySystemTestToolsEnabled       = "system.testToolsEnabled"
 	KeyTelemetryAnalyticsOptIn      = "telemetry.analyticsOptIn"
 	KeyTelemetryCrashReportingOptIn = "telemetry.crashReportingOptIn"
 	KeyProvidersRouting             = "providers.routing"
@@ -59,6 +60,7 @@ func AllKeys() []string {
 		KeySystemLaunchAtLogin,
 		KeySystemShowDockIcon,
 		KeySystemAgentEditsEnabled,
+		KeySystemTestToolsEnabled,
 		KeyTelemetryAnalyticsOptIn,
 		KeyTelemetryCrashReportingOptIn,
 		KeyProvidersRouting,
@@ -101,6 +103,7 @@ const (
 	DefaultLaunchAtLogin          = false
 	DefaultShowDockIcon           = true
 	DefaultAgentEditsEnabled      = false
+	DefaultTestToolsEnabled       = false
 	DefaultAnalyticsOptIn         = false
 	DefaultCrashReportingOptIn    = false
 	DefaultOutputLanguage         = ""
@@ -151,6 +154,7 @@ type Snapshot struct {
 	LaunchAtLogin          bool
 	ShowDockIcon           bool
 	AgentEditsEnabled      bool
+	TestToolsEnabled       bool
 	AnalyticsOptIn         bool
 	CrashReportingOptIn    bool
 	ProvidersRouting       Routing
@@ -211,6 +215,7 @@ type Patch struct {
 	LaunchAtLogin          *bool
 	ShowDockIcon           *bool
 	AgentEditsEnabled      *bool
+	TestToolsEnabled       *bool
 	AnalyticsOptIn         *bool
 	CrashReportingOptIn    *bool
 	ChatMemory             *string
@@ -342,6 +347,11 @@ func (s *Settings) encodePatch(p Patch) (map[string]string, []string, error) {
 			return nil, nil, err
 		}
 	}
+	if p.TestToolsEnabled != nil {
+		if err := put(KeySystemTestToolsEnabled, *p.TestToolsEnabled); err != nil {
+			return nil, nil, err
+		}
+	}
 	if p.AnalyticsOptIn != nil {
 		if err := put(KeyTelemetryAnalyticsOptIn, *p.AnalyticsOptIn); err != nil {
 			return nil, nil, err
@@ -379,6 +389,7 @@ func (s *Settings) snapshotFrom(raw map[string]string) Snapshot {
 		LaunchAtLogin:          decodeBool(raw[KeySystemLaunchAtLogin], DefaultLaunchAtLogin),
 		ShowDockIcon:           decodeBool(raw[KeySystemShowDockIcon], DefaultShowDockIcon),
 		AgentEditsEnabled:      decodeBool(raw[KeySystemAgentEditsEnabled], DefaultAgentEditsEnabled),
+		TestToolsEnabled:       decodeBool(raw[KeySystemTestToolsEnabled], DefaultTestToolsEnabled),
 		AnalyticsOptIn:         decodeBool(raw[KeyTelemetryAnalyticsOptIn], DefaultAnalyticsOptIn),
 		CrashReportingOptIn:    decodeBool(raw[KeyTelemetryCrashReportingOptIn], DefaultCrashReportingOptIn),
 		ProvidersRouting:       decodeRouting(raw[KeyProvidersRouting]),
@@ -514,6 +525,8 @@ func defaultFor(key string) string {
 		return encodeScalar(DefaultShowDockIcon)
 	case KeySystemAgentEditsEnabled:
 		return encodeScalar(DefaultAgentEditsEnabled)
+	case KeySystemTestToolsEnabled:
+		return encodeScalar(DefaultTestToolsEnabled)
 	case KeyTelemetryAnalyticsOptIn:
 		return encodeScalar(DefaultAnalyticsOptIn)
 	case KeyTelemetryCrashReportingOptIn:

@@ -68,6 +68,9 @@ func TestGetSettingsReturnsDefaults(t *testing.T) {
 	if !dto.System.ShowDockIcon {
 		t.Error("showDockIcon = false, want the default true")
 	}
+	if dto.System.TestToolsEnabled {
+		t.Error("testToolsEnabled = true, want the default false")
+	}
 	if dto.Privacy.BlockedApplicationIDs == nil {
 		t.Error("blockedApplicationIds is nil; the contract is an array")
 	}
@@ -269,6 +272,11 @@ func TestSettingsDTOJSONShape(t *testing.T) {
 	chat, _ := decoded["chat"].(map[string]any)
 	if _, ok := chat["memory"]; !ok {
 		t.Error("chat.memory missing from the payload")
+	}
+
+	system, _ := decoded["system"].(map[string]any)
+	if _, ok := system["testToolsEnabled"]; !ok {
+		t.Error("system.testToolsEnabled missing from the payload")
 	}
 
 	capture, _ := decoded["capture"].(map[string]any)

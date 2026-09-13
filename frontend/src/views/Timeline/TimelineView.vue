@@ -31,7 +31,6 @@ const {
   pendingAction,
   actionError,
   actionAvailability,
-  clearAvailable,
 } = storeToRefs(timeline)
 const { locale, t } = useI18n()
 const route = useRoute()
@@ -220,7 +219,6 @@ onBeforeUnmount(() => { timeline.stopListening() })
           :failure="selectedFailure"
           :can-write="capabilities?.canWrite ?? false"
           :actions="actionAvailability"
-          :can-clear="clearAvailable"
           :pending-action="pendingAction"
           :action-failed="actionError !== null"
           @close="timeline.selectCard(null)"
@@ -230,7 +228,6 @@ onBeforeUnmount(() => { timeline.stopListening() })
           @retry="timeline.retryFailure"
           @dismiss-failure="timeline.dismissFailure"
           @reprocess="timeline.reprocess()"
-          @clear-history="timeline.clearHistory()"
         />
       </template>
     </div>

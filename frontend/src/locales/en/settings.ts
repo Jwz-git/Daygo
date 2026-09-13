@@ -11,9 +11,6 @@ export default {
     dataExport: 'Export',
     other: 'Other',
   },
-  diagnostics: {
-    captureTest: 'Open capture diagnostics',
-  },
   section: {
     storageDescription: 'Capture interval and resolution, disk usage limit.',
     privacyDescription: 'Blocked apps never reach a screenshot.',
@@ -53,6 +50,11 @@ export default {
     chatEditsTitle: 'In-app chat editing',
     chatEditsHint:
       'Allow the in-app chat assistant to modify cards, categories and goals (limited to the six sandboxed operations). Off by default; independent of the external channel above.',
+  },
+  general: {
+    testTools: 'Test tools',
+    testToolsHint: 'Shows a test page in the sidebar that gathers test-only features such as the capture test and the data reset.',
+    writeError: 'Saving failed; the value was restored from the database.',
   },
   appearance: {
     theme: 'Theme',

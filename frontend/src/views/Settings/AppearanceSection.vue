@@ -1,14 +1,24 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { AppTheme } from '@/api/dto'
 import { SYSTEM_LANGUAGE, type LanguagePreference } from '@/i18n/locales'
 import { useAppearanceStore } from '@/stores/appearance'
+import { useTestToolsStore } from '@/stores/testTools'
 
 import SettingRow from './SettingRow.vue'
+import SwitchControl from './SwitchControl.vue'
 
 const { t } = useI18n()
 const appearance = useAppearanceStore()
+const testTools = useTestToolsStore()
+const testToolsFailed = ref(false)
+
+function onToggleTestTools(next: boolean): void {
+  testToolsFailed.value = false
+  void testTools.setEnabled(next).then((succeeded) => { testToolsFailed.value = !succeeded })
+}
 
 /**
  * Endonyms, deliberately not translated: someone looking for their language
@@ -75,6 +85,16 @@ function onLanguageChange(event: Event): void {
     </select>
   </SettingRow>
 
+  <SettingRow :title="t('settings.general.testTools')" :hint="t('settings.general.testToolsHint')">
+    <SwitchControl
+      :checked="testTools.enabled"
+      :disabled="!testTools.loaded"
+      :label="t('settings.general.testTools')"
+      @toggle="onToggleTestTools"
+    />
+  </SettingRow>
+  <p v-if="testToolsFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
+
 </template>
 
 <style scoped>
@@ -84,5 +104,10 @@ function onLanguageChange(event: Event): void {
  */
 .select {
   min-width: 168px;
+}
+
+.write-error {
+  color: var(--dg-danger, #b42318);
+  font-size: 13px;
 }
 </style>

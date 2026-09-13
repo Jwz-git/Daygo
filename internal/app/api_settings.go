@@ -124,6 +124,7 @@ func settingsToDTO(s settings.Snapshot) SettingsDTO {
 			LaunchAtLogin:     s.LaunchAtLogin,
 			ShowDockIcon:      s.ShowDockIcon,
 			AgentEditsEnabled: s.AgentEditsEnabled,
+			TestToolsEnabled:  s.TestToolsEnabled,
 		},
 		Telemetry: TelemetrySettingsDTO{
 			AnalyticsOptIn:      s.AnalyticsOptIn,
@@ -152,6 +153,7 @@ func patchFromDTO(p SettingsPatchDTO) settings.Patch {
 		LaunchAtLogin:          p.LaunchAtLogin,
 		ShowDockIcon:           p.ShowDockIcon,
 		AgentEditsEnabled:      p.AgentEditsEnabled,
+		TestToolsEnabled:       p.TestToolsEnabled,
 		AnalyticsOptIn:         p.AnalyticsOptIn,
 		CrashReportingOptIn:    p.CrashReportingOptIn,
 	}

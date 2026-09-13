@@ -15,7 +15,6 @@ import OutputLanguageSection from './OutputLanguageSection.vue'
 import { SETTINGS_SECTIONS, settingsSectionFromQuery, type SettingsSection } from './navigation'
 
 const { t } = useI18n()
-const isDevelopment = import.meta.env.DEV
 
 /*
  * A section is either implemented or a planned placeholder. The implemented
@@ -78,9 +77,6 @@ function selectSection(section: SettingsSection): void {
           </template>
           <template v-else-if="active === 'storage'">
             <StorageSection />
-            <RouterLink v-if="isDevelopment" class="diagnostics-link dg-button" :to="{ name: 'capture-test' }">
-              {{ t('settings.diagnostics.captureTest') }}
-            </RouterLink>
           </template>
           <AgentAccessSection v-else-if="active === 'agentAccess'" />
         </div>
@@ -153,12 +149,6 @@ function selectSection(section: SettingsSection): void {
   gap: 14px;
   max-width: var(--dg-settings-content-max);
   padding: 2px 4px 12px 0;
-}
-
-.diagnostics-link {
-  align-self: flex-start;
-  color: var(--dg-button-secondary-text);
-  text-decoration: none;
 }
 
 @media (max-width: 860px) {

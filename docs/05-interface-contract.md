@@ -618,6 +618,7 @@ type SystemSettingsDTO struct {
     LaunchAtLogin     bool `json:"launchAtLogin"`
     ShowDockIcon      bool `json:"showDockIcon"`
     AgentEditsEnabled bool `json:"agentEditsEnabled"` // 控制 agent.sock，见 §5.9
+    TestToolsEnabled  bool `json:"testToolsEnabled"`  // 显示侧边栏测试页（捕获测试、数据清理）；默认 false
 }
 
 type TelemetrySettingsDTO struct {
@@ -642,6 +643,7 @@ type SettingsPatchDTO struct {
     LaunchAtLogin          *bool     `json:"launchAtLogin"`
     ShowDockIcon           *bool     `json:"showDockIcon"`
     AgentEditsEnabled      *bool     `json:"agentEditsEnabled"`
+    TestToolsEnabled       *bool     `json:"testToolsEnabled"`
     AnalyticsOptIn         *bool     `json:"analyticsOptIn"`
     CrashReportingOptIn    *bool     `json:"crashReportingOptIn"`
 }

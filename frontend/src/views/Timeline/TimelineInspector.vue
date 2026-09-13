@@ -16,7 +16,6 @@ const props = defineProps<{
   failure: TimelineFailureDTO | null
   canWrite: boolean
   actions: TimelineActionAvailability
-  canClear: boolean
   pendingAction: TimelineAction | null
   actionFailed: boolean
 }>()
@@ -29,12 +28,10 @@ const emit = defineEmits<{
   retry: [batchIDs: number[]]
   dismissFailure: [batchIDs: number[]]
   reprocess: []
-  clearHistory: []
 }>()
 const { t, locale } = useI18n()
 const editing = ref(false)
 const confirmingDelete = ref(false)
-const confirmingClear = ref(false)
 const confirmingFailureDelete = ref(false)
 const draftTitle = ref('')
 const draftCategory = ref('')
@@ -127,7 +124,6 @@ watch(
   () => {
     editing.value = false
     confirmingDelete.value = false
-    confirmingClear.value = false
     draftTitle.value = props.card?.title ?? ''
     draftCategory.value = props.card?.category ?? ''
   },
@@ -513,32 +509,7 @@ function duration(minutes: number): string {
         >
           {{ props.pendingAction === 'reprocess-day' ? t('timeline.reprocess.pending') : t('timeline.reprocess.action') }}
         </button>
-        <template v-if="confirmingClear">
-          <span class="inspector__confirm">{{ t('timeline.clear.confirm') }}</span>
-          <button type="button" class="dg-button" :disabled="props.pendingAction !== null" @click="confirmingClear = false">
-            {{ t('common.action.cancel') }}
-          </button>
-          <button
-            type="button"
-            class="dg-button inspector__delete"
-            :disabled="props.pendingAction !== null"
-            @click="emit('clearHistory'); confirmingClear = false"
-          >
-            {{ props.pendingAction === 'clear-history' ? t('timeline.clear.pending') : t('common.action.delete') }}
-          </button>
-        </template>
-        <button
-          v-else
-          type="button"
-          class="dg-button inspector__danger"
-          :disabled="!props.canWrite || !props.canClear || props.pendingAction !== null"
-          :title="props.canClear ? t('timeline.clear.action') : t('timeline.clear.unavailable')"
-          @click="confirmingClear = true"
-        >
-          {{ t('timeline.clear.action') }}
-        </button>
       </div>
-      <p class="inspector__tool-note">{{ t('timeline.clear.note') }}</p>
     </section>
   </aside>
 </template>
@@ -804,7 +775,6 @@ function duration(minutes: number): string {
   background: color-mix(in srgb, var(--dg-danger) 9%, transparent);
 }
 
-.inspector__tool-note { color: var(--dg-text-muted); font-size: 10px; }
 .inspector__delete { border-color: color-mix(in srgb, var(--dg-danger) 34%, transparent); color: var(--dg-danger); }
 .inspector__error { margin: 4px 0 12px; color: var(--dg-danger); font-size: 11px; }
 </style>

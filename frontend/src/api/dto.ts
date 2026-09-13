@@ -57,6 +57,8 @@ export interface StorageSettingsDTO {
 /** Settings exposes the system settings consumed by current sections. */
 export interface SystemSettingsDTO {
   agentEditsEnabled: boolean
+  /** Reveals the sidebar test page with the test-only features. */
+  testToolsEnabled: boolean
 }
 
 /** AppearanceSettingsDTO is persisted independently from LLM output language. */
@@ -88,6 +90,7 @@ export interface SettingsPatch {
   outputLanguage?: string
   recognitionEnhancementEnabled?: boolean
   agentEditsEnabled?: boolean
+  testToolsEnabled?: boolean
   chatMemory?: string
   chatEditMode?: 'readonly' | 'edits'
 }

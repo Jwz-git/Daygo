@@ -5,5 +5,5 @@ export default {
   chat: '对话',
   weekly: '周报',
   settings: '设置',
-  captureTest: '截图测试',
+  test: '测试',
 }
