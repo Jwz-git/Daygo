@@ -11,7 +11,6 @@ import PrivacySection from './PrivacySection.vue'
 import ProvidersSection from './ProvidersSection.vue'
 import RecognitionSection from './RecognitionSection.vue'
 import StorageSection from './StorageSection.vue'
-import OutputLanguageSection from './OutputLanguageSection.vue'
 import { SETTINGS_SECTIONS, settingsSectionFromQuery, type SettingsSection } from './navigation'
 
 const { t } = useI18n()
@@ -53,7 +52,7 @@ function selectSection(section: SettingsSection): void {
               type="button"
               class="nav__item"
               :class="{ 'is-active': active === section }"
-              :aria-current="active === section ? 'true' : undefined"
+              :aria-current="active === section ? 'page' : undefined"
               @click="selectSection(section)"
             >
               {{ t(`settings.nav.${section}`) }}
@@ -72,7 +71,6 @@ function selectSection(section: SettingsSection): void {
           </template>
           <template v-else-if="active === 'ai'">
             <ProvidersSection />
-            <OutputLanguageSection />
             <RecognitionSection />
           </template>
           <template v-else-if="active === 'storage'">
@@ -112,6 +110,7 @@ function selectSection(section: SettingsSection): void {
 
 .nav__item {
   width: 100%;
+  min-height: 44px;
   padding: 9px 11px;
   border-radius: 5px;
   color: var(--dg-text-secondary);
@@ -174,9 +173,40 @@ function selectSection(section: SettingsSection): void {
 
 }
 
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav {
+    -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+    backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nav__item {
     transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .nav {
+    border-color: CanvasText;
+    background: Canvas;
+    box-shadow: none;
+  }
+
+  .nav__item {
+    color: ButtonText;
+  }
+
+  .nav__item.is-active {
+    border: 1px solid Highlight;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .nav__item:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
   }
 }
 </style>

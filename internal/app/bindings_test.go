@@ -42,6 +42,7 @@ var contractBindings = []string{
 	"PickApplication",
 	"OpenSystemSettings",
 	"PauseRecording",
+	"RenameChatConversation",
 	"RequestScreenRecordingPermission",
 	"ResumeRecording",
 	"RetryBatches",

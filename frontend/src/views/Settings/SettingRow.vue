@@ -17,17 +17,20 @@ defineProps<{ title: string; hint?: string }>()
 
 <style scoped>
 .row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(128px, auto);
+  align-items: center;
   gap: 18px;
   padding: 17px 18px;
-  transition:
-    border-color var(--dg-motion-base) ease;
+  transition: border-color var(--dg-motion-base) ease;
 }
 
 .row:hover {
   border-color: var(--dg-chip-border);
+}
+
+.row__text {
+  min-width: 0;
 }
 
 .row__title {
@@ -40,16 +43,29 @@ defineProps<{ title: string; hint?: string }>()
   margin-top: 4px;
   color: var(--dg-text-secondary);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .row__control {
-  flex: none;
+  min-width: 0;
+  justify-self: end;
 }
 
 @media (max-width: 620px) {
   .row {
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
+  }
+
+  .row__control {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
   }
 }
 </style>

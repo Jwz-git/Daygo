@@ -85,6 +85,7 @@ type Store interface {
 	CreateConversation(ctx context.Context, c Conversation) (Conversation, error)
 	GetConversation(ctx context.Context, id string) (Conversation, error)
 	DeleteConversation(ctx context.Context, id string) error
+	RenameConversation(ctx context.Context, id string, title string) error
 	UpdateConversation(ctx context.Context, id string, title string, providerID *string, model string) error
 	ListConversations(ctx context.Context) ([]Conversation, error)
 	AppendMessage(ctx context.Context, conversationID string, m Message) (Message, error)
@@ -639,6 +640,15 @@ func (s *Service) DeleteConversation(ctx context.Context, id string) error {
 	return s.store.DeleteConversation(ctx, id)
 }
 
+// RenameConversation changes a thread title after trimming surrounding whitespace.
+func (s *Service) RenameConversation(ctx context.Context, id string, title string) error {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fmt.Errorf("rename conversation: title is required")
+	}
+	return s.store.RenameConversation(ctx, id, title)
+}
+
 // SetConversationProvider pins a thread to one provider. providerID "" clears
 // the pin; the thread then has no provider until one is picked again. Changing
 // the pin resets the model override: a model chosen under the previous
@@ -739,7 +749,7 @@ func failureText(err error) string {
 		return "没有已配置的供应商；请先在设置中添加。"
 	}
 	if err == errNoProviderSelected {
-		return "该会话尚未选择供应商，请先在右上角选择。"
+		return "该会话尚未选择供应商，请先在下方选择。"
 	}
 	switch ai.ErrorKindOf(err) {
 	case ai.ErrorCanceled:
