@@ -72,7 +72,9 @@ function destination(item: RailItem): RouteLocationRaw {
 <style scoped>
 .rail {
   position: relative;
-  z-index: 2;
+  /* Above .panel so the recording popover can overlay the main content:
+     the popover's own z-index is trapped inside this stacking context. */
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
