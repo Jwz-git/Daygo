@@ -252,6 +252,17 @@ select.dg-input {
 }
 
 /*
+ * WebView2 renders the opened option list on a separate native-looking white
+ * surface unless both sides of the colour pair are explicit. Without this,
+ * dark-mode option text inherits from the select and becomes unreadable on
+ * that light popup surface.
+ */
+select.dg-input option {
+  background-color: var(--dg-popover-fill);
+  color: var(--dg-text-primary);
+}
+
+/*
  * Number fields drop the native steppers: the Aqua arrows clash with the
  * custom surface, and the value stays editable by typing or arrow keys.
  */
