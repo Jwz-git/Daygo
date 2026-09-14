@@ -377,16 +377,6 @@ function labelOf(application: ApplicationDTO): string {
     </div>
     <p v-else class="privacy__note">{{ t('settings.privacy.empty') }}</p>
 
-    <div class="privacy__actions">
-      <button
-        type="button"
-        class="dg-button"
-        :disabled="!canEdit || selecting"
-        @click="onChoose"
-      >
-        {{ selecting ? t('settings.privacy.selecting') : t('settings.privacy.choose') }}
-      </button>
-    </div>
     <p v-if="pickError" class="privacy__error" role="alert">{{ pickError }}</p>
     <p v-if="writeFailed" class="privacy__error" role="alert">
       {{ t('settings.privacy.writeError') }}
@@ -486,11 +476,6 @@ function labelOf(application: ApplicationDTO): string {
 .privacy__note {
   color: var(--dg-text-secondary);
   font-size: 13px;
-}
-
-.privacy__actions {
-  display: flex;
-  gap: 8px;
 }
 
 .privacy__error {
