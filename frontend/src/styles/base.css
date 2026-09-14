@@ -58,13 +58,15 @@ body {
 }
 
 /*
- * Shared liquid-glass surface primitive. The background field behind it (see
- * AppShell) is what makes the blur read; without tonal variation glass is just
- * transparent gray. The opaque fallback comes first, and the translucent
- * surface is an enhancement inside @supports, so an engine without
- * backdrop-filter still renders a readable panel. The sheen is the implied
- * light source (upper-left) and lives on a negative-z pseudo-element so it sits
- * above the tint but below content.
+ * Shared liquid-glass surface primitive (upgraded to lg-glass level).
+ * The background field behind it (see AppShell) is what makes the blur read;
+ * without tonal variation glass is just transparent gray.
+ *
+ * Opaque fallback comes first so unsupported browsers render a readable panel.
+ * The translucent surface is an enhancement inside @supports.
+ *
+ * The ::before specular sheen is the implied upper-left light source.
+ * It sits on a negative-z pseudo-element so it sits above the tint but below content.
  */
 .dg-panel {
   position: relative;
@@ -77,9 +79,15 @@ body {
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .dg-panel {
-    background: var(--dg-glass-tint);
-    -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
-    backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+    background: var(--lg-tint-glass);
+    -webkit-backdrop-filter:
+      blur(var(--lg-blur-glass))
+      saturate(var(--lg-saturation-glass));
+    backdrop-filter:
+      blur(var(--lg-blur-glass))
+      saturate(var(--lg-saturation-glass));
+    box-shadow: var(--lg-shadow-glass);
+    border-color: var(--lg-border-glass);
   }
 }
 
@@ -89,7 +97,7 @@ body {
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: var(--dg-glass-sheen);
+  background: var(--lg-sheen);
   pointer-events: none;
 }
 
@@ -113,19 +121,26 @@ body {
 }
 
 /*
- * Dense glass for floating layers (dropdowns, popovers). Unlike .dg-panel the
- * fill stays nearly opaque: a floating layer must stay readable over arbitrary
- * content, so the blur is depth rather than transparency. The entrance is
- * enter-only — there is no leave phase to strand — and grows from
+ * Dense glass for floating layers (dropdowns, popovers). Upgraded to lg-dense level.
+ * Unlike .dg-panel the fill stays nearly opaque: a floating layer must stay readable
+ * over arbitrary content, so the blur is depth rather than transparency.
+ *
+ * The entrance is enter-only — there is no leave phase to strand — and grows from
  * --dg-popover-origin / --dg-popover-from, which the consumer points at the
  * edge the layer is anchored to (default: drops from the top).
+ *
+ * Opaque fallback first, then enhanced backdrop-filter.
  */
 .dg-popover {
-  border: 1px solid var(--dg-panel-border);
+  border: 1px solid var(--lg-border-dense);
   background: var(--dg-popover-fill);
-  box-shadow: var(--dg-popover-shadow);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  backdrop-filter: blur(24px) saturate(150%);
+  box-shadow: var(--lg-shadow-dense);
+  -webkit-backdrop-filter:
+    blur(var(--lg-blur-dense))
+    saturate(var(--lg-saturation-dense));
+  backdrop-filter:
+    blur(var(--lg-blur-dense))
+    saturate(var(--lg-saturation-dense));
   transform-origin: var(--dg-popover-origin, 50% 0);
   animation: dg-popover-in var(--dg-motion-base) var(--dg-ease-glide);
 }

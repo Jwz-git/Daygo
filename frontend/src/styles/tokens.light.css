@@ -14,18 +14,19 @@
    */
   color-scheme: light;
 
-  /* window */
-  --dg-window-bg: #e9edf3;
+  /* window — deepened focal points, wider hue range, richer chroma for better glass reveal */
+  --dg-window-bg: #dce4f0;
   --dg-window-padding: 8px;
   --dg-window-gradient: radial-gradient(
-      110% 80% at 8% -10%,
-      rgba(255, 255, 255, 0.92),
-      transparent 52%
+      120% 90% at 6% -14%,
+      rgba(255, 255, 255, 0.96),
+      transparent 54%
     ),
-    radial-gradient(90% 80% at 106% -12%, rgba(151, 170, 217, 0.34), transparent 58%),
-    radial-gradient(120% 100% at 110% 115%, rgba(126, 156, 199, 0.38), transparent 60%),
-    radial-gradient(80% 70% at -12% 108%, rgba(178, 160, 202, 0.26), transparent 56%),
-    linear-gradient(165deg, #f0f3f8 0%, #e6eaf1 55%, #dee4ee 100%);
+    radial-gradient(95% 85% at 108% -16%, rgba(130, 160, 225, 0.42), transparent 60%),
+    radial-gradient(130% 110% at 112% 118%, rgba(100, 145, 205, 0.44), transparent 62%),
+    radial-gradient(85% 75% at -14% 112%, rgba(165, 145, 205, 0.32), transparent 58%),
+    radial-gradient(70% 60% at 50% -5%, rgba(200, 215, 245, 0.28), transparent 45%),
+    linear-gradient(168deg, #eef2f9 0%, #e0e7f2 55%, #d4dcea 100%);
 
   /* panel */
   --dg-panel-fill: rgba(249, 249, 250, 0.94);

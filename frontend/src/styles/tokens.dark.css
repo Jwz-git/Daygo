@@ -19,16 +19,17 @@
 :root[data-dg-appearance='dark'] {
   color-scheme: dark;
 
-  --dg-window-bg: #1a1a1d;
+  --dg-window-bg: #141417;
   --dg-window-gradient: radial-gradient(
-      110% 80% at 8% -10%,
-      rgba(255, 255, 255, 0.055),
-      transparent 50%
+      120% 90% at 6% -14%,
+      rgba(255, 255, 255, 0.06),
+      transparent 52%
     ),
-    radial-gradient(90% 80% at 106% -12%, rgba(96, 132, 214, 0.14), transparent 58%),
-    radial-gradient(120% 100% at 110% 115%, rgba(75, 141, 240, 0.13), transparent 60%),
-    radial-gradient(80% 70% at -12% 108%, rgba(140, 110, 196, 0.1), transparent 56%),
-    linear-gradient(165deg, #1e1e22 0%, #19191c 55%, #151518 100%);
+    radial-gradient(95% 85% at 108% -16%, rgba(80, 115, 200, 0.18), transparent 60%),
+    radial-gradient(130% 110% at 112% 118%, rgba(60, 120, 220, 0.16), transparent 62%),
+    radial-gradient(85% 75% at -14% 112%, rgba(120, 90, 180, 0.12), transparent 58%),
+    radial-gradient(70% 60% at 50% -5%, rgba(50, 80, 160, 0.10), transparent 45%),
+    linear-gradient(168deg, #1c1c20 0%, #161619 55%, #111114 100%);
 
   --dg-panel-fill: rgba(26, 26, 29, 0.94);
   --dg-panel-border: rgba(255, 255, 255, 0.08);
