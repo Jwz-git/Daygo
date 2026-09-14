@@ -378,6 +378,92 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 12,
+		name:    "categories: first-run starter set",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// Seed the starter user categories (docs/decisions
+			// timeline-starter-categories): the Dayflow-derived set of focus /
+			// communication / learning / research / distraction / personal,
+			// with the semantic details that steer the LLM's classification.
+			// The seed is keyed on name, not id: a database that already has
+			// any user-defined category (a name outside the built-ins) is
+			// considered customized and gets nothing.
+			rows, err := tx.QueryContext(ctx,
+				`SELECT COUNT(*) FROM categories WHERE is_system = 0`)
+			if err != nil {
+				return wrap("count user categories", err)
+			}
+			var existing int
+			if rows.Next() {
+				if err := rows.Scan(&existing); err != nil {
+					_ = rows.Close()
+					return wrap("count user categories", err)
+				}
+			}
+			_ = rows.Close()
+			if existing > 0 {
+				return nil
+			}
+			return seedStarterCategories(ctx, tx)
+		},
+	},
+}
+
+// seedStarterCategories inserts the starter user category set. Fixed IDs (like
+// the built-ins) so a re-seed collides with itself; ON CONFLICT keeps any row
+// the user already renamed into place. Names are English — they are data the
+// LLM matches against, not UI copy.
+func seedStarterCategories(ctx context.Context, tx *sql.Tx) error {
+	const seededAt = 0 // migration time, like the built-ins
+	rows := []struct {
+		id        string
+		name      string
+		hex       string
+		details   string
+		sortOrder int
+	}{
+		{
+			"00000000-0000-4000-8000-000000000011", "Focus Work", "#6A7EFF",
+			"Focused work: writing, refactoring, or debugging code in an IDE or terminal; deep hands-on building",
+			1,
+		},
+		{
+			"00000000-0000-4000-8000-000000000012", "Communication", "#FFAE8C",
+			"Meetings, standups, Slack, email, video calls, messaging, and syncs",
+			2,
+		},
+		{
+			"00000000-0000-4000-8000-000000000013", "Learning", "#56CFEE",
+			"Lectures, reading docs or courses, flashcards, tutorials, and deliberately studying new skills",
+			3,
+		},
+		{
+			"00000000-0000-4000-8000-000000000014", "Research", "#C787F7",
+			"Exploring tools and APIs, reading papers or Stack Overflow, and writing design docs or technical specs",
+			4,
+		},
+		{
+			"00000000-0000-4000-8000-000000000015", "Distraction", "#FF4721",
+			"Unfocused browsing and passive content consumption: social media feeds, random videos, idle scrolling, entertainment with no clear intent, and gaming",
+			5,
+		},
+		{
+			"00000000-0000-4000-8000-000000000016", "Personal", "#ADE3E3",
+			"Intentional non-work activity with a purpose: messaging friends and family, managing finances, booking travel, errands, life admin, and hobbies",
+			6,
+		},
+	}
+	for _, r := range rows {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO categories (id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
+			ON CONFLICT(id) DO NOTHING`,
+			r.id, r.name, r.hex, r.details, r.sortOrder, seededAt, seededAt); err != nil {
+			return wrap("seed starter category "+r.name, err)
+		}
+	}
+	return nil
 }
 
 // seedBuiltInCategories inserts the two built-in categories. IDs are fixed

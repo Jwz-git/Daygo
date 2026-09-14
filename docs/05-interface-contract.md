@@ -89,7 +89,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
-| timeline | `GetDayContext`、`GetTimelineDay`、`UpdateCardCategory`、`UpdateCardTitle`、`DeleteCard` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；视频 URL 与失败重试 / 整日重处理仍属后续切片 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`UpdateCardCategory`、`UpdateCardTitle`、`DeleteCard`、`SaveCategories` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；视频 URL 与失败重试 / 整日重处理仍属后续切片 |
 | daily | `GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals`；用户保存不触碰 AI summary 列；`GetDailyRecap` 未实现（待定 #19） |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
@@ -283,6 +283,7 @@ export function toApiError(e: unknown): ApiError {
 | `UpdateCardTitle(cardID int64, title string) error` **已实现** | timeline | cards / 写入锁 | 写·幂等 | `timeline:updated` | 同上 |
 | `DeleteCard(cardID int64) error` **已实现** | timeline | cards / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` |
 | `RetryBatches(batchIDs []int64) error` **已实现** | timeline | 批次 / provider-client / media-read | 写·非幂等 | `batch:progress` `timeline:updated` | `not_found` `conflict` |
+| `SaveCategories(categories []CategoryDTO) error` **已实现** | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` **已实现** | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
 | `ReprocessDay(day string) error` | timeline | time / capture / 分析流水线 | 写·非幂等 | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
 | `ClearHistoryData() error` **已实现**（测试专用） | timeline | storage / 写入锁 / 录制空闲 | 写·非幂等 | `timeline:updated` `journal:updated` `goal:updated` | `not_capture_owner` `conflict` `database_error` |
@@ -335,7 +336,10 @@ export function toApiError(e: unknown): ApiError {
 | `GetSettings() (SettingsDTO, error)` | preferences | settings-store / settings-access | 读 | — | — |
 | `UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error)` | preferences | settings-access / 写入锁 | 写·幂等 | `settings:changed` | `invalid_argument` |
 | `GetCategories() ([]CategoryDTO, error)` | timeline | 分类 repository | 读 | — | — |
-| `SaveCategories(cats []CategoryDTO) error` | timeline | 分类 / cards 事务 / 写入锁 | 写·幂等（整体覆盖） | `settings:changed` `timeline:updated` | `invalid_argument` `conflict` |
+
+- `SaveCategories` 已随时间线绑定实现（§5.2.1 timeline 表）：整体覆盖，重命名在
+  同一事务内同步改写已有卡片的 `category` 字符串并按触及日期触发 `timeline:updated`。
+  分类列表本身随 `GetTimelineDay` / `GetDayContext` 返回，不再单设 `GetCategories`。
 
 - `UpdateSettings` 是**局部补丁**：只有出现在负载中的键被应用（Go 侧字段用指针区分
   "未提供"与"置空"）。返回值是规范化、夹取后的完整设置，`settings:changed` 的 payload

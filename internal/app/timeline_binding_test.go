@@ -55,9 +55,10 @@ func TestGetTimelineDayEmpty(t *testing.T) {
 	if len(dto.Cards) != 0 || len(dto.Failures) != 0 || len(dto.ProcessingRanges) != 0 {
 		t.Fatalf("empty day = %+v", dto)
 	}
-	// Built-in categories ride along even with no cards.
-	if len(dto.Categories) != 2 {
-		t.Fatalf("categories = %d, want the two built-ins", len(dto.Categories))
+	// Built-in categories ride along even with no cards; a fresh database
+	// also carries the v12 starter set.
+	if len(dto.Categories) != 8 {
+		t.Fatalf("categories = %d, want the built-ins plus the starter set", len(dto.Categories))
 	}
 	if dto.TrackedMinutes != 0 || dto.IdleMinutes != 0 {
 		t.Fatalf("totals = %v/%v, want 0/0", dto.TrackedMinutes, dto.IdleMinutes)
@@ -245,10 +246,11 @@ func TestClearHistoryData(t *testing.T) {
 	}); err != nil || batches != 0 {
 		t.Fatalf("batches after clear = %d (err %v), want 0", batches, err)
 	}
-	// Configuration survives: built-in categories stay seeded.
+	// Configuration survives: built-in categories stay seeded. Clear only
+	// wipes user data, so the starter set seeded at migration time stays too.
 	categories, err := store.Categories().List(context.Background())
-	if err != nil || len(categories) != 2 {
-		t.Fatalf("categories after clear = %d (err %v), want the two built-ins", len(categories), err)
+	if err != nil || len(categories) != 8 {
+		t.Fatalf("categories after clear = %d (err %v), want the built-ins plus the starter set", len(categories), err)
 	}
 	// Recordings directories are recreated empty, not left missing.
 	for _, sub := range []string{"staging", "segments", "timelapses"} {
@@ -346,4 +348,77 @@ func TestBatchWritesRefuseReadOnlyInstance(t *testing.T) {
 
 	assertAppCode(t, backend.RetryBatches([]int64{1}), apperr.NotCaptureOwner)
 	assertAppCode(t, backend.DeleteBatches([]int64{1}), apperr.NotCaptureOwner)
+}
+
+func TestSaveCategoriesReplacesSetAndRewritesRenames(t *testing.T) {
+	dir := t.TempDir()
+	backend, emitter := writerBackendWithStore(t, dir)
+
+	// A fresh database has the built-ins plus the starter set; one card in a
+	// starter category exercises the rename rewrite.
+	seedTimelineDay(t, backend, []domain.CardShell{
+		{Start: "10:00 AM", End: "10:30 AM", Category: "Focus Work", Title: "c1", Summary: "s"},
+	})
+	day, err := backend.GetTimelineDay("2026-09-12")
+	if err != nil {
+		t.Fatalf("GetTimelineDay: %v", err)
+	}
+
+	// Rewrite the set: keep "Communication" and "Distraction" as-is, rename
+	// "Focus Work" to "Deep Work", drop the rest, add one new row.
+	var kept, renamedID string
+	for _, c := range day.Categories {
+		switch c.Name {
+		case "Focus Work":
+			renamedID = c.ID
+		case "Communication":
+			kept = c.ID
+		}
+	}
+	if renamedID == "" || kept == "" {
+		t.Fatalf("starter categories missing: %+v", day.Categories)
+	}
+	next := []CategoryDTO{
+		{ID: kept, Name: "Communication", ColorHex: "#FFAE8C"},
+		{ID: renamedID, Name: "Deep Work", ColorHex: "#6A7EFF", Details: "renamed"},
+		{Name: "New Category", ColorHex: "#123456"},
+	}
+	if err := backend.SaveCategories(next); err != nil {
+		t.Fatalf("SaveCategories: %v", err)
+	}
+
+	after, err := backend.GetTimelineDay("2026-09-12")
+	if err != nil {
+		t.Fatalf("GetTimelineDay after: %v", err)
+	}
+	// Built-ins merge back; the user set is exactly what was saved.
+	want := map[string]bool{"System": true, "Idle": true, "Communication": true, "Deep Work": true, "New Category": true}
+	if len(after.Categories) != len(want) {
+		t.Fatalf("categories after = %+v, want exactly %v", after.Categories, want)
+	}
+	for _, c := range after.Categories {
+		if !want[c.Name] {
+			t.Fatalf("unexpected category %q survived the overwrite", c.Name)
+		}
+	}
+
+	// The rename rewrote the card's category string in the same transaction.
+	if len(after.Cards) != 1 || after.Cards[0].Category != "Deep Work" {
+		t.Fatalf("card after rename = %+v, want category Deep Work", after.Cards)
+	}
+
+	// Only the day holding the renamed category's cards gets the event.
+	waitForTimelineEmit(t, emitter)
+	if got := emitter.count(EventTimelineUpdated); got != 1 {
+		t.Fatalf("timeline:updated count = %d, want 1", got)
+	}
+
+	// Duplicate names are rejected and change nothing.
+	assertAppCode(t, backend.SaveCategories([]CategoryDTO{
+		{Name: "Dup", ColorHex: "#111111"},
+		{Name: "Dup", ColorHex: "#222222"},
+	}), apperr.InvalidArgument)
+	assertAppCode(t, backend.SaveCategories([]CategoryDTO{
+		{Name: "FakeSystem", IsSystem: true},
+	}), apperr.InvalidArgument)
 }

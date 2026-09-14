@@ -274,7 +274,16 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	if err != nil {
 		return err
 	}
-	result, err := s.cfg.Cards.ReplaceCardsInRange(ctx, batch.Start, batch.End, shells, batch.ID)
+	// A merged card starts at the nearby card's start, before this batch's
+	// window. The rewrite range must cover that start or the merged-into card
+	// survives next to its replacement — two cards where the model emitted
+	// one. Extend from to the earliest resolved shell start (the idle path
+	// does the same with its preceding-card merge).
+	replaceFrom, ok := earliestShellStart(shells, batch, s.loc())
+	if !ok {
+		replaceFrom = batch.Start
+	}
+	result, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End, shells, batch.ID)
 	if err != nil {
 		return err
 	}
@@ -496,6 +505,27 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		}
 	}
 	return shells, nil
+}
+
+// earliestShellStart resolves every shell's start clock and returns the
+// earliest one that lies before the batch window — the point a merge extended
+// the rewrite to. Shells that do not resolve are ignored here; they become
+// SkippedCards inside the rewrite and fail the batch loudly.
+func earliestShellStart(shells []domain.CardShell, batch storage.Batch, loc *time.Location) (time.Time, bool) {
+	anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
+	var earliest time.Time
+	found := false
+	for _, shell := range shells {
+		start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
+		if err != nil {
+			continue
+		}
+		if start.Before(batch.Start) && (!found || start.Before(earliest)) {
+			earliest = start
+			found = true
+		}
+	}
+	return earliest, found
 }
 
 // shellOverlapsWindow pre-resolves the shell's clocks and keeps only cards

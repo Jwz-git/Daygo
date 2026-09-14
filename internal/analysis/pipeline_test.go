@@ -581,3 +581,42 @@ func mustPending(t *testing.T, store *storage.Store) []storage.Batch {
 	}
 	return batches
 }
+
+// A merge card absorbs the nearby card it continues: the model emits one card
+// starting at the earlier card's start, and the rewrite must remove the
+// earlier card instead of leaving both in parallel (docs/03 §3.5 overlap
+// predicate lets a boundary-touching predecessor escape otherwise).
+func TestPipelineMergeCardAbsorbsPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+
+	// Batch 1 (10:00–10:15): one card.
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 || cards[0].Title != "first" {
+		t.Fatalf("seed card = %+v, want one 'first'", cards)
+	}
+
+	// Batch 2 (10:15–10:30): the model merges with the first card, emitting
+	// one card whose start is the first card's start.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"merged","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[{"time":"10:00 AM","description":"first"},{"time":"10:20 AM","description":"second"}]}]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ = h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards after merge = %+v, want exactly one", cards)
+	}
+	merged := cards[0]
+	if merged.Title != "merged" || merged.Start != "10:00 AM" || merged.End != "10:30 AM" {
+		t.Fatalf("merged card = %s – %s %q, want 10:00 AM – 10:30 AM merged", merged.Start, merged.End, merged.Title)
+	}
+}

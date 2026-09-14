@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/domain"
@@ -306,6 +307,42 @@ func (r *CardRepo) TotalMinutesTracked(ctx context.Context, from, to time.Time) 
 		return 0, err
 	}
 	return total.Float64, nil
+}
+
+// CardDaysByCategory lists the distinct logical days holding live cards in
+// any of the named categories. The category rename path uses it to emit
+// timeline:updated for exactly the days whose cards were rewritten.
+func (r *CardRepo) CardDaysByCategory(ctx context.Context, names []string) ([]string, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(names)), ",")
+	args := make([]any, len(names))
+	for i, name := range names {
+		args[i] = name
+	}
+	var days []string
+	err := r.store.Read(ctx, "card days by category", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx,
+			"SELECT DISTINCT day FROM timeline_cards WHERE is_deleted = 0 AND category IN ("+placeholders+")",
+			args...)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var day string
+			if err := rows.Scan(&day); err != nil {
+				return err
+			}
+			days = append(days, day)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return days, nil
 }
 
 // updateCardColumn is the shared single-column update: write, then translate

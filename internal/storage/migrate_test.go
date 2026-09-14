@@ -5,8 +5,13 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/Jwz-git/Daygo/internal/domain"
+
+	_ "modernc.org/sqlite"
 )
 
 // userVersionOf reads PRAGMA user_version through a raw connection, so the test
@@ -264,7 +269,9 @@ func TestMigrateV1FixturePreservesDataAndCreatesCardsTables(t *testing.T) {
 		t.Fatalf("appearance.theme = %q after upgrade; the migration altered existing data", theme)
 	}
 
-	// Both built-in categories must be seeded, with the system flags set.
+	// Both built-in categories must be seeded with the system flags set, and
+	// the v12 starter set must be seeded alongside them: this fixture's
+	// database has no user-defined categories, so it counts as first run.
 	rows, err := store.db.QueryContext(context.Background(),
 		"SELECT name, is_system, is_idle FROM categories ORDER BY name")
 	if err != nil {
@@ -293,8 +300,12 @@ func TestMigrateV1FixturePreservesDataAndCreatesCardsTables(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate categories: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("built-in categories = %v, want exactly System and Idle", got)
+	want := []string{
+		"Communication", "Distraction", "Focus Work", "Idle",
+		"Learning", "Personal", "Research", "System",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("categories = %v, want %v (built-ins + v12 starter set)", got, want)
 	}
 }
 
@@ -736,5 +747,111 @@ func TestMigrateV10FixturePreservesDataAndAddsMaxImages(t *testing.T) {
 	}
 	if got[1].id != "fixture-provider-b" || got[1].protocol != "anthropic" || got[1].maxImages != 0 {
 		t.Fatalf("provider b = %+v, want untouched fields and max_images 0", got[1])
+	}
+}
+
+// DB-2 for v12: a v11 database with only the built-in categories is a
+// never-customized one, so the upgrade must seed the starter set (six rows,
+// non-system, with details) while the built-ins survive untouched.
+func TestMigrateV11FixtureSeedsStarterCategories(t *testing.T) {
+	fixture := filepath.Join("testdata", "v11-starter-categories.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	cats, err := store.Categories().List(context.Background())
+	if err != nil {
+		t.Fatalf("List categories: %v", err)
+	}
+	if len(cats) != 8 {
+		t.Fatalf("categories = %d after upgrade, want 8 (2 built-ins + 6 starter)", len(cats))
+	}
+	byName := make(map[string]domain.Category, len(cats))
+	for _, c := range cats {
+		byName[c.Name] = c
+	}
+	if !byName["System"].IsSystem || byName["System"].IsIdle {
+		t.Fatalf("System flags wrong after upgrade: %+v", byName["System"])
+	}
+	if !byName["Idle"].IsSystem || !byName["Idle"].IsIdle {
+		t.Fatalf("Idle flags wrong after upgrade: %+v", byName["Idle"])
+	}
+	for _, name := range []string{"Focus Work", "Communication", "Learning", "Research", "Distraction", "Personal"} {
+		c, ok := byName[name]
+		if !ok {
+			t.Fatalf("starter category %q missing after upgrade: %v", name, cats)
+		}
+		if c.IsSystem || c.IsIdle || c.Details == "" || c.ColorHex == "" {
+			t.Fatalf("starter category %q wrong: %+v", name, c)
+		}
+	}
+}
+
+// The v12 seed must not touch a database that already has user-defined
+// categories: an existing customization is authoritative, whatever it is.
+func TestMigrateV12SkipsCustomizedCategorySet(t *testing.T) {
+	fixture := filepath.Join("testdata", "v11-starter-categories.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+
+	// Prepare a customized v11 database with a raw connection first: opening
+	// it through Open would already run the v12 migration and seed the
+	// starter set, defeating the point of this test. One user category marks
+	// the database as customized while it is still at version 11.
+	src, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	if err := os.WriteFile(dst, src, 0o600); err != nil {
+		t.Fatalf("write fixture copy: %v", err)
+	}
+	prep, err := sql.Open("sqlite", "file:"+dst)
+	if err != nil {
+		t.Fatalf("open prep connection: %v", err)
+	}
+	if _, err := prep.Exec(`INSERT INTO categories (id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at)
+		 VALUES ('11111111-2222-4333-8444-555555555555', 'Fixture Custom', '#123456', 'fixture details', 5, 0, 0, 0, 0)`); err != nil {
+		t.Fatalf("insert custom category: %v", err)
+	}
+	if err := prep.Close(); err != nil {
+		t.Fatalf("close prep connection: %v", err)
+	}
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	cats, err := store.Categories().List(context.Background())
+	if err != nil {
+		t.Fatalf("List categories: %v", err)
+	}
+	if len(cats) != 3 {
+		t.Fatalf("categories = %d after upgrade, want 3 (built-ins + the custom row only)", len(cats))
+	}
+	var sawCustom bool
+	for _, c := range cats {
+		if c.Name == "Fixture Custom" {
+			sawCustom = true
+		} else if c.Name != "System" && c.Name != "Idle" {
+			t.Fatalf("unexpected category %q seeded into a customized database", c.Name)
+		}
+	}
+	if !sawCustom {
+		t.Fatal("the pre-existing custom category was lost by the upgrade")
 	}
 }

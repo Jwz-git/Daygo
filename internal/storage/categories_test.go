@@ -28,8 +28,9 @@ func TestCategoriesSeededAfterFreshOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(cats) != 2 {
-		t.Fatalf("categories = %v, want System and Idle only", listCategoryNames(t, store))
+	// A fresh database carries the two built-ins plus the v12 starter set.
+	if len(cats) != 8 {
+		t.Fatalf("categories = %v, want built-ins plus the starter set", listCategoryNames(t, store))
 	}
 	byName := make(map[string]domain.Category, len(cats))
 	for _, c := range cats {
@@ -40,6 +41,15 @@ func TestCategoriesSeededAfterFreshOpen(t *testing.T) {
 	}
 	if !byName["Idle"].IsSystem || !byName["Idle"].IsIdle {
 		t.Fatalf("Idle flags wrong: %+v", byName["Idle"])
+	}
+	for _, name := range []string{"Focus Work", "Communication", "Learning", "Research", "Distraction", "Personal"} {
+		c := byName[name]
+		if c.ID == "" || c.IsSystem || c.IsIdle {
+			t.Fatalf("starter category %s wrong: %+v", name, c)
+		}
+		if c.Details == "" {
+			t.Fatalf("starter category %s has no details to steer classification", name)
+		}
 	}
 }
 
@@ -87,8 +97,9 @@ func TestCategorySaveRejectsDuplicateNames(t *testing.T) {
 	})
 	assertKind(t, err, KindConstraint)
 
-	// The rejected save must have changed nothing.
-	if got := listCategoryNames(t, store); len(got) != 2 {
+	// The rejected save must have changed nothing: the fresh-database
+	// baseline is the two built-ins plus the starter set.
+	if got := listCategoryNames(t, store); len(got) != 8 {
 		t.Fatalf("names = %v after rejected save; transaction leaked rows", got)
 	}
 }

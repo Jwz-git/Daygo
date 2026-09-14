@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -325,6 +326,82 @@ func (b *Backend) DeleteCard(cardID int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
 	return b.deleteCard(ctx, cardID)
+}
+
+// SaveCategories replaces the whole user category set (docs/05 §5.2.1). The
+// input carries only user categories; the built-ins are merged back inside
+// the storage transaction. A rename rewrites timeline_cards in the same
+// transaction, so the days whose cards were renamed must refresh.
+func (b *Backend) SaveCategories(categories []CategoryDTO) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+
+	store := b.store()
+	before, err := store.Categories().List(ctx)
+	if err != nil {
+		return mapStorageError("save categories", err)
+	}
+	domainRows, err := categoryDTOsToDomain(categories)
+	if err != nil {
+		return err
+	}
+	if err := b.saveCategories(ctx, domainRows); err != nil {
+		return err
+	}
+
+	// A renamed category rewrites card rows, so every day holding the
+	// renamed category's cards needs a timeline:updated event. The rewrite
+	// has already happened, so query by the new names.
+	days, err := store.Cards().CardDaysByCategory(ctx, renamedCategoryNames(before, categories))
+	if err != nil {
+		days = nil
+	}
+	for _, day := range days {
+		b.emitTimelineInvalidation(day)
+	}
+	return nil
+}
+
+// renamedCategoryNames returns the new names of categories whose name changed
+// between the stored set and the incoming DTO rows (matched by id; a row
+// without an id is new and renames nothing). The card rows already carry the
+// new names when this runs.
+func renamedCategoryNames(before []domain.Category, next []CategoryDTO) []string {
+	nextByID := make(map[string]CategoryDTO, len(next))
+	for _, r := range next {
+		if r.ID != "" && !r.IsSystem {
+			nextByID[r.ID] = r
+		}
+	}
+	var renamed []string
+	for _, c := range before {
+		if next, ok := nextByID[c.ID]; ok && next.Name != c.Name {
+			renamed = append(renamed, next.Name)
+		}
+	}
+	return renamed
+}
+
+// categoryDTOsToDomain maps binding-layer rows to the storage shape. A row
+// claiming is_system is rejected, not silently dropped: is_system is assigned
+// by the database, never the caller (docs/03 §3.5), and a caller that thinks
+// it can write built-ins has a stale model of the contract.
+func categoryDTOsToDomain(rows []CategoryDTO) ([]domain.Category, error) {
+	out := make([]domain.Category, 0, len(rows))
+	for _, r := range rows {
+		if r.IsSystem {
+			return nil, apperr.E(apperr.InvalidArgument,
+				fmt.Sprintf("category %q claims isSystem; built-ins are managed by the database", r.Name), nil)
+		}
+		out = append(out, domain.Category{
+			ID: r.ID, Name: r.Name, ColorHex: r.ColorHex, Details: r.Details,
+			SortOrder: r.SortOrder, IsIdle: r.IsIdle,
+		})
+	}
+	return out, nil
 }
 
 // RetryBatches requeues failed batches by explicit user action: status back

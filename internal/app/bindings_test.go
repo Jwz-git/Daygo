@@ -48,6 +48,7 @@ var contractBindings = []string{
 	"RequestScreenRecordingPermission",
 	"ResumeRecording",
 	"RetryBatches",
+	"SaveCategories",
 	"SaveDayGoal",
 	"SaveJournalDay",
 	"SendChatMessage",
