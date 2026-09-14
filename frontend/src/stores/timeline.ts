@@ -32,8 +32,7 @@ export type TimelineState =
   | 'populated'
 
 export type TimelineAction =
-  | 'update-title'
-  | 'update-category'
+  | 'update-card'
   | 'delete-card'
   | 'retry-batches'
   | 'delete-batches'
@@ -174,16 +173,13 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
-  function changeCardTitle(cardID: number, title: string): Promise<boolean> {
+  function saveCardEdits(cardID: number, title: string, category: string): Promise<boolean> {
     const nextTitle = title.trim()
-    if (nextTitle.length === 0) return Promise.resolve(false)
-    return runAction('update-title', () => updateCardTitle(cardID, nextTitle))
-  }
-
-  function changeCardCategory(cardID: number, category: string): Promise<boolean> {
     const nextCategory = category.trim()
-    if (nextCategory.length === 0) return Promise.resolve(false)
-    return runAction('update-category', () => updateCardCategory(cardID, nextCategory))
+    return runAction('update-card', async () => {
+      if (nextTitle !== '') await updateCardTitle(cardID, nextTitle)
+      if (nextCategory !== '') await updateCardCategory(cardID, nextCategory)
+    })
   }
 
   async function removeCard(cardID: number): Promise<boolean> {
@@ -234,8 +230,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     selectCard,
     selectFailure,
     setCategoryFilter,
-    changeCardTitle,
-    changeCardCategory,
+    saveCardEdits,
     removeCard,
     retryFailure,
     dismissFailure,

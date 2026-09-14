@@ -24,8 +24,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  updateTitle: [cardID: number, title: string]
-  updateCategory: [cardID: number, category: string]
+  saveEdits: [cardID: number, title: string, category: string]
   delete: [cardID: number]
 }>()
 
@@ -49,29 +48,29 @@ const videoURLs = computed(() =>
     .filter((url): url is string => typeof url === 'string' && url.trim() !== ''),
 )
 
-const editableCategories = computed(() =>
-  props.day.categories.filter((category) => !category.isSystem),
-)
+/* The category picker lists the user-editable category names. A card
+   currently in a built-in category (e.g. System) keeps it as an option so the
+   user can leave the card untouched instead of being forced to move it. */
+const categoryOptions = computed(() => {
+  const names = props.day.categories
+    .filter((category) => !category.isSystem)
+    .map((category) => category.name)
+  if (props.card.category !== '' && !names.includes(props.card.category)) {
+    names.unshift(props.card.category)
+  }
+  return names
+})
 
 const canStartEditing = computed(
   () => props.canWrite && (props.actions.updateTitle || props.actions.updateCategory),
 )
 
-const canSaveTitle = computed(() => {
-  const title = draftTitle.value.trim()
-  return title !== '' &&
-    title !== props.card.title &&
-    props.actions.updateTitle &&
-    props.pendingAction === null
-})
+const titleChanged = computed(() => draftTitle.value.trim() !== '' && draftTitle.value.trim() !== props.card.title)
+const categoryChanged = computed(() => draftCategory.value !== '' && draftCategory.value !== props.card.category)
 
-const canSaveCategory = computed(() => {
-  const category = draftCategory.value.trim()
-  return category !== '' &&
-    category !== props.card.category &&
-    props.actions.updateCategory &&
-    props.pendingAction === null
-})
+const canSave = computed(() =>
+  (titleChanged.value || categoryChanged.value) && props.pendingAction === null,
+)
 
 watch(
   () => props.card.id,
@@ -98,15 +97,9 @@ function cancelEditing(): void {
   draftCategory.value = props.card.category
 }
 
-function saveTitle(): void {
-  if (!canSaveTitle.value) return
-  emit('updateTitle', props.card.id, draftTitle.value.trim())
-  editing.value = false
-}
-
-function saveCategory(): void {
-  if (!canSaveCategory.value) return
-  emit('updateCategory', props.card.id, draftCategory.value.trim())
+function saveEditing(): void {
+  if (!canSave.value) return
+  emit('saveEdits', props.card.id, draftTitle.value.trim(), draftCategory.value)
   editing.value = false
 }
 
@@ -137,52 +130,44 @@ function confirmDeletion(): void {
     {{ props.card.start }} – {{ props.card.end }} · {{ duration(props.card.durationMinutes) }}
   </div>
 
-  <div v-if="editing" class="editor">
+  <form v-if="editing" class="editor" @submit.prevent="saveEditing" @keydown.esc="cancelEditing">
     <label>
       <span>{{ t('timeline.inspector.titleLabel') }}</span>
-      <span class="editor__field">
-        <input
-          v-model="draftTitle"
-          class="dg-input"
-          type="text"
-          maxlength="160"
-          :disabled="!props.actions.updateTitle || props.pendingAction !== null"
-          @keydown.enter.prevent="saveTitle"
-        />
-        <button type="button" class="dg-button" :disabled="!canSaveTitle" @click="saveTitle">
-          {{ props.pendingAction === 'update-title' ? t('common.state.saving') : t('common.action.save') }}
-        </button>
-      </span>
+      <input
+        v-model="draftTitle"
+        class="dg-input"
+        type="text"
+        maxlength="160"
+        :disabled="!props.actions.updateTitle || props.pendingAction !== null"
+      />
     </label>
     <label>
       <span>{{ t('timeline.inspector.categoryLabel') }}</span>
-      <span class="editor__field">
-        <select
-          v-model="draftCategory"
-          class="dg-input"
-          :disabled="!props.actions.updateCategory || props.pendingAction !== null"
+      <select
+        v-model="draftCategory"
+        class="dg-input"
+        :disabled="!props.actions.updateCategory || props.pendingAction !== null"
+      >
+        <option
+          v-for="name in categoryOptions"
+          :key="name"
+          :value="name"
         >
-          <option
-            v-for="category in editableCategories"
-            :key="category.id"
-            :value="category.name"
-          >
-            {{ category.name }}
-          </option>
-        </select>
-        <button type="button" class="dg-button" :disabled="!canSaveCategory" @click="saveCategory">
-          {{ props.pendingAction === 'update-category' ? t('common.state.saving') : t('common.action.save') }}
-        </button>
-      </span>
+          {{ name }}
+        </option>
+      </select>
     </label>
     <div class="editor__actions">
       <button type="button" class="dg-button" @click="cancelEditing">
         {{ t('common.action.cancel') }}
       </button>
+      <button type="submit" class="dg-button dg-button--primary" :disabled="!canSave">
+        {{ props.pendingAction === 'update-card' ? t('common.state.saving') : t('common.action.save') }}
+      </button>
     </div>
-  </div>
+  </form>
 
-  <section v-else class="inspector__section">
+  <section class="inspector__section">
     <h3>{{ t('timeline.inspector.summary') }}</h3>
     <p>{{ props.card.detailedSummary || props.card.summary || t('timeline.inspector.noSummary') }}</p>
   </section>
@@ -288,16 +273,10 @@ function confirmDeletion(): void {
 </template>
 
 <style scoped>
-.editor {
-  display: grid;
-  gap: 13px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--dg-timeline-grid);
-}
+.editor { display: grid; gap: 13px; padding: 16px 0; border-bottom: 1px solid var(--dg-timeline-grid); }
 
 .editor label { display: grid; gap: 5px; }
 .editor label > span { color: var(--dg-text-secondary); font-size: 10px; font-weight: 600; }
-.editor__field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
 .editor__actions { display: flex; justify-content: flex-end; gap: 7px; }
 
 .app-sites { display: flex; flex-wrap: wrap; gap: 7px; }

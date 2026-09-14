@@ -27,8 +27,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  updateTitle: [cardID: number, title: string]
-  updateCategory: [cardID: number, category: string]
+  saveEdits: [cardID: number, title: string, category: string]
   delete: [cardID: number]
   retry: [batchIDs: number[]]
   dismissFailure: [batchIDs: number[]]
@@ -69,8 +68,7 @@ const { t } = useI18n()
       :pending-action="props.pendingAction"
       :action-failed="props.actionFailed"
       @close="emit('close')"
-      @update-title="(cardID, title) => emit('updateTitle', cardID, title)"
-      @update-category="(cardID, category) => emit('updateCategory', cardID, category)"
+      @save-edits="(cardID, title, category) => emit('saveEdits', cardID, title, category)"
       @delete="(cardID) => emit('delete', cardID)"
     />
   </aside>
