@@ -32,6 +32,7 @@ export default {
   status: {
     failed: '失败',
     canceled: '已取消',
+    pending: '进行中',
   },
   tools: {
     collapsedLabel: '工具调用',
@@ -41,7 +42,13 @@ export default {
     result: '结果',
     resultOk: '成功',
     resultError: '失败',
+    resultPending: '进行中',
     unknownTool: '未知工具',
+    copyArguments: '复制参数',
+    copyResult: '复制结果',
+    copied: '已复制',
+    rawJson: '查看原始 JSON',
+    formatted: '格式化视图',
     names: {
       timeline: '时间线查询',
       card: '卡片查询',
@@ -55,6 +62,20 @@ export default {
       card_delete: '删除卡片',
       goal_set: '设置目标',
     },
+    // Structured result summaries
+    timeline: {
+      cardsFound: '找到 {count} 条记录',
+      period: '{start} — {end}',
+    },
+    card: {
+      cardId: '卡片 #{cardId}',
+    },
+    categories: {
+      count: '{count} 个分类',
+    },
+    goal_set: {
+      day: '{day} 的目标',
+    },
   },
   memory: {
     title: '全局指令',
@@ -64,4 +85,50 @@ export default {
     saved: '已保存',
   },
   loadError: '对话加载失败',
+
+  // New: drawer
+  drawer: {
+    conversations: '对话',
+    memory: '全局指令',
+    newChat: '新建对话',
+    today: '今天',
+    yesterday: '昨天',
+    older: '更早',
+    untitled: '未命名对话',
+  },
+
+  // New: bubble
+  bubble: {
+    copy: '复制',
+    copied: '已复制',
+    showRaw: '原始',
+    showFormatted: '格式化',
+    roleAssistant: 'Daygo',
+  },
+
+  // New: welcome
+  welcome: {
+    title: '你好，有什么可以帮你的？',
+    subtitle: '问我关于你的时间线、日报、周报、分类或卡片',
+    hints: [
+      '「今天我做了什么？」',
+      '「本周工作分类占比？」',
+      '「添加一个新分类：学习」',
+      '「帮我看看昨天的日记」',
+    ],
+  },
+
+  // New: context bar
+  contextBar: {
+    readonly: '只读',
+    editable: '可编辑',
+    switchProvider: '切换供应商',
+    switchModel: '切换模型',
+  },
+
+  // New: date divider
+  dateDivider: {
+    today: '今天',
+    yesterday: '昨天',
+  },
 }

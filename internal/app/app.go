@@ -18,7 +18,6 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -201,17 +200,11 @@ func Run() error {
 			// the state the auto-start produces.
 			backend.maybeAutoStartRecording()
 		},
-		Mac: &mac.Options{
-			/*
-			 * TitleBarHidden (not TitleBarHiddenInset): both keep the native
-			 * traffic lights, but HiddenInset also attaches an empty NSToolbar,
-			 * and on macOS 26 a window with a toolbar is drawn with a noticeably
-			 * larger corner radius than a titlebar-only window. Dropping the
-			 * toolbar is what keeps the window corners tight.
-			 */
-			TitleBar:             mac.TitleBarHidden(),
-			WebviewIsTransparent: false,
-		},
+		// Mac and Linux window options are platform-specific; each lives in
+		// options_<goos>.go under a matching build tag. Windows and other
+		// platforms get the platform-neutral defaults Wails ships with.
+		Mac:   platformMacOptions(),
+		Linux: platformLinuxOptions(),
 	})
 	if err != nil {
 		return fmt.Errorf("run Daygo desktop shell: %w", err)

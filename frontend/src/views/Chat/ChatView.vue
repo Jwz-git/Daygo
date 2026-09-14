@@ -2,22 +2,25 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import PageHeader from '@/components/PageHeader.vue'
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { useChatStore } from '@/stores/chat'
 
 import ChatComposer from './ChatComposer.vue'
-import ChatSidebar from './ChatSidebar.vue'
+import ChatContextBar from './ChatContextBar.vue'
+import ChatDrawer from './ChatDrawer.vue'
 import ChatTranscript from './ChatTranscript.vue'
+import ChatWelcome from './ChatWelcome.vue'
 
 /*
- * The page owns only orchestration: the error banner, the unavailable state
- * and the two-column layout. Transcript rendering, the composer and the
- * sidebar are separate components; their action failures bubble up through
- * an `error` emit (an empty message clears the banner when an action starts).
+ * Page owns: drawer toggle, error banner, unavailable state, layout.
+ * Transcript / Composer / ContextBar handle their own interactions.
+ * Sidebar is now a floating drawer (ChatDrawer), opened on demand.
  */
 const { t } = useI18n()
 const store = useChatStore()
+
 const actionError = ref('')
+const drawerOpen = ref(false)
 
 async function retrySelect(): Promise<void> {
   actionError.value = ''
@@ -30,6 +33,18 @@ async function retrySelect(): Promise<void> {
   }
 }
 
+function openDrawer(): void {
+  drawerOpen.value = true
+}
+
+function closeDrawer(): void {
+  drawerOpen.value = false
+}
+
+function onDrawerError(message: string): void {
+  actionError.value = message
+}
+
 onMounted(() => {
   void store.hydrate()
 })
@@ -37,44 +52,88 @@ onMounted(() => {
 
 <template>
   <div class="page chat">
-    <PageHeader :title="t('chat.title')" />
+    <!-- Error banner -->
     <p v-if="actionError || store.refreshFailed" class="chat-error" role="alert">
       {{ actionError || t('chat.loadError') }}
-      <button v-if="store.activeId" type="button" class="dg-button" @click="retrySelect">{{ t('chat.retry') }}</button>
+      <button v-if="store.activeId" type="button" class="dg-button" @click="retrySelect">
+        {{ t('chat.retry') }}
+      </button>
     </p>
 
+    <!-- Unavailable state -->
     <div v-if="store.unavailable" class="unavailable">
       <h2>{{ t('chat.unavailableTitle') }}</h2>
       <p>{{ t('chat.unavailableDescription') }}</p>
       <button class="dg-button" @click="store.hydrate">{{ t('chat.retry') }}</button>
     </div>
 
+    <!-- Main layout — the glass panel is the entire right column; the drawer
+         toggle moves inside the panel head so there's no outer titlebar
+         competing with the panel's own frame. -->
     <div v-else class="layout">
-      <!-- Transcript -->
-      <section class="main">
-        <template v-if="store.activeConversation !== null">
-          <header class="main__head">
-            <h2 class="main__title">
+      <LiquidGlassSurface intensity="glass" class="panel">
+        <!-- Context bar + drawer toggle live at the top of the panel -->
+        <div v-if="store.activeConversation !== null" class="panel__head">
+          <div class="panel__headRow">
+            <h2 class="panel__title">
               {{ store.activeConversation.title || t('chat.newConversation') }}
             </h2>
-          </header>
+            <button
+              type="button"
+              class="header-toggle"
+              :aria-label="t('chat.showSidebar')"
+              @click="openDrawer"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <ChatContextBar />
+        </div>
 
-          <ChatTranscript />
+        <!-- Transcript -->
+        <div class="panel__body">
+          <ChatTranscript>
+            <template #empty>
+              <ChatWelcome />
+            </template>
+          </ChatTranscript>
+        </div>
+
+        <!-- Composer -->
+        <div v-if="store.activeConversation !== null" class="panel__foot">
           <ChatComposer @error="actionError = $event" />
-        </template>
-
-        <p v-else class="main__empty">
-          {{ t('chat.noSelection') }}
-        </p>
-      </section>
-
-      <ChatSidebar @error="actionError = $event" />
+        </div>
+      </LiquidGlassSurface>
     </div>
+
+    <!-- Drawer -->
+    <ChatDrawer
+      :open="drawerOpen"
+      @close="closeDrawer"
+      @error="onDrawerError"
+    />
   </div>
 </template>
 
 <style scoped>
-.chat-error { color: var(--dg-danger); padding: 0 var(--dg-page-padding); font-size: 12px; }
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px var(--dg-page-padding);
+  color: var(--dg-danger);
+  background: var(--dg-danger-fill);
+  font-size: 12px;
+}
 
 .unavailable {
   display: flex;
@@ -89,62 +148,111 @@ onMounted(() => {
 .unavailable h2 {
   color: var(--dg-text-primary);
   font-size: 15px;
+  margin: 0;
 }
 
 .unavailable p {
   color: var(--dg-text-secondary);
   font-size: 13px;
+  margin: 0;
 }
 
 .layout {
   display: flex;
   flex: 1;
-  gap: 12px;
   min-height: 0;
-  padding: 0 var(--dg-page-padding) var(--dg-page-padding);
+  /* No bottom padding — the glass panel fills the rest of the column and
+     flush against the panel's bottom edge, so the panel's own frame reads
+     as the window's bottom frame. Horizontal padding keeps the panel from
+     hugging the rail. */
+  padding: 0 var(--dg-page-padding) 0;
 }
 
-/* ---- main column ---- */
+/* ---- glass panel ---- */
 
-.main {
+.panel {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  padding: 0 16px;
 }
 
-.main__head {
+.panel__head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 0 8px;
   flex: none;
-  padding-bottom: 10px;
   border-bottom: 1px solid var(--dg-card-border);
 }
 
-.main__title {
+.panel__headRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.panel__title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
   color: var(--dg-text-primary);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.main__empty {
-  margin: auto;
-  color: var(--dg-text-muted);
-  font-size: 13px;
+.panel__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 4px;
 }
 
-/* ---- narrow ---- */
+.panel__foot {
+  flex: none;
+  padding: 4px 4px 8px;
+}
 
-@media (max-width: 900px) {
+/* ---- header toggle button (in panel head) ---- */
+.header-toggle {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--dg-chip-border);
+  border-radius: 8px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+  cursor: pointer;
+  transition: background var(--dg-motion-base) ease, color var(--dg-motion-base) ease;
+}
+
+.header-toggle:hover {
+  background: var(--dg-control-fill);
+  color: var(--dg-text-primary);
+}
+
+.header-toggle:focus-visible {
+  outline: 2px solid var(--dg-accent-text);
+  outline-offset: 2px;
+}
+
+/* ---- narrow viewport ---- */
+
+@media (max-width: 700px) {
   .layout {
-    flex-direction: column;
+    padding: 0 8px 8px;
+  }
+  .panel {
+    padding: 0 8px;
   }
 }
 </style>

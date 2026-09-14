@@ -3,10 +3,9 @@ export default {
   nav: {
     general: 'General & appearance',
     recording: 'Recording & privacy',
-    ai: 'AI & models',
+    providers: 'Providers',
     storage: 'Storage',
     privacy: 'Privacy',
-    providers: 'Providers',
     agentAccess: 'MCP / CLI',
     dataExport: 'Export',
     other: 'Other',

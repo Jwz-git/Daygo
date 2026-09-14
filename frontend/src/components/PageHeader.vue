@@ -15,6 +15,18 @@ const props = defineProps<{ title: string }>()
 </template>
 
 <style scoped>
+/*
+ * The header is a window-drag surface so users can grab the window from the
+ * top edge without the titlebar being visible. Anything interactive in the
+ * header (lead / trail slots, status badges) must opt out with no-drag,
+ * otherwise Wails swallows the click and the control does nothing.
+ *
+ * Slotted wrappers like <PeriodNav> set their own root no-drag, and that
+ * declaration inherits into their internal buttons. The :slotted(*) rule
+ * below is a belt-and-braces opt-out: any element the caller slots in is
+ * no-drag by default, so a forgotten wrapper cannot accidentally turn the
+ * whole header into a dead zone for clicks.
+ */
 .page-header {
   position: relative;
   z-index: 3;
@@ -23,6 +35,13 @@ const props = defineProps<{ title: string }>()
   justify-content: space-between;
   gap: 20px;
   padding: 26px var(--dg-page-padding) 18px;
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
+}
+
+.page-header :slotted(*) {
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 
 .page-header__lead,

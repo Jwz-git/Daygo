@@ -10,7 +10,6 @@ import AgentAccessSection from './AgentAccessSection.vue'
 import AppearanceSection from './AppearanceSection.vue'
 import PrivacySection from './PrivacySection.vue'
 import ProvidersSection from './ProvidersSection.vue'
-import RecognitionSection from './RecognitionSection.vue'
 import StorageSection from './StorageSection.vue'
 import { SETTINGS_SECTIONS, settingsSectionFromQuery, type SettingsSection } from './navigation'
 
@@ -130,9 +129,8 @@ watch(active, () => void nextTick(measurePill))
               <template v-else-if="active === 'recording'">
                 <PrivacySection />
               </template>
-              <template v-else-if="active === 'ai'">
+              <template v-else-if="active === 'providers'">
                 <ProvidersSection />
-                <RecognitionSection />
               </template>
               <template v-else-if="active === 'storage'">
                 <StorageSection />

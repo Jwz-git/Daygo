@@ -2,17 +2,14 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import ComboBox from '@/components/ComboBox.vue'
 import { useChatStore } from '@/stores/chat'
 
 const { t } = useI18n()
 const store = useChatStore()
 
-/*
- * Failures surface in the page-level banner, not locally: the emit carries
- * the message and an empty string clears it when the next action starts.
- */
-const emit = defineEmits<{ error: [message: string] }>()
+const emit = defineEmits<{
+  error: [message: string]
+}>()
 
 async function perform(action: () => Promise<unknown>): Promise<void> {
   emit('error', '')
@@ -31,14 +28,21 @@ const draft = computed({
   set: (value: string) => { drafts.value[store.activeId ?? ''] = value },
 })
 
-/** A thread without a provider cannot send; the composer is disabled then. */
 const providerMissing = computed(() => !store.activeConversation?.providerId)
 const tooLong = computed(() => new TextEncoder().encode(draft.value.trim()).length > 32 * 1024)
+const canSend = computed(() =>
+  draft.value.trim() !== '' &&
+  !store.pending &&
+  !store.loading &&
+  !providerMissing.value &&
+  !tooLong.value &&
+  !store.refreshFailed,
+)
 
 async function submit(): Promise<void> {
   const content = draft.value.trim()
   const id = store.activeId
-  if (content === '' || store.pending || store.loading || id === null || providerMissing.value || tooLong.value) return
+  if (!canSend.value || id === null) return
   await perform(async () => {
     if (await store.send(content)) drafts.value[id] = ''
   })
@@ -52,81 +56,31 @@ function onComposerKeydown(event: KeyboardEvent): void {
   }
 }
 
-// ---- provider & model select ----
-
-function onProviderChange(event: Event): void {
-  const target = event.target as HTMLSelectElement | null
-  if (target === null) return
-  void perform(() => store.pinProvider(target.value))
+async function cancel(): Promise<void> {
+  await perform(() => store.cancel())
 }
 
-/** The pinned provider's row, for its configured model. */
-const activeProvider = computed(() =>
-  store.providers.find((provider) => provider.id === store.activeConversation?.providerId) ?? null,
-)
+// ---- provider & model (inline in context bar now, just for working indicator) ----
 
-/** The model the thread will actually use: the override, else the provider's. */
 const effectiveModel = computed(() => {
-  const conversation = store.activeConversation
-  if (conversation === null) return ''
-  return conversation.model !== '' ? conversation.model : activeProvider.value?.model ?? ''
+  const conv = store.activeConversation
+  if (conv === null) return ''
+  const provider = store.providers.find((p) => p.id === conv.providerId)
+  return conv.model !== '' ? conv.model : provider?.model ?? ''
 })
-
-const modelOptions = computed(() => {
-  const provider = activeProvider.value
-  if (provider === null) return []
-  return [
-    { value: '', label: t('chat.model.follow', { model: provider.model }) },
-    { value: provider.model, label: provider.model },
-  ]
-})
-
-function onModelChange(model: string): void {
-  void perform(() => store.pinModel(model))
-}
 </script>
 
 <template>
+  <!-- Working / pending indicator -->
   <p v-if="store.pending" class="working" role="status">
     <span class="working__spinner" aria-hidden="true" />
     {{ t('chat.working') }}
     <span v-if="effectiveModel !== ''" class="working__model">{{ effectiveModel }}</span>
   </p>
+
   <p v-if="tooLong" class="composer-error" role="alert">{{ t('chat.tooLong') }}</p>
-  <div class="composer-bar">
-    <label class="composer-bar__field">
-      <span class="dg-field-label">{{ t('chat.provider.label') }}</span>
-      <select
-        class="dg-input"
-        :value="store.activeConversation?.providerId ?? ''"
-        :disabled="store.pending || store.loading"
-        @change="onProviderChange"
-      >
-        <option v-if="providerMissing" value="">
-          {{ t('chat.provider.placeholder') }}
-        </option>
-        <option
-          v-for="provider in store.providers"
-          :key="provider.id"
-          :value="provider.id"
-        >
-          {{ provider.displayName }}
-        </option>
-      </select>
-    </label>
-    <label v-if="!providerMissing" class="composer-bar__field">
-      <span class="dg-field-label">{{ t('chat.model.label') }}</span>
-      <ComboBox
-        :model-value="store.activeConversation?.model ?? ''"
-        :options="modelOptions"
-        :fallback-label="t('chat.model.custom')"
-        :placeholder="activeProvider?.model ?? ''"
-        :aria-label="t('chat.model.label')"
-        :disabled="store.pending || store.loading"
-        @update:model-value="onModelChange"
-      />
-    </label>
-  </div>
+
+  <!-- Input area -->
   <form class="composer" @submit.prevent="submit">
     <textarea
       v-model="draft"
@@ -139,19 +93,26 @@ function onModelChange(model: string): void {
     />
     <button
       v-if="!store.pending"
-      class="dg-button dg-button--primary"
+      class="dg-button dg-button--primary composer__send"
       type="submit"
-      :disabled="draft.trim() === '' || providerMissing || store.loading || store.refreshFailed || tooLong"
+      :disabled="!canSend"
+      :aria-label="t('chat.composer.send')"
     >
-      {{ t('chat.composer.send') }}
+      <!-- Paper plane icon -->
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M14 2L2 7l5 2 2 5 5-12z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </button>
     <button
       v-else
-      class="dg-button"
+      class="dg-button composer__cancel"
       type="button"
-      @click="perform(store.cancel)"
+      :aria-label="t('chat.composer.cancel')"
+      @click="cancel"
     >
-      {{ t('chat.composer.cancel') }}
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
     </button>
   </form>
 </template>
@@ -161,8 +122,7 @@ function onModelChange(model: string): void {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0;
-  padding: 4px 0;
+  margin: 0 0 6px;
   color: var(--dg-text-muted);
   font-size: 11px;
 }
@@ -174,62 +134,78 @@ function onModelChange(model: string): void {
   border: 2px solid var(--dg-chip-border);
   border-top-color: var(--dg-accent-text);
   border-radius: 50%;
-  animation: working-spin 0.8s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
-@keyframes working-spin {
-  to {
-    transform: rotate(360deg);
-  }
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .working__model {
   color: var(--dg-text-muted);
   font-family: var(--dg-font-mono);
+  font-size: 10px;
 }
 
 .composer-error {
   color: var(--dg-danger);
   font-size: 12px;
-}
-
-/* ---- composer bar (provider & model, above the input) ---- */
-
-.composer-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-  flex: none;
-  padding-top: 10px;
-  border-top: 1px solid var(--dg-card-border);
-}
-
-.composer-bar__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.composer-bar__field .dg-input,
-.composer-bar__field .combo {
-  width: 190px;
+  margin: 0 0 6px;
 }
 
 /* ---- composer ---- */
 
 .composer {
   display: flex;
+  align-items: flex-end;
+  gap: 8px;
   flex: none;
-  gap: 10px;
-  padding-top: 10px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--dg-card-border);
 }
 
 .composer__input {
   flex: 1;
   min-height: 36px;
+  max-height: 140px;
   resize: none;
   font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 12px;
+}
+
+.composer__send {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.composer__send:disabled {
+  opacity: 0.4;
+}
+
+.composer__cancel {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--dg-chip-border);
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+}
+
+.composer__cancel:hover {
+  background: var(--dg-danger-fill);
+  color: var(--dg-danger);
+  border-color: var(--dg-danger);
 }
 </style>

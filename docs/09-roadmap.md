@@ -30,6 +30,12 @@
 `GOOS=linux CGO_ENABLED=0 go build ./internal/...` 与 `GOOS=windows CGO_ENABLED=0 go build ./internal/...`
 通过。**这只是本机无头基线**，不是 Linux 实机 CI、原生集成或长时间证据。
 
+Linux Wails 桌面壳（v2 + GTK3 + WebKit2GTK）已具备初级适配：mac / Linux 窗口选项拆到
+`options_<goos>.go`（`options_darwin.go` / `options_linux.go` 及对应 `_other.go`），
+Go Core 在 Linux 下与 macOS 等价可用；`scripts/dev-linux.sh` 与 `scripts/build-linux.sh`
+按 `pkg-config` 自动选择 `webkit2_41` / `webkit2_40` build tag。Linux 上没有 Capture / System /
+Secrets 适配器，端口层按 `unsupported` 返回；这是 §9.8 的待定设计，未做真实集成验证。
+
 已落盘并有自动化覆盖：
 
 - [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v2 = `app_settings` +
@@ -230,6 +236,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 21 | Windows 截图是否合成鼠标指针 | recording / 工程 | Windows 进入任何真实使用前；当前实现接受 `ShowsCursor` 但不生效，要么补合成要么在 ABI 上明确降级语义 |
 | 22 | MCP 传输与进程模型（stdio 子进程 vs 宿主内 HTTP；工具粒度与审计来源标记随之一并定） | agent / 工程，delivery 协作 | MCP 实现前，agent 执行册切片 1 前必须落决策；已定约束与候选见 [05 §5.9.3](05-interface-contract.md#593-mcp-服务器设计准备未实现)，决策落 `decisions/agent-mcp-transport.md` |
 | 23 | Chat 会话模型、流式输出、消息留存与 provider 路由 | chat / 产品 + 工程 | **会话模型、流式、provider 路由已决定**：多会话、原子消息、会话级 provider 选择（必选，新会话默认路由链首位，不回退），见 [decisions/chat-session-model.md](decisions/chat-session-model.md)；消息留存与审计来源标记仍待定，与 #15 / #22 一并定 |
+| 24 | Linux 适配器形态 | recording / 工程，delivery 协作 | Linux 桌面壳（Wails v2 + GTK3 + WebKit2GTK）已具备初级适配，Go Core 在 Linux 下与 macOS 等价；`scripts/dev-linux.sh` / `scripts/build-linux.sh` 处理 WebKit2GTK ABI tag。Capture / System / Secrets / 状态栏的 Linux 实现属于"待定设计"，任何真实集成前必须落 `docs/decisions/recording-screen-capture-linux.md`，记录 X11 vs Wayland、Portal 接口、键环后端（Secret Service / KWallet）与发布包形态（deb / rpm / AppImage） |
 
 决定写入 `docs/decisions/<module>-<topic>.md`，记录候选、实验、结果、边界与回退，
 同步相应公共规范。无证据不标为已决定。捕获旧文档路径仅保留历史跳转。

@@ -101,6 +101,8 @@
   --dg-button-secondary-text: #d6d4db;
 
   --dg-danger-fill: rgba(229, 72, 77, 0.13);
+  --dg-danger-text: #ff8589;
+  --dg-accent-fill: rgba(75, 141, 240, 0.16);
 
   --dg-rail-selection-fill: rgba(255, 255, 255, 0.09);
   --dg-rail-selection-border: rgba(255, 255, 255, 0.13);

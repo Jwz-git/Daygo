@@ -3,10 +3,9 @@ export default {
   nav: {
     general: '通用与外观',
     recording: '录制与隐私',
-    ai: 'AI 与模型',
+    providers: '供应商',
     storage: '存储',
     privacy: '隐私',
-    providers: '模型服务',
     agentAccess: 'MCP / CLI',
     dataExport: '导出',
     other: '其他',

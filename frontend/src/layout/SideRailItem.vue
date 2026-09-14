@@ -35,6 +35,7 @@ const props = defineProps<{
   height: var(--dg-rail-item-size);
   color: var(--dg-text-secondary);
   text-decoration: none;
+  outline: none;
   transition:
     color var(--dg-motion-fast) ease;
 }
@@ -46,16 +47,24 @@ const props = defineProps<{
   height: var(--dg-rail-selection-size);
   border: 1px solid transparent;
   border-radius: var(--dg-rail-selection-radius);
+  /* The icon's viewBox (24) is rasterised into the icon box (--dg-rail-icon-size).
+     Without a block display, the SVG snaps to the inline baseline and the 1.6px
+     currentColor stroke ends up on a sub-pixel — that is what causes the glyph
+     to look skewed at rest. */
   transition:
     background var(--dg-motion-base) ease,
     border-color var(--dg-motion-base) ease,
-    box-shadow var(--dg-motion-base) ease,
-    transform var(--dg-motion-base) var(--dg-ease-glide);
+    box-shadow var(--dg-motion-base) ease;
 }
 
 .rail-item__icon {
+  display: block;
   width: var(--dg-rail-icon-size);
   height: var(--dg-rail-icon-size);
+  /* Force geometry-precision rasterisation: the default ("auto") lets WebKit
+     snap the 1.6px stroke to the device pixel grid, which produces the visible
+     horizontal jitter as the icon enters and leaves its own composition layer. */
+  shape-rendering: geometricPrecision;
 }
 
 .rail-item__label {
@@ -72,13 +81,6 @@ const props = defineProps<{
 
 .rail-item:hover .rail-item__glyph {
   background: var(--dg-hover-fill);
-  transform: scale(1.06);
-}
-
-/* Press compresses the chip; the glide easing springs it back on release. */
-.rail-item:active .rail-item__glyph {
-  transform: scale(0.92);
-  transition-duration: var(--dg-motion-fast);
 }
 
 .rail-item.is-active {
@@ -88,11 +90,6 @@ const props = defineProps<{
 .rail-item.is-active .rail-item__glyph {
   border-color: var(--dg-rail-selection-border);
   background: var(--dg-rail-selection-fill);
-  /* Air-level glass: a small chip needs only a light blur to read as a
-     separate material over the window gradient. Without backdrop-filter the
-     fill alone still renders readable, so no @supports gate is needed. */
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
   box-shadow: var(--dg-rail-selection-shadow);
 }
 
@@ -108,11 +105,6 @@ const props = defineProps<{
   .rail-item,
   .rail-item__glyph {
     transition: none;
-  }
-
-  .rail-item:hover .rail-item__glyph,
-  .rail-item:active .rail-item__glyph {
-    transform: none;
   }
 }
 </style>

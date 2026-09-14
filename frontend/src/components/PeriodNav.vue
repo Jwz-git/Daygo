@@ -63,6 +63,11 @@ const { t } = useI18n()
   display: flex;
   align-items: center;
   gap: 5px;
+  /* Header slots turn the surrounding region into a window-drag surface; the
+     nav itself must remain clickable, so opt out at the root and let the
+     buttons below inherit no-drag. */
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 
 .period-nav__arrow {

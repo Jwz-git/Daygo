@@ -1,7 +1,7 @@
 export const SETTINGS_SECTIONS = [
   'general',
   'recording',
-  'ai',
+  'providers',
   'storage',
   'agentAccess',
 ] as const
