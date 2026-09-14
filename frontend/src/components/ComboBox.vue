@@ -214,6 +214,22 @@ function onInputBlur(): void {
      options survive arbitrary content behind it; the blur is depth only. */
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   backdrop-filter: blur(24px) saturate(150%);
+  /* Enter-only, so it cannot strand a leave state; drops out of the field. */
+  transform-origin: 50% 0;
+  animation: combo-list-in var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+@keyframes combo-list-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .combo__list {
+    animation: none;
+  }
 }
 
 .combo__empty {

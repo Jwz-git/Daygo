@@ -27,6 +27,26 @@ body {
   min-height: 0;
 }
 
+/*
+ * Silky page entrance. A pure enter animation — no <Transition>, no leave
+ * phase — cannot wedge the router the way mode="out-in" can (see App.vue).
+ * The per-route :key remounts the view, so this replays once per navigation,
+ * and the transform resolves to `none` when it finishes, so it never lingers
+ * as a containing block for fixed/absolute descendants.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .page {
+    animation: dg-page-enter var(--dg-motion-slow) var(--dg-ease-glide) both;
+  }
+}
+
+@keyframes dg-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
 .dg-display {
   font-family: var(--dg-font-display);
   font-weight: var(--dg-font-display-weight);
@@ -271,7 +291,8 @@ input[type='number']::-webkit-outer-spin-button {
   transition:
     background var(--dg-motion-fast) ease,
     border-color var(--dg-motion-fast) ease,
-    box-shadow var(--dg-motion-fast) ease;
+    box-shadow var(--dg-motion-fast) ease,
+    transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
 .dg-button:disabled {
@@ -284,22 +305,32 @@ input[type='number']::-webkit-outer-spin-button {
   border-color: var(--dg-chip-border);
 }
 
+/* The press compresses the button slightly; the glide easing on transform
+   gives the release its soft spring back. */
 .dg-button:not(:disabled):active {
   background: var(--dg-track-fill);
   box-shadow: inset 0 1px 2px rgba(20, 16, 25, 0.08);
+  transform: scale(0.97);
 }
 
 .dg-button--primary {
   border-color: var(--dg-button-primary-border);
   background: var(--dg-button-primary-fill);
-  box-shadow: 0 1px 2px rgba(120, 50, 24, 0.18);
+  box-shadow: var(--dg-button-primary-shadow);
   color: var(--dg-button-primary-text);
 }
 
 .dg-button--primary:not(:disabled):hover {
   border-color: var(--dg-button-primary-border);
   background: var(--dg-button-primary-hover);
-  box-shadow: 0 1px 2px rgba(120, 50, 24, 0.22);
+  box-shadow: var(--dg-button-primary-shadow);
+}
+
+/* Keep the accent surface under the press; the generic :active grey wash
+   would read as the button losing its role mid-click. */
+.dg-button--primary:not(:disabled):active {
+  background: var(--dg-button-primary-hover);
+  box-shadow: inset 0 2px 4px rgba(15, 34, 60, 0.22);
 }
 
 .dg-button:focus-visible {
@@ -346,5 +377,9 @@ input[type='number']::-webkit-outer-spin-button {
   .dg-chip,
   .dg-input {
     transition: none;
+  }
+
+  .dg-button:not(:disabled):active {
+    transform: none;
   }
 }

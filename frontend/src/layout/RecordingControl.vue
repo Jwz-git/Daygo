@@ -90,6 +90,15 @@ function choose(action: RecordingAction): void {
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   backdrop-filter: blur(24px) saturate(150%);
   color: var(--dg-text-primary);
+  /* Enter-only, so it cannot strand a leave state; grows out of the trigger. */
+  transform-origin: 0 100%;
+  animation: recording-popover-in var(--dg-motion-base) var(--dg-ease-glide);
+}
+@keyframes recording-popover-in {
+  from { opacity: 0; transform: translateX(-6px) scale(0.97); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recording-control__popover { animation: none; }
 }
 .recording-control__popover strong { font-size: 13px; }
 .recording-control__popover p { margin-top: 6px; color: var(--dg-text-secondary); font-size: 12px; }

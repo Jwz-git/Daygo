@@ -49,7 +49,8 @@ const props = defineProps<{
   transition:
     background var(--dg-motion-base) ease,
     border-color var(--dg-motion-base) ease,
-    box-shadow var(--dg-motion-base) ease;
+    box-shadow var(--dg-motion-base) ease,
+    transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
 .rail-item__icon {
@@ -71,6 +72,13 @@ const props = defineProps<{
 
 .rail-item:hover .rail-item__glyph {
   background: var(--dg-hover-fill);
+  transform: scale(1.06);
+}
+
+/* Press compresses the chip; the glide easing springs it back on release. */
+.rail-item:active .rail-item__glyph {
+  transform: scale(0.92);
+  transition-duration: var(--dg-motion-fast);
 }
 
 .rail-item.is-active {
@@ -100,6 +108,11 @@ const props = defineProps<{
   .rail-item,
   .rail-item__glyph {
     transition: none;
+  }
+
+  .rail-item:hover .rail-item__glyph,
+  .rail-item:active .rail-item__glyph {
+    transform: none;
   }
 }
 </style>

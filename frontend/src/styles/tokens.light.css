@@ -19,11 +19,13 @@
   --dg-window-padding: 8px;
   --dg-window-gradient: radial-gradient(
       110% 80% at 8% -10%,
-      rgba(255, 255, 255, 0.9),
+      rgba(255, 255, 255, 0.92),
       transparent 52%
     ),
-    radial-gradient(120% 100% at 110% 115%, rgba(126, 156, 199, 0.26), transparent 58%),
-    linear-gradient(165deg, #eff2f7 0%, #e6eaf1 55%, #e0e5ee 100%);
+    radial-gradient(90% 80% at 106% -12%, rgba(151, 170, 217, 0.34), transparent 58%),
+    radial-gradient(120% 100% at 110% 115%, rgba(126, 156, 199, 0.38), transparent 60%),
+    radial-gradient(80% 70% at -12% 108%, rgba(178, 160, 202, 0.26), transparent 56%),
+    linear-gradient(165deg, #f0f3f8 0%, #e6eaf1 55%, #dee4ee 100%);
 
   /* panel */
   --dg-panel-fill: rgba(249, 249, 250, 0.94);
@@ -36,12 +38,24 @@
    * fallback, shadow and sheen are colour and differ per appearance; blur and
    * saturation are geometry and live here only.
    */
-  --dg-glass-tint: rgba(250, 251, 253, 0.62);
+  --dg-glass-tint: rgba(250, 251, 253, 0.55);
   --dg-glass-fallback: #f3f5f8;
-  --dg-glass-shadow: 0 12px 36px rgba(28, 34, 45, 0.14), 0 1px 2px rgba(28, 34, 45, 0.07);
-  --dg-glass-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 42%);
-  --dg-glass-blur: 28px;
-  --dg-glass-saturation: 160%;
+  /* The two inset layers are the liquid-glass rim: a 1px specular top edge
+     from the implied upper-left light, and a half-pixel inner outline that
+     reads as the refracting lip of the material. */
+  --dg-glass-shadow:
+    0 24px 64px rgba(28, 34, 45, 0.14),
+    0 12px 36px rgba(28, 34, 45, 0.1),
+    0 1px 2px rgba(28, 34, 45, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.3);
+  /* Specular pool at the light source, plus a faint counter-glow along the
+     bottom edge — the light bending back out of the slab. */
+  --dg-glass-sheen:
+    radial-gradient(120% 90% at 12% -8%, rgba(255, 255, 255, 0.44), transparent 46%),
+    linear-gradient(200deg, rgba(255, 255, 255, 0.16), transparent 32%, transparent 72%, rgba(255, 255, 255, 0.12) 100%);
+  --dg-glass-blur: 30px;
+  --dg-glass-saturation: 170%;
 
   /* text */
   --dg-text-primary: #29282f;
@@ -97,10 +111,11 @@
   --dg-chip-text: #3e3c44;
 
   /* buttons (→ primaryButton* / secondaryButton*) */
-  --dg-button-primary-fill: #3977c3;
-  --dg-button-primary-hover: #286bb9;
-  --dg-button-primary-border: rgba(40, 102, 178, 0.35);
+  --dg-button-primary-fill: linear-gradient(180deg, #4c88d2 0%, #3572bf 100%);
+  --dg-button-primary-hover: linear-gradient(180deg, #4180cc 0%, #2c68b6 100%);
+  --dg-button-primary-border: rgba(40, 102, 178, 0.4);
   --dg-button-primary-text: #ffffff;
+  --dg-button-primary-shadow: 0 1px 2px rgba(30, 78, 138, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.24);
   --dg-button-secondary-fill: rgba(255, 255, 255, 0.66);
   --dg-button-secondary-hover: rgba(255, 255, 255, 0.94);
   --dg-button-secondary-border: rgba(74, 67, 79, 0.16);
@@ -117,10 +132,12 @@
   --dg-rail-selection-radius: 7px;
   --dg-rail-selection-fill: rgba(255, 255, 255, 0.72);
   --dg-rail-selection-border: rgba(0, 0, 0, 0.08);
-  --dg-rail-selection-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --dg-rail-selection-shadow: 0 2px 6px rgba(28, 34, 45, 0.1), 0 1px 2px rgba(28, 34, 45, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
   --dg-rail-label-size: 12px;
   --dg-popover-fill: rgba(253, 253, 254, 0.98);
-  --dg-popover-shadow: 0 12px 32px rgba(28, 34, 45, 0.16), 0 2px 8px rgba(28, 34, 45, 0.1);
+  --dg-popover-shadow: 0 18px 44px rgba(28, 34, 45, 0.18), 0 2px 8px rgba(28, 34, 45, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
 
   /* cards */
   --dg-card-fill: rgba(255, 255, 255, 0.64);
@@ -168,7 +185,11 @@
   /* motion */
   --dg-motion-fast: 100ms;
   --dg-motion-base: 160ms;
+  --dg-motion-slow: 320ms;
   --dg-ease-out: cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* Long deceleration tail for entrances and press/release; the closest CSS
+     gets to a critically-damped spring. */
+  --dg-ease-glide: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* page geometry */
   --dg-inspector-width: 363px;
