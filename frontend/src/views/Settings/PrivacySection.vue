@@ -160,6 +160,15 @@ async function resolveIcons(listing: ApplicationDTO[]): Promise<void> {
   }
 }
 
+/**
+ * The grid is a two-way toggle: an unblocked tile adds the app to the privacy
+ * list, a blocked one removes it. The blocked row below stays remove-only.
+ */
+function onToggle(id: string): void {
+  if (blockedIdSet.value.has(id)) void onRemove(id)
+  else void onAdd(id)
+}
+
 async function onAdd(id: string): Promise<void> {
   if (!canEdit.value || blockedIdSet.value.has(id)) return
   await persist({ blockedApplicationIds: [...blockedIds.value, id] })
@@ -274,14 +283,14 @@ function labelOf(application: ApplicationDTO): string {
         class="app-tile"
         :class="{ 'app-tile--blocked': blockedIdSet.has(application.id) }"
         :aria-pressed="blockedIdSet.has(application.id)"
-        :disabled="blockedIdSet.has(application.id) || !canEdit"
+        :disabled="!canEdit"
         :title="blockedIdSet.has(application.id)
-          ? t('settings.privacy.blockedBadge')
+          ? t('settings.privacy.remove', { name: labelOf(application) })
           : t('settings.privacy.add', { name: labelOf(application) })"
         :aria-label="blockedIdSet.has(application.id)
-          ? t('settings.privacy.blockedBadge')
+          ? t('settings.privacy.remove', { name: labelOf(application) })
           : t('settings.privacy.add', { name: labelOf(application) })"
-        @click="onAdd(application.id)"
+        @click="onToggle(application.id)"
       >
         <span class="app-tile__frame">
           <img
@@ -331,7 +340,7 @@ function labelOf(application: ApplicationDTO): string {
     </p>
     <div
       v-else-if="applications.length > 0"
-      class="privacy__panel privacy__panel--blocked"
+      class="privacy__panel privacy__panel--blocked dg-scroll"
       :aria-label="t('settings.privacy.blockedApplicationsTitle')"
     >
       <button
