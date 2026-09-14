@@ -177,6 +177,41 @@ func TestChainCancellationDoesNotCount(t *testing.T) {
 	}
 }
 
+// Cancellation landing inside the provider call itself — not before the walk —
+// must not count as a provider failure either.
+func TestChainMidFlightCancellationDoesNotCount(t *testing.T) {
+	primary := &cancelingProvider{}
+	secondary := &sequenceProvider{results: []Result{{Text: "ok"}}}
+	chain := NewChain(chainEntries(primary, secondary), 1)
+
+	_, err := chain.Generate(context.Background(), Request{})
+	if ErrorKindOf(err) != ErrorCanceled {
+		t.Fatalf("error kind = %s, error = %v", ErrorKindOf(err), err)
+	}
+	if primary.calls != 1 {
+		t.Fatalf("primary calls = %d, want 1", primary.calls)
+	}
+	if secondary.calls != 0 {
+		t.Fatalf("secondary calls = %d; a canceled walk must not continue", secondary.calls)
+	}
+	if chain.failures[chain.entries[0].ID] != 0 {
+		t.Fatal("mid-flight cancellation counted as a provider failure")
+	}
+	if got := chain.ActiveID(); got != "a" {
+		t.Fatalf("active after mid-flight cancel = %q", got)
+	}
+}
+
+// cancelingProvider cancels the shared context from inside Generate, then
+// reports the cancellation — the shape a real HTTP client returns when its
+// request context is killed mid-flight.
+type cancelingProvider struct{ calls int }
+
+func (p *cancelingProvider) Generate(context.Context, Request) (Result, error) {
+	p.calls++
+	return Result{}, NewError(ErrorCanceled, "canceled mid-flight", 0, context.Canceled)
+}
+
 func TestChainEmptyReturnsErrNoProvider(t *testing.T) {
 	chain := NewChain(nil, 3)
 

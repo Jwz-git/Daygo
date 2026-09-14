@@ -313,6 +313,12 @@ async function confirmRemove(id: string): Promise<void> {
         <dd class="meta__mono">{{ provider.endpoint }}</dd>
         <dt>{{ t('settings.providers.form.model') }}</dt>
         <dd class="meta__mono">{{ provider.model }}</dd>
+        <template v-if="provider.maxImages > 0">
+          <dt>{{ t('settings.providers.form.maxImages') }}</dt>
+          <dd class="meta__mono">
+            {{ t('settings.providers.form.maxImagesValue', { count: provider.maxImages }) }}
+          </dd>
+        </template>
         <dt>{{ t('settings.providers.form.apiKey') }}</dt>
         <dd>
           {{
@@ -456,6 +462,27 @@ async function confirmRemove(id: string): Promise<void> {
         </p>
         <p v-else-if="modelsState.phase === 'done' && modelsState.result.models.length === 0" class="form__hint">
           {{ t('settings.providers.models.empty') }}
+        </p>
+      </label>
+
+      <label class="form__cell">
+        <span class="dg-field-label">
+          {{ t('settings.providers.form.maxImages') }}
+        </span>
+        <input
+          v-model.number="draft.maxImages"
+          class="dg-input"
+          type="number"
+          min="0"
+          max="20"
+          step="1"
+          :aria-invalid="errors.maxImages ? 'true' : undefined"
+        />
+        <p v-if="errors.maxImages" class="form__error">
+          {{ errorText('maxImages') }}
+        </p>
+        <p v-else class="form__hint">
+          {{ t('settings.providers.form.maxImagesHint') }}
         </p>
       </label>
 

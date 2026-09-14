@@ -54,6 +54,7 @@ function devState(): DevState {
         protocol: 'openai',
         endpoint: 'https://example.invalid/v1',
         model: 'dev-model',
+        maxImages: 0,
         hasSecret: false,
       },
     ],
@@ -82,6 +83,7 @@ export async function addProvider(input: ProviderInput): Promise<string> {
         protocol: input.protocol,
         endpoint: input.endpoint,
         model: input.model,
+        maxImages: input.maxImages,
         hasSecret: input.secret !== '',
       },
     ]
@@ -103,6 +105,7 @@ export async function updateProvider(id: string, input: ProviderInput): Promise<
             protocol: input.protocol,
             endpoint: input.endpoint,
             model: input.model,
+            maxImages: input.maxImages,
             hasSecret: input.secret !== '' ? true : provider.hasSecret,
           }
         : provider,

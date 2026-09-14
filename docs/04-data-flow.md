@@ -223,27 +223,36 @@ provider / 协议 / 请求与实际模型、起止时间、耗时、结果 / 错
 匿名固定夹具，不从用户调用记录还原 payload。
 
 默认每个 provider 最多 3 次 attempt（首次 + 2 次重试），从 500 ms 开始指数退避、8 秒封顶并
-带 full jitter；尊重 `Retry-After`，但单次等待不超过 30 秒。408、429、5xx、临时网络错误及
+带 full jitter；尊重 `Retry-After`，但单次等待不超过 30 秒。**每次 attempt 自带
+`RequestTimeout`（默认 2 分钟）兜底**：分析链的调用方 context 无 deadline，没有单次
+attempt 超时的挂死连接会永远不产生可分类错误，从而卡死整条流水线。408、429、5xx、临时网络错误及
 超时可重试；401 / 403、404、无效参数和取消不重试。结构化输出最终校验失败可额外重试一次，
 但仍计入 3 次上限。调用方 `context` 是总时限，HTTP 和退避都必须传播取消。
 
 失败分类映射到面向用户的类别，写入 `analysis_batches.failure_kind`，并通过
-`batch:failed` 事件推给 UI。
+`batch:failed` 事件推给 UI。只有真正的 `ai.Error` 才映射为供应商侧类别；本地错误
+（分段文件缺失、解码失败、storage 故障、`ai.ErrNoProvider`）分别归为 `internal` /
+`no_provider`，不冒充"网络问题稍后自动重试"。失败 note 不携带分段路径等本地敏感串。
 
 批失败后在 10 分钟冷却后重新入队，但**每批最多进入失败状态 `MaxBatchAttempts`（5）次**；
-达到上限后该批保持失败终态，不再消耗 LLM 调用。auth / invalid_request 类失败的
-`Retryable` 标记为 false：它们不会自行恢复，UI 应提示需要用户处理而非"将自动重试"。
+达到上限后该批保持失败终态，不再消耗 LLM 调用。auth / invalid_request / no_provider
+类失败的 `Retryable` 标记为 false：它们不会自行恢复，UI 应提示需要用户处理而非"将自动
+重试"。事件快照中的 `attempts` 与入库值一致（含本次自增），因此第 5 次失败的事件
+`Retryable` 已为 false。
 
 ### 4.3.4 提示词与输出解析
 
 - 提示词按协议分组，允许用户覆盖，默认值随代码发布。
 - 统一输入由有序文本与内存图片 part 组成；媒体由 analysis 通过 `platform.Media` 准备，
-  `internal/ai` 不读取分段路径。图片限 JPEG / PNG / WebP，最多 20 张、单张 5 MiB、总量 20 MiB。
+  `internal/ai` 不读取分段路径。图片限 JPEG / PNG / WebP，默认每请求最多 20 张（`ai.MaxImages`）、
+  单张 5 MiB、总量 20 MiB。**每供应商可配置单请求图片上限**（`providers.max_images`，0 = 默认）：
+  分析分组取回退链上所有已配置上限的最小值，保证任何可能接手该请求的供应商都能容纳它；
+  网关限制更低（如 429/`terminal_error_too_many_images`）或开启识别增强时按需调整。
 - **识别增强**（`llm.recognitionEnhancementEnabled`，默认关）：开启时识别用途的每张图片
   先在内存中切成 2×2 四张重叠分片（每片约半幅、中线两侧各 20 px 交叉覆盖），四片之后
   再附上未改动的原图一起发送——分片保小字识别，原图保整屏布局。分片只存在于单次请求
-  生命周期，调用返回后清零，不落盘、不入库；四片与原图合计仍受图片数量与总量上限约束，
-  超限返回明确错误，不静默降质。
+  生命周期，调用返回后清零，不落盘、不入库；四片与原图合计仍受图片数量与总量上限约束
+  （即每帧 5 张图，上限 20 张时每请求最多 4 帧），超限返回明确错误，不静默降质。
 - JSON Schema 同时发送到协议原生结构化输出字段，返回后仍执行本地提取 / 修复与 schema 验证；
   兼容端不支持时明确返回 `unsupported_feature`，不静默退化。
 - **输出解析必须防御性实现。** 模型会输出畸形 JSON、正文前言和围栏代码块。

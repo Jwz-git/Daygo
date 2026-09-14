@@ -43,6 +43,21 @@ type probeChainSource struct {
 	selected   string
 }
 
+// ImageCap reports the selected provider's configured image cap, or 0 for the
+// default.
+func (p probeChainSource) ImageCap(ctx context.Context) int {
+	rows, err := p.store.Providers().List(ctx)
+	if err != nil {
+		return 0
+	}
+	for _, row := range rows {
+		if row.ID == p.selectedID && row.MaxImages > 0 {
+			return row.MaxImages
+		}
+	}
+	return 0
+}
+
 type stagingMedia struct{ root string }
 
 var inputReader = bufio.NewReader(os.Stdin)

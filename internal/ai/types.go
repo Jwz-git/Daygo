@@ -14,6 +14,15 @@ const (
 	MaxTotalBytes = 20 << 20
 )
 
+// ClampMaxImages turns a configured per-provider image cap into a usable
+// request limit: 0 (and anything out of range) means the MaxImages default.
+func ClampMaxImages(configured int) int {
+	if configured <= 0 || configured > MaxImages {
+		return MaxImages
+	}
+	return configured
+}
+
 type Purpose string
 
 const (
@@ -75,9 +84,13 @@ type OutputSchema struct {
 }
 
 type Request struct {
-	Purpose         Purpose
-	Parts           []Part
-	Output          *OutputSchema
+	Purpose Purpose
+	Parts   []Part
+	Output  *OutputSchema
+	// MaxImages caps the image parts of this request; 0 means MaxImages. The
+	// caller derives it from the provider chain so a gateway with a lower
+	// limit never receives an over-sized request.
+	MaxImages       int
 	MaxOutputTokens int
 }
 
@@ -103,7 +116,7 @@ func (r Request) Validate() error {
 			return NewError(ErrorInvalidRequest, "unknown part kind", 0, nil)
 		}
 	}
-	if images > MaxImages || totalBytes > MaxTotalBytes {
+	if images > ClampMaxImages(r.MaxImages) || totalBytes > MaxTotalBytes {
 		return NewError(ErrorInvalidRequest, "image limits exceeded", 0, nil)
 	}
 	if r.Output != nil {

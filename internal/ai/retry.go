@@ -11,20 +11,28 @@ type RandomDuration func(time.Duration) time.Duration
 
 const maxRetryAfter = 30 * time.Second
 
+// DefaultRequestTimeout bounds one provider attempt. The provider clients
+// otherwise inherit a deadline-less context from the scheduler, so a peer
+// that accepts the connection but never answers would block the pipeline
+// forever — no error to classify, no retry, no fallback.
+const DefaultRequestTimeout = 2 * time.Minute
+
 type RetryPolicy struct {
-	MaxAttempts int
-	BaseDelay   time.Duration
-	MaxDelay    time.Duration
-	Sleep       Sleeper
-	Jitter      RandomDuration
+	MaxAttempts    int
+	BaseDelay      time.Duration
+	MaxDelay       time.Duration
+	RequestTimeout time.Duration
+	Sleep          Sleeper
+	Jitter         RandomDuration
 }
 
 func DefaultRetryPolicy() RetryPolicy {
 	return RetryPolicy{
-		MaxAttempts: 3,
-		BaseDelay:   500 * time.Millisecond,
-		MaxDelay:    8 * time.Second,
-		Sleep:       sleepContext,
+		MaxAttempts:    3,
+		BaseDelay:      500 * time.Millisecond,
+		MaxDelay:       8 * time.Second,
+		RequestTimeout: DefaultRequestTimeout,
+		Sleep:          sleepContext,
 		Jitter: func(limit time.Duration) time.Duration {
 			if limit <= 0 {
 				return 0
@@ -49,6 +57,9 @@ func WithRetry(provider Provider, policy RetryPolicy) Provider {
 	if policy.MaxDelay <= 0 {
 		policy.MaxDelay = 8 * time.Second
 	}
+	if policy.RequestTimeout <= 0 {
+		policy.RequestTimeout = DefaultRequestTimeout
+	}
 	if policy.Sleep == nil {
 		policy.Sleep = sleepContext
 	}
@@ -66,7 +77,12 @@ func (p *retryProvider) Generate(ctx context.Context, request Request) (Result, 
 			return Result{}, canceledError(ctxErr)
 		}
 		attemptCtx := context.WithValue(ctx, attemptNumberKey{}, attempt)
+		// The per-attempt deadline fires inside the provider call as a plain
+		// context.DeadlineExceeded, which classifies as ErrorTimeout —
+		// retryable and chain-fallback-eligible like any other timeout.
+		attemptCtx, cancel := context.WithTimeout(attemptCtx, p.policy.RequestTimeout)
 		result, err = p.provider.Generate(attemptCtx, request)
+		cancel()
 		if err == nil || !Retryable(err) || attempt == p.policy.MaxAttempts {
 			return result, err
 		}

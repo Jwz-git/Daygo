@@ -28,9 +28,9 @@ export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
   anthropic: 'https://api.anthropic.com/v1',
 }
 
-export type ProviderField = 'displayName' | 'endpoint' | 'model'
+export type ProviderField = 'displayName' | 'endpoint' | 'model' | 'maxImages'
 
-export type ProviderFieldError = 'required' | 'invalidUrl'
+export type ProviderFieldError = 'required' | 'invalidUrl' | 'range'
 
 export type ProviderErrors = Partial<Record<ProviderField, ProviderFieldError>>
 
@@ -40,6 +40,7 @@ export interface ProviderDraft {
   protocol: ProviderProtocol
   endpoint: string
   model: string
+  maxImages: number
   secret: string
 }
 
@@ -49,6 +50,7 @@ export function emptyDraft(): ProviderDraft {
     protocol: 'openai',
     endpoint: DEFAULT_ENDPOINTS.openai,
     model: '',
+    maxImages: 0,
     secret: '',
   }
 }
@@ -59,6 +61,7 @@ export function draftOf(provider: ProviderDTO): ProviderDraft {
     protocol: provider.protocol,
     endpoint: provider.endpoint,
     model: provider.model,
+    maxImages: provider.maxImages,
     secret: '',
   }
 }
@@ -96,6 +99,10 @@ function validate(draft: ProviderDraft): { ok: true } | { ok: false; errors: Pro
     errors.endpoint = 'required'
   } else if (normalizeEndpoint(draft.endpoint) === null) {
     errors.endpoint = 'invalidUrl'
+  }
+
+  if (!Number.isInteger(draft.maxImages) || draft.maxImages < 0 || draft.maxImages > 20) {
+    errors.maxImages = 'range'
   }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors }
@@ -178,6 +185,7 @@ export const useProvidersStore = defineStore('providers', () => {
         protocol: legacy.protocol,
         endpoint: legacy.endpoint,
         model: legacy.model,
+        maxImages: 0,
         secret: '',
       })
       idMap.set(legacy.id, id)
@@ -225,6 +233,7 @@ export const useProvidersStore = defineStore('providers', () => {
       protocol: draft.protocol,
       endpoint: normalizeEndpoint(draft.endpoint) ?? draft.endpoint.trim(),
       model: draft.model.trim(),
+      maxImages: draft.maxImages,
       secret: draft.secret.trim(),
     })
     await refresh()
@@ -248,6 +257,7 @@ export const useProvidersStore = defineStore('providers', () => {
       protocol: draft.protocol,
       endpoint: normalizeEndpoint(draft.endpoint) ?? draft.endpoint.trim(),
       model: draft.model.trim(),
+      maxImages: draft.maxImages,
       secret: draft.secret.trim(),
     })
     await refresh()

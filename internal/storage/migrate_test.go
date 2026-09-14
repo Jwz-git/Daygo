@@ -686,3 +686,55 @@ func TestMigrateV9FixturePreservesDataAndAddsSoftDelete(t *testing.T) {
 		t.Fatalf("observation = %q, the migration altered it", observation)
 	}
 }
+
+// DB-2 for v11: upgrade a database written by a v10-only build and assert
+// max_images arrives as 0 (the built-in default) on the pre-existing
+// providers while their other fields survive untouched.
+func TestMigrateV10FixturePreservesDataAndAddsMaxImages(t *testing.T) {
+	fixture := filepath.Join("testdata", "v10-batch-soft-delete.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	rows, err := store.db.QueryContext(context.Background(),
+		`SELECT id, display_name, protocol, endpoint, model, max_images FROM providers ORDER BY id`)
+	if err != nil {
+		t.Fatalf("query providers: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	type providerRow struct {
+		id, name, protocol, endpoint, model string
+		maxImages                           int
+	}
+	var got []providerRow
+	for rows.Next() {
+		var r providerRow
+		if err := rows.Scan(&r.id, &r.name, &r.protocol, &r.endpoint, &r.model, &r.maxImages); err != nil {
+			t.Fatalf("scan provider: %v", err)
+		}
+		got = append(got, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate providers: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("providers = %d, want 2", len(got))
+	}
+	if got[0].id != "fixture-provider-a" || got[0].model != "fixture-model-a" || got[0].maxImages != 0 {
+		t.Fatalf("provider a = %+v, want untouched fields and max_images 0", got[0])
+	}
+	if got[1].id != "fixture-provider-b" || got[1].protocol != "anthropic" || got[1].maxImages != 0 {
+		t.Fatalf("provider b = %+v, want untouched fields and max_images 0", got[1])
+	}
+}

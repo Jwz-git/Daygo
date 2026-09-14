@@ -138,6 +138,17 @@ func (c *Chain) Generate(ctx context.Context, request Request) (Result, error) {
 			c.recordSuccess(entry.ID, index)
 			return result, nil
 		}
+		// Cancellation may also land mid-flight, inside the provider call
+		// itself: the same not-a-provider-failure rule applies, and the walk
+		// ends here without touching counters. The kind check catches a
+		// provider-reported cancellation even when the shared context object
+		// has not been canceled itself.
+		if ctx.Err() != nil || ErrorKindOf(err) == ErrorCanceled {
+			if lastErr == nil {
+				return Result{}, canceledError(err)
+			}
+			return Result{}, lastErr
+		}
 		lastErr = err
 		c.recordFailure(entry.ID, index)
 	}

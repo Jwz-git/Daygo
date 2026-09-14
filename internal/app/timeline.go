@@ -63,7 +63,7 @@ func categoryFlagsFrom(list []domain.Category) categoryFlags {
 // (retryableFailureKind in analysis_wiring.go).
 func retryableFailure(kind string, attempts int) bool {
 	switch kind {
-	case "auth", "invalid_request":
+	case "auth", "invalid_request", "no_provider":
 		return false
 	}
 	return attempts < storage.MaxBatchAttempts

@@ -25,12 +25,13 @@ var tinyJPEG = []byte{
 // harness wires a Service against a real temp-dir store, a fake chain of one
 // scripted provider, and an in-memory frame source.
 type harness struct {
-	store     *storage.Store
-	provider  *fakeProvider
-	service   *Service
-	days      []string
-	failures  []string
-	framesDir string
+	store          *storage.Store
+	provider       *fakeProvider
+	service        *Service
+	days           []string
+	failures       []string
+	failedAttempts []int
+	framesDir      string
 }
 
 func newHarness(t *testing.T, responses map[string]string) *harness {
@@ -61,7 +62,10 @@ func newHarness(t *testing.T, responses map[string]string) *harness {
 		TickEvery:        time.Hour, // tests drive tick() directly
 		Workers:          1,
 		OnCardsCommitted: func(days []string) { h.days = append(h.days, days...) },
-		OnBatchFailed:    func(_ storage.Batch, kind, _ string) { h.failures = append(h.failures, kind) },
+		OnBatchFailed: func(batch storage.Batch, kind, _ string) {
+			h.failures = append(h.failures, kind)
+			h.failedAttempts = append(h.failedAttempts, batch.Attempts)
+		},
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -154,6 +158,8 @@ type fakeChainSource struct{ provider *fakeProvider }
 func (f fakeChainSource) AnalysisChain(context.Context) (*ai.Chain, error) {
 	return ai.NewChain([]ai.ChainEntry{{ID: "fixture", Provider: f.provider}}, 0), nil
 }
+
+func (fakeChainSource) ImageCap(context.Context) int { return 0 }
 
 type dirFrameSource struct{ dir string }
 
@@ -257,6 +263,64 @@ func TestPipelineProviderFailure(t *testing.T) {
 	}
 	if len(h.failures) != 1 || h.failures[0] != "auth" {
 		t.Fatalf("failure notifications = %v", h.failures)
+	}
+	// The store bumped attempts to 1 when entering the failed state; the
+	// event's snapshot must carry the same value, or the UI's Retryable flag
+	// runs one attempt behind and promises a retry the requeue loop refuses.
+	if len(h.failedAttempts) != 1 || h.failedAttempts[0] != 1 {
+		t.Fatalf("failure event attempts = %v, want [1]", h.failedAttempts)
+	}
+}
+
+// failureKind must not let non-ai errors inherit ErrorKindOf's
+// ErrorUnavailable default: a missing frame file is not a network problem.
+func TestFailureKindClassification(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"no provider", ai.ErrNoProvider, "no_provider"},
+		{"frame read failure", fmt.Errorf("read frame staging/x.jpg: %w", os.ErrNotExist), "internal"},
+		{"plain error", errors.New("decode cards: unexpected EOF"), "internal"},
+		{"canceled", context.Canceled, "canceled"},
+		{"auth", ai.NewError(ai.ErrorAuthentication, "key rejected", 401, nil), "auth"},
+		{"rate limited", ai.NewError(ai.ErrorRateLimited, "slow down", 429, nil), "rate_limited"},
+		{"unavailable", ai.NewError(ai.ErrorUnavailable, "down", 503, nil), "network"},
+		{"timeout", ai.NewError(ai.ErrorTimeout, "timed out", 0, nil), "network"},
+		{"invalid output", ai.NewError(ai.ErrorInvalidOutput, "bad json", 0, nil), "invalid_output"},
+		{"invalid request", ai.NewError(ai.ErrorInvalidRequest, "bad param", 400, nil), "invalid_request"},
+		{"unsupported", ai.NewError(ai.ErrorUnsupportedFeature, "no json mode", 400, nil), "invalid_request"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := failureKind(c.err); got != c.want {
+				t.Fatalf("failureKind(%v) = %q, want %q", c.err, got, c.want)
+			}
+		})
+	}
+}
+
+// A frame file that vanished from disk must fail the batch as internal, not
+// network: ai.ErrorKindOf's default would otherwise promise a pointless retry.
+func TestPipelineMissingFrameFailsInternal(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{}`,
+	})
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	frames := h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	if err := os.Remove(filepath.Join(h.framesDir, filepath.FromSlash(frames[0].SegmentPath))); err != nil {
+		t.Fatalf("remove frame: %v", err)
+	}
+
+	h.service.tick(context.Background())
+
+	batches := mustBatches(t, h.store)
+	if len(batches) != 1 || batches[0].Status != storage.BatchFailed {
+		t.Fatalf("batches = %+v, want one failed", batches)
+	}
+	if batches[0].FailureKind != "internal" {
+		t.Fatalf("failure kind = %q, want internal", batches[0].FailureKind)
 	}
 }
 

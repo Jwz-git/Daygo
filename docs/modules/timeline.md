@@ -40,6 +40,22 @@ observations 以 `activityPoints`（`[{time, description}]`）随卡片写入
 活动相同时指示模型合并为跨窗口单卡并把双方时间点并入；`TimelineCardDTO` 透出
 `activityPoints`，时间线检查器逐条展示（nil 归一为 `[]`，同 `distractions` 的 wire 规则）。
 Idle 直写路径不变。夹具：pipeline 六路径更新为含 `activityPoints` 的 schema 输出。
+**2026-09-14：批失败重试逻辑审查修复已落盘**——(1) 每次 provider attempt 自带
+`RetryPolicy.RequestTimeout`（默认 2 分钟，`ai.DefaultRequestTimeout`）：此前分析链
+调用方 context 无 deadline 且 http.Client 无 Timeout，接受连接后不响应的对端会永久
+卡死流水线（无错误可分类、无重试、无回退，batch 停在 processing）；(2) `failBatch`
+事件快照补 attempts 自增，最终（第 5 次）失败的 `batch:failed` 事件 `Retryable`
+不再差一误报"会自动重试"；(3) `failureKind` 只对真正的 `ai.Error` 映射供应商类别，
+本地错误（分段缺失 / 解码失败 / storage）归 `internal`，`ai.ErrNoProvider` 归
+`no_provider`（两者 `Retryable=false`），不再冒充 network；(4) 转录失败 note 不再携带
+分段路径（隐私：note 直达 DB 与 UI 事件）；(5) Chain 中途取消（provider 调用内落地）
+不计入失败计数，对齐类型注释契约。夹具：挂死 attempt 超时重试 3 次、mid-flight 取消
+不计数不降级、failureKind 全类目表、帧缺失批 failed/internal、事件 attempts=1。
+门禁：gofmt / `go test ./internal/ai/... ./internal/analysis/... ./internal/app/...` /
+`go vet` / `CGO_ENABLED=0 go build` / `check-docs.py` 通过。**已知未修**：auth 批次
+UI 标志说"不会自动重试"但 `RequeueFailed` 仍会重排（50 分钟窗口内最多 5 次），语义
+需先决策；Retry-After 无抖动（多组同限流时刻齐重试，Workers=2 缓解）；转录组 20 图
+上限与低图片数网关的错配（`terminal_error_too_many_images`）待配置化决策。
 **2026-09-13：卡片生成缺陷修复批次已落盘**——空闲判定所需的 idle 采样仍未接入端口
 （platform 缺能力，见 recording 执行册）；本批修复：时钟串接受无空格粘着形式
 （`10:21AM`，否则整批卡永久失败）、批失败尝试上限（`analysis_batches.attempts` v9 +

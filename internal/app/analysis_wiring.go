@@ -36,10 +36,11 @@ func (s stagingFrameSource) FrameBytes(_ context.Context, segmentPath string, fr
 // retryableFailureKind reports whether a failed batch is worth retrying. An
 // exhausted attempt count means the cooldown/requeue loop already gave up;
 // auth failures do not heal on their own (the user must fix the key), so the
-// UI should say "needs attention" rather than "will retry".
+// UI should say "needs attention" rather than "will retry". no_provider is
+// the same story: nothing retries its way out of an empty chain.
 func retryableFailureKind(kind string, attempts int) bool {
 	switch kind {
-	case "auth", "invalid_request":
+	case "auth", "invalid_request", "no_provider":
 		return false
 	}
 	return attempts < storage.MaxBatchAttempts
@@ -91,6 +92,29 @@ func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, erro
 		entries = append(entries, ai.ChainEntry{ID: row.ID, Provider: provider})
 	}
 	return ai.NewChain(entries, 0), nil
+}
+
+// ImageCap is the per-request image limit the analysis grouping uses: the
+// minimum non-default cap across the routing chain, so a group sized for one
+// provider never exceeds a fallback's gateway limit. With no configured cap
+// anywhere this stays 0 (the ai.MaxImages default).
+func (a analysisChainSource) ImageCap(ctx context.Context) int {
+	repo := a.backend.store().Providers()
+	routing, err := a.backend.loadRouting(ctx, repo)
+	if err != nil {
+		return 0
+	}
+	cap := 0
+	for _, id := range routing.Chain {
+		row, err := repo.Get(ctx, id)
+		if err != nil {
+			continue
+		}
+		if row.MaxImages > 0 && (cap == 0 || row.MaxImages < cap) {
+			cap = row.MaxImages
+		}
+	}
+	return cap
 }
 
 // analysisLanguage reads the model output-language setting; empty means

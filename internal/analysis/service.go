@@ -45,9 +45,13 @@ type CategorySource interface {
 }
 
 // ChainSource rebuilds the provider chain per call; the app layer owns the
-// routing and secrets wiring (mirrors chat's rebuildChain).
+// routing and secrets wiring (mirrors chat's rebuildChain). ImageCap is the
+// per-request image limit for transcription grouping: the minimum across the
+// chain, so a request sized for one entry never exceeds another that may take
+// it over mid-flight. 0 means the ai.MaxImages default.
 type ChainSource interface {
 	AnalysisChain(ctx context.Context) (*ai.Chain, error)
+	ImageCap(ctx context.Context) int
 }
 
 // FrameSource reads one frame's pixels. Provisional until the Media port's
@@ -332,7 +336,10 @@ func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error
 func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 	frames []storage.AnalysisFrame) ([]storage.Observation, error) {
 
-	groups := groupFrames(frames)
+	// The image cap comes from the chain source, not the request: grouping
+	// must size every group so ANY chain entry can serve it, since fallback
+	// may hand a group to a provider with a lower gateway limit mid-flight.
+	groups := groupFrames(frames, s.cfg.Providers.ImageCap(ctx))
 	type outcome struct {
 		obs []storage.Observation
 		err error
@@ -371,11 +378,13 @@ func (s *Service) transcribeGroup(ctx context.Context, chain *ai.Chain,
 	for _, f := range group {
 		data, err := s.cfg.Media.FrameBytes(ctx, f.SegmentPath, f.FrameIndex)
 		if err != nil {
-			return nil, fmt.Errorf("read frame %s: %w", f.SegmentPath, err)
+			// No segment paths in the message: it lands verbatim in
+			// failure_note and the batch:failed event.
+			return nil, fmt.Errorf("read frame %d of batch: %w", f.FrameIndex, err)
 		}
 		part, err := ai.ImagePart(ai.MediaJPEG, data)
 		if err != nil {
-			return nil, fmt.Errorf("frame %s: %w", f.SegmentPath, err)
+			return nil, fmt.Errorf("prepare frame %d for transcription: %w", f.FrameIndex, err)
 		}
 		parts = append(parts, part)
 	}
@@ -511,17 +520,18 @@ func (s *Service) shellOverlapsWindow(shell domain.CardShell, batch storage.Batc
 }
 
 // groupFrames slices time-ordered frames into consecutive groups of at most
-// ai.MaxImages with a total-size safety budget below ai.MaxTotalBytes.
-func groupFrames(frames []storage.AnalysisFrame) [][]storage.AnalysisFrame {
+// maxImages frames with a total-size safety budget below ai.MaxTotalBytes.
+func groupFrames(frames []storage.AnalysisFrame, maxImages int) [][]storage.AnalysisFrame {
 	if len(frames) == 0 {
 		return nil
 	}
+	maxImages = ai.ClampMaxImages(maxImages)
 	const byteBudget = 18 << 20 // headroom below ai.MaxTotalBytes for prompt text
 	var groups [][]storage.AnalysisFrame
 	current := []storage.AnalysisFrame{frames[0]}
 	total := frames[0].FileSize
 	for _, f := range frames[1:] {
-		if len(current) >= ai.MaxImages || (f.FileSize > 0 && total+f.FileSize > byteBudget) {
+		if len(current) >= maxImages || (f.FileSize > 0 && total+f.FileSize > byteBudget) {
 			groups = append(groups, current)
 			current = []storage.AnalysisFrame{f}
 			total = f.FileSize
@@ -558,28 +568,44 @@ func (s *Service) failBatch(ctx context.Context, batch storage.Batch, err error)
 	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchFailed, kind, note, s.cfg.Now()); err != nil {
 		return
 	}
+	// SetBatchStatus just incremented attempts in the store; mirror it on the
+	// snapshot the callback sees, or the final failure's Retryable flag is
+	// computed one attempt short and promises an automatic retry that
+	// RequeueFailed will refuse to make.
+	batch.Attempts++
 	if s.cfg.OnBatchFailed != nil {
 		s.cfg.OnBatchFailed(batch, kind, note)
 	}
 }
 
 // failureKind maps an error to the user-facing failure classification of
-// docs/04 §4.3.3. Notes carry only already-sanitized fixed strings.
+// docs/04 §4.3.3. Only genuine ai.Error values may map to provider-facing
+// kinds: ai.ErrorKindOf defaults every unknown error to ErrorUnavailable, so
+// switching on it directly would render a missing segment file or a storage
+// failure as "network, will retry". Notes carry only already-sanitized fixed
+// strings.
 func failureKind(err error) string {
-	switch ai.ErrorKindOf(err) {
-	case ai.ErrorAuthentication:
-		return "auth"
-	case ai.ErrorRateLimited:
-		return "rate_limited"
-	case ai.ErrorTimeout, ai.ErrorUnavailable:
-		return "network"
-	case ai.ErrorInvalidOutput:
-		return "invalid_output"
-	case ai.ErrorInvalidRequest, ai.ErrorUnsupportedFeature:
-		return "invalid_request"
+	if errors.Is(err, ai.ErrNoProvider) {
+		return "no_provider"
 	}
-	var storageErr error = err
-	_ = storageErr
+	var aiErr *ai.Error
+	if errors.As(err, &aiErr) {
+		switch aiErr.Kind {
+		case ai.ErrorAuthentication:
+			return "auth"
+		case ai.ErrorRateLimited:
+			return "rate_limited"
+		case ai.ErrorTimeout, ai.ErrorUnavailable:
+			return "network"
+		case ai.ErrorInvalidOutput:
+			return "invalid_output"
+		case ai.ErrorInvalidRequest, ai.ErrorUnsupportedFeature:
+			return "invalid_request"
+		case ai.ErrorCanceled:
+			return "canceled"
+		}
+		return "internal"
+	}
 	if errors.Is(err, context.Canceled) {
 		return "canceled"
 	}

@@ -91,7 +91,7 @@ export default {
   },
   recognition: {
     title: 'Recognition enhancement',
-    hint: 'Increases token usage',
+    hint: 'Each screenshot is split into 4 zoomed tiles plus the original (5 images per frame) to improve small-text recognition; increases token usage. You may need to adjust the per-provider images-per-request limit while it is on.',
     unavailable: 'Runs inside the Daygo app',
   },
   storage: {
@@ -160,6 +160,10 @@ export default {
       namePlaceholder: 'e.g. Work gateway',
       endpoint: 'Base URL',
       model: 'Model',
+      maxImages: 'Images per request',
+      maxImagesHint:
+        '0 means the default (20). The most images this service accepts in one request: lower it for gateways with tighter limits. With recognition enhancement on, each screenshot is sent as 5 images, so adjust as needed.',
+      maxImagesValue: '{count} images',
       modelPlaceholder: {
         openai: 'e.g. gpt-4o-mini',
         openai_responses: 'e.g. gpt-4o',
@@ -202,6 +206,7 @@ export default {
     error: {
       required: 'Required',
       invalidUrl: 'Needs a full http:// or https:// address',
+      range: 'Must be an integer between 0 and 20',
     },
     test: {
       run: 'Test',

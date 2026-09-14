@@ -46,24 +46,29 @@ func (b *Backend) providerSecrets() error {
 
 // validateProviderInput checks the wire payload. The same rules apply to add
 // and update so the two paths cannot drift apart.
-func validateProviderInput(p ProviderInputDTO) (displayName, protocol, endpoint, model string, err error) {
+func validateProviderInput(p ProviderInputDTO) (displayName, protocol, endpoint, model string, maxImages int, err error) {
 	displayName = strings.TrimSpace(p.DisplayName)
 	if displayName == "" {
-		return "", "", "", "", apperr.E(apperr.InvalidArgument, "display name is required", nil)
+		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument, "display name is required", nil)
 	}
 	proto := daygoai.Protocol(strings.TrimSpace(p.Protocol))
 	if !proto.Valid() {
-		return "", "", "", "", apperr.E(apperr.InvalidArgument, "unknown provider protocol", nil)
+		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument, "unknown provider protocol", nil)
 	}
 	endpoint, err = normalizeTestEndpoint(p.Endpoint)
 	if err != nil {
-		return "", "", "", "", apperr.E(apperr.InvalidArgument, "endpoint must be a full http:// or https:// address", err)
+		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument, "endpoint must be a full http:// or https:// address", err)
 	}
 	model = strings.TrimSpace(p.Model)
 	if model == "" {
-		return "", "", "", "", apperr.E(apperr.InvalidArgument, "model is required", nil)
+		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument, "model is required", nil)
 	}
-	return displayName, string(proto), endpoint, model, nil
+	if p.MaxImages < 0 || p.MaxImages > daygoai.MaxImages {
+		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument,
+			fmt.Sprintf("max images must be between 0 and %d (0 = default)", daygoai.MaxImages), nil)
+	}
+	maxImages = p.MaxImages
+	return displayName, string(proto), endpoint, model, maxImages, nil
 }
 
 // newProviderID generates the opaque provider id. crypto/rand keeps it
@@ -99,6 +104,7 @@ func (b *Backend) ListProviders() ([]ProviderDTO, error) {
 			Protocol:    row.Protocol,
 			Endpoint:    row.Endpoint,
 			Model:       row.Model,
+			MaxImages:   row.MaxImages,
 		}
 		if b.secrets != nil {
 			// Presence only: the value is fetched and discarded right here.
@@ -121,7 +127,7 @@ func (b *Backend) AddProvider(p ProviderInputDTO) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	displayName, protocol, endpoint, model, err := validateProviderInput(p)
+	displayName, protocol, endpoint, model, maxImages, err := validateProviderInput(p)
 	if err != nil {
 		return "", err
 	}
@@ -133,7 +139,8 @@ func (b *Backend) AddProvider(p ProviderInputDTO) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
 	defer cancel()
 	if err := repo.Add(ctx, storage.Provider{
-		ID: id, DisplayName: displayName, Protocol: protocol, Endpoint: endpoint, Model: model,
+		ID: id, DisplayName: displayName, Protocol: protocol, Endpoint: endpoint,
+		Model: model, MaxImages: maxImages,
 	}); err != nil {
 		return "", mapStorageError("add provider", err)
 	}
@@ -166,7 +173,7 @@ func (b *Backend) UpdateProvider(id string, p ProviderInputDTO) error {
 	if strings.TrimSpace(id) == "" {
 		return apperr.E(apperr.InvalidArgument, "provider id is required", nil)
 	}
-	displayName, protocol, endpoint, model, err := validateProviderInput(p)
+	displayName, protocol, endpoint, model, maxImages, err := validateProviderInput(p)
 	if err != nil {
 		return err
 	}
@@ -174,7 +181,8 @@ func (b *Backend) UpdateProvider(id string, p ProviderInputDTO) error {
 	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
 	defer cancel()
 	if err := repo.Update(ctx, id, storage.Provider{
-		DisplayName: displayName, Protocol: protocol, Endpoint: endpoint, Model: model,
+		DisplayName: displayName, Protocol: protocol, Endpoint: endpoint,
+		Model: model, MaxImages: maxImages,
 	}); err != nil {
 		return mapStorageError("update provider", err)
 	}

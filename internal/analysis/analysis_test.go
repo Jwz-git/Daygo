@@ -30,6 +30,37 @@ func intPtr(v int) *int { return &v }
 
 var base = time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
 
+// groupFrames must honor the per-chain image cap so no group exceeds what the
+// tightest gateway in the fallback chain accepts.
+func TestGroupFramesHonorsImageCap(t *testing.T) {
+	frames := make([]storage.AnalysisFrame, 10)
+	for i := range frames {
+		frames[i] = storage.AnalysisFrame{FileSize: 1024}
+	}
+
+	groups := groupFrames(frames, 3)
+	if len(groups) != 4 {
+		t.Fatalf("groups = %d, want 4 (3+3+3+1)", len(groups))
+	}
+	for i, g := range groups {
+		want := 3
+		if i == len(groups)-1 {
+			want = 1
+		}
+		if len(g) != want {
+			t.Fatalf("group %d = %d frames, want %d", i, len(g), want)
+		}
+	}
+
+	// 0 and out-of-range caps fall back to the ai.MaxImages default.
+	if got := groupFrames(frames, 0); len(got) != 1 {
+		t.Fatalf("default cap produced %d groups, want 1", len(got))
+	}
+	if got := groupFrames(frames, -1); len(got) != 1 {
+		t.Fatalf("negative cap produced %d groups, want 1", len(got))
+	}
+}
+
 // The off-by-one-interval rule (docs/04 §4.3.1): 90 frames at 10s span 890s,
 // which is below the 900s target, so the latest batch is NOT processed even
 // though it "looks complete". 91 frames span 900s exactly and qualify.

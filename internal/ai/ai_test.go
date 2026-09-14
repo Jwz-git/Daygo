@@ -192,6 +192,35 @@ func (p *sequenceProvider) Generate(context.Context, Request) (Result, error) {
 	return result, err
 }
 
+// A hung attempt must be cut off by the per-attempt deadline: without it the
+// provider never returns, no error is classified, and the pipeline blocks
+// forever on a deadline-less scheduler context.
+func TestRetryTimesOutHungAttempt(t *testing.T) {
+	provider := &hungProvider{}
+	policy := DefaultRetryPolicy()
+	policy.RequestTimeout = 20 * time.Millisecond
+	policy.Sleep = func(context.Context, time.Duration) error { return nil }
+	policy.Jitter = func(time.Duration) time.Duration { return 0 }
+
+	_, err := WithRetry(provider, policy).Generate(context.Background(), Request{})
+	if ErrorKindOf(err) != ErrorTimeout {
+		t.Fatalf("error kind = %s, error = %v", ErrorKindOf(err), err)
+	}
+	if provider.calls != 3 {
+		t.Fatalf("calls = %d, want 3 (timeout is retryable)", provider.calls)
+	}
+}
+
+type hungProvider struct {
+	calls int
+}
+
+func (p *hungProvider) Generate(ctx context.Context, _ Request) (Result, error) {
+	p.calls++
+	<-ctx.Done()
+	return Result{}, ctx.Err()
+}
+
 func TestErrorClassificationPreservesContext(t *testing.T) {
 	err := NewError(ErrorUnavailable, "request failed", 503, context.DeadlineExceeded)
 	if !errors.Is(err, context.DeadlineExceeded) {
@@ -199,5 +228,57 @@ func TestErrorClassificationPreservesContext(t *testing.T) {
 	}
 	if HTTPStatusOf(err) != 503 {
 		t.Fatalf("HTTP status = %d", HTTPStatusOf(err))
+	}
+}
+
+// The per-request image cap: 0 and out-of-range values fall back to the
+// MaxImages default, valid ones clamp nothing.
+func TestClampMaxImages(t *testing.T) {
+	cases := []struct {
+		configured int
+		want       int
+	}{
+		{0, MaxImages},
+		{-3, MaxImages},
+		{1, 1},
+		{5, 5},
+		{20, 20},
+		{21, MaxImages},
+	}
+	for _, c := range cases {
+		if got := ClampMaxImages(c.configured); got != c.want {
+			t.Fatalf("ClampMaxImages(%d) = %d, want %d", c.configured, got, c.want)
+		}
+	}
+}
+
+// Validate enforces the request's own cap, not the global constant: a
+// provider with a lower gateway limit must reject an over-sized request
+// before it leaves the machine.
+func TestValidateEnforcesRequestImageCap(t *testing.T) {
+	mk := func(n int) Request {
+		parts := make([]Part, 0, n+1)
+		parts = append(parts, TextPart("describe"))
+		for range n {
+			part, err := ImagePart(MediaPNG, []byte{1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			parts = append(parts, part)
+		}
+		return Request{Parts: parts}
+	}
+
+	if err := mk(5).Validate(); err != nil {
+		t.Fatalf("default cap rejects 5 images: %v", err)
+	}
+	five := mk(5)
+	five.MaxImages = 4
+	if ErrorKindOf(five.Validate()) != ErrorInvalidRequest {
+		t.Fatal("cap 4 accepted 5 images")
+	}
+	five.MaxImages = 5
+	if err := five.Validate(); err != nil {
+		t.Fatalf("cap 5 rejected 5 images: %v", err)
 	}
 }

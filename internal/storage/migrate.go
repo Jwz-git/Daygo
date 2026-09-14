@@ -361,6 +361,23 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 11,
+		name:    "providers: per-provider image cap",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// max_images caps how many image parts one provider request may
+			// carry: gateways reject requests past their own limit
+			// (terminal_error_too_many_images) and the recognition
+			// enhancement multiplies one frame into five images, so the cap
+			// must be adjustable per provider. 0 means the ai.MaxImages
+			// default; existing rows start there.
+			if _, err := tx.ExecContext(ctx,
+				`ALTER TABLE providers ADD COLUMN max_images INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return wrap("add provider max_images column", err)
+			}
+			return nil
+		},
+	},
 }
 
 // seedBuiltInCategories inserts the two built-in categories. IDs are fixed

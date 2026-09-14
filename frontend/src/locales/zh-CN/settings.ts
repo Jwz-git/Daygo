@@ -87,7 +87,7 @@ export default {
   },
   recognition: {
     title: '识别增强模式',
-    hint: '会提高 token 消耗量',
+    hint: '将每张截图切分成 4 张放大的局部图与 1 张原图一起输入模型（每帧共 5 张图），以提高小字识别；会提高 token 消耗量。开启后单请求图片上限可能需要在供应商设置中自行调整。',
     unavailable: '需要在 Daygo 应用内运行',
   },
   storage: {
@@ -155,6 +155,10 @@ export default {
       namePlaceholder: '例如：公司网关',
       endpoint: '接口地址',
       model: '模型',
+      maxImages: '单请求图片上限',
+      maxImagesHint:
+        '0 表示默认（20 张）。该服务一次请求最多接受的图片数：网关限制更低时调小；开启视觉增强后每张截图会切成 5 张图输入，可按需调整。',
+      maxImagesValue: '{count} 张',
       modelPlaceholder: {
         openai: '例如：gpt-4o-mini',
         openai_responses: '例如：gpt-4o',
@@ -195,6 +199,7 @@ export default {
     error: {
       required: '不能为空',
       invalidUrl: '需要以 http:// 或 https:// 开头的完整地址',
+      range: '需为 0–20 之间的整数',
     },
     test: {
       run: '测试',

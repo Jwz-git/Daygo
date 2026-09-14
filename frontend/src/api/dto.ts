@@ -125,6 +125,8 @@ export interface ProviderDTO {
   protocol: ProviderProtocol
   endpoint: string
   model: string
+  /** Image parts per request cap; 0 means the built-in default. */
+  maxImages: number
   hasSecret: boolean
 }
 
@@ -143,6 +145,7 @@ export interface ProviderInput {
   protocol: ProviderProtocol
   endpoint: string
   model: string
+  maxImages: number
   secret: string
 }
 

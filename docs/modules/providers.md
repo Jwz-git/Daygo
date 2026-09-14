@@ -127,3 +127,16 @@ typecheck / build 通过，夹具为内存生成的匿名 PNG。真实 provider 
 已确认未修：anthropic 默认 endpoint `…/v1` 会与 SDK 的 `v1/messages` 拼出
 `/v1/v1/messages`（前端 DEFAULT_ENDPOINTS 与 `models.go` 的 `/v1/models` 假设互相矛盾），
 `max_tokens` 对 OpenAI 推理模型的 400 兼容性问题——待决策后处理。
+
+2026-09-14（二）：供应商级单请求图片上限（`providers.max_images`，迁移 v11 + v10 夹具）——
+0 = 默认 20（`ai.MaxImages`），可配置 1–20；绑定层校验范围，DTO 双向透出。动因：第三方网关
+单请求图片上限低于 20 时返回 `terminal_error_too_many_images` 整批失败；识别增强模式下每帧
+膨胀为 5 张图（4 分片 + 原图），20 张上限只容 4 帧。分析分组（`groupFrames`）改为取回退链上
+所有已配置上限的最小值（`ChainSource.ImageCap`），保证任何可能接手该请求的回退供应商都能
+容纳它；`ai.Request.MaxImages` 让 Validate 按请求级上限拒绝超限。前端供应商表单新增数字
+输入（0–20）与说明文案，视觉增强设置项文案改为解释"每张截图切成 4 张局部图 + 原图输入，
+可能需要按需调整图片上限"。夹具：v11 迁移保数据（两 provider max_images 归 0）、
+ClampMaxImages 边界表、请求级上限 Validate、groupFrames 按上限分组。门禁：gofmt /
+`go test ./internal/...`（recorder 既有 7 秒时序失败除外，stash 验证与本改动无关）/
+`go vet` / `CGO_ENABLED=0 go build` / 前端 typecheck / `check-docs.py` 通过。视觉增强
+本身仍未接入生产调用链（`GenerateRecognition` 无调用方），接线时分组已按其上限假设就绪。
