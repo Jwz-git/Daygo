@@ -21,13 +21,62 @@ function Invoke-Native {
     }
 }
 
-if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
-    throw 'Go is required but was not found in PATH.'
+# Assert-ToolOnPath exits with a one-line message naming the missing binary.
+# Centralised so dev.ps1 (this script), future build.ps1 and future CI scripts
+# stay consistent on what the message says and how it terminates.
+function Assert-ToolOnPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $false)]
+        [string]$Hint = ''
+    )
+
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        $message = "$Name is required but was not found in PATH."
+        if ($Hint) { $message += "`n       $Hint" }
+        throw $message
+    }
 }
 
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-    throw 'npm is required but was not found in PATH.'
+# Test-FrontendHasRealBundle inspects frontend/dist/index.html to decide
+# whether a placeholder bundle is still in place. The check is by content
+# (presence of an `assets/` reference) rather than by file existence,
+# because assets/ can survive a placeholder write and would otherwise
+# make this skip a needed rebuild.
+function Test-FrontendHasRealBundle {
+    $entry = Join-Path $FrontendDist 'index.html'
+    if (-not (Test-Path -LiteralPath $entry -PathType Leaf)) {
+        return $false
+    }
+    return [bool] (Select-String -LiteralPath $entry -Pattern 'assets/' -Quiet)
 }
+
+# Apply the Go 1.25 + cgo Windows debug PE workaround (golang/go#75077).
+# Wails dev enables debug symbols, and Daygo uses cgo for the native capture
+# ABI on Windows, so retain debuggability with the older DWARF v4 layout
+# until the toolchain fix lands. The work is a no-op on any other Go version.
+# Returns the previous GOEXPERIMENT value (or $null when unset) so callers
+# can restore it in a finally block.
+function Install-GoDwarf5Workaround {
+    $previous = $env:GOEXPERIMENT
+    $goVersion = (& go env GOVERSION).Trim()
+    if ($goVersion -notmatch '^go1\.25(?:\.|$)') {
+        return $previous
+    }
+
+    Write-Host 'Applying Go 1.25 Windows cgo workaround: GOEXPERIMENT=nodwarf5'
+    $previousItems = @(
+        $previous -split ',' |
+            Where-Object { $_ -and $_ -notin @('dwarf5', 'nodwarf5') }
+    )
+    $env:GOEXPERIMENT = (@($previousItems) + 'nodwarf5') -join ','
+    return $previous
+}
+
+Assert-ToolOnPath -Name go -Hint 'Install Go from https://go.dev/dl/ or via winget (winget install GoLang.Go).'
+Assert-ToolOnPath -Name npm -Hint 'Install Node.js 20.19+ (or 22.12+) from https://nodejs.org/.'
 
 Write-Host 'Syncing frontend dependencies...'
 Push-Location $FrontendDir
@@ -35,7 +84,6 @@ try {
     # Run npm from the frontend directory. npm 10 on Windows can ignore
     # `--prefix` when invoked through npm.ps1.
     Invoke-Native npm @('install', '--no-audit', '--no-fund')
-
 }
 finally {
     Pop-Location
@@ -72,13 +120,7 @@ finally {
 # assets/ can survive a seed write and would make this skip the rebuild that is
 # needed. A marker file would work too, except that losing it leaves the seed in
 # place permanently and the app blank.
-$HasRealBundle = $false
-if (Test-Path -LiteralPath $FrontendEntry -PathType Leaf) {
-    if (Select-String -LiteralPath $FrontendEntry -Pattern 'assets/' -Quiet) {
-        $HasRealBundle = $true
-    }
-}
-if (-not $HasRealBundle) {
+if (-not (Test-FrontendHasRealBundle)) {
     Write-Host 'Building frontend bundle for go:embed...'
     Push-Location $FrontendDir
     try {
@@ -96,26 +138,17 @@ try {
     # builds when DWARF v5 is enabled (golang/go#75077). Wails dev enables
     # debug symbols, and Daygo uses cgo for the native capture ABI, so retain
     # debuggability with the older DWARF layout until the toolchain fix lands.
-    $PreviousGoExperiment = $env:GOEXPERIMENT
-    $GoVersion = (& go env GOVERSION).Trim()
-    if ($GoVersion -match '^go1\.25(?:\.|$)') {
-        $ExperimentList = @(
-            $PreviousGoExperiment -split ',' |
-                Where-Object { $_ -and $_ -notin @('dwarf5', 'nodwarf5') }
-        )
-        $env:GOEXPERIMENT = (@($ExperimentList) + 'nodwarf5') -join ','
-        Write-Host 'Applying Go 1.25 Windows cgo workaround: GOEXPERIMENT=nodwarf5'
-    }
+    $RestoreExperiment = Install-GoDwarf5Workaround
     try {
         & go run $WailsPackage dev -s @args
         $WailsExitCode = $LASTEXITCODE
     }
     finally {
-        if ($null -eq $PreviousGoExperiment) {
+        if ($null -eq $RestoreExperiment) {
             Remove-Item Env:GOEXPERIMENT -ErrorAction SilentlyContinue
         }
         else {
-            $env:GOEXPERIMENT = $PreviousGoExperiment
+            $env:GOEXPERIMENT = $RestoreExperiment
         }
     }
     exit $WailsExitCode

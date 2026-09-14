@@ -1,11 +1,19 @@
-// Command probe-deepseek-vision runs the production analysis stages in memory:
-// screenshot transcription followed by card generation. It reads a real batch
-// and uses the production analysis prompt, schema, retry and fallback code,
-// but never writes the Daygo database or recordings.
+// Command probe-analysis runs the production analysis pipeline against the
+// provider currently routed at the top of the configured chain. It reads a
+// real batch, runs the production transcription + card-generation code paths
+// (prompt, schema, retry and fallback included), but never writes the
+// Daygo database or recordings.
+//
+// The name "probe-analysis" is on purpose: this tool is provider-agnostic.
+// The old filename (probe-deepseek-vision.go) implied the script only knew
+// about DeepSeek, but it actually consults settings.ProvidersRouting via
+// internal/ai/factory.NewClient, so any provider the user has configured —
+// OpenAI, Anthropic, DeepSeek, a local model — runs through the same code
+// path. Misleading filenames breed stale mental models.
 //
 // Run from the repository root:
 //
-//	go run ./scripts/probe-deepseek-vision.go
+//	go run ./scripts/probe/analysis.go
 //
 // The script sends only after confirmation. API keys and model text are never
 // printed unless explicitly requested.
