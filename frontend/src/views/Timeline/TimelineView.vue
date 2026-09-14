@@ -8,6 +8,7 @@ import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PeriodNav from '@/components/PeriodNav.vue'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
+import { delayUntilDayContextRefresh } from '@/lib/dayContextRefresh'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { safeTimeZone } from '@/lib/timeZone'
 import { useTimelineStore } from '@/stores/timeline'
@@ -38,6 +39,7 @@ const { locale, t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
+let dayRefreshTimer: number | null = null
 const dateTitle = computed(() => {
   if (context.value === null) return t('timeline.title')
   return new Intl.DateTimeFormat(locale.value, {
@@ -86,6 +88,32 @@ function goToToday(): void {
   void router.push({ name: 'timeline', query })
 }
 
+function isFollowingToday(): boolean {
+  return route.query.day === undefined
+}
+
+function stopDayRefresh(): void {
+  if (dayRefreshTimer !== null) window.clearTimeout(dayRefreshTimer)
+  dayRefreshTimer = null
+}
+
+function scheduleDayRefresh(): void {
+  stopDayRefresh()
+  const current = context.value
+  if (!isFollowingToday() || current === null) return
+
+  // dayEndTs comes from GetDayContext: it preserves the backend-owned 04:00
+  // boundary and handles local time-zone/DST rules without frontend guesses.
+  dayRefreshTimer = window.setTimeout(() => {
+    dayRefreshTimer = null
+    void timeline.load()
+  }, delayUntilDayContextRefresh(current.dayEndTs) + 50)
+}
+
+function refreshWhenWindowReturns(): void {
+  if (document.visibilityState === 'visible' && isFollowingToday()) void timeline.load()
+}
+
 async function copyTimeline(): Promise<void> {
   if (day.value === null || cards.value.length === 0) return
   try {
@@ -99,9 +127,17 @@ async function copyTimeline(): Promise<void> {
 
 onMounted(() => {
   timeline.startEvents()
+  window.addEventListener('focus', refreshWhenWindowReturns)
+  document.addEventListener('visibilitychange', refreshWhenWindowReturns)
 })
 watch(() => route.query.day, () => { void timeline.load(routeDay()) }, { immediate: true })
-onBeforeUnmount(() => { timeline.stopListening() })
+watch([() => route.query.day, () => context.value?.dayEndTs], scheduleDayRefresh, { immediate: true })
+onBeforeUnmount(() => {
+  stopDayRefresh()
+  window.removeEventListener('focus', refreshWhenWindowReturns)
+  document.removeEventListener('visibilitychange', refreshWhenWindowReturns)
+  timeline.stopListening()
+})
 </script>
 
 <template>

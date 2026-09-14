@@ -73,6 +73,10 @@ prompt、失败面板排除 `skipped_short` 且 `Retryable` 按 failure kind / a
 `TimeZoneKeyName` 注册表项并转换为 IANA 标识；本机的 `China Standard Time` 现在返回
 `Asia/Shanghai`，不再把时间线交给前端按 `UTC` 渲染。该修复只影响新读取的页面上下文；
 已按错误时区写入的卡片时间戳不在本切片中重算。
+**2026-09-14：当前日实时跟随已补齐**——Timeline 在页面可见时每 15 秒更新当前时刻线；
+默认“今天”视图按后端 `GetDayContext` 返回的 `dayEndTs` 在下一逻辑日边界自动重拉，
+窗口重新获得焦点或从后台恢复时也重拉。前端不推导逻辑日或 04:00 边界；历史日期视图保持
+固定，不会被自动跳回今天。
 [timeutil](../../internal/timeutil/timeutil.go)、[日期绑定](../../internal/app/backend.go)
 和 [时间线前端切片](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
 **2026-09-12：cards 存储切片已落盘**——迁移 v2（`analysis_batches` / `timeline_cards` /
