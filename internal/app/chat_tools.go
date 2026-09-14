@@ -34,7 +34,7 @@ func (e chatToolExecutor) Execute(ctx context.Context, call chat.ToolCall) chat.
 func (e chatToolExecutor) dispatch(ctx context.Context, call chat.ToolCall) (json.RawMessage, error) {
 	backend := e.backend
 	if backend == nil || backend.store() == nil {
-		return nil, toolError(apperr.DatabaseError, "chat 工具需要数据库。")
+		return nil, toolError(apperr.DatabaseError, "chat tools require a database.")
 	}
 	switch call.Tool {
 	case chat.ToolTimeline:
@@ -74,7 +74,7 @@ func (e chatToolExecutor) dispatch(ctx context.Context, call chat.ToolCall) (jso
 	case chat.ToolGoalSet:
 		return e.goalSet(ctx, call.Arguments)
 	default:
-		return nil, toolError(apperr.InvalidArgument, "未知工具 "+call.Tool+"。")
+		return nil, toolError(apperr.InvalidArgument, "unknown tool "+call.Tool+".")
 	}
 }
 
@@ -96,7 +96,7 @@ func (e chatToolExecutor) cardResult(ctx context.Context, cardID int64) (json.Ra
 
 func (e chatToolExecutor) dailyResult(day string) (json.RawMessage, error) {
 	if _, _, err := timeutil.DayWindow(day, e.backend.clock.Now().Location()); err != nil {
-		return nil, toolError(apperr.InvalidArgument, "day 必须是 yyyy-MM-dd 格式的合法日期。")
+		return nil, toolError(apperr.InvalidArgument, "day must be a valid yyyy-MM-dd date.")
 	}
 	journal, err := e.backend.GetJournalDay(day)
 	if err != nil {
@@ -134,7 +134,7 @@ func (e chatToolExecutor) cardUpdate(ctx context.Context, args json.RawMessage) 
 	category, hasCategory := optionalString(args, "category")
 	title, hasTitle := optionalString(args, "title")
 	if !hasCategory && !hasTitle {
-		return nil, toolError(apperr.InvalidArgument, "card_update 需要 category 或 title 至少一项。")
+		return nil, toolError(apperr.InvalidArgument, "card_update requires at least one of category or title.")
 	}
 	if hasCategory {
 		if err := e.backend.updateCardCategory(ctx, cardID, category); err != nil {
@@ -197,7 +197,7 @@ func (e chatToolExecutor) categoryAdd(ctx context.Context, args json.RawMessage)
 	}
 	for _, c := range categories {
 		if c.Name == name {
-			return nil, toolError(apperr.InvalidArgument, "分类名已存在："+name)
+			return nil, toolError(apperr.InvalidArgument, "category name already exists: "+name)
 		}
 	}
 	// Only the non-built-in rows go into the new set: Save merges the
@@ -255,12 +255,12 @@ func (e chatToolExecutor) categoryUpdate(ctx context.Context, args json.RawMessa
 			continue
 		}
 		if c.IsSystem {
-			return nil, toolError(apperr.InvalidArgument, "内置分类不可修改。")
+			return nil, toolError(apperr.InvalidArgument, "built-in categories cannot be modified.")
 		}
 		found = true
 	}
 	if !found {
-		return nil, toolError(apperr.NotFound, "分类不存在。")
+		return nil, toolError(apperr.NotFound, "category does not exist.")
 	}
 	next := make([]domain.Category, 0, len(categories))
 	for _, c := range categories {
@@ -285,7 +285,7 @@ func (e chatToolExecutor) categoryUpdate(ctx context.Context, args json.RawMessa
 		if v, ok := optionalString(args, "name"); ok {
 			for _, other := range categories {
 				if other.ID != categoryID && other.Name == v {
-					return nil, toolError(apperr.InvalidArgument, "分类名已存在："+v)
+					return nil, toolError(apperr.InvalidArgument, "category name already exists: "+v)
 				}
 			}
 			updated.Name = v
@@ -333,12 +333,12 @@ func (e chatToolExecutor) categoryRemove(ctx context.Context, args json.RawMessa
 			continue
 		}
 		if c.IsSystem {
-			return nil, toolError(apperr.InvalidArgument, "内置分类不可删除。")
+			return nil, toolError(apperr.InvalidArgument, "built-in categories cannot be deleted.")
 		}
 		found = true
 	}
 	if !found {
-		return nil, toolError(apperr.NotFound, "分类不存在。")
+		return nil, toolError(apperr.NotFound, "category does not exist.")
 	}
 	if err := e.backend.saveCategories(ctx, next); err != nil {
 		return nil, err
@@ -381,7 +381,7 @@ func toolErrorEnvelope(err error) json.RawMessage {
 		"ok": false,
 		"error": map[string]string{
 			"code":    "internal_error",
-			"message": "工具执行失败。",
+			"message": "tool execution failed.",
 		},
 	})
 	return out

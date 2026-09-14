@@ -104,5 +104,5 @@ func validateToolArguments(name string, arguments json.RawMessage) error {
 
 // envelopeCorrection is appended to the conversation when a reply fails to
 // parse as an envelope, so the model gets one chance to fix its shape.
-const envelopeCorrection = "\n\n（系统提示：上一次输出不符合要求的 JSON 格式。必须只返回一个 JSON 对象：" +
-	`{"kind":"answer","answer":"最终回答"} 或 {"kind":"tool","tool":"工具名","arguments":{参数}}。）`
+const envelopeCorrection = "\n\n(System note: the previous output did not match the required JSON format. You must return exactly one JSON object: " +
+	`{"kind":"answer","answer":"final answer"} or {"kind":"tool","tool":"tool name","arguments":{arguments}}.)`

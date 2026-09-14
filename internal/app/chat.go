@@ -447,3 +447,12 @@ func (s backendChatSettings) EditMode(ctx context.Context) (string, error) {
 	}
 	return snapshot.ChatEditMode, nil
 }
+
+func (s backendChatSettings) OutputLanguage(ctx context.Context) (string, error) {
+	snapshot, err := settings.New(s.backend.store().Settings()).Load(ctx)
+	if err != nil {
+		// An unreadable setting falls back to "match the user's language".
+		return "", nil
+	}
+	return snapshot.OutputLanguage, nil
+}

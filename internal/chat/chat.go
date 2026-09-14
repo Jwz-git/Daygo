@@ -111,13 +111,16 @@ type Providers interface {
 	ByID(ctx context.Context, id string) (ProviderEntry, error)
 }
 
-// Settings supplies the global chat memory and the agent sandbox gate.
-// Memory returns the user-authored text injected into every conversation's
-// system prompt; EditMode returns the chat.editMode value ("readonly" or
-// "edits"), which the service re-reads each turn.
+// Settings supplies the global chat memory, the agent sandbox gate, and the
+// LLM output language. Memory returns the user-authored text injected into
+// every conversation's system prompt; EditMode returns the chat.editMode value
+// ("readonly" or "edits"), which the service re-reads each turn;
+// OutputLanguage returns the llm.outputLanguage value (BCP 47; empty means
+// the model matches the user's message language).
 type Settings interface {
 	Memory(ctx context.Context) (string, error)
 	EditMode(ctx context.Context) (string, error)
+	OutputLanguage(ctx context.Context) (string, error)
 }
 
 // ToolCall is one requested tool invocation from the model.
@@ -291,7 +294,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 			toolCalls++
 			if toolCalls >= maxToolCallsPerTurn {
 				s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed,
-					Content: "已达到工具调用次数上限（8 次），回合终止。"})
+					Content: "Tool call budget exhausted (8 calls); the turn was terminated."})
 				return
 			}
 			correction = envelopeCorrection
@@ -316,9 +319,9 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 
 		if toolCalls >= maxToolCallsPerTurn {
 			s.landToolResult(ctx, conversationID, reply.Tool, toolResultEnvelope(false, "budget_exceeded",
-				"已达到工具调用次数上限（8 次），本次调用不执行。"))
+				"Tool call budget exhausted (8 calls); this call was not executed."))
 			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed,
-				Content: "已达到工具调用次数上限（8 次），回合终止。"})
+				Content: "Tool call budget exhausted (8 calls); the turn was terminated."})
 			return
 		}
 		toolCalls++
@@ -337,17 +340,17 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 // error and continues, typically by answering with what it has.
 func (s *Service) executeTool(ctx context.Context, conversationID string, reply envelope) json.RawMessage {
 	if _, known := toolByName(reply.Tool); !known {
-		return toolResultEnvelope(false, "unknown_tool", "未知工具 "+reply.Tool+"。")
+		return toolResultEnvelope(false, "unknown_tool", "Unknown tool "+reply.Tool+".")
 	}
 	if err := validateToolArguments(reply.Tool, reply.Arguments); err != nil {
-		return toolResultEnvelope(false, "invalid_argument", "工具参数不符合要求："+err.Error())
+		return toolResultEnvelope(false, "invalid_argument", "Tool arguments are invalid: "+err.Error())
 	}
 	if isWriteTool(reply.Tool) && !s.writesAllowed(ctx) {
 		return toolResultEnvelope(false, "edits_disabled",
-			"当前为只读模式，写操作被拒绝。请用现有数据回答，并提示用户在设置中开启「应用内对话编辑」。")
+			"Write operations are rejected in readonly mode. Answer from existing data and tell the user to enable in-app chat editing in settings.")
 	}
 	if s.tools == nil {
-		return toolResultEnvelope(false, "internal_error", "工具执行器未接入。")
+		return toolResultEnvelope(false, "internal_error", "No tool executor is wired.")
 	}
 	outcome := s.tools.Execute(ctx, ToolCall{Tool: reply.Tool, Arguments: reply.Arguments})
 	return clipToolResult(outcome.Data)
@@ -541,11 +544,17 @@ func (s *Service) basePrompt(ctx context.Context) *strings.Builder {
 			editMode = mode
 		}
 	}
+	language := ""
+	if s.settings != nil {
+		if value, err := s.settings.OutputLanguage(ctx); err == nil {
+			language = value
+		}
+	}
 	prompt := &strings.Builder{}
-	prompt.WriteString(agentSystemPrompt(normalizeEditMode(editMode), today, monday))
+	prompt.WriteString(agentSystemPrompt(normalizeEditMode(editMode), today, monday, language))
 	if s.settings != nil {
 		if memory, err := s.settings.Memory(ctx); err == nil && strings.TrimSpace(memory) != "" {
-			prompt.WriteString("\n\n用户的全局指令：\n")
+			prompt.WriteString("\n\nUser's global instructions:\n")
 			prompt.WriteString(memory)
 		}
 	}
@@ -584,7 +593,7 @@ func clipHistory(content string) string {
 	if len(content) <= historyToolResultLimit {
 		return content
 	}
-	return content[:historyToolResultLimit] + "…（已截断）"
+	return content[:historyToolResultLimit] + "…(truncated)"
 }
 
 // complete persists the assistant message and clears the turn. Notifications

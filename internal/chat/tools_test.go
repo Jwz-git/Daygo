@@ -152,7 +152,7 @@ func TestDecodeEnvelope(t *testing.T) {
 }
 
 func TestAgentSystemPrompt(t *testing.T) {
-	readonly := agentSystemPrompt("readonly", "2026-09-12", "2026-09-07")
+	readonly := agentSystemPrompt("readonly", "2026-09-12", "2026-09-07", "")
 	for _, want := range []string{
 		"2026-09-12", "2026-09-07",
 		ToolTimeline, ToolCard, ToolDaily, ToolWeekly, ToolCategories,
@@ -164,21 +164,32 @@ func TestAgentSystemPrompt(t *testing.T) {
 			t.Errorf("readonly prompt missing %q", want)
 		}
 	}
-	if !strings.Contains(readonly, "不要重试写操作") {
+	if !strings.Contains(readonly, "Do not retry the write") {
 		t.Error("readonly prompt must instruct the model not to retry writes")
 	}
+	if !strings.Contains(readonly, "same language as the user's message") {
+		t.Error("empty language must fall back to matching the user's message language")
+	}
 
-	edits := agentSystemPrompt("edits", "2026-09-12", "2026-09-07")
-	if !strings.Contains(edits, "已启用") {
+	edits := agentSystemPrompt("edits", "2026-09-12", "2026-09-07", "")
+	if !strings.Contains(edits, "enabled (edits)") {
 		t.Error("edits prompt must announce enabled writes")
 	}
-	if strings.Contains(edits, "不要重试写操作") {
+	if strings.Contains(edits, "Do not retry the write") {
 		t.Error("edits prompt must not carry the readonly instruction")
 	}
 
 	// Any non-edits value renders the closed gate.
-	if agentSystemPrompt("garbage", "2026-09-12", "2026-09-07") == edits {
+	if agentSystemPrompt("garbage", "2026-09-12", "2026-09-07", "") == edits {
 		t.Error("garbage editMode must not render as edits")
+	}
+
+	pinned := agentSystemPrompt("edits", "2026-09-12", "2026-09-07", "zh-CN")
+	if !strings.Contains(pinned, "Reply in zh-CN.") {
+		t.Error("non-empty language must pin the reply language")
+	}
+	if strings.Contains(pinned, "same language as the user's message") {
+		t.Error("pinned language must not also carry the match-user fallback")
 	}
 }
 

@@ -122,15 +122,19 @@ func (p *fakeProviders) ByID(_ context.Context, id string) (ProviderEntry, error
 	return entry, nil
 }
 
-// fakeSettings carries the global memory and the sandbox gate.
+// fakeSettings carries the global memory, the sandbox gate, and the output
+// language.
 type fakeSettings struct {
 	memory   string
 	editMode string
+	language string
 }
 
 func (s *fakeSettings) Memory(context.Context) (string, error) { return s.memory, nil }
 
 func (s *fakeSettings) EditMode(context.Context) (string, error) { return s.editMode, nil }
+
+func (s *fakeSettings) OutputLanguage(context.Context) (string, error) { return s.language, nil }
 
 // scriptedProvider is a fake ai.Provider with controllable outcomes.
 type scriptedProvider struct {
@@ -277,7 +281,7 @@ func TestServiceInjectsGlobalMemory(t *testing.T) {
 	if !strings.Contains(lastPrompt, "回答必须简短。") {
 		t.Fatalf("prompt missing global memory:\n%s", lastPrompt)
 	}
-	if !strings.Contains(lastPrompt, "你是 Daygo 的时间跟踪助手") {
+	if !strings.Contains(lastPrompt, "You are Daygo's time-tracking assistant") {
 		t.Fatal("prompt missing the base system prompt")
 	}
 	if !strings.Contains(lastPrompt, "User: hi") {

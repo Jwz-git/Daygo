@@ -39,6 +39,9 @@ categories；写 6 与 §5.9.2 一致）与逐工具 JSON Schema、协议无关�
 120 s 总时限，取消与总时限共用 context）、`llm_calls` purpose=`chat` 审计行（observer 在
 retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共享写路径（`internal/app/writes.go`，
 同源由测试断言）、前端工具消息折叠渲染（一行摘要 + 展开参数 / 结果 JSON）。
+系统提示词骨架与工具描述为单一语言（英文，与分析侧一致），不随界面语言本地化；回复语言由
+`llm.outputLanguage` 注入（空串 = 跟随用户消息语言），模型可见的纠错指令与工具结果消息
+同样为英文骨架。
 
 **尚未实现**：search 读工具（语义随 CLI §5.9.1 一并定案）、status 读命令（依赖 recorder）、
 `agent-writes.log`（归 agent 模块，来源标记待定 #23）、消息留存策略（待定）、`wails dev`

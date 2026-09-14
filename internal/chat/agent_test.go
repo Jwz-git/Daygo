@@ -212,7 +212,7 @@ func TestAgentLoopBudgetExceeded(t *testing.T) {
 	}
 	last := messages[len(messages)-1]
 	if last.Role != RoleAssistant || last.Status != StatusFailed ||
-		!strings.Contains(last.Content, "上限") {
+		!strings.Contains(last.Content, "budget") {
 		t.Fatalf("final assistant row = %+v", last)
 	}
 	budgetResult := messages[len(messages)-2]
@@ -395,10 +395,10 @@ func TestAgentLoopPromptTodayIsLogicalDay(t *testing.T) {
 	waitTurn(t, service, conversation.ID)
 
 	wantToday, wantMonday := todayAndMonday(time.Now())
-	if !strings.Contains(lastPrompt, "今天的逻辑日是 "+wantToday) {
+	if !strings.Contains(lastPrompt, "Today's logical day is "+wantToday) {
 		t.Fatalf("prompt missing logical today %q:\n%s", wantToday, lastPrompt)
 	}
-	if !strings.Contains(lastPrompt, "本周一是 "+wantMonday) {
+	if !strings.Contains(lastPrompt, "this week's Monday is "+wantMonday) {
 		t.Fatalf("prompt missing monday %q:\n%s", wantMonday, lastPrompt)
 	}
 }

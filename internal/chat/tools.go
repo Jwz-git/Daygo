@@ -46,8 +46,8 @@ const colorPattern = `^#[0-9A-Fa-f]{6}$`
 var toolCatalog = []ToolSpec{
 	{
 		Name: ToolTimeline,
-		Description: "查询某个逻辑日（凌晨 4 点边界）的时间线：卡片、分类、合计分钟数与失败分组。" +
-			"day 为 yyyy-MM-dd。",
+		Description: "Query the timeline of one logical day (4 AM boundary): cards, categories, " +
+			"total minutes, and failed groups. day is yyyy-MM-dd.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{"day":{"type":"string","pattern":"` + dayPattern + `"}},
@@ -57,7 +57,7 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name:        ToolCard,
-		Description: "按卡片 ID 查询单张时间线卡片的详情（标题、摘要、分类、时长、应用与分心记录）。",
+		Description: "Query one timeline card by id (title, summary, category, duration, apps, and distraction records).",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{"cardId":{"type":"integer","minimum":1}},
@@ -67,7 +67,7 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name:        ToolDaily,
-		Description: "查询某个逻辑日的日记与当日目标（含专注 / 分心分类）。day 为 yyyy-MM-dd。",
+		Description: "Query the journal and goals of one logical day (including focus/distraction categories). day is yyyy-MM-dd.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{"day":{"type":"string","pattern":"` + dayPattern + `"}},
@@ -77,7 +77,7 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name:        ToolWeekly,
-		Description: "查询某一周的时长与分类占比。weekStart 为该周周一的 yyyy-MM-dd。",
+		Description: "Query one week's durations and category shares. weekStart is that week's Monday as yyyy-MM-dd.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{"weekStart":{"type":"string","pattern":"` + dayPattern + `"}},
@@ -87,7 +87,7 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name:        ToolCategories,
-		Description: "列出全部分类（id、名称、颜色、说明、排序、是否内置 / 空闲分类）。",
+		Description: "List all categories (id, name, color, details, sort order, built-in / idle flags).",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{},
@@ -96,8 +96,9 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name: ToolCategoryAdd,
-		Description: "新增一个分类。name 必填且不得与现有分类重名；colorHex 缺省 \"#8E8E93\"；" +
-			"sortOrder 缺省时追加到末尾。写操作，受沙箱门禁约束。",
+		Description: "Add a category. name is required and must not duplicate an existing category; " +
+			"colorHex defaults to \"#8E8E93\"; without sortOrder the category is appended at the end. " +
+			"Write operation, gated by the sandbox.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{
@@ -114,8 +115,9 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name: ToolCategoryUpdate,
-		Description: "修改一个分类。categoryId 必填（从 categories 工具获取）；至少提供一项要修改的字段；" +
-			"内置分类（System / Idle）不可修改。写操作，受沙箱门禁约束。",
+		Description: "Update a category. categoryId is required (get it from the categories tool); " +
+			"at least one field to change must be provided; built-in categories (System / Idle) cannot " +
+			"be modified. Write operation, gated by the sandbox.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{
@@ -133,7 +135,7 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name:        ToolCategoryRemove,
-		Description: "删除一个非内置分类。卡片不会被删除。写操作，受沙箱门禁约束。",
+		Description: "Delete a non-built-in category. Cards are not deleted. Write operation, gated by the sandbox.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{"categoryId":{"type":"string","minLength":1}},
@@ -144,8 +146,9 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name: ToolCardUpdate,
-		Description: "修改一张卡片的分类（按分类名，须为现有分类）或标题；cardId 必填，category 与 " +
-			"title 至少提供一项。写操作，受沙箱门禁约束。",
+		Description: "Update a card's category (by category name, which must already exist) or title; " +
+			"cardId is required, and at least one of category and title must be provided. " +
+			"Write operation, gated by the sandbox.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{
@@ -160,7 +163,7 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name:        ToolCardDelete,
-		Description: "软删除一张卡片（时间线不再显示，可经重处理恢复）。写操作，受沙箱门禁约束。",
+		Description: "Soft-delete a card (it disappears from the timeline and can be restored by reprocessing). Write operation, gated by the sandbox.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{"cardId":{"type":"integer","minimum":1}},
@@ -171,8 +174,8 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name: ToolGoalSet,
-		Description: "设置某个逻辑日的目标：专注分钟数、分心上限、是否跳过、专注 / 分心分类（按分类 id）。" +
-			"写操作，受沙箱门禁约束。",
+		Description: "Set the goals of one logical day: focus minutes, distraction limit, skip flag, " +
+			"focus / distraction categories (by category id). Write operation, gated by the sandbox.",
 		Arguments: json.RawMessage(`{
 			"type":"object",
 			"properties":{
