@@ -27,7 +27,6 @@ const emit = defineEmits<{
   delete: [cardID: number]
   retry: [batchIDs: number[]]
   dismissFailure: [batchIDs: number[]]
-  reprocess: []
 }>()
 const { t, locale } = useI18n()
 const editing = ref(false)
@@ -36,8 +35,12 @@ const confirmingFailureDelete = ref(false)
 const draftTitle = ref('')
 const draftCategory = ref('')
 
-const retryableFailures = computed(() =>
-  props.day.failures.filter((failure) => failure.retryable && failure.batchIds.length > 0),
+// The retryable flag describes automatic requeue behavior only — the backend
+// RetryBatches deliberately ignores both the attempt cap and failure kind
+// ("not to overrule the user asking for one more run"), so every failed range
+// with batches gets a manual retry button regardless of that flag.
+const failuresWithBatches = computed(() =>
+  props.day.failures.filter((failure) => failure.batchIds.length > 0),
 )
 
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
@@ -52,7 +55,6 @@ const failureClock = computed(() => {
   })
   return `${format.format(new Date(failure.startTs * 1000))} – ${format.format(new Date(failure.endTs * 1000))}`
 })
-const canReprocess = computed(() => props.canWrite && props.actions.reprocessDay)
 
 interface CategoryTotal {
   category: CategoryDTO
@@ -223,11 +225,11 @@ function duration(minutes: number): string {
         </div>
       </div>
 
-      <section v-if="retryableFailures.length > 0" class="inspector__section inspector__failures">
+      <section v-if="failuresWithBatches.length > 0" class="inspector__section inspector__failures">
         <h3>{{ t('timeline.failure.title') }}</h3>
         <p class="inspector__failure-note">{{ t('timeline.failure.retryHint') }}</p>
         <button
-          v-for="failure in retryableFailures"
+          v-for="failure in failuresWithBatches"
           :key="`${failure.startTs}-${failure.endTs}`"
           type="button"
           class="dg-button inspector__retry"
@@ -304,7 +306,7 @@ function duration(minutes: number): string {
           <button
             type="button"
             class="dg-button"
-            :disabled="!canRetry || !props.failure.retryable || props.pendingAction !== null"
+            :disabled="!canRetry || props.pendingAction !== null"
             :title="canRetry ? t('timeline.failure.retry') : t('timeline.failure.retryUnavailable')"
             @click="emit('retry', props.failure.batchIds)"
           >
@@ -496,21 +498,6 @@ function duration(minutes: number): string {
         </span>
       </div>
     </template>
-
-    <section class="inspector__section inspector__tools">
-      <h3>{{ t('timeline.tools.title') }}</h3>
-      <div class="inspector__tool-row">
-        <button
-          type="button"
-          class="dg-button"
-          :disabled="!canReprocess || props.pendingAction !== null"
-          :title="canReprocess ? t('timeline.reprocess.action') : t('timeline.reprocess.unavailable')"
-          @click="emit('reprocess')"
-        >
-          {{ props.pendingAction === 'reprocess-day' ? t('timeline.reprocess.pending') : t('timeline.reprocess.action') }}
-        </button>
-      </div>
-    </section>
   </aside>
 </template>
 
@@ -752,22 +739,6 @@ function duration(minutes: number): string {
 .inspector__failure-note { color: var(--dg-text-muted); font-size: 11px; }
 
 .inspector__retry { color: var(--dg-text-secondary); }
-
-.inspector__tools {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding-top: 18px;
-  border-top: 1px solid var(--dg-timeline-grid);
-}
-
-.inspector__tool-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
 
 .inspector__danger { color: var(--dg-danger); }
 

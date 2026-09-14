@@ -35,22 +35,14 @@ export default {
       kind: 'Failure kind',
       message: 'Error message',
       batches: 'Batches involved',
-      retryable: 'These batches can be resubmitted for analysis.',
-      notRetryable: 'This error cannot be retried automatically or the retry budget is spent; the range can be deleted instead.',
+      retryable: 'These batches retry automatically after the cooldown; you can also retry them now.',
+      notRetryable: 'This error will not retry automatically (usually provider configuration or auth); fix the cause and retry manually, or delete the range.',
     },
   },
   copy: {
     action: 'Copy timeline',
     copied: 'Copied',
     failed: 'Copy failed',
-  },
-  reprocess: {
-    action: 'Reprocess',
-    pending: 'Submitted…',
-    unavailable: 'Full-day reprocessing is not connected yet',
-  },
-  tools: {
-    title: 'Actions',
   },
   state: {
     loading: {

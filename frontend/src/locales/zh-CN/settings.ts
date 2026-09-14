@@ -16,7 +16,7 @@ export default {
     privacyDescription: '被屏蔽的应用不会进入截图。',
     providersDescription: '供应商、回退链、模型列表与连接测试。',
     agentAccessDescription: '允许本地 CLI / MCP 客户端修改数据（v1.1 提供）。',
-    dataExportDescription: '按时间范围导出 Markdown，或重跑某一天的分析。',
+    dataExportDescription: '按时间范围导出 Markdown。',
     otherDescription: '外观、启动项、遥测与语言。',
   },
   privacy: {

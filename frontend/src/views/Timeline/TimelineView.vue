@@ -227,7 +227,6 @@ onBeforeUnmount(() => { timeline.stopListening() })
           @delete="timeline.removeCard"
           @retry="timeline.retryFailure"
           @dismiss-failure="timeline.dismissFailure"
-          @reprocess="timeline.reprocess()"
         />
       </template>
     </div>

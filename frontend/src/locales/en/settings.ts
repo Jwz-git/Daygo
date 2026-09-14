@@ -19,7 +19,7 @@ export default {
     agentAccessDescription:
       'Let local CLI / MCP clients modify your data (arrives in v1.1).',
     dataExportDescription:
-      'Export a date range as Markdown, or reprocess a day.',
+      'Export a date range as Markdown.',
     otherDescription: 'Appearance, launch, telemetry and language.',
   },
   privacy: {

@@ -3,7 +3,7 @@
 ## 用户结果与范围
 
 用户看到由捕获自动产生的按逻辑日活动卡片，可展开帧条、搜索、改标题 / 分类、软删除，
-重试失败批次或重处理一天。失败可见，空闲批次不调用 LLM。
+重试失败批次。失败可见，空闲批次不调用 LLM。
 负责 U1/2/3、F-A1–6、F-V1–3、F-S7；包括分类管理、媒体资源及既有 timelapse 需求。
 不包含每日 / 每周页面、Chat；未有交互与绑定的 review ratings 只跟踪设计，不自动扩展范围。
 
@@ -31,8 +31,8 @@ Go 单元覆盖：分批 / 空闲逐边界、六条流水线路径（正常 / �
 取消保持 processing）、auto-start 三重防呆。
 已知偏差：帧读取经 app 层 `stagingFrameSource` 而非 `platform.Media`（#7/#8 未定，
 provisional）；卡片阶段全局互斥（比按重叠范围粗）；`wails dev` 真机端到端未运行。
-失败批次重试（`RetryBatches`）、整日重处理（`ReprocessDay`）与视频 URL 仍无 Go 方法
-（依赖媒体切片），前端按方法探测自动禁用对应入口。
+失败批次重试（`RetryBatches`）已交付；整日重处理（`ReprocessDay`）与视频 URL 仍无 Go
+方法（依赖媒体切片），整日重处理的前端入口已移除，`ReprocessDay` 仅保留 docs/05 设计条目。
 **2026-09-13：卡片模型改为 Dayflow 式单卡窗口 + LLM 融合**——卡片阶段每批次窗口
 默认产出恰好一张卡（start/end 对齐窗口，或融合时取被融合卡片的 start）；转录阶段的
 observations 以 `activityPoints`（`[{time, description}]`）随卡片写入
@@ -173,6 +173,14 @@ fixture endpoint。这是开发验收便利设施，不构成生产数据或 G-l
 `features` 含 `timeline`、实例持有写锁且对应绑定存在；写后不乐观更新，等待
 `timeline:updated` 重拉。浏览器开发夹具只用于检查禁用态、详情层、短卡片和复制反馈，不能
 验证真实写入、事件顺序、媒体解码或分析恢复。
+
+2026-09-14（失败重试入口，前端）：修复手动重试按钮不可点——前端曾把 `retryable`（仅表示
+"是否会自动重排"，`auth` / `invalid_request` / `no_provider` 或 attempts 达上限时为 false）
+误用为手动重试的禁用条件，而 Go `RetryBatches` 刻意无视失败类型与 attempt 上限并重置
+attempts。现汇总面板不再按 `retryable` 过滤失败条目、详情按钮只受写锁与绑定探测约束；
+`retryable` 仅用于提示文案（docs/05 §5.5.2 注释同步）。同日移除整日重处理前端入口
+（按钮、store action、API wrapper、i18n 文案与 settings 描述），后端 `ReprocessDay`
+本就未交付，设计条目保留在 docs/05。
 
 2026-09-12（查询与卡片写操作绑定，Go）：`go test ./internal/app/`、`go vet`、
 `CGO_ENABLED=0 go build ./...` 通过。空日 / 有卡日（metadata 解析、合计排 System、

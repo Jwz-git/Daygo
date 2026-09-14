@@ -17,7 +17,6 @@ import {
   getTimelineDay,
   hasTimelineDayBinding,
   onTimelineUpdated,
-  reprocessDay,
   retryBatches,
   TimelineUnavailableError,
   updateCardCategory,
@@ -38,7 +37,6 @@ export type TimelineAction =
   | 'delete-card'
   | 'retry-batches'
   | 'delete-batches'
-  | 'reprocess-day'
 
 export const useTimelineStore = defineStore('timeline', () => {
   const context = ref<DayContextDTO | null>(null)
@@ -79,7 +77,6 @@ export const useTimelineStore = defineStore('timeline', () => {
       deleteCard: enabled && actionBindings.deleteCard,
       retryBatches: enabled && actionBindings.retryBatches,
       deleteBatches: enabled && actionBindings.deleteBatches,
-      reprocessDay: enabled && actionBindings.reprocessDay,
       clearHistory: enabled && actionBindings.clearHistory,
     }
   })
@@ -203,12 +200,6 @@ export const useTimelineStore = defineStore('timeline', () => {
     return runAction('delete-batches', () => deleteBatches(batchIDs))
   }
 
-  function reprocess(): Promise<boolean> {
-    const selectedDay = context.value?.day
-    if (selectedDay === undefined) return Promise.resolve(false)
-    return runAction('reprocess-day', () => reprocessDay(selectedDay))
-  }
-
   function startEvents(): void {
     if (stopEvents !== null) return
     stopEvents = onTimelineUpdated((updatedDay) => {
@@ -248,7 +239,6 @@ export const useTimelineStore = defineStore('timeline', () => {
     removeCard,
     retryFailure,
     dismissFailure,
-    reprocess,
     startEvents,
     stopListening,
   }

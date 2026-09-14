@@ -515,7 +515,7 @@ type TimelineFailureDTO struct {
     EndTs     int64   `json:"endTs"`
     Kind      string  `json:"kind"`    // 面向用户的失败类别
     Message   string  `json:"message"` // 已脱敏
-    Retryable bool    `json:"retryable"`
+    Retryable bool    `json:"retryable"` // 仅描述是否会自动重试；RetryBatches 不受它约束
 }
 
 type RangeDTO struct {

@@ -35,22 +35,14 @@ export default {
       kind: '失败类型',
       message: '错误信息',
       batches: '涉及批次',
-      retryable: '可以重新提交这些批次进行分析。',
-      notRetryable: '该错误不可自动重试，或重试次数已用尽；可删除该时段。',
+      retryable: '这些批次会在冷却后自动重试，也可以立即手动重试。',
+      notRetryable: '该错误不会自动重试（多为供应商配置或认证问题）；修复原因后可手动重试，或删除该时段。',
     },
   },
   copy: {
     action: '复制时间线',
     copied: '已复制',
     failed: '复制失败',
-  },
-  reprocess: {
-    action: '重新处理',
-    pending: '已提交…',
-    unavailable: '整日重处理绑定尚未交付',
-  },
-  tools: {
-    title: '操作',
   },
   state: {
     loading: {
