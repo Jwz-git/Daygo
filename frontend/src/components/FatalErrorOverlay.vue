@@ -40,7 +40,7 @@ async function copyDetails(): Promise<void> {
 
 <template>
   <Transition name="fatal">
-    <div v-if="fatalError !== null" class="fatal" role="alertdialog" aria-modal="true">
+    <div v-if="fatalError !== null" class="fatal lg-refract" role="alertdialog" aria-modal="true">
       <div class="fatal__panel">
         <p class="fatal__eyebrow">{{ fatalError.source }}</p>
         <h1 class="fatal__title">{{ t('common.fatal.title') }}</h1>

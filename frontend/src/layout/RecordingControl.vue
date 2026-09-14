@@ -25,7 +25,7 @@ function choose(action: RecordingAction): void {
 </script>
 
 <template>
-  <div class="recording-control" @keydown.esc="open = false">
+  <div class="recording-control lg-tracking" @keydown.esc="open = false">
     <button
       type="button"
       class="recording-control__trigger"
@@ -38,7 +38,7 @@ function choose(action: RecordingAction): void {
       <span>{{ t(`recording.state.${stateKey}`) }}</span>
     </button>
 
-    <div v-if="open" class="recording-control__popover dg-popover">
+    <div v-if="open" class="recording-control__popover dg-popover lg-refract">
       <strong>{{ t(`recording.state.${stateKey}`) }}</strong>
       <p v-if="!canControl">{{ t('recording.notOwner') }}</p>
       <p v-else-if="snapshot?.permission !== 'granted'">{{ t('recording.permissionRequired') }}</p>

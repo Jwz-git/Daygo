@@ -248,6 +248,32 @@
   }
 }
 
+/* ─── Refraction ───────────────────────────────────────────────────────── */
+/*
+ * Apply .lg-refract to compact surfaces (SideRail, RecordingControl trigger,
+ * FatalErrorOverlay panel) to add SVG displacement on top of the glass.
+ * Falls back silently if the filter is not installed (no <svg> mounted) or
+ * if reduced-motion / forced-colors / data-dg-lg-refraction=disabled.
+ *
+ * Per fu-liquiglass skill: refraction never applies to text layers.
+ */
+.lg-refract {
+  filter: url(#lg-displacement);
+  isolation: isolate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-refract {
+    filter: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .lg-refract {
+    filter: none;
+  }
+}
+
 /* ─── Reduced motion ────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .lg-surface,
