@@ -16,7 +16,7 @@ namespace {
 std::atomic<unsigned> event_count{0};
 uint32_t observed_events[4]{};
 std::atomic<unsigned> action_count{0};
-uint32_t observed_actions[3]{};
+uint32_t observed_actions[4]{};
 
 void on_event(uint32_t kind, int64_t, void*) {
   const unsigned index = event_count.fetch_add(1, std::memory_order_relaxed);
@@ -27,7 +27,7 @@ void on_event(uint32_t kind, int64_t, void*) {
 
 void on_action(uint32_t action, void*) {
   const unsigned index = action_count.fetch_add(1, std::memory_order_relaxed);
-  if (index < 3) {
+  if (index < 4) {
     observed_actions[index] = action;
   }
 }
@@ -83,20 +83,25 @@ int main() {
     dg_system_stop();
     return 1;
   }
+  // Explorer delivers a status-icon left click through the registered callback
+  // message. A normal click must open Daygo without requiring the context menu.
+  SendMessageW(window, kDaygoStatusCallbackMessage, 0,
+               MAKELPARAM(NIN_SELECT, 1));
   SendMessageW(window, WM_COMMAND, MAKEWPARAM(kDaygoStatusCommandOpen, 0), 0);
   SendMessageW(window, WM_COMMAND,
                MAKEWPARAM(kDaygoStatusCommandTogglePause, 0), 0);
   SendMessageW(window, WM_COMMAND, MAKEWPARAM(kDaygoStatusCommandQuit, 0), 0);
   const uint32_t expected_actions[] = {DG_STATUS_ITEM_OPEN,
+                                       DG_STATUS_ITEM_OPEN,
                                        DG_STATUS_ITEM_TOGGLE_PAUSE,
                                        DG_STATUS_ITEM_QUIT};
-  if (action_count.load(std::memory_order_acquire) != 3) {
-    std::fprintf(stderr, "status item ABI observed %u actions, want 3\n",
+  if (action_count.load(std::memory_order_acquire) != 4) {
+    std::fprintf(stderr, "status item ABI observed %u actions, want 4\n",
                  action_count.load());
     dg_system_stop();
     return 1;
   }
-  for (unsigned index = 0; index < 3; ++index) {
+  for (unsigned index = 0; index < 4; ++index) {
     if (observed_actions[index] != expected_actions[index]) {
       std::fprintf(stderr, "status action %u = %u, want %u\n", index,
                    observed_actions[index], expected_actions[index]);

@@ -74,6 +74,14 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 签名、公证、干净机器、升级、Updater 与崩溃上报实验均未运行。
 记录 commit、构建身份、设备、步骤及匿名结果；证书、密钥、用户数据不入库。
 
+2026-09-14（Windows 11 amd64）：通知区适配器把 `NOTIFYICON_VERSION_4` 的
+`NIN_SELECT`（并兼容传统 `WM_LBUTTONUP`）映射到既有 open 动作，普通左键单击不再要求先打开
+右键菜单。`system_smoke.cpp` 新增 Explorer 回调消息夹具；状态栏源文件通过 `g++ -Wall -Wextra
+-Wpedantic` 编译，`go test ./internal/platform/windows -run 'TestSystem|TestStatus' -count=1` 与
+`go test ./internal/app -count=1` 通过。因验证时 Daygo 开发实例正占用通知区注册，完整
+`system_smoke` 实机交互留待该实例退出后补跑；本记录不提升 Windows 发布状态，也不构成
+G-host 通过。
+
 2026-09-12（Windows 11 amd64、go1.25.4）：Wails 2.15 debug+cgo 构建触发 Go
 [链接器缺陷 #75077](https://github.com/golang/go/issues/75077)，坏 PE 的 header/file alignment 为
 1352/512。`scripts/dev.ps1` 临时启用 `GOEXPERIMENT=nodwarf5` 后变为 1536/512，Windows loader

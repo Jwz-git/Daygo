@@ -235,11 +235,18 @@ bool daygo_status_item_handle_message(HWND window, UINT message, WPARAM wparam,
     *result = 0;
     return true;
   }
-  if (message == kDaygoStatusCallbackMessage &&
-      LOWORD(lparam) == WM_CONTEXTMENU) {
-    show_context_menu(window, wparam);
-    *result = 0;
-    return true;
+  if (message == kDaygoStatusCallbackMessage) {
+    const UINT notification = LOWORD(lparam);
+    if (notification == NIN_SELECT || notification == WM_LBUTTONUP) {
+      emit_action(DG_STATUS_ITEM_OPEN);
+      *result = 0;
+      return true;
+    }
+    if (notification == WM_CONTEXTMENU) {
+      show_context_menu(window, wparam);
+      *result = 0;
+      return true;
+    }
   }
   if (message == WM_COMMAND) {
     switch (LOWORD(wparam)) {
