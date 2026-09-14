@@ -2,6 +2,7 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import ComboBox from '@/components/ComboBox.vue'
 
 import {
@@ -226,7 +227,7 @@ function onProtocolChange(event: Event): void {
 </script>
 
 <template>
-  <form v-if="formOpen" class="form dg-card" @submit.prevent="submit">
+  <LiquidGlassSurface v-if="formOpen" intensity="air" as="form" class="form" @submit.prevent="submit">
     <h2 class="form__title">
       {{
         editingId === null
@@ -387,7 +388,7 @@ function onProtocolChange(event: Event): void {
         {{ t('common.action.save') }}
       </button>
     </div>
-  </form>
+  </LiquidGlassSurface>
 
   <button v-else type="button" class="dg-button dg-button--primary add" @click="openAdd">
     {{ t('settings.providers.add') }}

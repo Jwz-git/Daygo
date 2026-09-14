@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import PageHeader from '@/components/PageHeader.vue'
 
 import AgentAccessSection from './AgentAccessSection.vue'
@@ -92,7 +93,7 @@ watch(active, () => void nextTick(measurePill))
     <PageHeader :title="t('settings.title')" />
 
     <div class="body">
-      <nav class="nav" :aria-label="t('settings.title')">
+      <LiquidGlassSurface intensity="glass" as="nav" class="nav" :aria-label="t('settings.title')">
         <ul ref="navListEl">
           <span
             class="nav__pill"
@@ -117,7 +118,7 @@ watch(active, () => void nextTick(measurePill))
             </button>
           </li>
         </ul>
-      </nav>
+      </LiquidGlassSurface>
 
       <div class="content dg-scroll">
         <div class="content__inner">

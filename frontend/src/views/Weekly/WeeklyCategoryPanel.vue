@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { useDurationFormat } from '@/lib/duration'
 import type { WeeklyCategoryPresentation } from '@/stores/weeklyPresentation'
 import { percentageLabel } from '@/stores/weeklyPresentation'
@@ -12,7 +13,7 @@ const duration = useDurationFormat()
 </script>
 
 <template>
-  <section class="categories dg-card" :aria-label="t('weekly.categories.title')">
+  <LiquidGlassSurface intensity="air" as="section" class="categories" :aria-label="t('weekly.categories.title')">
     <header class="categories__header">
       <div>
         <p>{{ t('weekly.categories.eyebrow') }}</p>
@@ -48,7 +49,7 @@ const duration = useDurationFormat()
         <span class="category-list__share">{{ percentageLabel(category.share) }}</span>
       </li>
     </ol>
-  </section>
+  </LiquidGlassSurface>
 </template>
 
 <style scoped>

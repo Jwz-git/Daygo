@@ -2,6 +2,7 @@
 import { nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { getSettings } from '@/api/settings'
 import { useChatStore } from '@/stores/chat'
 
@@ -108,7 +109,7 @@ async function saveMemory(): Promise<void> {
   </button>
 
   <!-- Conversation navigation -->
-  <aside v-else class="side">
+  <LiquidGlassSurface v-else intensity="glass" as="aside" class="side">
     <div class="side__header">
       <nav class="side__tabs" :aria-label="t('chat.title')">
       <button
@@ -214,7 +215,7 @@ async function saveMemory(): Promise<void> {
         </span>
       </div>
     </div>
-  </aside>
+  </LiquidGlassSurface>
 </template>
 
 <style scoped>

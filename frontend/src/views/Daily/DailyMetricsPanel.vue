@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { useDurationFormat } from '@/lib/duration'
 import type { DailyMetrics } from '@/stores/daily'
 
@@ -36,12 +37,12 @@ const items = computed(() => [
 </script>
 
 <template>
-  <section class="metrics dg-card" :aria-label="t('daily.stats.title')">
+  <LiquidGlassSurface intensity="air" as="section" class="metrics" :aria-label="t('daily.stats.title')">
     <div v-for="item in items" :key="item.key" class="metric">
       <span>{{ item.label }}</span>
       <strong>{{ item.value }}</strong>
     </div>
-  </section>
+  </LiquidGlassSurface>
 </template>
 
 <style scoped>

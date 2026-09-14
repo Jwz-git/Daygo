@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import type { TimelineCardDTO, TimelineDayDTO, TimelineFailureDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import type { TimelineAction } from '@/stores/timeline'
@@ -37,7 +38,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <aside class="inspector dg-card" :aria-label="t('timeline.inspector.title')">
+  <LiquidGlassSurface intensity="glass" as="aside" class="inspector" :aria-label="t('timeline.inspector.title')">
     <InspectorDayOverview
       v-if="props.card === null && props.failure === null"
       :day="props.day"
@@ -71,7 +72,7 @@ const { t } = useI18n()
       @save-edits="(cardID, title, category) => emit('saveEdits', cardID, title, category)"
       @delete="(cardID) => emit('delete', cardID)"
     />
-  </aside>
+  </LiquidGlassSurface>
 </template>
 
 <style scoped>
