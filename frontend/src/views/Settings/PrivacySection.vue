@@ -78,13 +78,42 @@ async function refreshCompatibility(): Promise<void> {
   }
 }
 
-async function refreshApplications(): Promise<void> {
-  listState.value = 'loading'
+async function refreshApplications(options?: { silent?: boolean }): Promise<void> {
+  // A silent refresh keeps the current tiles rendered while refetching: the
+  // v-for keys are stable, so Vue patches rows in place and the icons (same
+  // data URLs) never flash. The loading note is for the first load only.
+  if (!options?.silent) listState.value = 'loading'
   try {
     applications.value = await getBlockedApplications()
     listState.value = 'ready'
   } catch {
-    listState.value = 'unavailable'
+    if (applications.value.length === 0) listState.value = 'unavailable'
+  }
+}
+
+/**
+ * Rebuilds the blocked tiles from the authoritative id list in `settings`
+ * (written by the persist response) plus identities the page already knows —
+ * grid entries and their cached descriptions. Tiles appear on the next tick
+ * with their icons; the silent refetch afterwards only fills unknowns.
+ */
+async function syncApplicationsFromSettings(): Promise<void> {
+  if (!settings.value) return
+  const known = new Map(applications.value.map((application) => [application.id, application]))
+  applications.value = settings.value.privacy.blockedApplicationIds.map(
+    (id) => known.get(id) ?? { id, name: installedNames.value.get(id) ?? '', iconDataUrl: '' },
+  )
+  const unresolved = applications.value.filter((application) => application.iconDataUrl === '')
+  if (unresolved.length > 0) {
+    try {
+      const resolved = await describeApplications(unresolved.map((application) => application.id))
+      const byId = new Map(resolved.map((application) => [application.id, application]))
+      applications.value = applications.value.map(
+        (application) => byId.get(application.id) ?? application,
+      )
+    } catch {
+      // Display data only; monogram fallbacks remain until the next refresh.
+    }
   }
 }
 
@@ -133,22 +162,20 @@ async function resolveIcons(listing: ApplicationDTO[]): Promise<void> {
 
 async function onAdd(id: string): Promise<void> {
   if (!canEdit.value || blockedIdSet.value.has(id)) return
-  // persist() writes the patch and adopts the authoritative settings from the
-  // response; the blocked tiles then re-resolve so the new entry gets its icon.
   await persist({ blockedApplicationIds: [...blockedIds.value, id] })
-  await refreshApplications()
+  await syncApplicationsFromSettings()
 }
 
 async function onRemove(id: string): Promise<void> {
   if (!canEdit.value) return
   await persist({ blockedApplicationIds: blockedIds.value.filter((item) => item !== id) })
-  await refreshApplications()
+  await syncApplicationsFromSettings()
 }
 
 async function onClear(): Promise<void> {
   if (!canEdit.value || blockedIds.value.length === 0) return
   await persist({ blockedApplicationIds: [] })
-  await refreshApplications()
+  await syncApplicationsFromSettings()
 }
 
 async function onChoose(): Promise<void> {

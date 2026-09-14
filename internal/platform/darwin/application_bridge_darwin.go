@@ -11,6 +11,7 @@ import "C"
 
 import (
 	"context"
+	"errors"
 	"unsafe"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
@@ -38,6 +39,27 @@ func inspectApplication(ctx context.Context, path string) (platform.ApplicationI
 }
 
 func lookupApplication(ctx context.Context, identifier string) (platform.ApplicationIdentity, error) {
+	identity, err := lookupApplicationViaABI(ctx, identifier)
+	if err == nil {
+		return identity, nil
+	}
+
+	// LaunchServices registration and a bundle's own Info.plist can disagree
+	// on identifier casing (com.apple.news vs com.apple.NEWS): the by-
+	// identifier ABI fails with not_found for apps the filesystem walk clearly
+	// found. Fall back to locating the bundle on disk and inspecting by path,
+	// which resolves the icon the same way every other app gets one.
+	var appErr *platform.ApplicationError
+	if errors.As(err, &appErr) && appErr.Code == platform.ApplicationNotFound {
+		if path, pathErr := findBundlePathByIdentifier(ctx, identifier); pathErr == nil && path != "" {
+			return inspectApplication(ctx, path)
+		}
+	}
+	return identity, err
+}
+
+// lookupApplicationViaABI resolves the identifier through LaunchServices.
+func lookupApplicationViaABI(ctx context.Context, identifier string) (platform.ApplicationIdentity, error) {
 	identifierData := C.CBytes([]byte(identifier))
 	if identifierData == nil {
 		return platform.ApplicationIdentity{}, &platform.ApplicationError{Code: platform.ApplicationNative}

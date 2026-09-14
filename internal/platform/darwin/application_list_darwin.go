@@ -96,6 +96,56 @@ static void dg_list_add_bundle(NSString *path, NSString *language,
     [names addObject:name];
 }
 
+// Returns a malloc'd path of the installed bundle whose identifier matches
+// case-insensitively, or NULL. LaunchServices registration and a bundle's own
+// Info.plist can disagree on identifier casing (com.apple.news vs
+// com.apple.NEWS), which makes the by-identifier ABI lookup fail for apps the
+// filesystem walk clearly found; this walk — the same one enumeration uses —
+// is the fallback resolver. The caller frees the returned string.
+static char *dg_ls_find_bundle_path(const char *identifier_bytes) {
+    if (identifier_bytes == NULL) return NULL;
+    NSString *wanted = [NSString stringWithUTF8String:identifier_bytes];
+    if (wanted.length == 0) return NULL;
+
+    NSArray<NSString *> *roots = @[
+        @"/Applications",
+        @"/System/Applications",
+        [NSHomeDirectory() stringByAppendingPathComponent:@"Applications"],
+    ];
+
+    for (NSString *root in roots) {
+        NSArray<NSString *> *children = [[NSFileManager defaultManager]
+            contentsOfDirectoryAtPath:root error:nil];
+        if (children == nil) continue;
+        children = [children sortedArrayUsingSelector:@selector(compare:)];
+        for (NSString *child in children) {
+            NSString *childPath = [root stringByAppendingPathComponent:child];
+            NSArray<NSString *> *candidates = nil;
+            if ([child.lowercaseString hasSuffix:@".app"]) {
+                candidates = @[childPath];
+            } else {
+                BOOL isDirectory = NO;
+                NSFileManager *fileManager = [NSFileManager defaultManager];
+                if (![fileManager fileExistsAtPath:childPath isDirectory:&isDirectory] || !isDirectory) {
+                    continue;
+                }
+                candidates = [fileManager contentsOfDirectoryAtPath:childPath error:nil];
+            }
+            for (NSString *candidate in candidates) {
+                if (![candidate.lowercaseString hasSuffix:@".app"]) continue;
+                NSString *bundlePath = [candidate hasPrefix:@"/"]
+                    ? candidate
+                    : [childPath stringByAppendingPathComponent:candidate];
+                NSString *identifier = [NSBundle bundleWithPath:bundlePath].bundleIdentifier;
+                if (identifier != nil && [identifier caseInsensitiveCompare:wanted] == NSOrderedSame) {
+                    return strdup(bundlePath.UTF8String);
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
 static void dg_list_append_u64(NSMutableData *data, uint64_t value) {
     uint64_t little = OSSwapHostToLittleInt64(value);
     [data appendBytes:&little length:8];
@@ -243,4 +293,21 @@ func decodeApplicationList(records []byte) ([]platform.AppInfo, error) {
 		applications = append(applications, platform.AppInfo{ID: identifier, Name: name})
 	}
 	return applications, nil
+}
+
+// findBundlePathByIdentifier locates the installed bundle whose identifier
+// matches case-insensitively, or "" when none does. See the Objective-C block
+// above for why this fallback exists.
+func findBundlePathByIdentifier(ctx context.Context, identifier string) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	cID := C.CString(identifier)
+	defer C.free(unsafe.Pointer(cID))
+	p := C.dg_ls_find_bundle_path(cID)
+	if p == nil {
+		return "", nil
+	}
+	defer C.free(unsafe.Pointer(p))
+	return C.GoString(p), nil
 }
