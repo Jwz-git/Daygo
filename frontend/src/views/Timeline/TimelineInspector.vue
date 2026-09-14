@@ -18,6 +18,7 @@ import InspectorFailureDetail from './InspectorFailureDetail.vue'
  */
 const props = defineProps<{
   day: TimelineDayDTO
+  timeZone: string
   card: TimelineCardDTO | null
   failure: TimelineFailureDTO | null
   canWrite: boolean
@@ -63,6 +64,7 @@ const { t } = useI18n()
     <InspectorCardDetail
       v-else-if="props.card !== null"
       :day="props.day"
+      :time-zone="props.timeZone"
       :card="props.card"
       :can-write="props.canWrite"
       :actions="props.actions"

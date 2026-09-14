@@ -11,6 +11,14 @@ export default {
   },
   actionFailed: '操作未完成，数据没有被前端改写。',
   recording: { start: '开始录制' },
+  category: {
+    focusWork: '专注工作',
+    communication: '沟通',
+    learning: '学习',
+    research: '研究',
+    distraction: '分心',
+    personal: '个人',
+  },
   filter: {
     label: '按分类筛选',
     all: '全部',

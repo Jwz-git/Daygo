@@ -7,6 +7,7 @@ import type { TimelineActionAvailability } from '@/api/timeline'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import { appSiteValues } from '@/lib/appSiteIcon'
 import { useDurationFormat } from '@/lib/duration'
+import { formatClockTime } from '@/lib/timeFormat'
 import type { TimelineAction } from '@/stores/timeline'
 
 import { safeCategoryColor } from './layout'
@@ -15,6 +16,7 @@ import { safeCategoryColor } from './layout'
    points, distractions and media, plus the title/category editor. */
 const props = defineProps<{
   day: TimelineDayDTO
+  timeZone: string
   card: TimelineCardDTO
   canWrite: boolean
   actions: TimelineActionAvailability
@@ -28,8 +30,11 @@ const emit = defineEmits<{
   delete: [cardID: number]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const duration = useDurationFormat()
+const timeRange = computed(() => {
+  return `${formatClockTime(props.card.startTs, locale.value, props.timeZone)} – ${formatClockTime(props.card.endTs, locale.value, props.timeZone)}`
+})
 
 const editing = ref(false)
 const confirmingDelete = ref(false)
@@ -127,7 +132,7 @@ function confirmDeletion(): void {
 
   <div class="card-time">
     <span :style="{ background: selectedColor }"></span>
-    {{ props.card.start }} – {{ props.card.end }} · {{ duration(props.card.durationMinutes) }}
+    {{ timeRange }} · {{ duration(props.card.durationMinutes) }}
   </div>
 
   <form v-if="editing" class="editor" @submit.prevent="saveEditing" @keydown.esc="cancelEditing">

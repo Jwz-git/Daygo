@@ -10,6 +10,7 @@ import PeriodNav from '@/components/PeriodNav.vue'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { delayUntilDayContextRefresh } from '@/lib/dayContextRefresh'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
+import { formatTimeZoneName } from '@/lib/timeFormat'
 import { safeTimeZone } from '@/lib/timeZone'
 import { useTimelineStore } from '@/stores/timeline'
 import TimelineInspector from './TimelineInspector.vue'
@@ -47,9 +48,27 @@ const dateTitle = computed(() => {
   }).format(new Date(context.value.dayStartTs * 1000))
 })
 
+const localizedTimeZone = computed(() =>
+  formatTimeZoneName(context.value?.timeZone, locale.value),
+)
+
 const filterCategories = computed(() =>
   (day.value?.categories ?? []).filter((category) => !category.isSystem),
 )
+
+const builtInCategoryLabels: Record<string, string> = {
+  'Focus Work': 'focusWork',
+  Communication: 'communication',
+  Learning: 'learning',
+  Research: 'research',
+  Distraction: 'distraction',
+  Personal: 'personal',
+}
+
+function categoryLabel(name: string): string {
+  const key = builtInCategoryLabels[name]
+  return key === undefined ? name : t(`timeline.category.${key}`)
+}
 
 const hasTrack = computed(() =>
   day.value !== null && ['populated', 'processing', 'failure'].includes(state.value),
@@ -162,7 +181,7 @@ onBeforeUnmount(() => {
         <div v-if="day" class="day-meta">
           <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>
           <i aria-hidden="true"></i>
-          <span>{{ context?.timeZone }}</span>
+          <span v-if="localizedTimeZone">{{ localizedTimeZone }}</span>
         </div>
       </template>
     </PageHeader>
@@ -185,7 +204,7 @@ onBeforeUnmount(() => {
         @click="timeline.setCategoryFilter(category.name)"
       >
         <i :style="{ background: safeCategoryColor(category.colorHex) }" aria-hidden="true"></i>
-        {{ category.name }}
+        {{ categoryLabel(category.name) }}
       </button>
       <span class="filter-bar__spacer"></span>
       <button
@@ -234,6 +253,7 @@ onBeforeUnmount(() => {
           class="timeline-body__inspector"
           :class="{ 'has-selection': selectedCard !== null || selectedFailure !== null }"
           :day="day"
+          :time-zone="context.timeZone"
           :card="selectedCard"
           :failure="selectedFailure"
           :can-write="capabilities?.canWrite ?? false"

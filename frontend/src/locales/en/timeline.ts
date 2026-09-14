@@ -11,6 +11,14 @@ export default {
   },
   actionFailed: 'The action did not finish. The frontend did not change the data.',
   recording: { start: 'Start recording' },
+  category: {
+    focusWork: 'Focus Work',
+    communication: 'Communication',
+    learning: 'Learning',
+    research: 'Research',
+    distraction: 'Distraction',
+    personal: 'Personal',
+  },
   filter: {
     label: 'Filter by category',
     all: 'All',
