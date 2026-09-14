@@ -17,6 +17,8 @@
   /* window — deepened focal points, wider hue range, richer chroma for better glass reveal */
   --dg-window-bg: #dce4f0;
   --dg-window-padding: 8px;
+  --dg-windows-titlebar-height: 36px;
+  --dg-titlebar-border: rgba(0, 0, 0, 0.08);
   --dg-window-gradient: radial-gradient(
       120% 90% at 6% -14%,
       rgba(255, 255, 255, 0.96),

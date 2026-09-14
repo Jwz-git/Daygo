@@ -6,6 +6,7 @@ import { usePointerHighlight } from '@/lib/pointerHighlight'
 import { useRefractionFilter } from '@/lib/refractionFilter'
 import { useRecordingStore } from '@/stores/recording'
 import SideRail from './SideRail.vue'
+import WindowsTitleBar from './WindowsTitleBar.vue'
 
 const recording = useRecordingStore()
 const shellRef = ref<HTMLElement | null>(null)
@@ -29,24 +30,36 @@ onBeforeUnmount(() => {
 })
 
 defineExpose({ registerPointer: pointer.register, unregisterPointer: pointer.unregister })
+
+const isWindows = document.documentElement.dataset.dgPlatform === 'windows'
 </script>
 
 <template>
-  <div ref="shellRef" class="shell">
-    <SideRail />
+  <div class="app-frame">
+    <WindowsTitleBar v-if="isWindows" />
+    <div ref="shellRef" class="shell">
+      <SideRail />
 
-    <main class="panel dg-panel">
-      <slot />
-    </main>
+      <main class="panel dg-panel">
+        <slot />
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.app-frame {
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--dg-window-bg);
+  background-image: var(--dg-window-gradient);
+}
+
 .shell {
   position: relative;
   display: grid;
   grid-template-columns: var(--dg-rail-width) minmax(0, 1fr);
-  height: 100vh;
+  height: 100%;
   padding: 0;
   overflow: hidden;
   /* The tonal field is what makes the panel's backdrop blur read as glass; a
@@ -54,6 +67,11 @@ defineExpose({ registerPointer: pointer.register, unregisterPointer: pointer.unr
      broad and slow on purpose — no detail that competes with content. */
   background-color: var(--dg-window-bg);
   background-image: var(--dg-window-gradient);
+}
+
+:root[data-dg-platform='windows'] .shell {
+  height: calc(100% - var(--dg-windows-titlebar-height));
+  background: transparent;
 }
 
 .panel {

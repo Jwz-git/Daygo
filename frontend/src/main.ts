@@ -4,6 +4,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { i18n } from './i18n'
 import { clearFatalError, reportFatalError } from './lib/fatalError'
+import { resolveDesktopPlatform } from './lib/desktopPlatform'
 import { router } from './router'
 import { useAppearanceStore } from './stores/appearance'
 import './styles/index.css'
@@ -31,6 +32,7 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 async function bootstrap(): Promise<void> {
+  document.documentElement.dataset.dgPlatform = await resolveDesktopPlatform()
   const app = createApp(App)
 
   // Render/lifecycle errors that no ErrorBoundary caught land here.
