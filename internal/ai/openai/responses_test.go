@@ -82,8 +82,9 @@ func TestResponsesGenerateMapsMultimodalStructuredRequest(t *testing.T) {
 func TestResponsesGenerateClassifiesAndRedactsErrorBody(t *testing.T) {
 	const sensitive = "fixture-sensitive-body"
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(sensitive))
+		_, _ = w.Write([]byte(`{"error":{"message":"` + sensitive + `","code":"model_not_found"}}`))
 	}))
 	defer server.Close()
 	client, err := NewResponsesClient(server.Client(), server.URL, "model", "secret")
@@ -94,10 +95,30 @@ func TestResponsesGenerateClassifiesAndRedactsErrorBody(t *testing.T) {
 		Parts:  []daygoai.Part{daygoai.TextPart("test")},
 		Output: &daygoai.OutputSchema{Name: "item", Strict: true, Schema: []byte(`{"type":"object"}`)},
 	})
-	if daygoai.ErrorKindOf(err) != daygoai.ErrorUnsupportedFeature || daygoai.HTTPStatusOf(err) != 404 {
+	if daygoai.ErrorKindOf(err) != daygoai.ErrorInvalidRequest || daygoai.HTTPStatusOf(err) != 404 {
 		t.Fatalf("error = %v", err)
 	}
 	if strings.Contains(err.Error(), sensitive) {
 		t.Fatal("error exposed response body")
+	}
+}
+
+func TestResponsesGenerateRejectsUnsupportedStructuredOutput(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"text.format is not supported by this model"}}`))
+	}))
+	defer server.Close()
+	client, err := NewResponsesClient(server.Client(), server.URL, "model", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Generate(context.Background(), daygoai.Request{
+		Parts:  []daygoai.Part{daygoai.TextPart("test")},
+		Output: &daygoai.OutputSchema{Name: "item", Strict: true, Schema: []byte(`{"type":"object"}`)},
+	})
+	if daygoai.ErrorKindOf(err) != daygoai.ErrorUnsupportedFeature {
+		t.Fatalf("error = %v", err)
 	}
 }

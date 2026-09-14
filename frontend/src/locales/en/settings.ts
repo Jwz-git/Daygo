@@ -149,7 +149,7 @@ export default {
     removeConfirm: 'Delete "{name}"?',
     protocol: {
       label: 'Protocol',
-      openai: 'OpenAI-compatible',
+      openai: 'OpenAI Chat Completions',
       openai_responses: 'OpenAI Responses',
       anthropic: 'Anthropic',
     },

@@ -144,7 +144,7 @@ export default {
     removeConfirm: '确定删除“{name}”？',
     protocol: {
       label: '协议',
-      openai: 'OpenAI 兼容',
+      openai: 'OpenAI Chat Completions',
       openai_responses: 'OpenAI Responses',
       anthropic: 'Anthropic',
     },

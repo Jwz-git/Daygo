@@ -76,11 +76,21 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 		return daygoai.Result{}, statusError(
 			response.StatusCode,
 			retryAfter(response.Header.Get("Retry-After")),
+			responseBody,
 			request.Output != nil,
+			chatUnsupportedKeywords...,
 		)
 	}
 	return parseResponse(responseBody, request.Output)
 }
+
+// chatUnsupportedKeywords are the markers a Chat Completions error body uses
+// when the rejection is about structured output itself rather than the
+// request in general. Status 400/404/422 plus one of these is the only
+// combination that maps to unsupported_feature; every other 4xx keeps its
+// regular classification (a bad model name or parameter must not be reported
+// as "no structured output").
+var chatUnsupportedKeywords = []string{"response_format", "json_schema", "json_object"}
 
 func (c *Client) requestBody(request daygoai.Request) ([]byte, error) {
 	content := make([]map[string]any, 0, len(request.Parts))
@@ -176,11 +186,12 @@ func transportError(ctx context.Context, err error) error {
 	return daygoai.NewError(daygoai.ErrorUnavailable, "provider request failed", 0, err)
 }
 
-func statusError(status int, retryDelay time.Duration, structuredOutput bool) error {
+func statusError(status int, retryDelay time.Duration, body []byte, structuredOutput bool, unsupportedKeywords ...string) error {
 	kind := daygoai.ErrorInvalidRequest
 	message := fmt.Sprintf("provider rejected request with HTTP %d", status)
 	switch {
-	case structuredOutput && (status == http.StatusBadRequest || status == http.StatusNotFound || status == http.StatusUnprocessableEntity):
+	case structuredOutput && (status == http.StatusBadRequest || status == http.StatusNotFound || status == http.StatusUnprocessableEntity) &&
+		bodyMentions(body, unsupportedKeywords...):
 		kind = daygoai.ErrorUnsupportedFeature
 		message = "provider does not support native structured output"
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
@@ -194,9 +205,64 @@ func statusError(status int, retryDelay time.Duration, structuredOutput bool) er
 	case status == http.StatusNotFound:
 		kind = daygoai.ErrorInvalidRequest
 	}
+	if detail := providerErrorCode(body); detail != "" {
+		message += " (" + detail + ")"
+	}
 	err := daygoai.NewError(kind, message, status, nil)
 	err.RetryAfter = retryDelay
 	return err
+}
+
+// bodyMentions reports whether the error body contains any keyword. Only the
+// first 4 KiB are scanned: error payloads put the relevant fields up front,
+// and the cap keeps a hostile endpoint from making this expensive.
+func bodyMentions(body []byte, keywords ...string) bool {
+	if len(body) > 4096 {
+		body = body[:4096]
+	}
+	lowered := strings.ToLower(string(body))
+	for _, keyword := range keywords {
+		if strings.Contains(lowered, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// providerErrorCode surfaces the provider's machine-readable error code (or
+// type) so a 400 tells the user whether it was a bad model, a bad parameter
+// or something else. Only short printable values pass; the provider's
+// human-readable message never crosses this boundary — it can echo request
+// content, so it is used for classification only.
+func providerErrorCode(body []byte) string {
+	var payload struct {
+		Error *struct {
+			Type string `json:"type"`
+			Code any    `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil || payload.Error == nil {
+		return ""
+	}
+	if code, ok := payload.Error.Code.(string); ok {
+		if detail := printableDetail(code); detail != "" {
+			return detail
+		}
+	}
+	return printableDetail(payload.Error.Type)
+}
+
+func printableDetail(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 64 {
+		return ""
+	}
+	for i := 0; i < len(value); i++ {
+		if value[i] < 0x20 || value[i] > 0x7e {
+			return ""
+		}
+	}
+	return value
 }
 
 func retryAfter(value string) time.Duration {

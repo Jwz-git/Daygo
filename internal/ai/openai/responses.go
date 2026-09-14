@@ -69,7 +69,9 @@ func (c *ResponsesClient) Generate(ctx context.Context, request daygoai.Request)
 		return daygoai.Result{}, statusError(
 			response.StatusCode,
 			retryAfter(response.Header.Get("Retry-After")),
+			responseBody,
 			request.Output != nil,
+			"text.format", "json_schema", "response_format",
 		)
 	}
 	return parseResponsesResponse(responseBody, request.Output)

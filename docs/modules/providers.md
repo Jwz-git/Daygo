@@ -116,3 +116,14 @@ typecheck / build 通过，夹具为内存生成的匿名 PNG。真实 provider 
 生成两阶段的 `llm_calls` 都能关联所属批次；此前卡片失败重试记录的 `batch_id` 为空。
 `gofmt`、`go test ./internal/analysis/... ./internal/app/... ./internal/ai/...` 与对应 `go vet`
 通过；真实 DeepSeek 请求仍未因密钥安全边界写入日志或夹具。
+2026-09-14：Chat Completions / Responses 错误分类与 endpoint 归一化修正——400 / 404 / 422
+不再仅凭"带结构化输出"就归类为 `unsupported_feature`，改为额外要求错误体出现
+`response_format` / `json_schema` / `text.format` 等标记，其余 4xx 保持原分类并在错误消息
+附加 provider 机器码（`error.code` / `error.type`，仅限短可打印值，provider 人读消息仍不
+跨界）；`normalizeTestEndpoint` 剥掉用户粘贴的请求路径后缀（`/chat/completions`、
+`/responses`、`/messages`、`/models`、`/completions`），避免二次拼接导致 404。前端协议
+显示名 openai 改为「OpenAI Chat Completions」。`go test ./internal/ai/... ./internal/app/...`、
+`go vet`、`CGO_ENABLED=0 go build` 与前端 typecheck 通过，全部匿名 TLS fixture。
+已确认未修：anthropic 默认 endpoint `…/v1` 会与 SDK 的 `v1/messages` 拼出
+`/v1/v1/messages`（前端 DEFAULT_ENDPOINTS 与 `models.go` 的 `/v1/models` 假设互相矛盾），
+`max_tokens` 对 OpenAI 推理模型的 400 兼容性问题——待决策后处理。

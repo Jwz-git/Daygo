@@ -73,7 +73,9 @@ func TestGenerateMapsMultimodalStructuredRequest(t *testing.T) {
 
 func TestGenerateRejectsUnsupportedStructuredOutput(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"response_format is not supported","type":"invalid_request_error"}}`))
 	}))
 	defer server.Close()
 	client, err := NewClient(server.Client(), server.URL, "model", "secret")
@@ -86,6 +88,74 @@ func TestGenerateRejectsUnsupportedStructuredOutput(t *testing.T) {
 	})
 	if daygoai.ErrorKindOf(err) != daygoai.ErrorUnsupportedFeature {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestGenerateClassifiesBadRequestWithoutStructuredOutputMarkers(t *testing.T) {
+	// A 400 caused by anything else (bad parameter, unknown model) must not be
+	// reported as a missing structured-output capability.
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"Unsupported parameter: 'max_tokens'","type":"invalid_request_error","code":"unsupported_parameter"}}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(server.Client(), server.URL, "model", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Generate(context.Background(), daygoai.Request{
+		Parts:  []daygoai.Part{daygoai.TextPart("test")},
+		Output: &daygoai.OutputSchema{Name: "item", Strict: true, Schema: []byte(`{"type":"object"}`)},
+	})
+	if daygoai.ErrorKindOf(err) != daygoai.ErrorInvalidRequest {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(err.Error(), "unsupported_parameter") {
+		t.Fatalf("error does not carry the provider code: %v", err)
+	}
+}
+
+func TestGenerateClassifiesModelNotFound(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":{"message":"The model 'nope' does not exist","type":"invalid_request_error","code":"model_not_found"}}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(server.Client(), server.URL, "model", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Generate(context.Background(), daygoai.Request{
+		Parts:  []daygoai.Part{daygoai.TextPart("test")},
+		Output: &daygoai.OutputSchema{Name: "item", Strict: true, Schema: []byte(`{"type":"object"}`)},
+	})
+	if daygoai.ErrorKindOf(err) != daygoai.ErrorInvalidRequest {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(err.Error(), "model_not_found") {
+		t.Fatalf("error does not carry the provider code: %v", err)
+	}
+}
+
+func TestGenerateErrorDetailStaysPrintableAndShort(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"x","code":"` + strings.Repeat("a", 200) + `"}}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(server.Client(), server.URL, "model", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Generate(context.Background(), daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("test")}})
+	if daygoai.ErrorKindOf(err) != daygoai.ErrorInvalidRequest {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Contains(err.Error(), strings.Repeat("a", 100)) {
+		t.Fatal("error carried an over-long provider code")
 	}
 }
 
