@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type {
@@ -36,6 +36,8 @@ const emit = defineEmits<{
 }>()
 const { locale, t } = useI18n()
 const scroller = ref<HTMLElement | null>(null)
+const nowTs = ref(Math.floor(Date.now() / 1000))
+let nowTimer: number | null = null
 
 const height = computed(() => trackHeight(props.context.dayStartTs, props.context.dayEndTs))
 
@@ -68,12 +70,12 @@ const hourMarks = computed(() => {
 
 const nowPosition = computed(() => {
   if (
-    props.context.nowTs < props.context.dayStartTs ||
-    props.context.nowTs >= props.context.dayEndTs
+    nowTs.value < props.context.dayStartTs ||
+    nowTs.value >= props.context.dayEndTs
   ) return null
   return positionRange(
-    props.context.nowTs,
-    props.context.nowTs,
+    nowTs.value,
+    nowTs.value,
     props.context.dayStartTs,
     props.context.dayEndTs,
     height.value,
@@ -123,8 +125,15 @@ async function revealRelevantTime(): Promise<void> {
   element.scrollTop = Math.max(0, targetTop - element.clientHeight * 0.28)
 }
 
-onMounted(() => void revealRelevantTime())
+onMounted(() => {
+  nowTs.value = Math.floor(Date.now() / 1000)
+  nowTimer = window.setInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000)
+  void revealRelevantTime()
+})
 watch(() => props.context.day, () => void revealRelevantTime())
+onBeforeUnmount(() => {
+  if (nowTimer !== null) window.clearInterval(nowTimer)
+})
 </script>
 
 <template>
