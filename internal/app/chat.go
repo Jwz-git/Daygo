@@ -451,8 +451,12 @@ func (s backendChatSettings) EditMode(ctx context.Context) (string, error) {
 func (s backendChatSettings) OutputLanguage(ctx context.Context) (string, error) {
 	snapshot, err := settings.New(s.backend.store().Settings()).Load(ctx)
 	if err != nil {
-		// An unreadable setting falls back to "match the user's language".
-		return "", nil
+		// An unreadable setting falls back to the interface language, never
+		// to the empty sentinel: an empty language reaches the prompt as a
+		// weak "match the user" instruction and the LLM defaults to English
+		// (the skeleton is single-language). resolveOutputLanguage does the
+		// same fold when the snapshot is available, so the two paths agree.
+		return s.backend.interfaceLanguage(settings.Snapshot{}), nil
 	}
-	return snapshot.OutputLanguage, nil
+	return resolveOutputLanguage(snapshot), nil
 }

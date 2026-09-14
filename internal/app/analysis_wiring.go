@@ -118,14 +118,16 @@ func (a analysisChainSource) ImageCap(ctx context.Context) int {
 }
 
 // analysisLanguage reads the model output-language setting; empty means
-// follow the interface language.
+// follow the interface language, which we resolve at this edge so the
+// analysis prompt carries a concrete BCP 47 tag rather than the weak
+// "match the user's message" fallback (see resolveOutputLanguage).
 func analysisLanguage(b *Backend) func(context.Context) string {
 	return func(ctx context.Context) string {
 		snapshot, err := settings.New(b.store().Settings()).Load(ctx)
 		if err != nil {
-			return ""
+			return b.interfaceLanguage(settings.Snapshot{})
 		}
-		return snapshot.OutputLanguage
+		return resolveOutputLanguage(snapshot)
 	}
 }
 
