@@ -106,10 +106,27 @@ body {
   display: none;
 }
 
-/* Scroll containers inside the panel; the page itself never scrolls. */
+/* Scroll containers inside the panel; the page itself never scrolls. Long
+   content (the privacy app grid) gets a thin scrollbar back: with a hidden
+   one, a long list gives no affordance for how much remains. */
 .dg-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dg-hover-fill-strong) transparent;
+}
+
+.dg-scroll::-webkit-scrollbar {
+  display: block;
+  width: 9px;
+  height: 9px;
+}
+
+.dg-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--dg-hover-fill-strong);
+  background-clip: padding-box;
 }
 
 /*

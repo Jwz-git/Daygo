@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
+import { i18n } from '@/i18n'
+import { prefetchInstalledApplications } from '@/api/application'
 import { useRecordingStore } from '@/stores/recording'
 import SideRail from './SideRail.vue'
 
 const recording = useRecordingStore()
-onMounted(() => recording.startListening())
+onMounted(() => {
+  recording.startListening()
+  // Warm the privacy grid's enumeration and icon caches while the user does
+  // something else, so opening 设置 → 隐私 renders instantly. Idle-ish timing
+  // keeps it out of the startup critical path.
+  window.setTimeout(() => prefetchInstalledApplications(i18n.global.locale.value), 1500)
+})
 onBeforeUnmount(() => recording.stopListening())
 </script>
 

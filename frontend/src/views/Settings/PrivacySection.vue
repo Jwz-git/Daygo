@@ -431,7 +431,10 @@ function labelOf(application: ApplicationDTO): string {
 
 .privacy__panel {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  /* Auto-fill capped at seven columns: the min column width bottoms out at
+     one-seventh of the row, so a wide window adds tile width instead of an
+     eighth column, and a narrow one falls back to the 92px tile. */
+  grid-template-columns: repeat(auto-fill, minmax(max(92px, calc((100% - 36px) / 7)), 1fr));
   gap: 6px;
   max-height: 320px;
   padding: 10px;
