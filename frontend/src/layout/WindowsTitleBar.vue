@@ -6,6 +6,7 @@ import {
   WindowMinimise,
   WindowToggleMaximise,
 } from '../../wailsjs/runtime/runtime'
+import appIconUrl from '../../../build/appicon.png'
 
 const maximised = ref(false)
 
@@ -33,7 +34,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 <template>
   <header class="window-titlebar" @dblclick="toggleMaximise">
-    <img class="window-titlebar__icon" src="/favicon.svg" alt="" draggable="false" />
+    <img class="window-titlebar__icon" :src="appIconUrl" alt="" draggable="false" />
     <div class="window-titlebar__controls" @dblclick.stop>
       <button
         class="window-titlebar__control"
@@ -158,10 +159,18 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   content: '';
 }
 
-.window-titlebar__close,
+.window-titlebar__close {
+  position: relative;
+  width: 12px;
+  height: 12px;
+}
+
+.window-titlebar__close::before,
 .window-titlebar__close::after {
   position: absolute;
-  width: 13px;
+  top: 5.5px;
+  left: 0;
+  width: 12px;
   height: 1px;
   background: currentcolor;
   content: '';
@@ -169,6 +178,6 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 }
 
 .window-titlebar__close::after {
-  transform: rotate(90deg);
+  transform: rotate(-45deg);
 }
 </style>
