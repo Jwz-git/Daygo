@@ -76,7 +76,18 @@ let installedCache: { language: string; apps: ApplicationDTO[] } | null = null
 const identityCache = new Map<string, ApplicationDTO>()
 
 export function prefetchInstalledApplications(language: string): void {
-  void (async () => {
+  void warmInstalledApplicationCache(language)
+}
+
+/**
+ * Best-effort cache warming used by the shell's fire-and-forget prefetch.
+ * Unsupported platforms legitimately reject application enumeration; that
+ * must not escape as an unhandled promise rejection during application
+ * startup. The privacy page performs its own guarded load and keeps the
+ * native picker available when enumeration is unsupported.
+ */
+export async function warmInstalledApplicationCache(language: string): Promise<void> {
+  try {
     const apps = await listInstalledApplications(language)
     installedCache = { language, apps }
     const missing = apps.filter((application) => !identityCache.has(application.id))
@@ -89,7 +100,10 @@ export function prefetchInstalledApplications(language: string): void {
         // Icons are display data; a failed prefetch batch simply refetches later.
       }
     }
-  })()
+  } catch {
+    // Cache warming is optional. In particular, Windows versions without the
+    // enumeration capability return native_unavailable here by design.
+  }
 }
 
 /**

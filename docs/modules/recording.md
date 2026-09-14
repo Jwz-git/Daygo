@@ -104,6 +104,12 @@ recording 工程，身份协同 delivery；均须在相应大规模实现前决�
 
 ## 验证记录
 
+2026-09-14：修复设置外壳启动时已安装应用缓存预热的未处理 Promise rejection。平台不支持
+`InstalledApplications`（包括当前 Windows 适配器）时，预热现在按可选缓存正常降级，不再把
+`native_unavailable` 交给全局 `unhandledrejection`；隐私页自身仍显示枚举不可用状态并保留
+picker 兜底，Windows build 26100 隐私窗口排除门禁不变。前端单元测试新增不可用枚举夹具，
+`npm --prefix frontend run test:unit` 与 `npm --prefix frontend run typecheck` 通过。
+
 2026-09-13：录制鲁棒性修复通过 Go 单元测试（`go test ./internal/recorder/
 ./internal/storage/`）：`TestRecorderSurvivesTransientCaptureErrors` 验证单次瞬时失败后
 继续 capturing、连续失败达上限后回 idle；`TestRequeueFailedStopsAtAttemptLimit`、
