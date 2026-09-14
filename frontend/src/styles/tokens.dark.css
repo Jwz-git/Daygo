@@ -1,5 +1,10 @@
 /*
- * Dark palette.
+ * Dark palette — Raycast Dark derivative.
+ *
+ * Source: the Raycast settings window (near-black neutral surfaces, hairline
+ * separators, a single bright-blue accent, opaque grey secondary buttons).
+ * Mapped onto the same role-named tokens as the light palette so components
+ * never see the change.
  *
  * The app writes a RESOLVED appearance onto <html data-dg-appearance="light|dark">.
  * The stored preference keeps the inherited three-state semantics
@@ -14,55 +19,55 @@
 :root[data-dg-appearance='dark'] {
   color-scheme: dark;
 
-  --dg-window-bg: #242426;
+  --dg-window-bg: #1a1a1d;
   --dg-window-gradient: radial-gradient(
       110% 80% at 8% -10%,
-      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0.05),
       transparent 50%
     ),
-    radial-gradient(120% 100% at 110% 115%, rgba(58, 92, 138, 0.22), transparent 58%),
-    linear-gradient(165deg, #26262a 0%, #212124 55%, #1e1e22 100%);
+    radial-gradient(120% 100% at 110% 115%, rgba(75, 141, 240, 0.1), transparent 58%),
+    linear-gradient(165deg, #1d1d20 0%, #19191c 55%, #161619 100%);
 
-  --dg-panel-fill: rgba(31, 31, 33, 0.94);
-  --dg-panel-border: rgba(255, 255, 255, 0.1);
-  --dg-panel-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  --dg-panel-fill: rgba(26, 26, 29, 0.94);
+  --dg-panel-border: rgba(255, 255, 255, 0.08);
+  --dg-panel-shadow: 0 1px 4px rgba(0, 0, 0, 0.32);
 
   /*
    * Liquid-glass surfaces (.dg-panel, the rail selection, popovers). Colour
    * half only — blur and saturation are geometry and stay in tokens.light.css.
    */
-  --dg-glass-tint: rgba(28, 28, 32, 0.58);
-  --dg-glass-fallback: #232326;
-  --dg-glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --dg-glass-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent 42%);
+  --dg-glass-tint: rgba(24, 24, 27, 0.66);
+  --dg-glass-fallback: #1d1d20;
+  --dg-glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.34);
+  --dg-glass-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 42%);
 
-  --dg-text-primary: #f5f3f7;
-  --dg-text-secondary: #c7c4cf;
-  --dg-text-tertiary: #a7a3af;
-  --dg-text-muted: #918d99;
+  --dg-text-primary: #edecf0;
+  --dg-text-secondary: #9e9ca6;
+  --dg-text-tertiary: #7e7c86;
+  --dg-text-muted: #6c6a74;
 
-  --dg-accent: #6aa7ed;
-  --dg-accent-strong: #82b7f2;
-  --dg-accent-text: #86bafa;
-  --dg-focus-ring: rgba(106, 167, 237, 0.3);
-  --dg-control-fill: rgba(106, 167, 237, 0.17);
-  --dg-control-fill-hover: rgba(106, 167, 237, 0.24);
-  --dg-nav-active-fill: rgba(106, 167, 237, 0.15);
-  --dg-nav-active-text: #8dc0fa;
-  --dg-danger: #ff8278;
-  --dg-success: #68b98e;
+  --dg-accent: #4b8df0;
+  --dg-accent-strong: #5e9cf8;
+  --dg-accent-text: #6ba6f5;
+  --dg-focus-ring: rgba(75, 141, 240, 0.32);
+  --dg-control-fill: rgba(75, 141, 240, 0.16);
+  --dg-control-fill-hover: rgba(75, 141, 240, 0.24);
+  --dg-nav-active-fill: rgba(255, 255, 255, 0.08);
+  --dg-nav-active-text: #edecf0;
+  --dg-danger: #e5484d;
+  --dg-success: #46a758;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
   --dg-warning: #e3b25e;
 
-  --dg-hover-fill: rgba(255, 255, 255, 0.06);
-  --dg-hover-fill-strong: rgba(255, 255, 255, 0.1);
+  --dg-hover-fill: rgba(255, 255, 255, 0.055);
+  --dg-hover-fill-strong: rgba(255, 255, 255, 0.09);
 
-  --dg-track-fill: rgba(4, 7, 15, 0.28);
+  --dg-track-fill: rgba(0, 0, 0, 0.32);
 
-  --dg-input-fill: rgba(255, 255, 255, 0.065);
-  --dg-input-fill-hover: rgba(255, 255, 255, 0.095);
-  --dg-input-border: rgba(255, 255, 255, 0.13);
-  --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%23a7a3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --dg-input-fill: rgba(255, 255, 255, 0.05);
+  --dg-input-fill-hover: rgba(255, 255, 255, 0.08);
+  --dg-input-border: rgba(255, 255, 255, 0.09);
+  --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%239e9ca6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
   /* switch; the white knob and its checkmark sibling token are
      appearance-independent and stay in tokens.light.css */
@@ -70,57 +75,57 @@
   --dg-switch-track-hover: #4a4852;
   --dg-switch-knob-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.14);
 
-  --dg-chip-fill: rgba(255, 255, 255, 0.075);
-  --dg-chip-border: rgba(255, 255, 255, 0.13);
-  --dg-chip-text: #ebe8ef;
+  --dg-chip-fill: rgba(255, 255, 255, 0.065);
+  --dg-chip-border: rgba(255, 255, 255, 0.1);
+  --dg-chip-text: #d6d4db;
 
-  --dg-button-primary-fill: #3e7fc9;
-  --dg-button-primary-hover: #5190d6;
-  --dg-button-primary-border: rgba(139, 191, 250, 0.34);
+  --dg-button-primary-fill: #4b8df0;
+  --dg-button-primary-hover: #5e9cf8;
+  --dg-button-primary-border: rgba(126, 175, 245, 0.36);
   --dg-button-primary-text: #ffffff;
-  --dg-button-secondary-fill: rgba(255, 255, 255, 0.075);
-  --dg-button-secondary-hover: rgba(255, 255, 255, 0.12);
-  --dg-button-secondary-border: rgba(255, 255, 255, 0.14);
-  --dg-button-secondary-text: #d2ced7;
+  --dg-button-secondary-fill: #2a2a2e;
+  --dg-button-secondary-hover: #333338;
+  --dg-button-secondary-border: rgba(255, 255, 255, 0.09);
+  --dg-button-secondary-text: #d6d4db;
 
-  --dg-danger-fill: rgba(255, 89, 80, 0.14);
+  --dg-danger-fill: rgba(229, 72, 77, 0.13);
 
-  --dg-rail-selection-fill: rgba(255, 255, 255, 0.1);
-  --dg-rail-selection-border: rgba(255, 255, 255, 0.16);
-  --dg-rail-selection-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --dg-popover-fill: rgba(43, 43, 46, 0.98);
-  --dg-popover-shadow: 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 8px rgba(0, 0, 0, 0.28);
+  --dg-rail-selection-fill: rgba(255, 255, 255, 0.09);
+  --dg-rail-selection-border: rgba(255, 255, 255, 0.13);
+  --dg-rail-selection-shadow: 0 1px 2px rgba(0, 0, 0, 0.34);
+  --dg-popover-fill: rgba(38, 38, 41, 0.98);
+  --dg-popover-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.32);
 
-  --dg-card-fill: rgba(255, 255, 255, 0.07);
-  --dg-card-border: rgba(255, 255, 255, 0.12);
-  --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
-  --dg-card-time: #a7a3af;
+  --dg-card-fill: rgba(255, 255, 255, 0.05);
+  --dg-card-border: rgba(255, 255, 255, 0.09);
+  --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --dg-card-time: #6c6a74;
 
-  --dg-timeline-grid: rgba(255, 255, 255, 0.14);
-  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.22);
-  --dg-timeline-card-fill: rgba(255, 255, 255, 0.065);
-  --dg-timeline-card-hover: rgba(255, 255, 255, 0.1);
-  --dg-timeline-card-selected: rgba(255, 138, 85, 0.12);
-  --dg-timeline-card-border: rgba(255, 255, 255, 0.105);
-  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --dg-timeline-inspector-fill: rgba(8, 12, 24, 0.12);
-  --dg-timeline-empty-fill: rgba(8, 12, 24, 0.1);
-  --dg-timeline-placeholder: rgba(255, 255, 255, 0.15);
-  --dg-timeline-processing-fill: rgba(255, 255, 255, 0.045);
-  --dg-timeline-processing-border: rgba(255, 255, 255, 0.11);
-  --dg-timeline-frame-fill: rgba(255, 255, 255, 0.045);
+  --dg-timeline-grid: rgba(255, 255, 255, 0.055);
+  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.1);
+  --dg-timeline-card-fill: rgba(255, 255, 255, 0.055);
+  --dg-timeline-card-hover: rgba(255, 255, 255, 0.085);
+  --dg-timeline-card-selected: rgba(75, 141, 240, 0.15);
+  --dg-timeline-card-border: rgba(255, 255, 255, 0.09);
+  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --dg-timeline-inspector-fill: rgba(0, 0, 0, 0.12);
+  --dg-timeline-empty-fill: rgba(0, 0, 0, 0.1);
+  --dg-timeline-placeholder: rgba(255, 255, 255, 0.13);
+  --dg-timeline-processing-fill: rgba(255, 255, 255, 0.04);
+  --dg-timeline-processing-border: rgba(255, 255, 255, 0.09);
+  --dg-timeline-frame-fill: rgba(255, 255, 255, 0.04);
 
-  --dg-daily-grid-line: rgba(255, 255, 255, 0.11);
-  --dg-daily-cell-empty: rgba(255, 255, 255, 0.045);
-  --dg-daily-cell-border: rgba(255, 255, 255, 0.035);
+  --dg-daily-grid-line: rgba(255, 255, 255, 0.09);
+  --dg-daily-cell-empty: rgba(255, 255, 255, 0.04);
+  --dg-daily-cell-border: rgba(255, 255, 255, 0.03);
   --dg-daily-distraction: #ff8278;
-  --dg-daily-footer-fill: rgba(8, 8, 10, 0.14);
+  --dg-daily-footer-fill: rgba(0, 0, 0, 0.16);
 
-  --dg-weekly-focus: #6aa7ed;
-  --dg-weekly-ring-track: rgba(255, 255, 255, 0.09);
-  --dg-weekly-ring-center: rgba(35, 35, 38, 0.98);
-  --dg-weekly-summary-fill: rgba(8, 8, 10, 0.13);
-  --dg-weekly-bar-track: rgba(255, 255, 255, 0.065);
+  --dg-weekly-focus: #4b8df0;
+  --dg-weekly-ring-track: rgba(255, 255, 255, 0.08);
+  --dg-weekly-ring-center: rgba(33, 33, 36, 0.98);
+  --dg-weekly-summary-fill: rgba(0, 0, 0, 0.15);
+  --dg-weekly-bar-track: rgba(255, 255, 255, 0.055);
   --dg-weekly-series-1: #6d9bc3;
   --dg-weekly-series-2: #f08a5d;
   --dg-weekly-series-3: #69a58d;

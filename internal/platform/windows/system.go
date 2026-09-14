@@ -145,7 +145,7 @@ func (*System) Displays(context.Context) ([]platform.Display, error) {
 func (*System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, errSystemCapabilityUnavailable
 }
-func (*System) InstalledApplications(context.Context) ([]platform.AppInfo, error) {
+func (*System) InstalledApplications(context.Context, string) ([]platform.AppInfo, error) {
 	return nil, errSystemCapabilityUnavailable
 }
 func (*System) LaunchAtLogin(context.Context) (bool, error) {

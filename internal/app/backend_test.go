@@ -42,7 +42,7 @@ func (*systemStub) Displays(context.Context) ([]platform.Display, error) { retur
 func (*systemStub) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, nil
 }
-func (*systemStub) InstalledApplications(context.Context) ([]platform.AppInfo, error) {
+func (*systemStub) InstalledApplications(context.Context, string) ([]platform.AppInfo, error) {
 	return nil, nil
 }
 func (*systemStub) LaunchAtLogin(context.Context) (bool, error)                          { return false, nil }

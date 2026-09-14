@@ -23,7 +23,17 @@ export default {
     otherDescription: 'Appearance, launch, telemetry and language.',
   },
   privacy: {
-    blockedTitle: 'Blocked apps',
+    blockedTitle: 'Screen privacy',
+    searchPlaceholder: 'Search installed apps',
+    installedTitle: 'Installed apps',
+    installedCount: '{count} shown',
+    blockedApplicationsTitle: 'Blocked apps',
+    blockedCount: '{count} blocked',
+    clear: 'Clear',
+    add: 'Block {name}',
+    blockedBadge: 'Blocked — click it in the list below to remove',
+    installedUnavailable: 'The installed application list is unavailable.',
+    searchEmpty: 'No matching apps.',
     blockedHint:
       'While a blocked app is in the foreground, a redacted placeholder frame is written: the timeline still shows the activity, but no content.',
     choose: 'Choose application…',

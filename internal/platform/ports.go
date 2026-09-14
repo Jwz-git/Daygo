@@ -46,7 +46,11 @@ type System interface {
 	OpenSystemSettings(ctx context.Context, pane SettingsPane) error
 	Displays(ctx context.Context) ([]Display, error)
 	FrontmostApplication(ctx context.Context) (AppInfo, error)
-	InstalledApplications(ctx context.Context) ([]AppInfo, error)
+	// InstalledApplications enumerates user-visible applications for the
+	// privacy grid. Names resolve in the requested language (BCP-47 tag;
+	// empty keeps the platform default) so the grid follows the app's UI
+	// language rather than the host's.
+	InstalledApplications(ctx context.Context, language string) ([]AppInfo, error)
 	LaunchAtLogin(ctx context.Context) (bool, error)
 	SetLaunchAtLogin(ctx context.Context, enabled bool) error
 	SetActivationPolicy(ctx context.Context, p ActivationPolicy) error

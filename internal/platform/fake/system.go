@@ -40,7 +40,7 @@ func (s *System) Displays(context.Context) ([]platform.Display, error) {
 func (s *System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, nil
 }
-func (s *System) InstalledApplications(context.Context) ([]platform.AppInfo, error) {
+func (s *System) InstalledApplications(context.Context, string) ([]platform.AppInfo, error) {
 	return []platform.AppInfo{}, nil
 }
 func (s *System) LaunchAtLogin(context.Context) (bool, error)                          { return false, nil }

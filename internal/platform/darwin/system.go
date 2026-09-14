@@ -114,7 +114,9 @@ func (s *System) Displays(context.Context) ([]platform.Display, error)          
 func (s *System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, nil
 }
-func (s *System) InstalledApplications(context.Context) ([]platform.AppInfo, error)    { return nil, nil }
+func (s *System) InstalledApplications(ctx context.Context, language string) ([]platform.AppInfo, error) {
+	return listApplications(ctx, language)
+}
 func (s *System) LaunchAtLogin(context.Context) (bool, error)                          { return false, nil }
 func (s *System) SetLaunchAtLogin(context.Context, bool) error                         { return nil }
 func (s *System) SetActivationPolicy(context.Context, platform.ActivationPolicy) error { return nil }

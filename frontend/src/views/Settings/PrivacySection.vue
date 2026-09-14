@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ApplicationDTO } from '@/api/application'
 import {
+  describeApplications,
   getBlockedApplications,
   getPrivacyCompatibility,
+  listInstalledApplications,
   pickApplication,
   type PrivacyCompatibilityDTO,
 } from '@/api/application'
@@ -15,29 +17,57 @@ import { useSettingsSection } from './useSettingsSection'
 
 type ListState = 'loading' | 'ready' | 'unavailable'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { state, settings, load, persist, writeFailed } = useSettingsSection()
 
 /*
- * The privacy list keeps only platform application identifiers in settings; names and icons
- * are resolved on every read. A missing name means the platform could not
- * resolve the bundle, and the row then shows the identifier — the only label
- * that is actually known.
+ * The privacy list keeps only platform application identifiers in settings;
+ * names and icons are resolved on every read. The installed grid enumerates
+ * identifier/name pairs and resolves icons per batch, so a platform without
+ * icon capability still renders a usable grid with fallback monograms.
  */
 const applications = ref<ApplicationDTO[]>([])
 const listState = ref<ListState>('loading')
+const installed = shallowRef<ApplicationDTO[]>([])
+const installedState = ref<ListState>('loading')
 const selecting = ref(false)
 const pickError = ref('')
 const compatibility = ref<PrivacyCompatibilityDTO | null>(null)
+const query = ref('')
 
 const blockedIds = computed(() => settings.value?.privacy.blockedApplicationIds ?? [])
+const blockedIdSet = computed(() => new Set(blockedIds.value))
+/*
+ * Names come from the enumeration, which resolves them in the UI language;
+ * tiles outside the installed list (an uninstalled app that is still
+ * configured) fall back to what the platform inspector can resolve.
+ */
+const installedNames = computed(() => {
+  const names = new Map<string, string>()
+  for (const application of installed.value) names.set(application.id, application.name)
+  return names
+})
 const canEdit = computed(() => state.value === 'ready' && listState.value === 'ready')
+
+const filteredInstalled = computed(() => {
+  const needle = query.value.trim().toLowerCase()
+  if (needle === '') return installed.value
+  return installed.value.filter(
+    (application) =>
+      application.name.toLowerCase().includes(needle) ||
+      application.id.toLowerCase().includes(needle),
+  )
+})
 
 onMounted(() => void loadSection())
 
+// Re-enumerate when the UI language changes so app names follow it; icons are
+// preserved by id because they do not depend on the language.
+watch(locale, () => void refreshInstalled())
+
 async function loadSection(): Promise<void> {
 	await load()
-	await Promise.all([refreshApplications(), refreshCompatibility()])
+	await Promise.all([refreshApplications(), refreshInstalled(), refreshCompatibility()])
 }
 
 async function refreshCompatibility(): Promise<void> {
@@ -58,15 +88,77 @@ async function refreshApplications(): Promise<void> {
   }
 }
 
+/**
+ * Enumerates the installed applications and then resolves their icons in
+ * batches. The listing itself is cheap identifier/name pairs; icon payloads
+ * are large enough that one batched describe per chunk beats a single
+ * oversized call, and a chunk failing only costs its own icons.
+ */
+async function refreshInstalled(): Promise<void> {
+  installedState.value = 'loading'
+  try {
+    const listing = await listInstalledApplications(locale.value)
+    const previousIcons = new Map(installed.value.map((application) => [application.id, application.iconDataUrl]))
+    installed.value = listing.map((application) => ({
+      ...application,
+      iconDataUrl: previousIcons.get(application.id) ?? application.iconDataUrl,
+    }))
+    installedState.value = 'ready'
+    await resolveIcons(installed.value)
+  } catch {
+    installed.value = []
+    installedState.value = 'unavailable'
+  }
+}
+
+const iconBatchSize = 32
+
+async function resolveIcons(listing: ApplicationDTO[]): Promise<void> {
+  const withoutIcon = listing.filter((application) => application.iconDataUrl === '')
+  for (let start = 0; start < withoutIcon.length; start += iconBatchSize) {
+    const batch = withoutIcon.slice(start, start + iconBatchSize)
+    try {
+      const resolved = await describeApplications(batch.map((application) => application.id))
+      const icons = new Map(resolved.map((application) => [application.id, application.iconDataUrl]))
+      installed.value = installed.value.map((application) => ({
+        ...application,
+        iconDataUrl: icons.get(application.id) ?? application.iconDataUrl,
+      }))
+    } catch {
+      // Icons are display data; a failed batch leaves monogram fallbacks.
+      break
+    }
+  }
+}
+
+async function onAdd(id: string): Promise<void> {
+  if (!canEdit.value || blockedIdSet.value.has(id)) return
+  // persist() writes the patch and adopts the authoritative settings from the
+  // response; the blocked tiles then re-resolve so the new entry gets its icon.
+  await persist({ blockedApplicationIds: [...blockedIds.value, id] })
+  await refreshApplications()
+}
+
+async function onRemove(id: string): Promise<void> {
+  if (!canEdit.value) return
+  await persist({ blockedApplicationIds: blockedIds.value.filter((item) => item !== id) })
+  await refreshApplications()
+}
+
+async function onClear(): Promise<void> {
+  if (!canEdit.value || blockedIds.value.length === 0) return
+  await persist({ blockedApplicationIds: [] })
+  await refreshApplications()
+}
+
 async function onChoose(): Promise<void> {
   if (selecting.value || !canEdit.value) return
   selecting.value = true
   pickError.value = ''
   try {
     const application = await pickApplication()
-    if (application === null || blockedIds.value.includes(application.id)) return
-    await persist({ blockedApplicationIds: [...blockedIds.value, application.id] })
-    await refreshApplications()
+    if (application === null || blockedIdSet.value.has(application.id)) return
+    await onAdd(application.id)
   } catch (cause: unknown) {
     pickError.value = cause instanceof Error && cause.message === WAILS_UNAVAILABLE
       ? t('settings.privacy.error.unavailable')
@@ -76,27 +168,23 @@ async function onChoose(): Promise<void> {
   }
 }
 
-async function onRemove(id: string): Promise<void> {
-  await persist({ blockedApplicationIds: blockedIds.value.filter((item) => item !== id) })
-  await refreshApplications()
-}
-
 function labelOf(application: ApplicationDTO): string {
+  if (installedNames.value.has(application.id)) return installedNames.value.get(application.id)!
   return application.name === '' ? application.id : application.name
 }
 </script>
 
 <template>
-  <section class="blocked dg-card">
-    <div class="blocked__text">
-      <h2 class="blocked__title">{{ t('settings.privacy.blockedTitle') }}</h2>
-      <p class="blocked__hint">{{ t('settings.privacy.blockedHint') }}</p>
+  <section class="privacy">
+    <div class="privacy__text">
+      <h2 class="privacy__title">{{ t('settings.privacy.blockedTitle') }}</h2>
+      <p class="privacy__hint">{{ t('settings.privacy.blockedHint') }}</p>
     </div>
 
     <div
       v-if="compatibility?.platform === 'windows'"
-      class="blocked__compatibility"
-      :class="{ 'blocked__compatibility--unsupported': !compatibility.supported }"
+      class="privacy__compatibility"
+      :class="{ 'privacy__compatibility--unsupported': !compatibility.supported }"
       role="status"
     >
       <strong>
@@ -112,47 +200,33 @@ function labelOf(application: ApplicationDTO): string {
       </span>
     </div>
 
-    <p v-if="listState === 'loading'" class="blocked__empty">
+    <!--
+      Installed applications: search, then a grid of tiles. Clicking a tile
+      adds the application to the privacy list; a tile already on the list
+      shows a badge and stays inert, because removal lives in the blocked row.
+    -->
+    <div class="privacy__search">
+      <input
+        v-model="query"
+        class="dg-input"
+        type="search"
+        :placeholder="t('settings.privacy.searchPlaceholder')"
+        :aria-label="t('settings.privacy.searchPlaceholder')"
+      >
+    </div>
+
+    <div class="privacy__section-head">
+      <h3 class="privacy__section-title">{{ t('settings.privacy.installedTitle') }}</h3>
+      <span v-if="installedState === 'ready'" class="privacy__section-count">
+        {{ t('settings.privacy.installedCount', { count: filteredInstalled.length }) }}
+      </span>
+    </div>
+
+    <p v-if="installedState === 'loading'" class="privacy__note">
       {{ t('settings.privacy.loading') }}
     </p>
-    <p v-else-if="listState === 'unavailable'" class="blocked__empty">
-      {{ t('settings.privacy.unavailable') }}
-    </p>
-    <ul
-      v-else-if="applications.length > 0"
-      class="blocked__list"
-      :aria-label="t('settings.privacy.blockedTitle')"
-    >
-      <li v-for="application in applications" :key="application.id" class="blocked__item">
-        <img
-          v-if="application.iconDataUrl !== ''"
-          class="blocked__icon"
-          :src="application.iconDataUrl"
-          alt=""
-          width="28"
-          height="28"
-        >
-        <span v-else class="blocked__icon blocked__icon--fallback" aria-hidden="true">
-          {{ labelOf(application).slice(0, 1).toUpperCase() }}
-        </span>
-        <span class="blocked__name" :class="{ 'blocked__name--raw': application.name === '' }">
-          {{ labelOf(application) }}
-        </span>
-        <button
-          type="button"
-          class="blocked__remove"
-          :disabled="!canEdit"
-          :aria-label="t('settings.privacy.remove', { name: labelOf(application) })"
-          :title="t('settings.privacy.remove', { name: labelOf(application) })"
-          @click="onRemove(application.id)"
-        >
-          ×
-        </button>
-      </li>
-    </ul>
-    <p v-else class="blocked__empty">{{ t('settings.privacy.empty') }}</p>
-
-    <div class="blocked__actions">
+    <div v-else-if="installedState === 'unavailable'" class="privacy__note">
+      <p>{{ t('settings.privacy.installedUnavailable') }}</p>
       <button
         type="button"
         class="dg-button"
@@ -162,35 +236,150 @@ function labelOf(application: ApplicationDTO): string {
         {{ selecting ? t('settings.privacy.selecting') : t('settings.privacy.choose') }}
       </button>
     </div>
-    <p v-if="pickError" class="blocked__error" role="alert">{{ pickError }}</p>
-    <p v-if="writeFailed" class="blocked__error" role="alert">
+    <p v-else-if="filteredInstalled.length === 0" class="privacy__note">
+      {{ t('settings.privacy.searchEmpty') }}
+    </p>
+    <div v-else class="privacy__panel dg-scroll" role="listbox" :aria-label="t('settings.privacy.installedTitle')">
+      <button
+        v-for="application in filteredInstalled"
+        :key="application.id"
+        type="button"
+        class="app-tile"
+        :class="{ 'app-tile--blocked': blockedIdSet.has(application.id) }"
+        :aria-pressed="blockedIdSet.has(application.id)"
+        :disabled="blockedIdSet.has(application.id) || !canEdit"
+        :title="blockedIdSet.has(application.id)
+          ? t('settings.privacy.blockedBadge')
+          : t('settings.privacy.add', { name: labelOf(application) })"
+        :aria-label="blockedIdSet.has(application.id)
+          ? t('settings.privacy.blockedBadge')
+          : t('settings.privacy.add', { name: labelOf(application) })"
+        @click="onAdd(application.id)"
+      >
+        <span class="app-tile__frame">
+          <img
+            v-if="application.iconDataUrl !== ''"
+            class="app-tile__icon"
+            :src="application.iconDataUrl"
+            alt=""
+            width="44"
+            height="44"
+          >
+          <span v-else class="app-tile__icon app-tile__icon--fallback" aria-hidden="true">
+            {{ labelOf(application).slice(0, 1).toUpperCase() }}
+          </span>
+          <span v-if="blockedIdSet.has(application.id)" class="app-tile__badge" aria-hidden="true">
+            <svg viewBox="0 0 12 12" width="8" height="8" fill="none">
+              <rect x="2.4" y="5.2" width="7.2" height="5" rx="1" fill="currentColor" />
+              <path d="M4 5V3.6a2 2 0 1 1 4 0V5" stroke="currentColor" stroke-width="1.4" />
+            </svg>
+          </span>
+        </span>
+        <span class="app-tile__name">{{ labelOf(application) }}</span>
+      </button>
+    </div>
+
+    <div class="privacy__section-head">
+      <h3 class="privacy__section-title">
+        {{ t('settings.privacy.blockedApplicationsTitle') }}
+        <span class="privacy__section-count">
+          {{ t('settings.privacy.blockedCount', { count: blockedIds.length }) }}
+        </span>
+      </h3>
+      <button
+        type="button"
+        class="dg-button"
+        :disabled="!canEdit || blockedIds.length === 0"
+        @click="onClear"
+      >
+        {{ t('settings.privacy.clear') }}
+      </button>
+    </div>
+
+    <p v-if="listState === 'loading'" class="privacy__note">
+      {{ t('settings.privacy.loading') }}
+    </p>
+    <p v-else-if="listState === 'unavailable'" class="privacy__note">
+      {{ t('settings.privacy.unavailable') }}
+    </p>
+    <div
+      v-else-if="applications.length > 0"
+      class="privacy__panel privacy__panel--blocked"
+      :aria-label="t('settings.privacy.blockedApplicationsTitle')"
+    >
+      <button
+        v-for="application in applications"
+        :key="application.id"
+        type="button"
+        class="app-tile"
+        :disabled="!canEdit"
+        :aria-label="t('settings.privacy.remove', { name: labelOf(application) })"
+        :title="t('settings.privacy.remove', { name: labelOf(application) })"
+        @click="onRemove(application.id)"
+      >
+        <span class="app-tile__frame">
+          <img
+            v-if="application.iconDataUrl !== ''"
+            class="app-tile__icon"
+            :src="application.iconDataUrl"
+            alt=""
+            width="44"
+            height="44"
+          >
+          <span v-else class="app-tile__icon app-tile__icon--fallback" aria-hidden="true">
+            {{ labelOf(application).slice(0, 1).toUpperCase() }}
+          </span>
+          <span class="app-tile__badge" aria-hidden="true">
+            <svg viewBox="0 0 12 12" width="8" height="8" fill="none">
+              <rect x="2.4" y="5.2" width="7.2" height="5" rx="1" fill="currentColor" />
+              <path d="M4 5V3.6a2 2 0 1 1 4 0V5" stroke="currentColor" stroke-width="1.4" />
+            </svg>
+          </span>
+        </span>
+        <span class="app-tile__name">{{ labelOf(application) }}</span>
+      </button>
+    </div>
+    <p v-else class="privacy__note">{{ t('settings.privacy.empty') }}</p>
+
+    <div class="privacy__actions">
+      <button
+        type="button"
+        class="dg-button"
+        :disabled="!canEdit || selecting"
+        @click="onChoose"
+      >
+        {{ selecting ? t('settings.privacy.selecting') : t('settings.privacy.choose') }}
+      </button>
+    </div>
+    <p v-if="pickError" class="privacy__error" role="alert">{{ pickError }}</p>
+    <p v-if="writeFailed" class="privacy__error" role="alert">
       {{ t('settings.privacy.writeError') }}
     </p>
   </section>
 </template>
 
 <style scoped>
-.blocked {
+.privacy {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 17px 18px;
 }
 
-.blocked__title {
+.privacy__title {
   color: var(--dg-text-primary);
   font-size: 14px;
   font-weight: 600;
 }
 
-.blocked__hint {
+.privacy__hint {
   margin-top: 4px;
   color: var(--dg-text-secondary);
   font-size: 12px;
   max-width: 52ch;
 }
 
-.blocked__compatibility {
+.privacy__compatibility {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -202,112 +391,155 @@ function labelOf(application: ApplicationDTO): string {
   font-size: 12px;
 }
 
-.blocked__compatibility strong {
+.privacy__compatibility strong {
   color: var(--dg-text-primary);
   font-size: 13px;
 }
 
-.blocked__compatibility--unsupported {
+.privacy__compatibility--unsupported {
   border-color: color-mix(in srgb, var(--dg-danger) 38%, var(--dg-card-border));
   background: color-mix(in srgb, var(--dg-danger) 8%, transparent);
 }
 
-.blocked__compatibility--unsupported strong {
+.privacy__compatibility--unsupported strong {
   color: var(--dg-danger);
 }
 
-.blocked__list {
-  display: flex;
-  flex-direction: column;
-  list-style: none;
+.privacy__search {
+  max-width: 460px;
 }
 
-.blocked__item {
+.privacy__section-head {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 4px;
-  border-top: 1px solid var(--dg-card-border);
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.privacy__section-title {
   color: var(--dg-text-primary);
-  font-size: 13px;
-}
-
-.blocked__item:first-child {
-  border-top: none;
-}
-
-.blocked__icon {
-  flex: none;
-  width: 28px;
-  height: 28px;
-}
-
-.blocked__icon--fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 7px;
-  background: var(--dg-input-fill);
-  color: var(--dg-text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
 
-.blocked__name {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.blocked__name--raw {
+.privacy__section-count {
+  margin-left: 8px;
   color: var(--dg-text-secondary);
-  font-family: var(--dg-font-mono);
   font-size: 12px;
+  font-weight: 400;
 }
 
-.blocked__remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--dg-text-secondary);
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
+.privacy__panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
+  max-height: 320px;
+  padding: 10px;
+  border: 1px solid var(--dg-card-border);
+  border-radius: var(--dg-card-radius);
+  background: var(--dg-card-fill);
 }
 
-.blocked__remove:hover:not(:disabled) {
-  background: var(--dg-hover-fill);
-  color: var(--dg-text-primary);
+.privacy__panel--blocked {
+  max-height: 200px;
 }
 
-.blocked__remove:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--dg-focus-ring);
-}
-
-.blocked__remove:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.blocked__empty {
+.privacy__note {
   color: var(--dg-text-secondary);
   font-size: 13px;
 }
 
-.blocked__actions {
+.privacy__actions {
   display: flex;
   gap: 8px;
 }
 
-.blocked__error {
+.privacy__error {
   color: var(--dg-danger);
   font-size: 12px;
+}
+
+.app-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: center;
+}
+
+.app-tile:hover:not(:disabled) {
+  border-color: var(--dg-card-border);
+  background: var(--dg-hover-fill);
+}
+
+.app-tile:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+.app-tile:disabled {
+  cursor: default;
+}
+
+/* A tile already on the privacy list: accent ring marks it, and removal
+   happens in the blocked row, not here. */
+.app-tile--blocked {
+  border-color: color-mix(in srgb, var(--dg-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--dg-accent) 8%, transparent);
+}
+
+.app-tile__frame {
+  position: relative;
+  width: 44px;
+  height: 44px;
+}
+
+.app-tile__icon {
+  width: 44px;
+  height: 44px;
+}
+
+.app-tile__icon--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--dg-chip-border);
+  border-radius: 9px;
+  background: var(--dg-input-fill);
+  color: var(--dg-text-secondary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.app-tile__badge {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--dg-accent);
+  color: #ffffff;
+}
+
+.app-tile__name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--dg-text-primary);
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 </style>

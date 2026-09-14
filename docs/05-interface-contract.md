@@ -93,7 +93,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | daily | `GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals`；用户保存不触碰 AI summary 列；`GetDailyRecap` 未实现（待定 #19） |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
-| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
+| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；均不接 recorder / storage / config |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
@@ -1095,7 +1095,7 @@ type System interface {
 
     Displays(ctx context.Context) ([]Display, error)
     FrontmostApplication(ctx context.Context) (AppInfo, error)
-    InstalledApplications(ctx context.Context) ([]AppInfo, error) // 隐私名单选择器
+    InstalledApplications(ctx context.Context, language string) ([]AppInfo, error) // 隐私名单选择器；language 为前端 UI 语言（BCP-47，空串保持平台默认），名称按该语言解析
 
     LaunchAtLogin(ctx context.Context) (bool, error)
     SetLaunchAtLogin(ctx context.Context, enabled bool) error

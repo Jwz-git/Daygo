@@ -1,6 +1,8 @@
 import {
+  DescribeApplications,
   GetBlockedApplications,
   GetPrivacyCompatibility,
+  ListInstalledApplications,
   PickApplication,
 } from '../../wailsjs/go/app/Backend'
 
@@ -60,4 +62,34 @@ export async function getBlockedApplications(): Promise<ApplicationDTO[]> {
     name: names[id] ?? '',
     iconDataUrl: '',
   }))
+}
+
+/**
+ * The user-visible installed applications, as identifier/name pairs resolved
+ * in the requested language (the frontend's active UI locale), so the grid
+ * reads 备忘录 or Notes depending on what the user chose.
+ *
+ * Icons are deliberately not part of the listing: resolving every icon up
+ * front is a heavy payload, and the grid only needs icons for visible rows,
+ * which describeApplications supplies per batch. Platforms without the
+ * enumeration capability reject the call — the caller keeps the native
+ * picker as the add path there.
+ */
+export async function listInstalledApplications(language: string): Promise<ApplicationDTO[]> {
+  if (!('go' in window) || window.go === undefined) return []
+  return (await ListInstalledApplications(language)) as unknown as ApplicationDTO[]
+}
+
+/**
+ * Resolves names and icons for the given identifiers, in input order. This is
+ * the icon source for the installed-apps grid and mirrors what
+ * getBlockedApplications uses, so both surfaces show identical identities.
+ */
+export async function describeApplications(ids: string[]): Promise<ApplicationDTO[]> {
+  if (ids.length === 0) return []
+  if (!('go' in window) || window.go === undefined) {
+    const names = (await getApplicationNamesDevelopmentFixture()) ?? {}
+    return ids.map((id) => ({ id, name: names[id] ?? '', iconDataUrl: '' }))
+  }
+  return (await DescribeApplications(ids)) as unknown as ApplicationDTO[]
 }

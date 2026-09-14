@@ -20,7 +20,17 @@ export default {
     otherDescription: '外观、启动项、遥测与语言。',
   },
   privacy: {
-    blockedTitle: '屏蔽应用',
+    blockedTitle: '录屏隐私',
+    searchPlaceholder: '搜索已安装的应用',
+    installedTitle: '已安装的应用',
+    installedCount: '已显示 {count} 个',
+    blockedApplicationsTitle: '已屏蔽的应用',
+    blockedCount: '已屏蔽 {count} 个',
+    clear: '清除',
+    add: '屏蔽 {name}',
+    blockedBadge: '已屏蔽——在下方列表点击即可移除',
+    installedUnavailable: '无法获取已安装的应用列表。',
+    searchEmpty: '没有匹配的应用。',
     blockedHint:
       '前台应用在名单内时，该时段写入脱敏占位帧：时间线上仍能看到有活动，但没有画面内容。',
     choose: '选择应用…',

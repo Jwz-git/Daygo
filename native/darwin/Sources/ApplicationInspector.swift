@@ -5,7 +5,7 @@ private let maximumApplicationPathBytes = 32_768
 private let maximumApplicationIdentifierBytes = 4_096
 private let maximumApplicationNameBytes = 4_096
 private let maximumApplicationIconBytes = 262_144
-private let applicationIconPixelSize = 64
+private let applicationIconPixelSize = 128
 
 private enum ApplicationInspectionFailure: Error {
     case invalidArgument

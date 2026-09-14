@@ -117,6 +117,75 @@ func (b *Backend) PickApplication() (*ApplicationDTO, error) {
 	return &dto, nil
 }
 
+// ListInstalledApplications enumerates the user-visible installed applications
+// for the privacy settings grid. Identifiers match what the capture privacy
+// filter consumes; names resolve in the requested language (the frontend's
+// active UI language, a BCP-47 tag — empty keeps the platform default), so the
+// grid reads 备忘录 or Notes depending on what the user chose. Icons are
+// deliberately not part of the listing: resolving every icon up front is a
+// heavy payload, and the grid only needs icons for visible rows, which
+// DescribeApplications supplies per batch.
+//
+// The underlying System port is unavailable on platforms without the
+// enumeration capability; that surfaces as native_unavailable and the frontend
+// keeps the picker as the add path.
+func (b *Backend) ListInstalledApplications(language string) ([]ApplicationDTO, error) {
+	if b.system == nil {
+		return nil, apperr.E(apperr.NativeUnavailable, "application enumeration is unavailable", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), applicationInspectionTimeout)
+	defer cancel()
+	applications, err := b.system.InstalledApplications(ctx, language)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, apperr.E(apperr.NativeUnavailable, "application enumeration timed out", err)
+		}
+		return nil, apperr.E(apperr.NativeUnavailable, "application enumeration failed", err)
+	}
+
+	out := make([]ApplicationDTO, 0, len(applications))
+	for _, application := range applications {
+		// An identifier is the only value the privacy filter can act on, so an
+		// entry without one would be an unusable row.
+		if application.ID == "" {
+			continue
+		}
+		out = append(out, ApplicationDTO{ID: application.ID, Name: application.Name})
+	}
+	return out, nil
+}
+
+// DescribeApplications resolves display names and icons for the given
+// identifiers, in input order. It is the icon source for the installed-apps
+// grid and reuses the same resolver GetBlockedApplications uses, so both
+// surfaces show identical identities for the same identifier.
+func (b *Backend) DescribeApplications(ids []string) ([]ApplicationDTO, error) {
+	if len(ids) == 0 {
+		return []ApplicationDTO{}, nil
+	}
+	if b.applicationInspector == nil {
+		return idOnlyApplications(ids), nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), applicationInspectionTimeout)
+	defer cancel()
+	identities, err := b.applicationInspector.DescribeApplications(ctx, ids)
+	if err != nil {
+		return nil, applicationInspectionError(err)
+	}
+	if len(identities) != len(ids) {
+		return idOnlyApplications(ids), nil
+	}
+	applications := make([]ApplicationDTO, 0, len(ids))
+	for index, identity := range identities {
+		if identity.ID == "" {
+			identity.ID = ids[index]
+		}
+		applications = append(applications, applicationToDTO(identity))
+	}
+	return applications, nil
+}
+
 // GetBlockedApplications returns the configured privacy list in configuration
 // order, with the display name and icon the platform can resolve for each
 // identifier.
