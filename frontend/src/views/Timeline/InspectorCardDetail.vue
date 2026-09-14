@@ -6,6 +6,7 @@ import type { TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import { appSiteValues } from '@/lib/appSiteIcon'
+import { categoryLabel } from '@/lib/categoryLabel'
 import { useDurationFormat } from '@/lib/duration'
 import { formatClockTime } from '@/lib/timeFormat'
 import type { TimelineAction } from '@/stores/timeline'
@@ -32,6 +33,7 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 const duration = useDurationFormat()
+const localizedCategory = computed(() => categoryLabel(props.card.category, t))
 const timeRange = computed(() => {
   return `${formatClockTime(props.card.startTs, locale.value, props.timeZone)} – ${formatClockTime(props.card.endTs, locale.value, props.timeZone)}`
 })
@@ -117,7 +119,7 @@ function confirmDeletion(): void {
 <template>
   <header class="inspector__header">
     <div>
-      <p class="inspector__eyebrow">{{ props.card.category }}</p>
+      <p class="inspector__eyebrow">{{ localizedCategory }}</p>
       <h2 class="inspector__title inspector__title--card">{{ props.card.title }}</h2>
     </div>
     <button

@@ -8,6 +8,7 @@ import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PeriodNav from '@/components/PeriodNav.vue'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
+import { categoryLabel } from '@/lib/categoryLabel'
 import { delayUntilDayContextRefresh } from '@/lib/dayContextRefresh'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { formatTimeZoneName } from '@/lib/timeFormat'
@@ -55,20 +56,6 @@ const localizedTimeZone = computed(() =>
 const filterCategories = computed(() =>
   (day.value?.categories ?? []).filter((category) => !category.isSystem),
 )
-
-const builtInCategoryLabels: Record<string, string> = {
-  'Focus Work': 'focusWork',
-  Communication: 'communication',
-  Learning: 'learning',
-  Research: 'research',
-  Distraction: 'distraction',
-  Personal: 'personal',
-}
-
-function categoryLabel(name: string): string {
-  const key = builtInCategoryLabels[name]
-  return key === undefined ? name : t(`timeline.category.${key}`)
-}
 
 const hasTrack = computed(() =>
   day.value !== null && ['populated', 'processing', 'failure'].includes(state.value),
@@ -204,7 +191,7 @@ onBeforeUnmount(() => {
         @click="timeline.setCategoryFilter(category.name)"
       >
         <i :style="{ background: safeCategoryColor(category.colorHex) }" aria-hidden="true"></i>
-        {{ categoryLabel(category.name) }}
+        {{ categoryLabel(category.name, t) }}
       </button>
       <span class="filter-bar__spacer"></span>
       <button

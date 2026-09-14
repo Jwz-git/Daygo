@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import type { CategoryDTO, TimelineDayDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import { useDurationFormat } from '@/lib/duration'
+import { categoryLabel } from '@/lib/categoryLabel'
 import type { TimelineAction } from '@/stores/timeline'
 
 import { safeCategoryColor } from './layout'
@@ -86,7 +87,7 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
       <div class="category-total__meta">
         <span>
           <i :style="{ background: safeCategoryColor(item.category.colorHex) }"></i>
-          {{ item.category.name }}
+          {{ categoryLabel(item.category.name, t) }}
         </span>
         <strong>{{ duration(item.minutes) }}</strong>
       </div>
