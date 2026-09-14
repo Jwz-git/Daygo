@@ -3,7 +3,9 @@ import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import PeriodNav from '@/components/PeriodNav.vue'
 import { shiftCalendarDate } from '@/lib/calendarDate'
 import { useWeeklyStore } from '@/stores/weekly'
 
@@ -50,37 +52,22 @@ onBeforeUnmount(() => weekly.stopListening())
   <div class="page weekly-page">
     <PageHeader :title="dateTitle">
       <template #lead>
-        <div class="week-nav" role="group" :aria-label="t('weekly.navigation.label')">
-          <button
-            type="button"
-            class="week-nav__arrow"
-            :aria-label="t('common.action.previous')"
-            :title="navigationAvailable ? t('common.action.previous') : t('weekly.navigation.backendRequired')"
-            :disabled="!navigationAvailable"
-            @click="weekly.navigate(-1)"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            class="week-nav__arrow"
-            :aria-label="t('common.action.next')"
-            :title="navigationAvailable ? t('common.action.next') : t('weekly.navigation.backendRequired')"
-            :disabled="!canNavigateForward"
-            @click="weekly.navigate(1)"
-          >
-            ›
-          </button>
-          <button type="button" class="dg-chip dg-chip--filled" @click="weekly.load()">
-            {{ t('weekly.navigation.current') }}
-          </button>
-        </div>
+        <PeriodNav
+          :label="t('weekly.navigation.label')"
+          :backward-title="navigationAvailable ? t('common.action.previous') : t('weekly.navigation.backendRequired')"
+          :forward-title="navigationAvailable ? t('common.action.next') : t('weekly.navigation.backendRequired')"
+          :can-backward="navigationAvailable"
+          :can-forward="canNavigateForward"
+          :current-label="t('weekly.navigation.current')"
+          @navigate="(offset) => weekly.navigate(offset)"
+          @current="weekly.load()"
+        />
       </template>
 
       <template #trail>
-        <span v-if="usingDevelopmentFixture" class="development-badge">
+        <DevelopmentBadge v-if="usingDevelopmentFixture">
           {{ t('weekly.developmentFixture') }}
-        </span>
+        </DevelopmentBadge>
         <span v-if="dashboard" class="week-meta">
           {{ t('weekly.meta.tracked', { count: dashboard.trackedMinutes }) }}
         </span>
@@ -115,37 +102,6 @@ onBeforeUnmount(() => weekly.stopListening())
 </template>
 
 <style scoped>
-.week-nav { display: flex; align-items: center; gap: 5px; }
-
-.week-nav__arrow {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  color: var(--dg-text-secondary);
-  font-size: 25px;
-  line-height: 1;
-  place-items: center;
-}
-
-.week-nav__arrow:not(:disabled):hover { background: var(--dg-hover-fill); }
-
-.week-nav__arrow:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--dg-focus-ring);
-}
-
-.week-nav__arrow:disabled { color: var(--dg-text-muted); cursor: default; opacity: 0.5; }
-
-.development-badge {
-  padding: 3px 7px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 5px;
-  background: var(--dg-hover-fill);
-  color: var(--dg-text-tertiary);
-  font-size: 10px;
-  font-weight: 600;
-}
 
 .week-meta { color: var(--dg-text-muted); font-size: 10px; white-space: nowrap; }
 

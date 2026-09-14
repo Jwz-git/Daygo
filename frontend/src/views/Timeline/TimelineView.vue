@@ -4,7 +4,9 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
+import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import PeriodNav from '@/components/PeriodNav.vue'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { safeTimeZone } from '@/lib/timeZone'
@@ -106,40 +108,21 @@ onBeforeUnmount(() => { timeline.stopListening() })
   <div class="page timeline-page" @keydown.esc="timeline.selectCard(null)">
     <PageHeader :title="dateTitle">
       <template #lead>
-        <div class="date-nav" role="group" :aria-label="t('timeline.navigation.label')">
-          <button
-            type="button"
-            class="date-nav__arrow"
-            :title="dayNavigationAvailable ? t('common.action.previous') : t('timeline.navigation.backendRequired')"
-            :aria-label="t('common.action.previous')"
-            :disabled="!canNavigateBackward"
-            @click="navigate(-1)"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            class="date-nav__arrow"
-            :title="!dayNavigationAvailable ? t('timeline.navigation.backendRequired') : canNavigateForward ? t('common.action.next') : t('timeline.navigation.futureUnavailable')"
-            :aria-label="t('common.action.next')"
-            :disabled="!canNavigateForward"
-            @click="navigate(1)"
-          >
-            ›
-          </button>
-          <button
-            type="button"
-            class="dg-chip dg-chip--filled"
-            :disabled="!dayNavigationAvailable && !usingDevelopmentFixture"
-            @click="goToToday"
-          >
-            {{ t('common.action.today') }}
-          </button>
-        </div>
+        <PeriodNav
+          :label="t('timeline.navigation.label')"
+          :backward-title="dayNavigationAvailable ? t('common.action.previous') : t('timeline.navigation.backendRequired')"
+          :forward-title="!dayNavigationAvailable ? t('timeline.navigation.backendRequired') : canNavigateForward ? t('common.action.next') : t('timeline.navigation.futureUnavailable')"
+          :can-backward="canNavigateBackward"
+          :can-forward="canNavigateForward"
+          :current-label="t('common.action.today')"
+          :current-disabled="!dayNavigationAvailable && !usingDevelopmentFixture"
+          @navigate="navigate"
+          @current="goToToday"
+        />
       </template>
 
       <template #trail>
-        <span v-if="usingDevelopmentFixture" class="development-badge">{{ t('timeline.developmentFixture') }}</span>
+        <DevelopmentBadge v-if="usingDevelopmentFixture">{{ t('timeline.developmentFixture') }}</DevelopmentBadge>
         <div v-if="day" class="day-meta">
           <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>
           <i aria-hidden="true"></i>
@@ -234,38 +217,6 @@ onBeforeUnmount(() => { timeline.stopListening() })
 </template>
 
 <style scoped>
-.date-nav {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.date-nav__arrow {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  color: var(--dg-text-secondary);
-  font-size: 25px;
-  line-height: 1;
-  place-items: center;
-}
-
-.date-nav__arrow:not(:disabled):hover {
-  background: var(--dg-hover-fill);
-}
-
-.date-nav__arrow:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--dg-focus-ring);
-}
-
-.date-nav__arrow:disabled {
-  color: var(--dg-text-muted);
-  cursor: default;
-  opacity: 0.55;
-}
-
 .day-meta {
   display: flex;
   align-items: center;
@@ -275,15 +226,6 @@ onBeforeUnmount(() => { timeline.stopListening() })
   white-space: nowrap;
 }
 
-.development-badge {
-  padding: 3px 7px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 5px;
-  background: var(--dg-hover-fill);
-  color: var(--dg-text-tertiary);
-  font-size: 10px;
-  font-weight: 600;
-}
 
 .day-meta i {
   width: 3px;
