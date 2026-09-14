@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 
 import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { useDurationFormat } from '@/lib/duration'
+import { categoryLabel } from '@/lib/categoryLabel'
 import type { WeeklyCategoryPresentation } from '@/stores/weeklyPresentation'
 import { percentageLabel } from '@/stores/weeklyPresentation'
 
@@ -28,7 +29,7 @@ const duration = useDurationFormat()
         :key="category.name"
         :class="`series-${category.seriesIndex + 1}`"
         :style="{ flexGrow: category.share }"
-        :title="`${category.name} · ${percentageLabel(category.share)}`"
+        :title="`${categoryLabel(category.name, t)} · ${percentageLabel(category.share)}`"
       />
     </div>
 
@@ -37,7 +38,7 @@ const duration = useDurationFormat()
         <span class="category-list__rank">{{ String(index + 1).padStart(2, '0') }}</span>
         <span :class="['category-list__dot', `series-${category.seriesIndex + 1}`]" />
         <div class="category-list__identity">
-          <strong>{{ category.name }}</strong>
+          <strong>{{ categoryLabel(category.name, t) }}</strong>
           <div class="category-list__track" aria-hidden="true">
             <span
               :class="`series-${category.seriesIndex + 1}`"

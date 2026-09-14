@@ -185,8 +185,9 @@ CREATE TABLE timeline_cards (
   category         TEXT    NOT NULL,   -- 分类名称字符串，见 §3.3.3
   subcategory      TEXT,
   title            TEXT    NOT NULL,
-  summary          TEXT    NOT NULL,
-  detailed_summary TEXT,
+  summary          TEXT    NOT NULL,      -- 一句话：应用/站点与整体活动
+  detailed_summary TEXT,                 -- 分段时间日志：每段 "h:mm PM–h:mm PM: 描述"，
+                                         -- 上限 8 段 / 1200 字符（generateCards 内强制截断）
   video_summary_path TEXT,             -- timelapse 相对路径
   metadata         TEXT,               -- JSON：appSites、distractions、idle 诊断等
   is_deleted       INTEGER NOT NULL DEFAULT 0,

@@ -10,8 +10,10 @@ interface TimelineBackend {
   GetTimelineDay?: (day: string) => Promise<TimelineDayDTO>
   UpdateCardCategory?: (cardID: number, category: string) => Promise<void>
   UpdateCardTitle?: (cardID: number, title: string) => Promise<void>
+  UpdateCardDetailedSummary?: (cardID: number, text: string) => Promise<void>
   DeleteCard?: (cardID: number) => Promise<void>
   RetryBatches?: (batchIDs: number[]) => Promise<void>
+  ReprocessDay?: (day: string) => Promise<void>
   DeleteBatches?: (batchIDs: number[]) => Promise<void>
   ClearHistoryData?: () => Promise<void>
 }
@@ -41,8 +43,10 @@ export class TimelineUnavailableError extends Error {
 export interface TimelineActionAvailability {
   updateCategory: boolean
   updateTitle: boolean
+  updateSummary: boolean
   deleteCard: boolean
   retryBatches: boolean
+  reprocessDay: boolean
   deleteBatches: boolean
   clearHistory: boolean
 }
@@ -68,8 +72,10 @@ export function getTimelineActionAvailability(): TimelineActionAvailability {
   return {
     updateCategory: typeof current?.UpdateCardCategory === 'function',
     updateTitle: typeof current?.UpdateCardTitle === 'function',
+    updateSummary: typeof current?.UpdateCardDetailedSummary === 'function',
     deleteCard: typeof current?.DeleteCard === 'function',
     retryBatches: typeof current?.RetryBatches === 'function',
+    reprocessDay: typeof current?.ReprocessDay === 'function',
     deleteBatches: typeof current?.DeleteBatches === 'function',
     clearHistory: typeof current?.ClearHistoryData === 'function',
   }
@@ -106,12 +112,20 @@ export async function updateCardTitle(cardID: number, title: string): Promise<vo
   return requiredMethod('UpdateCardTitle')(cardID, title)
 }
 
+export async function updateCardDetailedSummary(cardID: number, text: string): Promise<void> {
+  return requiredMethod('UpdateCardDetailedSummary')(cardID, text)
+}
+
 export async function deleteCard(cardID: number): Promise<void> {
   return requiredMethod('DeleteCard')(cardID)
 }
 
 export async function retryBatches(batchIDs: number[]): Promise<void> {
   return requiredMethod('RetryBatches')(batchIDs)
+}
+
+export async function reprocessDay(day: string): Promise<void> {
+  return requiredMethod('ReprocessDay')(day)
 }
 
 export async function deleteBatches(batchIDs: number[]): Promise<void> {

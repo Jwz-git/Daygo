@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, type CSSProperties } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import type { TimelineCardDTO } from '@/api/dto'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import { preferredAppSite } from '@/lib/appSiteIcon'
+import { categoryLabel } from '@/lib/categoryLabel'
 
 import { MIN_CARD_HEIGHT } from './layout'
 
@@ -19,6 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [id: number] }>()
 const appSite = computed(() => preferredAppSite(props.card.appSites))
+const { t } = useI18n()
 
 // Visual gap between consecutive cards: the slot owns `height`, the card
 // renders slightly inset inside it, so neighbours never touch.
@@ -46,7 +49,7 @@ function cardStyle(): CSSProperties {
     }"
     :style="cardStyle()"
     :aria-pressed="props.selected"
-    :aria-label="`${props.card.title}, ${props.card.start} – ${props.card.end}, ${props.card.category}`"
+    :aria-label="`${props.card.title}, ${props.card.start} – ${props.card.end}, ${categoryLabel(props.card.category, t)}`"
     @click="emit('select', props.card.id)"
   >
     <span class="activity-card__rail" aria-hidden="true"></span>
@@ -85,20 +88,20 @@ function cardStyle(): CSSProperties {
     border-color var(--dg-motion-base) ease-in-out,
     background var(--dg-motion-base) ease-in-out,
     box-shadow var(--dg-motion-base) ease-in-out,
-    transform var(--dg-motion-base) ease-in-out;
+    transform 720ms var(--dg-ease-glide);
 }
 
 .activity-card__icon {
   margin-top: 0;
 }
 
-/* Hover lifts the card off the track; :active below presses it back in. */
+/* Hover grows the card slightly; :active below presses it back in. */
 .activity-card:hover {
   z-index: 5;
   border-color: color-mix(in srgb, var(--timeline-category) 40%, var(--dg-timeline-card-border));
   background: var(--dg-timeline-card-hover);
   box-shadow: var(--dg-timeline-card-shadow-hover);
-  transform: translateY(-1px);
+  transform: scale(1.008);
 }
 
 .activity-card:focus-visible {
@@ -126,6 +129,10 @@ function cardStyle(): CSSProperties {
     inset 0 0 0 1px color-mix(in srgb, var(--timeline-category) 15%, transparent),
     inset 0 1px 3px rgba(20, 16, 25, 0.1);
   transform: scale(0.985);
+  transition:
+    border-color var(--dg-motion-fast) ease-in-out,
+    background var(--dg-motion-fast) ease-in-out,
+    transform var(--dg-motion-fast) ease-in-out;
 }
 
 .activity-card__rail {

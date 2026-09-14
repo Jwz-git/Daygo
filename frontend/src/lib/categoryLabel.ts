@@ -1,13 +1,17 @@
 export const builtInCategoryKeys: Record<string, string> = {
-  'Focus Work': 'focusWork',
-  Communication: 'communication',
-  Learning: 'learning',
-  Research: 'research',
-  Distraction: 'distraction',
-  Personal: 'personal',
+  'focus work': 'focusWork',
+  communication: 'communication',
+  learning: 'learning',
+  research: 'research',
+  distraction: 'distraction',
+  personal: 'personal',
+}
+
+export function categoryKey(name: string): string {
+  return name.trim().toLocaleLowerCase()
 }
 
 export function categoryLabel(name: string, translate: (key: string) => string): string {
-  const key = builtInCategoryKeys[name]
+  const key = builtInCategoryKeys[categoryKey(name)]
   return key === undefined ? name : translate(`timeline.category.${key}`)
 }

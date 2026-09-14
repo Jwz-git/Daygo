@@ -89,7 +89,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
-| timeline | `GetDayContext`、`GetTimelineDay`、`UpdateCardCategory`、`UpdateCardTitle`、`DeleteCard`、`SaveCategories` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；视频 URL 与失败重试 / 整日重处理仍属后续切片 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`UpdateCardCategory`、`UpdateCardTitle`、`UpdateCardDetailedSummary`、`DeleteCard`、`SaveCategories` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；视频 URL 与失败重试 / 整日重处理仍属后续切片 |
 | daily | `GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals`；用户保存不触碰 AI summary 列；`GetDailyRecap` 未实现（待定 #19） |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
@@ -281,11 +281,12 @@ export function toApiError(e: unknown): ApiError {
 | `SearchCards(query string, limit int) ([]TimelineCardDTO, error)` | timeline | cards 搜索 | 读 | — | `invalid_argument` |
 | `UpdateCardCategory(cardID int64, category string) error` **已实现** | timeline | cards / 分类 / 写入锁 | 写·幂等 | `timeline:updated` | `not_found` `invalid_argument` |
 | `UpdateCardTitle(cardID int64, title string) error` **已实现** | timeline | cards / 写入锁 | 写·幂等 | `timeline:updated` | 同上 |
+| `UpdateCardDetailedSummary(cardID int64, text string) error` **已实现** | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
 | `DeleteCard(cardID int64) error` **已实现** | timeline | cards / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` |
 | `RetryBatches(batchIDs []int64) error` **已实现** | timeline | 批次 / provider-client / media-read | 写·非幂等 | `batch:progress` `timeline:updated` | `not_found` `conflict` |
 | `SaveCategories(categories []CategoryDTO) error` **已实现** | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` **已实现** | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
-| `ReprocessDay(day string) error` | timeline | time / capture / 分析流水线 | 写·非幂等 | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
+| `ReprocessDay(day string) error` **已实现** | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
 | `ClearHistoryData() error` **已实现**（测试专用） | timeline | storage / 写入锁 / 录制空闲 | 写·非幂等 | `timeline:updated` `journal:updated` `goal:updated` | `not_capture_owner` `conflict` `database_error` |
 
 - `UpdateCardCategory` 的 `category` 必须是现有分类**名称**；不存在时返回

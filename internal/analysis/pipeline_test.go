@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -618,5 +619,43 @@ func TestPipelineMergeCardAbsorbsPredecessor(t *testing.T) {
 	merged := cards[0]
 	if merged.Title != "merged" || merged.Start != "10:00 AM" || merged.End != "10:30 AM" {
 		t.Fatalf("merged card = %s – %s %q, want 10:00 AM – 10:30 AM merged", merged.Start, merged.End, merged.Title)
+	}
+}
+
+func TestBoundDetailedSummary(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty passes through", "", ""},
+		{"within limits untouched", "10:00 AM–10:05 AM: worked", "10:00 AM–10:05 AM: worked"},
+		{
+			"over 8 paragraphs keeps the newest 8",
+			"p1\np2\np3\np4\np5\np6\np7\np8\np9\np10",
+			"p3\np4\np5\np6\np7\np8\np9\np10",
+		},
+		{
+			"over 1200 runes cuts at paragraph boundary",
+			strings.Repeat("a", 800) + "\n" + strings.Repeat("b", 800),
+			strings.Repeat("a", 800),
+		},
+		{
+			"single huge paragraph truncates at a word boundary",
+			strings.Repeat("word ", 400),
+			strings.Repeat("word ", 239) + "word",
+		},
+		{
+			"crlf normalized before splitting",
+			"one\r\n\r\ntwo",
+			"one\n\ntwo",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := boundDetailedSummary(tc.in); got != tc.want {
+				t.Fatalf("boundDetailedSummary(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }

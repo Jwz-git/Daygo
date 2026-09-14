@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CategoryDTO, DayGoalDTO } from '@/api/dto'
+import { categoryLabel } from '@/lib/categoryLabel'
 
 const props = defineProps<{
   goal: DayGoalDTO | null
@@ -169,7 +170,7 @@ function submit(): void {
               :style="{ '--chip-color': category.colorHex }"
               @click="toggleFocus(category.id)"
             >
-              {{ category.name }}
+              {{ categoryLabel(category.name, t) }}
             </button>
           </div>
         </div>
@@ -185,7 +186,7 @@ function submit(): void {
               :style="{ '--chip-color': category.colorHex }"
               @click="toggleDistraction(category.id)"
             >
-              {{ category.name }}
+              {{ categoryLabel(category.name, t) }}
             </button>
           </div>
         </div>

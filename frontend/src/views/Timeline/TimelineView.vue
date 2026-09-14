@@ -41,6 +41,7 @@ const { locale, t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
+const confirmingReprocess = ref(false)
 let dayRefreshTimer: number | null = null
 const dateTitle = computed(() => {
   if (context.value === null) return t('timeline.title')
@@ -123,12 +124,18 @@ function refreshWhenWindowReturns(): void {
 async function copyTimeline(): Promise<void> {
   if (day.value === null || cards.value.length === 0) return
   try {
-    await navigator.clipboard.writeText(formatTimelineForClipboard(day.value.day, cards.value))
+    await navigator.clipboard.writeText(formatTimelineForClipboard(day.value.day, cards.value, t))
     copyState.value = 'copied'
   } catch {
     copyState.value = 'failed'
   }
   window.setTimeout(() => { copyState.value = 'idle' }, 1600)
+}
+
+async function reprocessCurrentDay(): Promise<void> {
+  if (context.value === null) return
+  const succeeded = await timeline.reprocessCurrentDay(context.value.day)
+  if (succeeded) confirmingReprocess.value = false
 }
 
 onMounted(() => {
@@ -210,6 +217,34 @@ onBeforeUnmount(() => {
       >
         {{ t('timeline.filter.manage') }}
       </button>
+      <button
+        v-if="actionAvailability.reprocessDay && (capabilities?.canWrite ?? false)"
+        type="button"
+        class="filter-manage"
+        :disabled="pendingAction !== null || !hasTrack"
+        @click="confirmingReprocess = true"
+      >
+        {{ t('timeline.reprocess.action') }}
+      </button>
+      <span v-if="confirmingReprocess" class="filter-error" role="alert">
+        {{ t('timeline.reprocess.confirm') }}
+        <button
+          type="button"
+          class="filter-manage"
+          :disabled="pendingAction !== null"
+          @click="reprocessCurrentDay"
+        >
+          {{ pendingAction === 'reprocess-day' ? t('timeline.reprocess.running') : t('timeline.reprocess.confirmYes') }}
+        </button>
+        <button
+          type="button"
+          class="filter-manage"
+          :disabled="pendingAction !== null"
+          @click="confirmingReprocess = false"
+        >
+          {{ t('common.action.cancel') }}
+        </button>
+      </span>
       <span v-if="actionError !== null && selectedCard === null" class="filter-error" role="alert">
         {{ t('timeline.actionFailed') }}
       </span>
@@ -248,7 +283,7 @@ onBeforeUnmount(() => {
           :pending-action="pendingAction"
           :action-failed="actionError !== null"
           @close="timeline.selectCard(null)"
-          @save-edits="timeline.saveCardEdits"
+          @save-edits="(cardID, edits) => timeline.saveCardEdits(cardID, edits)"
           @delete="timeline.removeCard"
           @retry="timeline.retryFailure"
           @dismiss-failure="timeline.dismissFailure"

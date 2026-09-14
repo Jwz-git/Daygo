@@ -29,7 +29,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  saveEdits: [cardID: number, title: string, category: string]
+  saveEdits: [cardID: number, edits: { title?: string; category?: string; summary?: string }]
   delete: [cardID: number]
   retry: [batchIDs: number[]]
   dismissFailure: [batchIDs: number[]]
@@ -71,7 +71,7 @@ const { t } = useI18n()
       :pending-action="props.pendingAction"
       :action-failed="props.actionFailed"
       @close="emit('close')"
-      @save-edits="(cardID, title, category) => emit('saveEdits', cardID, title, category)"
+      @save-edits="(cardID: number, edits: { title?: string; category?: string; summary?: string }) => emit('saveEdits', cardID, edits)"
       @delete="(cardID) => emit('delete', cardID)"
     />
   </LiquidGlassSurface>

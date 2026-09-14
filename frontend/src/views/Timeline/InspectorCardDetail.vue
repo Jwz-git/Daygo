@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
@@ -13,8 +13,12 @@ import type { TimelineAction } from '@/stores/timeline'
 
 import { safeCategoryColor } from './layout'
 
-/* The inspector's card pane: the selected card's summary, apps, activity
-   points, distractions and media, plus the title/category editor. */
+/*
+ * The inspector's card pane: the selected card's summary, apps, activity
+ * points, distractions and media. Each editable field (title, category,
+ * summary) carries its own pencil affordance and switches to an inline
+ * editor; the action row keeps edit-less delete with confirm.
+ */
 const props = defineProps<{
   day: TimelineDayDTO
   timeZone: string
@@ -27,7 +31,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  saveEdits: [cardID: number, title: string, category: string]
+  saveEdits: [cardID: number, edits: { title?: string; category?: string; summary?: string }]
   delete: [cardID: number]
 }>()
 
@@ -38,10 +42,15 @@ const timeRange = computed(() => {
   return `${formatClockTime(props.card.startTs, locale.value, props.timeZone)} – ${formatClockTime(props.card.endTs, locale.value, props.timeZone)}`
 })
 
-const editing = ref(false)
+/* Which field is open in its inline editor; null shows read-only rows. */
+type Field = 'title' | 'category' | 'summary'
+const editingField = ref<Field | null>(null)
 const confirmingDelete = ref(false)
-const draftTitle = ref('')
-const draftCategory = ref('')
+const draft = ref('')
+
+const titleInput = ref<HTMLInputElement | null>(null)
+const summaryInput = ref<HTMLTextAreaElement | null>(null)
+const categoryInput = ref<HTMLSelectElement | null>(null)
 
 const selectedColor = computed(() => {
   const category = props.day.categories.find((entry) => entry.name === props.card.category)
@@ -68,60 +77,115 @@ const categoryOptions = computed(() => {
   return names
 })
 
-const canStartEditing = computed(
-  () => props.canWrite && (props.actions.updateTitle || props.actions.updateCategory),
+function fieldEditable(field: Field): boolean {
+  if (!props.canWrite) return false
+  if (props.pendingAction !== null) return false
+  return field === 'title' ? props.actions.updateTitle
+    : field === 'category' ? props.actions.updateCategory
+    : props.actions.updateSummary
+}
+
+const displayedSummary = computed(
+  () => props.card.detailedSummary || props.card.summary || t('timeline.inspector.noSummary'),
 )
 
-const titleChanged = computed(() => draftTitle.value.trim() !== '' && draftTitle.value.trim() !== props.card.title)
-const categoryChanged = computed(() => draftCategory.value !== '' && draftCategory.value !== props.card.category)
-
-const canSave = computed(() =>
-  (titleChanged.value || categoryChanged.value) && props.pendingAction === null,
+/* The detailed summary is a chronological log, one paragraph per phase; a
+   fallback short summary renders as the single paragraph it is. */
+const summaryParagraphs = computed(() =>
+  displayedSummary.value
+    .split(/\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph !== ''),
 )
 
-watch(
-  () => props.card.id,
-  () => {
-    editing.value = false
-    confirmingDelete.value = false
-    draftTitle.value = props.card.title
-    draftCategory.value = props.card.category
-  },
-  { immediate: true },
-)
-
-function beginEditing(): void {
-  if (!canStartEditing.value) return
-  draftTitle.value = props.card.title
-  draftCategory.value = props.card.category
+async function beginEditing(field: Field): Promise<void> {
+  if (!fieldEditable(field)) return
+  editingField.value = field
   confirmingDelete.value = false
-  editing.value = true
+  draft.value = field === 'title' ? props.card.title
+    : field === 'category' ? props.card.category
+    : props.card.detailedSummary
+  await nextTick()
+  const input = field === 'title' ? titleInput.value
+    : field === 'category' ? categoryInput.value
+    : summaryInput.value
+  input?.focus()
+  if (input instanceof HTMLInputElement) input.select()
 }
 
 function cancelEditing(): void {
-  editing.value = false
-  draftTitle.value = props.card.title
-  draftCategory.value = props.card.category
+  editingField.value = null
+  draft.value = ''
 }
 
-function saveEditing(): void {
-  if (!canSave.value) return
-  emit('saveEdits', props.card.id, draftTitle.value.trim(), draftCategory.value)
-  editing.value = false
+function submitEditing(): void {
+  const field = editingField.value
+  if (field === null || props.pendingAction !== null) return
+  if (field === 'title' && draft.value.trim() === '') return
+  const edits = { [field]: draft.value }
+  emit('saveEdits', props.card.id, edits)
+  editingField.value = null
+  draft.value = ''
 }
 
 function confirmDeletion(): void {
   emit('delete', props.card.id)
   confirmingDelete.value = false
 }
+
+watch(
+  () => props.card.id,
+  () => {
+    editingField.value = null
+    confirmingDelete.value = false
+    draft.value = ''
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
   <header class="inspector__header">
-    <div>
-      <p class="inspector__eyebrow">{{ localizedCategory }}</p>
-      <h2 class="inspector__title inspector__title--card">{{ props.card.title }}</h2>
+    <div class="inspector__heading">
+      <p class="inspector__eyebrow">
+        <span>{{ localizedCategory }}</span>
+        <button
+          v-if="fieldEditable('category')"
+          type="button"
+          class="field-pencil"
+          :aria-label="t('timeline.inspector.editCategory')"
+          @click="beginEditing('category')"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </button>
+      </p>
+
+      <div v-if="editingField === 'title'" class="field-editor">
+        <input
+          ref="titleInput"
+          v-model="draft"
+          class="dg-input field-editor__title"
+          type="text"
+          maxlength="160"
+          @keydown.esc="cancelEditing"
+          @keydown.enter.prevent="submitEditing"
+          @blur="submitEditing"
+        />
+      </div>
+      <h2 v-else class="inspector__title inspector__title--card">
+        <span class="title-text">{{ props.card.title }}</span>
+        <button
+          v-if="fieldEditable('title')"
+          type="button"
+          class="field-pencil"
+          :aria-label="t('timeline.inspector.editTitle')"
+          @click="beginEditing('title')"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </button>
+      </h2>
     </div>
+
     <button
       type="button"
       class="inspector__close"
@@ -137,46 +201,57 @@ function confirmDeletion(): void {
     {{ timeRange }} · {{ duration(props.card.durationMinutes) }}
   </div>
 
-  <form v-if="editing" class="editor" @submit.prevent="saveEditing" @keydown.esc="cancelEditing">
-    <label>
-      <span>{{ t('timeline.inspector.titleLabel') }}</span>
-      <input
-        v-model="draftTitle"
-        class="dg-input"
-        type="text"
-        maxlength="160"
-        :disabled="!props.actions.updateTitle || props.pendingAction !== null"
-      />
-    </label>
-    <label>
-      <span>{{ t('timeline.inspector.categoryLabel') }}</span>
-      <select
-        v-model="draftCategory"
-        class="dg-input"
-        :disabled="!props.actions.updateCategory || props.pendingAction !== null"
+  <div v-if="editingField === 'category'" class="field-editor">
+    <select
+      ref="categoryInput"
+      v-model="draft"
+      class="dg-input"
+      @keydown.esc="cancelEditing"
+      @change="submitEditing"
+      @blur="submitEditing"
+    >
+      <option
+        v-for="name in categoryOptions"
+        :key="name"
+        :value="name"
       >
-        <option
-          v-for="name in categoryOptions"
-          :key="name"
-          :value="name"
-        >
-          {{ name }}
-        </option>
-      </select>
-    </label>
-    <div class="editor__actions">
-      <button type="button" class="dg-button" @click="cancelEditing">
-        {{ t('common.action.cancel') }}
-      </button>
-      <button type="submit" class="dg-button dg-button--primary" :disabled="!canSave">
-        {{ props.pendingAction === 'update-card' ? t('common.state.saving') : t('common.action.save') }}
-      </button>
-    </div>
-  </form>
+        {{ categoryLabel(name, t) }}
+      </option>
+    </select>
+  </div>
 
   <section class="inspector__section">
-    <h3>{{ t('timeline.inspector.summary') }}</h3>
-    <p>{{ props.card.detailedSummary || props.card.summary || t('timeline.inspector.noSummary') }}</p>
+    <h3 class="section-heading">
+      <span>{{ t('timeline.inspector.summary') }}</span>
+      <button
+        v-if="fieldEditable('summary')"
+        type="button"
+        class="field-pencil"
+        :aria-label="t('timeline.inspector.editSummary')"
+        @click="beginEditing('summary')"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      </button>
+    </h3>
+    <div v-if="editingField === 'summary'" class="field-editor">
+      <textarea
+        ref="summaryInput"
+        v-model="draft"
+        class="dg-input field-editor__summary"
+        rows="5"
+        maxlength="2000"
+        @keydown.esc="cancelEditing"
+        @blur="submitEditing"
+      ></textarea>
+      <p class="field-editor__hint">{{ t('timeline.inspector.summaryEditHint') }}</p>
+    </div>
+    <template v-else>
+      <p
+        v-for="(paragraph, index) in summaryParagraphs"
+        :key="index"
+        class="summary-paragraph"
+      >{{ paragraph }}</p>
+    </template>
   </section>
 
   <section v-if="displayedAppSites.length > 0" class="inspector__section">
@@ -253,16 +328,7 @@ function confirmDeletion(): void {
     <template v-else>
       <button
         type="button"
-        class="dg-button"
-        :disabled="!canStartEditing || props.pendingAction !== null"
-        :title="canStartEditing ? t('common.action.edit') : t('timeline.inspector.actionsUnavailable')"
-        @click="beginEditing"
-      >
-        {{ t('common.action.edit') }}
-      </button>
-      <button
-        type="button"
-        class="dg-button"
+        class="dg-button inspector__delete"
         :disabled="!props.canWrite || !props.actions.deleteCard || props.pendingAction !== null"
         :title="props.actions.deleteCard ? t('common.action.delete') : t('timeline.inspector.actionsUnavailable')"
         @click="confirmingDelete = true"
@@ -273,18 +339,69 @@ function confirmDeletion(): void {
     <span v-if="!props.canWrite" class="inspector__readonly">
       {{ t('timeline.inspector.readOnly') }}
     </span>
-    <span v-else-if="!canStartEditing && !props.actions.deleteCard" class="inspector__readonly">
+    <span
+      v-else-if="!props.actions.updateTitle && !props.actions.updateCategory && !props.actions.updateSummary && !props.actions.deleteCard"
+      class="inspector__readonly"
+    >
       {{ t('timeline.inspector.actionsUnavailable') }}
     </span>
   </div>
 </template>
 
 <style scoped>
-.editor { display: grid; gap: 13px; padding: 16px 0; border-bottom: 1px solid var(--dg-timeline-grid); }
+.inspector__heading { min-width: 0; }
 
-.editor label { display: grid; gap: 5px; }
-.editor label > span { color: var(--dg-text-secondary); font-size: 10px; font-weight: 600; }
-.editor__actions { display: flex; justify-content: flex-end; gap: 7px; }
+.inspector__title--card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.title-text { min-width: 0; overflow-wrap: anywhere; }
+
+/* Pencil affordance beside an editable field. Faint until the row is
+   hovered, so read-only scanning stays clean. */
+.field-pencil {
+  display: inline-grid;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--dg-text-muted);
+  opacity: 0;
+  transition: opacity var(--dg-motion-base) ease;
+}
+
+.field-pencil svg { width: 12px; height: 12px; }
+
+.inspector__header:hover .field-pencil,
+.inspector__section:hover .field-pencil,
+.field-pencil:focus-visible {
+  opacity: 1;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.field-editor { display: grid; gap: 6px; }
+
+.field-editor__title { font-size: 15px; font-weight: 620; }
+
+.field-editor__summary { resize: vertical; min-height: 88px; font: inherit; line-height: 1.6; }
+
+.field-editor__hint { margin: 0; color: var(--dg-text-muted); font-size: 10px; }
+
+/* Phase paragraphs of the chronological log: the leading time range reads as
+   tabular data, the rest as prose. */
+.summary-paragraph { margin: 0 0 8px; }
+
+.summary-paragraph:last-child { margin-bottom: 0; }
 
 .app-sites { display: flex; flex-wrap: wrap; gap: 7px; }
 .app-sites li {
@@ -331,4 +448,8 @@ function confirmDeletion(): void {
 .frame-placeholder span { height: 52px; border: 1px solid var(--dg-timeline-grid); border-radius: 5px; background: var(--dg-timeline-frame-fill); }
 .media-list { display: grid; gap: 8px; }
 .media-list video { width: 100%; border-radius: 6px; background: var(--dg-track-fill); }
+
+@media (prefers-reduced-motion: reduce) {
+  .field-pencil { transition: none; }
+}
 </style>

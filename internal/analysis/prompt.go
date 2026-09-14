@@ -47,10 +47,14 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	var b strings.Builder
 	b.WriteString("You are generating the activity card for one time window of a time-tracking app. ")
 	b.WriteString("You receive observations of screen activity and previously generated cards nearby. ")
-	b.WriteString("Emit exactly ONE card for the current window. If the window's activity continues ")
-	b.WriteString("a nearby card, MERGE: emit one card whose start is the nearby card's start, whose ")
-	b.WriteString("activityPoints include that card's points, and whose title/summary describe the ")
-	b.WriteString("combined activity.\n\n")
+	b.WriteString("Emit exactly ONE card for the current window. Compare the current observations with ")
+	b.WriteString("the directly preceding card. MERGE when both describe the same ongoing task or tightly ")
+	b.WriteString("related steps toward the same concrete outcome, even when the wording, application, or ")
+	b.WriteString("subcategory changes slightly. Repeated debugging, implementation, review, and testing of ")
+	b.WriteString("the same feature are one activity. Do not merge merely because the category is the same, ")
+	b.WriteString("and do not merge across a meaningful idle gap or a clear change of goal. When merging, emit ")
+	b.WriteString("one card whose start is the preceding card's start, whose activityPoints include all earlier ")
+	b.WriteString("points, and whose title and summaries describe the whole combined activity.\n\n")
 
 	fmt.Fprintf(&b, "Current window: %s to %s.\n\n",
 		formatFrameClock(batchStart), formatFrameClock(batchEnd))
@@ -62,6 +66,12 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	for _, c := range existing {
 		fmt.Fprintf(&b, "  %s – %s  %s / %s: %s\n",
 			c.Start, c.End, c.Category, c.Subcategory, c.Title)
+		if c.Summary != "" {
+			fmt.Fprintf(&b, "    summary: %s\n", c.Summary)
+		}
+		if c.DetailedSummary != "" {
+			fmt.Fprintf(&b, "    detailed_summary:\n%s\n", indentLines(c.DetailedSummary, "      "))
+		}
 		for _, p := range activityPointsOfMetadata(c.Metadata) {
 			fmt.Fprintf(&b, "    %s  %s\n", p.Time, p.Description)
 		}
@@ -103,6 +113,17 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	b.WriteString("observation, time formatted like \"10:21 AM\" and inside the window; when merging, ")
 	b.WriteString("include the merged card's earlier points too, in chronological order.\n")
 	b.WriteString("- subcategory, detailed_summary, appSites and distractions may be empty; never omit keys.\n")
+	b.WriteString("- summary is one sentence naming the apps/sites and the overall activity.\n")
+	b.WriteString("- detailed_summary is a chronological log, one paragraph per distinct phase of the ")
+	b.WriteString("activity, in the form \"h:mm PM–h:mm PM: what happened\" (times as in the observations; ")
+	b.WriteString("the hyphen between times is an en dash). Each paragraph covers a contiguous stretch of ")
+	b.WriteString("activity and states concrete outcomes — commands sent, values confirmed, files or ")
+	b.WriteString("sections touched — not restatements of the summary.\n")
+	b.WriteString("- Keep detailed_summary bounded: at most 8 paragraphs and 1200 characters total. ")
+	b.WriteString("When merging, reuse the merged card's paragraphs as the base; extend the last paragraph ")
+	b.WriteString("whose time range and activity the new window continues, and only add a new paragraph ")
+	b.WriteString("for a genuinely new phase. Drop or compress the oldest, least important paragraphs to ")
+	b.WriteString("stay within the limits — recent detail matters more than old detail.\n")
 	b.WriteString("- distractions lists applications or sites that look unrelated to the main activity.\n")
 	b.WriteString("- Return only a json object matching the requested schema; do not include markdown.\n")
 	if language != "" {
@@ -116,6 +137,16 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 // anchor on insert, so this rendering is for the model's eyes only.
 func formatFrameClock(t time.Time) string {
 	return t.Format("3:04 PM")
+}
+
+// indentLines pads every line of a multi-line string so a merged card's
+// detailed_summary stays aligned inside the "Nearby existing cards" block.
+func indentLines(text, padding string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = padding + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 // appsOfMetadata extracts the apps list the transcription stage stored in an

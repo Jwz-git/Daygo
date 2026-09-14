@@ -261,6 +261,14 @@ func (r *CardRepo) UpdateCardTitle(ctx context.Context, id int64, title string) 
 		title)
 }
 
+// UpdateCardDetailedSummary rewrites one card's long-form summary. Empty is
+// valid: the detail pane falls back to the short summary.
+func (r *CardRepo) UpdateCardDetailedSummary(ctx context.Context, id int64, text string) error {
+	return r.updateCardColumn(ctx, "update card summary", id,
+		"UPDATE timeline_cards SET detailed_summary = ?, updated_at = ? WHERE id = ? AND is_deleted = 0",
+		text)
+}
+
 // SoftDeleteCard hides one card and returns its video path for cleanup. File
 // deletion is the caller's, out-of-transaction business: a file operation
 // cannot roll back with the database.

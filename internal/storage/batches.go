@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -345,6 +346,80 @@ func (r *AnalysisRepo) RetryBatches(ctx context.Context, ids []int64, now time.T
 		 SET status = ?, failure_kind = NULL, failure_note = NULL, attempts = 0, updated_at = ?
 		 WHERE id = ?`,
 		[]any{BatchPending, now.Unix()})
+}
+
+// ReprocessDay requeues every terminal batch of one logical day for
+// re-analysis: succeeded, failed and failed_empty batches whose start falls
+// in [from, to) go back to pending with the failure info cleared and the
+// attempt counter reset. This is an explicit user action, so it bypasses the
+// SetBatchStatus state machine with a direct UPDATE — same spirit as
+// RetryBatches ignoring the attempt cap. Dismissed (is_deleted) batches stay
+// dismissed, and skipped_short batches stay skipped: the former were removed
+// by the user, the latter were deliberately never analyzed. Batches already
+// pending or processing are left as they are. Returns the requeued batches
+// so the caller can emit invalidation for their days.
+func (r *AnalysisRepo) ReprocessDay(ctx context.Context, from, to time.Time, now time.Time) ([]Batch, error) {
+	if r == nil || r.store == nil {
+		return nil, fmt.Errorf("analysis: store unavailable")
+	}
+	var out []Batch
+	err := r.store.Write(ctx, "analysis reprocess day", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `
+			SELECT id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at
+			FROM analysis_batches
+			WHERE status IN (?, ?, ?) AND is_deleted = 0 AND start_ts >= ? AND start_ts < ?
+			ORDER BY start_ts`,
+			BatchSucceeded, BatchFailed, BatchFailedEmpty, from.Unix(), to.Unix())
+		if err != nil {
+			return wrap("select reprocessable batches", err)
+		}
+		var ids []int64
+		for rows.Next() {
+			b, err := scanBatch(rows)
+			if err != nil {
+				_ = rows.Close()
+				return err
+			}
+			ids = append(ids, b.ID)
+			out = append(out, b)
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return wrap("select reprocessable batches", err)
+		}
+		_ = rows.Close()
+		if len(ids) == 0 {
+			return nil
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE analysis_batches
+			SET status = ?, failure_kind = NULL, failure_note = NULL, attempts = 0, updated_at = ?
+			WHERE id IN (`+strings.Join(batchIDPlaceholders(len(ids)), ", ")+`)`,
+			append([]any{BatchPending, now.Unix()}, batchIDArgs(ids)...)...); err != nil {
+			return wrap("reprocess day", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func batchIDPlaceholders(n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = "?"
+	}
+	return out
+}
+
+func batchIDArgs(ids []int64) []any {
+	out := make([]any, len(ids))
+	for i, id := range ids {
+		out[i] = id
+	}
+	return out
 }
 
 // DeleteBatches dismisses failed batches from the timeline's failure panel.

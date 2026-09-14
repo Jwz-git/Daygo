@@ -45,6 +45,17 @@ func (b *Backend) updateCardTitle(ctx context.Context, cardID int64, title strin
 	return nil
 }
 
+// updateCardDetailedSummary rewrites one card's long-form summary. Empty
+// clears it; the pane falls back to the short AI summary.
+func (b *Backend) updateCardDetailedSummary(ctx context.Context, cardID int64, text string) error {
+	store := b.store()
+	if err := store.Cards().UpdateCardDetailedSummary(ctx, cardID, text); err != nil {
+		return mapStorageError("update card summary", err)
+	}
+	b.invalidateCardDay(cardID)
+	return nil
+}
+
 // deleteCard soft-deletes one card. The returned timelapse path (cleanup is a
 // data-maintenance concern) is intentionally dropped here.
 func (b *Backend) deleteCard(ctx context.Context, cardID int64) error {

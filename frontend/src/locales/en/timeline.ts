@@ -52,6 +52,12 @@ export default {
     copied: 'Copied',
     failed: 'Copy failed',
   },
+  reprocess: {
+    action: 'Re-analyze this day',
+    confirm: 'Every batch of this day will be re-analyzed with fresh LLM calls. Continue?',
+    confirmYes: 'Re-analyze',
+    running: 'Submitted, analyzing…',
+  },
   state: {
     loading: {
       eyebrow: 'Loading',
@@ -106,6 +112,10 @@ export default {
     readOnly: 'Currently read-only',
     titleLabel: 'Title',
     categoryLabel: 'Category',
+    editTitle: 'Edit title',
+    editCategory: 'Change category',
+    editSummary: 'Edit summary',
+    summaryEditHint: 'Empty clears the detailed summary and falls back to the short AI summary.',
     deleteConfirm: 'This card will be soft-deleted. Continue?',
     actionFailed: 'The action did not finish. The frontend left the existing card unchanged.',
   },

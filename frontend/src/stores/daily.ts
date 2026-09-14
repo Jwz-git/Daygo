@@ -30,6 +30,7 @@ import {
   saveJournalDay,
 } from '@/api/daily'
 import { onTimelineUpdated } from '@/api/timeline'
+import { categoryKey } from '@/lib/categoryLabel'
 
 const SLOT_SECONDS = 15 * 60
 const MINIMUM_WINDOW_SLOTS = 36
@@ -71,10 +72,6 @@ export interface DailyPresentation {
 }
 
 export type DailyState = 'loading' | 'unavailable' | 'failure' | 'empty' | 'populated'
-
-function categoryKey(name: string): string {
-  return name.trim().toLocaleLowerCase()
-}
 
 function safeColor(value: string): string {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : '#7D7A84'

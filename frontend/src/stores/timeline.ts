@@ -17,9 +17,11 @@ import {
   getTimelineDay,
   hasTimelineDayBinding,
   onTimelineUpdated,
+  reprocessDay,
   retryBatches,
   TimelineUnavailableError,
   updateCardCategory,
+  updateCardDetailedSummary,
   updateCardTitle,
 } from '@/api/timeline'
 
@@ -36,6 +38,7 @@ export type TimelineAction =
   | 'delete-card'
   | 'retry-batches'
   | 'delete-batches'
+  | 'reprocess-day'
 
 export const useTimelineStore = defineStore('timeline', () => {
   const context = ref<DayContextDTO | null>(null)
@@ -73,8 +76,10 @@ export const useTimelineStore = defineStore('timeline', () => {
     return {
       updateCategory: enabled && actionBindings.updateCategory,
       updateTitle: enabled && actionBindings.updateTitle,
+      updateSummary: enabled && actionBindings.updateSummary,
       deleteCard: enabled && actionBindings.deleteCard,
       retryBatches: enabled && actionBindings.retryBatches,
+      reprocessDay: enabled && actionBindings.reprocessDay,
       deleteBatches: enabled && actionBindings.deleteBatches,
       clearHistory: enabled && actionBindings.clearHistory,
     }
@@ -90,13 +95,22 @@ export const useTimelineStore = defineStore('timeline', () => {
     return 'empty'
   })
 
-  async function load(requestedDay = ''): Promise<void> {
+  /**
+   * Pull the timeline for a day. A silent refresh keeps the current day
+   * rendered (loading stays false) while re-pulling behind it, so an
+   * edit/delete confirmation does not unmount the track and lose scroll
+   * position. It degrades to a full load whenever no day is on screen.
+   */
+  async function load(requestedDay = '', options: { silent?: boolean } = {}): Promise<void> {
     const version = ++requestVersion
-    loading.value = true
-    unavailable.value = false
-    error.value = null
-    actionError.value = null
-    usingDevelopmentFixture.value = false
+    const silent = options.silent === true && day.value !== null && loading.value === false
+    if (!silent) {
+      loading.value = true
+      unavailable.value = false
+      error.value = null
+      actionError.value = null
+      usingDevelopmentFixture.value = false
+    }
 
     try {
       const nextContext = await getDayContext(requestedDay)
@@ -119,6 +133,9 @@ export const useTimelineStore = defineStore('timeline', () => {
       }
     } catch (cause: unknown) {
       if (version !== requestVersion) return
+      // A failed silent refresh keeps the stale day on screen; the next
+      // explicit load or event re-pull surfaces the error normally.
+      if (silent) return
       if (cause instanceof TimelineUnavailableError) {
         const fixture = await getTimelineDevelopmentFixture()
         if (version !== requestVersion) return
@@ -173,12 +190,20 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
-  function saveCardEdits(cardID: number, title: string, category: string): Promise<boolean> {
-    const nextTitle = title.trim()
-    const nextCategory = category.trim()
+  function saveCardEdits(
+    cardID: number,
+    edits: { title?: string; category?: string; summary?: string },
+  ): Promise<boolean> {
     return runAction('update-card', async () => {
-      if (nextTitle !== '') await updateCardTitle(cardID, nextTitle)
-      if (nextCategory !== '') await updateCardCategory(cardID, nextCategory)
+      if (edits.title !== undefined && edits.title.trim() !== '') {
+        await updateCardTitle(cardID, edits.title.trim())
+      }
+      if (edits.category !== undefined && edits.category.trim() !== '') {
+        await updateCardCategory(cardID, edits.category.trim())
+      }
+      if (edits.summary !== undefined) {
+        await updateCardDetailedSummary(cardID, edits.summary.trim())
+      }
     })
   }
 
@@ -196,10 +221,16 @@ export const useTimelineStore = defineStore('timeline', () => {
     return runAction('delete-batches', () => deleteBatches(batchIDs))
   }
 
+  function reprocessCurrentDay(day: string): Promise<boolean> {
+    return runAction('reprocess-day', () => reprocessDay(day))
+  }
+
   function startEvents(): void {
     if (stopEvents !== null) return
     stopEvents = onTimelineUpdated((updatedDay) => {
-      if (updatedDay === null || updatedDay === context.value?.day) void load(context.value?.day ?? '')
+      if (updatedDay === null || updatedDay === context.value?.day) {
+        void load(context.value?.day ?? '', { silent: true })
+      }
     })
   }
 
@@ -234,6 +265,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     removeCard,
     retryFailure,
     dismissFailure,
+    reprocessCurrentDay,
     startEvents,
     stopListening,
   }

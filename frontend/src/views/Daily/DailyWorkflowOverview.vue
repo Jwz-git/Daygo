@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import type { DailyPresentation, DailyWorkflowCell } from '@/stores/daily'
 import { useDurationFormat } from '@/lib/duration'
+import { categoryLabel } from '@/lib/categoryLabel'
 import { safeTimeZone } from '@/lib/timeZone'
 
 const props = defineProps<{
@@ -74,7 +75,7 @@ const duration = useDurationFormat()
           <template v-for="row in presentation.rows" :key="row.id">
             <div class="workflow-label">
               <i :style="{ background: row.colorHex }" aria-hidden="true"></i>
-              <span>{{ row.name }}</span>
+              <span>{{ categoryLabel(row.name, t) }}</span>
             </div>
             <div class="workflow-cells" :style="cellGridStyle">
               <span
@@ -99,7 +100,7 @@ const duration = useDurationFormat()
           class="workflow-total"
         >
           <i :style="{ background: row.colorHex }" aria-hidden="true"></i>
-          <span>{{ row.name }}</span>
+          <span>{{ categoryLabel(row.name, t) }}</span>
           <strong>{{ duration(row.minutes) }}</strong>
         </span>
       </div>

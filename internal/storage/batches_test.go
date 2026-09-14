@@ -573,3 +573,73 @@ func TestDeleteBatchesDismissesFailures(t *testing.T) {
 		t.Fatal("RetryBatches accepted a dismissed batch")
 	}
 }
+
+func TestReprocessDayRequeuesTerminalBatches(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	dayStart := time.Date(2026, 9, 12, 4, 0, 0, 0, time.Local)
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	// One succeeded batch (inside the day), one failed batch (inside), one
+	// dismissed batch (must stay dismissed), one succeeded batch on another
+	// day (must stay untouched). Batch times are spaced ≥1h apart so their
+	// frame segment paths (HHMMSS-derived) stay unique.
+	succeeded := failedBatchAt(t, store, base, "network", 1)
+	driveBatchTo(t, store, succeeded, BatchSucceeded, base)
+	failed := failedBatchAt(t, store, base.Add(time.Hour), "network", MaxBatchAttempts)
+	dismissed := failedBatchAt(t, store, base.Add(2*time.Hour), "network", 1)
+	if _, err := store.Analysis().DeleteBatches(ctx, []int64{dismissed.ID}, base.Add(3*time.Hour)); err != nil {
+		t.Fatalf("DeleteBatches prep: %v", err)
+	}
+	nextDay := failedBatchAt(t, store, dayStart.Add(48*time.Hour), "network", 1)
+	driveBatchTo(t, store, nextDay, BatchSucceeded, base)
+
+	requeued, err := store.Analysis().ReprocessDay(ctx, dayStart, dayStart.Add(24*time.Hour), base.Add(4*time.Hour))
+	if err != nil {
+		t.Fatalf("ReprocessDay: %v", err)
+	}
+	if len(requeued) != 2 {
+		t.Fatalf("requeued = %d batches, want 2 (succeeded + failed)", len(requeued))
+	}
+
+	byID := map[int64]Batch{}
+	batches, err := store.Analysis().BatchesInRange(ctx, dayStart.Add(-time.Hour), dayStart.Add(49*time.Hour))
+	if err != nil {
+		t.Fatalf("BatchesInRange: %v", err)
+	}
+	for _, batch := range batches {
+		byID[batch.ID] = batch
+	}
+	for id, want := range map[int64]BatchStatus{
+		succeeded.ID: BatchPending,
+		failed.ID:    BatchPending,
+		dismissed.ID: BatchFailed,
+		nextDay.ID:   BatchSucceeded,
+	} {
+		if byID[id].Status != want {
+			t.Fatalf("batch %d = %s, want %s", id, byID[id].Status, want)
+		}
+	}
+	if byID[failed.ID].Attempts != 0 || byID[failed.ID].FailureKind != "" {
+		t.Fatalf("requeued failed batch = %+v, want attempts 0 and cleared failure", byID[failed.ID])
+	}
+	if got := len(mustPending(t, store)); got != 2 {
+		t.Fatalf("pending after reprocess = %d, want 2", got)
+	}
+}
+
+// driveBatchTo walks a failed batch back through pending → processing → to.
+func driveBatchTo(t *testing.T, store *Store, batch Batch, to BatchStatus, at time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	tick := at.Add(time.Minute)
+	if err := store.Analysis().SetBatchStatus(ctx, batch.ID, BatchPending, "", "", tick); err != nil {
+		t.Fatalf("SetBatchStatus pending prep: %v", err)
+	}
+	if err := store.Analysis().SetBatchStatus(ctx, batch.ID, BatchProcessing, "", "", tick); err != nil {
+		t.Fatalf("SetBatchStatus processing prep: %v", err)
+	}
+	if err := store.Analysis().SetBatchStatus(ctx, batch.ID, to, "", "", tick); err != nil {
+		t.Fatalf("SetBatchStatus %s prep: %v", to, err)
+	}
+}

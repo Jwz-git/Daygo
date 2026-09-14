@@ -318,6 +318,17 @@ func (b *Backend) UpdateCardTitle(cardID int64, title string) error {
 	return b.updateCardTitle(ctx, cardID, title)
 }
 
+// UpdateCardDetailedSummary rewrites one card's long-form summary. Empty
+// clears it.
+func (b *Backend) UpdateCardDetailedSummary(cardID int64, text string) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	return b.updateCardDetailedSummary(ctx, cardID, text)
+}
+
 // DeleteCard soft-deletes one card.
 func (b *Backend) DeleteCard(cardID int64) error {
 	if err := b.requireTimelineWrite(); err != nil {
@@ -428,6 +439,40 @@ func (b *Backend) RetryBatches(batchIDs []int64) error {
 	}
 	for _, batch := range batches {
 		b.emitTimelineInvalidation(timeutil.LogicalDay(batch.Start, b.clock.Now().Location()))
+	}
+	return nil
+}
+
+// ReprocessDay requeues one logical day's terminal batches (succeeded,
+// failed, failed_empty) for re-analysis — the explicit user path to rebuild
+// cards with an updated prompt. Dismissed and skipped-short batches stay as
+// they are. It returns immediately; the scheduler picks the pending batches
+// up on its next tick and progress arrives as batch:progress /
+// timeline:updated events.
+func (b *Backend) ReprocessDay(day string) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	store := b.store()
+	if store == nil {
+		if err := b.storageFailure(); err != nil {
+			return mapStorageError("reprocess day", err)
+		}
+		return apperr.E(apperr.DatabaseError, "reprocess day requires a database", nil)
+	}
+	loc := b.clock.Now().Location()
+	start, end, err := timeutil.DayWindow(day, loc)
+	if err != nil {
+		return apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	requeued, err := store.Analysis().ReprocessDay(ctx, start, end, b.clock.Now())
+	if err != nil {
+		return mapStorageError("reprocess day", err)
+	}
+	if len(requeued) > 0 {
+		b.emitTimelineInvalidation(timeutil.LogicalDay(start, loc))
 	}
 	return nil
 }

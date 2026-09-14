@@ -12,7 +12,7 @@ export default {
   actionFailed: '操作未完成，数据没有被前端改写。',
   recording: { start: '开始录制' },
   category: {
-    focusWork: '专注工作',
+    focusWork: '工作',
     communication: '沟通',
     learning: '学习',
     research: '研究',
@@ -51,6 +51,12 @@ export default {
     action: '复制时间线',
     copied: '已复制',
     failed: '复制失败',
+  },
+  reprocess: {
+    action: '重新分析这一天',
+    confirm: '将重新分析这一天的所有时段，会重新调用 LLM。确定吗？',
+    confirmYes: '重新分析',
+    running: '已提交，正在分析…',
   },
   state: {
     loading: {
@@ -106,6 +112,10 @@ export default {
     readOnly: '当前为只读状态',
     titleLabel: '标题',
     categoryLabel: '分类',
+    editTitle: '编辑标题',
+    editCategory: '修改分类',
+    editSummary: '编辑摘要',
+    summaryEditHint: '留空清除详细摘要，回退到 AI 生成的短摘要。',
     deleteConfirm: '删除后卡片会被软删除。确定继续吗？',
     actionFailed: '操作没有完成，现有卡片未被前端改写。',
   },

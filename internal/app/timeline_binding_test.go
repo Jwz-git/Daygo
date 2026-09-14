@@ -147,6 +147,15 @@ func TestCardWritesValidateAndEmit(t *testing.T) {
 	if err := backend.UpdateCardTitle(cardID, "renamed"); err != nil {
 		t.Fatalf("UpdateCardTitle: %v", err)
 	}
+	if err := backend.UpdateCardDetailedSummary(cardID, "user-rewritten detail"); err != nil {
+		t.Fatalf("UpdateCardDetailedSummary: %v", err)
+	}
+	// Empty clears the detail; the pane falls back to the short summary.
+	if err := backend.UpdateCardDetailedSummary(cardID, ""); err != nil {
+		t.Fatalf("UpdateCardDetailedSummary empty: %v", err)
+	}
+	// Unknown card id is not_found.
+	assertAppCode(t, backend.UpdateCardDetailedSummary(9999, "x"), apperr.NotFound)
 	if err := backend.DeleteCard(cardID); err != nil {
 		t.Fatalf("DeleteCard: %v", err)
 	}
@@ -196,9 +205,10 @@ func TestCardWritesRefuseReadOnlyInstance(t *testing.T) {
 	backend.setEventEmitter(&recordingEmitter{})
 
 	updates := map[string]func() error{
-		"UpdateCardCategory": func() error { return backend.UpdateCardCategory(1, "Idle") },
-		"UpdateCardTitle":    func() error { return backend.UpdateCardTitle(1, "x") },
-		"DeleteCard":         func() error { return backend.DeleteCard(1) },
+		"UpdateCardCategory":        func() error { return backend.UpdateCardCategory(1, "Idle") },
+		"UpdateCardTitle":           func() error { return backend.UpdateCardTitle(1, "x") },
+		"UpdateCardDetailedSummary": func() error { return backend.UpdateCardDetailedSummary(1, "x") },
+		"DeleteCard":                func() error { return backend.DeleteCard(1) },
 	}
 	for _, fn := range updates {
 		assertAppCode(t, fn(), apperr.NotCaptureOwner)
@@ -421,4 +431,64 @@ func TestSaveCategoriesReplacesSetAndRewritesRenames(t *testing.T) {
 	assertAppCode(t, backend.SaveCategories([]CategoryDTO{
 		{Name: "FakeSystem", IsSystem: true},
 	}), apperr.InvalidArgument)
+}
+
+func TestReprocessDayRequeuesTerminalBatches(t *testing.T) {
+	dir := t.TempDir()
+	backend, emitter := writerBackendWithStore(t, dir)
+	store := backend.store()
+	at := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	// A succeeded batch on the day, a failed batch on the day, and a
+	// succeeded batch on the next day (must stay untouched).
+	seedSucceededBatch := func(id int64, start time.Time) {
+		t.Helper()
+		err := store.Write(context.Background(), "seed succeeded batch", func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx,
+				`INSERT INTO analysis_batches (id, start_ts, end_ts, status, attempts, created_at, updated_at)
+				 VALUES (?, ?, ?, 'succeeded', 1, ?, ?)`,
+				id, start.Unix(), start.Add(15*time.Minute).Unix(), start.Unix(), start.Unix())
+			return err
+		})
+		if err != nil {
+			t.Fatalf("seed succeeded batch: %v", err)
+		}
+	}
+	seedSucceededBatch(1, at)
+	seedFailedBatch(t, backend, 2, at.Add(time.Hour), 3)
+	seedSucceededBatch(3, at.Add(24*time.Hour))
+
+	// Invalid day strings are rejected before anything is touched.
+	assertAppCode(t, backend.ReprocessDay("2026-9-12"), apperr.InvalidArgument)
+	assertAppCode(t, backend.ReprocessDay(""), apperr.InvalidArgument)
+
+	if err := backend.ReprocessDay("2026-09-12"); err != nil {
+		t.Fatalf("ReprocessDay: %v", err)
+	}
+	waitForTimelineEmit(t, emitter)
+
+	byID := map[int64]string{}
+	if err := store.Read(context.Background(), "read batches", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `SELECT id, status FROM analysis_batches`)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var id int64
+			var status string
+			if err := rows.Scan(&id, &status); err != nil {
+				return err
+			}
+			byID[id] = status
+		}
+		return rows.Err()
+	}); err != nil {
+		t.Fatalf("read batches: %v", err)
+	}
+	for id, want := range map[int64]string{1: "pending", 2: "pending", 3: "succeeded"} {
+		if byID[id] != want {
+			t.Fatalf("batch %d = %s, want %s", id, byID[id], want)
+		}
+	}
 }

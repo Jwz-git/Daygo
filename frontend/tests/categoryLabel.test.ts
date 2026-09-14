@@ -3,19 +3,23 @@ import test from 'node:test'
 
 import { builtInCategoryKeys, categoryLabel } from '../src/lib/categoryLabel'
 
-test('maps every built-in category to a stable translation key', () => {
+test('maps every normalized built-in category to a stable translation key', () => {
   assert.deepEqual(Object.keys(builtInCategoryKeys), [
-    'Focus Work',
-    'Communication',
-    'Learning',
-    'Research',
-    'Distraction',
-    'Personal',
+    'focus work',
+    'communication',
+    'learning',
+    'research',
+    'distraction',
+    'personal',
   ])
 })
 
-test('localizes a built-in category', () => {
-  assert.equal(categoryLabel('Focus Work', (key) => key === 'timeline.category.focusWork' ? '专注工作' : key), '专注工作')
+test('localizes a built-in category regardless of casing and surrounding whitespace', () => {
+  const translate = (key: string) => key === 'timeline.category.focusWork' ? '工作' : key
+
+  assert.equal(categoryLabel('Focus Work', translate), '工作')
+  assert.equal(categoryLabel('focus work', translate), '工作')
+  assert.equal(categoryLabel('  FOCUS WORK  ', translate), '工作')
 })
 
 test('preserves user-defined category names', () => {
