@@ -77,6 +77,19 @@ func TestIsIANAName(t *testing.T) {
 	}
 }
 
+func TestWindowsZoneToIANA(t *testing.T) {
+	cases := map[string]string{
+		"China Standard Time":   "Asia/Shanghai",
+		"Eastern Standard Time": "America/New_York",
+		"unknown":               "",
+	}
+	for windowsName, want := range cases {
+		if got := windowsZoneToIANA[windowsName]; got != want {
+			t.Errorf("windowsZoneToIANA[%q] = %q, want %q", windowsName, got, want)
+		}
+	}
+}
+
 // TestZoneNameNeverReturnsLocal is the regression guard for the timeline blank
 // screen: whatever the host looks like, ZoneName must hand the frontend a value
 // Intl accepts, never Go's "Local".

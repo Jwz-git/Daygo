@@ -68,6 +68,11 @@ prompt、失败面板排除 `skipped_short` 且 `Retryable` 按 failure kind / a
 流水线路径、UTF-8 截断、apps 解析。跨 4AM 边界卡片在日视图与聚合中的口径冲突
 （双计 / 隐形时段）与用户编辑被相邻批次回滚两项**仍未修**，需先对 docs/03 §3.5 明确
 语义归属再动 SQL。
+**2026-09-14：Windows 时间线时区回退已补齐**——`timeutil.ZoneName` 在 Go 报告
+`Local` 且 `$TZ` / `/etc/localtime` 均不可用时，读取 Windows 的
+`TimeZoneKeyName` 注册表项并转换为 IANA 标识；本机的 `China Standard Time` 现在返回
+`Asia/Shanghai`，不再把时间线交给前端按 `UTC` 渲染。该修复只影响新读取的页面上下文；
+已按错误时区写入的卡片时间戳不在本切片中重算。
 [timeutil](../../internal/timeutil/timeutil.go)、[日期绑定](../../internal/app/backend.go)
 和 [时间线前端切片](../../frontend/src/views/Timeline/TimelineView.vue) 已落盘。
 **2026-09-12：cards 存储切片已落盘**——迁移 v2（`analysis_batches` / `timeline_cards` /
