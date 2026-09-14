@@ -160,6 +160,15 @@ async function resolveIcons(listing: ApplicationDTO[]): Promise<void> {
   }
 }
 
+/**
+ * The grid is a two-way toggle: an unblocked tile adds the app to the privacy
+ * list, a blocked one removes it. The blocked row below stays remove-only.
+ */
+function onToggle(id: string): void {
+  if (blockedIdSet.value.has(id)) void onRemove(id)
+  else void onAdd(id)
+}
+
 async function onAdd(id: string): Promise<void> {
   if (!canEdit.value || blockedIdSet.value.has(id)) return
   await persist({ blockedApplicationIds: [...blockedIds.value, id] })
@@ -274,14 +283,14 @@ function labelOf(application: ApplicationDTO): string {
         class="app-tile"
         :class="{ 'app-tile--blocked': blockedIdSet.has(application.id) }"
         :aria-pressed="blockedIdSet.has(application.id)"
-        :disabled="blockedIdSet.has(application.id) || !canEdit"
+        :disabled="!canEdit"
         :title="blockedIdSet.has(application.id)
-          ? t('settings.privacy.blockedBadge')
+          ? t('settings.privacy.remove', { name: labelOf(application) })
           : t('settings.privacy.add', { name: labelOf(application) })"
         :aria-label="blockedIdSet.has(application.id)
-          ? t('settings.privacy.blockedBadge')
+          ? t('settings.privacy.remove', { name: labelOf(application) })
           : t('settings.privacy.add', { name: labelOf(application) })"
-        @click="onAdd(application.id)"
+        @click="onToggle(application.id)"
       >
         <span class="app-tile__frame">
           <img
@@ -331,7 +340,7 @@ function labelOf(application: ApplicationDTO): string {
     </p>
     <div
       v-else-if="applications.length > 0"
-      class="privacy__panel privacy__panel--blocked"
+      class="privacy__panel privacy__panel--blocked dg-scroll"
       :aria-label="t('settings.privacy.blockedApplicationsTitle')"
     >
       <button
@@ -368,16 +377,6 @@ function labelOf(application: ApplicationDTO): string {
     </div>
     <p v-else class="privacy__note">{{ t('settings.privacy.empty') }}</p>
 
-    <div class="privacy__actions">
-      <button
-        type="button"
-        class="dg-button"
-        :disabled="!canEdit || selecting"
-        @click="onChoose"
-      >
-        {{ selecting ? t('settings.privacy.selecting') : t('settings.privacy.choose') }}
-      </button>
-    </div>
     <p v-if="pickError" class="privacy__error" role="alert">{{ pickError }}</p>
     <p v-if="writeFailed" class="privacy__error" role="alert">
       {{ t('settings.privacy.writeError') }}
@@ -477,11 +476,6 @@ function labelOf(application: ApplicationDTO): string {
 .privacy__note {
   color: var(--dg-text-secondary);
   font-size: 13px;
-}
-
-.privacy__actions {
-  display: flex;
-  gap: 8px;
 }
 
 .privacy__error {

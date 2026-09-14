@@ -152,11 +152,13 @@ body {
 
 /*
  * Scrollbars are hidden shell-wide: wheel, trackpad and keyboard remain the
- * scroll affordances, and the chrome stays clean. Both mechanisms are set —
- * the standard property does not inherit, so it needs the universal
- * selector, and a visible value would make engines ignore the webkit rule.
+ * scroll affordances, and the chrome stays clean. The hide is scoped with
+ * :not(.dg-scroll) rather than overridden later — newer WKWebView disables
+ * ALL ::-webkit-scrollbar styling on an element once any scrollbar-width
+ * declaration applies to it (even `auto`), so an override on .dg-scroll can
+ * never bring the custom rounded bar back; absence of the property can.
  */
-* {
+*:not(.dg-scroll) {
   scrollbar-width: none;
 }
 
@@ -165,13 +167,12 @@ body {
 }
 
 /* Scroll containers inside the panel; the page itself never scrolls. Long
-   content (the privacy app grid) gets a thin scrollbar back: with a hidden
-   one, a long list gives no affordance for how much remains. */
+   content (the privacy app grid) gets its rounded scrollbar back: no
+   scrollbar-width declaration reaches these elements, so the ::-webkit-
+   scrollbar rules below are active. */
 .dg-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--dg-hover-fill-strong) transparent;
 }
 
 .dg-scroll::-webkit-scrollbar {
