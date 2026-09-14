@@ -19,10 +19,12 @@ const (
 // goroutine to be owned by the app lifecycle and cancellable on exit, with no
 // global database singleton.
 type Maintainer struct {
-	store    *Store
-	backupAt string
-	retain   int
-	observer Observer
+	store           *Store
+	backupAt        string
+	retain          int
+	observer        Observer
+	recordingsRoot  string
+	recordingsLimit func() int64
 
 	// now is injectable so tests can drive the schedule without waiting.
 	now func() time.Time
@@ -30,6 +32,14 @@ type Maintainer struct {
 
 // MaintainerOptions configures Run.
 type MaintainerOptions struct {
+	// RecordingsRoot is the recordings directory the cleanup pass trims.
+	// Empty disables recording cleanup.
+	RecordingsRoot string
+	// RecordingsLimit returns storage.recordingsLimitBytes live. A nil or
+	// zero-returning source means "no limit" and skips the pass: 0 is the
+	// documented unlimited, and a failed settings read must fail toward NOT
+	// deleting user files.
+	RecordingsLimit func() int64
 	// BackupDir is where backups are written. Empty disables backup.
 	BackupDir string
 	// BackupRetention is how many backups to keep. Zero means
@@ -56,11 +66,13 @@ func NewMaintainer(store *Store, opts MaintainerOptions) *Maintainer {
 		now = time.Now
 	}
 	return &Maintainer{
-		store:    store,
-		backupAt: opts.BackupDir,
-		retain:   retain,
-		observer: observer,
-		now:      now,
+		store:           store,
+		backupAt:        opts.BackupDir,
+		retain:          retain,
+		observer:        observer,
+		recordingsRoot:  opts.RecordingsRoot,
+		recordingsLimit: opts.RecordingsLimit,
+		now:             now,
 	}
 }
 
@@ -70,10 +82,11 @@ func NewMaintainer(store *Store, opts MaintainerOptions) *Maintainer {
 // The schedule follows docs/03 §3.6: checkpoint every 300 seconds, and backups
 // one hour after startup and every 24 hours after that.
 //
-// Recording cleanup (§3.6's third row) is NOT part of this loop yet. It needs
-// platform.Media to identify segment boundaries and the active segment, and
-// Media has no implementation — not even a fake. Adding it here without that
-// would mean guessing which segments are safe to delete.
+// Recording cleanup (§3.6's third row) runs on the hourly tick. It works at
+// the current pipeline's granularity — one JPEG per screenshots row, so the
+// "active segment" is a pending capture's staging file — and never needs
+// platform.Media: the boundaries come from the tables, per the image-storage
+// decision's rule that cleanup computes from recorded bytes, not scans.
 //
 // A read-only instance still runs the loop. Its maintenance actions are refused
 // by the store, and a refusal is reported once per action rather than treated as
@@ -105,8 +118,10 @@ func (m *Maintainer) Run(ctx context.Context) {
 			lastBackup = m.now()
 			m.runBackup(ctx)
 		case <-hourly.C:
-			// Hourly after the initial delay: back up only when a day has
-			// actually passed, so a restart does not produce a backup per hour.
+			// Cleanup runs hourly per docs/03 §3.6; the same tick also backs
+			// up, but only when a day has actually passed, so a restart does
+			// not produce a backup per hour.
+			m.runCleanup(ctx)
 			if m.now().Sub(lastBackup) >= backupInterval {
 				lastBackup = m.now()
 				m.runBackup(ctx)
@@ -139,4 +154,24 @@ func (m *Maintainer) runBackup(ctx context.Context) {
 		return
 	}
 	m.observer.ObserveBreadcrumb("storage.backup.ok")
+}
+
+func (m *Maintainer) runCleanup(ctx context.Context) {
+	if m.recordingsRoot == "" || m.recordingsLimit == nil {
+		return
+	}
+	limit := m.recordingsLimit()
+	if limit <= 0 {
+		return
+	}
+	result, err := m.store.CleanupRecordings(ctx, m.recordingsRoot, limit)
+	if err != nil {
+		if !IsKind(err, KindReadOnly) {
+			m.observer.ObserveBreadcrumb("storage.cleanup.failed")
+		}
+		return
+	}
+	if result.Deleted > 0 {
+		m.observer.ObserveBreadcrumb("storage.cleanup.ok")
+	}
 }

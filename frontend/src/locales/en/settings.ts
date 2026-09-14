@@ -109,7 +109,7 @@ export default {
     owner: 'Capture process {pid}',
     noOwner: 'This instance is not the capture owner',
     limit: 'Recording size limit',
-    limitHint: 'Saves the target limit; 0 means unlimited. Cleanup starts after segmented recording is connected.',
+    limitHint: 'Saves the target limit; 0 means unlimited. Once over the limit, the hourly maintenance task deletes the oldest frames first. Frames being recorded or used by an in-flight batch are never touched.',
     interval: 'Capture interval',
     intervalHint: 'How often to capture a screen image.',
     intervalOption: '{seconds} seconds',
@@ -124,7 +124,6 @@ export default {
     directory: 'Recording directory',
     directoryHint: 'Images produced by background recording are stored here.',
     directoryUnavailable: 'Unavailable',
-    cleanupPending: 'Segment cleanup is not implemented yet, so changing this limit does not delete files.',
     writeError: 'Could not save the limit. The database value has been restored.',
     status: {
       ok: 'Healthy',

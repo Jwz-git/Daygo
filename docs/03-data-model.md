@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 8`）有十四张表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 10`）有十五张表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -442,7 +442,7 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 |------|------|------|------|
 | WAL checkpoint | 300 秒 | ★ 已实现 | `PASSIVE`：不阻塞读写，宁可 WAL 大一会儿也不要卡住一次捕获写入 |
 | 数据库备份 | 启动后 1 小时，之后每 24 小时 | ★ 已实现 | `VACUUM INTO`（不是文件复制，避免撕裂的 WAL），保留最近 **7** 份（[决策](decisions/data-backup-retention.md)） |
-| 录制清理 | 启动后 1 小时，之后每小时 | 未实现 | 超出上限时按 closed segment 从旧到新两阶段删除。两个前置都归 recording：`recording_segments` 表尚未创建（其 schema 由 recording 的迁移夹具决定），且 `Media` 无实现。见[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
+| 录制清理 | 启动 1 小时，之后每小时 | ★ 已实现（单帧粒度） | 当前管线为单帧分段（每截图一个 JPEG），清理按 `screenshots` 行执行：软删除（意图）→ 事务外删文件 → 孤儿清扫；`pending_captures` 的活跃文件与被 `pending`/`processing` 批次租用的帧绝不删除，时间线卡片保留。`recording_segments` 表与分段构建器落地后迁移为按段清理，边界规则不变。见[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
 | `llm_calls` 元数据留存 | 待定 | 写入已实现（chat）；清理未实现 | 只含 attempt 元数据，不含正文 |
 
 维护循环由 app 生命周期持有（`storage.Maintainer`），`ctx` 取消即退出，不存在全局单例。

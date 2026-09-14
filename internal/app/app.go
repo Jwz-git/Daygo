@@ -13,6 +13,7 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/recorder"
+	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -81,7 +82,21 @@ func Run() error {
 		// Maintenance is owned by this context, so cancelling it at shutdown
 		// stops the goroutine. There is no global scheduler to leak
 		// (docs/modules/data.md).
-		maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{BackupDir: dir})
+		// The cleanup pass reads the recording limit live from settings: a
+		// failed read returns 0 — the documented "no limit" — so the pass
+		// skips rather than deleting on uncertain ground.
+		settingsAccess := settings.New(store.Settings())
+		maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{
+			BackupDir:      dir,
+			RecordingsRoot: filepath.Join(dir, "recordings"),
+			RecordingsLimit: func() int64 {
+				snapshot, err := settingsAccess.Load(ctx)
+				if err != nil {
+					return 0
+				}
+				return snapshot.RecordingsLimitBytes
+			},
+		})
 		go maintainer.Run(ctx)
 
 		// The analysis pipeline runs only on the read-write instance; a

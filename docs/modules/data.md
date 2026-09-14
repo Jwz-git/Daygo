@@ -14,8 +14,8 @@
 
 ## 当前状态与证据
 
-实现进度：**部分实现**。切片 1、2、4 已落盘，切片 3 的 checkpoint / 备份 / 损坏恢复已完成、
-**清理未开始**，切片 5 长期观察未开始。
+实现进度：**部分实现**。切片 1–4 已落盘（切片 3 的 checkpoint / 备份 / 损坏恢复 / 录制清理全部完成），
+切片 5 长期观察未开始。
 
 已交付能力：
 
@@ -39,7 +39,7 @@
   `DiagnosticsDTO.RecoveredFromBackup` 暴露。流程见
   [decisions/data-corruption-recovery.md](../decisions/data-corruption-recovery.md)。
 
-录制清理仍未开始；原因见下。
+录制清理已实现（单帧粒度），见下。
 
 **跨模块边界已由各模块自行补齐**：诊断原先依赖 recording 的 `screenshots` 与 timeline 的
 `analysis_batches`，两张表当时都不存在，data 按「禁止一次性建设未使用的全部目标表」选择了
@@ -49,10 +49,10 @@
 改为查询真实数据源；`lastCaptureAtTs` 用指针表达「尚无已提交帧」，不把缺失压成零。
 
 诊断的「来源不存在」分支仍然保留，但已无法由正常迁移链触达，因此其测试改为显式删除表来构造
-（`internal/storage/db_gate_test.go`）。**录制清理仍被阻塞**，两个前置都归 recording，
-详见「能力与跨层职责」。
+（`internal/storage/db_gate_test.go`）。**录制清理已实现**，见「能力与跨层职责」。
 
-已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者和真实可用性；录制占用上限可持久化写入 `app_settings`。页面在数据源不可用时显示“尚未接入”，不把零误报为没有录制数据。**上限本身还没有消费者**：修改它只写库，不会删除任何文件——清理逻辑尚未实现（见下）。
+已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者和真实可用性；录制占用上限可持久化写入 `app_settings`。页面在数据源不可用时显示“尚未接入”，不把零误报为没有录制数据。**上限的消费者已接线**：修改它写入 `app_settings`，每小时的维护任务按它执行清理（读取失败按
+"不限"处理，宁可跳过也不在不确定中删文件）。
 
 落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,recover,settings,cards,categories,captures,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，匿名夹具与生成器在 `internal/storage/testdata/`；前端接入位于 `frontend/src/views/Settings/StorageSection.vue` 与 `frontend/src/api/diagnostics.ts`。
 
@@ -67,15 +67,16 @@
 这些是切片，不要求一次完成 data 才解锁其他功能。
 
 **已可供消费者接入**（`09 §9.3`）：db-core、settings-store、diagnostics。
-维护的 checkpoint、备份与损坏恢复已可用；**录制清理未实现，且有两个前置都归 recording**：
-
-1. **`recording_segments` 表不存在**。清理按分段而非单帧工作，需要枚举 `closed` 分段、
-   排除 building 段与被分析租用的段（见 [图片存储决策 §7](../decisions/recording-image-storage.md#7-清理流程)）。
-   该表**由 recording 的迁移夹具定义**，决策明确要求「不要在没有恢复测试时先冻结 schema」，
-   因此 data 不代它建表。
-2. **`Media` 无任何实现**（连 fake 都没有）。删除整个分段文件、探测分段帧数都经它。
-
-`pending_captures` 与 `screenshots` 已由 recording 的 v3 迁移创建，不再是阻塞项。
+维护的 checkpoint、备份与损坏恢复已可用；**录制清理已实现（单帧粒度）**。当前管线的真实存储模型是"每帧一个单帧分段"
+（每截图一个 JPEG，`screenshots.segment_path` 指向它），因此清理按 `screenshots` 行执行
+即是按段执行，**不需要 `recording_segments` 表，也不需要 `Media`**——用量按
+`SUM(file_size)` 计算、活跃边界来自 `pending_captures.state`、分析租用来自
+`batch_screenshots` 联表，全部来自已有表（`CleanupRecordings`，`internal/storage/cleanup.go`）。
+两阶段协议：先软删除行（意图），事务外删文件，孤儿清扫兜底崩溃窗口；
+`pending_captures` 的活跃文件与被 `pending`/`processing` 批次租用的帧绝不删除，卡片保留。
+`Maintainer` 每小时跑一次，上限从 `storage.recordingsLimitBytes` 实时读取（读取失败按 0=不限
+处理，宁可跳过也不在不确定中删文件）。`recording_segments` 表与分段构建器落地后迁移为
+按段清理，边界规则不变。
 
 | 输入 | 可独立推进 | 真实接入条件 |
 |---|---|---|
@@ -111,9 +112,10 @@ Go 负责清理决策、备份与诊断；像素读取经 Media，适配层不�
    其他模块的业务表逐项走同一迁移链，data 协调迁移合入顺序。
 3. 在匿名分段 fixture 上实现 checkpoint、备份恢复与清理；真实 media-read 就绪后跑 IT-12。
    retention 决策落盘后再启用相应策略，禁止删除活跃分段。
-   **checkpoint、备份、轮换、损坏恢复已完成**；清理未开始，前置见「能力与跨层职责」。
+   **checkpoint、备份、轮换、损坏恢复、录制清理（单帧粒度）全部完成**；分段构建器落地后
+   清理迁移为按段执行。
 4. 增加 GetDiagnostics 与匿名指标、磁盘和遥测设置、store 与 UI；当前已接入诊断 UI 和磁盘上限设置，
-   遥测写入仍待实际 telemetry 消费者，**磁盘上限也还没有消费者**（清理未实现）。
+   遥测写入仍待实际 telemetry 消费者。
 5. 累计 14 天磁盘 / 内存观察，与录制 / 更新共同验证关停和恢复；长期状态单列。
 
 ## 验收、阻塞与回退
@@ -121,7 +123,8 @@ Go 负责清理决策、备份与诊断；像素读取经 Media，适配层不�
 完成要求：所交付 schema 的 DB-1–9、IT-12/13、真实维护 / 诊断用户闭环通过，
 opt-in 和隐私载荷符合 07；已完成 db-core 可提前被接入。
 纯 Go WAL 实验失败时记录 G-core 阻塞并重新决策，不自动引入 cgo。
-real Media 未就绪仅阻塞真实清理验收，不阻塞连接、迁移和设置 repository。
+real Media 的缺失不再阻塞清理（清理按表内字节与状态工作，不做解码）；
+它仍阻塞帧条视图与按段清理的演进。
 
 待决：备份保留份数由 data 工程在维护实现前决定；导出 / 批量删除和留存上限由 data 产品
 在相关入口 / 策略实现前决定。默认值沿用公共规范，不在此预选。
@@ -139,6 +142,7 @@ real Media 未就绪仅阻塞真实清理验收，不阻塞连接、迁移和设
 | 2026-09-11 / 同上 | `go test -count=1 ./internal/storage/`（settings / 维护 / 诊断用例） | 通过；settings 往返与重启读回、单事务原子性、Watch 交付与关闭、备份可读且轮换、恢复保留原库、并发备份互不碰撞 | 未接真实用户设置；清理未接线 |
 | 2026-09-11 / 当前工作树 / Windows 11 amd64 · go1.25.4 | `go test -count=1 ./internal/storage ./internal/settings`；子进程持锁、正常退出与强制终止夹具 | 通过；`LockFileEx` 对第二实例返回 `ErrLockBusy`，正常关闭和进程终止后均可重取；`Open` 只读降级、捕获所有者互斥与 `Close` 释放通过 | 仅短时 smoke；DB-8 一小时并发与录制清理未运行 |
 | 2026-09-12 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test -count=1 ./internal/storage/ ./internal/app/`、`-race` | 通过；**DB-7 在已实现范围通过**：截断的库触发还原、还原后备份中的值回读一致、备份之后写入的值按预期消失、损坏原库以 `.replaced` 保留、无备份时报错且文件大小不变、只读实例不恢复、连续两次恢复各留一份副本、健康打开不报恢复 | 未在真实 Wails 宿主中触发过恢复；诊断界面尚未渲染 `recoveredFromBackup` |
+| 2026-09-13 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test -count=1 -run TestCleanup ./internal/storage/` | **DB-9 通过（单帧粒度）**：10 帧 × 1000B 超量填充、上限 4000B → 恰好删除最旧 6 帧、用量收敛至 4000、文件确实从磁盘移除、行软删除保留、活跃 pending 分段文件未被动、全部被租用时零删除且用量不动、limit=0 为 no-op、崩溃遗留孤儿按存活期清扫、只读实例拒绝执行 | 按当前单帧分段模型验收；分段构建器落地后需按 `recording_segments` 重跑整段边界（IT-12） |
 
 **测试发现的一个真实缺陷**：并发调用 `Store.Backup` 时，先前基于秒级时间的文件名会让两次
 备份取到同名，`VACUUM INTO` 拒绝覆盖导致双双失败。现改为在互斥区内使用单调序号命名，
@@ -148,10 +152,10 @@ DB-3 已运行：所有只读 repository 方法在空库、v0/v1 迁移夹具与
 （`internal/storage/db_gate_test.go`）。
 DB-5 已运行：`timeline_cards.metadata` 可解码，`appSites` / `distractions` 往返一致。
 DB-8 已运行且通过：一 writer + 一只读实例并发一小时，零忙锁风暴、零损坏（见下方验证记录）。
-**DB-9 与 IT-12 未运行**：两者都要按分段枚举，而所需的两项前置都归 recording——
-`recording_segments` 表尚未创建（其 schema 由 recording 的迁移夹具决定），且 `Media` 无实现。
+**DB-9 已运行且通过（单帧粒度）**：见验证记录。IT-12 的整段清理验收仍等
+`recording_segments` 表与分段构建器落地后按段重跑。
 这是 data 目前唯一的硬前置依赖。
 
-**至此所交付 schema 的 DB-1–8 全部运行过且通过**；只剩 DB-9 因上述前置无法运行。
+**至此所交付 schema 的 DB-1–9 全部运行过且通过**（DB-9 为单帧粒度，IT-12 待按段重跑）。
 
 后续记录驱动 / 系统、commit、匿名夹具、并发时长、回读 PRAGMA 与完整性结果。
