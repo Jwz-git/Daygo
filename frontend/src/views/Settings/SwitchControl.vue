@@ -69,7 +69,7 @@ function onChange(event: Event): void {
   border-radius: 50%;
   background: var(--dg-switch-knob);
   box-shadow: var(--dg-switch-knob-shadow);
-  transition: transform var(--dg-motion-base) var(--dg-ease-out);
+  transition: transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
 .switch__input:checked + .switch__track {

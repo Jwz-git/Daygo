@@ -38,7 +38,7 @@ function choose(action: RecordingAction): void {
       <span>{{ t(`recording.state.${stateKey}`) }}</span>
     </button>
 
-    <div v-if="open" class="recording-control__popover">
+    <div v-if="open" class="recording-control__popover dg-popover">
       <strong>{{ t(`recording.state.${stateKey}`) }}</strong>
       <p v-if="!canControl">{{ t('recording.notOwner') }}</p>
       <p v-else-if="snapshot?.permission !== 'granted'">{{ t('recording.permissionRequired') }}</p>
@@ -81,24 +81,14 @@ function choose(action: RecordingAction): void {
 .is-starting .recording-control__dot,
 .is-loading .recording-control__dot { border-color: var(--dg-accent); background: var(--dg-accent); }
 .is-paused .recording-control__dot { border-color: var(--dg-warning); background: var(--dg-warning); }
+/* Glass surface, entrance and fallbacks come from .dg-popover; only the
+   anchoring geometry lives here. It grows out of the trigger at lower-left. */
 .recording-control__popover {
   position: absolute; z-index: 20; bottom: 0; left: calc(100% + 10px);
-  width: 250px; padding: 14px; border: 1px solid var(--dg-panel-border);
-  border-radius: 10px; background: var(--dg-popover-fill); box-shadow: var(--dg-popover-shadow);
-  /* Dense glass: a dropdown must stay readable over unpredictable content, so
-     the fill stays nearly opaque and the blur is only depth. */
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  backdrop-filter: blur(24px) saturate(150%);
+  width: 250px; padding: 14px; border-radius: 10px;
   color: var(--dg-text-primary);
-  /* Enter-only, so it cannot strand a leave state; grows out of the trigger. */
-  transform-origin: 0 100%;
-  animation: recording-popover-in var(--dg-motion-base) var(--dg-ease-glide);
-}
-@keyframes recording-popover-in {
-  from { opacity: 0; transform: translateX(-6px) scale(0.97); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .recording-control__popover { animation: none; }
+  --dg-popover-origin: 0 100%;
+  --dg-popover-from: translateX(-6px);
 }
 .recording-control__popover strong { font-size: 13px; }
 .recording-control__popover p { margin-top: 6px; color: var(--dg-text-secondary); font-size: 12px; }

@@ -42,7 +42,7 @@ const items = computed(() => [
 </script>
 
 <template>
-  <section class="metrics" :aria-label="t('daily.stats.title')">
+  <section class="metrics dg-card" :aria-label="t('daily.stats.title')">
     <div v-for="item in items" :key="item.key" class="metric">
       <span>{{ item.label }}</span>
       <strong>{{ item.value }}</strong>
@@ -51,14 +51,11 @@ const items = computed(() => [
 </template>
 
 <style scoped>
+/* Surface comes from .dg-card; only the metric grid lives here. */
 .metrics {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   overflow: hidden;
-  border: 1px solid var(--dg-card-border);
-  border-radius: var(--dg-card-radius);
-  background: var(--dg-card-fill);
-  box-shadow: var(--dg-card-shadow);
 }
 
 .metric {

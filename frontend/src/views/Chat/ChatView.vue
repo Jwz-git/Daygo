@@ -956,10 +956,18 @@ function onModelChange(model: string): void {
   line-height: 1.55;
 }
 
+/* Accent-tinted glass: the gradient and specular top edge give the user's
+   own words a touch more material than the assistant's frosted card. */
 .bubble--user {
   align-self: flex-end;
+  border: 1px solid color-mix(in srgb, var(--dg-accent) 24%, transparent);
   border-bottom-right-radius: 4px;
-  background: var(--dg-control-fill);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--dg-accent) 19%, transparent),
+    color-mix(in srgb, var(--dg-accent) 12%, transparent)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
   color: var(--dg-text-primary);
 }
 
@@ -968,7 +976,24 @@ function onModelChange(model: string): void {
   border: 1px solid var(--dg-card-border);
   border-bottom-left-radius: 4px;
   background: var(--dg-card-fill);
+  box-shadow: var(--dg-card-shadow);
   color: var(--dg-text-primary);
+}
+
+/* New entries settle in. Enter-only, so a history render cannot strand a
+   leave state; existing keyed nodes are not remounted and do not replay. */
+@media (prefers-reduced-motion: no-preference) {
+  .bubble,
+  .tool-group {
+    animation: bubble-in var(--dg-motion-base) var(--dg-ease-glide) both;
+  }
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
 }
 
 .bubble__text {

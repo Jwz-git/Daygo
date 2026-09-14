@@ -92,10 +92,13 @@ function cardStyle(): CSSProperties {
   margin-top: 0;
 }
 
+/* Hover lifts the card off the track; :active below presses it back in. */
 .activity-card:hover {
   z-index: 5;
   border-color: color-mix(in srgb, var(--timeline-category) 40%, var(--dg-timeline-card-border));
   background: var(--dg-timeline-card-hover);
+  box-shadow: var(--dg-timeline-card-shadow-hover);
+  transform: translateY(-1px);
 }
 
 .activity-card:focus-visible {
@@ -185,6 +188,10 @@ function cardStyle(): CSSProperties {
 @media (prefers-reduced-motion: reduce) {
   .activity-card {
     transition: none;
+  }
+
+  .activity-card:hover {
+    transform: none;
   }
 }
 </style>

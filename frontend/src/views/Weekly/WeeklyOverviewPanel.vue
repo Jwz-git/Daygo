@@ -116,7 +116,8 @@ const ringStyle = computed(() => ({
     var(--dg-weekly-focus) 0 var(--weekly-focus-angle),
     var(--dg-weekly-ring-track) var(--weekly-focus-angle) 360deg
   );
-  box-shadow: inset 0 0 0 1px var(--dg-card-border);
+  /* The outer glow is the ring's light spilling onto the glass beneath it. */
+  box-shadow: inset 0 0 0 1px var(--dg-card-border), 0 0 36px var(--dg-weekly-ring-glow);
   place-items: center;
 }
 

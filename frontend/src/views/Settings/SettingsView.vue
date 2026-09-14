@@ -178,14 +178,16 @@ watch(active, () => void nextTick(measurePill))
   z-index: 0;
   border-radius: 5px;
   background: var(--dg-nav-active-fill);
+  /* Same specular top edge as every raised glass surface. */
+  box-shadow: var(--dg-nav-active-shadow);
   pointer-events: none;
 }
 
 .nav__pill--armed {
   transition:
-    transform var(--dg-motion-base) var(--dg-ease-out),
-    width var(--dg-motion-base) var(--dg-ease-out),
-    height var(--dg-motion-base) var(--dg-ease-out);
+    transform var(--dg-motion-base) var(--dg-ease-glide),
+    width var(--dg-motion-base) var(--dg-ease-glide),
+    height var(--dg-motion-base) var(--dg-ease-glide);
 }
 
 .nav__item {
@@ -240,7 +242,7 @@ watch(active, () => void nextTick(measurePill))
 .pane-leave-active {
   transition:
     opacity var(--dg-motion-base) ease,
-    transform var(--dg-motion-base) var(--dg-ease-out);
+    transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
 .pane-enter-from {

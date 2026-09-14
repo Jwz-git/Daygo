@@ -135,7 +135,7 @@ function onInputBlur(): void {
     >
       <span class="combo__chevron" aria-hidden="true">{{ open ? '▴' : '▾' }}</span>
     </button>
-    <ul v-if="open && !disabled" class="combo__list" role="listbox">
+    <ul v-if="open && !disabled" class="combo__list dg-popover" role="listbox">
       <li v-if="filtered.length === 0" class="combo__empty">
         <slot name="empty">无匹配项</slot>
       </li>
@@ -195,6 +195,8 @@ function onInputBlur(): void {
   font-size: 10px;
 }
 
+/* Glass surface, entrance and fallbacks come from .dg-popover; only the
+   anchoring geometry lives here. It drops out of the field (the default). */
 .combo__list {
   position: absolute;
   top: calc(100% + 4px);
@@ -204,32 +206,9 @@ function onInputBlur(): void {
   max-height: 240px;
   margin: 0;
   padding: 4px;
-  border: 1px solid var(--dg-panel-border);
   border-radius: 8px;
-  background: var(--dg-popover-fill);
   list-style: none;
   overflow-y: auto;
-  box-shadow: var(--dg-popover-shadow);
-  /* Dense glass, as the recording popover: the fill stays nearly opaque so the
-     options survive arbitrary content behind it; the blur is depth only. */
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  backdrop-filter: blur(24px) saturate(150%);
-  /* Enter-only, so it cannot strand a leave state; drops out of the field. */
-  transform-origin: 50% 0;
-  animation: combo-list-in var(--dg-motion-base) var(--dg-ease-glide);
-}
-
-@keyframes combo-list-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .combo__list {
-    animation: none;
-  }
 }
 
 .combo__empty {

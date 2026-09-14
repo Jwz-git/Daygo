@@ -73,6 +73,7 @@
   /* selected item in a secondary nav list: a whisper of the accent, not a block */
   --dg-nav-active-fill: rgba(57, 119, 195, 0.12);
   --dg-nav-active-text: #2866b2;
+  --dg-nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 1px 2px rgba(28, 34, 45, 0.07);
   --dg-danger: #c84f43;
   --dg-success: #39815e;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
@@ -142,7 +143,9 @@
   /* cards */
   --dg-card-fill: rgba(255, 255, 255, 0.64);
   --dg-card-border: rgba(65, 58, 70, 0.13);
-  --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
+  /* The inset line is the card's specular top edge — the same implied
+     upper-left light as the panel rim, one level dimmer. */
+  --dg-card-shadow: 0 1px 2px rgba(28, 34, 45, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.45);
   --dg-card-time: #7d7a84;
   --dg-card-radius: 9px;
 
@@ -154,7 +157,10 @@
   --dg-timeline-card-hover: rgba(255, 255, 255, 0.82);
   --dg-timeline-card-selected: rgba(255, 255, 255, 0.9);
   --dg-timeline-card-border: rgba(65, 58, 70, 0.13);
-  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.045);
+  --dg-timeline-card-shadow: 0 1px 2px rgba(28, 34, 45, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  /* Hover lifts the card off the track; the bloom is what sells the height. */
+  --dg-timeline-card-shadow-hover: 0 8px 20px rgba(28, 34, 45, 0.12), 0 1px 2px rgba(28, 34, 45, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --dg-timeline-inspector-fill: rgba(255, 255, 255, 0.36);
   --dg-timeline-empty-fill: rgba(255, 255, 255, 0.18);
   --dg-timeline-placeholder: rgba(95, 87, 100, 0.2);
@@ -173,6 +179,7 @@
   --dg-weekly-focus: #3977c3;
   --dg-weekly-ring-track: rgba(82, 76, 88, 0.1);
   --dg-weekly-ring-center: rgba(252, 252, 253, 0.96);
+  --dg-weekly-ring-glow: rgba(57, 119, 195, 0.16);
   --dg-weekly-summary-fill: rgba(247, 247, 249, 0.56);
   --dg-weekly-bar-track: rgba(70, 63, 75, 0.07);
   --dg-weekly-series-1: #4f7ea8;

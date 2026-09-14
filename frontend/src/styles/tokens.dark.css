@@ -63,6 +63,7 @@
   --dg-control-fill-hover: rgba(75, 141, 240, 0.24);
   --dg-nav-active-fill: rgba(255, 255, 255, 0.08);
   --dg-nav-active-text: #edecf0;
+  --dg-nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.3);
   --dg-danger: #e5484d;
   --dg-success: #46a758;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
@@ -110,7 +111,7 @@
 
   --dg-card-fill: rgba(255, 255, 255, 0.05);
   --dg-card-border: rgba(255, 255, 255, 0.09);
-  --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --dg-card-time: #6c6a74;
 
   --dg-timeline-grid: rgba(255, 255, 255, 0.055);
@@ -119,7 +120,9 @@
   --dg-timeline-card-hover: rgba(255, 255, 255, 0.085);
   --dg-timeline-card-selected: rgba(75, 141, 240, 0.15);
   --dg-timeline-card-border: rgba(255, 255, 255, 0.09);
-  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --dg-timeline-card-shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
   --dg-timeline-inspector-fill: rgba(0, 0, 0, 0.12);
   --dg-timeline-empty-fill: rgba(0, 0, 0, 0.1);
   --dg-timeline-placeholder: rgba(255, 255, 255, 0.13);
@@ -136,6 +139,7 @@
   --dg-weekly-focus: #4b8df0;
   --dg-weekly-ring-track: rgba(255, 255, 255, 0.08);
   --dg-weekly-ring-center: rgba(33, 33, 36, 0.98);
+  --dg-weekly-ring-glow: rgba(75, 141, 240, 0.22);
   --dg-weekly-summary-fill: rgba(0, 0, 0, 0.15);
   --dg-weekly-bar-track: rgba(255, 255, 255, 0.055);
   --dg-weekly-series-1: #6d9bc3;

@@ -160,6 +160,23 @@ function duration(minutes: number): string {
 .series-5 { background: var(--dg-weekly-series-5); }
 .series-6 { background: var(--dg-weekly-series-6); }
 
+/* Bars grow from the left on mount. Enter-only: the animation resolves to the
+   natural width and never runs again, so late data refreshes cannot replay it
+   mid-read — the component remounts only with the route. */
+@media (prefers-reduced-motion: no-preference) {
+  .distribution > span,
+  .category-list__track span {
+    transform-origin: 0 50%;
+    animation: weekly-bar-grow 560ms var(--dg-ease-glide) both;
+  }
+}
+
+@keyframes weekly-bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
 @media (max-width: 640px) {
   .category-list li { grid-template-columns: 18px 8px minmax(110px, 1fr) 44px; }
   .category-list__identity { display: block; }

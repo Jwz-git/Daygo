@@ -113,6 +113,44 @@ body {
 }
 
 /*
+ * Dense glass for floating layers (dropdowns, popovers). Unlike .dg-panel the
+ * fill stays nearly opaque: a floating layer must stay readable over arbitrary
+ * content, so the blur is depth rather than transparency. The entrance is
+ * enter-only — there is no leave phase to strand — and grows from
+ * --dg-popover-origin / --dg-popover-from, which the consumer points at the
+ * edge the layer is anchored to (default: drops from the top).
+ */
+.dg-popover {
+  border: 1px solid var(--dg-panel-border);
+  background: var(--dg-popover-fill);
+  box-shadow: var(--dg-popover-shadow);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  transform-origin: var(--dg-popover-origin, 50% 0);
+  animation: dg-popover-in var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+@keyframes dg-popover-in {
+  from {
+    opacity: 0;
+    transform: var(--dg-popover-from, translateY(-4px)) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-popover {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .dg-popover {
+    border: 1px solid CanvasText;
+    background: Canvas;
+  }
+}
+
+/*
  * Scrollbars are hidden shell-wide: wheel, trackpad and keyboard remain the
  * scroll affordances, and the chrome stays clean. Both mechanisms are set —
  * the standard property does not inherit, so it needs the universal
