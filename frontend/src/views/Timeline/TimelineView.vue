@@ -13,6 +13,7 @@ import { delayUntilDayContextRefresh } from '@/lib/dayContextRefresh'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { formatTimeZoneName } from '@/lib/timeFormat'
 import { safeTimeZone } from '@/lib/timeZone'
+import { useDailyStore } from '@/stores/daily'
 import { useTimelineStore } from '@/stores/timeline'
 import TimelineInspector from './TimelineInspector.vue'
 import TimelineStatePanel from './TimelineStatePanel.vue'
@@ -20,6 +21,9 @@ import TimelineTrack from './TimelineTrack.vue'
 import { safeCategoryColor } from './layout'
 
 const timeline = useTimelineStore()
+// The inspector's default pane embeds the day-goal form; the daily store owns
+// that state (bindings, events, save path) for both pages.
+const daily = useDailyStore()
 const {
   context,
   day,
@@ -59,7 +63,7 @@ const filterCategories = computed(() =>
 )
 
 const hasTrack = computed(() =>
-  day.value !== null && ['populated', 'processing', 'failure'].includes(state.value),
+  day.value !== null && ['populated', 'processing', 'failure', 'empty'].includes(state.value),
 )
 
 const canNavigateBackward = computed(
@@ -140,16 +144,21 @@ async function reprocessCurrentDay(): Promise<void> {
 
 onMounted(() => {
   timeline.startEvents()
+  daily.startEvents()
   window.addEventListener('focus', refreshWhenWindowReturns)
   document.addEventListener('visibilitychange', refreshWhenWindowReturns)
 })
 watch(() => route.query.day, () => { void timeline.load(routeDay()) }, { immediate: true })
+watch(() => context.value?.day, (day) => {
+  if (day !== undefined) void daily.load(day)
+}, { immediate: true })
 watch([() => route.query.day, () => context.value?.dayEndTs], scheduleDayRefresh, { immediate: true })
 onBeforeUnmount(() => {
   stopDayRefresh()
   window.removeEventListener('focus', refreshWhenWindowReturns)
   document.removeEventListener('visibilitychange', refreshWhenWindowReturns)
   timeline.stopListening()
+  daily.stopListening()
 })
 </script>
 
@@ -270,6 +279,7 @@ onBeforeUnmount(() => {
           :selected-failure-ts="selectedFailureTs"
           @select="timeline.selectCard"
           @select-failure="timeline.selectFailure"
+          @clear="timeline.selectCard(null)"
         />
         <TimelineInspector
           class="timeline-body__inspector"
@@ -282,11 +292,16 @@ onBeforeUnmount(() => {
           :actions="actionAvailability"
           :pending-action="pendingAction"
           :action-failed="actionError !== null"
+          :goal="daily.goal"
+          :goal-unavailable="daily.goalUnavailable"
+          :goal-failed="daily.goalError !== null"
+          :goal-saving="daily.goalSaving"
           @close="timeline.selectCard(null)"
           @save-edits="(cardID, edits) => timeline.saveCardEdits(cardID, edits)"
           @delete="timeline.removeCard"
           @retry="timeline.retryFailure"
           @dismiss-failure="timeline.dismissFailure"
+          @save-goal="daily.saveGoal"
         />
       </template>
     </div>

@@ -2,25 +2,31 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { CategoryDTO, TimelineDayDTO } from '@/api/dto'
+import type { CategoryDTO, DayGoalDTO, TimelineDayDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import { useDurationFormat } from '@/lib/duration'
 import { categoryLabel } from '@/lib/categoryLabel'
 import type { TimelineAction } from '@/stores/timeline'
 
+import GoalEditor from './GoalEditor.vue'
 import { safeCategoryColor } from './layout'
 
-/* The inspector's no-selection pane: day totals, per-category time and the
-   failed ranges that can be retried. */
+/* The inspector's no-selection pane: day totals, per-category time, the
+   day-goal form and the failed ranges that can be retried. */
 const props = defineProps<{
   day: TimelineDayDTO
   canWrite: boolean
   actions: TimelineActionAvailability
   pendingAction: TimelineAction | null
+  goal: DayGoalDTO | null
+  goalUnavailable: boolean
+  goalFailed: boolean
+  goalSaving: boolean
 }>()
 
 const emit = defineEmits<{
   retry: [batchIDs: number[]]
+  saveGoal: [goal: DayGoalDTO]
 }>()
 
 const { t } = useI18n()
@@ -102,6 +108,21 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
     </div>
   </div>
 
+  <section class="inspector__section">
+    <h3>{{ t('daily.goal.title') }}</h3>
+    <p class="inspector__failure-note">{{ t('daily.goal.description') }}</p>
+    <div v-if="goalUnavailable || goalFailed" class="goal-state">
+      <span>{{ goalFailed ? t('daily.goal.failureDescription') : t('daily.goal.unavailableDescription') }}</span>
+    </div>
+    <GoalEditor
+      v-else
+      :goal="goal"
+      :categories="day.categories"
+      :saving="goalSaving"
+      @save="(next) => emit('saveGoal', next)"
+    />
+  </section>
+
   <section v-if="failuresWithBatches.length > 0" class="inspector__section inspector__failures">
     <h3>{{ t('timeline.failure.title') }}</h3>
     <p class="inspector__failure-note">{{ t('timeline.failure.retryHint') }}</p>
@@ -120,6 +141,15 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
 </template>
 
 <style scoped>
+.goal-state {
+  padding: 10px 12px;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 8px;
+  background: var(--dg-track-fill);
+}
+
+.goal-state span { color: var(--dg-text-secondary); font-size: 11px; }
+
 .totals {
   display: grid;
   grid-template-columns: 1.35fr 1fr;

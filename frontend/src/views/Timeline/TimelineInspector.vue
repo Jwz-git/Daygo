@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n'
 
 import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
-import type { TimelineCardDTO, TimelineDayDTO, TimelineFailureDTO } from '@/api/dto'
+import type { DayGoalDTO, TimelineCardDTO, TimelineDayDTO, TimelineFailureDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import type { TimelineAction } from '@/stores/timeline'
 
@@ -25,14 +25,19 @@ const props = defineProps<{
   actions: TimelineActionAvailability
   pendingAction: TimelineAction | null
   actionFailed: boolean
+  goal: DayGoalDTO | null
+  goalUnavailable: boolean
+  goalFailed: boolean
+  goalSaving: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
-  saveEdits: [cardID: number, edits: { title?: string; category?: string; summary?: string }]
+  saveEdits: [cardID: number, edits: { title?: string; category?: string; summary?: string; detailedSummary?: string }]
   delete: [cardID: number]
   retry: [batchIDs: number[]]
   dismissFailure: [batchIDs: number[]]
+  saveGoal: [goal: DayGoalDTO]
 }>()
 
 const { t } = useI18n()
@@ -46,7 +51,12 @@ const { t } = useI18n()
       :can-write="props.canWrite"
       :actions="props.actions"
       :pending-action="props.pendingAction"
+      :goal="props.goal"
+      :goal-unavailable="props.goalUnavailable"
+      :goal-failed="props.goalFailed"
+      :goal-saving="props.goalSaving"
       @retry="(batchIDs) => emit('retry', batchIDs)"
+      @save-goal="(goal) => emit('saveGoal', goal)"
     />
 
     <InspectorFailureDetail
@@ -71,7 +81,7 @@ const { t } = useI18n()
       :pending-action="props.pendingAction"
       :action-failed="props.actionFailed"
       @close="emit('close')"
-      @save-edits="(cardID: number, edits: { title?: string; category?: string; summary?: string }) => emit('saveEdits', cardID, edits)"
+      @save-edits="(cardID: number, edits: { title?: string; category?: string; summary?: string; detailedSummary?: string }) => emit('saveEdits', cardID, edits)"
       @delete="(cardID) => emit('delete', cardID)"
     />
   </LiquidGlassSurface>

@@ -33,6 +33,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [id: number]
   selectFailure: [startTs: number]
+  clear: []
 }>()
 const { locale, t } = useI18n()
 const scroller = ref<HTMLElement | null>(null)
@@ -106,6 +107,12 @@ function placed(startTs: number, endTs: number, minimumHeight = 2) {
   )
 }
 
+function handleTrackClick(event: MouseEvent): void {
+  const target = event.target as HTMLElement
+  if (target.closest('.activity-card, .range--failure') !== null) return
+  emit('clear')
+}
+
 async function revealRelevantTime(): Promise<void> {
   await nextTick()
   const element = scroller.value
@@ -137,7 +144,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section ref="scroller" class="timeline-track" :aria-label="t('timeline.track.ariaLabel')">
+  <section ref="scroller" class="timeline-track" :aria-label="t('timeline.track.ariaLabel')" @click="handleTrackClick">
     <div class="timeline-track__canvas" :style="{ height: `${height}px` }">
       <div
         v-for="mark in hourMarks"

@@ -55,7 +55,7 @@ type analysisChainSource struct {
 
 func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, error) {
 	repo := a.backend.store().Providers()
-	routing, err := a.backend.loadRouting(ctx, repo)
+	routing, err := a.backend.loadRouting(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, erro
 // anywhere this stays 0 (the ai.MaxImages default).
 func (a analysisChainSource) ImageCap(ctx context.Context) int {
 	repo := a.backend.store().Providers()
-	routing, err := a.backend.loadRouting(ctx, repo)
+	routing, err := a.backend.loadRouting(ctx)
 	if err != nil {
 		return 0
 	}

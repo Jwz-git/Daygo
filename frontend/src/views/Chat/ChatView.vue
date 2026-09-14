@@ -161,11 +161,10 @@ onMounted(() => {
   display: flex;
   flex: 1;
   min-height: 0;
-  /* No bottom padding — the glass panel fills the rest of the column and
-     flush against the panel's bottom edge, so the panel's own frame reads
-     as the window's bottom frame. Horizontal padding keeps the panel from
-     hugging the rail. */
-  padding: 0 var(--dg-page-padding) 0;
+  /* The glass panel fills the whole shell panel so its frame reads as the
+     window's frame — no inset, otherwise the shell panel's edge peeks out
+     behind it like a stacked card. */
+  padding: 0;
 }
 
 /* ---- glass panel ---- */
@@ -176,6 +175,9 @@ onMounted(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  /* Match the shell panel's corner so the covered frame never peeks
+     through at the corners. */
+  border-radius: var(--dg-panel-radius);
   padding: 0 16px;
 }
 
@@ -248,9 +250,6 @@ onMounted(() => {
 /* ---- narrow viewport ---- */
 
 @media (max-width: 700px) {
-  .layout {
-    padding: 0 8px 8px;
-  }
   .panel {
     padding: 0 8px;
   }

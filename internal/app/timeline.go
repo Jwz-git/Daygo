@@ -318,6 +318,16 @@ func (b *Backend) UpdateCardTitle(cardID int64, title string) error {
 	return b.updateCardTitle(ctx, cardID, title)
 }
 
+// UpdateCardSummary rewrites one card's short summary. Empty clears it.
+func (b *Backend) UpdateCardSummary(cardID int64, text string) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	return b.updateCardSummary(ctx, cardID, text)
+}
+
 // UpdateCardDetailedSummary rewrites one card's long-form summary. Empty
 // clears it.
 func (b *Backend) UpdateCardDetailedSummary(cardID int64, text string) error {

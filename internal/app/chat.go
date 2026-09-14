@@ -387,7 +387,7 @@ type backendProviders struct {
 
 func (p backendProviders) Chain(ctx context.Context) ([]chat.ProviderEntry, error) {
 	repo := p.backend.store().Providers()
-	routing, err := p.backend.loadRouting(ctx, repo)
+	routing, err := p.backend.loadRouting(ctx)
 	if err != nil {
 		return nil, err
 	}

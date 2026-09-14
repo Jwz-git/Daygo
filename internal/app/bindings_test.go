@@ -63,6 +63,7 @@ var contractBindings = []string{
 	"TestProviderConnection",
 	"UpdateCardCategory",
 	"UpdateCardDetailedSummary",
+	"UpdateCardSummary",
 	"UpdateCardTitle",
 	"UpdateProvider",
 	"UpdateSettings",

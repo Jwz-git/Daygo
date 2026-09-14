@@ -52,8 +52,9 @@ func (o *recordingObserver) queryCount() int {
 }
 
 // Observability is attached to the store, not to repository signatures
-// (docs/05 §5.6.2 rule 6). A statement must be reported without the caller
-// passing anything.
+// (docs/05 §5.6.2 rule 6). The observer receives the statement without the
+// caller passing anything, but only when it is worth a diagnostic signal: a
+// fast successful statement stays quiet, a failing one is always reported.
 func TestObserverReceivesStatements(t *testing.T) {
 	dir := newDir(t)
 	observer := &recordingObserver{}
@@ -72,9 +73,23 @@ func TestObserverReceivesStatements(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("write: %v", err)
 	}
+	if got := observer.queryCount(); got != 0 {
+		t.Fatalf("fast successful write reported %d statements, want 0 (below the slow threshold)", got)
+	}
 
-	if observer.queryCount() == 0 {
-		t.Fatal("observer received no statements")
+	// A failing statement is reported regardless of duration: the error is
+	// itself the diagnostic signal.
+	err = store.Write(context.Background(), "violated constraint", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			"INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
+			"appearance.theme", `"dark"`, 0)
+		return err
+	})
+	if err == nil {
+		t.Fatal("duplicate key insert unexpectedly succeeded")
+	}
+	if got := observer.queryCount(); got != 1 {
+		t.Fatalf("failing write reported %d statements, want 1", got)
 	}
 }
 

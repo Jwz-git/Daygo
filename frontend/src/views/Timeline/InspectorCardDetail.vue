@@ -31,7 +31,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  saveEdits: [cardID: number, edits: { title?: string; category?: string; summary?: string }]
+  saveEdits: [cardID: number, edits: { title?: string; category?: string; summary?: string; detailedSummary?: string }]
   delete: [cardID: number]
 }>()
 
@@ -43,13 +43,14 @@ const timeRange = computed(() => {
 })
 
 /* Which field is open in its inline editor; null shows read-only rows. */
-type Field = 'title' | 'category' | 'summary'
+type Field = 'title' | 'category' | 'summary' | 'detailedSummary'
 const editingField = ref<Field | null>(null)
 const confirmingDelete = ref(false)
 const draft = ref('')
 
 const titleInput = ref<HTMLInputElement | null>(null)
 const summaryInput = ref<HTMLTextAreaElement | null>(null)
+const detailedInput = ref<HTMLTextAreaElement | null>(null)
 const categoryInput = ref<HTMLSelectElement | null>(null)
 
 const selectedColor = computed(() => {
@@ -82,17 +83,13 @@ function fieldEditable(field: Field): boolean {
   if (props.pendingAction !== null) return false
   return field === 'title' ? props.actions.updateTitle
     : field === 'category' ? props.actions.updateCategory
-    : props.actions.updateSummary
+    : field === 'summary' ? props.actions.updateSummary
+    : props.actions.updateDetailedSummary
 }
 
-const displayedSummary = computed(
-  () => props.card.detailedSummary || props.card.summary || t('timeline.inspector.noSummary'),
-)
-
-/* The detailed summary is a chronological log, one paragraph per phase; a
-   fallback short summary renders as the single paragraph it is. */
-const summaryParagraphs = computed(() =>
-  displayedSummary.value
+/* The detailed summary is a chronological log, one paragraph per phase. */
+const detailedParagraphs = computed(() =>
+  (props.card.detailedSummary || '')
     .split(/\n+/)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph !== ''),
@@ -104,11 +101,13 @@ async function beginEditing(field: Field): Promise<void> {
   confirmingDelete.value = false
   draft.value = field === 'title' ? props.card.title
     : field === 'category' ? props.card.category
+    : field === 'summary' ? props.card.summary
     : props.card.detailedSummary
   await nextTick()
   const input = field === 'title' ? titleInput.value
     : field === 'category' ? categoryInput.value
-    : summaryInput.value
+    : field === 'summary' ? summaryInput.value
+    : detailedInput.value
   input?.focus()
   if (input instanceof HTMLInputElement) input.select()
 }
@@ -238,20 +237,50 @@ watch(
         ref="summaryInput"
         v-model="draft"
         class="dg-input field-editor__summary"
-        rows="5"
-        maxlength="2000"
+        rows="3"
+        maxlength="240"
         @keydown.esc="cancelEditing"
         @blur="submitEditing"
       ></textarea>
       <p class="field-editor__hint">{{ t('timeline.inspector.summaryEditHint') }}</p>
     </div>
-    <template v-else>
+    <p v-else-if="props.card.summary" class="summary-text">{{ props.card.summary }}</p>
+    <p v-else class="summary-text summary-text--empty">{{ t('timeline.inspector.noSummary') }}</p>
+  </section>
+
+  <section class="inspector__section">
+    <h3 class="section-heading">
+      <span>{{ t('timeline.inspector.detailedSummary') }}</span>
+      <button
+        v-if="fieldEditable('detailedSummary')"
+        type="button"
+        class="field-pencil"
+        :aria-label="t('timeline.inspector.editDetailedSummary')"
+        @click="beginEditing('detailedSummary')"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      </button>
+    </h3>
+    <div v-if="editingField === 'detailedSummary'" class="field-editor">
+      <textarea
+        ref="detailedInput"
+        v-model="draft"
+        class="dg-input field-editor__summary"
+        rows="8"
+        maxlength="2000"
+        @keydown.esc="cancelEditing"
+        @blur="submitEditing"
+      ></textarea>
+      <p class="field-editor__hint">{{ t('timeline.inspector.detailedSummaryEditHint') }}</p>
+    </div>
+    <template v-else-if="detailedParagraphs.length > 0">
       <p
-        v-for="(paragraph, index) in summaryParagraphs"
+        v-for="(paragraph, index) in detailedParagraphs"
         :key="index"
         class="summary-paragraph"
       >{{ paragraph }}</p>
     </template>
+    <p v-else class="summary-text summary-text--empty">{{ t('timeline.inspector.noSummary') }}</p>
   </section>
 
   <section v-if="displayedAppSites.length > 0" class="inspector__section">
@@ -340,7 +369,7 @@ watch(
       {{ t('timeline.inspector.readOnly') }}
     </span>
     <span
-      v-else-if="!props.actions.updateTitle && !props.actions.updateCategory && !props.actions.updateSummary && !props.actions.deleteCard"
+      v-else-if="!props.actions.updateTitle && !props.actions.updateCategory && !props.actions.updateSummary && !props.actions.updateDetailedSummary && !props.actions.deleteCard"
       class="inspector__readonly"
     >
       {{ t('timeline.inspector.actionsUnavailable') }}
@@ -399,6 +428,8 @@ watch(
 
 /* Phase paragraphs of the chronological log: the leading time range reads as
    tabular data, the rest as prose. */
+.summary-text { margin: 0; }
+.summary-text--empty { color: var(--dg-text-muted); }
 .summary-paragraph { margin: 0 0 8px; }
 
 .summary-paragraph:last-child { margin-bottom: 0; }

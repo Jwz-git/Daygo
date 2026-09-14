@@ -84,7 +84,7 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 	if len(selected) == 0 {
 		// Everything old enough to delete is rented or active: converge as far
 		// as the boundary allows and report rather than force.
-		result.SkippedRented, err = s.remainingOverLimit(ctx, limitBytes)
+		result.SkippedRented, err = s.remainingOverLimit(ctx)
 		return result, err
 	}
 
@@ -119,7 +119,7 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 		return result, err
 	}
 	if usage > limitBytes {
-		if result.SkippedRented, err = s.remainingOverLimit(ctx, limitBytes); err != nil {
+		if result.SkippedRented, err = s.remainingOverLimit(ctx); err != nil {
 			return result, err
 		}
 	}
@@ -128,7 +128,7 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 
 // remainingOverLimit counts live frames left when usage is still over the
 // limit — the frames the exclusion rules protected.
-func (s *Store) remainingOverLimit(ctx context.Context, limitBytes int64) (int, error) {
+func (s *Store) remainingOverLimit(ctx context.Context) (int, error) {
 	var n int
 	err := s.Read(ctx, "cleanup remaining", func(ctx context.Context, tx *sql.Tx) error {
 		return tx.QueryRowContext(ctx,

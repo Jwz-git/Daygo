@@ -38,7 +38,7 @@ func (b *Backend) maybeAutoStartRecording() {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	repo := store.Providers()
-	routing, err := b.loadRouting(ctx, repo)
+	routing, err := b.loadRouting(ctx)
 	if err != nil || len(routing.Chain) == 0 {
 		return
 	}

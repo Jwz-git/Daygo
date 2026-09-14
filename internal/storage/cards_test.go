@@ -279,12 +279,20 @@ func TestCardUpdateCategoryTitleAndSoftDelete(t *testing.T) {
 	if err := store.Cards().UpdateCardTitle(ctx, id, "renamed"); err != nil {
 		t.Fatalf("UpdateCardTitle: %v", err)
 	}
+	if err := store.Cards().UpdateCardSummary(ctx, id, "short rewritten"); err != nil {
+		t.Fatalf("UpdateCardSummary: %v", err)
+	}
+	if err := store.Cards().UpdateCardDetailedSummary(ctx, id, "detail rewritten"); err != nil {
+		t.Fatalf("UpdateCardDetailedSummary: %v", err)
+	}
 	card, err := store.Cards().CardByID(ctx, id)
 	if err != nil {
 		t.Fatalf("CardByID: %v", err)
 	}
-	if card.Category != "Writing" || card.Title != "renamed" {
-		t.Fatalf("card = %s/%s, want Writing/renamed", card.Category, card.Title)
+	if card.Category != "Writing" || card.Title != "renamed" ||
+		card.Summary != "short rewritten" || card.DetailedSummary != "detail rewritten" {
+		t.Fatalf("card = %s/%s/%s/%s, want Writing/renamed/short rewritten/detail rewritten",
+			card.Category, card.Title, card.Summary, card.DetailedSummary)
 	}
 
 	if _, err := store.Cards().SoftDeleteCard(ctx, id); err != nil {

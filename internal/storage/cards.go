@@ -261,6 +261,14 @@ func (r *CardRepo) UpdateCardTitle(ctx context.Context, id int64, title string) 
 		title)
 }
 
+// UpdateCardSummary rewrites one card's short summary. Empty is valid: the
+// pane then shows its no-summary placeholder.
+func (r *CardRepo) UpdateCardSummary(ctx context.Context, id int64, text string) error {
+	return r.updateCardColumn(ctx, "update card summary", id,
+		"UPDATE timeline_cards SET summary = ?, updated_at = ? WHERE id = ? AND is_deleted = 0",
+		text)
+}
+
 // UpdateCardDetailedSummary rewrites one card's long-form summary. Empty is
 // valid: the detail pane falls back to the short summary.
 func (r *CardRepo) UpdateCardDetailedSummary(ctx context.Context, id int64, text string) error {

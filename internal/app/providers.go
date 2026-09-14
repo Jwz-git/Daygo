@@ -217,7 +217,7 @@ func (b *Backend) DeleteProvider(id string) error {
 
 	// Prune routing before deleting the row: SetProviderRouting validates ids
 	// against the table, so the order matters.
-	routing, err := b.loadRouting(ctx, repo)
+	routing, err := b.loadRouting(ctx)
 	if err != nil {
 		return err
 	}
@@ -267,14 +267,13 @@ func (b *Backend) DeleteProvider(id string) error {
 
 // GetProviderRouting returns the ordered routing chain.
 func (b *Backend) GetProviderRouting() (ProviderRoutingDTO, error) {
-	repo, err := b.providerStore()
-	if err != nil {
+	if _, err := b.providerStore(); err != nil {
 		return ProviderRoutingDTO{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
 	defer cancel()
 
-	routing, err := b.loadRouting(ctx, repo)
+	routing, err := b.loadRouting(ctx)
 	if err != nil {
 		return ProviderRoutingDTO{}, err
 	}
@@ -425,7 +424,7 @@ func (b *Backend) TestProvider(id string) (ProviderTestResultDTO, error) {
 }
 
 // loadRouting reads the current chain through the typed settings layer.
-func (b *Backend) loadRouting(ctx context.Context, repo *storage.ProviderRepo) (settings.Routing, error) {
+func (b *Backend) loadRouting(ctx context.Context) (settings.Routing, error) {
 	access := settings.New(b.store().Settings())
 	routing, err := access.Routing(ctx)
 	if err != nil {

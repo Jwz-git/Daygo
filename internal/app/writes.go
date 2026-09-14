@@ -45,6 +45,17 @@ func (b *Backend) updateCardTitle(ctx context.Context, cardID int64, title strin
 	return nil
 }
 
+// updateCardSummary rewrites one card's short summary. Empty is valid; the
+// pane shows its no-summary placeholder.
+func (b *Backend) updateCardSummary(ctx context.Context, cardID int64, text string) error {
+	store := b.store()
+	if err := store.Cards().UpdateCardSummary(ctx, cardID, text); err != nil {
+		return mapStorageError("update card summary", err)
+	}
+	b.invalidateCardDay(cardID)
+	return nil
+}
+
 // updateCardDetailedSummary rewrites one card's long-form summary. Empty
 // clears it; the pane falls back to the short AI summary.
 func (b *Backend) updateCardDetailedSummary(ctx context.Context, cardID int64, text string) error {

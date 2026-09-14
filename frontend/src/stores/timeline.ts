@@ -22,6 +22,7 @@ import {
   TimelineUnavailableError,
   updateCardCategory,
   updateCardDetailedSummary,
+  updateCardSummary,
   updateCardTitle,
 } from '@/api/timeline'
 
@@ -77,6 +78,7 @@ export const useTimelineStore = defineStore('timeline', () => {
       updateCategory: enabled && actionBindings.updateCategory,
       updateTitle: enabled && actionBindings.updateTitle,
       updateSummary: enabled && actionBindings.updateSummary,
+      updateDetailedSummary: enabled && actionBindings.updateDetailedSummary,
       deleteCard: enabled && actionBindings.deleteCard,
       retryBatches: enabled && actionBindings.retryBatches,
       reprocessDay: enabled && actionBindings.reprocessDay,
@@ -192,7 +194,7 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   function saveCardEdits(
     cardID: number,
-    edits: { title?: string; category?: string; summary?: string },
+    edits: { title?: string; category?: string; summary?: string; detailedSummary?: string },
   ): Promise<boolean> {
     return runAction('update-card', async () => {
       if (edits.title !== undefined && edits.title.trim() !== '') {
@@ -202,7 +204,10 @@ export const useTimelineStore = defineStore('timeline', () => {
         await updateCardCategory(cardID, edits.category.trim())
       }
       if (edits.summary !== undefined) {
-        await updateCardDetailedSummary(cardID, edits.summary.trim())
+        await updateCardSummary(cardID, edits.summary.trim())
+      }
+      if (edits.detailedSummary !== undefined) {
+        await updateCardDetailedSummary(cardID, edits.detailedSummary.trim())
       }
     })
   }

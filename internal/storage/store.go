@@ -224,13 +224,18 @@ func (s *Store) Close() error {
 	return errors.Join(errs...)
 }
 
-// observeQuery records a completed statement and reports whether it was slow.
-// The wrapper calls it; repositories never do.
+// observeQuery reports a completed statement to the observer. Errors are
+// always reported; a successful statement is reported only when it crossed
+// slowQueryThreshold, so the diagnostic channel carries slow queries and
+// failures rather than every fast call.
 func (s *Store) observeQuery(op string, start time.Time, err error) {
 	if s == nil || s.observer == nil {
 		return
 	}
-	s.observer.ObserveQuery(op, time.Since(start), err)
+	elapsed := time.Since(start)
+	if err != nil || elapsed >= slowQueryThreshold {
+		s.observer.ObserveQuery(op, elapsed, err)
+	}
 }
 
 // observeBusy records lock contention.

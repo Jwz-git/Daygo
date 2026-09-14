@@ -10,6 +10,7 @@ interface TimelineBackend {
   GetTimelineDay?: (day: string) => Promise<TimelineDayDTO>
   UpdateCardCategory?: (cardID: number, category: string) => Promise<void>
   UpdateCardTitle?: (cardID: number, title: string) => Promise<void>
+  UpdateCardSummary?: (cardID: number, text: string) => Promise<void>
   UpdateCardDetailedSummary?: (cardID: number, text: string) => Promise<void>
   DeleteCard?: (cardID: number) => Promise<void>
   RetryBatches?: (batchIDs: number[]) => Promise<void>
@@ -44,6 +45,7 @@ export interface TimelineActionAvailability {
   updateCategory: boolean
   updateTitle: boolean
   updateSummary: boolean
+  updateDetailedSummary: boolean
   deleteCard: boolean
   retryBatches: boolean
   reprocessDay: boolean
@@ -72,7 +74,8 @@ export function getTimelineActionAvailability(): TimelineActionAvailability {
   return {
     updateCategory: typeof current?.UpdateCardCategory === 'function',
     updateTitle: typeof current?.UpdateCardTitle === 'function',
-    updateSummary: typeof current?.UpdateCardDetailedSummary === 'function',
+    updateSummary: typeof current?.UpdateCardSummary === 'function',
+    updateDetailedSummary: typeof current?.UpdateCardDetailedSummary === 'function',
     deleteCard: typeof current?.DeleteCard === 'function',
     retryBatches: typeof current?.RetryBatches === 'function',
     reprocessDay: typeof current?.ReprocessDay === 'function',
@@ -110,6 +113,10 @@ export async function updateCardCategory(cardID: number, category: string): Prom
 
 export async function updateCardTitle(cardID: number, title: string): Promise<void> {
   return requiredMethod('UpdateCardTitle')(cardID, title)
+}
+
+export async function updateCardSummary(cardID: number, text: string): Promise<void> {
+  return requiredMethod('UpdateCardSummary')(cardID, text)
 }
 
 export async function updateCardDetailedSummary(cardID: number, text: string): Promise<void> {

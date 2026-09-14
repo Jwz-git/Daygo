@@ -156,6 +156,13 @@ func TestCardWritesValidateAndEmit(t *testing.T) {
 	}
 	// Unknown card id is not_found.
 	assertAppCode(t, backend.UpdateCardDetailedSummary(9999, "x"), apperr.NotFound)
+	if err := backend.UpdateCardSummary(cardID, "user-rewritten short"); err != nil {
+		t.Fatalf("UpdateCardSummary: %v", err)
+	}
+	if err := backend.UpdateCardSummary(cardID, ""); err != nil {
+		t.Fatalf("UpdateCardSummary empty: %v", err)
+	}
+	assertAppCode(t, backend.UpdateCardSummary(9999, "x"), apperr.NotFound)
 	if err := backend.DeleteCard(cardID); err != nil {
 		t.Fatalf("DeleteCard: %v", err)
 	}
@@ -208,6 +215,7 @@ func TestCardWritesRefuseReadOnlyInstance(t *testing.T) {
 		"UpdateCardCategory":        func() error { return backend.UpdateCardCategory(1, "Idle") },
 		"UpdateCardTitle":           func() error { return backend.UpdateCardTitle(1, "x") },
 		"UpdateCardDetailedSummary": func() error { return backend.UpdateCardDetailedSummary(1, "x") },
+		"UpdateCardSummary":         func() error { return backend.UpdateCardSummary(1, "x") },
 		"DeleteCard":                func() error { return backend.DeleteCard(1) },
 	}
 	for _, fn := range updates {
