@@ -6,6 +6,7 @@ import type { CategoryDTO, TimelineCardDTO, TimelineDayDTO, TimelineFailureDTO }
 import type { TimelineActionAvailability } from '@/api/timeline'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import { appSiteValues } from '@/lib/appSiteIcon'
+import { useDurationFormat } from '@/lib/duration'
 import type { TimelineAction } from '@/stores/timeline'
 
 import { safeCategoryColor } from './layout'
@@ -172,13 +173,7 @@ function confirmDeletion(): void {
   confirmingDelete.value = false
 }
 
-function duration(minutes: number): string {
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  if (hours === 0) return t('timeline.duration.minutes', { count: rest })
-  if (rest === 0) return t('timeline.duration.hours', { count: hours })
-  return t('timeline.duration.hoursMinutes', { hours, minutes: rest })
-}
+const duration = useDurationFormat()
 </script>
 
 <template>

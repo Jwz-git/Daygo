@@ -32,11 +32,6 @@ export default {
     count: '{count} categories',
     distributionAria: 'Share of tracked time by category this week',
   },
-  duration: {
-    minutes: '{count} min',
-    hours: '{count} hr',
-    hoursMinutes: '{hours} hr {minutes} min',
-  },
   state: {
     loading: {
       title: 'Loading weekly data',

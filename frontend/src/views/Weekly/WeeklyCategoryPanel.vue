@@ -1,21 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import { useDurationFormat } from '@/lib/duration'
 import type { WeeklyCategoryPresentation } from '@/stores/weeklyPresentation'
 import { percentageLabel } from '@/stores/weeklyPresentation'
 
 defineProps<{ categories: WeeklyCategoryPresentation[] }>()
 const { t } = useI18n()
 
-function duration(minutes: number): string {
-  const rounded = Math.max(0, Math.round(minutes))
-  if (rounded < 60) return t('weekly.duration.minutes', { count: rounded })
-  const hours = Math.floor(rounded / 60)
-  const remainder = rounded % 60
-  return remainder === 0
-    ? t('weekly.duration.hours', { count: hours })
-    : t('weekly.duration.hoursMinutes', { hours, minutes: remainder })
-}
+const duration = useDurationFormat()
 </script>
 
 <template>

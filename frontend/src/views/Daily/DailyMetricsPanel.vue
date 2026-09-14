@@ -2,19 +2,13 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useDurationFormat } from '@/lib/duration'
 import type { DailyMetrics } from '@/stores/daily'
 
 const props = defineProps<{ metrics: DailyMetrics }>()
 const { t } = useI18n()
 
-function duration(minutes: number): string {
-  if (minutes < 60) return t('daily.duration.minutes', { count: minutes })
-  const hours = Math.floor(minutes / 60)
-  const remainder = minutes % 60
-  return remainder === 0
-    ? t('daily.duration.hours', { count: hours })
-    : t('daily.duration.hoursMinutes', { hours, minutes: remainder })
-}
+const duration = useDurationFormat()
 
 const items = computed(() => [
   {

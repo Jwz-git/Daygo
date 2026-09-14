@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { DailyPresentation, DailyWorkflowCell } from '@/stores/daily'
+import { useDurationFormat } from '@/lib/duration'
 import { safeTimeZone } from '@/lib/timeZone'
 
 const props = defineProps<{
@@ -35,14 +36,7 @@ function formatTime(timestamp: number): string {
   }).format(new Date(timestamp * 1000))
 }
 
-function duration(minutes: number): string {
-  if (minutes < 60) return t('daily.duration.minutes', { count: minutes })
-  const hours = Math.floor(minutes / 60)
-  const remainder = minutes % 60
-  return remainder === 0
-    ? t('daily.duration.hours', { count: hours })
-    : t('daily.duration.hoursMinutes', { hours, minutes: remainder })
-}
+const duration = useDurationFormat()
 </script>
 
 <template>

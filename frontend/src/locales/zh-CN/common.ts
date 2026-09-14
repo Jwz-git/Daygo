@@ -15,6 +15,11 @@ export default {
     edit: '编辑',
     delete: '删除',
   },
+  duration: {
+    minutes: '{count} 分钟',
+    hours: '{count} 小时',
+    hoursMinutes: '{hours} 小时 {minutes} 分钟',
+  },
   state: {
     loading: '加载中…',
     saving: '正在保存…',

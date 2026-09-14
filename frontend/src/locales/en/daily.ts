@@ -107,9 +107,4 @@ export default {
       description: 'Review the workflow and recap.',
     },
   },
-  duration: {
-    minutes: '{count} min',
-    hours: '{count} hr',
-    hoursMinutes: '{hours} hr {minutes} min',
-  },
 }

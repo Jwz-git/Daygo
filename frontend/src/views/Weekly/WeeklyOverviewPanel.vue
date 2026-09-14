@@ -2,21 +2,14 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useDurationFormat } from '@/lib/duration'
 import type { WeeklyPresentation } from '@/stores/weeklyPresentation'
 import { percentageLabel } from '@/stores/weeklyPresentation'
 
 const props = defineProps<{ presentation: WeeklyPresentation }>()
 const { t } = useI18n()
 
-function duration(minutes: number): string {
-  const rounded = Math.max(0, Math.round(minutes))
-  if (rounded < 60) return t('weekly.duration.minutes', { count: rounded })
-  const hours = Math.floor(rounded / 60)
-  const remainder = rounded % 60
-  return remainder === 0
-    ? t('weekly.duration.hours', { count: hours })
-    : t('weekly.duration.hoursMinutes', { hours, minutes: remainder })
-}
+const duration = useDurationFormat()
 
 const focusPercent = computed(() => percentageLabel(props.presentation.focusShare))
 const ringStyle = computed(() => ({

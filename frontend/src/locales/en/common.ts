@@ -15,6 +15,11 @@ export default {
     edit: 'Edit',
     delete: 'Delete',
   },
+  duration: {
+    minutes: '{count} min',
+    hours: '{count} hr',
+    hoursMinutes: '{hours} hr {minutes} min',
+  },
   state: {
     loading: 'Loading…',
     saving: 'Saving…',

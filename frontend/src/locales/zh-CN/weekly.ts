@@ -32,11 +32,6 @@ export default {
     count: '{count} 个分类',
     distributionAria: '本周各分类时长占比',
   },
-  duration: {
-    minutes: '{count} 分钟',
-    hours: '{count} 小时',
-    hoursMinutes: '{hours} 小时 {minutes} 分钟',
-  },
   state: {
     loading: {
       title: '正在读取每周数据',

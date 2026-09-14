@@ -101,9 +101,4 @@ export default {
     deleteConfirm: '删除后卡片会被软删除。确定继续吗？',
     actionFailed: '操作没有完成，现有卡片未被前端改写。',
   },
-  duration: {
-    minutes: '{count} 分钟',
-    hours: '{count} 小时',
-    hoursMinutes: '{hours} 小时 {minutes} 分钟',
-  },
 }

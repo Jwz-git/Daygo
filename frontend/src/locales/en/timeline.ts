@@ -101,9 +101,4 @@ export default {
     deleteConfirm: 'This card will be soft-deleted. Continue?',
     actionFailed: 'The action did not finish. The frontend left the existing card unchanged.',
   },
-  duration: {
-    minutes: '{count} min',
-    hours: '{count} hr',
-    hoursMinutes: '{hours} hr {minutes} min',
-  },
 }

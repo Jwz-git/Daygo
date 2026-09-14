@@ -107,9 +107,4 @@ export default {
       description: '查看工作流与日报。',
     },
   },
-  duration: {
-    minutes: '{count} 分钟',
-    hours: '{count} 小时',
-    hoursMinutes: '{hours} 小时 {minutes} 分钟',
-  },
 }
