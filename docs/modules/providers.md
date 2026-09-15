@@ -17,10 +17,12 @@ openai（Chat Completions）、openai_responses、anthropic 三种协议。
 
 实现进度：部分实现。Go 侧已落地：三协议客户端、重试 / 回退链（`ai.Chain`，循环降级）、
 连接探针、迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 钥匙串经
-`security` CLI + fake）、Provider CRUD / 路由链 / 密钥 / `TestProvider` 共 10 个绑定
-（`internal/app/providers.go`）。设置层 `providers.routing` 为有序链并兼容旧形状。
-前端 store 仍指向 localStorage（迁移到绑定在下一切片）；真实网络集成与升级身份验证未验收。
-当前前端 hasSecret 不反映钥匙串状态，绑定返回的为准。
+`security` CLI + fake）、Provider CRUD / 路由链 / 密钥 / `TestProvider` 绑定
+（主要在 `internal/app/providers.go`），以及分置于 `providers_models.go` 和 `provider_probe.go` 的
+模型列表与草稿连接探针。设置层 `providers.routing` 为有序链并兼容旧形状。
+前端 store 已以 Go 绑定为权威来源，写后重拉；旧 localStorage 记录只在后端列表为空时
+做一次性无密钥迁移，成功后删除。`hasSecret` 仅由后端检查钥匙串后返回。
+模型列表查询与每 Provider 图片上限（v11）也已接入。真实网络集成、完整 Wails 重启闭环与升级身份验证未验收。
 
 ## 能力与跨层职责
 
@@ -46,7 +48,8 @@ llm.outputLanguage、llm.recognitionEnhancementEnabled 的字段规则和设置�
 开启时识别用途的每张图片在内存中切成 2×2 四张重叠分片（每片约半幅加交叉覆盖），四片
 之后附上未改动的原图一起发送，分片仅存在于单次请求生命周期、返回后清零，不落盘不入库；
 关闭时请求原样透传。生产识别
-调用方（timeline 分析流水线）尚未接入，该开关当前持久化设置值并由设置页读写。
+调用方（timeline 分析流水线）尚未调用 `GenerateRecognition`；该开关已持久化并由设置页读写，
+分析分组已按回退链中最小图片上限限制请求规模。
 
 ## 实验与失败条件
 

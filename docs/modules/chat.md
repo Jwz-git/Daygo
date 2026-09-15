@@ -90,8 +90,8 @@ retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共�
    **已落盘**：多会话列表、全局记忆（`chat.memory`）、会话级 provider 选择、
    `chat.editMode` 开关（AgentAccessSection）、工具消息折叠渲染（一行摘要 + 展开参数 /
    结果 JSON）。
-6. 真实闭环与诊断计数：工具错误、预算终止、取消计入 data 的诊断框架。**未落盘**
-   （data 诊断框架未实现；`llm_calls` 行已可作为手工核对依据）。
+6. 真实闭环与诊断计数：工具错误、预算终止、取消计入 data 的既有诊断框架。**未落盘**
+   （data 诊断基础已存在，但 chat 尚未提供这些业务计数；`llm_calls` 行只可作为手工核对依据）。
 
 每个切片独立可验证；读工具依赖 cards repository（已落盘），写工具依赖对应 repository
 落盘（已落盘），不要求 timeline / daily 的 UI 完成。纯对话先行 → agent 工具循环的路径

@@ -2,13 +2,13 @@
 
 > **状态：设计中，部分落盘。** 本目录描述的是目标行为与接口。
 >
-> **已落盘**（基线 commit `c2950cf`，加当前工作树）：桌面外壳与前端设置页、SQLite 基础
-> （连接 / PRAGMA / 迁移链 / 跨平台实例锁 / `app_settings` / 备份 / 诊断及部分业务表）、
-> 类型化设置、三协议 AI 客户端、平台端口与 Capture fake 及契约套件、macOS 与 Windows
-> 单次截图、Go recorder 与 pending capture 提交 / 恢复、录制设置和状态栏的有限接入、正式
-> Wails 绑定，以及临时截图 ABI 联调页面。
-> **未实现或未完成**：真实系统权限流程、分段与 Media、完整录制长期门禁、分析流水线、
-> insight 聚合、Secrets 与 Provider 持久化。
+> **已落盘**（最近核对 commit `c9b0e07`）：桌面外壳与主要页面、SQLite v13 迁移链、
+> 跨平台实例锁、设置 / 备份 / 诊断 / 清理、三协议 AI 客户端、Provider 持久化与 macOS Keychain、
+> Go recorder 与截图提交 / 恢复、两阶段分析流水线、时间线卡片 / 分类、daily / weekly 存储与聚合、
+> 以及应用内 Chat 的封闭工具循环。这些代码的真实闭环验收程度各不相同。
+> **未实现或未完成**：G-host 与完整权限 / 隐私实机矩阵、正式分段与 Media、
+> 时间线帧条 / 搜索、daily 自动生成与通知、delivery 发布链、agent CLI / socket / MCP、
+> 真实 Provider 端到端与 7 / 14 天长期证据。
 >
 > 当前状态与证据见 [09 §9.1](09-roadmap.md#91-模块总表)。
 > **不要把目标目录、命令或行为描述成现状**；文档与代码冲突时以代码为准。
@@ -47,7 +47,7 @@
 | [preferences](modules/preferences.md) | 外观、语言与通用设置 |
 | [delivery](modules/delivery.md) | 安装与安全更新 |
 | [agent](modules/agent.md) | CLI、agent.sock 与 MCP（推迟，设计准备） |
-| [chat](modules/chat.md) | 应用内自然语言问答与受控编辑（推迟，设计准备） |
+| [chat](modules/chat.md) | 应用内自然语言问答与受控编辑（部分实现） |
 
 新增执行册沿用 [模板](modules/_template.md)。这些功能边界不改变 02 的技术分层。
 
@@ -124,7 +124,7 @@ Go 拥有全部可移植业务逻辑，并且是 SQLite 的唯一写入方。平
 | 每周复盘 | ✅ | 合计与分类占比；自定义图表推迟 |
 | 设置（外观、语言、Provider） | ✅ | 已部分落盘 |
 | 设置（存储、隐私、账户） | ✅ | 需要 Go 绑定 |
-| 自然语言问答（Chat） | ❌ | 推迟；应用内 agent 设计准备见 [modules/chat](modules/chat.md) |
+| 自然语言问答（Chat） | ❌ | 已部分实现，但 v1 明确不交付；v1.1 是否纳入待后续评估 |
 | 导出 Markdown | ❌ | 推迟到 v1.1 |
 | CLI / MCP / Agent 写入通道 | ❌ | 接口形状已定义（[05 §5.9](05-interface-contract.md#59-b6对外接口推迟到-v11)），设计准备见 [modules/agent.md](modules/agent.md)，实现推迟 |
 

@@ -7,12 +7,13 @@
 > `internal/storage`（连接、PRAGMA、迁移链、实例锁、`app_settings` repository、维护与诊断）、
 > `internal/settings`（16 个键的类型化访问与规范化）、
 > `internal/ai`（三种协议客户端、重试 / 回退、结构化输出、连接探针）、
-> `internal/platform` 端口与值类型、`internal/platform/fake` 的 **Capture** 实现与
+> `internal/platform` 端口与值类型、`internal/platform/fake` 的 Capture / System 实现、
+> `internal/platform/secrets` 的 fake 与 macOS Keychain 实现、
 > `platformtest` 的四套契约套件、macOS 与 Windows 的真实 Capture 适配器、
 > `internal/app` 的正式绑定方法和临时 `CaptureTest` 联调绑定、`apperr` 错误类型与事件常量、
 > 前端外壳 / 设置页及其本地存储层。
-> fake 的其余端口（Media / System / Secrets / Updater）、时间线分析流水线与部分洞察尚未实现；
-> Go recorder 与 pending/screenshots 提交已落盘。
+> Media / Updater 的 fake 与真实实现尚缺；Go recorder、pending/screenshots 提交、
+> 时间线分析流水线、weekly 聚合与 daily 日报存储已落盘。
 > 平台适配边界（§5.8）仍为 **待定设计**：只定义任何实现都必须满足的要求，不定义协议本身。
 
 ## 5.1 本文的定位
@@ -89,17 +90,18 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
-| timeline | `GetDayContext`、`GetTimelineDay`、`UpdateCardCategory`、`UpdateCardTitle`、`UpdateCardSummary`、`UpdateCardDetailedSummary`、`DeleteCard`、`SaveCategories` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；视频 URL 与失败重试 / 整日重处理仍属后续切片 |
+| timeline | `GetDayContext`、`GetTimelineDay`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日可重处理；视频 URL 与搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals` / `daily_standup_entries`；用户保存不触碰 AI summary 列 |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；均不接 recorder / storage / config |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
-| chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
+| chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
-这不代表录制开关、Provider 持久化或 Secrets 已实现。fake 的覆盖以 §5.7.4 为准。
+上表只说明绑定与本地实现已存在，不代表 G-host、真实 Provider、签名后密钥身份或长期门禁已验收。
+fake 的覆盖以 §5.7.4 为准。
 
 > **绑定对象上的导出方法就是前端 API。** Wails 绑定会导出绑定对象的**每一个**导出方法，
 > 因此“顺手导出一个装配用的 helper”等于无声地改了契约。这已经发生过一次：
@@ -1399,8 +1401,8 @@ CGO_ENABLED=0 go build ./... && CGO_ENABLED=0 go test ./internal/...
 | 时钟串解析失败的提示与处置体验（禁止静默丢弃） | timeline 产品 | 失败交互实现前；SkippedCards 必须被消费 |
 | 统一重试策略后的用户可观察行为 | timeline 产品，providers 协作 | 重试策略与入口接入前 |
 | `apiRevision` 是否在生产中真正校验 | preferences 工程 | 前后端版本不一致处理接入前 |
-| Chat 相关绑定是否进入 v1.1（设计准备见 §5.12） | delivery / 范围 | v1 发布后 |
-| Chat 会话模型、流式输出、留存与 provider 路由（§5.12 待定表） | chat 产品 + 工程 | chat 实现切片前 |
+| 已实现的 Chat 是否纳入 v1.1 | delivery / 范围 | v1 发布后；当前 v1 明确不交付 |
+| Chat 消息留存与审计来源标记（§5.12 待定表） | chat 产品 + 工程 | 相应能力实现前 |
 
 ---
 

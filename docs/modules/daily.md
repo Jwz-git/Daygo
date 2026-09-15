@@ -26,9 +26,9 @@
 **2026-09-15**：`GetDailyRecap` / `SaveDailyRecap` 绑定已落盘——迁移 v13
 （`daily_standup_entries`）、`storage.StandupRepo`（JSON 存储 highlights/tasks 数组）、
 后端绑定 `GetDailyRecap`（读取已有日报或返回空结构）与 `SaveDailyRecap`
-（写入/更新 AI 生成的日报）。前端 DailyRecapPanel 支持真实日报和日记草稿两种视图。
+（只提供日报存储入口）。前端 DailyRecapPanel 支持真实日报和日记草稿两种视图。
 
-文本生成触发（LLM 调用）、摘要 AI 写入、通知仍未实现。
+文本生成触发（LLM 调用）、生成结果自动写入、通知仍未实现。
 
 ## 能力与跨层职责
 
@@ -89,7 +89,7 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。
 2026-09-11：Daily 开始消费与 Timeline 相同的路由日期键；显式历史日期经后端
 `GetDayContext` 返回同名 `standupDay`，避免历史工作流误读当天日报。空参数在凌晨 4 点前仍
 保持“当前逻辑日 + 当前日历日”的既定双日期语义。真实 `GetTimelineDay` / `GetDailyRecap`
-尚未实现，此项只打通日期选择与查询参数，不代表 Daily 数据闭环。
+当时尚未实现；该项只打通日期选择与查询参数，不代表 Daily 数据闭环。
 
 2026-09-12（日记绑定与编辑 UI）：`go test ./internal/app/`、前端 typecheck /
 build、Vite 浏览器 smoke 通过。journal 往返（summary 保留断言）、非法 status →

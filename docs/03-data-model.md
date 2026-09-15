@@ -1,13 +1,14 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 10`）有十五张表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 13`）有十六张表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
 > `day_goal_categories`（v5）、`llm_calls`（v6）、`chat_conversations.model` 会话模型
 > 覆盖列（v7）、分析流水线的 `batch_screenshots`、`observations`（v8，含
-> `idx_batch_screenshots_screenshot`——schema 之上的加法，服务未分批帧查询）。本文其余表
+> `idx_batch_screenshots_screenshot`）；`analysis_batches.attempts`（v9）、批次软删除列（v10）、
+> `providers.max_images`（v11）、首次启动分类种子（v12），以及 `daily_standup_entries`（v13）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -131,7 +132,7 @@ CREATE TABLE observations (
 );
 
 -- 每次真实 HTTP attempt 的脱敏元数据；不保存 endpoint、正文、图片、密钥或费用。
--- （v6 已落盘，当前唯一写入方是 chat 的 purpose='chat'。）
+-- （v6 已落盘，analysis 与 chat 均通过 attempt observer 写入。）
 CREATE TABLE llm_calls (
   id                 INTEGER PRIMARY KEY,
   batch_id           INTEGER REFERENCES analysis_batches(id),
@@ -169,7 +170,7 @@ CREATE INDEX idx_llm_calls_batch ON llm_calls (batch_id, purpose, attempt_no);
 **只有一个成功终态。** 不设置语义重复的第二个成功值。
 `attempts` 在每次进入 `failed` / `failed_empty` 时自增；达到 `MaxBatchAttempts`（5）后
 `RequeueFailed` 拒绝重新入队——确定性失败（帧文件丢失、时钟串不可解析）不应在冷却时钟上
-无限重复消耗 LLM 调用。重置该计数需要未来的 `RetryBatches` 绑定显式执行。
+无限重复消耗 LLM 调用。手动 `RetryBatches` 绑定会显式重置该计数。
 
 ### 3.3.2 时间线
 
@@ -228,12 +229,17 @@ CREATE TABLE categories (
 ### 3.3.4 洞察与用户输入
 
 ```sql
--- daily_standup_entries 尚未落盘：无写入方（recap 生成切片，待定 #19），
--- db-core 不预创建设计未定消费者就绪的表。
+-- daily_standup_entries（v13 已落盘）保存已生成的日报；
+-- LLM 生成与调度尚未实现，不应与存储能力混为一谈。
 CREATE TABLE daily_standup_entries (
-  standup_day  TEXT PRIMARY KEY,   -- 日历日 yyyy-MM-dd
-  payload      TEXT NOT NULL,      -- JSON：highlights / tasks / blockers
-  generated_at INTEGER
+  standup_day      TEXT PRIMARY KEY,   -- 日历日 yyyy-MM-dd
+  highlights_title TEXT NOT NULL,
+  highlights       TEXT NOT NULL,      -- JSON 数组
+  tasks_title      TEXT NOT NULL,
+  tasks            TEXT NOT NULL,      -- JSON 数组
+  blockers_title   TEXT NOT NULL,
+  blockers_body    TEXT NOT NULL,
+  generated_at     INTEGER NOT NULL
 );
 
 -- journal_entries（v5 已落盘）。summary 由 AI 生成、用户只读：repository 的
