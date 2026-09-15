@@ -156,6 +156,9 @@ watch(active, () => void nextTick(measurePill))
 
 .nav {
   align-self: start;
+  /* The glass level's 24px radius reads bulbous on a tall narrow nav; keep
+     the panel radius this view was designed with. */
+  border-radius: var(--dg-panel-radius);
   padding: 7px;
 }
 
