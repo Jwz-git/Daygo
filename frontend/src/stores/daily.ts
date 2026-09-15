@@ -32,7 +32,7 @@ import {
 import { onTimelineUpdated } from '@/api/timeline'
 import { categoryKey } from '@/lib/categoryLabel'
 
-const SLOT_SECONDS = 15 * 60
+export const SLOT_SECONDS = 15 * 60
 const MINIMUM_WINDOW_SLOTS = 36
 
 export interface DailyWorkflowCell {

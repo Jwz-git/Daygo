@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { DailyPresentation, DailyWorkflowCell } from '@/stores/daily'
+import type { DailyPresentation, DailyWorkflowCell, DailyWorkflowRow } from '@/stores/daily'
+import { SLOT_SECONDS } from '@/stores/daily'
 import { useDurationFormat } from '@/lib/duration'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { safeTimeZone } from '@/lib/timeZone'
@@ -19,7 +20,8 @@ const gridStyle = computed(() => ({
 }))
 
 const cellGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${props.presentation.slotCount}, minmax(13px, 1fr))`,
+  // Fixed square cells: a fluid 1fr track squeezed cells into non-squares.
+  gridTemplateColumns: `repeat(${props.presentation.slotCount}, 15px)`,
 }))
 
 function cellStyle(cell: DailyWorkflowCell, color: string) {
@@ -27,6 +29,23 @@ function cellStyle(cell: DailyWorkflowCell, color: string) {
   return {
     '--daily-cell-color': color,
     '--daily-cell-strength': `${Math.round(24 + cell.occupancy * 66)}%`,
+  }
+}
+
+/*
+ * Hover tooltip (GitHub-contributions style): the slot's minutes in the row's
+ * colour plus the card title covering it. One open tooltip at a time.
+ */
+const hoveredCell = ref<{ rowId: string; index: number } | null>(null)
+
+function tooltipOf(row: DailyWorkflowRow, index: number): { minutes: string; title: string } | null {
+  const state = hoveredCell.value
+  if (state === null || state.rowId !== row.id || state.index !== index) return null
+  const cell = row.cells[index]
+  if (cell === undefined) return null
+  return {
+    minutes: duration(Math.round(cell.occupancy * (SLOT_SECONDS / 60))),
+    title: cell.title ?? categoryLabel(row.name, t),
   }
 }
 
@@ -84,9 +103,18 @@ const duration = useDurationFormat()
                 class="workflow-cell"
                 :class="{ 'is-occupied': cell.occupancy > 0, 'has-distraction': cell.hasDistraction }"
                 :style="cellStyle(cell, row.colorHex)"
-                :title="cell.title ?? undefined"
-                aria-hidden="true"
-              ></span>
+                @mouseenter="hoveredCell = { rowId: row.id, index }"
+                @mouseleave="hoveredCell = null"
+              >
+                <span
+                  v-if="tooltipOf(row, index) !== null"
+                  class="workflow-tip"
+                  role="status"
+                >
+                  <strong :style="{ color: row.colorHex }">{{ tooltipOf(row, index)!.minutes }}</strong>
+                  <span>{{ tooltipOf(row, index)!.title }}</span>
+                </span>
+              </span>
             </div>
           </template>
         </div>
@@ -205,8 +233,9 @@ const duration = useDurationFormat()
 
 .workflow-cell {
   position: relative;
-  height: 17px;
-  border: 1px solid var(--dg-daily-cell-border);
+  width: 15px;
+  height: 15px;
+  border: none;
   border-radius: 3px;
   background: var(--dg-daily-cell-empty);
 }
@@ -229,6 +258,37 @@ const duration = useDurationFormat()
   border-radius: 50%;
   background: var(--dg-daily-distraction);
   content: '';
+}
+
+/* Hover tooltip floating above the cell (GitHub style). */
+.workflow-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 20;
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  background: var(--dg-popover-fill, var(--dg-surface));
+  box-shadow: var(--dg-shadow-lg);
+  text-align: left;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.workflow-tip strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.workflow-tip span {
+  overflow: hidden;
+  color: var(--dg-text-primary);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .workflow-totals {
