@@ -96,6 +96,12 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 
 ## 验证记录
 
+2026-09-15：修复 Windows 窗口重新获得焦点时的时间线加载闪屏。此前标题栏点击触发
+`window.focus` 后使用全量 `load()`，会暂时将已有时间轴替换为首次加载面板；现在窗口焦点与
+可见性恢复均使用 silent refresh，保留当前页面并在后台重拉。延迟后端夹具验证请求未完成时
+store 仍保持 `loading=false` 和既有页面状态；`npm --prefix frontend run test:unit`（35 项）、
+`npm --prefix frontend run typecheck` 与 production build 通过。尚未在 Wails 窗口中做人工复核。
+
 2026-09-15：融合分类闸门落地。此前合并决策完全由 prompt 承载，模型对任何相邻活动都倾向
 融合（用户反馈"相邻就融合"）。现在卡片阶段对声明的融合（输出 start 早于批次窗口）做确定性
 校验：将被吸收的前卡分类必须全部与输出卡一致，`System` 前卡豁免（分类本就未知）；不一致时

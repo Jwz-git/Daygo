@@ -334,7 +334,9 @@ function scheduleDayRefresh(): void {
 }
 
 function refreshWhenWindowReturns(): void {
-  if (document.visibilityState === 'visible' && isFollowingToday()) void timeline.load()
+  if (document.visibilityState === 'visible' && isFollowingToday()) {
+    void timeline.load('', { silent: true })
+  }
 }
 
 async function copyTimeline(): Promise<void> {
