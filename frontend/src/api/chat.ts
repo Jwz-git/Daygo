@@ -4,6 +4,7 @@ import {
   DeleteChatConversation,
   GetChatMessages,
   ListChatConversations,
+  RenameChatConversation,
   SendChatMessage,
   SetChatConversationModel,
   SetChatConversationProvider,
@@ -73,6 +74,28 @@ export async function deleteChatConversation(id: string): Promise<void> {
   if (hasBridge()) return DeleteChatConversation(id)
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     devConversations = devState().filter((conversation) => conversation.dto.id !== id)
+    return
+  }
+  throw new Error(WAILS_UNAVAILABLE)
+}
+
+/**
+ * Change the user-visible title of a thread. The backend trims surrounding
+ * whitespace and rejects empty titles; the empty-after-trim check is mirrored
+ * here so the dev fallback matches the wire contract.
+ */
+export async function renameChatConversation(id: string, title: string): Promise<void> {
+  const trimmed = title.trim()
+  if (trimmed === '') throw new Error('rename conversation: title is required')
+  if (hasBridge()) return RenameChatConversation(id, trimmed)
+  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
+    for (const conversation of devState()) {
+      if (conversation.dto.id === id) {
+        conversation.dto.title = trimmed
+        conversation.dto.updatedAt = Math.floor(Date.now() / 1000)
+      }
+    }
+    devNotifyChatUpdated(id)
     return
   }
   throw new Error(WAILS_UNAVAILABLE)

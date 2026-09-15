@@ -6,6 +6,8 @@ import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { getSettings } from '@/api/settings'
 import { useChatStore } from '@/stores/chat'
 
+import ConversationTitle from './ConversationTitle.vue'
+
 const props = defineProps<{
   open: boolean
 }>()
@@ -68,6 +70,28 @@ function switchView(view: SidebarView): void {
 // ---- conversation list ----
 
 const pendingRemoveId = ref<string | null>(null)
+const renamingId = ref<string | null>(null)
+const renameError = ref('')
+const renamingBusy = ref(false)
+
+async function startRename(id: string): Promise<void> {
+  pendingRemoveId.value = null
+  renamingId.value = id
+  renameError.value = ''
+}
+
+async function onRenameCommit(id: string, title: string): Promise<void> {
+  renamingBusy.value = true
+  renameError.value = ''
+  try {
+    await store.renameConversation(id, title)
+    // The store re-pulls; the new title shows up in the row immediately.
+  } catch {
+    renameError.value = t('chat.actionError')
+  } finally {
+    renamingBusy.value = false
+  }
+}
 
 async function confirmRemove(): Promise<void> {
   const id = pendingRemoveId.value
@@ -278,7 +302,27 @@ const hasConversations = computed(() => grouped.value.length > 0)
                         'drawer__item--removing': pendingRemoveId === conv.id,
                       }"
                     >
+                      <!-- When this row is the one being renamed, the open
+                           action disappears and an inline editor takes its
+                           place. A stray click on the row no longer switches
+                           the active thread mid-rename. The cancel button is
+                           a sibling of the editor, not a replacement of the
+                           delete button — keeping the row's affordance
+                           surface uniform with the rest of the list. -->
+                      <ConversationTitle
+                        v-if="renamingId === conv.id"
+                        class="drawer__title-edit"
+                        :title="conv.title"
+                        :disabled="renamingBusy"
+                        :busy="renamingBusy"
+                        :fallback-title="t('chat.drawer.untitled')"
+                        :placeholder="t('chat.renameTitlePlaceholder')"
+                        :empty-message="t('chat.renameTitleRequired')"
+                        :error-text="renamingId === conv.id ? renameError : ''"
+                        @commit="(title: string) => onRenameCommit(conv.id, title)"
+                      />
                       <button
+                        v-else
                         type="button"
                         class="drawer__open"
                         @click="perform(() => store.select(conv.id)); emit('close')"
@@ -287,17 +331,44 @@ const hasConversations = computed(() => grouped.value.length > 0)
                           {{ conv.title || t('chat.drawer.untitled') }}
                         </span>
                       </button>
-                      <button
-                        v-if="pendingRemoveId !== conv.id"
-                        type="button"
-                        class="drawer__delete"
-                        :aria-label="t('chat.deleteConversation')"
-                        @click="pendingRemoveId = conv.id"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                          <path d="M3 4h10M6 4V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1M12 4v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </button>
+                      <div v-if="renamingId === conv.id" class="drawer__row-actions">
+                        <button
+                          type="button"
+                          class="drawer__icon-btn"
+                          :aria-label="t('common.action.cancel')"
+                          :title="t('common.action.cancel')"
+                          :disabled="renamingBusy"
+                          @click="renamingId = null; renameError = ''"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <div v-else class="drawer__row-actions">
+                        <button
+                          type="button"
+                          class="drawer__icon-btn drawer__icon-btn--rename"
+                          :aria-label="t('chat.renameConversation')"
+                          :title="t('chat.rename')"
+                          @click="startRename(conv.id)"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M11.5 2.5l2 2-7.5 7.5H4v-2l7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </button>
+                        <button
+                          v-if="pendingRemoveId !== conv.id"
+                          type="button"
+                          class="drawer__icon-btn drawer__icon-btn--delete"
+                          :aria-label="t('chat.deleteConversation')"
+                          @click="pendingRemoveId = conv.id"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M3 4h10M6 4V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1M12 4v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </button>
+                      </div>
                     </li>
                   </ul>
                 </div>
@@ -638,11 +709,31 @@ const hasConversations = computed(() => grouped.value.length > 0)
   white-space: nowrap;
 }
 
-.drawer__delete {
+/*
+ * Row icon buttons (rename, delete, cancel). They share one surface so the
+ * hover affordance does not jump between buttons. Each row groups its
+ * trailing actions in .drawer__row-actions; the group is invisible until
+ * the row is hovered (the same disclosure rule as the old single-button
+ * row, just generalised to two buttons).
+ */
+.drawer__row-actions {
   flex: none;
-  width: 28px;
-  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   margin-right: 4px;
+  opacity: 0;
+  transition: opacity var(--dg-motion-base) ease;
+}
+
+.drawer__item:hover .drawer__row-actions,
+.drawer__item--active .drawer__row-actions {
+  opacity: 1;
+}
+
+.drawer__icon-btn {
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -651,20 +742,44 @@ const hasConversations = computed(() => grouped.value.length > 0)
   background: transparent;
   color: var(--dg-text-muted);
   cursor: pointer;
-  opacity: 0;
   transition:
-    opacity var(--dg-motion-base) ease,
     color var(--dg-motion-base) ease,
-    background-color var(--dg-motion-base) ease;
+    background-color var(--dg-motion-base) ease,
+    transform var(--dg-motion-fast) ease;
 }
 
-.drawer__item:hover .drawer__delete {
-  opacity: 1;
-}
-
-.drawer__delete:hover {
-  color: var(--dg-danger);
+.drawer__icon-btn:hover {
+  color: var(--dg-text-primary);
   background: var(--dg-control-fill);
+}
+
+.drawer__icon-btn:active {
+  transform: scale(0.94);
+}
+
+.drawer__icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.drawer__icon-btn--delete:hover {
+  color: var(--dg-danger);
+}
+
+.drawer__icon-btn:focus-visible {
+  outline: 2px solid var(--dg-accent-text);
+  outline-offset: 2px;
+}
+
+/*
+ * The renaming row hides the title and the action buttons, leaving room for
+ * the inline editor. The cancel icon takes the editor's trailing slot so
+ * the row's chrome stays consistent.
+ */
+.drawer__title-edit {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
 }
 
 /* ---- memory pane ---- */

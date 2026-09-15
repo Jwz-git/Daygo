@@ -9,6 +9,7 @@ import {
   getChatMessages,
   listChatConversations,
   onChatUpdated,
+  renameChatConversation,
   sendChatMessage,
   setChatConversationModel,
   setChatConversationProvider,
@@ -31,7 +32,7 @@ const chatAPI = {
   cancelChatTurn,
   createChatConversation,
   deleteChatConversation,
-  getChatMessages, listChatConversations, onChatUpdated, sendChatMessage,
+  getChatMessages, listChatConversations, onChatUpdated, renameChatConversation, sendChatMessage,
   setChatConversationProvider, setChatConversationModel,
   listProviders, updateSettings, onSettingsChanged,
 }
@@ -39,7 +40,7 @@ const chatAPI = {
 export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
   const {
     cancelChatTurn, createChatConversation, deleteChatConversation,
-    getChatMessages, listChatConversations, onChatUpdated, sendChatMessage,
+    getChatMessages, listChatConversations, onChatUpdated, renameChatConversation, sendChatMessage,
     setChatConversationProvider, setChatConversationModel,
     listProviders, updateSettings, onSettingsChanged,
   } = { ...chatAPI, ...overrides }
@@ -240,6 +241,19 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     await refreshConversations()
   }
 
+  /**
+   * Rename a conversation. The wire event (chat:updated) refreshes the list;
+   * we additionally pull the conversations table so a rename of a non-active
+   * thread reaches the sidebar/drawer without waiting for that thread's own
+   * update.
+   */
+  async function renameConversation(id: string, title: string): Promise<void> {
+    const trimmed = title.trim()
+    if (trimmed === '') return
+    await renameChatConversation(id, trimmed)
+    await refreshConversations()
+  }
+
   /** Persist the global chat memory (like a CLAUDE.md). */
   async function saveMemory(memory: string): Promise<void> {
     await updateSettings({ chatMemory: memory })
@@ -261,6 +275,7 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     select,
     newConversation,
     removeConversation,
+    renameConversation,
     send,
     cancel,
     pinProvider,

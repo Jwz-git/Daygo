@@ -10,6 +10,7 @@ import ChatContextBar from './ChatContextBar.vue'
 import ChatDrawer from './ChatDrawer.vue'
 import ChatTranscript from './ChatTranscript.vue'
 import ChatWelcome from './ChatWelcome.vue'
+import ConversationTitle from './ConversationTitle.vue'
 
 /*
  * Page owns: drawer toggle, error banner, unavailable state, layout.
@@ -21,6 +22,8 @@ const store = useChatStore()
 
 const actionError = ref('')
 const drawerOpen = ref(false)
+const renameError = ref('')
+const renaming = ref(false)
 
 async function retrySelect(): Promise<void> {
   actionError.value = ''
@@ -43,6 +46,20 @@ function closeDrawer(): void {
 
 function onDrawerError(message: string): void {
   actionError.value = message
+}
+
+async function onRename(committed: string): Promise<void> {
+  const id = store.activeId
+  if (id === null) return
+  renaming.value = true
+  renameError.value = ''
+  try {
+    await store.renameConversation(id, committed)
+  } catch {
+    renameError.value = t('chat.actionError')
+  } finally {
+    renaming.value = false
+  }
 }
 
 onMounted(() => {
@@ -75,9 +92,17 @@ onMounted(() => {
         <!-- Context bar + drawer toggle live at the top of the panel -->
         <div v-if="store.activeConversation !== null" class="panel__head">
           <div class="panel__headRow">
-            <h2 class="panel__title">
-              {{ store.activeConversation.title || t('chat.newConversation') }}
-            </h2>
+            <ConversationTitle
+              class="panel__title-wrap"
+              :title="store.activeConversation.title"
+              :disabled="store.pending || store.loading || store.refreshFailed"
+              :busy="renaming"
+              :fallback-title="t('chat.newConversation')"
+              :placeholder="t('chat.renameTitlePlaceholder')"
+              :empty-message="t('chat.renameTitleRequired')"
+              :error-text="renameError"
+              @commit="onRename"
+            />
             <button
               type="button"
               class="header-toggle"
@@ -197,16 +222,9 @@ onMounted(() => {
   min-width: 0;
 }
 
-.panel__title {
-  margin: 0;
+.panel__title-wrap {
   flex: 1;
   min-width: 0;
-  color: var(--dg-text-primary);
-  font-size: 14px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .panel__body {

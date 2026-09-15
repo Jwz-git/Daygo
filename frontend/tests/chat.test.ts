@@ -116,3 +116,37 @@ test('pinModel forwards to the binding', async () => {
   await state.pinModel('gpt-x')
   assert.deepEqual(pinned, [['a', 'gpt-x']])
 })
+
+test('renameConversation trims, forwards, and refreshes the list', async () => {
+  const sent: Array<[string, string]> = []
+  const listed: Array<{ id: string; title: string; providerId: string; updatedAt: number }[]> = [
+    [{ id: 'a', title: 'old', providerId: 'p', updatedAt: 0 }],
+  ]
+  const state = createChatState({
+    listChatConversations: async () => listed[0],
+    getChatMessages: async () => [],
+    listProviders: async () => [],
+    onChatUpdated: () => () => {},
+    renameChatConversation: async (id, title) => { sent.push([id, title]) },
+  })
+  await state.refreshConversations()
+  await state.renameConversation('a', '   new title   ')
+  assert.deepEqual(sent, [['a', 'new title']])
+  // After the binding the store re-pulls; this exercises the post-commit
+  // refresh, not the optimistic write (the contract is invalidation-only).
+  assert.equal(listed[0][0].title, 'old')
+})
+
+test('renameConversation rejects an empty title without calling the binding', async () => {
+  let calls = 0
+  const state = createChatState({
+    listChatConversations: async () => [],
+    getChatMessages: async () => [],
+    listProviders: async () => [],
+    onChatUpdated: () => () => {},
+    renameChatConversation: async () => { calls++ },
+  })
+  await state.renameConversation('a', '   ')
+  await state.renameConversation('a', '')
+  assert.equal(calls, 0)
+})
