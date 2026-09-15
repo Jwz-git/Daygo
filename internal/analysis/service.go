@@ -508,10 +508,76 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		// context-merge hallucination; drop it rather than let the rewrite
 		// duplicate it outside the range we own.
 		if s.shellOverlapsWindow(shell, batch) {
+			s.enforceMergeGate(&shell, batch, existing)
 			shells = append(shells, shell)
 		}
 	}
 	return shells, nil
+}
+
+// enforceMergeGate is the deterministic backstop behind the prompt's merge
+// rule. A shell whose resolved start precedes the batch window declares a
+// merge into earlier cards; that merge is honored only when every predecessor
+// card it would absorb shares the shell's category. System predecessors are
+// exempt (their category is unknown by construction), and with no absorbable
+// mismatching predecessor the claim is left as the model made it. On
+// rejection the shell start is clamped to the window start and activityPoints
+// from before the window are dropped, so the predecessor survives beside a
+// card that covers only this batch.
+func (s *Service) enforceMergeGate(shell *domain.CardShell, batch storage.Batch,
+	existing []domain.TimelineCard) {
+
+	loc := s.loc()
+	anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
+	start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
+	if err != nil || !start.Before(batch.Start) {
+		return
+	}
+	for _, card := range existing {
+		if card.Category == "System" || card.Category == shell.Category {
+			continue
+		}
+		if card.StartTs < batch.Start.Unix() && card.EndTs > start.Unix() {
+			shell.Start = timeutil.FormatClock(batch.Start, loc)
+			shell.Metadata = dropPreWindowPoints(shell.Metadata, batch.Start, anchor, loc)
+			return
+		}
+	}
+}
+
+// dropPreWindowPoints removes a rejected merge's absorbed activity points:
+// every point whose clock resolves before the batch window no longer belongs
+// to this card. Points that do not resolve are kept — they are display
+// metadata, and an unresolvable clock must not silently delete content. When
+// nothing is dropped the original metadata string is returned untouched.
+func dropPreWindowPoints(metadata string, windowStart time.Time, anchor time.Time, loc *time.Location) string {
+	var meta struct {
+		AppSites       []string            `json:"appSites"`
+		Distractions   []string            `json:"distractions"`
+		ActivityPoints []cardActivityPoint `json:"activityPoints"`
+	}
+	if err := json.Unmarshal([]byte(metadata), &meta); err != nil {
+		return metadata
+	}
+	kept := meta.ActivityPoints[:0]
+	dropped := false
+	for _, p := range meta.ActivityPoints {
+		t, err := timeutil.ResolveClock(p.Time, anchor, loc)
+		if err == nil && t.Before(windowStart) {
+			dropped = true
+			continue
+		}
+		kept = append(kept, p)
+	}
+	if !dropped {
+		return metadata
+	}
+	meta.ActivityPoints = kept
+	out, err := json.Marshal(meta)
+	if err != nil {
+		return metadata
+	}
+	return string(out)
 }
 
 // Limits for the model-facing summary rules, enforced as a deterministic

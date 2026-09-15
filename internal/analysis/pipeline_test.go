@@ -681,6 +681,69 @@ func TestPipelineMergeCardAbsorbsSystemPredecessor(t *testing.T) {
 	}
 }
 
+// The merge gate: a shell claiming a merge into a predecessor card of a
+// different category is clamped back to the batch window. The predecessor
+// survives beside a card covering only the current window, and the absorbed
+// activityPoints from before the window are dropped.
+func TestPipelineMergeGateRejectsCategoryMismatch(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	// A second real category, so the mismatch is between two known names and
+	// not an unknown name that would fall back to System.
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (10:00–10:15): one Coding card.
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 || cards[0].Category != "Coding" {
+		t.Fatalf("seed card = %+v, want one Coding card", cards)
+	}
+
+	// Batch 2 (10:15–10:30): the model claims a merge with the Coding card
+	// (start at its start) but categorizes the combined activity Communication.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:30 AM","category":"Communication","subcategory":"","title":"merged","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[{"time":"10:00 AM","description":"first"},{"time":"10:20 AM","description":"second"}]}]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ = h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the predecessor preserved beside the clamped card", cards)
+	}
+	predecessor, clamped := cards[0], cards[1]
+	if predecessor.Title != "first" || predecessor.Category != "Coding" ||
+		predecessor.Start != "10:00 AM" || predecessor.End != "10:15 AM" {
+		t.Fatalf("predecessor = %s – %s %s %q, want the untouched Coding 'first'",
+			predecessor.Start, predecessor.End, predecessor.Category, predecessor.Title)
+	}
+	if clamped.Title != "merged" || clamped.Category != "Communication" ||
+		clamped.Start != "10:15 AM" || clamped.End != "10:30 AM" {
+		t.Fatalf("clamped card = %s – %s %s %q, want 10:15 AM – 10:30 AM Communication merged",
+			clamped.Start, clamped.End, clamped.Category, clamped.Title)
+	}
+	var meta struct {
+		ActivityPoints []cardActivityPoint `json:"activityPoints"`
+	}
+	if err := json.Unmarshal([]byte(clamped.Metadata), &meta); err != nil {
+		t.Fatalf("decode clamped card metadata: %v", err)
+	}
+	if len(meta.ActivityPoints) != 1 || meta.ActivityPoints[0].Time != "10:20 AM" {
+		t.Fatalf("activityPoints = %+v, want only the in-window 10:20 AM point", meta.ActivityPoints)
+	}
+}
+
 // The idle fast path merges consecutive idle batches into one card
 // (commitIdleCard, docs/04 §4.4): the preceding Idle card must be absorbed,
 // not left beside its replacement.

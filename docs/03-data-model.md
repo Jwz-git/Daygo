@@ -443,6 +443,10 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 融合把改写范围扩展到被融合卡片的 start 时，那张卡必须一并消失，否则两张卡并列占住同一时段。
 失败状态由 `analysis_batches` 承载（失败面板读它），不落在卡片上。
 
+融合本身受确定性闸门约束（[04 §4.3.4](04-data-flow.md#434-提示词与输出解析)）：
+只有当将被吸收的前卡分类全部与输出卡一致时，融合才把改写范围扩展到前卡 start；
+分类不一致时前卡不属于融合对象，改写范围保持批次窗口，输出卡 start 被夹紧回窗口起点。
+
 **解析失败不得静默丢弃。** `ReplaceCardsInRange` 返回 `ReplaceResult.SkippedCards`，
 调用方必须消费并计入诊断指标（[05 §5.5.2](05-interface-contract.md#552-dto-目录) 的
 `DiagnosticsDTO.SkippedCardsToday`）。
