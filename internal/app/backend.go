@@ -74,6 +74,13 @@ type Backend struct {
 	// nil in headless construction, where those calls become no-ops.
 	windowCtxMu sync.Mutex
 	windowCtx   context.Context
+
+	// media reads screenshot pixels for card playback. It is nil until
+	// attachMedia runs during startup (headless construction and runs
+	// without storage stay nil), so set-once and read via mediaSnapshot.
+	mediaMu   sync.RWMutex
+	media     platform.Media
+	mediaRoot string
 	// no store is attached. With a store present they are ignored in favor of
 	// the real instance locks, so the reported ownership cannot drift from
 	// the locks actually held (docs/modules/data.md).

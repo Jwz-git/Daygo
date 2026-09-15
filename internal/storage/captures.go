@@ -170,3 +170,79 @@ func boolInt(v bool) int {
 	}
 	return 0
 }
+
+// FrameRef identifies one committed frame for media playback. IDs are the
+// only handle that ever reaches the UI: the resource handler re-resolves the
+// path server-side (AGENTS.md: 资源处理器只接受数字 ID).
+type FrameRef struct {
+	ID         int64
+	CapturedAt int64 // unix seconds
+}
+
+// maxMediaFrames caps one card's frame listing. A card spans minutes, so the
+// cap is far above any real batch window; the stride keeps a pathological
+// range from dragging thousands of rows into a binding response.
+const maxMediaFrames = 600
+
+// FramesInRange returns committed, non-deleted frames captured in
+// [start, end] (unix seconds), evenly sampled down to at most limit entries
+// and ordered oldest first.
+func (r *CaptureRepo) FramesInRange(ctx context.Context, start, end int64, limit int) ([]FrameRef, error) {
+	if r == nil || r.store == nil {
+		return nil, fmt.Errorf("captures: store unavailable")
+	}
+	if limit <= 0 || limit > maxMediaFrames {
+		limit = maxMediaFrames
+	}
+	var out []FrameRef
+	err := r.store.Read(ctx, "capture frames in range", func(ctx context.Context, tx *sql.Tx) error {
+		var count int
+		if err := tx.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM screenshots WHERE captured_at >= ? AND captured_at <= ? AND is_deleted = 0`,
+			start, end).Scan(&count); err != nil {
+			return err
+		}
+		if count == 0 {
+			return nil
+		}
+		stride := (count + limit - 1) / limit
+		rows, err := tx.QueryContext(ctx,
+			`SELECT id, captured_at FROM (
+				 SELECT id, captured_at, ROW_NUMBER() OVER (ORDER BY captured_at, id) AS rn
+				 FROM screenshots
+				 WHERE captured_at >= ? AND captured_at <= ? AND is_deleted = 0
+			 ) WHERE (rn - 1) % ? = 0 ORDER BY captured_at, id`,
+			start, end, stride)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var ref FrameRef
+			if err := rows.Scan(&ref.ID, &ref.CapturedAt); err != nil {
+				return err
+			}
+			out = append(out, ref)
+		}
+		return rows.Err()
+	})
+	return out, err
+}
+
+// FramePath resolves one frame's relative segment path. Deleted frames
+// resolve as not found so an ID that outlived a cleanup cannot serve pixels.
+func (r *CaptureRepo) FramePath(ctx context.Context, id int64) (string, error) {
+	if r == nil || r.store == nil {
+		return "", fmt.Errorf("captures: store unavailable")
+	}
+	var segmentPath string
+	err := r.store.Read(ctx, "capture frame path", func(ctx context.Context, tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx,
+			`SELECT segment_path FROM screenshots WHERE id = ? AND is_deleted = 0`, id,
+		).Scan(&segmentPath)
+	})
+	if err != nil {
+		return "", err
+	}
+	return segmentPath, nil
+}

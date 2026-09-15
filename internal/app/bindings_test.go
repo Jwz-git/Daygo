@@ -28,6 +28,7 @@ var contractBindings = []string{
 	"GetBlockedApplications",
 	"GetDiagnostics",
 	"GetJournalDay",
+	"GetCardMedia",
 	"GetPermissionState",
 	"GetPrivacyCompatibility",
 	"GetProviderRouting",

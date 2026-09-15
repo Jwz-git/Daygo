@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -76,6 +77,9 @@ func Run() error {
 		backend.setStorageError(openErr)
 	} else {
 		backend.attachStorage(store)
+		// Frame playback serves screenshots from the recordings directory
+		// next to the database (same root GetRecordingDirectory reports).
+		backend.attachMedia(filepath.Join(filepath.Dir(store.Path()), "recordings"))
 		defer func() { _ = store.Close() }()
 
 		// Maintenance is owned by this context, so cancelling it at shutdown
@@ -149,6 +153,9 @@ func Run() error {
 		BackgroundColour: &options.RGBA{R: 233, G: 240, B: 251, A: 1},
 		AssetServer: &assetserver.Options{
 			Assets: frontend.Assets,
+			// Numeric-ID screenshot frames for card playback; everything the
+			// embedded bundle does not claim falls through to this handler.
+			Handler: http.HandlerFunc(backend.serveFrame),
 		},
 		// System may still be nil when the current platform adapter cannot
 		// start; capability and day methods remain available in that mode.
