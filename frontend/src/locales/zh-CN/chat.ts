@@ -36,50 +36,6 @@ export default {
   status: {
     failed: '失败',
     canceled: '已取消',
-    pending: '进行中',
-  },
-  tools: {
-    collapsedLabel: '工具调用',
-    expand: '展开详情',
-    collapse: '收起',
-    arguments: '参数',
-    result: '结果',
-    resultOk: '成功',
-    resultError: '失败',
-    resultPending: '进行中',
-    unknownTool: '未知工具',
-    copyArguments: '复制参数',
-    copyResult: '复制结果',
-    copied: '已复制',
-    rawJson: '查看原始 JSON',
-    formatted: '格式化视图',
-    names: {
-      timeline: '时间线查询',
-      card: '卡片查询',
-      daily: '日记与目标查询',
-      weekly: '周报查询',
-      categories: '分类列表',
-      category_add: '新增分类',
-      category_update: '更新分类',
-      category_remove: '删除分类',
-      card_update: '修改卡片',
-      card_delete: '删除卡片',
-      goal_set: '设置目标',
-    },
-    // Structured result summaries
-    timeline: {
-      cardsFound: '找到 {count} 条记录',
-      period: '{start} — {end}',
-    },
-    card: {
-      cardId: '卡片 #{cardId}',
-    },
-    categories: {
-      count: '{count} 个分类',
-    },
-    goal_set: {
-      day: '{day} 的目标',
-    },
   },
   memory: {
     title: '全局指令',

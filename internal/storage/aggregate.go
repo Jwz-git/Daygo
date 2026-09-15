@@ -8,30 +8,32 @@ import (
 
 // CategoryMinutes is one row of the per-category minute aggregation: the
 // summed overlap of a category's cards with a window, plus the category's
-// is_idle flag resolved from the categories table.
+// is_idle flag and color resolved from the categories table.
 type CategoryMinutes struct {
-	Name    string
-	IsIdle  bool
-	Minutes float64
+	Name     string
+	IsIdle   bool
+	ColorHex string
+	Minutes  float64
 }
 
 // CategoryMinutesInRange aggregates non-deleted card minutes per category for
 // cards overlapping [from, to), using the same overlap predicate as
 // TotalMinutesTracked (docs/03 §3.5). Like that query it does not clip card
 // spans to the window. Categories without a categories row (stale names after
-// a rename race) still aggregate, with IsIdle false.
+// a rename race) still aggregate, with IsIdle false and an empty color.
 func (r *CardRepo) CategoryMinutesInRange(ctx context.Context, from, to time.Time) ([]CategoryMinutes, error) {
 	var out []CategoryMinutes
 	err := r.store.Read(ctx, "category minutes in range", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `
 			SELECT c.category,
 			       COALESCE(cat.is_idle, 0),
+			       COALESCE(cat.color_hex, ''),
 			       SUM(CASE WHEN c.end_ts > c.start_ts THEN (c.end_ts - c.start_ts) ELSE 0 END) / 60.0
 			FROM timeline_cards c
 			LEFT JOIN categories cat ON cat.name = c.category
 			WHERE ((c.start_ts < ? AND c.end_ts > ?) OR (c.start_ts >= ? AND c.start_ts < ?))
 			  AND c.is_deleted = 0
-			GROUP BY c.category, COALESCE(cat.is_idle, 0)
+			GROUP BY c.category, COALESCE(cat.is_idle, 0), COALESCE(cat.color_hex, '')
 			ORDER BY c.category`,
 			to.Unix(), from.Unix(), from.Unix(), to.Unix())
 		if err != nil {
@@ -41,7 +43,56 @@ func (r *CardRepo) CategoryMinutesInRange(ctx context.Context, from, to time.Tim
 		for rows.Next() {
 			var row CategoryMinutes
 			var isIdle int
-			if err := rows.Scan(&row.Name, &isIdle, &row.Minutes); err != nil {
+			if err := rows.Scan(&row.Name, &isIdle, &row.ColorHex, &row.Minutes); err != nil {
+				return err
+			}
+			row.IsIdle = isIdle != 0
+			out = append(out, row)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CardSpan is one non-deleted card's time span with the category flags the
+// weekly detail charts need: the card's logical day, its timestamps, and the
+// category name and color resolved against the categories table.
+type CardSpan struct {
+	Day      string
+	StartTs  int64
+	EndTs    int64
+	Category string
+	ColorHex string
+	IsIdle   bool
+}
+
+// CardSpansInRange returns the non-deleted, positive-duration cards
+// overlapping [from, to), ordered by (day, start_ts). System placeholder
+// cards are included: callers (insight) own the exclusion policy. The
+// overlap predicate matches CategoryMinutesInRange.
+func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]CardSpan, error) {
+	var out []CardSpan
+	err := r.store.Read(ctx, "card spans in range", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `
+			SELECT c.day, c.start_ts, c.end_ts, c.category, COALESCE(cat.color_hex, ''), COALESCE(cat.is_idle, 0)
+			FROM timeline_cards c
+			LEFT JOIN categories cat ON cat.name = c.category
+			WHERE ((c.start_ts < ? AND c.end_ts > ?) OR (c.start_ts >= ? AND c.start_ts < ?))
+			  AND c.is_deleted = 0
+			  AND c.end_ts > c.start_ts
+			ORDER BY c.day, c.start_ts`,
+			to.Unix(), from.Unix(), from.Unix(), to.Unix())
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var row CardSpan
+			var isIdle int
+			if err := rows.Scan(&row.Day, &row.StartTs, &row.EndTs, &row.Category, &row.ColorHex, &isIdle); err != nil {
 				return err
 			}
 			row.IsIdle = isIdle != 0

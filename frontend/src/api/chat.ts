@@ -161,30 +161,29 @@ export async function sendChatMessage(conversationId: string, content: string): 
       toolArguments: '',
       createdAt: now,
     })
-    // One scripted tool turn so the collapsed tool rendering is exercisable
-    // in the dev browser, mirroring the real agent transcript shape.
-    conversation.messages.push({
-      id: nextId(),
-      role: 'tool_call',
-      content: '',
-      status: '',
-      toolName: 'timeline',
-      toolArguments: '{"day":"2026-09-12"}',
-      createdAt: now,
-    })
-    conversation.messages.push({
-      id: nextId(),
-      role: 'tool_result',
-      content: '{"ok":true,"data":{"day":"2026-09-12","cards":[]}}',
-      status: '',
-      toolName: 'timeline',
-      toolArguments: '',
-      createdAt: now,
-    })
+    // The canned reply doubles as a markdown rendering sample (headings,
+    // lists, code, table) so the bubble styles are exercisable in the dev
+    // browser, mirroring the shape of a real assistant reply.
     conversation.messages.push({
       id: nextId(),
       role: 'assistant',
-      content: '（开发环境固定回复）当前没有接入真实供应商。',
+      content: [
+        '（开发环境固定回复）当前没有接入真实供应商。',
+        '',
+        '**Markdown 渲染样例**：',
+        '',
+        '- 列表项与 `inline code`',
+        '- [链接](https://example.com)',
+        '',
+        '```go',
+        'fmt.Println("hello")',
+        '```',
+        '',
+        '| 分类 | 时长 |',
+        '| --- | --- |',
+        '| 开发 | 2h |',
+        '| 会议 | 1h |',
+      ].join('\n'),
       status: 'ok',
       toolName: '',
       toolArguments: '',

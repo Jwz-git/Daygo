@@ -12,7 +12,7 @@ export default {
   intro: {
     eyebrow: 'Weekly review',
     title: 'Where the week went',
-    description: 'Tracked time, focus, and category mix in one factual view—without inventing insights that do not exist yet.',
+    description: 'Tracked time, focus rhythm, daily distribution, and category mix in one factual view—without inventing insights that do not exist yet.',
   },
   overview: {
     eyebrow: 'Overview',
@@ -31,6 +31,35 @@ export default {
     title: 'Category distribution',
     count: '{count} categories',
     distributionAria: 'Share of tracked time by category this week',
+    total: 'Tracked',
+  },
+  daily: {
+    eyebrow: 'Pattern',
+    title: 'Daily timeline',
+    hint: 'One row per day; each block is a category segment',
+    idleTag: 'idle',
+    noActivity: 'No activity',
+  },
+  rhythm: {
+    eyebrow: 'Rhythm',
+    title: 'Weekly activity rhythm',
+    focus: 'Focus',
+    idle: 'Idle',
+    chartAria: 'Focus and idle minutes per hour of day',
+    empty: 'No summarizable segments this week',
+  },
+  insights: {
+    eyebrow: 'Insights',
+    title: 'This week at a glance',
+    activeDays: 'Active days',
+    daysCount: '{count} days',
+    ofSeven: 'out of 7',
+    longestFocus: 'Longest focus',
+    peakHour: 'Peak hour',
+    avgFocus: 'Avg daily focus',
+    perActiveDay: 'per active day',
+    busiestDay: 'Busiest day',
+    none: 'None',
   },
   state: {
     loading: {
@@ -50,5 +79,5 @@ export default {
       description: 'Weekly statistics will appear after timeline cards have been created and processed.',
     },
   },
-  scopeNote: 'This slice shows only the weekly aggregate in the public contract. Workflow heatmaps, app relationships, and generated insights require separate data contracts.',
+  scopeNote: 'Charts are built from the weekly aggregate\'s per-day detail and segment data. App-level relationship and flow diagrams require separate data contracts.',
 }

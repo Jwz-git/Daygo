@@ -92,7 +92,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
 | timeline | `GetDayContext`、`GetTimelineDay`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日可重处理；视频 URL 与搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals` / `daily_standup_entries`；用户保存不触碰 AI summary 列 |
-| weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
+| weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；均不接 recorder / storage / config |
@@ -789,20 +789,53 @@ type GoalCategoryRefDTO struct {
     SortOrder  int    `json:"sortOrder"`
 }
 
-// 当前首屏只使用这些聚合字段；丰富图表子模型仍待定，见 §5.11。
+// Days / Insights 供周报明细图表（2026-09-15 纳入范围）：按日聚合 + 原始卡片
+// 时段（分钟粒度足够，不做更细的分桶）+ 派生周洞察。应用关系与流向图仍待定。
 type WeeklyDashboardDTO struct {
     WeekStart      string             `json:"weekStart"` // yyyy-MM-dd
     WeekStartTs    int64              `json:"weekStartTs"`
     WeekEndTs      int64              `json:"weekEndTs"`
-    TrackedMinutes int                `json:"trackedMinutes"` // 不含 "System"
-    FocusMinutes   int                `json:"focusMinutes"`   // 不含 isIdle 分类
+    TrackedMinutes float64            `json:"trackedMinutes"` // 不含 "System"
+    FocusMinutes   float64            `json:"focusMinutes"`   // 不含 isIdle 分类
     Categories     []CategoryTotalDTO `json:"categories"`     // minutes DESC
+    Days           []WeeklyDayDTO     `json:"days"`           // 本周周一..周日的 7 行
+    Insights       WeeklyInsightsDTO  `json:"insights"`
 }
 
 type CategoryTotalDTO struct {
-    Name    string  `json:"name"`
-    Minutes int     `json:"minutes"`
-    Share   float64 `json:"share"` // tracked 为 0 时为 0
+    Name     string  `json:"name"`
+    Minutes  float64 `json:"minutes"`
+    Share    float64 `json:"share"` // tracked 为 0 时为 0
+    ColorHex string  `json:"colorHex"` // categories 表颜色；无分类行时为 ""
+}
+
+// 一天的时段不裁剪到日窗口（与 CategoryMinutesInRange 同一重叠谓词）；
+// segments 含 Idle，System 全部排除。时段数量上限由批次生成节奏天然约束。
+type WeeklyDayDTO struct {
+    Day            string             `json:"day"` // 逻辑日 yyyy-MM-dd
+    TrackedMinutes float64            `json:"trackedMinutes"`
+    FocusMinutes   float64            `json:"focusMinutes"`
+    Categories     []CategoryTotalDTO `json:"categories"`
+    Segments       []WeeklySegmentDTO `json:"segments"` // start_ts 升序
+}
+
+type WeeklySegmentDTO struct {
+    StartTs  int64  `json:"startTs"`
+    EndTs    int64  `json:"endTs"`
+    Category string `json:"category"`
+    IsIdle   bool   `json:"isIdle"`
+}
+
+// 无数据用零值表达：空字符串、PeakHour -1；不是 "unknown"。
+type WeeklyInsightsDTO struct {
+    LongestFocusMinutes  float64 `json:"longestFocusMinutes"`
+    LongestFocusDay      string  `json:"longestFocusDay"`
+    PeakHour             int     `json:"peakHour"` // 本地时钟小时 0..23
+    PeakHourMinutes      float64 `json:"peakHourMinutes"`
+    MostActiveDay        string  `json:"mostActiveDay"`
+    MostActiveDayMinutes float64 `json:"mostActiveDayMinutes"`
+    ActiveDays           int     `json:"activeDays"`
+    AvgDailyFocusMinutes float64 `json:"avgDailyFocusMinutes"`
 }
 
 // ---------- 权限与更新 ----------
@@ -1397,7 +1430,7 @@ CGO_ENABLED=0 go build ./... && CGO_ENABLED=0 go test ./internal/...
 |------|--------|------|
 | 平台适配边界的最终形态（§5.8） | recording 工程，delivery 协作 | 大规模原生实现前，G-host / G-native |
 | 分段容器与编解码格式（[03 §3.4](03-data-model.md#34-帧与分段)） | recording 工程 | 真实分段实现前 |
-| `WeeklyDashboardDTO` 的丰富图表子模型 | weekly 产品 + 设计 | 热力图、应用关系或流向图进入范围前；聚合首屏不扩 DTO |
+| `WeeklyDashboardDTO` 的应用关系与流向图子模型 | weekly 产品 + 设计 | 应用级桑基图 / 交互图进入范围前；按日明细与洞察已随 2026-09-15 周报改版落盘 |
 | 时钟串解析失败的提示与处置体验（禁止静默丢弃） | timeline 产品 | 失败交互实现前；SkippedCards 必须被消费 |
 | 统一重试策略后的用户可观察行为 | timeline 产品，providers 协作 | 重试策略与入口接入前 |
 | `apiRevision` 是否在生产中真正校验 | preferences 工程 | 前后端版本不一致处理接入前 |

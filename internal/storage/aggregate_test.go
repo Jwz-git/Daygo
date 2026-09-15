@@ -98,6 +98,53 @@ func TestCategoryMinutesInRange(t *testing.T) {
 	}
 }
 
+func TestCardSpansInRange(t *testing.T) {
+	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
+	seedCategory(t, store, "Coding", false)
+	ctx := context.Background()
+	loc := store.location()
+
+	from, to := window(loc, 10, 0, 11, 0)
+	if _, err := store.Cards().ReplaceCardsInRange(ctx, from, to, []domain.CardShell{
+		shell("10:00 AM", "10:30 AM", "Coding", "coding"),
+		shell("10:30 AM", "11:00 AM", "Idle", "idle"),
+	}, 1); err != nil {
+		t.Fatalf("replace: %v", err)
+	}
+	if err := seedSystemCard(t, store, 1, "10:00 AM", "11:00 AM"); err != nil {
+		t.Fatalf("seedSystemCard: %v", err)
+	}
+
+	rangeFrom := time.Date(2026, 9, 12, 4, 0, 0, 0, loc)
+	rangeTo := time.Date(2026, 9, 13, 4, 0, 0, 0, loc)
+	spans, err := store.Cards().CardSpansInRange(ctx, rangeFrom, rangeTo)
+	if err != nil {
+		t.Fatalf("CardSpansInRange: %v", err)
+	}
+	if len(spans) != 3 {
+		t.Fatalf("spans = %+v, want 3 (Coding, Idle, System)", spans)
+	}
+	for _, span := range spans {
+		if span.Day != "2026-09-12" {
+			t.Fatalf("span day = %q, want the 4am logical day", span.Day)
+		}
+	}
+	byCategory := map[string]CardSpan{}
+	for _, span := range spans {
+		byCategory[span.Category] = span
+	}
+	if c := byCategory["Coding"]; c.IsIdle || c.ColorHex != "#000000" {
+		t.Fatalf("coding span = %+v, want isIdle=false and seeded color", c)
+	}
+	if i := byCategory["Idle"]; !i.IsIdle || i.ColorHex == "" {
+		t.Fatalf("idle span = %+v, want isIdle=true and built-in color", i)
+	}
+	if s := byCategory["System"]; s.ColorHex != "#8E8E93" {
+		t.Fatalf("system span = %+v, want built-in color", s)
+	}
+}
+
 func TestFailedBatchesInRange(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
 	ctx := context.Background()

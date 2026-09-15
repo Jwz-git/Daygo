@@ -11,9 +11,10 @@ import (
 
 // CategoryTotal is one row of the weekly category breakdown.
 type CategoryTotal struct {
-	Name    string
-	Minutes float64
-	Share   float64
+	Name     string
+	Minutes  float64
+	Share    float64
+	ColorHex string
 }
 
 // WeeklyTotals is the aggregated weekly dashboard content. TrackedMinutes
@@ -41,8 +42,9 @@ func AggregateWeekly(minutes []storage.CategoryMinutes) WeeklyTotals {
 			totals.FocusMinutes += row.Minutes
 		}
 		totals.Categories = append(totals.Categories, CategoryTotal{
-			Name:    row.Name,
-			Minutes: row.Minutes,
+			Name:     row.Name,
+			ColorHex: row.ColorHex,
+			Minutes:  row.Minutes,
 		})
 	}
 	for i := range totals.Categories {

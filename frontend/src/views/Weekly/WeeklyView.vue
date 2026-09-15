@@ -10,7 +10,10 @@ import { shiftCalendarDate } from '@/lib/calendarDate'
 import { useWeeklyStore } from '@/stores/weekly'
 
 import WeeklyCategoryPanel from './WeeklyCategoryPanel.vue'
+import WeeklyDailyTimelinePanel from './WeeklyDailyTimelinePanel.vue'
+import WeeklyInsightsPanel from './WeeklyInsightsPanel.vue'
 import WeeklyOverviewPanel from './WeeklyOverviewPanel.vue'
+import WeeklyRhythmPanel from './WeeklyRhythmPanel.vue'
 import WeeklyStatePanel from './WeeklyStatePanel.vue'
 
 const weekly = useWeeklyStore()
@@ -92,7 +95,10 @@ onBeforeUnmount(() => weekly.stopListening())
           </div>
 
           <WeeklyOverviewPanel :presentation="presentation" />
-          <WeeklyCategoryPanel :categories="presentation.categories" />
+          <WeeklyCategoryPanel :presentation="presentation" />
+          <WeeklyDailyTimelinePanel :presentation="presentation" />
+          <WeeklyRhythmPanel :presentation="presentation" />
+          <WeeklyInsightsPanel :presentation="presentation" />
 
           <p class="weekly-scope-note">{{ t('weekly.scopeNote') }}</p>
         </template>

@@ -12,7 +12,7 @@ export default {
   intro: {
     eyebrow: '每周复盘',
     title: '这一周，时间花在了哪里',
-    description: '把跟踪时长、专注比例和分类构成放在一起看，先呈现事实，不补写尚未产生的洞察。',
+    description: '把跟踪时长、专注节奏、每日分布和分类构成放在一起看，先呈现事实，不补写尚未产生的洞察。',
   },
   overview: {
     eyebrow: '概览',
@@ -31,6 +31,35 @@ export default {
     title: '分类分布',
     count: '{count} 个分类',
     distributionAria: '本周各分类时长占比',
+    total: '总跟踪',
+  },
+  daily: {
+    eyebrow: '节奏',
+    title: '每日时间分布',
+    hint: '每行一天，色块为该时段的分类',
+    idleTag: '空闲',
+    noActivity: '无活动',
+  },
+  rhythm: {
+    eyebrow: '节律',
+    title: '一周活跃节律',
+    focus: '专注',
+    idle: '空闲',
+    chartAria: '各小时专注与空闲分钟数柱状图',
+    empty: '本周暂无可汇总的时段数据',
+  },
+  insights: {
+    eyebrow: '洞察',
+    title: '本周概要',
+    activeDays: '活跃天数',
+    daysCount: '{count} 天',
+    ofSeven: '一周 7 天',
+    longestFocus: '最长专注',
+    peakHour: '高峰时段',
+    avgFocus: '日均专注',
+    perActiveDay: '按活跃天计',
+    busiestDay: '最忙一天',
+    none: '暂无',
   },
   state: {
     loading: {
@@ -50,5 +79,5 @@ export default {
       description: '产生并处理时间线卡片后，每周统计会自动出现在这里。',
     },
   },
-  scopeNote: '当前切片只展示公共契约已经提供的周聚合；工作流热力图、应用关系与自动洞察需要单独的数据契约。',
+  scopeNote: '图表基于周聚合的按日明细与时段数据；应用级关系图与桑基图需要单独的数据契约。',
 }

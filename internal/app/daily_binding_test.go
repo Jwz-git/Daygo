@@ -71,6 +71,37 @@ func TestGetWeeklyDashboard(t *testing.T) {
 	if dto.Categories[0].Share != 60.0/90 {
 		t.Fatalf("coding share = %v", dto.Categories[0].Share)
 	}
+
+	// Detail charts: days carry per-day totals and segments, insights carry
+	// the derived week facts.
+	if len(dto.Days) != 7 {
+		t.Fatalf("days = %d, want 7", len(dto.Days))
+	}
+	wednesday := dto.Days[2]
+	if wednesday.Day != "2026-09-09" || wednesday.TrackedMinutes != 60 || wednesday.FocusMinutes != 60 {
+		t.Fatalf("wednesday = %+v, want 2026-09-09 60/60", wednesday)
+	}
+	if len(wednesday.Segments) != 1 || wednesday.Segments[0].Category != "Coding" {
+		t.Fatalf("wednesday segments = %+v", wednesday.Segments)
+	}
+	thursday := dto.Days[3]
+	if thursday.Day != "2026-09-10" || thursday.TrackedMinutes != 30 || thursday.FocusMinutes != 0 {
+		t.Fatalf("thursday = %+v, want 2026-09-10 30 tracked / 0 focus (idle)", thursday)
+	}
+	if len(thursday.Segments) != 1 || !thursday.Segments[0].IsIdle {
+		t.Fatalf("thursday segments = %+v, want one idle segment", thursday.Segments)
+	}
+
+	ins := dto.Insights
+	if ins.ActiveDays != 2 || ins.LongestFocusMinutes != 60 || ins.LongestFocusDay != "2026-09-09" {
+		t.Fatalf("insights = %+v, want 2 active days and 60m longest focus on Wed", ins)
+	}
+	if ins.MostActiveDay != "2026-09-09" || ins.MostActiveDayMinutes != 60 {
+		t.Fatalf("most active = %+v", ins)
+	}
+	if ins.AvgDailyFocusMinutes != 30 {
+		t.Fatalf("avg daily focus = %v, want 60/2", ins.AvgDailyFocusMinutes)
+	}
 }
 
 func TestGetWeeklyDashboardEmptyWeek(t *testing.T) {

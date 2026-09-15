@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
+import DOMPurify from 'dompurify'
 
 const props = defineProps<{
   content: string
@@ -43,7 +44,10 @@ const html = computed(() => {
     return `<p>${escapeHtml(props.content).replace(/\n/g, '<br>')}</p>`
   }
   try {
-    return marked.parse(props.content, { renderer, breaks: true }) as string
+    // Model output is untrusted data: marked passes raw HTML through, so the
+    // result must be sanitized before it reaches v-html (in the Wails WebView
+    // injected script can reach the Go bindings).
+    return DOMPurify.sanitize(marked.parse(props.content, { renderer, breaks: true }) as string)
   } catch {
     return `<p>${escapeHtml(props.content)}</p>`
   }

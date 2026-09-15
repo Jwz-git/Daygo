@@ -19,8 +19,12 @@
  * On confirm, the trimmed value is emitted via `commit`; the parent invokes
  * the binding and decides when to close the editor (by passing an updated
  * `title` that matches the draft).
+ *
+ * `startEditing` mounts straight into the editor for parents whose own
+ * chrome already provides the pencil (the drawer row); without it the first
+ * click would only reveal the component's internal pen.
  */
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 
 const props = defineProps<{
   title: string
@@ -36,10 +40,14 @@ const props = defineProps<{
   emptyMessage: string
   /** Translated error from the binding; empty when none. */
   errorText?: string
+  /** Mount directly in edit mode (parent supplies its own pencil). */
+  startEditing?: boolean
 }>()
 
 const emit = defineEmits<{
   commit: [title: string]
+  /** The editor closed without committing (Escape / no-change blur). */
+  cancel: []
 }>()
 
 const editing = ref(false)
@@ -50,15 +58,24 @@ const inputEl = ref<HTMLInputElement | null>(null)
 /**
  * The store re-pulls conversations after the binding returns, which updates
  * `title`. While the editor is open we do not want the parent's update to
- * overwrite what the user typed; while it is closed we mirror the new value
- * so a successful external rename (e.g. via the drawer entry) shows up.
+ * overwrite what the user typed; a successful rename round-trips the new
+ * title back, and that is the signal to close the editor. A failed rename
+ * leaves `title` unchanged, so the editor stays open and shows the error.
  */
 watch(
   () => props.title,
   (next) => {
-    if (!editing.value) draft.value = next
+    if (!editing.value) {
+      draft.value = next
+    } else if (next === draft.value.trim()) {
+      editing.value = false
+    }
   },
 )
+
+onMounted(() => {
+  if (props.startEditing) void beginEdit()
+})
 
 async function beginEdit(): Promise<void> {
   if (props.disabled || props.busy || editing.value) return
@@ -77,6 +94,7 @@ function cancel(): void {
   editing.value = false
   draft.value = props.title
   localError.value = ''
+  emit('cancel')
 }
 
 function confirm(): void {
@@ -91,6 +109,7 @@ function confirm(): void {
     // No-op: do not round-trip the binding.
     editing.value = false
     localError.value = ''
+    emit('cancel')
     return
   }
   localError.value = ''

@@ -1,16 +1,44 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
-import { useDurationFormat } from '@/lib/duration'
 import { categoryLabel } from '@/lib/categoryLabel'
-import type { WeeklyCategoryPresentation } from '@/stores/weeklyPresentation'
+import { useDurationFormat } from '@/lib/duration'
+import type { WeeklyCategoryPresentation, WeeklyPresentation } from '@/stores/weeklyPresentation'
 import { percentageLabel } from '@/stores/weeklyPresentation'
 
-defineProps<{ categories: WeeklyCategoryPresentation[] }>()
+const props = defineProps<{ presentation: WeeklyPresentation }>()
 const { t } = useI18n()
 
 const duration = useDurationFormat()
+
+const categories = computed(() => props.presentation.categories)
+
+// SVG donut: 100-unit viewBox, stroke-dasharray arcs. Angles start at 12
+// o'clock; a 1.5% gap between slices keeps them legible.
+const RADIUS = 15.9155 // circumference 100 at r=15.9155
+const GAP = 1.6
+
+const arcs = computed(() => {
+  let cumulative = 0
+  return categories.value.map((category) => {
+    const sweep = Math.max(0, category.share * 100 - GAP)
+    const arc = {
+      category,
+      offset: 25 - cumulative, // SVG stroke starts at 3 o'clock; rotate to 12
+      length: sweep,
+    }
+    cumulative += category.share * 100
+    return arc
+  })
+})
+
+const totalDuration = computed(() => duration(props.presentation.trackedMinutes))
+
+function sliceColor(category: WeeklyCategoryPresentation): string {
+  return `var(--dg-weekly-series-${category.seriesIndex + 1})`
+}
 </script>
 
 <template>
@@ -23,33 +51,51 @@ const duration = useDurationFormat()
       <span>{{ t('weekly.categories.count', { count: categories.length }) }}</span>
     </header>
 
-    <div class="distribution" role="img" :aria-label="t('weekly.categories.distributionAria')">
-      <span
-        v-for="category in categories"
-        :key="category.name"
-        :class="`series-${category.seriesIndex + 1}`"
-        :style="{ flexGrow: category.share }"
-        :title="`${categoryLabel(category.name, t)} · ${percentageLabel(category.share)}`"
-      />
-    </div>
-
-    <ol class="category-list">
-      <li v-for="(category, index) in categories" :key="category.name">
-        <span class="category-list__rank">{{ String(index + 1).padStart(2, '0') }}</span>
-        <span :class="['category-list__dot', `series-${category.seriesIndex + 1}`]" />
-        <div class="category-list__identity">
-          <strong>{{ categoryLabel(category.name, t) }}</strong>
-          <div class="category-list__track" aria-hidden="true">
-            <span
-              :class="`series-${category.seriesIndex + 1}`"
-              :style="{ width: percentageLabel(category.share) }"
-            />
-          </div>
+    <div class="categories__body">
+      <div class="donut" role="img" :aria-label="t('weekly.categories.distributionAria')">
+        <svg viewBox="0 0 42 42" class="donut__svg">
+          <circle class="donut__track" cx="21" cy="21" :r="RADIUS" fill="none" />
+          <circle
+            v-for="arc in arcs"
+            :key="arc.category.name"
+            class="donut__slice"
+            :class="{ 'donut__slice--idle': arc.category.name === 'Idle' }"
+            cx="21"
+            cy="21"
+            :r="RADIUS"
+            fill="none"
+            :stroke="sliceColor(arc.category)"
+            :stroke-dasharray="`${arc.length} ${100 - arc.length}`"
+            :stroke-dashoffset="arc.offset"
+            :title="`${categoryLabel(arc.category.name, t)} · ${percentageLabel(arc.category.share)}`"
+          />
+        </svg>
+        <div class="donut__center">
+          <strong>{{ totalDuration }}</strong>
+          <span>{{ t('weekly.categories.total') }}</span>
         </div>
-        <span class="category-list__duration">{{ duration(category.minutes) }}</span>
-        <span class="category-list__share">{{ percentageLabel(category.share) }}</span>
-      </li>
-    </ol>
+      </div>
+
+      <ol class="category-list">
+        <li v-for="(category, index) in categories" :key="category.name">
+          <span class="category-list__rank">{{ String(index + 1).padStart(2, '0') }}</span>
+          <span
+            class="category-list__dot"
+            :style="{ background: sliceColor(category) }"
+          />
+          <div class="category-list__identity">
+            <strong>{{ categoryLabel(category.name, t) }}</strong>
+            <div class="category-list__track" aria-hidden="true">
+              <span
+                :style="{ width: percentageLabel(category.share), background: sliceColor(category) }"
+              />
+            </div>
+          </div>
+          <span class="category-list__duration">{{ duration(category.minutes) }}</span>
+          <span class="category-list__share">{{ percentageLabel(category.share) }}</span>
+        </li>
+      </ol>
+    </div>
   </LiquidGlassSurface>
 </template>
 
@@ -80,26 +126,63 @@ const duration = useDurationFormat()
 
 .categories__header > span { color: var(--dg-text-muted); font-size: 11px; }
 
-.distribution {
-  display: flex;
-  gap: 3px;
-  height: 10px;
-  margin: 22px 0 18px;
-  overflow: hidden;
-  border-radius: 4px;
-  background: var(--dg-weekly-bar-track);
+.categories__body {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 30px;
+  align-items: center;
+  padding: 18px 0 12px;
 }
 
-.distribution > span { min-width: 4px; border-radius: 2px; }
+.donut { position: relative; width: 168px; height: 168px; }
+
+.donut__svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(0deg);
+}
+
+.donut__track {
+  stroke: var(--dg-weekly-bar-track);
+  stroke-width: 5;
+}
+
+.donut__slice {
+  stroke-width: 5;
+  stroke-linecap: butt;
+}
+
+.donut__slice--idle { opacity: 0.55; }
+
+.donut__center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.donut__center strong {
+  color: var(--dg-text-primary);
+  font-size: 16px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.donut__center span {
+  margin-top: 2px;
+  color: var(--dg-text-muted);
+  font-size: 9px;
+}
 
 .category-list { list-style: none; }
 
 .category-list li {
   display: grid;
-  grid-template-columns: 24px 8px minmax(150px, 1fr) minmax(80px, auto) 44px;
+  grid-template-columns: 24px 8px minmax(120px, 1fr) minmax(72px, auto) 44px;
   align-items: center;
   gap: 11px;
-  min-height: 54px;
+  min-height: 46px;
   border-top: 1px solid var(--dg-card-border);
 }
 
@@ -113,7 +196,7 @@ const duration = useDurationFormat()
 
 .category-list__identity {
   display: grid;
-  grid-template-columns: minmax(84px, 0.55fr) minmax(90px, 1fr);
+  grid-template-columns: minmax(84px, 0.55fr) minmax(80px, 1fr);
   align-items: center;
   gap: 18px;
   min-width: 0;
@@ -148,28 +231,31 @@ const duration = useDurationFormat()
 
 .category-list__share { color: var(--dg-text-muted); }
 
-.series-1 { background: var(--dg-weekly-series-1); }
-.series-2 { background: var(--dg-weekly-series-2); }
-.series-3 { background: var(--dg-weekly-series-3); }
-.series-4 { background: var(--dg-weekly-series-4); }
-.series-5 { background: var(--dg-weekly-series-5); }
-.series-6 { background: var(--dg-weekly-series-6); }
-
-/* Bars grow from the left on mount. Enter-only: the animation resolves to the
-   natural width and never runs again, so late data refreshes cannot replay it
-   mid-read — the component remounts only with the route. */
 @media (prefers-reduced-motion: no-preference) {
-  .distribution > span,
+  .donut__slice {
+    transform-origin: 21px 21px;
+    animation: donut-fade 600ms var(--dg-ease-glide) both;
+  }
+
   .category-list__track span {
     transform-origin: 0 50%;
     animation: weekly-bar-grow 560ms var(--dg-ease-glide) both;
   }
 }
 
+@keyframes donut-fade {
+  from { opacity: 0; }
+}
+
 @keyframes weekly-bar-grow {
   from {
     transform: scaleX(0);
   }
+}
+
+@media (max-width: 760px) {
+  .categories__body { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .category-list { width: 100%; }
 }
 
 @media (max-width: 640px) {

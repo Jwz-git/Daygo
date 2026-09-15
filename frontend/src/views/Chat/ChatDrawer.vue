@@ -86,6 +86,7 @@ async function onRenameCommit(id: string, title: string): Promise<void> {
   try {
     await store.renameConversation(id, title)
     // The store re-pulls; the new title shows up in the row immediately.
+    renamingId.value = null
   } catch {
     renameError.value = t('chat.actionError')
   } finally {
@@ -312,6 +313,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
                       <ConversationTitle
                         v-if="renamingId === conv.id"
                         class="drawer__title-edit"
+                        start-editing
                         :title="conv.title"
                         :disabled="renamingBusy"
                         :busy="renamingBusy"
@@ -320,6 +322,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
                         :empty-message="t('chat.renameTitleRequired')"
                         :error-text="renamingId === conv.id ? renameError : ''"
                         @commit="(title: string) => onRenameCommit(conv.id, title)"
+                        @cancel="renamingId = null; renameError = ''"
                       />
                       <button
                         v-else

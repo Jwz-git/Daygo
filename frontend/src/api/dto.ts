@@ -347,6 +347,33 @@ export interface CategoryTotalDTO {
   name: string
   minutes: number
   share: number
+  colorHex: string
+}
+
+export interface WeeklySegmentDTO {
+  startTs: number
+  endTs: number
+  category: string
+  isIdle: boolean
+}
+
+export interface WeeklyDayDTO {
+  day: string
+  trackedMinutes: number
+  focusMinutes: number
+  categories: CategoryTotalDTO[]
+  segments: WeeklySegmentDTO[]
+}
+
+export interface WeeklyInsightsDTO {
+  longestFocusMinutes: number
+  longestFocusDay: string
+  peakHour: number
+  peakHourMinutes: number
+  mostActiveDay: string
+  mostActiveDayMinutes: number
+  activeDays: number
+  avgDailyFocusMinutes: number
 }
 
 export interface WeeklyDashboardDTO {
@@ -356,6 +383,8 @@ export interface WeeklyDashboardDTO {
   trackedMinutes: number
   focusMinutes: number
   categories: CategoryTotalDTO[]
+  days: WeeklyDayDTO[]
+  insights: WeeklyInsightsDTO
 }
 
 /** ChatConversationDTO — one thread in the sidebar list. */

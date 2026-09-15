@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
 
 import type { ChatMessageDTO } from '@/api/dto'
 import { useChatStore } from '@/stores/chat'
 
 import ChatBubble from './ChatBubble.vue'
 import ChatDateDivider from './ChatDateDivider.vue'
-import ChatToolCard from './ChatToolCard.vue'
 
-const { t } = useI18n()
 const store = useChatStore()
 
 const scroller = ref<HTMLElement | null>(null)
@@ -35,7 +32,6 @@ watch(
 type RenderItem =
   | { kind: 'date'; ts: number }
   | { kind: 'message'; message: ChatMessageDTO }
-  | { kind: 'tool'; call: ChatMessageDTO | null; result: ChatMessageDTO | null }
 
 const MS_PER_DAY = 86_400_000
 
@@ -44,13 +40,15 @@ function dayStart(ts: number): number {
   return ts - (ts % MS_PER_DAY)
 }
 
+// Tool rows stay in the store (the pending flag reads the trailing role) but
+// are never rendered: the transcript shows user and assistant messages only.
 const renderItems = computed<RenderItem[]>(() => {
   const items: RenderItem[] = []
   const messages = store.messages
   let prevDay = -1
 
-  for (let i = 0; i < messages.length; i++) {
-    const message = messages[i]
+  for (const message of messages) {
+    if (message.role === 'tool_call' || message.role === 'tool_result') continue
 
     // Insert date divider when day changes
     const day = dayStart(message.createdAt)
@@ -59,29 +57,14 @@ const renderItems = computed<RenderItem[]>(() => {
       prevDay = day
     }
 
-    if (message.role === 'tool_call') {
-      const next = messages[i + 1]
-      const result = next !== undefined && next.role === 'tool_result' ? next : null
-      if (result !== null) i++
-      items.push({ kind: 'tool', call: message, result })
-    } else if (message.role === 'tool_result') {
-      items.push({ kind: 'tool', call: null, result: message })
-    } else {
-      items.push({ kind: 'message', message })
-    }
+    items.push({ kind: 'message', message })
   }
   return items
 })
 
 function itemKey(item: RenderItem): string {
   if (item.kind === 'date') return `date-${item.ts}`
-  if (item.kind === 'message') return `msg-${item.message.id}`
-  const id = (item.call ?? item.result)?.id ?? 0
-  return `tool-${id}`
-}
-
-function groupKey(item: { kind: 'tool'; call: ChatMessageDTO | null; result: ChatMessageDTO | null }): number {
-  return (item.call ?? item.result)?.id ?? 0
+  return `msg-${item.message.id}`
 }
 </script>
 
@@ -101,17 +84,11 @@ function groupKey(item: { kind: 'tool'; call: ChatMessageDTO | null; result: Cha
 
       <!-- Message bubble -->
       <ChatBubble
-        v-else-if="item.kind === 'message'"
+        v-if="item.kind === 'message'"
         :content="item.message.content"
         :role="item.message.role as 'user' | 'assistant'"
         :timestamp="item.message.createdAt * 1000"
         :status="item.message.status as 'ok' | 'failed' | 'canceled' | ''"
-      />
-
-      <!-- Tool call card -->
-      <ChatToolCard
-        v-else-if="item.kind === 'tool'"
-        :item="item"
       />
     </template>
   </div>

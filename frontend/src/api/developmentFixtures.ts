@@ -111,7 +111,8 @@ function isWeeklyFixture(value: unknown): value is WeeklyDevelopmentFixture {
   if (!isRecord(value) || !isRecord(value.dashboard)) return false
 
   const dashboard = value.dashboard
-  if (!Array.isArray(dashboard.categories)) return false
+  if (!Array.isArray(dashboard.categories) || !Array.isArray(dashboard.days)) return false
+  if (!isRecord(dashboard.insights)) return false
 
   return (
     typeof dashboard.weekStart === 'string' &&
@@ -124,8 +125,31 @@ function isWeeklyFixture(value: unknown): value is WeeklyDevelopmentFixture {
         isRecord(category) &&
         typeof category.name === 'string' &&
         typeof category.minutes === 'number' &&
-        typeof category.share === 'number',
-    )
+        typeof category.share === 'number' &&
+        typeof category.colorHex === 'string',
+    ) &&
+    dashboard.days.every(
+      (day) =>
+        isRecord(day) &&
+        typeof day.day === 'string' &&
+        typeof day.trackedMinutes === 'number' &&
+        typeof day.focusMinutes === 'number' &&
+        Array.isArray(day.categories) &&
+        Array.isArray(day.segments) &&
+        day.segments.every(
+          (segment) =>
+            isRecord(segment) &&
+            typeof segment.startTs === 'number' &&
+            typeof segment.endTs === 'number' &&
+            typeof segment.category === 'string' &&
+            typeof segment.isIdle === 'boolean',
+        ),
+    ) &&
+    typeof dashboard.insights.longestFocusMinutes === 'number' &&
+    typeof dashboard.insights.longestFocusDay === 'string' &&
+    typeof dashboard.insights.peakHour === 'number' &&
+    typeof dashboard.insights.mostActiveDay === 'string' &&
+    typeof dashboard.insights.activeDays === 'number'
   )
 }
 
