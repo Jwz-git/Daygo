@@ -59,6 +59,7 @@ var contractBindings = []string{
 	"SetProviderRouting",
 	"SetProviderSecret",
 	"SetRecording",
+	"SetWindowBackground",
 	"PollSystemEvents",
 	"ReprocessDay",
 	"TestProvider",

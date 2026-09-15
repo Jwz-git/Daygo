@@ -9,6 +9,7 @@ import {
   updateSettings,
 } from '@/api/settings'
 import { setLocale } from '@/i18n'
+import { syncWindowBackground } from '@/api/window'
 import {
   DEFAULT_LANGUAGE,
   SUPPORTED_LOCALES,
@@ -101,6 +102,9 @@ export const useAppearanceStore = defineStore('appearance', () => {
     const resolved = resolveAppearance(theme.value)
     appearance.value = resolved
     applyAppearance(resolved)
+    // Fire-and-forget: the native backdrop sync is cosmetic, and a failure
+    // (bridge unavailable, headless run) must never block theme application.
+    void syncWindowBackground().catch(() => undefined)
   }
 
   function syncSystemWatch(): void {

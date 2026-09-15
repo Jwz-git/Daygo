@@ -69,6 +69,11 @@ type Backend struct {
 	statusAction         func(string)
 	statusUpdaterMu      sync.RWMutex
 	statusUpdater        func(recorder.State)
+	// windowCtx is the Wails runtime context handed over in OnStartup; it
+	// scopes WindowSetBackgroundColour calls (window_background.go). It is
+	// nil in headless construction, where those calls become no-ops.
+	windowCtxMu sync.Mutex
+	windowCtx   context.Context
 	// no store is attached. With a store present they are ignored in favor of
 	// the real instance locks, so the reported ownership cannot drift from
 	// the locks actually held (docs/modules/data.md).

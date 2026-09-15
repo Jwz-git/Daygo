@@ -158,6 +158,7 @@ func Run() error {
 		// require a live context.
 		OnStartup: func(ctx context.Context) {
 			emitter.SetContext(ctx)
+			backend.setWindowContext(ctx)
 			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx})
 			updateStatus := func(state recorder.State) {
 				// Status-item setup is an optional platform capability and must not
