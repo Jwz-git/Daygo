@@ -19,7 +19,10 @@ func TestApplicationInspectorRoundTrip(t *testing.T) {
 	}
 	dll := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", "build", "native", "windows", "amd64", "daygo_windows_native.dll"))
 	if _, err := os.Stat(dll); err != nil {
-		t.Fatalf("native helper is missing; run native/windows/build.ps1 first: %v", err)
+		if os.IsNotExist(err) {
+			t.Skip("native privacy helper is unavailable; install Windows SDK 26100 and run native/windows/build.ps1 -RequirePrivacyAdapter")
+		}
+		t.Fatalf("stat native helper: %v", err)
 	}
 	executable, err := os.Executable()
 	if err != nil {

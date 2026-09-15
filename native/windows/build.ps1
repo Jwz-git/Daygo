@@ -1,5 +1,6 @@
 param(
-    [switch]$RunSmoke
+    [switch]$RunSmoke,
+    [switch]$RequirePrivacyAdapter
 )
 
 Set-StrictMode -Version Latest
@@ -33,27 +34,42 @@ if (-not (Get-Command ar -ErrorAction SilentlyContinue)) {
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
 
-# Windows.Graphics.Capture's 26100 window-exclusion interface is distributed
-# as C++/WinRT metadata. Build that narrow adapter with the Microsoft compiler,
-# while preserving the project's existing MinGW static ABI for cgo.
-$VsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-if (-not (Test-Path -LiteralPath $VsWhere -PathType Leaf)) {
-    throw 'Visual Studio 2022 with the Desktop development with C++ workload is required.'
+# Windows.Graphics.Capture's window-exclusion interface requires the 26100 SDK.
+# Keep that privacy adapter optional so contributors with an older SDK can still
+# run the Windows development shell and the baseline capture implementation.
+$PrivacyHeader = Get-ChildItem -Path (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Include') `
+    -Filter 'windows.ui.interop.h' -File -Recurse -ErrorAction SilentlyContinue |
+    Sort-Object FullName -Descending |
+    Select-Object -First 1
+$InstalledNativeDLL = Join-Path $BinDir 'daygo_windows_native.dll'
+
+if ($PrivacyHeader) {
+    $VsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (-not (Test-Path -LiteralPath $VsWhere -PathType Leaf)) {
+        throw 'Visual Studio 2022 with the Desktop development with C++ workload is required.'
+    }
+    $VisualStudio = (& $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
+    if (-not $VisualStudio) {
+        throw 'Visual Studio 2022 C++ tools were not found.'
+    }
+    $VCVars = Join-Path $VisualStudio 'VC\Auxiliary\Build\vcvars64.bat'
+    if (-not (Test-Path -LiteralPath $VCVars -PathType Leaf)) {
+        throw 'vcvars64.bat was not found in the selected Visual Studio installation.'
+    }
+    $NativeCompile = '"{0}" >nul && cl.exe /nologo /std:c++20 /EHsc /O2 /MT /LD /DUNICODE /D_UNICODE /I"{1}" "{2}" /Fo:"{3}" /Fe:"{4}" d3d11.lib dxgi.lib windowsapp.lib runtimeobject.lib windowscodecs.lib ole32.lib user32.lib shell32.lib bcrypt.lib version.lib gdi32.lib onecoreuap.lib /link /IMPLIB:"{5}"' -f $VCVars, $IncludeDir, $NativeSource, $NativeObject, $NativeDLL, $NativeImportLibrary
+    & $env:ComSpec /d /s /c $NativeCompile
+    if ($LASTEXITCODE -ne 0) {
+        throw "C++/WinRT native adapter compilation failed ($LASTEXITCODE)."
+    }
+    Copy-Item -LiteralPath $NativeDLL -Destination $InstalledNativeDLL -Force
+} else {
+    Remove-Item -LiteralPath $NativeDLL, $InstalledNativeDLL -Force -ErrorAction SilentlyContinue
+    $Message = 'Windows SDK 26100 header windows.ui.interop.h was not found; building without per-application capture exclusion.'
+    if ($RequirePrivacyAdapter) {
+        throw $Message
+    }
+    Write-Warning $Message
 }
-$VisualStudio = (& $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
-if (-not $VisualStudio) {
-    throw 'Visual Studio 2022 C++ tools were not found.'
-}
-$VCVars = Join-Path $VisualStudio 'VC\Auxiliary\Build\vcvars64.bat'
-if (-not (Test-Path -LiteralPath $VCVars -PathType Leaf)) {
-    throw 'vcvars64.bat was not found in the selected Visual Studio installation.'
-}
-$NativeCompile = '"{0}" >nul && cl.exe /nologo /std:c++20 /EHsc /O2 /MT /LD /DUNICODE /D_UNICODE /I"{1}" "{2}" /Fo:"{3}" /Fe:"{4}" d3d11.lib dxgi.lib windowsapp.lib runtimeobject.lib windowscodecs.lib ole32.lib user32.lib shell32.lib bcrypt.lib version.lib gdi32.lib onecoreuap.lib /link /IMPLIB:"{5}"' -f $VCVars, $IncludeDir, $NativeSource, $NativeObject, $NativeDLL, $NativeImportLibrary
-& $env:ComSpec /d /s /c $NativeCompile
-if ($LASTEXITCODE -ne 0) {
-    throw "C++/WinRT native adapter compilation failed ($LASTEXITCODE)."
-}
-Copy-Item -LiteralPath $NativeDLL -Destination (Join-Path $BinDir 'daygo_windows_native.dll') -Force
 
 & g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -DDAYGO_CAPTURE_BUILD=1 -I $IncludeDir -c $Source -o $Object
 if ($LASTEXITCODE -ne 0) {

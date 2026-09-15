@@ -180,3 +180,9 @@ Wails 原生 `.app` 面板等待人工视觉验收；helper / XPC 和 MC 隐私�
 Edge 实测基线图含 Edge，排除图露出其下方窗口且两图均为非黑 1280×720 JPEG；应用 identity
 往返、原生 smoke、Go app/platform 测试、前端 typecheck/build 通过。全部 WC 竞态、受保护内容、
 便携应用冷启动回查和长期资源仍未验收。
+
+2026-09-15：Windows 开发构建在未安装 SDK 26100 的 `windows.ui.interop.h` 时跳过可选的
+C++/WinRT 隐私排除 helper，并清除旧 helper DLL；基础 DXGI 截图、应用壳与其他 MinGW ABI
+继续构建，使 Wails dev 可启动。此降级不伪造隐私能力：非空屏蔽名单仍返回
+`privacy_unsupported`。需要验证完整 Windows 隐私链路时以 `build.ps1 -RequirePrivacyAdapter`
+维持 26100 硬门禁。
