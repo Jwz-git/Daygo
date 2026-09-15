@@ -13,20 +13,18 @@
 
 ## 当前状态与证据
 
-实现进度：**部分实现**。已落下
-[页面容器](../../frontend/src/views/Weekly/WeeklyView.vue)、
-[weekly store](../../frontend/src/stores/weekly.ts)、薄 API wrapper、加载 / 不可用 / 失败 / 空 /
-有数据状态、专注概览和分类分布，并提供开发服务器专用的
-[匿名聚合夹具](../../frontend/dev-fixtures/weekly.json)。组件不直接调用 Wails；
-`timeline:updated` 只触发重新拉取。
+实现进度与验证状态以 [09 §9.1](../09-roadmap.md#91-模块总表) weekly 行为准。当前能力快照：
 
-**2026-09-12：周聚合与绑定已落盘**——`timeutil.WeekStart` / `WeekWindow`
-（周一 4 点对齐，decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`
-（与 `TotalMinutesTracked` 同一重叠谓词 + categories join 取 is_idle）、
-`internal/insight.AggregateWeekly`（tracked 排 System、focus 排 isIdle、share 分母 0
-为 0、minutes DESC）、绑定 `GetWeeklyDashboard`（非周一拒绝）、
-`DayContextDTO.weekStart`（前端初始周不再自算）。跨周观察（G-stability）仍未运行；
-这次不能记为 weekly 用户闭环完成。生产构建缺少绑定时明确显示能力不可用，不加载开发夹具。
+- 边界与聚合：`timeutil.WeekStart` / `WeekWindow`（周一 4 点对齐，
+  decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`（与
+  `TotalMinutesTracked` 同一重叠谓词 + categories join 取 is_idle）、
+  `internal/insight.AggregateWeekly`（tracked 排 System、focus 排 isIdle、share
+  分母 0 为 0、minutes DESC）、`DayContextDTO.weekStart`（前端初始周不自算）。
+- 绑定与前端：`GetWeeklyDashboard`（非周一拒绝，含按日明细 `WeeklyDayDTO` 与洞察
+  `WeeklyInsightsDTO`）、页面容器、weekly store、薄 API wrapper、加载 / 不可用 /
+  失败 / 空 / 有数据状态、专注概览、分类分布、洞察与节奏面板；开发服务器专用
+  匿名聚合夹具。组件不直接调用 Wails；`timeline:updated` 只触发重新拉取。
+- 跨周观察（G-stability）与真实卡片周独立验收仍未运行，不能记为 weekly 用户闭环完成。
 
 ## 能力与跨层职责
 
@@ -89,3 +87,7 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 
 2026-09-12（全局界面重构，Vite 预览）：深色中文匿名周报检查通过；专注环改用全局低饱和蓝，
 分类序列继续使用独立颜色。真实卡片周与浅色 / 英文矩阵仍未重跑。
+
+2026-09-15（周洞察与节奏面板）：`GetWeeklyDashboard` 扩展按日明细（`WeeklyDayDTO`）
+与洞察（`WeeklyInsightsDTO`）聚合，前端新增洞察与节奏面板（commit `50f22d8`）；
+Go 聚合单元与前端 typecheck / build 通过。仍属匿名夹具与单元证据，非真实卡片周验收。

@@ -12,6 +12,7 @@ interface DailyBackend {
   GetDayContext?: (day: string) => Promise<DayContextDTO>
   GetTimelineDay?: (day: string) => Promise<TimelineDayDTO>
   GetDailyRecap?: (standupDay: string) => Promise<DailyRecapDTO>
+  GenerateDailyRecap?: (standupDay: string) => Promise<DailyRecapDTO>
   GetJournalDay?: (day: string) => Promise<JournalDayDTO>
   SaveJournalDay?: (entry: JournalDayDTO) => Promise<void>
   GetDayGoal?: (day: string) => Promise<DayGoalDTO>
@@ -68,6 +69,16 @@ export async function getDailyTimeline(day: string): Promise<TimelineDayDTO> {
 
 export async function getDailyRecap(standupDay: string): Promise<DailyRecapDTO> {
   const method = backend()?.GetDailyRecap
+  if (typeof method !== 'function') throw new DailyUnavailableError()
+  return method(standupDay)
+}
+
+export function hasRecapGenerationBinding(): boolean {
+  return typeof backend()?.GenerateDailyRecap === 'function'
+}
+
+export async function generateDailyRecap(standupDay: string): Promise<DailyRecapDTO> {
+  const method = backend()?.GenerateDailyRecap
   if (typeof method !== 'function') throw new DailyUnavailableError()
   return method(standupDay)
 }
@@ -129,7 +140,8 @@ function onDailyInvalidated(
   if (typeof method !== 'function') return () => undefined
   return method(eventName, (raw: unknown) => {
     if (typeof raw !== 'object' || raw === null) return callback(null)
-    const day = (raw as Record<string, unknown>).day
+    const record = raw as Record<string, unknown>
+    const day = record.day ?? record.standupDay
     callback(typeof day === 'string' ? day : null)
   }, -1)
 }
@@ -140,4 +152,8 @@ export function onJournalUpdated(callback: (day: string | null) => void): () => 
 
 export function onGoalUpdated(callback: (day: string | null) => void): () => void {
   return onDailyInvalidated('goal:updated', callback)
+}
+
+export function onRecapUpdated(callback: (standupDay: string | null) => void): () => void {
+  return onDailyInvalidated('recap:updated', callback)
 }

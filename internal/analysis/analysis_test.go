@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Jwz-git/Daygo/internal/domain"
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
 
@@ -322,5 +323,26 @@ func TestAppsOfMetadata(t *testing.T) {
 	}
 	if got := appsOfMetadata(`{"other":1}`); got != nil {
 		t.Fatalf("apps absent = %v", got)
+	}
+}
+
+// The model-facing category list never offers the built-ins: System is the
+// unknown-category fallback and Idle belongs to the hardware idle fast path,
+// so neither may be chosen from screen content (docs/04 §4.3.4, §4.4).
+func TestCardsPromptExcludesBuiltInCategories(t *testing.T) {
+	categories := []domain.Category{
+		{ID: "1", Name: "System", IsSystem: true},
+		{ID: "2", Name: "Idle", IsSystem: true, IsIdle: true},
+		{ID: "3", Name: "Coding", Details: "writing code"},
+	}
+	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, categories, "")
+
+	if !strings.Contains(prompt, "\n  Coding — writing code\n") {
+		t.Fatalf("prompt missing user category:\n%s", prompt)
+	}
+	for _, builtIn := range []string{"\n  System", "\n  Idle"} {
+		if strings.Contains(prompt, builtIn) {
+			t.Fatalf("prompt offers built-in category %q:\n%s", builtIn, prompt)
+		}
 	}
 }

@@ -63,9 +63,14 @@
 | [跨平台应用身份解析与 ABI](decisions/recording-application-picker.md) | 有限实现 | Wails `.app` / `.exe` picker、独立 Go 端口、ABI 2.1 图标与平台 ID 回查 |
 | [屏幕截屏（Windows）：DXGI 实现与限制](decisions/recording-screen-capture-windows.md) | 有限实机验证，**不在发布范围** | DXGI 路径、与 macOS 的四条差异、真机 smoke 与未验证矩阵 |
 | [图片存储流水线](decisions/recording-image-storage.md) | 架构方向已决定，未实现 | staging JPEG、不可变分段、整段清理与 LLM 内存图片发送 |
-| [录制设置与状态栏交接](handoff-recording-settings.md) | 本轮录制设置、主页控制、菜单栏状态同步的完成项、证据与未完成事项 |
 | [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
+| [data 损坏恢复](decisions/data-corruption-recovery.md) | 已决定 | 备份识别、恢复流程与只读降级 |
+| [providers 回退链](decisions/providers-fallback-chain.md) | 已决定 | 有序路由、粘性回退与重试语义 |
+| [providers 密钥：Keychain / Credential Manager](decisions/providers-secrets-keychain.md) | 已决定 | `security` CLI / Credential Manager 访问、service 命名与只写不读 |
+| [providers 密钥：Linux Secret Service](decisions/providers-secrets-linux.md) | 已落盘，待真机验收 | `secret-tool` 访问 Secret Service 的取舍与边界 |
+| [weekly 周边界：周一起始](decisions/weekly-boundary-monday.md) | 已决定 | 周一 4 点对齐的语义与夹具 |
+| [chat 会话模型](decisions/chat-session-model.md) | 已决定 | 多会话、原子消息、会话级 provider 选择 |
 
 `scripts/check-docs.py` 会检查本目录里所有链接和小节锚点是否存在、有没有“谁都没链接到”
 的孤立文档；它由 `scripts/gate.sh` 调用。它只能证明文档内部自洽，**不能证明文档与代码一致**

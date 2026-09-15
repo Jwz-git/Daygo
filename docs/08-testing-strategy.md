@@ -78,7 +78,7 @@
 | **3** | 分批规则（[04 §4.3.1](04-data-flow.md#431-分批规则)） | 丢弃末批的差一错误会造成批次重复处理或永久停滞 |
 | **4** | 空闲判定（[04 §4.4](04-data-flow.md#44-空闲判定)） | 判错要么为空闲时间付 LLM 费用，要么把真实活动标成 Idle |
 | **5** | LLM 输出解析与修复 | 回归看起来像"provider 不稳定"，很难归因 |
-| **6** | `ReplaceCardsInRange` 的重叠与 System 卡片保留 | 错删用户可见数据 |
+| **6** | `ReplaceCardsInRange` 的重叠与改写吸收范围（含 System 回退卡，[03 §3.5](03-data-model.md#35-时钟串派生)） | 错删用户可见数据 |
 | **7** | 每周合计与占比 | 可见但不具破坏性 |
 | **8** | 失败批次分组（60 秒容差合并） | 影响重试入口的可用性 |
 | **9** | provider 回退的粘性 | 语义细微，容易在重构中丢失 |
@@ -243,7 +243,7 @@ Windows 适配器已落盘并完成 **WC-1 的有限真机 smoke，但仍不在�
 |----|------|------------------|
 | WC-1 | 空屏蔽名单下单次调用 | 主监视器出图，尺寸 / 字节数与 `CaptureResult` 一致，可解码且非全黑 |
 | WC-2 | 屏蔽名单非空、前台命中 | `blocked`，无文件 |
-| WC-3 | 屏蔽名单非空、前台未命中 | `privacy_unsupported`，无文件；**不得**降级为“只检查前台” |
+| WC-3 | 屏蔽名单非空、前台未命中 | build 26100+：WGC 画面排除后正常出图且屏蔽内容不可见；更旧系统：`privacy_unsupported`，无文件，**不得**降级为“只检查前台”（见 [Windows 决策记录](decisions/recording-screen-capture-windows.md)） |
 | WC-4 | 前台为传统 Win32（无 AUMID）应用 | `privacy_unsupported`；记录该限制而不是放宽判定 |
 | WC-5 | 目标路径已存在 | `io`，已有文件字节不变 |
 | WC-6 | 多监视器、缩放（DPI）、旋转 | 只截主监视器，方向与尺寸正确 |
@@ -253,11 +253,13 @@ Windows 适配器已落盘并完成 **WC-1 的有限真机 smoke，但仍不在�
 2026-09-11 的 Windows 11（NT 10.0.26200、NVIDIA RTX 4060 Laptop GPU、双显示器）记录：
 WC-1 通过一次原生 smoke 与一次 Go cgo smoke。首次 `AcquireNextFrame` 可能只有鼠标更新
 （`AccumulatedFrames=0`、`LastPresentTime=0`）且纹理全零；实现会在同一 timeout 预算内继续等待，
-随后取得非零 BGRA 桌面帧并输出 1280×720 JPEG。非空屏蔽名单另做失败关闭 smoke，得到
-`privacy_unsupported` 且没有目标文件；这不是 WC-2/3/4 的完整隐私验收。WC-5–8 未运行。
+随后取得非零 BGRA 桌面帧并输出 1280×720 JPEG。当天的非空屏蔽名单失败关闭 smoke（`privacy_unsupported`）
+已被 2026-09-13 的 WGC 画面排除证据替代（build 26100+ 非空名单改走 WGC，排除图像已证明后台窗口
+从画面消失且底层窗口可见，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md)）；
+这仍不是 WC-2/3/4 的完整隐私验收。WC-5–8 未运行。
 
-WC-3 与 WC-4 一起决定了一个产品事实：**只要用户配置了屏蔽应用，Windows 当前就拿不到画面。**
-在这两条被隐私能力补齐之前，Windows 不进入发布构建。
+WC-3 与 WC-4 一起决定一个产品事实：**build 26100 以下的 Windows 配置了屏蔽应用就拿不到画面**
+（失败关闭）。完整 WC 矩阵验收前，Windows 不进入发布构建。
 
 ### 8.6.4 长时间断言
 

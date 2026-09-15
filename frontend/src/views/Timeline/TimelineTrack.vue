@@ -29,7 +29,7 @@ const props = defineProps<{
   processingRanges: RangeDTO[]
   selectedCardID: number | null
   selectedFailureTs: number | null
-  /** Placeholder state on the now-line: off, live capture, or paused hold. */
+  /** Placeholder state at the current time: off, live capture, or paused hold. */
   generating: 'off' | 'capturing' | 'paused'
 }>()
 
@@ -221,15 +221,6 @@ onBeforeUnmount(() => {
             position: 'absolute',
           }"
         />
-
-        <div
-          v-if="nowPosition !== null"
-          class="now-line"
-          :style="{ top: `${nowPosition}px` }"
-          aria-hidden="true"
-        >
-          <span></span>
-        </div>
       </div>
     </div>
   </section>
@@ -351,27 +342,6 @@ onBeforeUnmount(() => {
   color: var(--dg-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.now-line {
-  position: absolute;
-  z-index: 7;
-  right: 4px;
-  left: -4px;
-  height: 1px;
-  background: var(--dg-accent);
-  box-shadow: 0 0 10px var(--dg-focus-ring);
-  pointer-events: none;
-}
-
-.now-line span {
-  position: absolute;
-  top: -3px;
-  left: 0;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--dg-accent);
 }
 
 </style>

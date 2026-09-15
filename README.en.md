@@ -4,11 +4,12 @@
 
 Daygo is a private, local-first work journal for macOS. It captures the current primary display at a fixed interval, uses an AI provider chosen by the user to understand that activity, and turns it into a searchable daily timeline, standup summary, and review.
 
-> **Project status: under development, not ready for general installation.** What exists today:
-> the desktop shell and settings pages, the SQLite foundation (migrations, instance locks,
-> settings, backups, diagnostics), three protocol AI clients with a connection probe, the
-> platform ports with a Capture fake, a macOS single-shot capture implementation, and ten
-> Wails bindings. The recording loop, timeline, and daily/weekly reviews are not implemented.
+> **Project status: under development, not ready for general installation.** All nine feature
+> modules (recording, providers, timeline, daily/weekly reviews, data, preferences, delivery,
+> chat) are partially implemented: the Go recording loop with screenshot persistence, the
+> analysis pipeline and timeline cards, provider storage with keychain, daily/weekly views,
+> and data maintenance all have code with automated coverage — but no module has completed
+> real-user closed-loop acceptance.
 > Per-module status lives in [docs/09-roadmap.md §9.1](docs/09-roadmap.md#91-模块总表).
 
 ## Why Daygo
@@ -84,21 +85,24 @@ build/                      Wails build assets and output
 docs/                       design documentation
 ```
 
-Most paths described under `docs/` are still target state: the analysis pipeline, timeline,
-daily/weekly views, the recorder, and the background lifecycle are not implemented.
-See [docs/09-roadmap.md](docs/09-roadmap.md) for the plan.
+`docs/` holds design specifications; the current implementation and verification status
+lives in [docs/09-roadmap.md §9.1](docs/09-roadmap.md#91-模块总表) — do not treat
+planned directories or behaviour as existing.
 
 **About Linux:** the Wails v2 desktop shell (GTK3 + WebKit2GTK) already launches and loads the
-Vue frontend on Linux, and the Go core plus SQLite layer behave identically to macOS. Capabilities
-that need native code (screen capture, system permissions, status item, keychain) follow the
-`internal/platform` convention of returning `unsupported` when no adapter is implemented. A real
-Linux adapter belongs to the undecided designs in [docs/09 §9.8](docs/09-roadmap.md#98-待定设计清单),
-and will not be implemented at scale before a decision record exists.
+Vue frontend on Linux, and the Go core plus SQLite layer behave identically to macOS. Secrets
+are wired through Secret Service / `secret-tool` (not yet verified on a real desktop keyring).
+Capabilities that still need native code (screen capture, system permissions, status item)
+follow the `internal/platform` convention of returning `unsupported` when no adapter is
+implemented. The remaining Linux adapter work belongs to the undecided designs in
+[docs/09 §9.8](docs/09-roadmap.md#98-待定设计清单).
 
 **About Windows:** the tree contains an experimental Windows capture implementation. It has
-never been verified on real hardware, it is not in release scope, and Windows has no instance
-lock implementation yet (so it runs without a database). macOS remains the only target
-platform — see the [decision record](docs/decisions/recording-screen-capture-windows.md).
+passed limited real-machine smoke tests (single non-black JPEG capture, `LockFileEx`
+instance locks with read-only fallback and release-on-terminate smoke, a 6-frame recorder
+persistence loop), but the full privacy matrix, long-run stability, and release identity
+remain unverified. It is **not in release scope**; macOS remains the only target platform —
+see the [decision record](docs/decisions/recording-screen-capture-windows.md).
 
 ## Build and run
 
@@ -166,8 +170,9 @@ cd cmd/daygo
 # macOS
 go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform darwin/arm64
 
-# Windows
-go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform windows/amd64
+# Windows (must be run on Windows; validates the EXE and native helper DLL,
+# add -RunSmoke for capture / system-event smoke)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1
 
 # Linux (scripts/build-linux.sh picks the WebKit2GTK ABI tag automatically)
 ../scripts/build-linux.sh
@@ -180,16 +185,16 @@ hooked. The Linux native adapter is one of the undecided designs in docs/09 §9.
 
 ### Feature differences across platforms
 
-The `internal/platform` port layer is designed to return `unsupported` on Linux and real
-implementations on darwin/windows, so the Wails shell launches and renders the Vue frontend on all
-three. The native capabilities still differ substantially:
+The `internal/platform` port layer returns `unsupported` where no adapter exists and real
+implementations otherwise, so the Wails shell launches and renders the Vue frontend on all
+three platforms. The native capabilities still differ substantially:
 
 | Capability                | macOS | Windows | Linux (today) |
 |---------------------------|:-----:|:-------:|:------:|
 | Screen capture            | ✅ ScreenCaptureKit | ⚠️ DXGI / WGC (experimental, limited smoke) | ❌ not implemented (`CaptureUnsupported`) |
 | System permission / TCC   | ✅ | ⚠️ partial | ❌ not implemented |
 | Status item / tray        | ✅ | ⚠️ partial | ❌ not implemented |
-| Keychain / credentials    | ✅ `security` subprocess | ✅ Credential Manager | ❌ `SecretUnsupported` |
+| Keychain / credentials    | ✅ `security` subprocess | ✅ Credential Manager | ⚠️ Secret Service / `secret-tool` (real keyring unverified) |
 | Launch at login / activation policy | ✅ | ⚠️ partial | ❌ not implemented |
 | System event subscription | ✅ | ⚠️ partial | ❌ not implemented |
 | SQLite + settings + timeline UI | ✅ | ✅ | ✅ (identical to macOS) |

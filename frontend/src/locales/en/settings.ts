@@ -2,24 +2,13 @@ export default {
   title: 'Settings',
   nav: {
     general: 'General & appearance',
-    recording: 'Recording & privacy',
+    recording: 'Privacy',
     providers: 'Providers',
-    storage: 'Storage',
+    storage: 'Recording storage',
     privacy: 'Privacy',
     agentAccess: 'MCP / CLI',
     dataExport: 'Export',
     other: 'Other',
-  },
-  section: {
-    storageDescription: 'Capture interval and resolution, disk usage limit.',
-    privacyDescription: 'Blocked apps never reach a screenshot.',
-    providersDescription:
-      'Primary and secondary providers, connection tests, prompt overrides.',
-    agentAccessDescription:
-      'Let local CLI / MCP clients modify your data (arrives in v1.1).',
-    dataExportDescription:
-      'Export a date range as Markdown.',
-    otherDescription: 'Appearance, launch, telemetry and language.',
   },
   privacy: {
     blockedTitle: 'Screen privacy',
@@ -28,9 +17,9 @@ export default {
     installedCount: '{count} shown',
     blockedApplicationsTitle: 'Blocked apps',
     blockedCount: '{count} blocked',
+    unavailable: 'Unable to read the application list.',
     clear: 'Clear',
     add: 'Block {name}',
-    blockedBadge: 'Blocked — click it in the list below to remove',
     installedUnavailable: 'The installed application list is unavailable.',
     searchEmpty: 'No matching apps.',
     blockedHint:
@@ -39,7 +28,6 @@ export default {
     selecting: 'Choosing…',
     empty: 'No apps are blocked yet.',
     loading: 'Reading blocked apps…',
-    unavailable: 'The blocked app list is unavailable.',
     compatibility: {
       supported: 'This Windows version supports private-window exclusion',
       unsupported: 'This Windows version cannot exclude private windows',
@@ -89,24 +77,11 @@ export default {
     saving: 'Saving…',
   },
   recognition: {
-    title: 'Recognition enhancement',
+    title: 'Enhanced recognition',
     hint: 'Each screenshot is split into 4 zoomed tiles plus the original (5 images per frame) to improve small-text recognition; increases token usage. You may need to adjust the per-provider images-per-request limit while it is on.',
     unavailable: 'Runs inside the Daygo app',
   },
   storage: {
-    title: 'Storage and diagnostics',
-    description: 'Inspect the real database state and set a target recording size.',
-    refresh: 'Refresh',
-    refreshing: 'Refreshing…',
-    unavailable: 'Storage diagnostics run inside the Daygo app.',
-    error: 'Storage diagnostics could not be read. Try again.',
-    database: 'Database',
-    recordings: 'Recordings',
-    recordingsHint: 'Counts only recording data that is actually connected',
-    native: 'Native service',
-    pending: 'Not connected',
-    owner: 'Capture process {pid}',
-    noOwner: 'This instance is not the capture owner',
     limit: 'Recording size limit',
     limitHint: 'Saves the target limit; 0 means unlimited. Once over the limit, the hourly maintenance task deletes the oldest frames first. Frames being recorded or used by an in-flight batch are never touched.',
     qualityTitle: 'Capture quality',
@@ -126,23 +101,8 @@ export default {
     usageValue: '{used} GB used · {percent}%',
     directoryPath: 'Recording directory',
     directory: 'Recording directory',
-    directoryHint: 'Images produced by background recording are stored here.',
     directoryUnavailable: 'Unavailable',
     writeError: 'Could not save the limit. The database value has been restored.',
-    status: {
-      ok: 'Healthy',
-      read_only: 'Read only',
-      unavailable: 'Unavailable',
-      restarting: 'Restarting',
-    },
-    limitOption: {
-      unlimited: 'Unlimited',
-      oneGB: '1 GB',
-      twoGB: '2 GB',
-      fiveGB: '5 GB',
-      tenGB: '10 GB',
-      twentyGB: '20 GB',
-    },
   },
   providers: {
     description:
@@ -203,7 +163,6 @@ export default {
       fetch: 'Fetch models',
       fetching: 'Fetching model list…',
       empty: 'This service returned no models; type the model name by hand.',
-      picked: 'Picked {model}',
       unavailable: 'Fetching the model list runs inside the Daygo app',
     },
     error: {

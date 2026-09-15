@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CategoryDTO, DayGoalDTO, TimelineDayDTO } from '@/api/dto'
@@ -42,6 +42,13 @@ const failuresWithBatches = computed(() =>
 )
 
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
+
+const confirmingReprocess = ref(false)
+
+function confirmReprocess(): void {
+  emit('reprocess')
+  confirmingReprocess.value = false
+}
 
 interface CategoryTotal {
   category: CategoryDTO
@@ -189,16 +196,38 @@ const donutSegments = computed(() => {
     </button>
   </section>
 
-  <section v-if="props.actions.reprocessDay" class="inspector__section">
+  <section v-if="props.actions.reprocessDay" class="inspector__section inspector__reprocess-section">
+    <template v-if="confirmingReprocess">
+      <p class="inspector__confirm">{{ t('timeline.reprocess.confirm') }}</p>
+      <div class="reprocess-confirm">
+        <button
+          type="button"
+          class="dg-button"
+          :disabled="props.pendingAction !== null"
+          @click="confirmingReprocess = false"
+        >
+          {{ t('common.action.cancel') }}
+        </button>
+        <button
+          type="button"
+          class="dg-button inspector__delete"
+          :disabled="props.pendingAction !== null"
+          @click="confirmReprocess"
+        >
+          {{ t('timeline.reprocess.confirmYes') }}
+        </button>
+      </div>
+    </template>
     <button
+      v-else
       type="button"
       class="dg-button inspector__reprocess"
       :disabled="!props.canWrite || props.pendingAction !== null"
       :title="props.canWrite ? t('timeline.reprocess.action') : t('timeline.inspector.actionsUnavailable')"
-      @click="emit('reprocess')"
+      @click="confirmingReprocess = true"
     >
       <svg viewBox="0 0 16 16" aria-hidden="true" class="reprocess-icon"><path d="M13.65 2.35A8 8 0 1 0 16 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 2l3 0 0 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      {{ t('timeline.reprocess.action') }}
+      {{ props.pendingAction === 'reprocess-day' ? t('timeline.reprocess.running') : t('timeline.reprocess.action') }}
     </button>
   </section>
 </template>
@@ -323,6 +352,13 @@ const donutSegments = computed(() => {
 }
 
 .inspector__retry { color: var(--dg-text-secondary); }
+
+.reprocess-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
 
 .inspector__reprocess {
   display: flex;

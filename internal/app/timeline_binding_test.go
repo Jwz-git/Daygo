@@ -136,12 +136,15 @@ func TestCardWritesValidateAndEmit(t *testing.T) {
 
 	// Unknown category is rejected and never creates one implicitly.
 	assertAppCode(t, backend.UpdateCardCategory(cardID, "Nope"), apperr.InvalidArgument)
+	// Built-in categories are pipeline-assigned, not manual targets.
+	assertAppCode(t, backend.UpdateCardCategory(cardID, "Idle"), apperr.InvalidArgument)
+	assertAppCode(t, backend.UpdateCardCategory(cardID, "System"), apperr.InvalidArgument)
 	// Empty title is rejected.
 	assertAppCode(t, backend.UpdateCardTitle(cardID, "  "), apperr.InvalidArgument)
 	// Unknown card id is not_found.
 	assertAppCode(t, backend.UpdateCardTitle(9999, "x"), apperr.NotFound)
 
-	if err := backend.UpdateCardCategory(cardID, "Idle"); err != nil {
+	if err := backend.UpdateCardCategory(cardID, "Focus Work"); err != nil {
 		t.Fatalf("UpdateCardCategory: %v", err)
 	}
 	if err := backend.UpdateCardTitle(cardID, "renamed"); err != nil {
@@ -212,7 +215,7 @@ func TestCardWritesRefuseReadOnlyInstance(t *testing.T) {
 	backend.setEventEmitter(&recordingEmitter{})
 
 	updates := map[string]func() error{
-		"UpdateCardCategory":        func() error { return backend.UpdateCardCategory(1, "Idle") },
+		"UpdateCardCategory":        func() error { return backend.UpdateCardCategory(1, "Focus Work") },
 		"UpdateCardTitle":           func() error { return backend.UpdateCardTitle(1, "x") },
 		"UpdateCardDetailedSummary": func() error { return backend.UpdateCardDetailedSummary(1, "x") },
 		"UpdateCardSummary":         func() error { return backend.UpdateCardSummary(1, "x") },

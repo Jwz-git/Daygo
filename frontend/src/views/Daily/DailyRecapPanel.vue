@@ -11,11 +11,32 @@ const props = defineProps<{
   unavailable: boolean
   failed: boolean
   timeZone: string
+  dayStartTs: number
+  isToday: boolean
+  generating: boolean
+  generateFailed: boolean
+  generationAvailable: boolean
 }>()
+
+const emit = defineEmits<{ regenerate: [] }>()
 
 const { locale, t } = useI18n()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
 let resetTimer: number | undefined
+
+const title = computed(() => {
+  const zone = safeTimeZone(props.timeZone)
+  const day = new Date(props.dayStartTs * 1000)
+  const yearOf = (date: Date) =>
+    Number(new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: zone }).format(date))
+  const date = new Intl.DateTimeFormat(locale.value, {
+    ...(yearOf(day) === yearOf(new Date()) ? {} : { year: 'numeric' }),
+    month: 'long',
+    day: 'numeric',
+    timeZone: zone,
+  }).format(day)
+  return t(props.isToday ? 'daily.standup.titleToday' : 'daily.standup.title', { date })
+})
 
 const generatedAt = computed(() => {
   if (props.recap?.generatedAtTs == null) return null
@@ -128,12 +149,21 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
   <section class="daily-section" aria-labelledby="daily-recap-title">
     <header class="section-heading">
       <div>
-        <h2 id="daily-recap-title">{{ t('daily.standup.title') }}</h2>
+        <h2 id="daily-recap-title">{{ title }}</h2>
         <p>{{ t('daily.standup.description') }}</p>
       </div>
       <div class="recap-actions">
         <button
-          v-if="!unavailable && !failed && recap !== null"
+          v-if="generationAvailable"
+          type="button"
+          class="dg-button"
+          :disabled="generating"
+          @click="emit('regenerate')"
+        >
+          {{ generating ? t('daily.standup.generating') : t('common.action.regenerate') }}
+        </button>
+        <button
+          v-else-if="!unavailable && !failed"
           type="button"
           class="dg-button"
           :title="t('daily.standup.generateUnavailable')"
@@ -221,6 +251,10 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
       <strong>{{ failed ? t('daily.standup.failureTitle') : t('daily.standup.unavailableTitle') }}</strong>
       <span>{{ failed ? t('daily.standup.failureDescription') : t('daily.standup.unavailableDescription') }}</span>
     </div>
+
+    <p v-if="generateFailed" class="recap-generate-error" role="alert">
+      {{ generating ? t('daily.standup.generating') : t('daily.standup.generateFailed') }}
+    </p>
   </section>
 </template>
 
@@ -316,6 +350,8 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
 
 .recap-state strong { color: var(--dg-text-primary); font-size: 13px; }
 .recap-state span { color: var(--dg-text-tertiary); font-size: 12px; }
+
+.recap-generate-error { color: var(--dg-text-tertiary); font-size: 12px; }
 
 .recap-card--draft { position: relative; }
 

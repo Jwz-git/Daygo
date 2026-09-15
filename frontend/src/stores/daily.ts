@@ -14,6 +14,7 @@ import type {
 import { getDailyDevelopmentFixture } from '@/api/developmentFixtures'
 import {
   DailyUnavailableError,
+  generateDailyRecap,
   getDailyCapabilities,
   getDailyContext,
   getDailyRecap,
@@ -24,8 +25,10 @@ import {
   hasDailyRecapBinding,
   hasGoalBinding,
   hasJournalBinding,
+  hasRecapGenerationBinding,
   onGoalUpdated,
   onJournalUpdated,
+  onRecapUpdated,
   saveDayGoal,
   saveJournalDay,
 } from '@/api/daily'
@@ -268,6 +271,8 @@ export const useDailyStore = defineStore('daily', () => {
   const error = ref<unknown>(null)
   const recapUnavailable = ref(false)
   const recapError = ref<unknown>(null)
+  const recapGenerating = ref(false)
+  const recapGenerateError = ref<unknown>(null)
   const usingDevelopmentFixture = ref(false)
   const journal = ref<JournalDayDTO | null>(null)
   const journalUnavailable = ref(false)
@@ -281,6 +286,7 @@ export const useDailyStore = defineStore('daily', () => {
   let stopEvents: (() => void) | null = null
   let stopJournalEvents: (() => void) | null = null
   let stopGoalEvents: (() => void) | null = null
+  let stopRecapEvents: (() => void) | null = null
 
   const state = computed<DailyState>(() => {
     if (loading.value) return 'loading'
@@ -299,6 +305,7 @@ export const useDailyStore = defineStore('daily', () => {
     error.value = null
     recapUnavailable.value = false
     recapError.value = null
+    recapGenerateError.value = null
     journalUnavailable.value = false
     journalError.value = null
     goalUnavailable.value = false
@@ -433,6 +440,36 @@ export const useDailyStore = defineStore('daily', () => {
     }
   }
 
+  // Regeneration is synchronous on the backend (one LLM call); the returned
+  // recap is the stored result, so applying it directly is not an optimistic
+  // update — the write already happened. The recap:updated listener re-pulls
+  // for other views.
+  async function regenerateRecap(): Promise<void> {
+    const standupDay = context.value?.standupDay
+    if (standupDay === undefined || recapGenerating.value) return
+    if (!hasRecapGenerationBinding()) return
+    recapGenerating.value = true
+    recapGenerateError.value = null
+    try {
+      recap.value = await generateDailyRecap(standupDay)
+    } catch (cause: unknown) {
+      recapGenerateError.value = cause
+    } finally {
+      recapGenerating.value = false
+    }
+  }
+
+  async function reloadRecap(standupDay: string, version: number): Promise<void> {
+    try {
+      const next = await getDailyRecap(standupDay)
+      if (version !== requestVersion) return
+      recap.value = next
+    } catch (cause: unknown) {
+      if (version !== requestVersion) return
+      recapError.value = cause
+    }
+  }
+
   function startEvents(): void {
     if (stopEvents !== null) return
     stopEvents = onTimelineUpdated((updatedDay) => {
@@ -452,15 +489,23 @@ export const useDailyStore = defineStore('daily', () => {
         if (day !== undefined) void loadJournalAndGoal(day, requestVersion)
       }
     })
+    stopRecapEvents = onRecapUpdated((updatedStandupDay) => {
+      if (updatedStandupDay === null || updatedStandupDay === context.value?.standupDay) {
+        const standupDay = context.value?.standupDay
+        if (standupDay !== undefined) void reloadRecap(standupDay, requestVersion)
+      }
+    })
   }
 
   function stopListening(): void {
     stopEvents?.()
     stopJournalEvents?.()
     stopGoalEvents?.()
+    stopRecapEvents?.()
     stopEvents = null
     stopJournalEvents = null
     stopGoalEvents = null
+    stopRecapEvents = null
   }
 
   return {
@@ -472,6 +517,9 @@ export const useDailyStore = defineStore('daily', () => {
     error,
     recapUnavailable,
     recapError,
+    recapGenerating,
+    recapGenerateError,
+    recapGenerationAvailable: computed(() => hasRecapGenerationBinding()),
     journal,
     journalUnavailable,
     journalError,
@@ -485,6 +533,7 @@ export const useDailyStore = defineStore('daily', () => {
     presentation,
     dayNavigationAvailable: computed(() => hasDailyDayBinding()),
     load,
+    regenerateRecap,
     saveJournal,
     saveGoal,
     startEvents,

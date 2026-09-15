@@ -1,14 +1,10 @@
 export default {
   action: {
-    copy: 'Copy',
     retry: 'Retry',
     today: 'Today',
     previous: 'Previous',
     next: 'Next',
-    manage: 'Manage',
     regenerate: 'Regenerate',
-    export: 'Export',
-    add: 'Add',
     save: 'Save',
     reset: 'Reset',
     cancel: 'Cancel',
@@ -21,13 +17,13 @@ export default {
     hours: '{count} hr',
     hoursMinutes: '{hours} hr {minutes} min',
   },
-  state: {
-    loading: 'Loading…',
-    saving: 'Saving…',
-    empty: 'Nothing here yet',
-  },
   placeholder: {
     planned: 'Planned',
+  },
+  combo: {
+    expand: 'Expand options',
+    collapse: 'Collapse options',
+    noMatches: 'No matches',
   },
   fatal: {
     title: 'Something went wrong',

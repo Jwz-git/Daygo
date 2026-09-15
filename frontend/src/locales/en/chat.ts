@@ -16,7 +16,6 @@ export default {
   renameTitlePlaceholder: "Enter a title for the conversation",
   renameTitleRequired: "A title is required",
   removeConfirm: "Delete this conversation?",
-  noSelection: "Pick or start a conversation.",
   unavailableTitle: "Chat is unavailable",
   unavailableDescription: "It needs to run inside the Daygo app with a database available.",
   provider: {
@@ -26,7 +25,6 @@ export default {
   model: {
     label: "Model",
     follow: "Follow provider ({model})",
-    custom: "Custom model",
   },
   composer: {
     placeholder: "Type a message… (Enter to send)",
@@ -59,8 +57,6 @@ export default {
   bubble: {
     copy: "Copy",
     copied: "Copied",
-    showRaw: "Raw",
-    showFormatted: "Formatted",
     roleAssistant: "Daygo",
   },
 
@@ -77,9 +73,6 @@ export default {
 
   contextBar: {
     readonly: "Read-only",
-    editable: "Editable",
-    switchProvider: "Switch provider",
-    switchModel: "Switch model",
   },
 
   dateDivider: {

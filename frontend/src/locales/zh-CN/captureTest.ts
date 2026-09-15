@@ -1,6 +1,4 @@
 export default {
-  title: '截图 ABI 联调',
-  badge: '临时测试',
   platformSwitch: '测试平台',
   macosTab: 'macOS 原生 ABI',
   windowsTab: 'Windows Recorder',

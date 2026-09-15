@@ -4,13 +4,14 @@ These anonymous payloads are served only by Vite's development server. They are
 outside `src`, are not imported by the application, and must not appear in
 `frontend/dist`.
 
-The timeline, daily, and weekly stores use their matching JSON file only when the
-required Wails bindings are missing. A visible “sample data · development
-only” badge keeps that state distinct from real activity. `daily.json` contains
-six anonymous activities and a short recap. `timeline.json` contains seven
-anonymous activities, including an idle range and adjacent short cards.
-`weekly.json` contains only one anonymous aggregate week. None of these files is
-a recording of a real person or project.
+The matching store / API module (timeline, daily, weekly, settings, applications)
+uses its JSON file only when the required Wails bindings are missing. A visible
+“sample data · development only” badge keeps that state distinct from real activity.
+`daily.json` contains six anonymous activities and a short recap. `timeline.json`
+contains seven anonymous activities, including an idle range and adjacent short
+cards. `weekly.json` contains only one anonymous aggregate week. `settings.json`
+and `applications.json` mirror their respective binding DTOs. None of these files
+is a recording of a real person or project.
 
 Browser automation can select either state at navigation time:
 
@@ -24,4 +25,5 @@ daily, weekly, settings, providers, and chat share this switch.
 
 To remove the previews later, delete this directory,
 `src/api/developmentFixtures.ts`, the `developmentFixtures()` Vite plugin, and
-the fallback branches in the timeline, daily, and weekly stores.
+the fallback branches in the timeline, daily, weekly, settings, and applications
+stores / API modules.

@@ -28,7 +28,15 @@
 后端绑定 `GetDailyRecap`（读取已有日报或返回空结构）与 `SaveDailyRecap`
 （只提供日报存储入口）。前端 DailyRecapPanel 支持真实日报和日记草稿两种视图。
 
-文本生成触发（LLM 调用）、生成结果自动写入、通知仍未实现。
+**2026-09-15（生成触发）**：`GenerateDailyRecap(standupDay)` 绑定落盘——按日历日窗口读取
+当日活动卡片（排除 System / Idle 分类），经 `insight.StandupPrompt` /
+`insight.StandupOutput`（结构化输出 schema）调用 provider 链生成站会三段，校验后写入
+`daily_standup_entries` 并发 `recap:updated` 失效事件。`SaveDailyRecap` 也开始发同一事件。
+错误映射：无 provider → `provider_not_configured`，模型 / schema 失败 → `provider_failed`；
+只读实例 → `not_capture_owner`。前端「重新生成」按钮接通（生成中禁用、失败提示、
+事件后重拉）。Go 侧有 httptest 全链路断言；真实 provider 与 `wails dev` 真机往返未验证。
+
+文本生成自动触发（录制后自动生成）、通知仍未实现。
 
 ## 能力与跨层职责
 

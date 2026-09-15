@@ -49,7 +49,6 @@ export default {
     empty: 'No summarizable segments this week',
   },
   insights: {
-    eyebrow: 'Insights',
     title: 'This week at a glance',
     activeDays: 'Active days',
     daysCount: '{count} days',

@@ -49,7 +49,6 @@ export default {
     empty: '本周暂无可汇总的时段数据',
   },
   insights: {
-    eyebrow: '洞察',
     title: '本周概要',
     activeDays: '活跃天数',
     daysCount: '{count} 天',

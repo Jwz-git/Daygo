@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 /**
  * A text input with a filtered dropdown: the user may pick one of the options
@@ -31,6 +32,8 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+
+const { t } = useI18n()
 
 const open = ref(false)
 const query = ref('')
@@ -130,14 +133,14 @@ function onInputBlur(): void {
       type="button"
       class="combo__toggle"
       :tabindex="disabled ? -1 : 0"
-      :aria-label="open ? '收起选项' : '展开选项'"
+      :aria-label="open ? t('common.combo.collapse') : t('common.combo.expand')"
       @mousedown.prevent="onToggle"
     >
       <span class="combo__chevron" aria-hidden="true">{{ open ? '▴' : '▾' }}</span>
     </button>
     <ul v-if="open && !disabled" class="combo__list dg-popover" role="listbox">
       <li v-if="filtered.length === 0" class="combo__empty">
-        <slot name="empty">无匹配项</slot>
+        <slot name="empty">{{ t('common.combo.noMatches') }}</slot>
       </li>
       <li v-for="option in filtered" :key="option.value" role="option" :aria-selected="option.value === modelValue">
         <button

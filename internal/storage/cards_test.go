@@ -172,9 +172,12 @@ func TestReplaceCardsInRangeSkipsUnparseableButCommitsRest(t *testing.T) {
 	}
 }
 
-// A second rewrite of the same range replaces the first batch's cards but
-// keeps System cards from other batches (docs/03 §3.5 overlap predicate).
-func TestReplaceCardsInRangeKeepsOtherBatchesSystemCards(t *testing.T) {
+// A rewrite of a range absorbs EVERY card in it, including System cards
+// written by another batch (docs/03 §3.5 overlap predicate). Sparing them is
+// what left a merge card and its absorbed predecessor on screen in parallel:
+// the only System writer is the unknown-category fallback, and failure state
+// lives in analysis_batches, not in cards.
+func TestReplaceCardsInRangeAbsorbsOtherBatchesSystemCards(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
 	seedBatch(t, store, 1)
 	seedBatch(t, store, 2)
@@ -187,7 +190,7 @@ func TestReplaceCardsInRangeKeepsOtherBatchesSystemCards(t *testing.T) {
 	}, 1); err != nil {
 		t.Fatalf("first replace: %v", err)
 	}
-	// A System failure marker written by batch 2 inside the same range.
+	// A System fallback card written by batch 2 inside the same range.
 	if err := seedSystemCard(t, store, 2, "10:30 AM", "10:40 AM"); err != nil {
 		t.Fatalf("seedSystemCard: %v", err)
 	}
@@ -207,25 +210,12 @@ func TestReplaceCardsInRangeKeepsOtherBatchesSystemCards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CardsForDay: %v", err)
 	}
-	var titles []string
-	for _, c := range cards {
-		titles = append(titles, c.Title+"/"+c.Category)
-	}
-	// new-activity (batch 1), the System marker (batch 2); old-activity soft-deleted.
-	if len(cards) != 2 {
-		t.Fatalf("cards = %v, want new-activity + system marker", titles)
-	}
-	hasSystem, hasNew := false, false
-	for _, c := range cards {
-		if c.Category == "System" && c.Title == "failure-marker" {
-			hasSystem = true
+	if len(cards) != 1 || cards[0].Title != "new-activity" {
+		titles := make([]string, len(cards))
+		for i, c := range cards {
+			titles[i] = c.Title + "/" + c.Category
 		}
-		if c.Title == "new-activity" {
-			hasNew = true
-		}
-	}
-	if !hasSystem || !hasNew {
-		t.Fatalf("cards = %v, want system marker and new activity", titles)
+		t.Fatalf("cards = %v, want only new-activity (system card absorbed)", titles)
 	}
 }
 

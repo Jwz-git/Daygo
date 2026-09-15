@@ -146,7 +146,8 @@ var toolCatalog = []ToolSpec{
 	},
 	{
 		Name: ToolCardUpdate,
-		Description: "Update a card's category (by category name, which must already exist) or title; " +
+		Description: "Update a card's category (by category name, which must already exist and must " +
+			"not be a built-in category — System and Idle are assigned by the pipeline) or title; " +
 			"cardId is required, and at least one of category and title must be provided. " +
 			"Write operation, gated by the sandbox.",
 		Arguments: json.RawMessage(`{

@@ -326,7 +326,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 		}
 		toolCalls++
 
-		outcome := s.executeTool(ctx, conversationID, reply)
+		outcome := s.executeTool(ctx, reply)
 		s.landToolResult(ctx, conversationID, reply.Tool, outcome)
 		if ctx.Err() != nil {
 			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusCanceled, Content: failureText(ctx.Err())})
@@ -338,7 +338,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 // executeTool runs one validated tool call. Gate and validation failures are
 // tool results, not turn failures (docs/05 §5.12): the model sees the closed
 // error and continues, typically by answering with what it has.
-func (s *Service) executeTool(ctx context.Context, conversationID string, reply envelope) json.RawMessage {
+func (s *Service) executeTool(ctx context.Context, reply envelope) json.RawMessage {
 	if _, known := toolByName(reply.Tool); !known {
 		return toolResultEnvelope(false, "unknown_tool", "Unknown tool "+reply.Tool+".")
 	}
@@ -406,10 +406,7 @@ func clipToolResult(data json.RawMessage) json.RawMessage {
 	if len(data) <= maxToolResultBytes {
 		return data
 	}
-	budget := maxToolResultBytes - 128 // room for the envelope keys
-	if budget < 0 {
-		budget = 0
-	}
+	budget := max(maxToolResultBytes-128, 0) // room for the envelope keys
 	clipped := string(data[:budget])
 	envelope, _ := json.Marshal(map[string]any{
 		"ok":        true,
@@ -499,10 +496,15 @@ func (s *Service) buildRequest(ctx context.Context, conversationID string, userM
 			prompt.WriteString(message.Content)
 		case RoleToolCall:
 			prompt.WriteString("\n\nAssistant: ")
-			prompt.WriteString(`{"kind":"tool","tool":` + jsonString(message.ToolName) +
-				`,"arguments":` + orEmptyJSON(message.ToolArguments) + "}")
+			prompt.WriteString(`{"kind":"tool","tool":`)
+			prompt.WriteString(jsonString(message.ToolName))
+			prompt.WriteString(`,"arguments":`)
+			prompt.WriteString(orEmptyJSON(message.ToolArguments))
+			prompt.WriteString("}")
 		case RoleToolRes:
-			prompt.WriteString("\n\nTool result (" + message.ToolName + "): ")
+			prompt.WriteString("\n\nTool result (")
+			prompt.WriteString(message.ToolName)
+			prompt.WriteString("): ")
 			// Current-turn results stay whole (the 64 KiB budget already
 			// clipped them at landing); older ones are clipped so eight past
 			// tools cannot refill the context.

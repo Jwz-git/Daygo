@@ -30,6 +30,7 @@ const (
 	PurposeTranscribe Purpose = "transcribe"
 	PurposeCards      Purpose = "cards"
 	PurposeChat       Purpose = "chat"
+	PurposeStandup    Purpose = "standup"
 )
 
 type PartKind string

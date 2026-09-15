@@ -17,6 +17,17 @@ import { positionRange, safeCategoryColor } from './layout'
 export const WEEK_PIXELS_PER_MINUTE = 1.5
 export const MIN_WEEK_TRACK_HEIGHT = 1500
 
+/*
+ * Lines of title text that fit a week card of the given height. The card is
+ * border-box with 1px borders top/bottom plus 8px padding on each side, so
+ * only height - 18 is text space; 11px at 1.4 line-height is ~15.4px/line.
+ * Under-subtracting here is what cut the last line in half instead of
+ * ellipsizing it.
+ */
+export function weekCardClampLines(height: number): number {
+  return Math.max(1, Math.floor((height - 18) / 15.4))
+}
+
 export interface WeekCard {
   id: number
   /** The full backend card, so the inspector can show it without refetching. */
@@ -106,8 +117,6 @@ export function buildWeekColumns(
       })
       .map((card) => {
         const box = positionRange(card.startTs, card.endTs, day.dayStartTs, day.dayEndTs, height, 34)
-        // 8px padding top+bottom, 11px font at 1.4 line-height (~15.4px/line).
-        const clampLines = Math.max(1, Math.floor((box.height - 16) / 15.4))
         return {
           id: card.id,
           card,
@@ -117,7 +126,7 @@ export function buildWeekColumns(
           color: colorOf.get(card.category) ?? safeCategoryColor(undefined),
           category: translateCategory(card.category, () => card.category),
           isIdle: card.isIdle,
-          clampLines,
+          clampLines: weekCardClampLines(box.height),
           site: appSiteValues(card.appSites ?? null)[0] ?? null,
         }
       })

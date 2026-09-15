@@ -18,6 +18,7 @@ const (
 	EventRecordingWarning    EventName = "recording:warning"
 	EventUpdateAvailable     EventName = "update:available"
 	EventChatUpdated         EventName = "chat:updated"
+	EventRecapUpdated        EventName = "recap:updated"
 )
 
 var eventNames = [...]EventName{
@@ -33,6 +34,7 @@ var eventNames = [...]EventName{
 	EventRecordingWarning,
 	EventUpdateAvailable,
 	EventChatUpdated,
+	EventRecapUpdated,
 }
 
 // EventNames returns a defensive copy of the complete event-name contract.

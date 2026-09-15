@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 /*
- * Placeholder card riding the now-line. Capturing shows the nine-cell wave
+ * Placeholder card at the current time. Capturing shows the nine-cell wave
  * and the generating label; paused shows a hold icon and asks for resume —
  * Dayflow-style. Geometry matches the activity cards: square corners, hairline
  * border, card fill.

@@ -3,17 +3,9 @@
 > **状态：规范草案。** 本文把 [02 §2.1](02-architecture.md#21-模块图) 的模块边界收敛为可实现、
 > 可测试的契约：方法签名、字段级 DTO、错误码、事件语义、版本与兼容性规则。
 >
-> 本文把正式绑定、临时联调绑定和端口形状分开描述。截至当前工作树已落盘：
-> `internal/storage`（连接、PRAGMA、迁移链、实例锁、`app_settings` repository、维护与诊断）、
-> `internal/settings`（16 个键的类型化访问与规范化）、
-> `internal/ai`（三种协议客户端、重试 / 回退、结构化输出、连接探针）、
-> `internal/platform` 端口与值类型、`internal/platform/fake` 的 Capture / System 实现、
-> `internal/platform/secrets` 的 fake 与 macOS Keychain 实现、
-> `platformtest` 的四套契约套件、macOS 与 Windows 的真实 Capture 适配器、
-> `internal/app` 的正式绑定方法和临时 `CaptureTest` 联调绑定、`apperr` 错误类型与事件常量、
-> 前端外壳 / 设置页及其本地存储层。
-> Media / Updater 的 fake 与真实实现尚缺；Go recorder、pending/screenshots 提交、
-> 时间线分析流水线、weekly 聚合与 daily 日报存储已落盘。
+> 本文把正式绑定、临时联调绑定和端口形状分开描述。**实现与验证的当前状态以
+> [09 §9.1](09-roadmap.md#91-模块总表) 的模块总表为唯一权威**，本文不维护状态快照，
+> 只在必要处标注「规划中」以区分已交付契约与目标契约。
 > 平台适配边界（§5.8）仍为 **待定设计**：只定义任何实现都必须满足的要求，不定义协议本身。
 
 ## 5.1 本文的定位
@@ -89,13 +81,13 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
-| preferences | `GetCapabilities`、`GetSettings / UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
-| timeline | `GetDayContext`、`GetTimelineDay`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日可重处理；视频 URL 与搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
-| daily | `GetDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals` / `daily_standup_entries`；用户保存不触碰 AI summary 列 |
+| preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日可重处理；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
+| daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；用户保存不触碰 AI summary 列 |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
-| recording（联调） | `CaptureTest`、`OpenCaptureTestFolder` | 直接调用平台 `Capture`；均不接 recorder / storage / config |
+| recording（联调） | `CaptureTest`、`OpenCaptureTestFolder`、`PollSystemEvents` | 直接调用平台 `Capture` 或排空系统事件广播缓冲；均不接 recorder / storage / config。`PollSystemEvents` 是共享广播缓冲的排空口（recorder 与测试页都要观察全部原生事件，直接消费会互相抢），**会消费缓冲**，正式产品页面不得调用 |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
@@ -178,7 +170,8 @@ fake 的覆盖以 §5.7.4 为准。
   | 分类 | `sortOrder ASC, name ASC` | 无（用户量级） |
   | Provider | `sortOrder ASC` | 无 |
   | 搜索结果 | `startTs DESC, id DESC` | 默认 50，最大 200 |
-  | 帧条 | `capturedAtTs ASC` | 最大 240 |
+  | 卡片帧引用（`GetCardMedia`） | `capturedAtTs ASC` | 最大 600 |
+  | 帧条（`GetFrameStrip`，规划中） | `capturedAtTs ASC` | 最大 240 |
 
 ### 5.3.4 粒度与副作用
 
@@ -278,22 +271,23 @@ export function toApiError(e: unknown): ApiError {
 
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
-| `GetTimelineDay(day string) (TimelineDayDTO, error)` **已实现** | timeline | time / cards | 读 | — | `invalid_argument` `database_error` |
+| `GetTimelineDay(day string) (TimelineDayDTO, error)` | timeline | time / cards | 读 | — | `invalid_argument` `database_error` |
 | `GetCard(cardID int64) (TimelineCardDTO, error)` | timeline | cards | 读 | — | `not_found` |
 | `SearchCards(query string, limit int) ([]TimelineCardDTO, error)` | timeline | cards 搜索 | 读 | — | `invalid_argument` |
-| `UpdateCardCategory(cardID int64, category string) error` **已实现** | timeline | cards / 分类 / 写入锁 | 写·幂等 | `timeline:updated` | `not_found` `invalid_argument` |
-| `UpdateCardTitle(cardID int64, title string) error` **已实现** | timeline | cards / 写入锁 | 写·幂等 | `timeline:updated` | 同上 |
-| `UpdateCardSummary(cardID int64, text string) error` **已实现** | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
-| `UpdateCardDetailedSummary(cardID int64, text string) error` **已实现** | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
-| `DeleteCard(cardID int64) error` **已实现** | timeline | cards / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` |
-| `RetryBatches(batchIDs []int64) error` **已实现** | timeline | 批次 / provider-client / media-read | 写·非幂等 | `batch:progress` `timeline:updated` | `not_found` `conflict` |
-| `SaveCategories(categories []CategoryDTO) error` **已实现** | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
-| `DeleteBatches(batchIDs []int64) error` **已实现** | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
-| `ReprocessDay(day string) error` **已实现** | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
-| `ClearHistoryData() error` **已实现**（测试专用） | timeline | storage / 写入锁 / 录制空闲 | 写·非幂等 | `timeline:updated` `journal:updated` `goal:updated` | `not_capture_owner` `conflict` `database_error` |
+| `UpdateCardCategory(cardID int64, category string) error` | timeline | cards / 分类 / 写入锁 | 写·幂等 | `timeline:updated` | `not_found` `invalid_argument` |
+| `UpdateCardTitle(cardID int64, title string) error` | timeline | cards / 写入锁 | 写·幂等 | `timeline:updated` | 同上 |
+| `UpdateCardSummary(cardID int64, text string) error` | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
+| `UpdateCardDetailedSummary(cardID int64, text string) error` | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
+| `DeleteCard(cardID int64) error` | timeline | cards / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` |
+| `RetryBatches(batchIDs []int64) error` | timeline | 批次 / provider-client / media-read | 写·非幂等 | `batch:progress` `timeline:updated` | `not_found` `conflict` |
+| `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
+| `DeleteBatches(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
+| `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
+| `ClearHistoryData() error`（测试专用） | timeline | storage / 写入锁 / 录制空闲 | 写·非幂等 | `timeline:updated` `journal:updated` `goal:updated` | `not_capture_owner` `conflict` `database_error` |
 
-- `UpdateCardCategory` 的 `category` 必须是现有分类**名称**；不存在时返回
-  `invalid_argument`，**不得**自动创建分类。
+- `UpdateCardCategory` 的 `category` 必须是现有**用户**分类**名称**；不存在或为内置
+  分类（`System` / `Idle`，由流水线赋值）时返回 `invalid_argument`，**不得**自动创建
+  分类。
 - `DeleteCard` 是软删除并返回可清理的 timelapse 路径给内部维护；对前端只是 `error`。
 - `RetryBatches` / `ReprocessDay` 立即返回，进度通过 `batch:progress` 推送。
   `RetryBatches` 重置 `attempts` 并清空失败信息后回到 `pending`；调用方传入的
@@ -308,11 +302,14 @@ export function toApiError(e: unknown): ApiError {
 
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
-| `GetFrameURL(screenshotID int64, maxPixelSize int) (string, error)` | timeline | 帧索引 / media-read / 资源入口 | 读 | — | `not_found` `media_decode_failed` `native_unavailable` |
-| `GetFrameStrip(fromTs, toTs int64, count int) ([]FrameRefDTO, error)` | timeline | 帧索引 / 资源入口 | 读 | — | `invalid_argument` |
+| `GetCardMedia(cardID int64) (CardMediaDTO, error)` | timeline | cards / captures 帧索引 | 读 | — | `invalid_argument` `not_found` `database_error` |
+| `GetFrameStrip(fromTs, toTs int64, count int) ([]FrameRefDTO, error)`（规划中） | timeline | 帧索引 / 资源入口 | 读 | — | `invalid_argument` |
 
-`GetFrameStrip` 只返回**引用**（URL + 时间戳 + ID），不触发解码；解码发生在浏览器请求
-资源时。`count` 上限 240，`maxPixelSize` 上限 2048，超出即 `invalid_argument`。
+`GetCardMedia` 返回**引用**而非像素：卡片时间窗内的帧列表（`CardMediaFrameDTO`：数字
+`screenshotID` + `capturedAtTs`），按时间升序，上限 600（与 storage 层一致）。像素在浏览器
+按 `/media/frame?id=` 资源请求时才解码（§5.5.4）；无帧的卡片返回空列表而不是错误，播放器
+渲染占位。规划中的 `GetFrameStrip` 是按时间窗（而非卡片）取帧引用的泛化形式，`count`
+上限 240，超出即 `invalid_argument`。
 
 #### 录制
 
@@ -322,9 +319,9 @@ export function toApiError(e: unknown): ApiError {
 | `GetRecordingDirectory() (string, error)` | recording | recording path resolution | 读 | — | `database_error` |
 | `CaptureTest(request CaptureTestRequestDTO) (CaptureTestResultDTO, error)` | recording（联调） | Capture 适配器 | 写·测试 | — | `invalid_argument` `permission_denied` `native_unavailable` |
 | `OpenCaptureTestFolder(path string) error` | recording（联调） | 系统文件管理器 | 写·测试 | — | `invalid_argument` `not_found` `native_unavailable` |
-| `PickApplication() (*ApplicationDTO, error)` **已实现** | recording | Wails picker / ApplicationInspector | 写·用户交互 | — | `invalid_argument` `not_found` `native_unavailable` |
-| `GetBlockedApplications() ([]ApplicationDTO, error)` **已实现** | recording | settings-access / ApplicationInspector | 读 | — | `database_error` |
-| `GetPrivacyCompatibility() (PrivacyCompatibilityDTO, error)` **已实现** | recording | CapturePrivacyReporter | 读 | — | `native_unavailable` |
+| `PickApplication() (*ApplicationDTO, error)` | recording | Wails picker / ApplicationInspector | 写·用户交互 | — | `invalid_argument` `not_found` `native_unavailable` |
+| `GetBlockedApplications() ([]ApplicationDTO, error)` | recording | settings-access / ApplicationInspector | 读 | — | `database_error` |
+| `GetPrivacyCompatibility() (PrivacyCompatibilityDTO, error)` | recording | CapturePrivacyReporter | 读 | — | `native_unavailable` |
 | `SetRecording(enabled bool) error` | recording | capture / db-core / 授权 | 写·幂等 | `recording:state` | `permission_denied` `not_capture_owner` `native_unavailable` |
 | `PauseRecording(minutes int) error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | `invalid_argument` `not_capture_owner` |
 | `ResumeRecording() error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | 同上 |
@@ -339,7 +336,6 @@ export function toApiError(e: unknown): ApiError {
 |------|----------|----------|------|------|-----------|
 | `GetSettings() (SettingsDTO, error)` | preferences | settings-store / settings-access | 读 | — | — |
 | `UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error)` | preferences | settings-access / 写入锁 | 写·幂等 | `settings:changed` | `invalid_argument` |
-| `GetCategories() ([]CategoryDTO, error)` | timeline | 分类 repository | 读 | — | — |
 
 - `SaveCategories` 已随时间线绑定实现（§5.2.1 timeline 表）：整体覆盖，重命名在
   同一事务内同步改写已有卡片的 `category` 字符串并按触及日期触发 `timeline:updated`。
@@ -355,17 +351,17 @@ export function toApiError(e: unknown): ApiError {
 
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
-| `ListProviders() ([]ProviderDTO, error)` | providers | **已实现**：Provider repository / settings-access | 读 | — | — |
-| `AddProvider(p ProviderInputDTO) (string, error)` | providers | **已实现**：Provider repository / settings-access | 写·非幂等 | `settings:changed` | `invalid_argument` `native_unavailable` |
-| `UpdateProvider(id string, p ProviderInputDTO) error` | providers | **已实现**：Provider repository / settings-access | 写·幂等 | `settings:changed` | `not_found` `invalid_argument` `native_unavailable` |
-| `DeleteProvider(id string) error` | providers | **已实现**：Provider repository / settings-access；连带剪除路由链、钥匙串条目与会话级 provider 绑定 | 写·幂等 | `settings:changed` | `not_found` |
-| `GetProviderRouting() (ProviderRoutingDTO, error)` | providers | **已实现**：settings-access | 读 | — | — |
-| `SetProviderRouting(r ProviderRoutingDTO) error` | providers | **已实现**：Provider repository（校验 id 存在且不重复） | 写·幂等 | `settings:changed` | `invalid_argument` |
-| `SetProviderSecret(id string, secret string) error` | providers | **已实现**：Secrets / Provider repository | 写·幂等 | — | `not_found` `invalid_argument` `native_unavailable` |
-| `DeleteProviderSecret(id string) error` | providers | **已实现**：Secrets（删不存在的条目不是错误） | 写·幂等 | — | `invalid_argument` `native_unavailable` |
-| `TestProvider(id string) (ProviderTestResultDTO, error)` | providers | **已实现**：provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`provider_failed`（结果行） |
-| `ListProviderModels(req ProviderModelsRequestDTO) (ProviderModelsResultDTO, error)` | providers | **已实现**：provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`native_unavailable` |
-| `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | **已实现**：provider-client | 读·有网络副作用 | — | `invalid_argument` |
+| `ListProviders() ([]ProviderDTO, error)` | providers | Provider repository / settings-access | 读 | — | — |
+| `AddProvider(p ProviderInputDTO) (string, error)` | providers | Provider repository / settings-access | 写·非幂等 | `settings:changed` | `invalid_argument` `native_unavailable` |
+| `UpdateProvider(id string, p ProviderInputDTO) error` | providers | Provider repository / settings-access | 写·幂等 | `settings:changed` | `not_found` `invalid_argument` `native_unavailable` |
+| `DeleteProvider(id string) error` | providers | Provider repository / settings-access；连带剪除路由链、钥匙串条目与会话级 provider 绑定 | 写·幂等 | `settings:changed` | `not_found` |
+| `GetProviderRouting() (ProviderRoutingDTO, error)` | providers | settings-access | 读 | — | — |
+| `SetProviderRouting(r ProviderRoutingDTO) error` | providers | Provider repository（校验 id 存在且不重复） | 写·幂等 | `settings:changed` | `invalid_argument` |
+| `SetProviderSecret(id string, secret string) error` | providers | Secrets / Provider repository | 写·幂等 | — | `not_found` `invalid_argument` `native_unavailable` |
+| `DeleteProviderSecret(id string) error` | providers | Secrets（删不存在的条目不是错误） | 写·幂等 | — | `invalid_argument` `native_unavailable` |
+| `TestProvider(id string) (ProviderTestResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`provider_failed`（结果行） |
+| `ListProviderModels(req ProviderModelsRequestDTO) (ProviderModelsResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`native_unavailable` |
+| `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | provider-client | 读·有网络副作用 | — | `invalid_argument` |
 
 两个测试方法**不是重复**，区别必须保留：
 
@@ -388,13 +384,14 @@ export function toApiError(e: unknown): ApiError {
 
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
-| `GetDailyRecap(standupDay string) (DailyRecapDTO, error)` **已实现** | daily | time / standup repository | 读 | — | `invalid_argument` |
-| `SaveDailyRecap(recap DailyRecapDTO) error` **已实现** | daily | standup repository / 写入锁 | 写·幂等 | — | `not_capture_owner` `invalid_argument` |
-| `GetJournalDay(day string) (JournalDayDTO, error)` **已实现** | daily | time / 日记 repository | 读 | — | `invalid_argument` |
-| `SaveJournalDay(entry JournalDayDTO) error` **已实现** | daily | 日记 repository / 写入锁 | 写·幂等 | `journal:updated` | `invalid_argument` |
-| `GetDayGoal(day string) (DayGoalDTO, error)` **已实现** | daily | time / 目标 repository | 读 | — | `invalid_argument` |
-| `SaveDayGoal(goal DayGoalDTO) error` **已实现** | daily | 目标 / 分类 / 写入锁 | 写·幂等 | `goal:updated` | `invalid_argument` |
-| `GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, error)` **已实现** | weekly | time 周边界 / cards | 读 | — | `invalid_argument` |
+| `GetDailyRecap(standupDay string) (DailyRecapDTO, error)` | daily | time / standup repository | 读 | — | `invalid_argument` |
+| `GenerateDailyRecap(standupDay string) (DailyRecapDTO, error)` | daily | cards / 分类 / providers / 写入锁 | 写·幂等（覆盖重生成） | `recap:updated` | `not_capture_owner` `invalid_argument` `provider_not_configured` `provider_failed` |
+| `SaveDailyRecap(recap DailyRecapDTO) error` | daily | standup repository / 写入锁 | 写·幂等 | `recap:updated` | `not_capture_owner` `invalid_argument` |
+| `GetJournalDay(day string) (JournalDayDTO, error)` | daily | time / 日记 repository | 读 | — | `invalid_argument` |
+| `SaveJournalDay(entry JournalDayDTO) error` | daily | 日记 repository / 写入锁 | 写·幂等 | `journal:updated` | `invalid_argument` |
+| `GetDayGoal(day string) (DayGoalDTO, error)` | daily | time / 目标 repository | 读 | — | `invalid_argument` |
+| `SaveDayGoal(goal DayGoalDTO) error` | daily | 目标 / 分类 / 写入锁 | 写·幂等 | `goal:updated` | `invalid_argument` |
+| `GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, error)` | weekly | time 周边界 / cards | 读 | — | `invalid_argument` |
 
 `GetDailyRecap` 的参数是**日历日**而不是逻辑日（见 §5.3.2）。这是唯一的例外，字段名
 `standupDay` 就是提醒。
@@ -534,10 +531,21 @@ type RangeDTO struct {
 
 // ---------- 帧 ----------
 
+// CardMediaDTO 是一张卡片时间窗内的可回放帧引用，像素经 /media/frame 资源解码。
+type CardMediaDTO struct {
+    CardID int64               `json:"cardId"`
+    Frames []CardMediaFrameDTO `json:"frames"` // capturedAtTs 升序，上限 600
+}
+
+type CardMediaFrameDTO struct {
+    ID         int64 `json:"id"`         // screenshots.id，即 /media/frame?id=
+    CapturedAt int64 `json:"capturedAt"` // Unix 秒
+}
+
+// FrameRefDTO 是规划中 GetFrameStrip 的引用形状（按时间窗取帧的泛化形式）。
 type FrameRefDTO struct {
     ScreenshotID int64  `json:"screenshotId"`
     CapturedAtTs int64  `json:"capturedAtTs"`
-    URL          string `json:"url"`      // 由 Go 生成，见 §5.5.4
     Redacted     bool   `json:"redacted"` // 隐私占位帧
 }
 
@@ -869,6 +877,7 @@ type UpdaterStateDTO struct {
 | `timeline:updated` | 失效 | `{day: string}` | 卡片写入、删除、重处理完成 |
 | `journal:updated` | 失效 | `{day: string}` | 日记保存或 AI 摘要生成 |
 | `goal:updated` | 失效 | `{day: string}` | 目标保存或外部写入 |
+| `recap:updated` | 失效 | `{standupDay: string}` | 日报生成或保存成功 |
 | `settings:changed` | 失效 | `{keys: string[]}` | 设置、分类或 provider 写入成功后 |
 | `chat:updated` | 失效 | `{conversationId: string}` | chat 会话或消息落库（新建 / 删除 / 回合内每条消息 / 回合结束） |
 | `recording:state` | 状态 | `RecordingStateDTO` | 状态机转换、权限变化、暂停到期 |
@@ -890,29 +899,29 @@ type UpdaterStateDTO struct {
 
 ### 5.5.4 资源契约
 
-像素和视频**不走 JSON**，通过 Wails 资源处理器以普通 HTTP 资源提供，这样浏览器免费获得
+像素**不走 JSON**，通过 Wails 资源处理器以普通 HTTP 资源提供，这样浏览器免费获得
 流式传输、缓存和懒加载。
 
-| 资源 | 路径形状 | 内容 |
-|------|----------|------|
-| 单帧 | `/media/frame/{screenshotID}?max={px}` | JPEG |
-| Timelapse | `/media/timelapse/{cardID}` | mp4 |
+| 资源 | 路径形状 | 内容 | 状态 |
+|------|----------|------|------|
+| 单帧 | `GET /media/frame?id={screenshotID}` | JPEG | 已实现 |
+| Timelapse | `/media/timelapse/{cardID}` | mp4 | 规划中 |
 
 契约：
 
-1. **URL 只能由 Go 生成**（`GetFrameURL`、`FrameRefDTO.URL`、`TimelineCardDTO.VideoSummaryURL`）。
-   前端不得自行拼接路径，否则"ID → 磁盘路径"的映射会渗进前端，帧寻址方式一旦变化就会
-   破坏 UI。
-2. **处理器只接受数字 ID 和白名单查询参数。** 不接受文件路径参数；解析后的路径必须落在
-   `~/Library/Application Support/Daygo/recordings/` 或 `timelapses/` 之内，否则 403。
-   这是目录穿越的唯一防线。
-3. **缓存**：帧内容不可变（同一 `screenshotID` + `max` 永远是同一张图），返回
-   `Cache-Control: public, max-age=31536000, immutable`。软删除后返回 404，前端显示占位。
-4. **状态码映射**：`404` 行不存在或已软删除；`403` 路径越界；`503` 平台适配层不可用
-   （对应 `native_unavailable`，可重试）；`502` 解码失败（对应 `media_decode_failed`，不重试）。
-5. **并发上限**：解码请求在 Go 侧排队，上限与 `platform.Media` 的批量能力一致；
-   一天 200 张缩略图必须走 `DecodeFrames` 批量摊销，而不是 200 次单帧调用。
-6. `max` 缺省时返回原始尺寸；上限 2048，非法值 400。
+1. **寻址以数字 ID 完成，路径形状是固定约定**（`/media/frame?id=`，无其他查询参数）。
+   前端从 `CardMediaFrameDTO.id` 生成 URL；"ID → 磁盘路径"的映射只存在于 Go 侧，
+   帧寻址方式一旦变化只需改后端与这一处约定。
+2. **处理器只接受数字 ID。** 不接受文件路径参数；ID 在数据库中解析为 `segment_path`
+   后由 Media 适配器钉在录制根目录内解析，越界即拒绝。这是目录穿越的唯一防线。
+3. **缓存**：帧写入后不可变（同一 `screenshotID` 永远是同一张图），返回
+   `Cache-Control: private, max-age=86400, immutable`。行可以先于文件被清理移除
+   （清理按整段异步进行），此时返回 404，前端渲染占位。
+4. **状态码映射**：`404` 行不存在、已软删除或文件已清理（含解码失败——行存在但文件
+   不可读等同缺资源，不区分 5xx）；`400` ID 非法。适配层不可用等同资源缺失（404），
+   因为无录制目录时本来就没有帧。
+5. **解码在请求时发生**：`GetCardMedia` 只返回引用；像素在浏览器请求资源时经
+   `platform.Media.DecodeFrame` 解码。规划中的 Timelapse 资源将复用同一处理器约定。
 
 ### 5.5.5 前端侧规则
 
@@ -999,8 +1008,8 @@ type TimelineRepository interface {
     CardByID(ctx context.Context, id int64) (domain.TimelineCard, error)
     CardsForBatch(ctx context.Context, batchID int64) ([]domain.TimelineCard, error)
 
-    // ReplaceCardsInRange 是流水线的原子提交点：单个事务内完成软删除、System 卡片保留、
-    // 时钟串解析、插入，并返回可清理的 timelapse 路径与被跳过的卡片。
+    // ReplaceCardsInRange 是流水线的原子提交点：单个事务内完成软删除（范围内所有卡片，
+    // 含 System 回退卡）、时钟串解析、插入，并返回可清理的 timelapse 路径与被跳过的卡片。
     // 规则见 03 §3.5——这是整个存储层风险最高的方法。
     ReplaceCardsInRange(ctx context.Context, from, to time.Time,
         cards []domain.CardShell, batchID int64) (ReplaceResult, error)
@@ -1266,8 +1275,10 @@ type DisplayCapture interface {
 （多屏、旋转、快速切换前台、24 小时资源）由 [08 §8.6.2 MC](08-testing-strategy.md#862-mc真实-macos-捕获矩阵)
 与 [§8.6.3 WC](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 覆盖，契约套件不替代它们。
 
-`internal/platform/fake` 当前只实现 `Capture`；`Media`/`System`/`Secrets`/`Updater`
-尚未实现；分别由 recording、daily（通知）、providers、delivery 在能力执行册跟踪，
+`internal/platform/fake` 随能力交付：`Capture` 与 `System` 的 fake 在
+`internal/platform/fake`，Secrets 的 fake 在 `internal/platform/secrets/fake.go`，
+Media 的文件实现（非 fake，读取录制目录的真实 JPEG）在
+`internal/platform/mediafile`；`Updater` 尚无任何实现，由 delivery 跟踪，
 见 [09 能力接入表](09-roadmap.md#93-能力接入表)。
 
 ---
@@ -1447,9 +1458,8 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 读面等于 §5.9.1 的读命令语义，写面不超出 §5.9.2 的六个操作——三条通道共享一套查询与
 写入语义，不出现第四套。v1 不交付；执行册见 [modules/chat](modules/chat.md)。
 
-**实现状态**：会话模型（多会话、会话级 provider、全局记忆）与工具循环（信封解析、
-门禁、预算、`llm_calls` 审计、折叠式工具消息 UI）均已实现；`search` 读工具
-（语义随 §5.9.1 一并定案）、`agent-writes.log` 来源标记（#23）与消息留存策略仍缓后。
+**实现状态**见 [09 §9.1](09-roadmap.md#91-模块总表) chat 行与
+[modules/chat](modules/chat.md)；表内标注「已实现 / 缓后」仅区分当前约束与目标约束。
 
 已定约束：
 

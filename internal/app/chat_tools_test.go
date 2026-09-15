@@ -33,11 +33,11 @@ func TestChatToolExecutorCardWriteMatchesBinding(t *testing.T) {
 	seedTimelineDay(t, bindBackend, []domain.CardShell{seedShell})
 
 	executor := chatToolExecutor{backend: execBackend}
-	result := executor.Execute(context.Background(), toolCall("card_update", `{"cardId":1,"category":"Idle"}`))
+	result := executor.Execute(context.Background(), toolCall("card_update", `{"cardId":1,"category":"Focus Work"}`))
 	if result.Err {
 		t.Fatalf("executor card_update = %s", result.Data)
 	}
-	if err := bindBackend.UpdateCardCategory(1, "Idle"); err != nil {
+	if err := bindBackend.UpdateCardCategory(1, "Focus Work"); err != nil {
 		t.Fatalf("binding UpdateCardCategory: %v", err)
 	}
 
@@ -51,9 +51,17 @@ func TestChatToolExecutorCardWriteMatchesBinding(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s CardsForDay: %v", name, err)
 		}
-		if len(cards) != 1 || cards[0].Category != "Idle" {
-			t.Fatalf("%s card = %+v", name, cards)
+		if len(cards) != 1 || cards[0].Category != "Focus Work" {
+			t.Fatalf("%s card = %+v, want Focus Work", name, cards)
 		}
+	}
+	// Built-in categories are refused on both paths — the chat assistant gets
+	// the same rejection the binding enforces.
+	if result := executor.Execute(context.Background(), toolCall("card_update", `{"cardId":1,"category":"Idle"}`)); !result.Err {
+		t.Fatal("executor card_update to Idle must fail")
+	}
+	if err := bindBackend.UpdateCardCategory(1, "Idle"); err == nil {
+		t.Fatal("binding UpdateCardCategory to Idle must fail")
 	}
 	// Both paths emitted the same invalidation event.
 	if execEmitter.count(EventTimelineUpdated) != bindEmitter.count(EventTimelineUpdated) {
@@ -213,8 +221,12 @@ func TestChatToolExecutorReadTools(t *testing.T) {
 	if result.Err {
 		t.Fatalf("categories = %s", result.Data)
 	}
-	if !strings.Contains(string(result.Data), "Deep") == false && !strings.Contains(string(result.Data), "System") {
-		t.Fatal("categories result missing System")
+	// The assistant's category list carries only user categories: the
+	// built-ins are pipeline-assigned and not valid card_update targets.
+	for _, builtIn := range []string{`"name":"System"`, `"name":"Idle"`} {
+		if strings.Contains(string(result.Data), builtIn) {
+			t.Fatalf("categories result leaks built-in %s: %s", builtIn, result.Data)
+		}
 	}
 
 	result = executor.Execute(ctx, toolCall("daily", `{"day":"2026-09-12"}`))

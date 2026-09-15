@@ -87,14 +87,16 @@ watch(
   { immediate: true },
 )
 
-/* The category picker lists the user-editable category names. A card
-   currently in a built-in category (e.g. System) keeps it as an option so the
-   user can leave the card untouched instead of being forced to move it. */
+/* The category picker lists the user-editable category names; the built-ins
+   (System / Idle) are pipeline-assigned and rejected by the backend, so they
+   are never offered — even for a card currently sitting in one. A legacy
+   built-in card snaps to the first real choice when edited. */
 const categoryOptions = computed(() => {
   const names = props.day.categories
     .filter((category) => !category.isSystem)
     .map((category) => category.name)
-  if (props.card.category !== '' && !names.includes(props.card.category)) {
+  if (props.card.category !== '' && !names.includes(props.card.category)
+    && !props.day.categories.some((category) => category.name === props.card.category && category.isSystem)) {
     names.unshift(props.card.category)
   }
   return names

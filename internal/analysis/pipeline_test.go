@@ -399,6 +399,26 @@ func TestPipelineUnknownCategoryBecomesSystem(t *testing.T) {
 	}
 }
 
+// The model may not assign the built-in Idle category from screen content —
+// even when it echoes the name it saw in nearby-card context, the card falls
+// back to System; only the hardware idle fast path writes Idle (docs/04 §4.4).
+func TestPipelineModelCannotAssignIdleCategory(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"staring at a static screen","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Idle","subcategory":"","title":"T","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+
+	h.service.tick(context.Background())
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 || cards[0].Category != "System" {
+		t.Fatalf("cards = %+v, want one System card (model Idle rejected)", cards)
+	}
+}
+
 // Cancellation mid-transcription leaves the batch in processing (adopted on
 // the next run) and does not count as a failure.
 func TestPipelineCancellationKeepsProcessing(t *testing.T) {
@@ -622,6 +642,111 @@ func TestPipelineMergeCardAbsorbsPredecessor(t *testing.T) {
 	}
 }
 
+// The same merge, but the predecessor is a System fallback card (the model
+// emitted an unknown category name). Sparing other batches' System cards in
+// the rewrite left both cards on screen in parallel — the reported bug.
+func TestPipelineMergeCardAbsorbsSystemPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"DeepFocus","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+
+	// Batch 1: the unknown category falls back to System (docs/04 §4.3.4).
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 || cards[0].Category != "System" {
+		t.Fatalf("seed card = %+v, want one System fallback card", cards)
+	}
+
+	// Batch 2 merges into the System card.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"merged","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[{"time":"10:00 AM","description":"first"},{"time":"10:20 AM","description":"second"}]}]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ = h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards after merge = %+v, want exactly one (System predecessor absorbed)", cards)
+	}
+	merged := cards[0]
+	if merged.Title != "merged" || merged.Category != "Coding" ||
+		merged.Start != "10:00 AM" || merged.End != "10:30 AM" {
+		t.Fatalf("merged card = %s – %s %s %q, want 10:00 AM – 10:30 AM Coding merged",
+			merged.Start, merged.End, merged.Category, merged.Title)
+	}
+}
+
+// The idle fast path merges consecutive idle batches into one card
+// (commitIdleCard, docs/04 §4.4): the preceding Idle card must be absorbed,
+// not left beside its replacement.
+func TestPipelineIdleMergeAbsorbsPrecedingIdleCard(t *testing.T) {
+	h := newHarness(t, map[string]string{})
+	h.provider.err = ai.NewError(ai.ErrorInvalidRequest, "idle path must not call the provider", 0, nil)
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(600) })
+	h.service.tick(context.Background())
+
+	// The next idle batch starts within AdjacentIdleMergeGap of the first
+	// card's end, so it must merge rather than open a parallel card.
+	base2 := base.Add(16 * time.Minute)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(600) })
+	h.service.tick(context.Background())
+
+	batches := mustBatches(t, h.store)
+	if len(batches) != 2 {
+		t.Fatalf("batches = %+v, want two succeeded idle batches", batches)
+	}
+	second := batches[len(batches)-1]
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want exactly one merged Idle card", cards)
+	}
+	merged := cards[0]
+	if merged.Category != "Idle" || merged.Start != "10:00 AM" || merged.StartTs != base.Unix() {
+		t.Fatalf("merged idle card = %s – %s %s, want start 10:00 AM Idle", merged.Start, merged.End, merged.Category)
+	}
+	// Card clocks are minute-granularity strings, so the merged end is the
+	// second batch's end truncated to the minute.
+	if want := second.End.Truncate(time.Minute).Unix(); merged.EndTs != want {
+		t.Fatalf("merged idle card end_ts = %d, want %d (the second batch's end)", merged.EndTs, want)
+	}
+}
+
+func TestBoundSummary(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty passes through", "", ""},
+		{"within limit untouched", "在编辑器里调试登录接口", "在编辑器里调试登录接口"},
+		{
+			"over limit cuts at a word boundary",
+			strings.Repeat("word ", 30),
+			strings.Repeat("word ", 26) + "word",
+		},
+		{
+			"counts runes not bytes",
+			strings.Repeat("汉", 160),
+			strings.Repeat("汉", 135),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := boundSummary(tc.in); got != tc.want {
+				t.Fatalf("boundSummary(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBoundDetailedSummary(t *testing.T) {
 	tests := []struct {
 		name string
@@ -631,19 +756,24 @@ func TestBoundDetailedSummary(t *testing.T) {
 		{"empty passes through", "", ""},
 		{"within limits untouched", "10:00 AM–10:05 AM: worked", "10:00 AM–10:05 AM: worked"},
 		{
-			"over 8 paragraphs keeps the newest 8",
-			"p1\np2\np3\np4\np5\np6\np7\np8\np9\np10",
-			"p3\np4\np5\np6\np7\np8\np9\np10",
+			"over 15 paragraphs keeps the newest 15",
+			"p1\np2\np3\np4\np5\np6\np7\np8\np9\np10\np11\np12\np13\np14\np15\np16",
+			"p2\np3\np4\np5\np6\np7\np8\np9\np10\np11\np12\np13\np14\np15\np16",
 		},
 		{
-			"over 1200 runes cuts at paragraph boundary",
-			strings.Repeat("a", 800) + "\n" + strings.Repeat("b", 800),
-			strings.Repeat("a", 800),
+			"over 2500 runes keeps the newest paragraph truncated",
+			strings.Repeat("a", 1500) + "\n" + strings.Repeat("b", 1500),
+			strings.Repeat("a", 1500) + "\n" + strings.Repeat("b", 999),
 		},
 		{
 			"single huge paragraph truncates at a word boundary",
-			strings.Repeat("word ", 400),
-			strings.Repeat("word ", 239) + "word",
+			strings.Repeat("word ", 600),
+			strings.Repeat("word ", 499) + "word",
+		},
+		{
+			"counts runes not bytes",
+			strings.Repeat("汉", 2600),
+			strings.Repeat("汉", 2500),
 		},
 		{
 			"crlf normalized before splitting",

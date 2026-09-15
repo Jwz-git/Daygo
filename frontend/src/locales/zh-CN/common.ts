@@ -1,14 +1,10 @@
 export default {
   action: {
-    copy: '复制',
     retry: '重试',
     today: '今天',
     previous: '上一个',
     next: '下一个',
-    manage: '管理',
     regenerate: '重新生成',
-    export: '导出',
-    add: '添加',
     save: '保存',
     reset: '重置',
     cancel: '取消',
@@ -21,13 +17,13 @@ export default {
     hours: '{count} 小时',
     hoursMinutes: '{hours} 小时 {minutes} 分钟',
   },
-  state: {
-    loading: '加载中…',
-    saving: '正在保存…',
-    empty: '暂无内容',
-  },
   placeholder: {
     planned: '规划中',
+  },
+  combo: {
+    expand: '展开选项',
+    collapse: '收起选项',
+    noMatches: '无匹配项',
   },
   fatal: {
     title: '出错了',

@@ -97,12 +97,24 @@ internal/storage。recording 协调 System 公共端口，daily 自行交付通�
 可恢复，隐私双保护和状态栏可操作。fake 仅证明契约，不证明像素、身份、耗电。
 G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixture 和其他模块仍可推进。
 
-待决：宿主 / 适配形态、截图真实门禁、系统事件、分段格式、解码、状态栏与协议；负责人为
-recording 工程，身份协同 delivery；均须在相应大规模实现前决定，见 09 §9.8。
+待决：宿主 / 适配形态、截图真实门禁、系统事件、分段格式、解码、状态栏正式形态与长驻验收、
+协议；负责人为 recording 工程，身份协同 delivery；均须在相应大规模实现前决定，见 09 §9.8。
 回退：停止新增 Capture 调用，清理未提交 staging 文件并保留数据库；撤销未启用的接入改动可
 恢复外壳。禁止以清空数据目录代替恢复。
 
 ## 验证记录
+
+2026-09-15（自 handoff-recording-settings.md 并入，原文档已删除）：录制设置与状态栏
+交接批次——存储设置经真实 `GetSettings` / `UpdateSettings` 读写（间隔 / 高度 /
+上限，失败时重读后端权威值，不做乐观更新）；正式录制目录由 Go 运行时解析
+（`os.UserConfigDir()` → `…/Daygo/recordings`，`GetRecordingDirectory` 只读返回，
+与 recorder 写入同源，设置页只展示不可编辑——用户可选目录若进入范围须先立数据迁移
+与回滚决策）；`Recorder.UpdateSettings` 接入 `Backend.UpdateSettings`（运行中改设置
+不重启 recorder、状态不变，`TestRecorderUpdateSettingsAffectsNextCapture` 覆盖）；
+`StatusItemABI.swift` 复用既有 `NSStatusItem` 只更新标题与 enabled（**不得恢复
+"状态刷新即重建并释放 NSStatusItem"的实现**，那会让菜单栏消失）；Pause / Resume
+绑定检查 capture-owner。dev 基本功能用户已确认；production 菜单矩阵、G-host、
+真实权限与 MC 矩阵仍未验收。完整清单见 09 §9.1 recording 行与本册待决节。
 
 2026-09-14：修复设置外壳启动时已安装应用缓存预热的未处理 Promise rejection。平台不支持
 `InstalledApplications`（包括当前 Windows 适配器）时，预热现在按可选缓存正常降级，不再把

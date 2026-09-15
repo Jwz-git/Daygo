@@ -31,12 +31,12 @@ flowchart TD
     M --> N["删除已提交的 staging JPEG"]
 ```
 
-**这张图是目标流程。** 已实现的只有中间一格：`platform.Capture` 的一次调用会写出一张完整
-JPEG（或返回 `blocked`），定时器、状态机、分段、`screenshots` 表都还不存在。落地顺序是
-“单张 JPEG + pending 记录”先跑通，分段合成随 `Media` 能力一起做——分段容器与编码格式仍是
-[待定设计](09-roadmap.md#98-待定设计清单)。已经决定的 staging、结构化提交、恢复和整段清理
-边界见[图片存储决策](decisions/recording-image-storage.md)；任何数据库事务都不得跨越捕获、编码
-或文件删除等慢 I/O。
+**这张图部分落地。** 定时器、四状态机（`idle` / `starting` / `capturing` / `paused`）、
+staging JPEG 登记与 pending 对账、`screenshots` 提交已在 `internal/recorder` 落盘
+（当前每帧为独立 JPEG，尚非正式分段媒体）。**分段合成（K→L→M→N 的冻结与原子发布）尚未
+实现**，容器与编码格式仍是[待定设计](09-roadmap.md#98-待定设计清单)。已经决定的 staging、
+结构化提交、恢复和整段清理边界见[图片存储决策](decisions/recording-image-storage.md)；
+任何数据库事务都不得跨越捕获、编码或文件删除等慢 I/O。
 
 ### 4.1.1 参数
 
@@ -258,7 +258,9 @@ attempt 超时的挂死连接会永远不产生可分类错误，从而卡死整
 - **输出解析必须防御性实现。** 模型会输出畸形 JSON、正文前言和围栏代码块。
   `internal/ai/jsonrepair` 负责恢复，并且**每一种见过的畸形形态都要有夹具测试**。
 - 分类必须是现有分类**名称**之一；模型给出未知分类时归入 `System` 并计入诊断，
-  **不自动创建分类**。
+  **不自动创建分类**。提示词的分类列表**不含内置分类**（`System` / `Idle`），校验亦
+  拒绝二者：`System` 是未知分类兜底目标，`Idle` 只由空闲快速路径写入，模型从屏幕
+  内容不得赋予这两个语义。
 
 ## 4.4 空闲判定
 
@@ -290,8 +292,8 @@ flowchart TD
     E["事件 timeline:updated {day}"] --> C{"是当前 day？"}
     C -->|是| S
     C -->|否| N["忽略"]
-    R --> F["帧条：GetFrameStrip 只取引用"]
-    F --> H["浏览器按需请求 /media/frame/{id}"]
+    R --> F["卡片回放：GetCardMedia 只取帧引用"]
+    F --> H["浏览器按需请求 /media/frame?id="]
 ```
 
 三条规则：
@@ -300,5 +302,5 @@ flowchart TD
    分类和失败分组，而不是让前端拼四次调用。
 2. **事件不是数据源。** 任何界面都必须能只靠 `Get*` 完成首屏渲染；断开事件后功能降级为
    "不自动刷新"，而不是"报错"或"空白"。
-3. **像素不走 JSON。** 帧和 timelapse 通过 HTTP 资源处理器提供，URL 只能由 Go 生成
-   （[05 §5.5.4](05-interface-contract.md#554-资源契约)）。
+3. **像素不走 JSON。** 帧和 timelapse 通过 HTTP 资源处理器提供，前端以数字 ID 按固定
+   URL 约定寻址（[05 §5.5.4](05-interface-contract.md#554-资源契约)）。

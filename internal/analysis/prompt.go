@@ -92,8 +92,15 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 		}
 	}
 
+	// Built-in categories never enter the model-facing list: System is the
+	// unknown-category fallback target, Idle is reserved for the hardware
+	// idle fast path (docs/04 §4.4). Offering either would let the model
+	// assign a machine-only semantics from screen content.
 	b.WriteString("\nCategories (category MUST be one of these names):\n")
 	for _, c := range categories {
+		if c.IsSystem {
+			continue
+		}
 		if c.Details != "" {
 			fmt.Fprintf(&b, "  %s — %s\n", c.Name, c.Details)
 		} else {
@@ -114,13 +121,13 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	b.WriteString("include the merged card's earlier points too, in chronological order.\n")
 	b.WriteString("- subcategory, detailed_summary, appSites and distractions may be empty; never omit keys.\n")
 	b.WriteString("- summary is one sentence naming the apps/sites and the overall activity; keep it ")
-	b.WriteString("under 120 characters.\n")
+	b.WriteString("under 135 characters.\n")
 	b.WriteString("- detailed_summary is a chronological log, one paragraph per distinct phase of the ")
 	b.WriteString("activity, in the form \"h:mm PM–h:mm PM: what happened\" (times as in the observations; ")
 	b.WriteString("the hyphen between times is an en dash). Each paragraph covers a contiguous stretch of ")
 	b.WriteString("activity and states concrete outcomes — commands sent, values confirmed, files or ")
 	b.WriteString("sections touched — not restatements of the summary.\n")
-	b.WriteString("- Keep detailed_summary bounded: at most 8 paragraphs and 1200 characters total. ")
+	b.WriteString("- Keep detailed_summary bounded: at most 15 paragraphs and 2500 characters total. ")
 	b.WriteString("When merging, reuse the merged card's paragraphs as the base; extend the last paragraph ")
 	b.WriteString("whose time range and activity the new window continues, and only add a new paragraph ")
 	b.WriteString("for a genuinely new phase. Drop or compress the oldest, least important paragraphs to ")

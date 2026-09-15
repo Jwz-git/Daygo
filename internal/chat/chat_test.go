@@ -168,21 +168,6 @@ func (p *scriptedProvider) Generate(_ context.Context, request ai.Request) (ai.R
 	return result, err
 }
 
-func (p *scriptedProvider) lastRequest() ai.Request {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.requests) == 0 {
-		return ai.Request{}
-	}
-	return p.requests[len(p.requests)-1]
-}
-
-func (p *scriptedProvider) calls() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return len(p.requests)
-}
-
 // A service wired for tests with the given provider entries.
 func testService(t *testing.T, providers *fakeProviders, settings *fakeSettings) (*Service, *fakeStore) {
 	t.Helper()

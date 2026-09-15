@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { WeekColumn } from './weekLayout'
+import { weekCardClampLines } from './weekLayout'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
 
@@ -34,20 +35,41 @@ const emit = defineEmits<{
 const { locale } = useI18n()
 
 /*
- * Hover stretches a card downward over its neighbours and widens it past the
- * column edge so the full summary is readable. Deliberately no transform:
- * scaling is what made the previous expand jitter — height, width, shadow and
- * z-index alone animate smoothly while text reflows once at the end.
+ * Hover stretches a card downward over its neighbours so a bit more of the
+ * title is readable. Deliberately no transform: scaling is what made the
+ * previous expand jitter — height and shadow alone animate smoothly while
+ * text reflows once at the end. The motion is intentionally subtle: a small
+ * reveal, not a takeover.
  */
 const expandedId = ref<number | null>(null)
 const expandedHeight = ref(0)
+const EXPANDED_HEIGHT_CAP = 80
+
+/* The expanded box keeps its own clamp derived from its height, so the
+   cap ellipsizes the tail instead of cutting a line in half. */
+const expandedClamp = computed(() => weekCardClampLines(expandedHeight.value))
 
 function onCardEnter(event: MouseEvent, card: { id: number; height: number }): void {
   const el = event.currentTarget as HTMLElement | null
   if (el === null) return
   expandedId.value = card.id
-  // Cap the stretch: a subtle reveal, not a full-page takeover.
-  expandedHeight.value = Math.min(112, Math.max(card.height, el.scrollHeight + 2))
+  // scrollHeight cannot see past -webkit-line-clamp: the clamped-away lines
+  // never take part in layout, so measuring the still-clamped node returns
+  // the truncated height and the "expansion" would clip the text it reveals.
+  // Release the clamp on the live node first, then restore the final value
+  // by hand: when it equals the previous binding value Vue skips its style
+  // patch and would otherwise leave the manual 'none' in the DOM forever.
+  // The cap bounds only the reveal — a card already taller than it keeps its
+  // natural height instead of shrinking on hover.
+  const text = el.querySelector<HTMLElement>('.week__card-text')
+  if (text !== null) {
+    text.style.setProperty('-webkit-line-clamp', 'none')
+    const target = Math.max(card.height, Math.min(EXPANDED_HEIGHT_CAP, el.scrollHeight + 2))
+    expandedHeight.value = target
+    text.style.setProperty('-webkit-line-clamp', String(expandedClamp.value))
+  } else {
+    expandedHeight.value = Math.max(card.height, Math.min(EXPANDED_HEIGHT_CAP, el.scrollHeight + 2))
+  }
 }
 
 function onCardLeave(id: number): void {
@@ -188,7 +210,7 @@ onBeforeUnmount(() => {
             />
             <span
               class="week__card-text"
-              :style="{ '-webkit-line-clamp': expandedId === card.id ? '' : card.clampLines }"
+              :style="{ '-webkit-line-clamp': expandedId === card.id ? expandedClamp : card.clampLines }"
             >{{ card.title }}</span>
           </span>
         </button>      </div>
@@ -318,19 +340,18 @@ onBeforeUnmount(() => {
   box-shadow: var(--dg-timeline-card-shadow);
   cursor: pointer;
   text-align: left;
+  /* Only height and shadow animate. left/right must NOT: the hover state
+     widens the box, and an animated width re-wraps the title on every frame
+     of the transition — that continuous re-breaking is what read as jitter. */
   transition:
-    height 200ms var(--dg-ease-glide),
-    left 200ms var(--dg-ease-glide),
-    right 200ms var(--dg-ease-glide),
+    height 320ms var(--dg-ease-glide),
     box-shadow var(--dg-motion-base) ease;
 }
 
-/* Hovered: a small, symmetric stretch — the box grows evenly on both sides
-   and downward, floating above the neighbours. No transform: that jittered. */
+/* Hovered: a gentle downward stretch floating above the neighbours. No
+   width change, no transform — both jittered or felt exaggerated. */
 .week__card.is-expanded {
   z-index: 6;
-  right: -3px;
-  left: -3px;
   box-shadow: var(--dg-timeline-card-shadow-hover);
 }
 
@@ -348,23 +369,20 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
-.week__card-head > :first-child {
+/* Freeze the leading icon only. Matching :first-child hit the title text on
+   icon-less cards: flex:none refused to shrink, so a long title rendered as
+   one unbreakable line spilling across the whole grid. */
+.week__card-head > .app-site-icon {
   flex: none;
   margin-top: 1px;
 }
 
 .week__card-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  color: var(--dg-text-primary);
-  font-size: 11px;
-  font-weight: 550;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.week__card-text {
+  /* Flex children default to min-width:auto and refuse to shrink below the
+     one-line content width, so a long title rendered as a single 700px line
+     spilling across the whole grid. Zero it so the column width wins and the
+     clamp can wrap and ellipsize. */
+  min-width: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;

@@ -142,8 +142,10 @@ func (r *CardRepo) CardsForBatch(ctx context.Context, batchID int64) ([]domain.T
 // ReplaceCardsInRange rewrites the cards of [from, to) with the pipeline's
 // output, in ONE transaction (docs/03 §3.5):
 //
-//  1. select the overlapping rows, keeping other batches' System cards so
-//     failure markers stay visible;
+//  1. select the overlapping rows — every card in range, System fallback
+//     cards included: a merge that extends into a neighbor's System card
+//     must absorb it, or the two sit in parallel over the same stretch
+//     (failure state lives in analysis_batches, not in cards);
 //  2. soft-delete them and collect video paths for out-of-transaction cleanup;
 //  3. derive start_ts/end_ts/day per card with the three-day anchor rule;
 //     shells whose clock strings do not resolve go to SkippedCards — the
@@ -160,15 +162,15 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 	loc := r.store.location()
 
 	err := r.store.Write(ctx, "replace cards in range", func(ctx context.Context, tx *sql.Tx) error {
-		// Step 1: the overlap predicate of docs/03 §3.5. A System card is
-		// deleted only when this batch wrote it; other batches' failure
-		// markers stay visible through a neighboring rewrite.
+		// Step 1: the overlap predicate of docs/03 §3.5. No System carve-out:
+		// the only System writer today is the unknown-category fallback, and
+		// sparing those cards is exactly what left a merged card and its
+		// absorbed predecessor on screen at the same time.
 		rows, err := tx.QueryContext(ctx, `
 			SELECT id, video_summary_path FROM timeline_cards
 			WHERE ((start_ts < ? AND end_ts > ?) OR (start_ts >= ? AND start_ts < ?))
-			  AND is_deleted = 0
-			  AND (category != 'System' OR batch_id = ?)`,
-			to.Unix(), from.Unix(), from.Unix(), to.Unix(), batchID)
+			  AND is_deleted = 0`,
+			to.Unix(), from.Unix(), from.Unix(), to.Unix())
 		if err != nil {
 			return wrap("select overlapping cards", err)
 		}

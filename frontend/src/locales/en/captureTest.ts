@@ -1,6 +1,4 @@
 export default {
-  title: 'Capture ABI Test',
-  badge: 'Temporary test',
   platformSwitch: 'Test platform',
   macosTab: 'macOS native ABI',
   windowsTab: 'Windows Recorder',

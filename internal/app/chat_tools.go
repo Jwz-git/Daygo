@@ -116,6 +116,11 @@ func (e chatToolExecutor) categoriesResult(ctx context.Context) (json.RawMessage
 	}
 	out := make([]map[string]any, 0, len(categories))
 	for _, c := range categories {
+		// Built-ins are machine-assigned (pipeline fallback / idle fast path)
+		// and rejected by card_update, so they are not offered to the assistant.
+		if c.IsSystem {
+			continue
+		}
 		out = append(out, map[string]any{
 			"id": c.ID, "name": c.Name, "colorHex": c.ColorHex, "details": c.Details,
 			"sortOrder": c.SortOrder, "isSystem": c.IsSystem, "isIdle": c.IsIdle,

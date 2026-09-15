@@ -16,7 +16,6 @@ export default {
   renameTitlePlaceholder: '输入对话标题',
   renameTitleRequired: '标题不能为空',
   removeConfirm: '删除这个对话？',
-  noSelection: '选择或新建一个对话。',
   unavailableTitle: '对话功能不可用',
   unavailableDescription: '需要在 Daygo 应用内运行，且数据库可用。',
   provider: {
@@ -26,7 +25,6 @@ export default {
   model: {
     label: '模型',
     follow: '跟随供应商（{model}）',
-    custom: '自定义模型',
   },
   composer: {
     placeholder: '输入消息…（Enter 发送）',
@@ -61,8 +59,6 @@ export default {
   bubble: {
     copy: '复制',
     copied: '已复制',
-    showRaw: '原始',
-    showFormatted: '格式化',
     roleAssistant: 'Daygo',
   },
 
@@ -81,9 +77,6 @@ export default {
   // New: context bar
   contextBar: {
     readonly: '只读',
-    editable: '可编辑',
-    switchProvider: '切换供应商',
-    switchModel: '切换模型',
   },
 
   // New: date divider

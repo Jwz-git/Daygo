@@ -21,8 +21,11 @@ func agentSystemPrompt(editMode string, today, monday, language string) string {
 		"primary display and hands the screenshots to the user-configured LLM, which organizes them " +
 		"into a timeline, daily reports, and weekly reports. You can call tools to query and, when " +
 		"allowed, modify the user's timeline data.\n\n")
-	b.WriteString("Today's logical day is " + today + " (a day starts at 4 AM); this week's Monday is " +
-		monday + ". All date arguments use yyyy-MM-dd.\n\n")
+	b.WriteString("Today's logical day is ")
+	b.WriteString(today)
+	b.WriteString(" (a day starts at 4 AM); this week's Monday is ")
+	b.WriteString(monday)
+	b.WriteString(". All date arguments use yyyy-MM-dd.\n\n")
 	b.WriteString("Available tools (call with the fixed JSON format):\n")
 	for _, spec := range toolCatalog {
 		flags := "read"

@@ -40,12 +40,12 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 11 | 读取系统空闲秒数 | 空闲判定 | `System`（内部） | 待定设计 |
 | 12 | 解析调用时的系统主显示器 | 捕获目标 | `Capture.Capture`（内部） | 有限实现，待多屏验收 |
 | 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | 有限实现，待实机矩阵 |
-| 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | 待定设计 |
+| 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | macOS 已实现（含 Go cgo smoke）；Windows 待定 |
 | 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | macOS System ABI 已实现，待实机验证 |
 | 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | macOS System ABI 已实现，待实机验证 |
 | 17 | 开机自启开关 | 设置 | `System.{,Set}LaunchAtLogin` | 待定设计 |
 | 18 | 激活策略切换（是否占 Dock） | 后台 Agent 语义 | `System.SetActivationPolicy` | 待定设计 |
-| 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | 待定设计 |
+| 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | macOS ABI 已实现，有限接入；正式形态与长驻验收仍待定 |
 | 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | 待定设计 |
 | 21 | 系统钥匙串读写删 | provider 密钥 | `Secrets` | macOS / Windows 已实现；Linux Secret Service 已落盘，待真机验收 |
 | 22 | 自动更新 | 版本分发 | `Updater` | 待定设计 |
@@ -142,7 +142,10 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 | 屏幕录制授权（第 1–3 项） | 端口已定义，适配层未实现 | 系统无对应授权 | macOS 未接入前，绑定返回 `native_unavailable` |
 | 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
 | 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.x（身份 + 名称 + 图标 + 按 Bundle ID 回查） | 有限实现：Explorer `.exe` picker + 同一 ABI；路径哈希 ID、名称、PNG 图标和回查 | Windows 路径不进入 Wails DTO；回查优先内存、运行进程与 App Paths / Uninstall 注册表，不等于 `InstalledApplications` 已实现 |
-| 其余 14 项（第 4、8–11、14–22 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
+| 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | 待定 | 供隐私页应用网格；Windows 侧待定 |
+| 系统事件（第 15 / 16 项） | System ABI 已实现（睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保 / 显示器变化） | 待定 | 待实机矩阵验证 |
+| 状态栏（第 19 项） | `SetStatusItem` ABI 已实现，有限接入（重开窗口已验证） | 无适配器时调用已守卫 | 正式形态与长驻验收仍待定 |
+| 其余各项（第 4、8–11、17、18、20、22 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
 `native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是

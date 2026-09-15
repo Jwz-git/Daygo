@@ -1,35 +1,12 @@
 # Build Directory
 
-The build directory is used to house all the build files and assets for your application. 
+Wails 构建资源与产物目录（Wails v2 默认布局）：
 
-The structure is:
+- `bin/` — 构建产物输出目录（不入库）
+- `darwin/` — macOS 构建文件：`Info.plist`（正式）、`Info.dev.plist`（`wails dev`）
+- `windows/` — Windows 构建文件：`icon.ico`、`info.json`、`wails.exe.manifest`
+  （无 `installer/`，当前未配置安装器）
+- `native/` — 原生静态库构建产物（`native/darwin/build.sh` 与
+  `native/windows/build.ps1` 的输出，不入库）
 
-* bin - Output directory
-* darwin - macOS specific files
-* windows - Windows specific files
-
-## Mac
-
-The `darwin` directory holds files specific to Mac builds.
-These may be customised and used as part of the build. To return these files to the default state, simply delete them
-and
-build with `wails build`.
-
-The directory contains the following files:
-
-- `Info.plist` - the main plist file used for Mac builds. It is used when building using `wails build`.
-- `Info.dev.plist` - same as the main plist file but used when building using `wails dev`.
-
-## Windows
-
-The `windows` directory contains the manifest and rc files used when building with `wails build`.
-These may be customised for your application. To return these files to the default state, simply delete them and
-build with `wails build`.
-
-- `icon.ico` - The icon used for the application. This is used when building using `wails build`. If you wish to
-  use a different icon, simply replace this file with your own. If it is missing, a new `icon.ico` file
-  will be created using the `appicon.png` file in the build directory.
-- `installer/*` - The files used to create the Windows installer. These are used when building using `wails build`.
-- `info.json` - Application details used for Windows builds. The data here will be used by the Windows installer,
-  as well as the application itself (right click the exe -> properties -> details)
-- `wails.exe.manifest` - The main application manifest file.
+修改 macOS / Windows 构建文件后，按 Wails 惯例重新 `wails build` 即可生效。

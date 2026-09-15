@@ -56,7 +56,6 @@ const { locale, t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
-const confirmingReprocess = ref(false)
 const showCategoryManager = ref(false)
 let dayRefreshTimer: number | null = null
 
@@ -125,13 +124,14 @@ const showPauseButton = computed(
 )
 
 /*
- * The placeholder card rides the now-line while recording is today and live
- * (nine-cell wave) or paused (hold icon + resume hint) — idle recording has
- * no next card coming.
+ * The placeholder card sits at the current time while the displayed day is the
+ * live logical day and recording is live (nine-cell wave) or paused (hold icon
+ * + resume hint) — idle recording has no next card coming. "Live logical day"
+ * comes from the backend-owned day window, so an explicit ?day=today shows the
+ * placeholder too; only the window check decides, not the route shape.
  */
 type GenState = 'off' | 'capturing' | 'paused'
 const generating = computed<GenState>(() => {
-  if (!isFollowingToday()) return 'off'
   const current = context.value
   if (current === null) return 'off'
   const now = Math.floor(Date.now() / 1000)
@@ -245,6 +245,35 @@ const filterCategories = computed(() =>
   (day.value?.categories ?? []).filter((category) => !category.isSystem),
 )
 
+/*
+ * Per-category usage for the manager modal: card count and tracked minutes
+ * from the current day. Rename / recolor / create have no backend binding
+ * yet, so the manager is a read-only overview whose rows double as filter
+ * shortcuts; usage-descending order puts the day's real work on top.
+ */
+const managerRows = computed(() => {
+  const stats = new Map<string, { count: number; minutes: number }>()
+  for (const card of day.value?.cards ?? []) {
+    if (card.category === 'System') continue
+    const entry = stats.get(card.category) ?? { count: 0, minutes: 0 }
+    entry.count += 1
+    entry.minutes += Math.max(0, Math.round((card.endTs - card.startTs) / 60))
+    stats.set(card.category, entry)
+  }
+  return filterCategories.value
+    .map((category) => ({ category, stat: stats.get(category.name) }))
+    .sort(
+      (a, b) =>
+        (b.stat?.minutes ?? 0) - (a.stat?.minutes ?? 0) ||
+        a.category.sortOrder - b.category.sortOrder,
+    )
+})
+
+function pickManagerCategory(name: string): void {
+  timeline.setCategoryFilter(name)
+  showCategoryManager.value = false
+}
+
 const hasTrack = computed(() =>
   day.value !== null && ['populated', 'processing', 'failure', 'empty'].includes(state.value),
 )
@@ -321,8 +350,7 @@ async function copyTimeline(): Promise<void> {
 
 async function reprocessCurrentDay(): Promise<void> {
   if (context.value === null) return
-  const succeeded = await timeline.reprocessCurrentDay(context.value.day)
-  if (succeeded) confirmingReprocess.value = false
+  await timeline.reprocessCurrentDay(context.value.day)
 }
 
 onMounted(() => {
@@ -459,31 +487,11 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="filter-manage"
-        :title="t('timeline.filter.manageUnavailable')"
         :disabled="!actionAvailability.manageCategories"
         @click="showCategoryManager = true"
       >
         {{ t('timeline.filter.manage') }}
       </button>
-      <span v-if="confirmingReprocess" class="filter-error" role="alert">
-        {{ t('timeline.reprocess.confirm') }}
-        <button
-          type="button"
-          class="filter-manage"
-          :disabled="pendingAction !== null"
-          @click="reprocessCurrentDay"
-        >
-          {{ pendingAction === 'reprocess-day' ? t('timeline.reprocess.running') : t('timeline.reprocess.confirmYes') }}
-        </button>
-        <button
-          type="button"
-          class="filter-manage"
-          :disabled="pendingAction !== null"
-          @click="confirmingReprocess = false"
-        >
-          {{ t('common.action.cancel') }}
-        </button>
-      </span>
       <span v-if="actionError !== null && selectedCard === null" class="filter-error" role="alert">
         {{ t('timeline.actionFailed') }}
       </span>
@@ -550,7 +558,7 @@ onBeforeUnmount(() => {
               @delete="timeline.removeCard"
               @retry="timeline.retryFailure"
               @dismiss-failure="timeline.dismissFailure"
-              @reprocess="confirmingReprocess = true"
+              @reprocess="reprocessCurrentDay"
               @save-goal="daily.saveGoal"
             />
           </template>
@@ -578,7 +586,7 @@ onBeforeUnmount(() => {
           @delete="deleteWeekCard"
           @retry="timeline.retryFailure"
           @dismiss-failure="timeline.dismissFailure"
-          @reprocess="confirmingReprocess = true"
+          @reprocess="reprocessCurrentDay"
           @save-goal="daily.saveGoal"
         />
       </Transition>
@@ -620,26 +628,50 @@ onBeforeUnmount(() => {
     <!-- Category Manager Modal -->
     <Teleport to="body">
       <div v-if="showCategoryManager" class="modal-backdrop" @click.self="showCategoryManager = false">
-        <div class="modal-panel" role="dialog" :aria-label="t('timeline.filter.manage')">
+        <div
+          class="modal-panel"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="t('timeline.filter.manage')"
+        >
           <header class="modal-header">
             <h2>{{ t('timeline.filter.manage') }}</h2>
-            <button type="button" class="modal-close" @click="showCategoryManager = false" :aria-label="t('common.action.close')">
+            <button
+              type="button"
+              class="modal-close"
+              :aria-label="t('common.action.close')"
+              @click="showCategoryManager = false"
+            >
               ×
             </button>
           </header>
           <div class="modal-body">
-            <p v-if="!day || day.categories.length === 0" class="modal-empty">
-              {{ t('daily.goal.noCategories') }}
+            <p v-if="!day || managerRows.length === 0" class="modal-empty">
+              {{ t('timeline.filter.empty') }}
             </p>
             <ul v-else class="category-list">
-              <li v-for="category in day.categories" :key="category.id" class="category-item">
-                <span class="category-dot" :style="{ background: safeCategoryColor(category.colorHex) }"></span>
-                <span class="category-name">{{ categoryLabel(category.name, t) }}</span>
-                <span v-if="category.isSystem" class="category-badge">{{ t('timeline.category.system') }}</span>
+              <li v-for="row in managerRows" :key="row.category.id">
+                <button
+                  type="button"
+                  class="category-item"
+                  :class="{ 'is-active': categoryFilter === row.category.name }"
+                  @click="pickManagerCategory(row.category.name)"
+                >
+                  <span
+                    class="category-dot"
+                    :style="{ background: safeCategoryColor(row.category.colorHex) }"
+                  ></span>
+                  <span class="category-name">{{ categoryLabel(row.category.name, t) }}</span>
+                  <span v-if="row.stat" class="category-meta">
+                    <span>{{ t('timeline.filter.cards', { count: row.stat.count }) }}</span>
+                    <b>{{ t('timeline.filter.minutes', { count: row.stat.minutes }) }}</b>
+                  </span>
+                </button>
               </li>
             </ul>
           </div>
           <footer class="modal-footer">
+            <p class="modal-hint">{{ t('timeline.filter.manageHint') }}</p>
             <button type="button" class="dg-button" @click="showCategoryManager = false">
               {{ t('common.action.close') }}
             </button>
@@ -711,10 +743,12 @@ onBeforeUnmount(() => {
 .filter-chip.is-selected { border-color: var(--dg-chip-border); background: var(--dg-chip-fill); color: var(--dg-text-primary); }
 .filter-chip i { width: 7px; height: 7px; border-radius: 50%; }
 .filter-bar__spacer { flex: 1; }
-.filter-manage { color: var(--dg-text-muted); cursor: default; }
-.filter-manage--available:not(:disabled) { color: var(--dg-text-secondary); cursor: pointer; }
-.filter-manage--available:not(:disabled):hover { background: var(--dg-hover-fill); color: var(--dg-text-primary); }
-.filter-manage--available:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+/* Hover feedback is fill + colour only — no transform or shadow lift, so the
+   chip never floats out of the bar. */
+.filter-manage { color: var(--dg-text-muted); }
+.filter-manage:not(:disabled) { color: var(--dg-text-secondary); cursor: pointer; }
+.filter-manage:not(:disabled):hover { background: var(--dg-hover-fill); color: var(--dg-text-primary); }
+.filter-manage:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .filter-error { flex: none; color: var(--dg-danger); font-size: 10px; white-space: nowrap; }
 
 .timeline-body {
@@ -1092,11 +1126,22 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--dg-panel-border);
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid transparent;
   border-radius: 8px;
   background: var(--dg-track-fill);
+  color: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  /* Fill-only hover, mirroring the filter chips: no lift, no displacement. */
+  transition: background var(--dg-motion-fast) ease, border-color var(--dg-motion-fast) ease;
 }
+
+.category-item:hover { background: var(--dg-hover-fill); }
+.category-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.category-item.is-active { border-color: var(--dg-chip-border); background: var(--dg-chip-fill); }
 
 .category-dot {
   width: 10px;
@@ -1107,22 +1152,42 @@ onBeforeUnmount(() => {
 
 .category-name {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
   color: var(--dg-text-primary);
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.category-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--dg-control-fill);
+.category-meta {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: 8px;
   color: var(--dg-text-muted);
-  font-size: 10px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.category-meta b {
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .modal-footer {
   display: flex;
-  justify-content: flex-end;
-  padding: 16px 20px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
   border-top: 1px solid var(--dg-panel-border);
+}
+
+.modal-hint {
+  margin: 0;
+  color: var(--dg-text-muted);
+  font-size: 11px;
 }
 </style>

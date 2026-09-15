@@ -465,8 +465,14 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		return nil, fmt.Errorf("decode cards: %w", err)
 	}
 
+	// Built-in names are not valid model output: a model echoing "Idle" from
+	// nearby-card context must fall into the System fallback, never land as
+	// Idle — that category belongs to the hardware idle fast path alone.
 	known := make(map[string]bool, len(categories))
 	for _, c := range categories {
+		if c.IsSystem {
+			continue
+		}
 		known[c.Name] = true
 	}
 
@@ -494,7 +500,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			Category:        category,
 			Subcategory:     c.Subcategory,
 			Title:           c.Title,
-			Summary:         c.Summary,
+			Summary:         boundSummary(c.Summary),
 			DetailedSummary: boundDetailedSummary(c.DetailedSummary),
 			Metadata:        string(metadata),
 		}
@@ -508,16 +514,31 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 	return shells, nil
 }
 
-// Limits for the model-facing detailed_summary rules, enforced as a
-// deterministic backstop so a model that ignores the prompt cannot grow a
-// merged card's log without bound.
+// Limits for the model-facing summary rules, enforced as a deterministic
+// backstop so a model that ignores the prompt cannot grow a merged card's
+// log without bound. Rune counts match the docs' 字符, not bytes.
 const (
-	detailedSummaryMaxParagraphs = 8
-	detailedSummaryMaxRunes      = 1200
+	detailedSummaryMaxParagraphs = 15
+	detailedSummaryMaxRunes      = 2500
+	summaryMaxRunes              = 135
 )
 
-// boundDetailedSummary caps a generated detailed summary: at most 8
-// paragraphs and 1200 characters, cut at paragraph boundaries from the end
+// boundSummary caps the one-sentence summary at summaryMaxRunes, cut at a
+// word boundary. Shorter input passes through untouched.
+func boundSummary(text string) string {
+	runes := []rune(text)
+	if len(runes) <= summaryMaxRunes {
+		return text
+	}
+	bounded := string(runes[:summaryMaxRunes])
+	if cut := strings.LastIndexAny(bounded, " ，,；;"); cut > 0 {
+		bounded = bounded[:cut]
+	}
+	return bounded
+}
+
+// boundDetailedSummary caps a generated detailed summary: at most 15
+// paragraphs and 2500 runes, cut at paragraph boundaries from the end
 // (recent detail matters more than old detail). Single-paragraph overflow is
 // hard-truncated at a word boundary. Empty input passes through untouched.
 func boundDetailedSummary(text string) string {
@@ -531,18 +552,22 @@ func boundDetailedSummary(text string) string {
 	}
 	total := 0
 	for i, p := range paragraphs {
-		if total+len(p) <= detailedSummaryMaxRunes {
-			total += len(p) + 1
+		n := utf8.RuneCountInString(p)
+		if total+n <= detailedSummaryMaxRunes {
+			total += n + 1
 			continue
 		}
 		remaining := detailedSummaryMaxRunes - total
 		if remaining > 0 {
-			cut := strings.LastIndexAny(p[:remaining], " ，,；;")
-			if cut > 0 {
-				paragraphs[i] = p[:cut]
-				paragraphs = paragraphs[:i+1]
-				break
+			runes := []rune(p)
+			prefix := string(runes[:remaining])
+			cut := strings.LastIndexAny(prefix, " ，,；;")
+			if cut <= 0 {
+				cut = remaining
 			}
+			paragraphs[i] = string(runes[:cut])
+			paragraphs = paragraphs[:i+1]
+			break
 		}
 		paragraphs = paragraphs[:i]
 		break

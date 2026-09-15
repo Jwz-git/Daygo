@@ -2,33 +2,28 @@
 
 Daygo 是一个 macOS 常驻后台 Agent：按间隔截取当前的系统主显示器，分批交给用户配置的 LLM，
 把结果呈现为时间线、每日摘要和每周复盘。
+学会更新 *.md
 
 ## 当前状态
 
 **这是一个新项目，不承接任何既有产品的数据、身份或对外契约。**
 
-已落盘（commit `c2950cf`）：Wails 桌面外壳与 Vue 页面骨架（路由、i18n、主题、设置页）
-及其本地存储层；`internal/storage`（连接、PRAGMA、迁移链、POSIX `flock` / Windows
-`LockFileEx` 实例锁、`app_settings`、
-备份与诊断）；`internal/settings`（16 个键的类型化访问）；`internal/ai`（三协议客户端、
-重试 / 回退、结构化输出、连接探针）；平台端口、Capture fake 与四套契约套件；
-macOS 与 Windows 的单次截图适配器；十个 Wails 绑定；错误 / 事件类型；凌晨 4 点日期函数。
+九个功能模块（recording / providers / timeline / daily / weekly / data / preferences /
+delivery / chat）均已**部分实现**，但**没有任何模块完成真实用户闭环验收**
+（G-host、真实 Provider 闭环、长期观察均未运行）。
 
-尚未实现：recorder 与后台生命周期、业务表（screenshots / 批次 / 卡片）、分段与 Media、
-分析流水线、insight 聚合、Secrets 与 Provider 持久化、前端生成绑定接入。
-实现与验证状态分别见 `docs/09-roadmap.md §9.1` 及各模块执行册。
+**实现与验证状态以 `docs/09-roadmap.md §9.1` 的模块总表为准**，模块细节见
+`docs/modules/<module>.md`。不要依赖本文件或其他文档中的历史快照描述现状，
+也不要把规划中的目录、接口、命令或行为描述成现状。
 
-**目标平台是 macOS。** 仓库里另有一份实验性 Windows 截图实现，它只完成了单机有限 smoke，
-不在发布范围；Windows Store 锁已经接通，但隐私、光标、长时间稳定性与发布身份仍未验收。
-不要把它当作“已支持 Windows”
+**目标平台是 macOS。** 仓库里另有一份实验性 Windows 截图实现，只完成了单机有限
+smoke，不在发布范围；隐私、长时间稳定性与发布身份未验收，不要当作“已支持 Windows”
 （`docs/decisions/recording-screen-capture-windows.md`）。
 
-`docs/README.md` 是设计入口，`docs/01`–`10` 是设计规格。跨界接口（Wails 绑定、DTO、事件、
-错误码、平台端口）以 `docs/05-interface-contract.md` 为准。开始任务前先读与任务直接相关的
-文档；若实现发现文档与代码事实冲突，**以可复现实验和当前代码为准，并在同一 commit 内修正
-文档**。
-
-`docs/` 是设计，不代表其中目标已经实现。**不要把规划中的目录、接口、命令或行为描述成现状。**
+`docs/README.md` 是设计入口，`docs/01`–`10` 是设计规格，**不代表其中目标已经实现**；
+跨界接口（Wails 绑定、DTO、事件、错误码、平台端口）以 `docs/05-interface-contract.md`
+为准。开始任务前先读与任务直接相关的文档；文档与代码事实冲突时，**以可复现实验和
+当前代码为准，并在同一 commit 内修正文档**。
 
 ### 待定设计
 
@@ -57,6 +52,7 @@ macOS 与 Windows 的单次截图适配器；十个 Wails 绑定；错误 / 事�
 | data | 数据库基础、锁、维护、磁盘限制与诊断 |
 | preferences | 外观、语言、通用设置与前端基础接入 |
 | delivery | 身份 / 分发探针、首次引导、安装与安全更新 |
+| chat | 应用内自然语言问答与受控编辑（v1 不交付） |
 
 依赖精确到能力（09 §9.3）。共享能力独立验收即可接入，不等负责模块的 UI 或全部功能完成。
 数据库连接 / 迁移 / 锁归 data，业务 repository 随功能交付且统一在 internal/storage；
@@ -235,7 +231,8 @@ Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 
 - 在锚点前一天、当天、后一天中选择最接近窗口中点的解析结果；
 - `end < start` 时按跨午夜处理；
 - 使用凌晨 4 点边界计算 `day`；
-- 保留其他批次写入且 `category = 'System'` 的卡片。
+- 范围内存活卡片（含 `category = 'System'` 的回退卡）在改写中一并吸收——失败状态由
+  `analysis_batches` 承载，不落在卡片上。
 
 **解析失败不得静默丢弃。** `ReplaceResult.SkippedCards` 必须被调用方消费并计入诊断指标。
 

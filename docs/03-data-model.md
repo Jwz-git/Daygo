@@ -130,6 +130,8 @@ CREATE TABLE observations (
   metadata      TEXT,               -- JSON
   created_at    INTEGER NOT NULL
 );
+CREATE INDEX idx_observations_batch ON observations (batch_id, start_ts);
+CREATE INDEX idx_observations_span ON observations (start_ts, end_ts);
 
 -- 每次真实 HTTP attempt 的脱敏元数据；不保存 endpoint、正文、图片、密钥或费用。
 -- （v6 已落盘，analysis 与 chat 均通过 attempt observer 写入。）
@@ -186,9 +188,10 @@ CREATE TABLE timeline_cards (
   category         TEXT    NOT NULL,   -- 分类名称字符串，见 §3.3.3
   subcategory      TEXT,
   title            TEXT    NOT NULL,
-  summary          TEXT    NOT NULL,      -- 一句话：应用/站点与整体活动
+  summary          TEXT    NOT NULL,      -- 一句话：应用/站点与整体活动，上限 135 字符
+                                         -- （generateCards 内强制截断）
   detailed_summary TEXT,                 -- 分段时间日志：每段 "h:mm PM–h:mm PM: 描述"，
-                                         -- 上限 8 段 / 1200 字符（generateCards 内强制截断）
+                                         -- 上限 15 段 / 2500 字符（generateCards 内强制截断）
   video_summary_path TEXT,             -- timelapse 相对路径
   metadata         TEXT,               -- JSON：appSites、distractions、idle 诊断等
   is_deleted       INTEGER NOT NULL DEFAULT 0,
@@ -434,10 +437,11 @@ day     = 由 startTs 按凌晨 4 点边界得出
 ```sql
 WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < :to))
   AND is_deleted = 0
-  AND (category != 'System' OR batch_id = :batchId)
 ```
 
-最后一行保留**其它批次**写入的 `System` 卡片：相邻批次改写自己的范围时，失败标记仍然可见。
+范围内**所有**存活卡片都在改写中吸收，`System` 回退卡（模型输出了未知分类名）也不例外：
+融合把改写范围扩展到被融合卡片的 start 时，那张卡必须一并消失，否则两张卡并列占住同一时段。
+失败状态由 `analysis_batches` 承载（失败面板读它），不落在卡片上。
 
 **解析失败不得静默丢弃。** `ReplaceCardsInRange` 返回 `ReplaceResult.SkippedCards`，
 调用方必须消费并计入诊断指标（[05 §5.5.2](05-interface-contract.md#552-dto-目录) 的
@@ -450,7 +454,7 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 | WAL checkpoint | 300 秒 | ★ 已实现 | `PASSIVE`：不阻塞读写，宁可 WAL 大一会儿也不要卡住一次捕获写入 |
 | 数据库备份 | 启动后 1 小时，之后每 24 小时 | ★ 已实现 | `VACUUM INTO`（不是文件复制，避免撕裂的 WAL），保留最近 **7** 份（[决策](decisions/data-backup-retention.md)） |
 | 录制清理 | 启动 1 小时，之后每小时 | ★ 已实现（单帧粒度） | 当前管线为单帧分段（每截图一个 JPEG），清理按 `screenshots` 行执行：软删除（意图）→ 事务外删文件 → 孤儿清扫；`pending_captures` 的活跃文件与被 `pending`/`processing` 批次租用的帧绝不删除，时间线卡片保留。`recording_segments` 表与分段构建器落地后迁移为按段清理，边界规则不变。见[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
-| `llm_calls` 元数据留存 | 待定 | 写入已实现（chat）；清理未实现 | 只含 attempt 元数据，不含正文 |
+| `llm_calls` 元数据留存 | 待定 | 写入已实现（analysis 与 chat）；清理未实现 | 只含 attempt 元数据，不含正文 |
 
 维护循环由 app 生命周期持有（`storage.Maintainer`），`ctx` 取消即退出，不存在全局单例。
 只读实例照常跑循环，它的写操作被存储层拒绝——第二个实例是预期状态，不是故障。

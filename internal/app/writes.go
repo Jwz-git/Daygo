@@ -16,14 +16,20 @@ import (
 // function performs the same steps the binding performed inline before the
 // extraction — this file is a move, not a redesign.
 
-// updateCardCategory moves one card to an existing category name. Unknown
+// updateCardCategory moves one card to an existing user category name. Unknown
 // names are rejected — categories are never created implicitly (docs/05 §5.5.1).
+// Built-in categories are rejected too: System is the pipeline's fallback
+// target and Idle is written only by the hardware idle fast path, so neither
+// is a valid manual assignment.
 func (b *Backend) updateCardCategory(ctx context.Context, cardID int64, category string) error {
 	store := b.store()
-	if _, found, err := store.Categories().ByName(ctx, strings.TrimSpace(category)); err != nil {
+	category = strings.TrimSpace(category)
+	if target, found, err := store.Categories().ByName(ctx, category); err != nil {
 		return mapStorageError("update card category", err)
 	} else if !found {
 		return apperr.E(apperr.InvalidArgument, "unknown category: "+category, nil)
+	} else if target.IsSystem {
+		return apperr.E(apperr.InvalidArgument, "built-in categories are assigned by the pipeline: "+category, nil)
 	}
 	if err := store.Cards().UpdateCardCategory(ctx, cardID, category); err != nil {
 		return mapStorageError("update card category", err)
