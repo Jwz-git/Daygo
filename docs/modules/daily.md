@@ -19,12 +19,9 @@
 [开发专用匿名样例](../../frontend/dev-fixtures/daily.json) 由 Vite dev middleware 提供，生产构建
 无该数据路径。
 
-**2026-09-12**：日记与目标切片已落盘——迁移 v5（`journal_entries` / `day_goals` /
-`day_goal_categories`）、
-`storage.JournalRepo`（用户 upsert 不触碰 AI summary 列）与 `storage.GoalRepo`
-（分类引用单事务整体替换）、绑定 `GetJournalDay` / `SaveJournalDay` / `GetDayGoal` /
-`SaveDayGoal`（分类 id 预检、`journal:updated` / `goal:updated` 事件）、前端
-DailyJournalPanel / DailyGoalPanel（写后不乐观更新，等事件重拉）。
+**2026-09-12**：日记切片已落盘——迁移 v5（`journal_entries`）、`storage.JournalRepo`
+（用户 upsert 不触碰 AI summary 列）、绑定 `GetJournalDay` / `SaveJournalDay`
+（`journal:updated` 事件）、前端 DailyJournalPanel（写后不乐观更新，等事件重拉）。
 
 **2026-09-15**：`GetDailyRecap` / `SaveDailyRecap` 绑定已落盘——迁移 v13
 （`daily_standup_entries`）、`storage.StandupRepo`（JSON 存储 highlights/tasks 数组）、
@@ -39,7 +36,7 @@ DailyJournalPanel / DailyGoalPanel（写后不乐观更新，等事件重拉）�
 |---|---|---|
 | timeline: time / cards | 以固定卡片和五时区输入验证按日查询 | 日期子能力和 cards repository 独立验收 |
 | providers: provider-client | 固定文本响应验证摘要映射、缺失与失败 | 用户配置的文本调用真实可用 |
-| data: db-core；preferences: settings-access / ui-bridge | 日记、目标与提醒配置 fixture | 持久化、生成绑定与事件接入；G-host |
+| data: db-core；preferences: settings-access / ui-bridge | 日记与提醒配置 fixture | 持久化、生成绑定与事件接入；G-host |
 | System 通知端口 | fake 测试开启、改时间、取消、拒绝权限 | 真实 macOS 通知授权与计划 / 取消实验 |
 
 输出 notifications 能力，由本模块负责 fake 与真实实现；公共 System 端口变更与 recording 协调。
@@ -94,11 +91,15 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。
 保持“当前逻辑日 + 当前日历日”的既定双日期语义。真实 `GetTimelineDay` / `GetDailyRecap`
 尚未实现，此项只打通日期选择与查询参数，不代表 Daily 数据闭环。
 
-2026-09-12（日记 / 目标绑定与编辑 UI）：`go test ./internal/app/`、前端 typecheck /
-build、Vite 浏览器 smoke 通过。journal 往返（summary 保留断言）、goal 分类整体替换、
-非法 status / 未知分类 → `invalid_argument`、只读实例 → `not_capture_owner`、事件
-payload 均有 Go 断言；浏览器预览验证面板降级态（无桥 unavailable）、中英文、420px
-窄宽无横向溢出。`wails dev` 真机保存 → 重启读回未运行。
+2026-09-12（日记绑定与编辑 UI）：`go test ./internal/app/`、前端 typecheck /
+build、Vite 浏览器 smoke 通过。journal 往返（summary 保留断言）、非法 status →
+`invalid_argument`、只读实例 → `not_capture_owner`、事件 payload 均有 Go 断言；浏览器
+预览验证面板降级态（无桥 unavailable）、中英文、420px 窄宽无横向溢出。
+`wails dev` 真机保存 → 重启读回未运行。
+
+**2026-09-15**：当日目标编辑从 daily 页面移除，仅在 timeline 检查器默认面板保留
+（共享 `GoalEditor`）；迁移 v5 / `storage.GoalRepo` / `GetDayGoal` / `SaveDayGoal` /
+`goal:updated` 事件与 i18n 文案（`daily.goal.*`）保留以继续驱动 timeline 那一份。
 
 2026-09-12（全局界面重构，Vite 预览）：深色中文匿名日报检查通过；操作界面改用系统字体，
 日记编辑与摘要正文保留文楷阅读字体。真实 Wails 保存与浅色 / 英文矩阵仍未重跑。

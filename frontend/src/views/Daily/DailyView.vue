@@ -11,7 +11,6 @@ import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { safeTimeZone } from '@/lib/timeZone'
 import { useDailyStore } from '@/stores/daily'
 
-import DailyGoalPanel from './DailyGoalPanel.vue'
 import DailyJournalPanel from './DailyJournalPanel.vue'
 import DailyMetricsPanel from './DailyMetricsPanel.vue'
 import DailyRecapPanel from './DailyRecapPanel.vue'
@@ -29,10 +28,6 @@ const {
   journalUnavailable,
   journalError,
   journalSaving,
-  goal,
-  goalUnavailable,
-  goalError,
-  goalSaving,
   state,
   presentation,
   usingDevelopmentFixture,
@@ -156,14 +151,6 @@ onBeforeUnmount(() => daily.stopListening())
             :unavailable="recapUnavailable"
             :failed="recapError !== null"
             :time-zone="context.timeZone"
-          />
-          <DailyGoalPanel
-            :goal="goal"
-            :categories="day?.categories ?? []"
-            :unavailable="goalUnavailable"
-            :failed="goalError !== null"
-            :saving="goalSaving"
-            @save="daily.saveGoal"
           />
           <DailyJournalPanel
             :journal="journal"
