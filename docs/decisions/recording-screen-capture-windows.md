@@ -102,6 +102,10 @@ native\windows\build.ps1 -RunSmoke  # 额外链接并运行原生 smoke
 | Go 侧 | `internal/platform/windows/bridge_windows.go`（`windows && cgo`） |
 | 构建接线 | `cmd/daygo/wails.json` 的 `preBuildHooks["windows/*"]` |
 | 开发入口 | `scripts/dev.ps1`（与 `scripts/dev.sh` 对应的 PowerShell 版本；Go 1.25 自动启用 `GOEXPERIMENT=nodwarf5`） |
+| 生产构建入口 | `scripts/build.ps1`（`npm ci` → 生成绑定 → Wails `windows/amd64` 构建 → 校验 EXE + DLL） |
+
+Windows 宿主额外限制 DLL 搜索路径为应用目录与 System32，避免从当前工作目录
+加载同名 `daygo_windows_native.dll`；窗口主题跟随系统，Windows 11 使用 Mica 背景。
 
 `native/windows/smoke.cpp` 直接链接静态库跑 DXGI 与 WGC 两条截图路径，并用 WIC 解码校验
 存在非黑像素；单独的 Edge 基线 / 排除集成图用于验证目标窗口确实不在结果中。

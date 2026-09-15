@@ -2,7 +2,8 @@
 
 Every entry point that is not part of a normal `go test` / `npm test` run lives
 here. The split is by **role**, not by language — three platform dev scripts
-(`dev.sh`, `dev.ps1`, `dev-linux.sh`), one headless CI gate (`gate.sh`),
+(`dev.sh`, `dev.ps1`, `dev-linux.sh`), Windows / Linux production build scripts,
+one headless CI gate (`gate.sh`),
 shared bootstrap and shell helpers (`bootstrap-frontend.sh`), a docs sanity
 check (`check-docs.py`), and a `probe/` directory for one-off diagnostic
 tools. The README documents the contract for each so it stays obvious which
@@ -12,7 +13,9 @@ script owns a responsibility and which one a new contributor should reach for.
 |---|---|---|
 | `bootstrap-frontend.sh` | Standalone: placeholder dist → bindings → real bundle. Sourced: exports `require_tool`, `webkit_tag`, `run_wails`, `daygo_done_sourcing` for the other scripts. | All `dev*` scripts and `gate.sh` |
 | `dev.sh` | macOS `wails dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline. | Local development on macOS |
-| `dev.ps1` | Windows `wails dev` entry; top-of-file functions (`Invoke-Native`, `Assert-ToolOnPath`, `Test-FrontendHasRealBundle`, `Install-GoDwarf5Workaround`) cover the same environment checks dev.sh does in bash. | Local development on Windows |
+| `dev.ps1` | Windows `wails dev` entry; applies the Go 1.25 cgo debug workaround only when needed. | Local development on Windows |
+| `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1` |
+| `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
 | `dev-linux.sh` | Linux `wails dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
 | `build-linux.sh` | Linux `wails build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
 | `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + `check-docs.py`. Skipped only when `python3` is missing (Python is for docs only). | CI runner, also local pre-commit |
@@ -32,10 +35,10 @@ invocation. After the 2026-09-14 cleanup:
 - **`scripts/dev.sh`** keeps the macOS-only `clang` check inline. That check
   is the only piece that is genuinely platform-specific (clang is required
   on macOS for the cgo build, not on Linux/Windows).
-- **`scripts/dev.ps1`** mirrors the same role split in PowerShell. PowerShell
-  cannot `source` a `.ps1` from a sibling the way bash does, so the helpers
-  live as in-file functions at the top of `dev.ps1`. A future Windows-only
-  `build.ps1` would call the same functions.
+- **`scripts/windows-common.ps1`** is dot-sourced by the two Windows entry
+  points and owns their shared tool checks, frontend bootstrap and Go 1.25
+  debug-linker workaround. `dev.ps1` uses `npm install`; `build.ps1` uses the
+  lockfile-strict `npm ci` production path.
 - **`scripts/dev-linux.sh`** and **`scripts/build-linux.sh`** are both thin
   wrappers — the only difference between them is whether `run_wails` is
   called with `dev` or `build`, and whether `npm install` (dev) or

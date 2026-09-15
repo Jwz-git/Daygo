@@ -153,8 +153,10 @@ cd cmd/daygo
 # macOS
 go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform darwin/arm64
 
-# Windows
-go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform windows/amd64
+# Windows（必须在 Windows 上运行）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1
+# 额外运行截图与系统事件原生 smoke
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -RunSmoke
 
 # Linux（scripts/build-linux.sh 会自动选择 WebKit2GTK ABI tag）
 ../scripts/build-linux.sh

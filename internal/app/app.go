@@ -201,11 +201,11 @@ func Run() error {
 			// the state the auto-start produces.
 			backend.maybeAutoStartRecording()
 		},
-		// Mac and Linux window options are platform-specific; each lives in
-		// options_<goos>.go under a matching build tag. Windows and other
-		// platforms get the platform-neutral defaults Wails ships with.
-		Mac:   platformMacOptions(),
-		Linux: platformLinuxOptions(),
+		// Host window options are platform-specific; each lives in an
+		// options_<goos>.go file under a matching build tag.
+		Mac:     platformMacOptions(),
+		Linux:   platformLinuxOptions(),
+		Windows: platformWindowsOptions(),
 	})
 	if err != nil {
 		return fmt.Errorf("run Daygo desktop shell: %w", err)

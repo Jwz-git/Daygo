@@ -16,7 +16,9 @@ Windows 发布也保持待决。CLI / agent socket / MCP 已移交
 
 ## 当前状态与证据
 
-实现进度：部分实现，仅有 [Wails 开发配置](../../cmd/daygo/wails.json) 与构建链。
+实现进度：部分实现。已有 [Wails 配置](../../cmd/daygo/wails.json)、macOS / Linux 开发构建链，
+以及 Windows 的 `scripts/dev.ps1` / `scripts/build.ps1` 入口；Windows 构建会校验 EXE 与必需的
+`daygo_windows_native.dll` 同时产出。
 签名、公证、Gatekeeper、Updater fake / 原生、安装升级与首次引导均未验收。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 
