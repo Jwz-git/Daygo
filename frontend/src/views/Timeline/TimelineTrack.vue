@@ -12,6 +12,7 @@ import type {
 import { safeTimeZone } from '@/lib/timeZone'
 
 import TimelineActivityCard from './TimelineActivityCard.vue'
+import GeneratingCard from '@/components/GeneratingCard.vue'
 import {
   MIN_CARD_HEIGHT,
   layoutTimelineCards,
@@ -28,6 +29,8 @@ const props = defineProps<{
   processingRanges: RangeDTO[]
   selectedCardID: number | null
   selectedFailureTs: number | null
+  /** Placeholder state on the now-line: off, live capture, or paused hold. */
+  generating: 'off' | 'capturing' | 'paused'
 }>()
 
 const emit = defineEmits<{
@@ -167,7 +170,12 @@ onBeforeUnmount(() => {
           }"
           role="status"
         >
-          <span>{{ t('timeline.processing') }}</span>
+          <svg viewBox="0 0 14 14" aria-hidden="true">
+            <rect x="1" y="8" width="3" height="3" rx="0.8" fill="currentColor" opacity="0.55" />
+            <rect x="5.5" y="5" width="3" height="6" rx="0.8" fill="currentColor" opacity="0.8" />
+            <rect x="10" y="2.5" width="3" height="8.5" rx="0.8" fill="currentColor" />
+          </svg>
+          <span>{{ t('timeline.generating') }}</span>
         </div>
 
         <button
@@ -201,6 +209,17 @@ onBeforeUnmount(() => {
           :lane-index="cardPlacement.get(card.id)?.laneIndex ?? 0"
           :lane-count="cardPlacement.get(card.id)?.laneCount ?? 1"
           @select="emit('select', $event)"
+        />
+
+        <GeneratingCard
+          v-if="props.generating !== 'off' && nowPosition !== null"
+          :state="props.generating"
+          :style="{
+            top: `${nowPosition + 6}px`,
+            right: '14px',
+            left: '2px',
+            position: 'absolute',
+          }"
         />
 
         <div
@@ -276,10 +295,19 @@ onBeforeUnmount(() => {
 }
 
 .range--processing {
-  border: 1px solid var(--dg-timeline-processing-border);
-  background: var(--dg-timeline-processing-fill);
-  color: var(--dg-text-secondary);
+  gap: 9px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--dg-accent) 30%, transparent),
+    color-mix(in srgb, #e8804a 24%, transparent)
+  );
+  color: var(--dg-text-primary);
+  font-weight: 550;
 }
+
+.range--processing svg { flex: none; width: 13px; height: 13px; }
 
 .range--failure {
   justify-content: space-between;

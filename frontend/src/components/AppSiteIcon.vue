@@ -35,6 +35,20 @@ const iconStyle = computed<CSSProperties>(() => ({
       <rect x="15.2" y="8.5" width="2.8" height="9.5" rx="1.4" opacity=".82" />
     </svg>
 
+    <svg v-else-if="identity.kind === 'claude'" viewBox="0 0 24 24" aria-hidden="true">
+      <g class="claude-rays" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+        <path d="M12 3.2v17.6M3.2 12h17.6M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" />
+      </g>
+    </svg>
+
+    <svg v-else-if="identity.kind === 'cursor'" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 2.4 20.6 7v10L12 21.6 3.4 17V7L12 2.4Zm0 2.7L6 8.3l6 3.3 6-3.3-6-3.2Zm-6.4 5v5.9l5.4 3v-6l-5.4-2.9Zm12.8 0-5.4 2.9v6l5.4-3v-5.9Z" />
+    </svg>
+
+    <svg v-else-if="identity.kind === 'warp'" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.5 5.5h17L13 12l7.5 6.5h-17L11 12 3.5 5.5Z" />
+    </svg>
+
     <svg v-else-if="identity.kind === 'vscode'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M16.8 3.4 9.1 9.2 5.8 6.7 3.4 8.2l3.8 3.8-3.8 3.8 2.4 1.5 3.3-2.5 7.7 5.8 3.8-1.8V5.2l-3.8-1.8Zm0 4.6v8l-5.1-4 5.1-4Z" />
     </svg>

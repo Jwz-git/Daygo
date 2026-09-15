@@ -154,9 +154,9 @@
   --dg-timeline-time-width: 66px;
   --dg-timeline-grid: rgba(65, 58, 70, 0.16);
   --dg-timeline-grid-strong: rgba(65, 58, 70, 0.24);
-  --dg-timeline-card-fill: rgba(255, 255, 255, 0.58);
-  --dg-timeline-card-hover: rgba(255, 255, 255, 0.82);
-  --dg-timeline-card-selected: rgba(255, 255, 255, 0.9);
+  --dg-timeline-card-fill: #ffffff;
+  --dg-timeline-card-hover: #ffffff;
+  --dg-timeline-card-selected: #ffffff;
   --dg-timeline-card-border: rgba(65, 58, 70, 0.13);
   --dg-timeline-card-shadow: 0 1px 2px rgba(28, 34, 45, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
   /* Hover lifts the card off the track; the bloom is what sells the height. */

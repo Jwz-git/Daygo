@@ -2,9 +2,11 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
+import type { CardMediaFrameDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
+import { getCardMedia } from '@/api/media'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
+import CardVideoPlayer from '@/components/CardVideoPlayer.vue'
 import { appSiteValues } from '@/lib/appSiteIcon'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { useDurationFormat } from '@/lib/duration'
@@ -63,6 +65,26 @@ const displayedAppSites = computed(() => appSiteValues(props.card.appSites ?? nu
 const videoURLs = computed(() =>
   [...new Set([props.card.videoSummaryUrl, ...props.card.otherVideoSummaryUrls])]
     .filter((url): url is string => typeof url === 'string' && url.trim() !== ''),
+)
+
+/*
+ * The frames the recorder stored inside the card's timespan. Media is display
+ * data: a failed listing leaves the placeholder instead of blocking the pane.
+ */
+const mediaFrames = ref<CardMediaFrameDTO[]>([])
+
+watch(
+  () => props.card.id,
+  async (cardID) => {
+    mediaFrames.value = []
+    try {
+      const media = await getCardMedia(cardID)
+      if (props.card.id === cardID) mediaFrames.value = media.frames
+    } catch {
+      // Placeholder stays; no invented frames.
+    }
+  },
+  { immediate: true },
 )
 
 /* The category picker lists the user-editable category names. A card
@@ -200,6 +222,16 @@ watch(
     {{ timeRange }} · {{ duration(props.card.durationMinutes) }}
   </div>
 
+  <!-- Reference layout: the playback surface sits directly under the
+       title/time row, before the summaries. -->
+  <CardVideoPlayer
+    class="card-player"
+    :frames="mediaFrames"
+    :title="props.card.title"
+    :time-label="timeRange"
+    :time-zone="timeZone"
+  />
+
   <div v-if="editingField === 'category'" class="field-editor">
     <select
       ref="categoryInput"
@@ -318,22 +350,34 @@ watch(
   <section class="inspector__section inspector__section--frames">
     <div>
       <h3>{{ t('timeline.inspector.media') }}</h3>
-      <p v-if="videoURLs.length === 0">{{ t('timeline.inspector.framesUnavailable') }}</p>
+      <p v-if="mediaFrames.length === 0 && videoURLs.length === 0">{{ t('timeline.inspector.framesUnavailable') }}</p>
     </div>
-    <div v-if="videoURLs.length === 0" class="frame-placeholder" aria-hidden="true">
-      <span></span><span></span><span></span>
-    </div>
-    <div v-else class="media-list">
+    <template v-if="videoURLs.length > 0">
       <video
-        v-for="(url, index) in videoURLs"
+        v-for="url in videoURLs"
         :key="url"
         controls
         preload="metadata"
         :src="url"
-        :aria-label="t('timeline.inspector.mediaLabel', { count: index + 1 })"
+        :aria-label="t('timeline.inspector.mediaLabel', { count: videoURLs.indexOf(url) + 1 })"
       ></video>
-    </div>
+    </template>
+    <p v-else-if="mediaFrames.length > 0" class="frames-note">
+      {{ t('timeline.inspector.frameCount', { count: mediaFrames.length }) }}
+    </p>
   </section>
+
+  <!-- Summary rating: the binding is not delivered yet, so the controls stay
+       visibly present but disabled instead of pretending to save. -->
+  <div class="rating-row">
+    <span>{{ t('timeline.inspector.rating') }}</span>
+    <button type="button" class="rating-row__thumb" disabled :title="t('timeline.inspector.ratingUnavailable')">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 7.5V13m0-5.5L7.8 3c.9 0 1.5.7 1.4 1.6L9 7h3.4c.9 0 1.5.8 1.3 1.6l-.9 3.6c-.1.5-.6.9-1.2.9H5M5 7.5H2.5V13H5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+    </button>
+    <button type="button" class="rating-row__thumb" disabled :title="t('timeline.inspector.ratingUnavailable')">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8.5V3m0 5.5L7.8 13c.9 0 1.5-.7 1.4-1.6L9 9h3.4c.9 0 1.5-.8 1.3-1.6l-.9-3.6C12.7 3.9 12.2 3.5 11.6 3.5H5M5 8.5H2.5V3H5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
 
   <p v-if="props.actionFailed" class="inspector__error" role="alert">
     {{ t('timeline.inspector.actionFailed') }}
@@ -475,10 +519,38 @@ watch(
 .distraction strong { color: var(--dg-text-secondary); font-size: 11px; font-weight: 550; }
 
 .inspector__section--frames { display: grid; gap: 12px; }
-.frame-placeholder { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-.frame-placeholder span { height: 52px; border: 1px solid var(--dg-timeline-grid); border-radius: 5px; background: var(--dg-timeline-frame-fill); }
+.frames-note { margin: 0; color: var(--dg-text-muted); font-size: 10px; }
 .media-list { display: grid; gap: 8px; }
 .media-list video { width: 100%; border-radius: 6px; background: var(--dg-track-fill); }
+
+.card-player {
+  margin: 10px 0 2px;
+}
+
+.rating-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--dg-timeline-grid);
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+}
+
+.rating-row__thumb {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 7px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+  cursor: pointer;
+}
+
+.rating-row__thumb svg { width: 14px; height: 14px; }
+.rating-row__thumb:disabled { opacity: 0.5; cursor: default; }
 
 @media (prefers-reduced-motion: reduce) {
   .field-pencil { transition: none; }

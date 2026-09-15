@@ -48,8 +48,25 @@ function developmentFixtures(): Plugin {
   }
 }
 
+function frameFallthrough(): Plugin {
+  return {
+    name: 'daygo-frame-fallthrough',
+    configureServer(server) {
+      // In wails dev the Wails devserver forwards GETs here and falls back to
+      // the Go asset-server handler only when this server answers 404. Vite's
+      // SPA fallback would rewrite /media/frame to index.html for any
+      // fetch-like Accept (it matches the wildcard), which is why frames
+      // never rendered; answering 404 hands the request to the Go handler.
+      server.middlewares.use('/media', (_request, response) => {
+        response.statusCode = 404
+        response.end()
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [vue(), developmentFixtures()],
+  plugins: [vue(), developmentFixtures(), frameFallthrough()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

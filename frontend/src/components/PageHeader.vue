@@ -1,11 +1,15 @@
 <script setup lang="ts">
-const props = defineProps<{ title: string }>()
+/*
+ * hideTitle drops the h1 (a page that renders its own title inside the lead
+ * slot, e.g. the timeline header, still keeps the drag surface and layout).
+ */
+const props = defineProps<{ title: string; hideTitle?: boolean }>()
 </script>
 
 <template>
   <header class="page-header">
     <div class="page-header__lead">
-      <h1 class="page-header__title dg-display">{{ props.title }}</h1>
+      <h1 v-if="!props.hideTitle" class="page-header__title dg-display">{{ props.title }}</h1>
       <slot name="lead" />
     </div>
     <div class="page-header__trail">

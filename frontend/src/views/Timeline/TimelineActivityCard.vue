@@ -75,7 +75,8 @@ function cardStyle(): CSSProperties {
   left: calc(2px + (100% - 12px) * var(--timeline-lane-index) / var(--timeline-lane-count));
   width: calc((100% - 12px) / var(--timeline-lane-count) - 4px);
   display: flex;
-  align-items: center;
+  /* Icon and text hang from the card top, not centered. */
+  align-items: flex-start;
   gap: 9px;
   min-height: 34px;
   padding: 5px 12px 5px 14px;

@@ -3,6 +3,8 @@ import type { AppSitesDTO } from '@/api/dto'
 export type AppSiteIconKind =
   | 'chatgpt'
   | 'chrome'
+  | 'claude'
+  | 'cursor'
   | 'daygo'
   | 'discord'
   | 'figma'
@@ -15,6 +17,7 @@ export type AppSiteIconKind =
   | 'slack'
   | 'terminal'
   | 'vscode'
+  | 'warp'
   | 'xcode'
   | 'youtube'
   | 'generic'
@@ -33,6 +36,9 @@ interface BrandRule {
 
 const brandRules: readonly BrandRule[] = [
   { kind: 'daygo', matches: ['daygo'] },
+  { kind: 'claude', matches: ['claude', 'anthropic'] },
+  { kind: 'cursor', matches: ['cursor'] },
+  { kind: 'warp', matches: ['warp'] },
   { kind: 'vscode', matches: ['visual studio code', 'vscode', 'code.visualstudio'] },
   { kind: 'github', matches: ['github'] },
   { kind: 'chatgpt', matches: ['chatgpt', 'chat.openai', 'openai.com', 'codex'] },

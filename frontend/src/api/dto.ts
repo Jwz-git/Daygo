@@ -254,6 +254,18 @@ export interface TimelineCardDTO {
   durationMinutes: number
 }
 
+/** One playable screenshot frame: a numeric resource ID plus capture time. */
+export interface CardMediaFrameDTO {
+  id: number
+  capturedAt: number
+}
+
+/** Frame listing covering a card's timespan, oldest first. */
+export interface CardMediaDTO {
+  cardId: number
+  frames: CardMediaFrameDTO[]
+}
+
 export interface TimelineFailureDTO {
   batchIds: number[]
   startTs: number

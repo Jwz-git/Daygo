@@ -5,8 +5,11 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
+import CalendarPopover from '@/components/CalendarPopover.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PeriodNav from '@/components/PeriodNav.vue'
+import type { TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
+import { getTimelineDay } from '@/api/timeline'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { delayUntilDayContextRefresh } from '@/lib/dayContextRefresh'
@@ -14,16 +17,24 @@ import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { formatTimeZoneName } from '@/lib/timeFormat'
 import { safeTimeZone } from '@/lib/timeZone'
 import { useDailyStore } from '@/stores/daily'
+import { useRecordingStore } from '@/stores/recording'
 import { useTimelineStore } from '@/stores/timeline'
+import CardReviewFlow from './CardReviewFlow.vue'
 import TimelineInspector from './TimelineInspector.vue'
 import TimelineStatePanel from './TimelineStatePanel.vue'
 import TimelineTrack from './TimelineTrack.vue'
+import TimelineWeekView from './TimelineWeekView.vue'
+import { buildWeekColumns } from './weekLayout'
 import { safeCategoryColor } from './layout'
 
 const timeline = useTimelineStore()
 // The inspector's default pane embeds the day-goal form; the daily store owns
 // that state (bindings, events, save path) for both pages.
 const daily = useDailyStore()
+// Recording state is shared with the rail's RecordingControl; this view only
+// reads it and triggers actions, and must not stop the shared event listener
+// on unmount (the rail outlives this page).
+const recording = useRecordingStore()
 const {
   context,
   day,
@@ -48,7 +59,178 @@ const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
 const confirmingReprocess = ref(false)
 const showCategoryManager = ref(false)
 let dayRefreshTimer: number | null = null
+
+/*
+ * Day/week view mode. Week mode shows the calendar week (Monday-based) that
+ * contains the selected day; the 04:00 logical-day rule still comes from each
+ * day's own GetTimelineDay window, never from frontend math.
+ */
+type ViewMode = 'day' | 'week'
+const viewMode = ref<ViewMode>('day')
+const weekDays = ref<(Awaited<ReturnType<typeof getTimelineDay>> | null)[]>([])
+const weekLoading = ref(false)
+let weekRequestVersion = 0
+
+const ISO_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/** Monday of the calendar week containing the ISO day. */
+function mondayOf(iso: string): string | null {
+  const match = ISO_PATTERN.exec(iso)
+  if (match === null) return null
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+  if (Number.isNaN(date.getTime())) return null
+  const offset = (date.getUTCDay() + 6) % 7
+  return shiftCalendarDate(iso, -offset)
+}
+
+const weekKeys = computed<string[]>(() => {
+  const anchor = context.value?.day ?? routeDay()
+  const monday = mondayOf(anchor)
+  if (monday === null) return []
+  return Array.from({ length: 7 }, (_, index) => shiftCalendarDate(monday, index) ?? '')
+})
+
+async function loadWeek(options: { silent?: boolean } = {}): Promise<void> {
+  const keys = weekKeys.value
+  if (keys.length === 0) return
+  const version = ++weekRequestVersion
+  // A silent reload keeps the current columns rendered while refetching —
+  // only a first load (nothing to show yet) turns on the loading note.
+  if (!options.silent || weekDays.value.every((entry) => entry === null)) {
+    weekLoading.value = true
+  }
+  const results = await Promise.allSettled(keys.map((key) => getTimelineDay(key)))
+  if (version !== weekRequestVersion) return
+  weekDays.value = results.map((result) => (result.status === 'fulfilled' ? result.value : null))
+  weekLoading.value = false
+}
+
+const weekColumns = computed(() => {
+  const format = new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit' })
+  return buildWeekColumns(weekDays.value, categoryFilter.value, format)
+})
+
+const weekTitle = computed(() => {
+  const keys = weekKeys.value
+  if (keys.length === 0) return ''
+  const format = new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric' })
+  const first = keys[0]
+  const last = keys[keys.length - 1]
+  if (first === '' || last === '') return ''
+  return `${format.format(new Date(`${first}T00:00:00`))} – ${format.format(new Date(`${last}T00:00:00`))}`
+})
+
+const showPauseButton = computed(
+  () => recording.lifecycle === 'capturing' || recording.lifecycle === 'paused',
+)
+
+/*
+ * The placeholder card rides the now-line while recording is today and live
+ * (nine-cell wave) or paused (hold icon + resume hint) — idle recording has
+ * no next card coming.
+ */
+type GenState = 'off' | 'capturing' | 'paused'
+const generating = computed<GenState>(() => {
+  if (!isFollowingToday()) return 'off'
+  const current = context.value
+  if (current === null) return 'off'
+  const now = Math.floor(Date.now() / 1000)
+  if (now < current.dayStartTs || now >= current.dayEndTs) return 'off'
+  if (recording.lifecycle === 'capturing' || recording.lifecycle === 'starting') return 'capturing'
+  if (recording.lifecycle === 'paused') return 'paused'
+  return 'off'
+})
+
+function selectDayFromWeek(dayKey: string): void {
+  if (dayKey === '') return
+  void router.push({ name: 'timeline', query: { ...route.query, day: dayKey } })
+}
+
+const showCalendar = ref(false)
+
+function pickDate(dayKey: string): void {
+  showCalendar.value = false
+  if (dayKey === '') return
+  void router.push({ name: 'timeline', query: { ...route.query, day: dayKey } })
+}
+
+/*
+ * Review flow: the queue is the day's activity cards the user has not judged
+ * in this session (idle/System cards never enter it). Judgments persist via
+ * UpdateCardCategory inside the flow; the set here only tracks the badge and
+ * queue membership.
+ */
+const showReview = ref(false)
+const reviewedIds = ref<ReadonlySet<number>>(new Set())
+
+const reviewQueue = computed<TimelineCardDTO[]>(() =>
+  (day.value?.cards ?? []).filter(
+    (card) => !card.isIdle && card.category !== 'System' && !reviewedIds.value.has(card.id),
+  ),
+)
+
+function onJudged(cardID: number, removed: boolean): void {
+  const next = new Set(reviewedIds.value)
+  if (removed) next.delete(cardID)
+  else next.add(cardID)
+  reviewedIds.value = next
+}
+
+async function closeReview(): Promise<void> {
+  showReview.value = false
+  // Categories may have changed; refetch so the track and inspector agree.
+  await timeline.load(routeDay())
+}
+
+/*
+ * Week-mode card detail: selecting a week card opens the same inspector pane
+ * with the card's own day DTO. Closing/acting refreshes the week columns.
+ */
+const weekSelection = ref<{ day: TimelineDayDTO; card: TimelineCardDTO } | null>(null)
+
+function openWeekCard(dayKey: string, cardId: number): void {
+  const dayDTO = weekDays.value.find((entry) => entry !== null && entry.day === dayKey)
+  const card = dayDTO?.cards.find((entry) => entry.id === cardId)
+  if (dayDTO === undefined || dayDTO === null || card === undefined) return
+  weekSelection.value = { day: dayDTO, card }
+}
+
+function closeWeekCard(): void {
+  weekSelection.value = null
+  // Wait for the grid-expand transition to finish before refreshing columns;
+  // a mid-transition data swap re-lays-out every card and reads as a flash.
+  window.setTimeout(() => { void loadWeek({ silent: true }) }, 450)
+}
+
+function anchorDay(dayKey: string): void {
+  if (dayKey === '') return
+  weekSelection.value = null
+  void router.push({ name: 'timeline', query: { ...route.query, day: dayKey } })
+}
+
+async function saveWeekEdits(
+  cardID: number,
+  edits: { title?: string; category?: string; summary?: string; detailedSummary?: string },
+): Promise<void> {
+  await timeline.saveCardEdits(cardID, edits)
+  await loadWeek({ silent: true })
+  if (weekSelection.value !== null) {
+    const card = weekSelection.value.day.cards.find((entry) => entry.id === cardID)
+    if (card !== undefined) weekSelection.value = { day: weekSelection.value.day, card }
+  }
+}
+
+async function deleteWeekCard(cardID: number): Promise<void> {
+  await timeline.removeCard(cardID)
+  weekSelection.value = null
+  window.setTimeout(() => { void loadWeek({ silent: true }) }, 450)
+}
+
+watch(viewMode, (mode) => {
+  if (mode === 'day') weekSelection.value = null
+})
 const dateTitle = computed(() => {
+  if (viewMode.value === 'week' && weekTitle.value !== '') return weekTitle.value
   if (context.value === null) return t('timeline.title')
   return new Intl.DateTimeFormat(locale.value, {
     weekday: 'short', month: 'short', day: 'numeric', timeZone: safeTimeZone(context.value.timeZone),
@@ -146,10 +328,14 @@ async function reprocessCurrentDay(): Promise<void> {
 onMounted(() => {
   timeline.startEvents()
   daily.startEvents()
+  recording.startListening()
   window.addEventListener('focus', refreshWhenWindowReturns)
   document.addEventListener('visibilitychange', refreshWhenWindowReturns)
 })
 watch(() => route.query.day, () => { void timeline.load(routeDay()) }, { immediate: true })
+watch([viewMode, weekKeys], () => {
+  if (viewMode.value === 'week') void loadWeek()
+}, { immediate: true })
 watch(() => context.value?.day, (day) => {
   if (day !== undefined) void daily.load(day)
 }, { immediate: true })
@@ -165,7 +351,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page timeline-page" @keydown.esc="timeline.selectCard(null)">
-    <PageHeader :title="dateTitle">
+    <PageHeader :title="dateTitle" hide-title>
       <template #lead>
         <PeriodNav
           :label="t('timeline.navigation.label')"
@@ -178,9 +364,68 @@ onBeforeUnmount(() => {
           @navigate="navigate"
           @current="goToToday"
         />
+        <div class="header-tools">
+          <div class="calendar-anchor">
+            <button
+              type="button"
+              class="tool-button"
+              :title="t('timeline.calendar.open')"
+              :aria-label="t('timeline.calendar.open')"
+              :aria-expanded="showCalendar"
+              @click="showCalendar = !showCalendar"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="2" y="3.2" width="12" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.4" />
+                <path d="M2 6.4h12" stroke="currentColor" stroke-width="1.4" />
+                <path d="M5.4 1.6v2.6M10.6 1.6v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                <circle cx="5.6" cy="9.6" r="1" fill="currentColor" />
+                <circle cx="8" cy="9.6" r="1" fill="currentColor" />
+                <circle cx="10.4" cy="9.6" r="1" fill="currentColor" />
+              </svg>
+            </button>
+            <CalendarPopover
+              v-if="showCalendar"
+              :selected="context?.day ?? routeDay()"
+              @select="pickDate"
+              @close="showCalendar = false"
+            />
+          </div>
+          <div class="mode-toggle" role="tablist" :aria-label="t('timeline.mode.label')">
+            <button
+              v-for="mode in (['day', 'week'] as const)"
+              :key="mode"
+              type="button"
+              class="mode-toggle__item"
+              role="tab"
+              :aria-selected="viewMode === mode"
+              :class="{ 'is-active': viewMode === mode }"
+              @click="viewMode = mode"
+            >
+              {{ t(`timeline.mode.${mode}`) }}
+            </button>
+          </div>
+          <h1 class="timeline-date dg-display">{{ dateTitle }}</h1>
+        </div>
       </template>
 
       <template #trail>
+        <button
+          v-if="showPauseButton"
+          type="button"
+          class="pause-pill"
+          :disabled="recording.pendingAction !== null"
+          :title="recording.lifecycle === 'paused' ? t('recording.action.resume') : t('recording.action.pause')"
+          @click="recording.perform(recording.lifecycle === 'paused' ? 'resume' : 'pause')"
+        >
+          <svg v-if="recording.lifecycle !== 'paused'" viewBox="0 0 12 12" aria-hidden="true">
+            <rect x="2.6" y="2" width="2.6" height="8" rx="1" fill="currentColor" />
+            <rect x="6.8" y="2" width="2.6" height="8" rx="1" fill="currentColor" />
+          </svg>
+          <svg v-else viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M3.5 2.2v7.6L10 6Z" fill="currentColor" />
+          </svg>
+          <span>{{ recording.lifecycle === 'paused' ? t('recording.action.resume') : t('recording.action.pause') }}</span>
+        </button>
         <DevelopmentBadge v-if="usingDevelopmentFixture">{{ t('timeline.developmentFixture') }}</DevelopmentBadge>
         <div v-if="day" class="day-meta">
           <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>
@@ -244,35 +489,82 @@ onBeforeUnmount(() => {
       </span>
     </div>
 
-    <div class="timeline-body">
-      <TimelineStatePanel
-        v-if="!hasTrack"
-        class="timeline-body__state"
-        :state="state"
-        @retry="timeline.load(context?.day ?? '')"
-      />
-
-      <template v-else-if="day && context">
-        <TimelineTrack
-          class="timeline-body__track"
-          :context="context"
-          :cards="cards"
-          :categories="day.categories"
-          :failures="day.failures"
-          :processing-ranges="day.processingRanges"
-          :selected-card-i-d="selectedCardID"
-          :selected-failure-ts="selectedFailureTs"
-          @select="timeline.selectCard"
-          @select-failure="timeline.selectFailure"
-          @clear="timeline.selectCard(null)"
+    <div
+      class="timeline-body"
+      :class="{ 'is-week-collapsed': viewMode === 'week' && weekSelection === null }"
+    >
+      <Transition name="mode" mode="out-in">
+        <TimelineWeekView
+          v-if="viewMode === 'week'"
+          key="week"
+          class="timeline-body__week"
+          :day-keys="weekKeys"
+          :columns="weekColumns"
+          :selected-day="context?.day ?? ''"
+          :selected-card-id="weekSelection?.card.id ?? null"
+          :week-loading="weekLoading"
+          :generating="generating"
+          @anchor-day="selectDayFromWeek"
+          @select-card="openWeekCard"
         />
+        <div v-else key="day" class="timeline-body__day">
+          <TimelineStatePanel
+            v-if="!hasTrack"
+            class="timeline-body__state"
+            :state="state"
+            @retry="timeline.load(context?.day ?? '')"
+          />
+
+          <template v-else-if="day && context">
+            <TimelineTrack
+              class="timeline-body__track"
+              :context="context"
+              :cards="cards"
+              :categories="day.categories"
+              :failures="day.failures"
+              :processing-ranges="day.processingRanges"
+              :selected-card-i-d="selectedCardID"
+              :selected-failure-ts="selectedFailureTs"
+              :generating="generating"
+              @select="timeline.selectCard"
+              @select-failure="timeline.selectFailure"
+              @clear="timeline.selectCard(null)"
+            />
+            <TimelineInspector
+              class="timeline-body__inspector"
+              :class="{ 'has-selection': selectedCard !== null || selectedFailure !== null }"
+              :day="day"
+              :time-zone="context.timeZone"
+              :card="selectedCard"
+              :failure="selectedFailure"
+              :can-write="capabilities?.canWrite ?? false"
+              :actions="actionAvailability"
+              :pending-action="pendingAction"
+              :action-failed="actionError !== null"
+              :goal="daily.goal"
+              :goal-unavailable="daily.goalUnavailable"
+              :goal-failed="daily.goalError !== null"
+              :goal-saving="daily.goalSaving"
+              @close="timeline.selectCard(null)"
+              @save-edits="(cardID, edits) => timeline.saveCardEdits(cardID, edits)"
+              @delete="timeline.removeCard"
+              @retry="timeline.retryFailure"
+              @dismiss-failure="timeline.dismissFailure"
+              @reprocess="confirmingReprocess = true"
+              @save-goal="daily.saveGoal"
+            />
+          </template>
+        </div>
+      </Transition>
+
+      <Transition name="inspector">
         <TimelineInspector
+          v-if="viewMode === 'week' && weekSelection !== null"
           class="timeline-body__inspector"
-          :class="{ 'has-selection': selectedCard !== null || selectedFailure !== null }"
-          :day="day"
-          :time-zone="context.timeZone"
-          :card="selectedCard"
-          :failure="selectedFailure"
+          :day="weekSelection.day"
+          :time-zone="context?.timeZone ?? 'UTC'"
+          :card="weekSelection.card"
+          :failure="null"
           :can-write="capabilities?.canWrite ?? false"
           :actions="actionAvailability"
           :pending-action="pendingAction"
@@ -281,20 +573,20 @@ onBeforeUnmount(() => {
           :goal-unavailable="daily.goalUnavailable"
           :goal-failed="daily.goalError !== null"
           :goal-saving="daily.goalSaving"
-          @close="timeline.selectCard(null)"
-          @save-edits="(cardID, edits) => timeline.saveCardEdits(cardID, edits)"
-          @delete="timeline.removeCard"
+          @close="closeWeekCard"
+          @save-edits="saveWeekEdits"
+          @delete="deleteWeekCard"
           @retry="timeline.retryFailure"
           @dismiss-failure="timeline.dismissFailure"
           @reprocess="confirmingReprocess = true"
           @save-goal="daily.saveGoal"
         />
-      </template>
+      </Transition>
     </div>
 
-    <!-- Fixed bottom-left copy button -->
+    <!-- Fixed bottom-left copy button (day view only) -->
     <button
-      v-if="hasTrack"
+      v-if="hasTrack && viewMode === 'day'"
       type="button"
       class="copy-fab"
       :class="{ 'is-copied': copyState === 'copied', 'is-failed': copyState === 'failed' }"
@@ -306,6 +598,23 @@ onBeforeUnmount(() => {
       <svg v-else-if="copyState === 'copied'" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8l3.5 3.5L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <svg v-else viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       <span>{{ copyState === 'copied' ? t('timeline.copy.copied') : copyState === 'failed' ? t('timeline.copy.failed') : t('timeline.copy.action') }}</span>
+    </button>
+
+    <!-- Review entry: gradient pill mirroring the reference, with the
+         remaining-card count badge. -->
+    <button
+      v-if="hasTrack && viewMode === 'day'"
+      type="button"
+      class="review-fab"
+      :disabled="reviewQueue.length === 0"
+      :title="t('timeline.review.title')"
+      @click="showReview = true"
+    >
+      <span class="review-fab__badge" aria-hidden="true">
+        <svg viewBox="0 0 12 12"><path d="M2.5 1.5h5l2 2v7h-7Z" fill="none" stroke="currentColor" stroke-width="1.2" /></svg>
+        <b>{{ reviewQueue.length }}</b>
+      </span>
+      <span>{{ t('timeline.review.action') }}</span>
     </button>
 
     <!-- Category Manager Modal -->
@@ -336,6 +645,19 @@ onBeforeUnmount(() => {
             </button>
           </footer>
         </div>
+      </div>
+    </Teleport>
+    <!-- Review flow modal -->
+    <Teleport to="body">
+      <div v-if="showReview" class="modal-backdrop" @click.self="closeReview">
+        <CardReviewFlow
+          v-if="day !== null"
+          :day="day"
+          :cards="reviewQueue"
+          :time-zone="context?.timeZone ?? 'UTC'"
+          @close="closeReview"
+          @judged="onJudged"
+        />
       </div>
     </Teleport>
   </div>
@@ -403,11 +725,208 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   padding: 0 var(--dg-page-padding) var(--dg-page-padding);
+  /* The week grid grows over the inspector when no card is selected and
+     shrinks back on selection; grid-template-columns animates in the engines
+     that support it and jumps elsewhere. */
+  transition: grid-template-columns var(--dg-motion-slow) var(--dg-ease-glide);
 }
 
+.timeline-body.is-week-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.timeline-body__day {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.timeline-body__week { min-width: 0; min-height: 0; }
 .timeline-body__state { grid-column: 1 / -1; }
 .timeline-body__track,
 .timeline-body__inspector { min-width: 0; }
+
+/* Day/week switch: scale + fade out, then the incoming mode settles back. */
+.mode-enter-active,
+.mode-leave-active {
+  transition:
+    opacity 190ms ease,
+    transform 260ms var(--dg-ease-glide);
+}
+
+.mode-enter-from {
+  opacity: 0;
+  transform: scale(0.975) translateY(4px);
+}
+
+.mode-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+/* Inspector pane sliding open / closed. */
+.inspector-enter-active,
+.inspector-leave-active {
+  transition:
+    opacity 200ms ease,
+    transform var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+.inspector-enter-from,
+.inspector-leave-to {
+  opacity: 0;
+  transform: scale(0.985) translateX(14px);
+}
+
+/* Review entry pill, centered at the bottom like the reference. */
+.review-fab {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 18px 0 8px;
+  border: none;
+  border-radius: 999px;
+  /* Opaque stops: both gradients mix over the opaque window base. */
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--dg-accent) 34%, var(--dg-window-bg)),
+    color-mix(in srgb, #e8804a 32%, var(--dg-window-bg))
+  );
+  color: var(--dg-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  transform: translateX(-50%);
+  cursor: pointer;
+  box-shadow: var(--dg-shadow-sm);
+  transition: transform var(--dg-motion-base) var(--dg-ease-glide), box-shadow var(--dg-motion-fast) ease;
+}
+
+.review-fab:hover:not(:disabled) { transform: translateX(-50%) scale(1.03); }
+.review-fab:active:not(:disabled) { transform: translateX(-50%) scale(0.97); }
+.review-fab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.review-fab:disabled { opacity: 0.5; cursor: default; }
+
+.review-fab__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dg-accent) 62%, #ffffff);
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.review-fab__badge svg { width: 11px; height: 11px; }
+.review-fab__badge b { font-weight: 650; font-variant-numeric: tabular-nums; }
+
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-anchor {
+  position: relative;
+}
+
+.tool-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: none;
+  border-radius: 9px;
+  background: var(--dg-control-fill);
+  color: var(--dg-text-secondary);
+  cursor: pointer;
+  transition: background var(--dg-motion-fast) ease, transform var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+.tool-button:hover { background: var(--dg-control-fill-hover); color: var(--dg-text-primary); }
+.tool-button:active { transform: scale(0.96); }
+.tool-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.tool-button svg { width: 16px; height: 16px; }
+
+/* In-header date, sitting right of the controls like the reference. */
+.timeline-date {
+  margin: 0 0 0 6px;
+  overflow: hidden;
+  color: var(--dg-text-primary);
+  font-size: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--dg-control-fill);
+}
+
+.mode-toggle__item {
+  min-width: 44px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    background var(--dg-motion-fast) ease,
+    color var(--dg-motion-fast) ease,
+    box-shadow var(--dg-motion-fast) ease;
+}
+
+.mode-toggle__item:hover { color: var(--dg-text-primary); }
+.mode-toggle__item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+
+.mode-toggle__item.is-active {
+  background: var(--dg-popover-fill, var(--dg-surface));
+  color: var(--dg-text-primary);
+  font-weight: 600;
+  box-shadow: var(--dg-shadow-sm);
+}
+
+/* Warm pill echoing the reference recording control; kept local because no
+   palette token carries the warm recording hue. */
+.pause-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 15px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(232, 128, 74, 0.2);
+  color: #b25a22;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dg-motion-fast) ease, transform var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+:root[data-dg-appearance='dark'] .pause-pill {
+  background: rgba(232, 128, 74, 0.16);
+  color: #eda06c;
+}
+
+.pause-pill svg { width: 11px; height: 11px; }
+.pause-pill:hover:not(:disabled) { background: rgba(232, 128, 74, 0.3); }
+.pause-pill:active:not(:disabled) { transform: scale(0.96); }
+.pause-pill:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.pause-pill:disabled { opacity: 0.55; cursor: default; }
 
 @media (max-width: 1000px) {
   .timeline-body { grid-template-columns: minmax(0, 1fr); }
@@ -456,7 +975,8 @@ onBeforeUnmount(() => {
   padding: 0 14px;
   border: 1px solid var(--dg-timeline-grid);
   border-radius: 8px;
-  background: var(--dg-control-fill);
+  /* Opaque: mixed over the window base so the track never shows through. */
+  background: color-mix(in srgb, var(--dg-accent) 7%, var(--dg-window-bg));
   color: var(--dg-text-secondary);
   font-size: 12px;
   font-weight: 500;

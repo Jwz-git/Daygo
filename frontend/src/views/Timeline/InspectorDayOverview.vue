@@ -65,6 +65,32 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
     })
     .sort((left, right) => right.minutes - left.minutes)
 })
+
+/*
+ * Ring chart of the same totals (今天到目前为止). Segments are stroke-dash
+ * arcs on one circle; a small gap keeps neighbouring categories readable.
+ */
+const DONUT_RADIUS = 52
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS
+
+const activeTotalMinutes = computed(() =>
+  categoryTotals.value.reduce((sum, item) => sum + item.minutes, 0),
+)
+
+const donutSegments = computed(() => {
+  let consumed = 0
+  return categoryTotals.value.map((item) => {
+    const fraction = item.percentage / 100
+    const arc = Math.max(0, fraction * DONUT_CIRCUMFERENCE - 2)
+    const segment = {
+      color: safeCategoryColor(item.category.colorHex),
+      dashArray: `${arc} ${DONUT_CIRCUMFERENCE - arc}`,
+      offset: -consumed * DONUT_CIRCUMFERENCE,
+    }
+    consumed += fraction
+    return segment
+  })
+})
 </script>
 
 <template>
@@ -74,6 +100,29 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
       <h2 class="inspector__title dg-display">{{ t('timeline.overview.title') }}</h2>
     </div>
   </header>
+
+  <div class="donut" role="img" :aria-label="t('timeline.overview.donutAria')">
+    <svg viewBox="0 0 140 140" aria-hidden="true">
+      <circle class="donut__track" cx="70" cy="70" r="52" />
+      <g transform="rotate(-90 70 70)">
+        <circle
+          v-for="(segment, index) in donutSegments"
+          :key="index"
+          class="donut__segment"
+          cx="70"
+          cy="70"
+          r="52"
+          :stroke="segment.color"
+          :stroke-dasharray="segment.dashArray"
+          :stroke-dashoffset="segment.offset"
+        />
+      </g>
+    </svg>
+    <div class="donut__center">
+      <span>{{ t('timeline.overview.total') }}</span>
+      <strong>{{ duration(activeTotalMinutes) }}</strong>
+    </div>
+  </div>
 
   <div class="totals">
     <div class="total total--primary">
@@ -169,6 +218,52 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
   grid-template-columns: 1.35fr 1fr;
   gap: 8px;
   padding: 18px 0 22px;
+}
+
+.donut {
+  position: relative;
+  width: 168px;
+  margin: 4px auto 0;
+}
+
+.donut svg { display: block; width: 100%; }
+
+.donut__track {
+  fill: none;
+  stroke: var(--dg-track-fill);
+  stroke-width: 20;
+}
+
+.donut__segment {
+  fill: none;
+  stroke-width: 20;
+  stroke-linecap: butt;
+}
+
+.donut__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.donut__center span {
+  color: var(--dg-text-muted);
+  font-size: 11px;
+}
+
+.donut__center strong {
+  max-width: 90px;
+  overflow: hidden;
+  color: var(--dg-text-primary);
+  font-size: 17px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .total {
