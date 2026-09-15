@@ -84,6 +84,8 @@ export const useTimelineStore = defineStore('timeline', () => {
       reprocessDay: enabled && actionBindings.reprocessDay,
       deleteBatches: enabled && actionBindings.deleteBatches,
       clearHistory: enabled && actionBindings.clearHistory,
+      // Category management is always available in the UI when there are categories
+      manageCategories: true,
     }
   })
 

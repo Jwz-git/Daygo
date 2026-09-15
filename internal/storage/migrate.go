@@ -408,6 +408,33 @@ var migrations = []migration{
 			return seedStarterCategories(ctx, tx)
 		},
 	},
+	{
+		version: 13,
+		name:    "daily: standup entries for AI-generated recap",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// daily_standup_entries stores AI-generated daily recaps.
+			// The standup_day column uses the calendar day (midnight boundary),
+			// not the logical day (4am boundary), as this is the day users
+			// think in when reviewing "today's" work.
+			for _, stmt := range []string{
+				`CREATE TABLE daily_standup_entries (
+					standup_day      TEXT PRIMARY KEY,
+					highlights_title TEXT NOT NULL,
+					highlights       TEXT NOT NULL,
+					tasks_title      TEXT NOT NULL,
+					tasks            TEXT NOT NULL,
+					blockers_title   TEXT NOT NULL,
+					blockers_body    TEXT NOT NULL,
+					generated_at     INTEGER NOT NULL
+				)`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v13 daily standup table", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like

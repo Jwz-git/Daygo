@@ -12,6 +12,7 @@ export default {
   actionFailed: '操作未完成，数据没有被前端改写。',
   recording: { start: '开始录制' },
   category: {
+    system: '系统',
     focusWork: '工作',
     communication: '沟通',
     learning: '学习',

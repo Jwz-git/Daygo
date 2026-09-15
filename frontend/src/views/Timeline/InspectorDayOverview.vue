@@ -27,6 +27,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   retry: [batchIDs: number[]]
   saveGoal: [goal: DayGoalDTO]
+  reprocess: []
 }>()
 
 const { t } = useI18n()
@@ -138,6 +139,19 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
       {{ props.pendingAction === 'retry-batches' ? t('timeline.failure.retrying') : t('timeline.failure.retry') }}
     </button>
   </section>
+
+  <section v-if="props.actions.reprocessDay" class="inspector__section">
+    <button
+      type="button"
+      class="dg-button inspector__reprocess"
+      :disabled="!props.canWrite || props.pendingAction !== null"
+      :title="props.canWrite ? t('timeline.reprocess.action') : t('timeline.inspector.actionsUnavailable')"
+      @click="emit('reprocess')"
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true" class="reprocess-icon"><path d="M13.65 2.35A8 8 0 1 0 16 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 2l3 0 0 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      {{ t('timeline.reprocess.action') }}
+    </button>
+  </section>
 </template>
 
 <style scoped>
@@ -214,4 +228,34 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
 }
 
 .inspector__retry { color: var(--dg-text-secondary); }
+
+.inspector__reprocess {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 8px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+}
+
+.inspector__reprocess:hover:not(:disabled) {
+  border-color: var(--dg-accent);
+  color: var(--dg-accent);
+  background: var(--dg-accent-subtle);
+}
+
+.inspector__reprocess:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reprocess-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
 </style>

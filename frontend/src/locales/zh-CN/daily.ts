@@ -46,6 +46,8 @@ export default {
     unavailableDescription: '工作流仍可查看；生成、编辑和自动保存会在真实绑定可用后启用。',
     failureTitle: '日报读取失败',
     failureDescription: '活动概览没有受到影响，可以稍后重新读取日报。',
+    draftBadge: '日记草稿',
+    fromJournal: '来自日记',
   },
   journal: {
     title: '日记',

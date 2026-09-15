@@ -152,6 +152,7 @@ onBeforeUnmount(() => daily.stopListening())
           />
           <DailyRecapPanel
             :recap="recap"
+            :journal="journal"
             :unavailable="recapUnavailable"
             :failed="recapError !== null"
             :time-zone="context.timeZone"

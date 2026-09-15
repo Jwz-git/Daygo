@@ -90,7 +90,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 |---|---|---|
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁 |
 | timeline | `GetDayContext`、`GetTimelineDay`、`UpdateCardCategory`、`UpdateCardTitle`、`UpdateCardSummary`、`UpdateCardDetailedSummary`、`DeleteCard`、`SaveCategories` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；视频 URL 与失败重试 / 整日重处理仍属后续切片 |
-| daily | `GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals`；用户保存不触碰 AI summary 列；`GetDailyRecap` 未实现（待定 #19） |
+| daily | `GetDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 v5 `journal_entries` / `day_goals` / `daily_standup_entries`；用户保存不触碰 AI summary 列 |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + insight 排除 System / isIdle）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
@@ -386,7 +386,8 @@ export function toApiError(e: unknown): ApiError {
 
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
-| `GetDailyRecap(standupDay string) (DailyRecapDTO, error)` | daily | time / 摘要持久化 / 生成结果 | 读 | — | `not_found` `invalid_argument` |
+| `GetDailyRecap(standupDay string) (DailyRecapDTO, error)` **已实现** | daily | time / standup repository | 读 | — | `invalid_argument` |
+| `SaveDailyRecap(recap DailyRecapDTO) error` **已实现** | daily | standup repository / 写入锁 | 写·幂等 | — | `not_capture_owner` `invalid_argument` |
 | `GetJournalDay(day string) (JournalDayDTO, error)` **已实现** | daily | time / 日记 repository | 读 | — | `invalid_argument` |
 | `SaveJournalDay(entry JournalDayDTO) error` **已实现** | daily | 日记 repository / 写入锁 | 写·幂等 | `journal:updated` | `invalid_argument` |
 | `GetDayGoal(day string) (DayGoalDTO, error)` **已实现** | daily | time / 目标 repository | 读 | — | `invalid_argument` |

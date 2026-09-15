@@ -12,6 +12,7 @@ export default {
     save: 'Save',
     reset: 'Reset',
     cancel: 'Cancel',
+    close: 'Close',
     edit: 'Edit',
     delete: 'Delete',
   },

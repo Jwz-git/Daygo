@@ -37,6 +37,7 @@ const emit = defineEmits<{
   delete: [cardID: number]
   retry: [batchIDs: number[]]
   dismissFailure: [batchIDs: number[]]
+  reprocess: []
   saveGoal: [goal: DayGoalDTO]
 }>()
 
@@ -57,6 +58,7 @@ const { t } = useI18n()
       :goal-saving="props.goalSaving"
       @retry="(batchIDs) => emit('retry', batchIDs)"
       @save-goal="(goal) => emit('saveGoal', goal)"
+      @reprocess="emit('reprocess')"
     />
 
     <InspectorFailureDetail

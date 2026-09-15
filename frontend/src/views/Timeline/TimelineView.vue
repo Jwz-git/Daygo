@@ -46,6 +46,7 @@ const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
 const confirmingReprocess = ref(false)
+const showCategoryManager = ref(false)
 let dayRefreshTimer: number | null = null
 const dateTitle = computed(() => {
   if (context.value === null) return t('timeline.title')
@@ -212,28 +213,12 @@ onBeforeUnmount(() => {
       <span class="filter-bar__spacer"></span>
       <button
         type="button"
-        class="filter-manage filter-manage--available"
-        :disabled="cards.length === 0"
-        @click="copyTimeline"
-      >
-        {{ copyState === 'copied' ? t('timeline.copy.copied') : copyState === 'failed' ? t('timeline.copy.failed') : t('timeline.copy.action') }}
-      </button>
-      <button
-        type="button"
         class="filter-manage"
         :title="t('timeline.filter.manageUnavailable')"
-        disabled
+        :disabled="!actionAvailability.manageCategories"
+        @click="showCategoryManager = true"
       >
         {{ t('timeline.filter.manage') }}
-      </button>
-      <button
-        v-if="actionAvailability.reprocessDay && (capabilities?.canWrite ?? false)"
-        type="button"
-        class="filter-manage"
-        :disabled="pendingAction !== null || !hasTrack"
-        @click="confirmingReprocess = true"
-      >
-        {{ t('timeline.reprocess.action') }}
       </button>
       <span v-if="confirmingReprocess" class="filter-error" role="alert">
         {{ t('timeline.reprocess.confirm') }}
@@ -301,10 +286,58 @@ onBeforeUnmount(() => {
           @delete="timeline.removeCard"
           @retry="timeline.retryFailure"
           @dismiss-failure="timeline.dismissFailure"
+          @reprocess="confirmingReprocess = true"
           @save-goal="daily.saveGoal"
         />
       </template>
     </div>
+
+    <!-- Fixed bottom-left copy button -->
+    <button
+      v-if="hasTrack"
+      type="button"
+      class="copy-fab"
+      :class="{ 'is-copied': copyState === 'copied', 'is-failed': copyState === 'failed' }"
+      :disabled="cards.length === 0"
+      :title="t('timeline.copy.action')"
+      @click="copyTimeline"
+    >
+      <svg v-if="copyState === 'idle'" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h7a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2 4h9a1 1 0 0 1 1 1v7H2V5a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      <svg v-else-if="copyState === 'copied'" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8l3.5 3.5L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg v-else viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>{{ copyState === 'copied' ? t('timeline.copy.copied') : copyState === 'failed' ? t('timeline.copy.failed') : t('timeline.copy.action') }}</span>
+    </button>
+
+    <!-- Category Manager Modal -->
+    <Teleport to="body">
+      <div v-if="showCategoryManager" class="modal-backdrop" @click.self="showCategoryManager = false">
+        <div class="modal-panel" role="dialog" :aria-label="t('timeline.filter.manage')">
+          <header class="modal-header">
+            <h2>{{ t('timeline.filter.manage') }}</h2>
+            <button type="button" class="modal-close" @click="showCategoryManager = false" :aria-label="t('common.action.close')">
+              ×
+            </button>
+          </header>
+          <div class="modal-body">
+            <p v-if="!day || day.categories.length === 0" class="modal-empty">
+              {{ t('daily.goal.noCategories') }}
+            </p>
+            <ul v-else class="category-list">
+              <li v-for="category in day.categories" :key="category.id" class="category-item">
+                <span class="category-dot" :style="{ background: safeCategoryColor(category.colorHex) }"></span>
+                <span class="category-name">{{ categoryLabel(category.name, t) }}</span>
+                <span v-if="category.isSystem" class="category-badge">{{ t('timeline.category.system') }}</span>
+              </li>
+            </ul>
+          </div>
+          <footer class="modal-footer">
+            <button type="button" class="dg-button" @click="showCategoryManager = false">
+              {{ t('common.action.close') }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -408,5 +441,168 @@ onBeforeUnmount(() => {
   .day-meta { display: none; }
   .timeline-body { padding-right: 16px; padding-left: 16px; }
   .filter-bar { padding-right: 16px; padding-left: 16px; }
+}
+
+/* Fixed bottom-left copy button */
+.copy-fab {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 8px;
+  background: var(--dg-control-fill);
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--dg-motion-fast) ease;
+  box-shadow: var(--dg-shadow-sm);
+}
+
+.copy-fab svg { width: 15px; height: 15px; }
+
+.copy-fab:hover:not(:disabled) {
+  border-color: var(--dg-accent);
+  color: var(--dg-accent);
+  background: var(--dg-accent-subtle);
+}
+
+.copy-fab:active:not(:disabled) { transform: scale(0.97); }
+
+.copy-fab.is-copied {
+  border-color: color-mix(in srgb, var(--dg-success) 40%, transparent);
+  color: var(--dg-success);
+  background: color-mix(in srgb, var(--dg-success) 9%, transparent);
+}
+
+.copy-fab.is-failed {
+  border-color: color-mix(in srgb, var(--dg-danger) 40%, transparent);
+  color: var(--dg-danger);
+  background: color-mix(in srgb, var(--dg-danger) 9%, transparent);
+}
+
+.copy-fab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Category manager modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.modal-panel {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dg-panel-border);
+  border-radius: 12px;
+  background: var(--dg-surface);
+  box-shadow: var(--dg-shadow-lg);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--dg-panel-border);
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--dg-text-primary);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.modal-close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dg-text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.modal-close:hover { background: var(--dg-hover-fill); }
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.modal-empty {
+  color: var(--dg-text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--dg-panel-border);
+  border-radius: 8px;
+  background: var(--dg-track-fill);
+}
+
+.category-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.category-name {
+  flex: 1;
+  color: var(--dg-text-primary);
+  font-size: 13px;
+}
+
+.category-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--dg-control-fill);
+  color: var(--dg-text-muted);
+  font-size: 10px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 20px;
+  border-top: 1px solid var(--dg-panel-border);
 }
 </style>

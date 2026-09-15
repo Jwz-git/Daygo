@@ -51,6 +51,7 @@ export interface TimelineActionAvailability {
   reprocessDay: boolean
   deleteBatches: boolean
   clearHistory: boolean
+  manageCategories: boolean
 }
 
 function backend(): TimelineBackend | null {
@@ -81,6 +82,8 @@ export function getTimelineActionAvailability(): TimelineActionAvailability {
     reprocessDay: typeof current?.ReprocessDay === 'function',
     deleteBatches: typeof current?.DeleteBatches === 'function',
     clearHistory: typeof current?.ClearHistoryData === 'function',
+    // manageCategories is handled by the UI; no backend binding needed
+    manageCategories: false,
   }
 }
 

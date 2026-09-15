@@ -12,6 +12,7 @@ export default {
     save: '保存',
     reset: '重置',
     cancel: '取消',
+    close: '关闭',
     edit: '编辑',
     delete: '删除',
   },

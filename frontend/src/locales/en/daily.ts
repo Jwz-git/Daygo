@@ -46,6 +46,8 @@ export default {
     unavailableDescription: 'The workflow remains available. Generation, editing, and autosave will unlock with the real bindings.',
     failureTitle: 'Daily recap could not be read',
     failureDescription: 'The activity overview is unaffected. The recap can be loaded again later.',
+    draftBadge: 'Journal draft',
+    fromJournal: 'From journal',
   },
   journal: {
     title: 'Journal',

@@ -17,13 +17,21 @@
 [API wrapper](../../frontend/src/api/daily.ts)：按后端 `dayStartTs/dayEndTs` 和卡片时间戳呈现
 15 分钟工作流、派生指标及只读日报，并区分整页不可用与仅日报不可用 / 失败。
 [开发专用匿名样例](../../frontend/dev-fixtures/daily.json) 由 Vite dev middleware 提供，生产构建
-无该数据路径。**2026-09-12：日记与目标切片已落盘**——迁移 v5（`journal_entries` / `day_goals` /
-`day_goal_categories`，`daily_standup_entries` 因无写入方不预建）、
+无该数据路径。
+
+**2026-09-12**：日记与目标切片已落盘——迁移 v5（`journal_entries` / `day_goals` /
+`day_goal_categories`）、
 `storage.JournalRepo`（用户 upsert 不触碰 AI summary 列）与 `storage.GoalRepo`
 （分类引用单事务整体替换）、绑定 `GetJournalDay` / `SaveJournalDay` / `GetDayGoal` /
 `SaveDayGoal`（分类 id 预检、`journal:updated` / `goal:updated` 事件）、前端
 DailyJournalPanel / DailyGoalPanel（写后不乐观更新，等事件重拉）。
-文本生成（`GetDailyRecap`，待定 #19）、摘要 AI 写入、通知仍未实现。
+
+**2026-09-15**：`GetDailyRecap` / `SaveDailyRecap` 绑定已落盘——迁移 v13
+（`daily_standup_entries`）、`storage.StandupRepo`（JSON 存储 highlights/tasks 数组）、
+后端绑定 `GetDailyRecap`（读取已有日报或返回空结构）与 `SaveDailyRecap`
+（写入/更新 AI 生成的日报）。前端 DailyRecapPanel 支持真实日报和日记草稿两种视图。
+
+文本生成触发（LLM 调用）、摘要 AI 写入、通知仍未实现。
 
 ## 能力与跨层职责
 

@@ -2,11 +2,12 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { DailyRecapDTO } from '@/api/dto'
+import type { DailyRecapDTO, JournalDayDTO } from '@/api/dto'
 import { safeTimeZone } from '@/lib/timeZone'
 
 const props = defineProps<{
   recap: DailyRecapDTO | null
+  journal: JournalDayDTO | null
   unavailable: boolean
   failed: boolean
   timeZone: string
@@ -33,7 +34,41 @@ const copyLabel = computed(() => {
   return t('daily.standup.copy')
 })
 
-function recapText(recap: DailyRecapDTO): string {
+// Check if we have a fallback source (journal entry) for draft recap
+const hasJournalFallback = computed(() => {
+  return (
+    props.recap === null &&
+    props.journal !== null &&
+    (props.journal.intentions || props.journal.notes || props.journal.goals)
+  )
+})
+
+// Draft highlights from journal entry
+const draftHighlights = computed<string[]>(() => {
+  const items: string[] = []
+  if (props.journal?.goals) {
+    items.push(props.journal.goals)
+  }
+  if (props.journal?.notes) {
+    const noteLines = props.journal.notes.split('\n').filter(Boolean)
+    items.push(...noteLines.slice(0, 3))
+  }
+  return items
+})
+
+// Draft tasks from journal intentions
+const draftTasks = computed<string[]>(() => {
+  if (!props.journal?.intentions) return []
+  return props.journal.intentions.split('\n').filter(Boolean)
+})
+
+// Draft blockers from journal reflections
+const draftBlockers = computed<string>(() => {
+  if (!props.journal?.reflections) return t('daily.standup.noBlockers')
+  return props.journal.reflections
+})
+
+function recapTextFromRecap(recap: DailyRecapDTO): string {
   const bullets = (items: string[]) => items.map((item) => `- ${item}`).join('\n')
   return [
     recap.highlightsTitle,
@@ -47,11 +82,36 @@ function recapText(recap: DailyRecapDTO): string {
     .join('\n\n')
 }
 
+function draftRecapText(): string {
+  const bullets = (items: string[]) => items.map((item) => `- ${item}`).join('\n')
+  const lines: string[] = []
+
+  if (draftHighlights.value.length > 0) {
+    lines.push(t('daily.standup.highlightsTitle') || t('daily.standup.highlights'))
+    lines.push(bullets(draftHighlights.value))
+  }
+
+  if (draftTasks.value.length > 0) {
+    lines.push('')
+    lines.push(t('daily.standup.tasksTitle') || t('daily.standup.tasks'))
+    lines.push(bullets(draftTasks.value))
+  }
+
+  if (draftBlockers.value && draftBlockers.value !== t('daily.standup.noBlockers')) {
+    lines.push('')
+    lines.push(t('daily.standup.blockersTitle') || t('daily.standup.blockers'))
+    lines.push(draftBlockers.value)
+  }
+
+  return lines.join('\n')
+}
+
 async function copyRecap(): Promise<void> {
-  if (props.recap === null) return
   window.clearTimeout(resetTimer)
+  const text = props.recap ? recapTextFromRecap(props.recap) : draftRecapText()
+  if (!text) return
   try {
-    await navigator.clipboard.writeText(recapText(props.recap))
+    await navigator.clipboard.writeText(text)
     copyState.value = 'copied'
   } catch {
     copyState.value = 'failed'
@@ -73,6 +133,7 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
       </div>
       <div class="recap-actions">
         <button
+          v-if="!unavailable && !failed && recap !== null"
           type="button"
           class="dg-button"
           :title="t('daily.standup.generateUnavailable')"
@@ -83,7 +144,7 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
         <button
           type="button"
           class="dg-button dg-button--primary"
-          :disabled="recap === null"
+          :disabled="recap === null && !hasJournalFallback"
           @click="copyRecap"
         >
           {{ copyLabel }}
@@ -91,12 +152,8 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
       </div>
     </header>
 
-    <div v-if="unavailable || failed || recap === null" class="recap-state dg-card">
-      <strong>{{ failed ? t('daily.standup.failureTitle') : t('daily.standup.unavailableTitle') }}</strong>
-      <span>{{ failed ? t('daily.standup.failureDescription') : t('daily.standup.unavailableDescription') }}</span>
-    </div>
-
-    <div v-else class="recap-card dg-card">
+    <!-- AI generated recap -->
+    <div v-if="!unavailable && !failed && recap !== null" class="recap-card dg-card">
       <article class="recap-column">
         <span class="recap-index" aria-hidden="true">01</span>
         <h3>{{ recap.highlightsTitle || t('daily.standup.highlights') }}</h3>
@@ -123,6 +180,46 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
           {{ t('daily.standup.generatedAt', { date: generatedAt }) }}
         </span>
       </article>
+    </div>
+
+    <!-- Fallback draft recap from journal entry -->
+    <div
+      v-else-if="hasJournalFallback"
+      class="recap-card recap-card--draft dg-card"
+    >
+      <div class="draft-badge">{{ t('daily.standup.draftBadge') }}</div>
+      <article class="recap-column">
+        <span class="recap-index" aria-hidden="true">01</span>
+        <h3>{{ t('daily.standup.highlightsTitle') || t('daily.standup.highlights') }}</h3>
+        <ul>
+          <li v-for="item in draftHighlights" :key="item">{{ item }}</li>
+        </ul>
+      </article>
+
+      <article class="recap-column">
+        <span class="recap-index" aria-hidden="true">02</span>
+        <h3>{{ t('daily.standup.tasksTitle') || t('daily.standup.tasks') }}</h3>
+        <ul>
+          <li v-for="item in draftTasks" :key="item">{{ item }}</li>
+        </ul>
+      </article>
+
+      <article class="recap-blockers">
+        <span class="recap-index" aria-hidden="true">03</span>
+        <div>
+          <h3>{{ t('daily.standup.blockersTitle') || t('daily.standup.blockers') }}</h3>
+          <p>{{ draftBlockers }}</p>
+        </div>
+        <span class="generated-at">
+          {{ t('daily.standup.fromJournal') }}
+        </span>
+      </article>
+    </div>
+
+    <!-- Unavailable state -->
+    <div v-else class="recap-state dg-card">
+      <strong>{{ failed ? t('daily.standup.failureTitle') : t('daily.standup.unavailableTitle') }}</strong>
+      <span>{{ failed ? t('daily.standup.failureDescription') : t('daily.standup.unavailableDescription') }}</span>
     </div>
   </section>
 </template>
@@ -219,6 +316,21 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
 
 .recap-state strong { color: var(--dg-text-primary); font-size: 13px; }
 .recap-state span { color: var(--dg-text-tertiary); font-size: 12px; }
+
+.recap-card--draft { position: relative; }
+
+.draft-badge {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--dg-accent-bg);
+  color: var(--dg-accent-text);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 
 @media (max-width: 720px) {
   .section-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
