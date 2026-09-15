@@ -11,9 +11,10 @@
 # Captures stay in-process on Linux too: the native/ tree has no Linux adapter
 # yet (docs/09 §9.8 keeps the platform-adapter shape undecided), so this
 # build does NOT link libdaygo_capture.a. Capabilities that depend on the
-# native Capture / System / Secrets adapters report platform.System/CaptureError
-# with Code = Unsupported at runtime — the Wails shell, the Vue frontend, the
-# SQLite database and all Go-core tests remain functional.
+# native Capture / System adapters report Unsupported at runtime. Secrets uses
+# the host's freedesktop Secret Service through secret-tool when installed;
+# its absence is reported as SecretUnsupported without blocking startup. The
+# Wails shell, Vue frontend, SQLite database and Go core remain functional.
 
 set -euo pipefail
 

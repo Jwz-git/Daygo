@@ -47,7 +47,7 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 18 | 激活策略切换（是否占 Dock） | 后台 Agent 语义 | `System.SetActivationPolicy` | 待定设计 |
 | 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | 待定设计 |
 | 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | 待定设计 |
-| 21 | 系统钥匙串读写删 | provider 密钥 | `Secrets` | 待定设计 |
+| 21 | 系统钥匙串读写删 | provider 密钥 | `Secrets` | macOS / Windows 已实现；Linux Secret Service 已落盘，待真机验收 |
 | 22 | 自动更新 | 版本分发 | `Updater` | 待定设计 |
 
 端口的完整 Go 签名见 [05 §5.7](05-interface-contract.md#57-b4platform-端口契约)。

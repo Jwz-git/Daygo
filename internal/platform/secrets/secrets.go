@@ -2,9 +2,10 @@
 //
 // On macOS the keychain is reached through the /usr/bin/security command-line
 // tool. On Windows, generic credentials are stored in the current user's
-// Credential Manager through the Win32 credential-management API. Both paths
-// are pure Go and preserve the CGO_ENABLED=0 gate. Other platforms return
-// SecretUnsupported, and NewFake provides an in-memory implementation for tests.
+// Credential Manager through the Win32 credential-management API. On Linux,
+// the freedesktop Secret Service is reached through libsecret's secret-tool
+// client. All paths are pure Go and preserve the CGO_ENABLED=0 gate. Other
+// platforms return SecretUnsupported, and NewFake is the test implementation.
 //
 // Secret values never appear in errors from this package: a leaked command or
 // a failed lookup is reported by provider id and error code only.

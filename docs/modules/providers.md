@@ -16,8 +16,9 @@ openai（Chat Completions）、openai_responses、anthropic 三种协议。
 ## 当前状态与证据
 
 实现进度：部分实现。Go 侧已落地：三协议客户端、重试 / 回退链（`ai.Chain`，循环降级）、
-连接探针、迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 钥匙串经
-`security` CLI + fake）、Provider CRUD / 路由链 / 密钥 / `TestProvider` 绑定
+连接探针、迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 经
+`security` CLI、Windows 经 Credential Manager、Linux 经 Secret Service / `secret-tool`，以及 fake）、
+Provider CRUD / 路由链 / 密钥 / `TestProvider` 绑定
 （主要在 `internal/app/providers.go`），以及分置于 `providers_models.go` 和 `provider_probe.go` 的
 模型列表与草稿连接探针。设置层 `providers.routing` 为有序链并兼容旧形状。
 前端 store 已以 Go 绑定为权威来源，写后重拉；旧 localStorage 记录只在后端列表为空时

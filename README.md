@@ -172,15 +172,16 @@ go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform linux/amd6
 
 ### 三平台的功能差异
 
-`internal/platform` 的端口层已经把每个能力设计成"Linux 返回 `unsupported`、darwin/windows 提供真实现"的形态，
-因此 Wails 桌面壳在三个平台上都能启动并显示 Vue 前端。但原生能力仍有显著差异：
+`internal/platform` 的端口层让未实现能力在 Linux 上明确返回 `unsupported`，
+已实现的 Secrets 则经 Secret Service 提供。因此 Wails 桌面壳可启动并显示 Vue 前端，
+但原生能力仍有显著差异：
 
 | 能力                | macOS | Windows | Linux（当前） |
 |--------------------|:-----:|:-------:|:------:|
 | 屏幕截图            | ✅ ScreenCaptureKit | ⚠️ DXGI / WGC（实验，限有限 smoke） | ❌ 未实现，返回 `CaptureUnsupported` |
 | 系统授权 / TCC      | ✅ | ⚠️ 部分 | ❌ 未实现 |
 | 状态栏 / 系统托盘  | ✅ | ⚠️ 部分 | ❌ 未实现 |
-| 钥匙串 / 凭据      | ✅ `security` 子进程 | ✅ Credential Manager | ❌ 返回 `SecretUnsupported` |
+| 钥匙串 / 凭据      | ✅ `security` 子进程 | ✅ Credential Manager | ⚠️ Secret Service / `secret-tool`（待真机验收） |
 | 启动项 / 激活策略   | ✅ | ⚠️ 部分 | ❌ 未实现 |
 | 系统事件订阅        | ✅ | ⚠️ 部分 | ❌ 未实现 |
 | SQLite + 设置 + 时间线前端 | ✅ | ✅ | ✅（与 macOS 完全一致） |
