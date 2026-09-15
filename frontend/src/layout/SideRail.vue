@@ -47,7 +47,7 @@ function destination(item: RailItem): RouteLocationRaw {
 </script>
 
 <template>
-  <nav class="rail lg-refract lg-tracking" :aria-label="$t('nav.label')">
+  <nav class="rail" :aria-label="$t('nav.label')">
     <ul class="rail__list">
       <li v-for="item in mainItems" :key="item.navKey">
         <SideRailItem

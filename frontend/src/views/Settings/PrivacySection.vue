@@ -410,7 +410,6 @@ function labelOf(application: ApplicationDTO): string {
   flex-direction: column;
   gap: 3px;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--dg-success, #3d8b58) 35%, var(--dg-card-border));
   border-radius: 7px;
   background: color-mix(in srgb, var(--dg-success, #3d8b58) 8%, transparent);
   color: var(--dg-text-secondary);
@@ -423,7 +422,6 @@ function labelOf(application: ApplicationDTO): string {
 }
 
 .privacy__compatibility--unsupported {
-  border-color: color-mix(in srgb, var(--dg-danger) 38%, var(--dg-card-border));
   background: color-mix(in srgb, var(--dg-danger) 8%, transparent);
 }
 
@@ -464,7 +462,6 @@ function labelOf(application: ApplicationDTO): string {
   gap: 6px;
   max-height: 320px;
   padding: 10px;
-  border: 1px solid var(--dg-card-border);
   border-radius: var(--dg-card-radius);
   background: var(--dg-card-fill);
 }

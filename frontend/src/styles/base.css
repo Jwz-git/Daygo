@@ -114,7 +114,7 @@ body {
 }
 
 .dg-card {
-  border: 1px solid var(--dg-card-border);
+  border: none;
   border-radius: var(--dg-card-radius);
   background: var(--dg-card-fill);
   box-shadow: var(--dg-card-shadow);
@@ -219,8 +219,8 @@ body {
   width: 100%;
   min-height: 34px;
   padding: 7px 10px;
-  border: 1px solid var(--dg-input-border);
-  border-radius: 5px;
+  border: none;
+  border-radius: 7px;
   /* Longhand, not the `background` shorthand: a <select> layers its chevron in
      background-image, and the shorthand here (and on :hover) would wipe it. */
   background-color: var(--dg-input-fill);
@@ -229,23 +229,20 @@ body {
   font-size: 13px;
   transition:
     background-color var(--dg-motion-fast) ease,
-    border-color var(--dg-motion-fast) ease,
     box-shadow var(--dg-motion-fast) ease;
 }
 
 .dg-input:hover {
   background-color: var(--dg-input-fill-hover);
-  border-color: var(--dg-chip-border);
 }
 
 .dg-input:focus-visible {
   outline: none;
-  border-color: var(--dg-accent);
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .dg-input[aria-invalid='true'] {
-  border-color: var(--dg-danger);
+  box-shadow: 0 0 0 3px var(--dg-danger-fill), 0 0 0 3px var(--dg-danger);
 }
 
 /*
@@ -344,18 +341,16 @@ input[type='number']::-webkit-outer-spin-button {
 
 .dg-button {
   min-height: 32px;
-  padding: 6px 13px;
-  border: 1px solid var(--dg-button-secondary-border);
-  border-radius: 5px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
   background: var(--dg-button-secondary-fill);
-  box-shadow: 0 1px 1px rgba(20, 16, 25, 0.05);
   color: var(--dg-button-secondary-text);
   font-size: 13px;
   font-weight: 550;
   white-space: nowrap;
   transition:
     background var(--dg-motion-fast) ease,
-    border-color var(--dg-motion-fast) ease,
     box-shadow var(--dg-motion-fast) ease,
     transform var(--dg-motion-base) var(--dg-ease-glide);
 }
@@ -367,7 +362,6 @@ input[type='number']::-webkit-outer-spin-button {
 
 .dg-button:not(:disabled):hover {
   background: var(--dg-button-secondary-hover);
-  border-color: var(--dg-chip-border);
 }
 
 /* The press compresses the button slightly; the glide easing on transform
@@ -379,16 +373,12 @@ input[type='number']::-webkit-outer-spin-button {
 }
 
 .dg-button--primary {
-  border-color: var(--dg-button-primary-border);
   background: var(--dg-button-primary-fill);
-  box-shadow: var(--dg-button-primary-shadow);
   color: var(--dg-button-primary-text);
 }
 
 .dg-button--primary:not(:disabled):hover {
-  border-color: var(--dg-button-primary-border);
   background: var(--dg-button-primary-hover);
-  box-shadow: var(--dg-button-primary-shadow);
 }
 
 /* Keep the accent surface under the press; the generic :active grey wash

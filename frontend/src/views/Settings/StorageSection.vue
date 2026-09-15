@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { CAPTURE_HEIGHTS, CAPTURE_INTERVAL_SECONDS } from '@/api/dto'
+import { getDiagnostics, type DiagnosticsDTO } from '@/api/diagnostics'
 import { getRecordingDirectory } from '@/api/recording'
 import SettingRow from './SettingRow.vue'
 import { useSettingsSection } from './useSettingsSection'
@@ -26,9 +27,24 @@ const limitGb = computed(() => {
 })
 
 const recordingDirectory = ref('')
+const recordingsBytes = ref(0)
 const gbInput = ref('1')
 function syncGbInput(): void { gbInput.value = String(limitGb.value) }
-onMounted(() => { void load(); void getRecordingDirectory().then((value) => { recordingDirectory.value = value }).catch(() => undefined) })
+const usagePercent = computed(() => {
+  const limit = limitBytes.value
+  if (limit <= 0) return 0
+  return Math.min(100, Math.round((recordingsBytes.value / limit) * 100))
+})
+
+onMounted(() => {
+  void load()
+  void getRecordingDirectory()
+    .then((value) => { recordingDirectory.value = value })
+    .catch(() => undefined)
+  void getDiagnostics()
+    .then((value: DiagnosticsDTO) => { recordingsBytes.value = value.recordingsBytes })
+    .catch(() => undefined)
+})
 
 function onIntervalChange(event: Event): void {
   void persist({ intervalSeconds: Number((event.target as HTMLSelectElement).value) })
@@ -59,6 +75,10 @@ function onLimitChange(event: Event): void {
 </script>
 
 <template>
+  <SettingGroup
+    :title="t('settings.storage.qualityTitle')"
+    :hint="t('settings.storage.qualityHint')"
+  >
   <SettingRow
     :title="t('settings.storage.interval')"
     :hint="t('settings.storage.intervalHint')"
@@ -92,7 +112,25 @@ function onLimitChange(event: Event): void {
       </option>
     </select>
   </SettingRow>
+  </SettingGroup>
 
+  <SettingGroup
+    :title="t('settings.storage.limit')"
+    :hint="t('settings.storage.limitHint')"
+  >
+  <SettingRow :title="t('settings.storage.usage')">
+    <div class="usage">
+      <span class="usage__value">
+        {{ t('settings.storage.usageValue', {
+          used: (recordingsBytes / BYTES_PER_GB).toFixed(2),
+          percent: usagePercent,
+        }) }}
+      </span>
+      <div class="usage__bar" role="presentation">
+        <div class="usage__fill" :style="{ width: usagePercent + '%' }" />
+      </div>
+    </div>
+  </SettingRow>
   <SettingRow
     :title="t('settings.storage.limit')"
     :hint="t('settings.storage.limitHint')"
@@ -122,9 +160,13 @@ function onLimitChange(event: Event): void {
       <span class="limit__unit">{{ t('settings.storage.unitGb') }}</span>
     </div>
   </SettingRow>
-  <SettingRow :title="t('settings.storage.directory')" :hint="t('settings.storage.directoryHint')">
-    <code class="directory">{{ recordingDirectory || t('settings.storage.directoryUnavailable') }}</code>
-  </SettingRow>
+  </SettingGroup>
+
+  <SettingGroup :title="t('settings.storage.directory')">
+    <SettingRow :title="t('settings.storage.directoryPath')">
+      <code class="directory">{{ recordingDirectory || t('settings.storage.directoryUnavailable') }}</code>
+    </SettingRow>
+  </SettingGroup>
   <p v-if="writeFailed" class="write-error" role="alert">{{ t('settings.storage.writeError') }}</p>
 </template>
 
@@ -161,6 +203,40 @@ function onLimitChange(event: Event): void {
   color: var(--dg-text-secondary);
   font-size: 13px;
 }
+.usage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  width: 100%;
+}
+
+.usage__value {
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+}
+
+.usage__bar {
+  width: 180px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--dg-track-fill);
+  overflow: hidden;
+}
+
+.usage__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dg-accent);
+}
+
+.directory {
+  font-family: var(--dg-font-mono);
+  font-size: 12px;
+  word-break: break-all;
+  text-align: right;
+}
+
 .write-error {
   color: var(--dg-danger, #b42318);
   font-size: 13px;

@@ -4,7 +4,7 @@ defineProps<{ title: string; hint?: string }>()
 </script>
 
 <template>
-  <section class="row dg-card">
+  <section class="row">
     <div class="row__text">
       <h2 class="row__title">{{ title }}</h2>
       <p v-if="hint" class="row__hint">{{ hint }}</p>
@@ -21,12 +21,8 @@ defineProps<{ title: string; hint?: string }>()
   grid-template-columns: minmax(0, 1fr) minmax(128px, auto);
   align-items: center;
   gap: 18px;
-  padding: 17px 18px;
-  transition: border-color var(--dg-motion-base) ease;
-}
-
-.row:hover {
-  border-color: var(--dg-chip-border);
+  padding: 15px 2px;
+  border-bottom: 1px solid var(--dg-timeline-grid);
 }
 
 .row__text {

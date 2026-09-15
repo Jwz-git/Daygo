@@ -157,10 +157,6 @@ watch(active, () => void nextTick(measurePill))
 .nav {
   align-self: start;
   padding: 7px;
-  border: 1px solid var(--dg-card-border);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--dg-card-fill) 72%, transparent);
-  box-shadow: var(--dg-card-shadow);
 }
 
 .nav ul {
@@ -283,13 +279,6 @@ watch(active, () => void nextTick(measurePill))
     white-space: nowrap;
   }
 
-}
-
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .nav {
-    -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
-    backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
