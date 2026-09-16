@@ -1,9 +1,10 @@
 # recording 图片存储流水线：staging、分段、清理与发送
 
-> **状态：架构方向已决定，尚未实现。** 本文固定“像素不进 SQLite、JPEG 仅作 staging、
-> 批量构建不可变分段、整段清理、解码后以内存 image parts 发送”的边界。分段容器、编码参数
-> 和 Media builder 接口仍须在实现前用匿名夹具验证后冻结。
-
+> **状态：架构方向已决定，尚未实现。** 本文固定“像素不进 SQLite、
+> 批量构建不可变分段、整段清理、解码后以内存 image parts 发送”的边界。分段容器与编码参数
+> **已冻结**：采纳 Dayflow 式 HEVC 帧段（捕获时直接追加、免 JPEG staging），见
+> [recording-frame-segments-hevc.md](recording-frame-segments-hevc.md)（其 §3 否决了本文的
+> staging 构建 variant；其余边界不变。
 ## 1. 结论
 
 1. **图片像素不写入 SQLite BLOB。** SQLite 保存结构化事实、相对路径、帧序号和生命周期状态；
