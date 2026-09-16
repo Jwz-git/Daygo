@@ -855,3 +855,58 @@ func TestMigrateV12SkipsCustomizedCategorySet(t *testing.T) {
 		t.Fatal("the pre-existing custom category was lost by the upgrade")
 	}
 }
+
+// DB-2 for v14: a v13 database (standup entries + a committed card) upgrades
+// with the card_reviews table created and every prior row untouched; verdicts
+// can then attach to the upgraded card.
+func TestMigrateV13FixtureCreatesReviewTable(t *testing.T) {
+	fixture := filepath.Join("testdata", "v13-standup-entries.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	src, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	if err := os.WriteFile(dst, src, 0o600); err != nil {
+		t.Fatalf("write fixture copy: %v", err)
+	}
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+	ctx := context.Background()
+
+	// The standup entry and the card survive the upgrade.
+	var highlights string
+	if err := store.db.QueryRow(`SELECT highlights FROM daily_standup_entries WHERE standup_day = '2026-09-16'`).Scan(&highlights); err != nil {
+		t.Fatalf("standup entry lost: %v", err)
+	}
+	if highlights != "fixture highlights" {
+		t.Fatalf("highlights = %q", highlights)
+	}
+	cards, err := store.Cards().CardsForDay(ctx, "2026-09-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("cards = %d, want 1", len(cards))
+	}
+
+	// A verdict attaches to the upgraded card and the totals read back.
+	now := time.Unix(1789600000, 0)
+	if err := store.Reviews().SetVerdict(ctx, cards[0].ID, VerdictFocus, now); err != nil {
+		t.Fatalf("set verdict on upgraded card: %v", err)
+	}
+	totals, err := store.Reviews().TotalsByDay(ctx, "2026-09-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if totals.FocusMinutes != 30 {
+		t.Fatalf("focus minutes = %d, want 30", totals.FocusMinutes)
+	}
+}

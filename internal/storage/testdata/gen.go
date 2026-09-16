@@ -67,6 +67,9 @@ func main() {
 	if err := writeV11(filepath.Join(outDir, "v11-starter-categories.db")); err != nil {
 		log.Fatalf("v11-starter-categories.db: %v", err)
 	}
+	if err := writeV13(outDir); err != nil {
+		log.Fatalf("v13-standup-entries.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -706,6 +709,49 @@ func writeV11(path string) error {
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("exec %q: %w", stmt, err)
+		}
+	}
+	return nil
+}
+
+// writeV13 builds a version-13 database from the v11 fixture by applying the
+// v12 seed and the v13 standup table on top, plus a committed batch and card
+// the v14 review table can attach to. This keeps the giant schema statement
+// list in exactly one place (writeV11).
+func writeV13(outDir string) error {
+	v11Path := filepath.Join(outDir, "v11-starter-categories.db")
+	v13Path := filepath.Join(outDir, "v13-standup-entries.db")
+	data, err := os.ReadFile(v11Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v13Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v13Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		// v12 seed equivalent: a starter-style user category set (fixture
+		// names, same shape).
+		`INSERT INTO categories (id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at) VALUES
+			('00000000-0000-4000-8000-000000000011', 'Fixture Work', '#6A7EFF', 'fixture focused work', 1, 0, 0, 0, 0),
+			('00000000-0000-4000-8000-000000000012', 'Fixture Personal', '#23C4A8', 'fixture personal time', 2, 0, 0, 0, 0)`,
+		`INSERT INTO analysis_batches (id, start_ts, end_ts, status, created_at, updated_at) VALUES (1, 1789500000, 1789503600, 'succeeded', 0, 0)`,
+		`INSERT INTO timeline_cards (id, batch_id, day, start, end, start_ts, end_ts, category, title, summary, is_deleted, created_at, updated_at)
+		 VALUES (1, 1, '2026-09-16', '10:00 AM', '10:30 AM', 1789501200, 1789503000, 'Fixture Work', 'fixture card', 'fixture summary', 0, 0, 0)`,
+		// v13: standup entries for AI-generated recaps.
+		`CREATE TABLE daily_standup_entries (standup_day TEXT PRIMARY KEY, highlights_title TEXT NOT NULL, highlights TEXT NOT NULL, tasks_title TEXT NOT NULL, tasks TEXT NOT NULL, blockers_title TEXT NOT NULL, blockers_body TEXT NOT NULL, generated_at INTEGER NOT NULL)`,
+		`INSERT INTO daily_standup_entries (standup_day, highlights_title, highlights, tasks_title, tasks, blockers_title, blockers_body, generated_at)
+		 VALUES ('2026-09-16', 'fixture highlights title', 'fixture highlights', 'fixture tasks title', 'fixture tasks', 'fixture blockers title', 'fixture blockers', 1789510000)`,
+		`PRAGMA user_version = 13`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
 		}
 	}
 	return nil

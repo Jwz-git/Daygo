@@ -435,6 +435,34 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 14,
+		name:    "timeline: per-card review verdicts",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// card_reviews stores the user's focus verdict per card from the
+			// review flow. One row per card: re-judging overwrites; 撤销
+			// deletes the row. minutes snapshots the card's duration at
+			// judgment time so day totals stay stable even if the card is
+			// later edited. Verdicts are statistics only — the card's own
+			// category is never rewritten by a judgment.
+			for _, stmt := range []string{
+				`CREATE TABLE card_reviews (
+					card_id    INTEGER PRIMARY KEY REFERENCES timeline_cards(id) ON DELETE CASCADE,
+					day        TEXT    NOT NULL,
+					verdict    TEXT    NOT NULL CHECK (verdict IN ('distraction', 'neutral', 'focus')),
+					minutes    INTEGER NOT NULL,
+					created_at INTEGER NOT NULL,
+					updated_at INTEGER NOT NULL
+				)`,
+				`CREATE INDEX idx_card_reviews_day ON card_reviews (day)`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v14 card_reviews table", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like
