@@ -50,6 +50,10 @@ const editingField = ref<Field | null>(null)
 const confirmingDelete = ref(false)
 const draft = ref('')
 
+/* A busy card's activity points run to dozens of rows; unfolded they would push
+   the media and action rows off the pane, so the list starts folded. */
+const activityPointsOpen = ref(false)
+
 const titleInput = ref<HTMLInputElement | null>(null)
 const summaryInput = ref<HTMLTextAreaElement | null>(null)
 const detailedInput = ref<HTMLTextAreaElement | null>(null)
@@ -162,6 +166,7 @@ watch(
     editingField.value = null
     confirmingDelete.value = false
     draft.value = ''
+    activityPointsOpen.value = false
   },
   { immediate: true },
 )
@@ -328,8 +333,24 @@ watch(
   </section>
 
   <section v-if="props.card.activityPoints.length > 0" class="inspector__section">
-    <h3>{{ t('timeline.inspector.activityPoints') }}</h3>
-    <ul class="activity-points">
+    <h3 class="section-heading">
+      <button
+        type="button"
+        class="section-toggle"
+        :aria-expanded="activityPointsOpen"
+        @click="activityPointsOpen = !activityPointsOpen"
+      >
+        <svg
+          class="section-toggle__chevron"
+          :class="{ 'is-open': activityPointsOpen }"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+        ><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>{{ t('timeline.inspector.activityPoints') }}</span>
+        <span class="section-toggle__count">{{ props.card.activityPoints.length }}</span>
+      </button>
+    </h3>
+    <ul v-if="activityPointsOpen" class="activity-points">
       <li v-for="(point, index) in props.card.activityPoints" :key="index">
         <span class="activity-points__time">{{ point.time }}</span>
         <span>{{ point.description }}</span>
@@ -464,6 +485,40 @@ watch(
   gap: 8px;
 }
 
+/* Disclosure header. The negative margin cancels the padding that gives the
+   keyboard focus ring room, so the row still aligns with the other headings. */
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -2px;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.section-toggle__chevron {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  color: var(--dg-text-muted);
+  transition: transform var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+.section-toggle__chevron.is-open { transform: rotate(90deg); }
+
+.section-toggle:hover .section-toggle__chevron { color: var(--dg-text-primary); }
+
+.section-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+.section-toggle__count {
+  color: var(--dg-text-muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: 550;
+}
+
 .field-editor { display: grid; gap: 6px; }
 
 .field-editor__title { font-size: 15px; font-weight: 620; }
@@ -556,5 +611,6 @@ watch(
 
 @media (prefers-reduced-motion: reduce) {
   .field-pencil { transition: none; }
+  .section-toggle__chevron { transition: none; }
 }
 </style>

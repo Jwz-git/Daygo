@@ -32,6 +32,16 @@ export default {
     distraction: 'Distraction',
     personal: 'Personal',
   },
+  // Identical to the seeded English copy in internal/storage/migrate.go: an en
+  // user sees exactly what the migration wrote.
+  categoryDetails: {
+    focusWork: 'Focused work: writing, refactoring, or debugging code in an IDE or terminal; deep hands-on building',
+    communication: 'Meetings, standups, Slack, email, video calls, messaging, and syncs',
+    learning: 'Lectures, reading docs or courses, flashcards, tutorials, and deliberately studying new skills',
+    research: 'Exploring tools and APIs, reading papers or Stack Overflow, and writing design docs or technical specs',
+    distraction: 'Unfocused browsing and passive content consumption: social media feeds, random videos, idle scrolling, entertainment with no clear intent, and gaming',
+    personal: 'Intentional non-work activity with a purpose: messaging friends and family, managing finances, booking travel, errands, life admin, and hobbies',
+  },
   filter: {
     label: 'Filter by category',
     all: 'All',

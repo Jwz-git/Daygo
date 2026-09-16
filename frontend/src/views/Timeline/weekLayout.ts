@@ -1,7 +1,7 @@
 import type { RangeDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import { appSiteValues } from '@/lib/appSiteIcon'
 import { categoryLabel as translateCategory } from '@/lib/categoryLabel'
-import { positionRange, safeCategoryColor } from './layout'
+import { boxesOverlap, positionRange, safeCategoryColor, uncoveredBy } from './layout'
 
 /*
  * Week-grid layout, kept as pure functions so the column math is unit-testable
@@ -42,6 +42,8 @@ export interface WeekCard {
   clampLines: number
   /** First app/site of the card, for the leading icon. */
   site: string | null
+  /** A batch covering this card is being analyzed again; the card is stale. */
+  regenerating: boolean
 }
 
 export interface WeekHourMark {
@@ -110,33 +112,37 @@ export function buildWeekColumns(
       }
     }
     const height = columnHeight(day)
-    const cards = day.cards
+    const boxes = day.cards
       .filter((card) => {
         if (card.category === 'System') return false
         return filterCategory === null || card.category === filterCategory
       })
-      .map((card) => {
-        const box = positionRange(card.startTs, card.endTs, day.dayStartTs, day.dayEndTs, height, 34)
-        return {
-          id: card.id,
-          card,
-          top: box.top,
-          height: box.height,
-          title: card.title,
-          color: colorOf.get(card.category) ?? safeCategoryColor(undefined),
-          category: translateCategory(card.category, () => card.category),
-          isIdle: card.isIdle,
-          clampLines: weekCardClampLines(box.height),
-          site: appSiteValues(card.appSites ?? null)[0] ?? null,
-        }
-      })
+      .map((card) => ({
+        card,
+        ...positionRange(card.startTs, card.endTs, day.dayStartTs, day.dayEndTs, height, 34),
+      }))
+    const processing = placedRanges(day.processingRanges, day, height)
     return {
       day: day.day,
       height,
       windowStartTs: day.dayStartTs,
       windowEndTs: day.dayEndTs,
-      cards,
-      processing: placedRanges(day.processingRanges, day, height),
+      cards: boxes.map((box) => ({
+        id: box.card.id,
+        card: box.card,
+        top: box.top,
+        height: box.height,
+        title: box.card.title,
+        color: colorOf.get(box.card.category) ?? safeCategoryColor(undefined),
+        category: translateCategory(box.card.category, () => box.card.category),
+        isIdle: box.card.isIdle,
+        clampLines: weekCardClampLines(box.height),
+        site: appSiteValues(box.card.appSites ?? null)[0] ?? null,
+        regenerating: processing.some((block) => boxesOverlap(box, block)),
+      })),
+      // A window belongs to the card that already covers it: the block is the
+      // stand-in for a gap, so it yields wherever a card exists.
+      processing: uncoveredBy(processing, boxes),
       hourMarks: hourMarksFor(day, height, format),
       hasData: true,
     }

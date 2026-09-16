@@ -112,3 +112,28 @@ export function safeCategoryColor(color: string | undefined): string {
     ? color
     : 'var(--dg-accent)'
 }
+
+/**
+ * True when two drawn boxes share vertical space. Neighbours that merely touch
+ * do not: the comparison is on the rendered geometry, so the minimum hit
+ * height counts exactly as much as the timestamps do.
+ */
+export function boxesOverlap(a: PositionedRange, b: PositionedRange): boolean {
+  return a.top < b.top + b.height && b.top < a.top + a.height
+}
+
+/** The boxes from `boxes` that at least one box in `occupied` overlaps. */
+export function coveredBy<T extends PositionedRange>(
+  boxes: readonly T[],
+  occupied: readonly PositionedRange[],
+): T[] {
+  return boxes.filter((box) => occupied.some((other) => boxesOverlap(box, other)))
+}
+
+/** The boxes from `boxes` that no box in `occupied` overlaps. */
+export function uncoveredBy<T extends PositionedRange>(
+  boxes: readonly T[],
+  occupied: readonly PositionedRange[],
+): T[] {
+  return boxes.filter((box) => !occupied.some((other) => boxesOverlap(box, other)))
+}

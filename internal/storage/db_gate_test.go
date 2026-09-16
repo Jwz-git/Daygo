@@ -116,7 +116,7 @@ func seedRepresentativeData(t *testing.T, store *Store) {
 		{
 			Start: "9:00 AM", End: "10:00 AM", Category: "Development",
 			Title: "Implement storage", Summary: "Wrote repositories",
-			Metadata: `{"appSites":["code","terminal"],"distractions":["news"]}`,
+			Metadata: `{"appSites":{"primary":"code","secondary":"terminal"},"distractions":["news"]}`,
 		},
 	}, 1)
 	if err != nil {
@@ -144,7 +144,8 @@ func TestReadEveryTableOnRepresentativeData(t *testing.T) {
 // DB-5: every timeline_cards.metadata value must decode, and the fields the
 // product reads out of it must survive a round trip. A metadata blob that
 // silently loses appSites would make the timeline's frame view lie about what
-// was on screen.
+// was on screen. appSites is the docs/05 §5.5.2 primary/secondary object — the
+// shape the binding layer parses, not the model's flat list.
 func TestCardMetadataRoundTrips(t *testing.T) {
 	store := openWriter(t, newDir(t))
 	seedRepresentativeData(t, store)
@@ -166,15 +167,19 @@ func TestCardMetadataRoundTrips(t *testing.T) {
 			continue
 		}
 		var decoded struct {
-			AppSites     []string `json:"appSites"`
+			AppSites *struct {
+				Primary   *string `json:"primary"`
+				Secondary *string `json:"secondary"`
+			} `json:"appSites"`
 			Distractions []string `json:"distractions"`
 		}
 		if err := json.Unmarshal([]byte(card.Metadata), &decoded); err != nil {
 			t.Errorf("card %d metadata does not decode: %v", card.ID, err)
 			continue
 		}
-		if !reflect.DeepEqual(decoded.AppSites, []string{"code", "terminal"}) {
-			t.Errorf("card %d appSites = %v", card.ID, decoded.AppSites)
+		if decoded.AppSites == nil || decoded.AppSites.Primary == nil || *decoded.AppSites.Primary != "code" ||
+			decoded.AppSites.Secondary == nil || *decoded.AppSites.Secondary != "terminal" {
+			t.Errorf("card %d appSites = %+v", card.ID, decoded.AppSites)
 		}
 		if !reflect.DeepEqual(decoded.Distractions, []string{"news"}) {
 			t.Errorf("card %d distractions = %v", card.ID, decoded.Distractions)

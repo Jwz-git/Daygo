@@ -438,6 +438,37 @@ func (s *Service) transcribeGroup(ctx context.Context, chain *ai.Chain,
 	return out, nil
 }
 
+// appSitesMetadata is the appSites wire shape the binding layer reads out of
+// card metadata (docs/05 §5.5.2). The model returns a flat list, so the
+// pipeline — not the consumer — owns the mapping onto primary/secondary.
+type appSitesMetadata struct {
+	Primary   *string `json:"primary"`
+	Secondary *string `json:"secondary"`
+}
+
+// appSitesFromList maps the model's flat app/site list onto the contract
+// shape. Blank entries and anything past the second are dropped; an empty list
+// stores null rather than an empty object.
+func appSitesFromList(values []string) *appSitesMetadata {
+	var kept []string
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			kept = append(kept, value)
+			if len(kept) == 2 {
+				break
+			}
+		}
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	sites := &appSitesMetadata{Primary: &kept[0]}
+	if len(kept) == 2 {
+		sites.Secondary = &kept[1]
+	}
+	return sites
+}
+
 // generateCards runs the card stage: prompt with sliding-window context,
 // parse, then validate every category against the known list — an unknown
 // category maps to System and is counted, never auto-created (docs/04 §4.3.4).
@@ -490,7 +521,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			points = append(points, cardActivityPoint{Time: p.Time, Description: p.Description})
 		}
 		metadata, _ := json.Marshal(map[string]any{
-			"appSites":       c.AppSites,
+			"appSites":       appSitesFromList(c.AppSites),
 			"distractions":   c.Distractions,
 			"activityPoints": points,
 		})
@@ -551,8 +582,11 @@ func (s *Service) enforceMergeGate(shell *domain.CardShell, batch storage.Batch,
 // metadata, and an unresolvable clock must not silently delete content. When
 // nothing is dropped the original metadata string is returned untouched.
 func dropPreWindowPoints(metadata string, windowStart time.Time, anchor time.Time, loc *time.Location) string {
+	// Every field must round-trip: the rewrite below re-marshals this struct
+	// over the original metadata, so a field the struct cannot decode is a
+	// field the rewrite silently drops.
 	var meta struct {
-		AppSites       []string            `json:"appSites"`
+		AppSites       *appSitesMetadata   `json:"appSites"`
 		Distractions   []string            `json:"distractions"`
 		ActivityPoints []cardActivityPoint `json:"activityPoints"`
 	}

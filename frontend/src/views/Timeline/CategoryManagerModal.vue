@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import { saveCategories } from '@/api/timeline'
 import type { CategoryDTO } from '@/api/dto'
+import { categoryDetails, categoryLabel } from '@/lib/categoryLabel'
 import { safeCategoryColor } from './layout'
 
 /*
@@ -13,6 +14,11 @@ import { safeCategoryColor } from './layout'
  * the built-ins back and rewrites cards under renamed categories.
  * System rows (System / Idle) never enter the editor: is_system is
  * pipeline-assigned and the binding rejects rows claiming it.
+ *
+ * Stored rows are English (the model matches activity against them), so the
+ * rows and the edit fields show the localized copy of an untouched default.
+ * Committing an edit writes that copy into the draft: from 完成 on, the
+ * category is the user's own text and its cards are renamed with it.
  */
 const props = defineProps<{
   categories: CategoryDTO[]
@@ -72,12 +78,20 @@ const PALETTE = [
 
 const selectedColor = computed(() => draft.value[selectedIndex.value]?.colorHex ?? PALETTE[0])
 
+function displayName(row: DraftCategory): string {
+  return categoryLabel(row.name, t)
+}
+
+function displayDetails(row: DraftCategory): string {
+  return categoryDetails(row.name, row.details, t)
+}
+
 function beginEdit(index: number): void {
   const row = draft.value[index]
   if (row === undefined) return
   editingIndex.value = index
-  nameDraft.value = row.name
-  detailsDraft.value = row.details
+  nameDraft.value = displayName(row)
+  detailsDraft.value = displayDetails(row)
 }
 
 function commitEdit(): void {
@@ -230,8 +244,8 @@ async function finish(): Promise<void> {
           </template>
           <template v-else>
             <div class="wizard-row__text">
-              <strong>{{ row.name || t('timeline.manage2.namePlaceholder') }}</strong>
-              <span>{{ row.details }}</span>
+              <strong>{{ displayName(row) || t('timeline.manage2.namePlaceholder') }}</strong>
+              <span>{{ displayDetails(row) }}</span>
             </div>
             <div class="wizard-row__actions">
               <button type="button" class="wizard-row__icon" :aria-label="t('timeline.inspector.editTitle')" @click="beginEdit(index)">
@@ -257,8 +271,8 @@ async function finish(): Promise<void> {
         >
           <i class="wizard-row__swatch" :style="{ background: safeCategoryColor(row.colorHex) }"></i>
           <span class="wizard-row__text">
-            <strong>{{ row.name || t('timeline.manage2.namePlaceholder') }}</strong>
-            <span>{{ row.details }}</span>
+            <strong>{{ displayName(row) || t('timeline.manage2.namePlaceholder') }}</strong>
+            <span>{{ displayDetails(row) }}</span>
           </span>
         </button>
         <p class="wizard__optional">{{ t('timeline.manage2.colorNote') }}</p>

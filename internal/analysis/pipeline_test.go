@@ -202,11 +202,21 @@ func TestPipelineHappyPath(t *testing.T) {
 	if card.Category != "Coding" || card.Title != "Editing code" {
 		t.Fatalf("card = %+v", card)
 	}
+	// appSites crosses the layer boundary: the model returns a flat list, and
+	// internal/app reads the primary/secondary object of docs/05 §5.5.2. The
+	// shape is restated here rather than shared with the producer so the two
+	// sides cannot drift together.
 	var meta struct {
-		AppSites []string `json:"appSites"`
+		AppSites *struct {
+			Primary   *string `json:"primary"`
+			Secondary *string `json:"secondary"`
+		} `json:"appSites"`
 	}
-	if err := json.Unmarshal([]byte(card.Metadata), &meta); err != nil || len(meta.AppSites) != 1 || meta.AppSites[0] != "Code" {
+	if err := json.Unmarshal([]byte(card.Metadata), &meta); err != nil {
 		t.Fatalf("metadata = %q (%v)", card.Metadata, err)
+	}
+	if meta.AppSites == nil || meta.AppSites.Primary == nil || *meta.AppSites.Primary != "Code" {
+		t.Fatalf("appSites = %+v, want primary Code from the model's flat list", meta.AppSites)
 	}
 
 	if len(h.days) != 1 || h.days[0] != "2026-09-12" {

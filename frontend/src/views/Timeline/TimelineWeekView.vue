@@ -171,14 +171,19 @@ onBeforeUnmount(() => {
           :key="`${index}-${card.id}`"
           type="button"
           class="week__card"
-          :class="{ 'is-selected': card.id === selectedCardId, 'is-expanded': expandedId === card.id }"
+          :class="{
+            'is-selected': card.id === selectedCardId,
+            'is-expanded': expandedId === card.id,
+            'is-regenerating': card.regenerating,
+          }"
           :style="{
             top: `${card.top}px`,
             height: `${expandedId === card.id ? expandedHeight : card.height}px`,
-            background: `color-mix(in srgb, ${card.color} 16%, var(--dg-timeline-card-fill))`,
+            backgroundColor: `color-mix(in srgb, ${card.color} 16%, var(--dg-timeline-card-fill))`,
             borderLeftColor: card.color,
           }"
           :title="card.title"
+          :aria-busy="card.regenerating"
           @mouseenter="onCardEnter($event, card)"
           @mouseleave="onCardLeave(card.id)"
           @click="emit('selectCard', column.day, card.id)"
@@ -349,6 +354,17 @@ onBeforeUnmount(() => {
 .week__card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring), var(--dg-timeline-card-shadow); }
 
 .week__card.is-selected { background: var(--dg-timeline-card-selected); }
+
+/* Same tint as the day track's generating block: a card whose window is being
+   analyzed again reads as provisional instead of getting a second box on top
+   of it. Declared last so the hover/selection shorthand above cannot drop it. */
+.week__card.is-regenerating {
+  background-image: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--dg-accent) 20%, transparent),
+    color-mix(in srgb, #e8804a 16%, transparent)
+  );
+}
 
 .week__card-head {
   display: flex;

@@ -342,12 +342,23 @@ func printCard(card domain.CardShell, observations int) {
 	fmt.Printf("  summary:       %s\n", card.Summary)
 	fmt.Printf("  detailed:      %s\n", card.DetailedSummary)
 	var metadata struct {
-		AppSites       []string        `json:"appSites"`
+		AppSites *struct {
+			Primary   *string `json:"primary"`
+			Secondary *string `json:"secondary"`
+		} `json:"appSites"`
 		Distractions   []string        `json:"distractions"`
 		ActivityPoints []activityPoint `json:"activityPoints"`
 	}
 	if err := json.Unmarshal([]byte(card.Metadata), &metadata); err == nil {
-		fmt.Printf("  app/sites:     %s\n", strings.Join(metadata.AppSites, ", "))
+		var sites []string
+		if metadata.AppSites != nil {
+			for _, site := range []*string{metadata.AppSites.Primary, metadata.AppSites.Secondary} {
+				if site != nil && *site != "" {
+					sites = append(sites, *site)
+				}
+			}
+		}
+		fmt.Printf("  app/sites:     %s\n", strings.Join(sites, ", "))
 		fmt.Printf("  distractions:  %s\n", strings.Join(metadata.Distractions, ", "))
 		fmt.Printf("  activityPoints: %d\n", len(metadata.ActivityPoints))
 		for _, point := range metadata.ActivityPoints {

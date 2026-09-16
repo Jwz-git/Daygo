@@ -15,10 +15,12 @@ import TimelineActivityCard from './TimelineActivityCard.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
 import {
   MIN_CARD_HEIGHT,
+  coveredBy,
   layoutTimelineCards,
   positionRange,
   safeCategoryColor,
   trackHeight,
+  uncoveredBy,
 } from './layout'
 
 const props = defineProps<{
@@ -110,6 +112,30 @@ function placed(startTs: number, endTs: number, minimumHeight = 2) {
   )
 }
 
+/* Mirrors the min-height of .range in the stylesheet below: a short window
+   still draws a full-height block, and that box is what has to be compared. */
+const PROCESSING_MIN_HEIGHT = 34
+
+const processingBoxes = computed(() =>
+  props.processingRanges.map((range) => ({
+    range,
+    ...placed(range.startTs, range.endTs, PROCESSING_MIN_HEIGHT),
+  })),
+)
+
+/*
+ * A window belongs to the card that already covers it. Re-analyzing a day puts
+ * its batches back to pending while their cards are still stored, so the two
+ * would claim the same box and paint over each other. The block is the stand-in
+ * for a gap, so it yields where a card exists, and that card takes the
+ * regenerating state instead of a second box on top of it.
+ */
+const visibleProcessing = computed(() => uncoveredBy(processingBoxes.value, placedCards.value))
+
+const regeneratingCardIDs = computed(
+  () => new Set(coveredBy(placedCards.value, processingBoxes.value).map((card) => card.id)),
+)
+
 function handleTrackClick(event: MouseEvent): void {
   const target = event.target as HTMLElement
   if (target.closest('.activity-card, .range--failure') !== null) return
@@ -161,13 +187,10 @@ onBeforeUnmount(() => {
 
       <div class="timeline-track__events">
         <div
-          v-for="range in props.processingRanges"
-          :key="`processing-${range.startTs}-${range.endTs}`"
+          v-for="block in visibleProcessing"
+          :key="`processing-${block.range.startTs}-${block.range.endTs}`"
           class="range range--processing"
-          :style="{
-            top: `${placed(range.startTs, range.endTs, 34).top}px`,
-            height: `${placed(range.startTs, range.endTs, 34).height}px`,
-          }"
+          :style="{ top: `${block.top}px`, height: `${block.height}px` }"
           role="status"
         >
           <svg viewBox="0 0 14 14" aria-hidden="true">
@@ -204,6 +227,7 @@ onBeforeUnmount(() => {
           :card="card"
           :color="categoryColors.get(card.category) ?? safeCategoryColor(undefined)"
           :selected="card.id === props.selectedCardID"
+          :regenerating="regeneratingCardIDs.has(card.id)"
           :top="cardPlacement.get(card.id)?.top ?? placed(card.startTs, card.endTs, MIN_CARD_HEIGHT).top"
           :height="cardPlacement.get(card.id)?.height ?? placed(card.startTs, card.endTs, MIN_CARD_HEIGHT).height"
           :lane-index="cardPlacement.get(card.id)?.laneIndex ?? 0"

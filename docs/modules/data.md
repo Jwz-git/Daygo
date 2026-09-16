@@ -150,7 +150,9 @@ real Media 的缺失不再阻塞清理（清理按表内字节与状态工作，
 
 DB-3 已运行：所有只读 repository 方法在空库、v0/v1 迁移夹具与代表性数据上均返回非错误
 （`internal/storage/db_gate_test.go`）。
-DB-5 已运行：`timeline_cards.metadata` 可解码，`appSites` / `distractions` 往返一致。
+DB-5 已运行：`timeline_cards.metadata` 可解码，`appSites` / `distractions` 往返一致
+（`appSites` 按 docs/05 §5.5.2 的 primary/secondary 对象断言；此前夹具用的是模型扁平列表，
+与绑定层不一致，门禁因此没能发现生产链路上的 appSites 丢失，见 timeline 验证记录 2026-09-16）。
 DB-8 已运行且通过：一 writer + 一只读实例并发一小时，零忙锁风暴、零损坏（见下方验证记录）。
 **DB-9 已运行且通过（单帧粒度）**：见验证记录。IT-12 的整段清理验收仍等
 `recording_segments` 表与分段构建器落地后按段重跑。

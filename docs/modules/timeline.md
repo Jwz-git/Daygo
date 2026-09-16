@@ -22,8 +22,10 @@
   请求级超时、时区统一为 store `Location()`、融合分类闸门
   （跨分类的模型融合被夹紧回批次窗口，前卡保留）。
 - 绑定与前端：`GetTimelineDay`（卡片 / 分类 / 合计 / 失败分组一次带回）、卡片写操作
-  （改分类 / 标题 / 摘要 / 软删除）、`RetryBatches` / `DeleteBatches`、分类整体覆盖
-  （重命名同事务改写卡片）、失败 / 处理中状态、当前日 15 秒实时跟随与 4 点边界自动
+  （改分类 / 标题 / 摘要 / 软删除）、`RetryBatches` / `DeleteBatches` / `ReprocessDay`
+  （重排当天终态批次以重建卡片）、分类整体覆盖
+  （重命名同事务改写卡片）、分类管理向导（未改动的默认分类按界面语言显示，编辑并保存即
+  改写为本地文案）、失败 / 处理中状态、当前日 15 秒实时跟随与 4 点边界自动
   重拉、帧回放（`GetCardMedia` + `/media/frame`）、周视图（hover 展开、日历选择）、
   卡片审查流。Windows 时区回退（`ZoneName` 注册表回退）已补齐，只影响新读取的页面。
 - 开发便利：Vite 开发服务在绑定缺失时提供匿名只读样例（`frontend/dev-fixtures/`），
@@ -35,8 +37,7 @@
 **已知未修（需先决策再动）**：auth 批次 UI 标志说"不会自动重试"但 `RequeueFailed`
 仍会重排（语义需决策）；Retry-After 无抖动（多组同限流时刻齐重试）；转录组 20 图上限
 与低图片数网关的错配待配置化；跨 4AM 边界卡片在日视图与聚合中的口径冲突（双计 / 隐形
-时段）与用户编辑被相邻批次回滚，需先对 docs/03 §3.5 明确语义归属；`ReprocessDay`
-仅保留 docs/05 设计条目，无 Go 方法。
+时段）与用户编辑被相邻批次回滚，需先对 docs/03 §3.5 明确语义归属。
 
 逐日实现与验证细节见下方[验证记录](#验证记录)；本节只维护"当前是什么状态"。
 
@@ -95,6 +96,46 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 事务改写失败不提交，不以删除卡片重建的方式回退。schema 回退遵循 data 的备份恢复策略。
 
 ## 验证记录
+
+2026-09-16（分类管理的本地化）：分类管理向导此前直接渲染 `categories` 原文，中文界面下六个默认
+分类的标题与描述是英文——种子文案按设计是给模型匹配的数据，缺的是显示层本地化。现在
+`categoryLabel.ts` 在原有名称表之外增加出厂描述表与 `categoryDetails()`：只对**仍保持种子原文**
+的行显示本地化文案，用户改写过的行原样显示。向导的只读行与编辑框预填同一份文案，因此
+「打开编辑 → 保存 → 完成」即把该分类从种子文案改写为用户文案（走既有重命名事务，历史卡片同步
+改写）；没打开过编辑的行原样回传，不会因一次浏览被批量改写。夹具：`categoryLabel.test.ts` 补四条
+分支（未改动 / 描述被改写 / 已改名 / 自定义）；新增 `categoryDefaults.test.ts` 从
+`internal/storage/migrate.go` 解析 v12 种子与前端描述表逐字对账（改动一侧字符串确认失败），并断言
+两份 bundle 都有键、en 等于种子原文、zh 不是英文原文。浏览器验证（Vite 独立预览 + 注入绑定桩、
+分类取迁移种子）：中文界面行显示「工作」等加中文描述，编辑框预填同一文案，`SaveCategories` 收到的
+载荷里只有被打开并保存的那一行变成中文，其余五行保持英文 / 用户原文；en 界面逐字等于种子文案。
+`npm --prefix frontend run test:unit`（50 项）、`typecheck`、production build 与
+`scripts/check-docs.py` 通过；契约同步 docs/03 §3.3.3。真实 Wails 窗口与真实库上的保存、卡片改写
+未复核。
+
+2026-09-16：修复「重新分析这一天」后时间线上「生成中」区块与旧卡片重叠。`ReprocessDay` 把当天
+终态批次改回 `pending` 时**不删除已有卡片**，于是 `processingRanges` 与 `cards` 同时覆盖同一
+窗口：日轨道把区块画成整行绝对定位盒（z-index 2），卡片（z-index 3）落在同一矩形上，两层叠在
+一起；周栅格同样。现在按「一个窗口只有一个主人」处理——被卡片覆盖的窗口不再画区块，改由该卡片
+进入重新分析态（`is-regenerating` 渐变底 + `aria-busy`），未被覆盖的窗口仍显示区块，所以首次
+分析的空窗体验不变。规则落在 `layout.ts` 的 `boxesOverlap` / `coveredBy` / `uncoveredBy`，
+日轨道与周栅格共用同一组纯函数。判据用**实际绘制的盒子**而非时间戳：4 分钟卡片被
+`MIN_CARD_HEIGHT` 撑到 34px 后会压到下一个窗口，只看时间戳会漏。夹具
+`frontend/tests/timelineCoverage.test.ts`（7 项，含周列同规则用例）；把 `weekLayout` 退回旧行为
+确认该用例失败。浏览器验证：vite 夹具临时注入 processingRanges（覆盖卡片、部分重叠、空窗三种），
+全日 69 张卡与区块矩形零相交，3 张被覆盖卡片带 `is-regenerating` 与 `aria-busy`，随后夹具已还原。
+`./scripts/gate.sh` 通过。真实 reprocess 与真实 LLM 下的观感未复核。
+
+2026-09-16：修复卡片 appSites 在真实链路上丢失。卡片阶段把模型输出的扁平列表
+（`["Code","github.com"]`）原样写进 `timeline_cards.metadata`，绑定层却按 docs/05 §5.5.2 的
+`{primary, secondary}` 对象解析，`json.Unmarshal` 的类型错误让 `parseCardMetadata` 整体返回空值
+——appSites、distractions、activityPoints 三项在真实数据上一起丢失，前端 `AppSiteIcon` 因此从未
+渲染。此前两处夹具各自自洽掩盖了这条缝：DB-5 与 binding 用例都用对象形状，analysis 用例用扁平
+列表，没有任何夹具跨过生产者→消费者。现在由 `appSitesFromList` 在生产者侧完成映射；
+`dropPreWindowPoints` 的解码结构同步改形状（该函数回写整个 metadata，字段解不开就会静默不再
+过滤窗口前时间点）。夹具：pipeline happy path 断言存储字节是契约对象形状，新增 binding
+`TestCardMetadataWrittenByAnalysisPipelineParses` 用生产者实测字节回灌绑定层，DB-5 夹具改为
+对象形状——期望值变更是一次显式决定，不是"测试挂了就改期望"。`go test ./...`、`go vet ./...`、
+`CGO_ENABLED=0 go build ./...` 通过。真实 LLM 与真实录制数据下的图标显示仍未验证。
 
 2026-09-15：修复 Windows 窗口重新获得焦点时的时间线加载闪屏。此前标题栏点击触发
 `window.focus` 后使用全量 `load()`，会暂时将已有时间轴替换为首次加载面板；现在窗口焦点与

@@ -32,6 +32,14 @@ export default {
     distraction: '分心',
     personal: '个人',
   },
+  categoryDetails: {
+    focusWork: '专注工作：在 IDE 或终端里写代码、重构、调试；长时间亲手构建',
+    communication: '会议、站会、Slack、邮件、视频通话、即时消息和同步沟通',
+    learning: '听课、读文档或课程、背卡片、看教程，以及刻意学习新技能',
+    research: '了解工具和 API、读论文或 Stack Overflow，以及撰写设计文档或技术方案',
+    distraction: '无目的的浏览与被动消费内容：刷社交媒体、随便看视频、无意义地滚动、没有明确意图的娱乐，以及打游戏',
+    personal: '有明确目的的非工作活动：联系亲友、处理财务、订行程、办事、生活琐事和爱好',
+  },
   filter: {
     label: '按分类筛选',
     all: '全部',

@@ -13,6 +13,8 @@ const props = defineProps<{
   card: TimelineCardDTO
   color: string
   selected: boolean
+  /** A batch covering this card is being analyzed again; the card is stale. */
+  regenerating: boolean
   top: number
   height: number
   laneIndex: number
@@ -46,9 +48,11 @@ function cardStyle(): CSSProperties {
       'is-selected': props.selected,
       'is-detailed': props.height >= 96,
       'is-collided': props.laneCount > 1,
+      'is-regenerating': props.regenerating,
     }"
     :style="cardStyle()"
     :aria-pressed="props.selected"
+    :aria-busy="props.regenerating"
     :aria-label="`${props.card.title}, ${props.card.start} – ${props.card.end}, ${categoryLabel(props.card.category, t)}`"
     @click="emit('select', props.card.id)"
   >
@@ -118,6 +122,17 @@ function cardStyle(): CSSProperties {
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--timeline-category) 15%, transparent),
     var(--dg-timeline-card-shadow);
+}
+
+/* A card whose window is being analyzed again. The tint is the one the track's
+   generating block uses, so a stale card and an empty window read as the same
+   state; it rides on background-image so hover and selection keep the surface. */
+.activity-card.is-regenerating {
+  background-image: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--dg-accent) 20%, transparent),
+    color-mix(in srgb, #e8804a 16%, transparent)
+  );
 }
 
 /* The press sinks the card into the track; the fill previews the selected

@@ -119,6 +119,37 @@ func TestGetTimelineDayCardsAndTotals(t *testing.T) {
 	}
 }
 
+// The bytes below are what the analysis pipeline stores for its happy-path
+// card; internal/analysis/pipeline_test.go pins the producer to the same
+// shape. appSites crossing this boundary as the model's flat list instead of
+// the docs/05 §5.5.2 object made every card lose appSites, distractions and
+// activityPoints together, because the decoration parse fails as a unit.
+func TestCardMetadataWrittenByAnalysisPipelineParses(t *testing.T) {
+	backend, _ := backendWithStore(t)
+	seedTimelineDay(t, backend, []domain.CardShell{
+		{
+			Start: "10:00 AM", End: "10:15 AM", Category: "Coding",
+			Title: "Editing code", Summary: "s",
+			Metadata: `{"activityPoints":[],"appSites":{"primary":"Code","secondary":null},"distractions":[]}`,
+		},
+	})
+
+	dto, err := backend.GetTimelineDay("2026-09-12")
+	if err != nil {
+		t.Fatalf("GetTimelineDay: %v", err)
+	}
+	if len(dto.Cards) != 1 {
+		t.Fatalf("cards = %d, want 1", len(dto.Cards))
+	}
+	card := dto.Cards[0]
+	if card.AppSites == nil || card.AppSites.Primary == nil || *card.AppSites.Primary != "Code" {
+		t.Fatalf("appSites = %+v, want primary Code from the pipeline's metadata bytes", card.AppSites)
+	}
+	if card.AppSites.Secondary != nil {
+		t.Fatalf("secondary = %v, want null", card.AppSites.Secondary)
+	}
+}
+
 func TestCardWritesValidateAndEmit(t *testing.T) {
 	dir := t.TempDir()
 	backend, emitter := writerBackendWithStore(t, dir)
