@@ -376,13 +376,17 @@ onBeforeUnmount(() => {
   gap: 5px;
 }
 
-/* Freeze the leading icon only. Matching :first-child hit the title text on
-   icon-less cards: flex:none refused to shrink, so a long title rendered as
-   one unbreakable line spilling across the whole grid. */
-.week__card-head > .app-site-icon {
+.week__card-icon-slot {
   flex: none;
-  margin-top: 1px;
+  width: 13px;
+  /* Matches the title's first line (13px x 1.4 ≈ 18px) so the icon centers
+     on the text's center line instead of hugging the top. */
+  height: 17px;
+  display: grid;
+  place-items: center;
 }
+
+.week__card-icon-slot > * { width: 13px; height: 13px; }
 
 .week__card-text {
   /* Flex children default to min-width:auto and refuse to shrink below the

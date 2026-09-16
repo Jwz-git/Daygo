@@ -53,6 +53,27 @@ var cardsOutput = ai.OutputSchema{Name: "daygo_cards", Schema: json.RawMessage(`
 					"detailed_summary": {"type": "string"},
 					"appSites": {"type": "array", "items": {"type": "string"}},
 					"distractions": {"type": "array", "items": {"type": "string"}},
+					"titleEvidence": {
+						"type": "object",
+						"properties": {
+							"activities": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"activity": {"type": "string"},
+										"minutes": {"type": "number"}
+									},
+									"required": ["activity", "minutes"],
+									"additionalProperties": false
+								}
+							},
+							"selectedActivity": {"type": "string"},
+							"familiarSubject": {"type": "string"}
+						},
+						"required": ["activities", "selectedActivity", "familiarSubject"],
+						"additionalProperties": false
+					},
 					"activityPoints": {
 						"type": "array",
 						"items": {
@@ -96,7 +117,15 @@ type cardsEnvelope struct {
 		DetailedSummary string   `json:"detailed_summary"`
 		AppSites        []string `json:"appSites"`
 		Distractions    []string `json:"distractions"`
-		ActivityPoints  []struct {
+		TitleEvidence   struct {
+			Activities []struct {
+				Activity string `json:"activity"`
+				Minutes  int    `json:"minutes"`
+			} `json:"activities"`
+			SelectedActivity string `json:"selectedActivity"`
+			FamiliarSubject  string `json:"familiarSubject"`
+		} `json:"titleEvidence"`
+		ActivityPoints []struct {
 			Time        string `json:"time"`
 			Description string `json:"description"`
 		} `json:"activityPoints"`

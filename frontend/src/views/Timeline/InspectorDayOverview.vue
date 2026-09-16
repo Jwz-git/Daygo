@@ -77,9 +77,6 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
  * actually accounted for; unanalyzed wall-clock is intentionally absent
  * (Dayflow-style) rather than drawn as a giant placeholder wedge.
  */
-const DONUT_RADIUS = 62
-const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS
-
 const IDLE_COLOR = '#c9c6d2'
 
 const centerMinutes = computed(() => props.day.trackedMinutes + props.day.idleMinutes)
@@ -114,16 +111,16 @@ const donutSlices = computed<DonutSlice[]>(() => {
 
 const donutSegments = computed(() => {
   const total = Math.max(1, donutSlices.value.reduce((sum, slice) => sum + slice.minutes, 0))
+  const circumference = 2 * Math.PI * 89.5
   let consumed = 0
-  return donutSlices.value.map((slice, index) => {
+  return donutSlices.value.map((slice) => {
     const fraction = slice.minutes / total
-    const gap = donutSlices.value.length > 1 ? 6 : 0
-    const arc = Math.max(0, fraction * DONUT_CIRCUMFERENCE - gap)
+    const gap = donutSlices.value.length > 1 ? 4 : 0
+    const arc = Math.max(0, fraction * circumference - gap)
     const segment = {
       color: slice.color,
-      gradientId: `donut-grad-${index}`,
-      dashArray: `${arc} ${DONUT_CIRCUMFERENCE - arc}`,
-      offset: -consumed * DONUT_CIRCUMFERENCE - gap / 2,
+      dashArray: `${arc} ${circumference - arc}`,
+      offset: -consumed * circumference - gap / 2,
     }
     consumed += fraction
     return segment
@@ -158,32 +155,38 @@ const reviewSegments = computed(() => [
   </header>
 
   <div class="donut" role="img" :aria-label="t('timeline.overview.donutAria')">
-    <svg viewBox="0 0 160 160" aria-hidden="true">
+    <svg viewBox="0 0 205 205" aria-hidden="true">
       <defs>
-        <radialGradient id="donut-inner-shade">
-          <stop offset="0%" style="stop-color: var(--dg-surface, #ffffff)" />
-          <stop offset="80%" style="stop-color: var(--dg-surface, #ffffff)" />
-          <stop offset="97%" stop-color="rgba(30, 34, 60, 0.12)" />
-          <stop offset="100%" stop-color="rgba(30, 34, 60, 0.22)" />
+        <radialGradient id="donut-sheen" cx="50%" cy="50%" r="50%">
+          <stop offset="76%" stop-color="rgba(255, 255, 255, 0.35)" />
+          <stop offset="100%" stop-color="rgba(255, 255, 255, 0)" />
         </radialGradient>
       </defs>
-      <circle class="donut__track" cx="80" cy="80" r="62" />
-      <g transform="rotate(-90 80 80)">
+      <!-- Grey base circle with the soft ambient shadow. -->
+      <circle class="donut__base" cx="102.5" cy="102.5" r="102.5" />
+      <!-- Category sectors: stroke arcs, 80% fill per the mock, rounded
+           caps standing in for the sector corner radius. -->
+      <g transform="rotate(-90 102.5 102.5)">
         <circle
           v-for="(segment, index) in donutSegments"
           :key="index"
           class="donut__segment"
-          cx="80"
-          cy="80"
-          r="62"
+          cx="102.5"
+          cy="102.5"
+          r="89.5"
           :stroke="segment.color"
           :stroke-dasharray="segment.dashArray"
           :stroke-dashoffset="segment.offset"
         />
       </g>
+      <!-- White radial sheen from the inner edge fading outward. -->
+      <circle cx="102.5" cy="102.5" r="102.5" fill="url(#donut-sheen)" />
+      <!-- White center disk, slightly smaller than the hole: leaves the grey
+           gap ring on the inner edge like the reference. -->
+      <circle class="donut__center-disk" cx="102.5" cy="102.5" r="71" />
     </svg>
     <div class="donut__center">
-      <span>{{ t('timeline.overview.total') }}</span>
+      <span class="donut__total-label">{{ t('timeline.overview.total') }}</span>
       <strong v-for="line in centerLines" :key="line">{{ line }}</strong>
     </div>
   </div>
@@ -274,29 +277,32 @@ const reviewSegments = computed(() => [
 
 .goal-state span { color: var(--dg-text-secondary); font-size: 11px; }
 
-/* Donut with rounded caps and a soft shadow under the ring. */
+/* Dayflow-spec donut: grey base circle + ambient shadow, 80%-opacity
+   sectors with rounded caps, white radial sheen, and a white center disk
+   that leaves a grey gap ring on the inner edge. */
 .donut {
   position: relative;
-  width: 200px;
+  width: 205px;
   margin: 6px auto 4px;
-  /* Heavier shadow inside and out: the rim drop-shadow plus the radial
-     shade painted onto the center disk by the gradient above. */
-  filter: drop-shadow(0 16px 28px rgba(45, 50, 80, 0.32));
 }
 
 .donut svg { display: block; width: 100%; }
 
-.donut__track {
-  fill: url(#donut-inner-shade);
-  stroke: none;
+.donut__base {
+  fill: #f1f1f4;
+  filter: drop-shadow(0 0 10px rgba(45, 50, 80, 0.18));
 }
 
+:root[data-dg-appearance='dark'] .donut__base { fill: #26262c; }
 
 .donut__segment {
   fill: none;
-  stroke-width: 24;
+  stroke-width: 25;
   stroke-linecap: round;
+  stroke-opacity: 0.8;
 }
+
+.donut__center-disk { fill: var(--dg-surface, #ffffff); }
 
 .donut__center {
   position: absolute;
@@ -305,16 +311,71 @@ const reviewSegments = computed(() => [
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 4px;
   text-align: center;
 }
 
+.donut__total-label {
+  color: #b1b1b1;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .donut__center strong {
-  max-width: 110px;
   color: var(--dg-text-primary);
-  font-size: 19px;
+  font-family: var(--dg-font-reading);
+  font-size: 17px;
+  font-weight: 450;
+  line-height: 1.25;
+}
+
+/* Legend: three fixed columns like the reference grid. */
+.donut-legend {
+  display: grid;
+  grid-template-columns: repeat(3, 85px);
+  gap: 12px 14px;
+  justify-content: center;
+  padding: 20px 0 4px;
+}
+
+.donut-legend__empty {
+  margin: 0;
+  color: var(--dg-text-muted);
+  font-size: 11px;
+}
+
+.legend-chip {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.legend-chip__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--dg-text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend-chip__name i {
+  flex: none;
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  opacity: 0.8;
+}
+
+.legend-chip strong {
+  color: var(--dg-text-primary);
+  font-size: 13px;
   font-weight: 650;
-  line-height: 1.3;
 }
 
 /* Two-line legend chips: swatch + name, duration beneath. */

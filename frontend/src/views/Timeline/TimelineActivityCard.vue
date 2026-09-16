@@ -100,7 +100,11 @@ function cardStyle(): CSSProperties {
 .activity-card__icon-slot {
   flex: none;
   width: 18px;
-  height: 18px;
+  /* Same height as the title's first line (15px x 1.35), so the icon's
+     optical center sits exactly on the text's center line. */
+  height: 22px;
+  display: grid;
+  place-items: center;
 }
 
 /* Hover grows the card slightly; :active below presses it back in. */
