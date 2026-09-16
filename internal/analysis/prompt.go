@@ -192,13 +192,15 @@ const titleEvidenceBlock = `TITLE — write it as the natural answer to "What di
 const summaryBlock = `SUMMARIES — write 2-3 factual sentences in first person without "I". State the main ` +
 	`activity and meaningful secondary details. Preserve what happened without adding claims of completion.`
 
-const detailedSummaryBlock = `DETAILED SUMMARIES — write a chronological log of timestamped activity lines. Each line ` +
-	`states the concrete action, subject, and relevant application or site. Include substantive ` +
-	`secondary activities and specific details here that the title omits. Keep at most 15 lines ` +
-	`and 2500 characters total. When merging, reuse the merged card's lines as the base; extend ` +
-	`the last line the new window continues, and only add lines for genuinely new phases. Drop ` +
-	`or compress the oldest, least important lines to stay within the limits — recent detail ` +
-	`matters more than old detail.`
+const detailedSummaryBlock = `DETAILED SUMMARIES — write a chronological log, one paragraph per distinct phase of the ` +
+	`activity, in the form "h:mm PM–h:mm PM: what happened" (times as in the observations; the ` +
+	`hyphen between the times is an en dash). Each paragraph states the concrete action, subject, ` +
+	`and relevant application or site, and outcomes — commands sent, values confirmed, files or ` +
+	`sections touched. Include the substantive secondary details the title omits. Keep at most 15 ` +
+	`paragraphs and 2500 characters total. When merging, reuse the merged card's paragraphs as the ` +
+	`base; extend the last paragraph the new window continues, and only add paragraphs for ` +
+	`genuinely new phases. Drop or compress the oldest, least important paragraphs to stay within ` +
+	`the limits — recent detail matters more than old detail.`
 
 // cardsCorrectionPrompt ports Dayflow's correction pass: when the validated
 // output breaks the span rules, the previous JSON goes back with structured
