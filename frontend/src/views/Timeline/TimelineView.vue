@@ -428,6 +428,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="tool-button"
+              data-calendar-toggle
               :title="t('timeline.calendar.open')"
               :aria-label="t('timeline.calendar.open')"
               :aria-expanded="showCalendar"
@@ -442,12 +443,14 @@ onBeforeUnmount(() => {
                 <circle cx="10.4" cy="9.6" r="1" fill="currentColor" />
               </svg>
             </button>
-            <CalendarPopover
-              v-if="showCalendar"
-              :selected="context?.day ?? routeDay()"
-              @select="pickDate"
-              @close="showCalendar = false"
-            />
+            <Transition name="calendar-pop">
+              <CalendarPopover
+                v-if="showCalendar"
+                :selected="context?.day ?? routeDay()"
+                @select="pickDate"
+                @close="showCalendar = false"
+              />
+            </Transition>
           </div>
           <div class="mode-toggle" role="tablist" :aria-label="t('timeline.mode.label')">
             <button
@@ -884,6 +887,21 @@ onBeforeUnmount(() => {
 
 .calendar-anchor {
   position: relative;
+}
+
+/* Calendar open/close: a small drop-scale from the anchor corner. */
+.calendar-pop-enter-active,
+.calendar-pop-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 200ms var(--dg-ease-glide);
+  transform-origin: top left;
+}
+
+.calendar-pop-enter-from,
+.calendar-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(-6px);
 }
 
 .tool-button {

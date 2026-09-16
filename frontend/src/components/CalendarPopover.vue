@@ -41,7 +41,12 @@ function todayIso(): string {
 }
 
 /** The month the grid shows, as the UTC midnight of its 1st. */
-const monthStart = ref<Date>(parseIso(props.selected) ?? new Date(Date.UTC(0, 0)))
+const selectedDate = parseIso(props.selected)
+const monthStart = ref<Date>(
+  selectedDate === null
+    ? new Date(Date.UTC(0, 0))
+    : new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), 1)),
+)
 
 const monthTitle = computed(() =>
   new Intl.DateTimeFormat(locale.value, { month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -66,7 +71,9 @@ const cells = computed<DayCell[]>(() => {
   const selectedDate = parseIso(props.selected)
   const today = todayIso()
   const result: DayCell[] = []
-  for (let index = 0; index < 42; index += 1) {
+  const daysInMonth = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate()
+  const cellCount = Math.ceil((offset + daysInMonth) / 7) * 7
+  for (let index = 0; index < cellCount; index += 1) {
     const date = new Date(gridStart)
     date.setUTCDate(gridStart.getUTCDate() + index)
     const iso = toIso(date)
@@ -100,9 +107,11 @@ function choose(cell: DayCell): void {
 }
 
 function onPointerDown(event: PointerEvent): void {
-  if (rootEl.value !== null && event.target instanceof Node && !rootEl.value.contains(event.target)) {
-    emit('close')
-  }
+  if (rootEl.value === null || !(event.target instanceof Node)) return
+  // Clicks on the toggle button are handled by the button's own toggle;
+  // closing here would race the toggle and leave the popover open.
+  if ((event.target as Element).closest?.('[data-calendar-toggle]')) return
+  if (!rootEl.value.contains(event.target)) emit('close')
 }
 
 function onKeydown(event: KeyboardEvent): void {
