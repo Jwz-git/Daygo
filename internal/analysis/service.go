@@ -271,18 +271,33 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 		return err
 	}
 
-	shells, err := s.generateCards(ctx, chain, batch, existing, observations, categories)
+	// Merge candidate (Dayflow's hasPreviousCardWithinFiveMinutes): the card
+	// immediately before the window whose end sits within five minutes of it.
+	// Its presence flips the card prompt into the ongoing-segmentation rewrite
+	// mode, and its start becomes the rewrite span's start — earlier cards are
+	// preserved untouched, exactly like the reference pipeline.
+	var mergeCandidate *domain.TimelineCard
+	for i := len(existing) - 1; i >= 0; i-- {
+		card := existing[i]
+		if card.EndTs <= batch.Start.Unix() {
+			if batch.Start.Unix()-card.EndTs <= 300 {
+				mergeCandidate = &existing[i]
+			}
+			break
+		}
+	}
+	ongoing := mergeCandidate != nil
+
+	shells, _, err := s.generateCards(ctx, chain, batch, existing, observations, categories, ongoing)
 	if err != nil {
 		return err
 	}
-	// A merged card starts at the nearby card's start, before this batch's
-	// window. The rewrite range must cover that start or the merged-into card
-	// survives next to its replacement — two cards where the model emitted
-	// one. Extend from to the earliest resolved shell start (the idle path
-	// does the same with its preceding-card merge).
-	replaceFrom, ok := earliestShellStart(shells, batch, s.loc())
-	if !ok {
-		replaceFrom = batch.Start
+	// The rewrite replaces everything from the span's start (the merged
+	// predecessor's start in ongoing mode) through the window end; cards
+	// before the span survive beside the rewrite.
+	replaceFrom := batch.Start
+	if ongoing && mergeCandidate != nil {
+		replaceFrom = time.Unix(mergeCandidate.StartTs, 0)
 	}
 	result, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End, shells, batch.ID)
 	if err != nil {
@@ -472,28 +487,24 @@ func appSitesFromList(values []string) *appSitesMetadata {
 // generateCards runs the card stage: prompt with sliding-window context,
 // parse, then validate every category against the known list — an unknown
 // category maps to System and is counted, never auto-created (docs/04 §4.3.4).
+// generateCards runs the card stage in Dayflow's shape: a mode-dependent
+// prompt, then up to three attempts where a failed validation sends the
+// previous JSON back with structured issues (the correction pass). Returns
+// the accepted shells and the rewrite span start the caller must replace from.
 func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch storage.Batch,
 	existing []domain.TimelineCard, obs []storage.Observation,
-	categories []domain.Category) ([]domain.CardShell, error) {
+	categories []domain.Category, ongoing bool) ([]domain.CardShell, time.Time, error) {
 
-	prompt := cardsPrompt(batch.Start, batch.End, existing, obs, categories, s.cfg.Language(ctx))
-	request := ai.Request{
-		Purpose:         ai.PurposeCards,
-		Parts:           []ai.Part{ai.TextPart(prompt)},
-		Output:          &cardsOutput,
-		MaxOutputTokens: 4096,
-	}
-	result, err := chain.Generate(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-	raw, err := ai.ParseStructuredOutput(result.Text, cardsOutput)
-	if err != nil {
-		return nil, err
-	}
-	var envelope cardsEnvelope
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return nil, fmt.Errorf("decode cards: %w", err)
+	rewriteStart := batch.Start
+	if ongoing {
+		// The earliest predecessor the ongoing rewrite may replace. Later
+		// attempts keep this anchored — validation holds the cards to it.
+		for _, card := range existing {
+			if card.EndTs <= batch.Start.Unix() {
+				rewriteStart = time.Unix(card.StartTs, 0)
+				break
+			}
+		}
 	}
 
 	// Built-in names are not valid model output: a model echoing "Idle" from
@@ -507,43 +518,105 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		known[c.Name] = true
 	}
 
-	var shells []domain.CardShell
-	for _, c := range envelope.Cards {
-		category := c.Category
-		if !known[category] {
-			category = "System"
-		}
-		points := make([]cardActivityPoint, 0, len(c.ActivityPoints))
-		for _, p := range c.ActivityPoints {
-			if p.Description == "" {
-				continue
+	requiresSingleCard := !ongoing
+	var lastRaw json.RawMessage
+	var issues []string
+	for attempt := 1; attempt <= 3; attempt++ {
+		var request ai.Request
+		if attempt == 1 {
+			request = ai.Request{
+				Purpose:         ai.PurposeCards,
+				Parts:           []ai.Part{ai.TextPart(cardsPrompt(batch.Start, batch.End, existing, obs, categories, s.cfg.Language(ctx), ongoing))},
+				Output:          &cardsOutput,
+				MaxOutputTokens: 4096,
 			}
-			points = append(points, cardActivityPoint{Time: p.Time, Description: p.Description})
+		} else {
+			request = ai.Request{
+				Purpose:         ai.PurposeCards,
+				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, requiresSingleCard))},
+				Output:          &cardsOutput,
+				MaxOutputTokens: 4096,
+			}
 		}
-		metadata, _ := json.Marshal(map[string]any{
-			"appSites":       appSitesFromList(c.AppSites),
-			"distractions":   c.Distractions,
-			"activityPoints": points,
-		})
-		shell := domain.CardShell{
-			Start:           c.Start,
-			End:             c.End,
-			Category:        category,
-			Subcategory:     c.Subcategory,
-			Title:           c.Title,
-			Summary:         boundSummary(c.Summary),
-			DetailedSummary: boundDetailedSummary(c.DetailedSummary),
-			Metadata:        string(metadata),
+		result, err := chain.Generate(ctx, request)
+		if err != nil {
+			return nil, rewriteStart, err
 		}
-		// A card the model resolved entirely outside the batch window is a
-		// context-merge hallucination; drop it rather than let the rewrite
-		// duplicate it outside the range we own.
-		if s.shellOverlapsWindow(shell, batch) {
-			s.enforceMergeGate(&shell, batch, existing)
-			shells = append(shells, shell)
+		raw, err := ai.ParseStructuredOutput(result.Text, cardsOutput)
+		if err != nil {
+			return nil, rewriteStart, err
+		}
+		lastRaw = raw
+		var envelope cardsEnvelope
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			return nil, rewriteStart, fmt.Errorf("decode cards: %w", err)
+		}
+
+		var shells []domain.CardShell
+		for _, c := range envelope.Cards {
+			category := c.Category
+			if !known[category] {
+				category = "System"
+			}
+			points := make([]cardActivityPoint, 0, len(c.ActivityPoints))
+			for _, p := range c.ActivityPoints {
+				if p.Description == "" {
+					continue
+				}
+				points = append(points, cardActivityPoint{Time: p.Time, Description: p.Description})
+			}
+			metadata, _ := json.Marshal(map[string]any{
+				"appSites":       appSitesFromList(c.AppSites),
+				"distractions":   c.Distractions,
+				"activityPoints": points,
+			})
+			shell := domain.CardShell{
+				Start:           c.Start,
+				End:             c.End,
+				Category:        category,
+				Subcategory:     c.Subcategory,
+				Title:           c.Title,
+				Summary:         boundSummary(c.Summary),
+				DetailedSummary: boundDetailedSummary(c.DetailedSummary),
+				Metadata:        string(metadata),
+			}
+			// A shell the model resolved entirely outside the rewrite span is
+			// a context-merge hallucination; drop it rather than let the
+			// rewrite duplicate it outside the range we own.
+			if s.shellOverlapsSpan(shell, rewriteStart, batch.End) {
+				shells = append(shells, shell)
+			}
+		}
+
+		spans := resolveCardSpans(shells, batch, s.loc())
+		issues = validateCards(spans, rewriteStart, batch.End, requiresSingleCard)
+		if len(issues) == 0 {
+			return shells, rewriteStart, nil
+		}
+		// Pre-window activity points from a rejected merge claim are dropped
+		// so the predecessor's points never duplicate inside the rewrite.
+		for i := range shells {
+			shells[i].Metadata = dropPreWindowPoints(shells[i].Metadata, rewriteStart, batch.Start.Add(batch.End.Sub(batch.Start)/2), s.loc())
 		}
 	}
-	return shells, nil
+	return nil, rewriteStart, fmt.Errorf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; "))
+}
+
+// shellOverlapsSpan keeps only shells whose resolved clocks overlap the
+// rewrite span. Shells whose clocks do not resolve at all are dropped —
+// an unresolvable card cannot be stored coherently.
+func (s *Service) shellOverlapsSpan(shell domain.CardShell, spanStart, spanEnd time.Time) bool {
+	loc := s.loc()
+	anchor := spanStart.Add(spanEnd.Sub(spanStart) / 2)
+	start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
+	if err != nil {
+		return false
+	}
+	end, err := timeutil.ResolveClock(shell.End, anchor, loc)
+	if err != nil {
+		return false
+	}
+	return start.Before(spanEnd) && end.After(spanStart)
 }
 
 // enforceMergeGate is the deterministic backstop behind the prompt's merge

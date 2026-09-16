@@ -335,7 +335,7 @@ func TestCardsPromptExcludesBuiltInCategories(t *testing.T) {
 		{ID: "2", Name: "Idle", IsSystem: true, IsIdle: true},
 		{ID: "3", Name: "Coding", Details: "writing code"},
 	}
-	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, categories, "")
+	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, categories, "", true)
 
 	if !strings.Contains(prompt, "\n  Coding — writing code\n") {
 		t.Fatalf("prompt missing user category:\n%s", prompt)

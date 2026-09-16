@@ -331,7 +331,13 @@ const reviewSegments = computed(() => [
   margin: 6px auto 4px;
 }
 
-.donut svg { display: block; width: 100%; }
+.donut svg {
+  display: block;
+  width: 100%;
+  /* The base circle fills the viewBox exactly, so its drop-shadow lives
+     outside the viewport — let it render instead of clipping. */
+  overflow: visible;
+}
 
 .donut__base {
   fill: #f1f1f4;

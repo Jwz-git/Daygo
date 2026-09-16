@@ -1,8 +1,48 @@
 <script setup lang="ts">
 import { computed, ref, watch, type CSSProperties } from 'vue'
 
-import { matchInstalledAppIcon, resolveAppSiteIdentity } from '@/lib/appSiteIcon'
+import { matchInstalledAppIcon, resolveAppSiteIdentity, type AppSiteIconKind } from '@/lib/appSiteIcon'
 import { fetchFaviconDataUrl, hostOf } from '@/lib/favicon'
+
+/*
+ * Real brand images, borrowed from the Dayflow asset catalog (MIT) — the
+ * same files the original ships, so marks read exactly like the reference.
+ * Kinds without a bundled image keep their drawn SVG (or the favicon /
+ * monogram fallbacks below).
+ */
+import claudeImage from '@/assets/favicons/claude.png'
+import chatgptImage from '@/assets/favicons/chatgpt.svg'
+import chromeImage from '@/assets/favicons/chrome.png'
+import discordImage from '@/assets/favicons/discord.png'
+import geminiImage from '@/assets/favicons/gemini.png'
+import ghosttyImage from '@/assets/favicons/ghostty.png'
+import githubImage from '@/assets/favicons/github.png'
+import iterm2Image from '@/assets/favicons/iterm2.png'
+import messagesImage from '@/assets/favicons/messages.png'
+import notesImage from '@/assets/favicons/notes.png'
+import safariImage from '@/assets/favicons/safari.png'
+import terminalImage from '@/assets/favicons/terminal.png'
+import vscodeImage from '@/assets/favicons/vscode.png'
+import xcodeImage from '@/assets/favicons/xcode.png'
+import youtubeImage from '@/assets/favicons/youtube.png'
+
+const BRAND_IMAGES: Partial<Record<AppSiteIconKind, string>> = {
+  claude: claudeImage,
+  chatgpt: chatgptImage,
+  chrome: chromeImage,
+  discord: discordImage,
+  gemini: geminiImage,
+  ghostty: ghosttyImage,
+  github: githubImage,
+  iterm2: iterm2Image,
+  messages: messagesImage,
+  notes: notesImage,
+  safari: safariImage,
+  terminal: terminalImage,
+  vscode: vscodeImage,
+  xcode: xcodeImage,
+  youtube: youtubeImage,
+}
 
 const props = withDefaults(defineProps<{
   site: string
@@ -14,6 +54,7 @@ const props = withDefaults(defineProps<{
 })
 
 const identity = computed(() => resolveAppSiteIdentity(props.site))
+const brandImage = computed(() => BRAND_IMAGES[identity.value.kind])
 
 /*
  * Unbranded sites resolve a network favicon (Dayflow's FaviconService flow);
@@ -58,13 +99,15 @@ const iconStyle = computed<CSSProperties>(() => ({
 <template>
   <span
     class="app-site-icon"
-    :class="`app-site-icon--${identity.kind}`"
+    :class="[`app-site-icon--${identity.kind}`, { 'is-raw': brandImage !== null }]"
     :style="iconStyle"
     role="img"
     :aria-label="identity.label"
     :title="identity.label"
   >
-    <svg v-if="identity.kind === 'daygo'" viewBox="0 0 24 24" aria-hidden="true">
+    <img v-if="brandImage" class="app-site-icon__favicon" :src="brandImage" alt="" draggable="false">
+
+    <svg v-else-if="identity.kind === 'daygo'" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="6" y="12" width="2.8" height="6" rx="1.4" opacity=".68" />
       <rect x="10.6" y="5" width="2.8" height="13" rx="1.4" />
       <rect x="15.2" y="8.5" width="2.8" height="9.5" rx="1.4" opacity=".82" />
@@ -173,16 +216,16 @@ const iconStyle = computed<CSSProperties>(() => ({
   place-items: center;
 }
 
+.app-site-icon.is-raw {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 2px;
+}
+
 .app-site-icon svg { width: 100%; height: 100%; }
 .app-site-icon__favicon { width: 100%; height: 100%; object-fit: cover; }
 .app-site-icon--daygo { background: #4b79a6; color: white; }
-.app-site-icon--vscode { background: #2489ca; color: white; }
-.app-site-icon--github { background: #25292e; color: white; }
-.app-site-icon--chatgpt { background: #f7f7f5; color: #202123; }
-.app-site-icon--messages { background: #43c95b; color: white; }
-.app-site-icon--terminal { background: #202126; color: #f5f5f5; }
-.app-site-icon--xcode { background: linear-gradient(145deg, #4fb5ef, #1677c8); color: white; }
-.app-site-icon--youtube { background: #ff0033; color: white; }
 .app-site-icon--google-docs { background: #4285f4; color: white; }
 .app-site-icon--discord { background: #5865f2; color: white; }
 .app-site-icon--notion { background: #fff; color: #111; }

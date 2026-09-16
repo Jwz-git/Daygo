@@ -46,7 +46,7 @@ func transcribePrompt(group []storage.AnalysisFrame, language string) string {
 // both windows.
 func cardsPrompt(batchStart, batchEnd time.Time,
 	existing []domain.TimelineCard, obs []storage.Observation,
-	categories []domain.Category, language string) string {
+	categories []domain.Category, language string, ongoing bool) string {
 
 	var b strings.Builder
 	b.WriteString("<previous_cards>\n")
@@ -85,17 +85,29 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	fmt.Fprintf(&b, "Current window: %s to %s.\n\n",
 		formatFrameClock(batchStart), formatFrameClock(batchEnd))
 
-	b.WriteString("<ongoing_segmentation>\n")
-	b.WriteString("Rewrite the full connected span from the supplied evidence. Previous cards ")
-	b.WriteString("preserve content only; their boundaries, titles, and categories are provisional. ")
-	b.WriteString("Group time by the person's immediate activity. App switches within one task ")
-	b.WriteString("belong together. Sustained different activities deserve separate cards. Each card ")
-	b.WriteString("must be 10-60 minutes. Absorb interruptions under five minutes; a distinct ")
-	b.WriteString("5-9-minute episode may borrow the minimum neighboring minutes to reach ten if the ")
-	b.WriteString("neighboring cards remain at least ten. Cover all observed time without overlaps and ")
-	b.WriteString("preserve real source gaps. A broad project or continuous computer session does not ")
-	b.WriteString("by itself make one activity.\n")
-	b.WriteString("</ongoing_segmentation>\n\n")
+	if ongoing {
+		b.WriteString("<ongoing_segmentation>\n")
+		b.WriteString("Rewrite the full connected span from the supplied evidence. Previous cards ")
+		b.WriteString("preserve content only; their boundaries, titles, and categories are provisional. ")
+		b.WriteString("Group time by the person's immediate activity. App switches within one task ")
+		b.WriteString("belong together. Sustained different activities deserve separate cards. Each card ")
+		b.WriteString("must be 10-60 minutes. Absorb interruptions under five minutes; a distinct ")
+		b.WriteString("5-9-minute episode may borrow the minimum neighboring minutes to reach ten if the ")
+		b.WriteString("neighboring cards remain at least ten. Cover all observed time without overlaps and ")
+		b.WriteString("preserve real source gaps. A broad project or continuous computer session does not ")
+		b.WriteString("by itself make one activity.\n")
+		b.WriteString("</ongoing_segmentation>\n\n")
+	} else {
+		b.WriteString("FRESH SEGMENT MODE — EXACTLY ONE CARD:\n")
+		b.WriteString("No previous card belongs to this batch's contiguous source-evidence segment. ")
+		b.WriteString("Nearby history separated by a genuine gap is left untouched. Return exactly ONE ")
+		b.WriteString("new card covering the entire supplied observation span, regardless of internal ")
+		b.WriteString("activity or goal changes. This card is provisional; later sliding-window passes may ")
+		b.WriteString("split it once each resulting activity has at least 10 minutes of supporting evidence.\n\n")
+		b.WriteString("Do not split this batch. Title and categorize its dominant activity, and put ")
+		b.WriteString("shorter or unrelated activity in the summary and detailed summary. This rule ")
+		b.WriteString("overrides all other coherence and splitting guidance for this call.\n\n")
+	}
 
 	b.WriteString("Return cards covering all the time represented by the supplied previous cards ")
 	b.WriteString("and observations. Previous boundaries and titles are drafts. Preserve meaningful ")
@@ -187,6 +199,44 @@ const detailedSummaryBlock = `DETAILED SUMMARIES — write a chronological log o
 	`the last line the new window continues, and only add lines for genuinely new phases. Drop ` +
 	`or compress the oldest, least important lines to stay within the limits — recent detail ` +
 	`matters more than old detail.`
+
+// cardsCorrectionPrompt ports Dayflow's correction pass: when the validated
+// output breaks the span rules, the previous JSON goes back with structured
+// issues and the duration-merging rules, up to three attempts.
+func cardsCorrectionPrompt(rawJSON string, issues []string, requiresSingleCard bool) string {
+	modeRequirement := "- This call was an ongoing-segment rewrite. Recheck the entire array, not only the "
+	modeRequirement += "issue named below. Absorb every 1-4-minute card into the longer adjacent episode; a "
+	modeRequirement += "short first card merges into the full following session and a short final card merges "
+	modeRequirement += "backward. For every 5-9-minute card, move only enough neighboring minutes to bring it "
+	modeRequirement += "to 10, even when the borrowed minutes are unrelated, while preserving every neighboring "
+	modeRequirement += "episode that can remain at least 10 minutes. Examples: 4 minutes plus a following "
+	modeRequirement += "33-minute same-session card becomes one 37-minute card; an 8-minute middle card followed "
+	modeRequirement += "by 15 minutes becomes 10 minutes plus 13 minutes; a distinct 6-minute ending after 20 "
+	modeRequirement += "minutes becomes 16 minutes plus 10 minutes. Never return the same invalid short boundary."
+	if requiresSingleCard {
+		modeRequirement = "- This is a fresh segment. Return exactly ONE card covering the full supplied observation span."
+	}
+
+	return "The previous JSON output has validation errors. Fix the existing output using the context from our ongoing conversation.\n\n" +
+		"Issues:\n" + joinIssues(issues) + "\n\n" +
+		"Requirements:\n" +
+		"- Return the FULL corrected JSON output (not a diff).\n" +
+		"- Preserve exactly the source-supported coverage. Keep genuine source gaps uncovered; never bridge them. Cards may be separated only where the inputs have a real gap. No overlaps.\n" +
+		"- Change the timestamps that caused the validation error; do not return the same invalid boundaries. If the issue says the cards do not cover all supplied observations, find every gap between consecutive cards and close the uncovered boundary by extending an adjacent card. In particular, if one card ends at 5:38 and the next begins at 5:39, make them meet at 5:38 or 5:39 rather than returning that one-minute gap again.\n" +
+		"- Every card must be 10-60 minutes, including the final card. There is no short-final-card exception unless the entire supplied span is under 10 minutes.\n" +
+		modeRequirement + "\n" +
+		"- The duration rule overrides semantic purity. When unrelated activities must be merged, title and categorize the dominant activity and move the shorter activity into the summary and detailed summary.\n" +
+		"- After merging, recompute the title and category from the combined duration. Never concatenate an absorbed short activity into the title unless it remains dominant by supported minutes. If nothing dominates, describe the ordinary mixed activity plainly, following the title guidance.\n" +
+		"- Output JSON only. No code fences or extra text."
+}
+
+func joinIssues(issues []string) string {
+	out := ""
+	for i, issue := range issues {
+		out += fmt.Sprintf("%d. %s\n", i+1, issue)
+	}
+	return out
+}
 
 func formatFrameClock(t time.Time) string {
 	return t.Format("3:04 PM")

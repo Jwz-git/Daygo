@@ -553,9 +553,11 @@ func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
 	// one tick creates and fails the batch, then each iteration simulates
 	// the cooldown having elapsed by requeueing through the repository.
 	h.service.tick(context.Background())
+	// The correction loop spends 1 + 2 correction calls inside the first tick
+	// (Dayflow's three-attempt cap) before the stage gives up.
 	cardCalls := h.provider.callCount(string(ai.PurposeCards))
-	if cardCalls != 1 {
-		t.Fatalf("card calls after first tick = %d, want 1", cardCalls)
+	if cardCalls != 3 {
+		t.Fatalf("card calls after first tick = %d, want 3", cardCalls)
 	}
 
 	ctx := context.Background()
@@ -599,8 +601,11 @@ func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
 	if got := h.provider.callCount(string(ai.PurposeCards)); got != callsAfterLoop {
 		t.Fatalf("card calls after exhaustion = %d, want %d (no further LLM spend)", got, callsAfterLoop)
 	}
-	if got := h.provider.callCount(string(ai.PurposeCards)); got > storage.MaxBatchAttempts+1 {
-		t.Fatalf("card calls = %d, want at most %d (capped, not unbounded)", got, storage.MaxBatchAttempts+1)
+	// Per tick the card stage spends 1 + 2 correction calls; across the
+	// attempt cap the spend stays bounded, just 3x the old per-tick figure.
+	if got := h.provider.callCount(string(ai.PurposeCards)); got > (storage.MaxBatchAttempts+1)*3 {
+		t.Fatalf("card calls = %d, want at most %d (capped, not unbounded)",
+			got, (storage.MaxBatchAttempts+1)*3)
 	}
 }
 
@@ -692,10 +697,11 @@ func TestPipelineMergeCardAbsorbsSystemPredecessor(t *testing.T) {
 }
 
 // The merge gate: a shell claiming a merge into a predecessor card of a
-// different category is clamped back to the batch window. The predecessor
+// different category is replaced outright: the ongoing rewrite absorbs the
+// predecessor and the dominant category wins (dayflow semantics). The predecessor
 // survives beside a card covering only the current window, and the absorbed
 // activityPoints from before the window are dropped.
-func TestPipelineMergeGateRejectsCategoryMismatch(t *testing.T) {
+func TestPipelineOngoingRewriteReplacesPredecessor(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
 		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
@@ -729,28 +735,26 @@ func TestPipelineMergeGateRejectsCategoryMismatch(t *testing.T) {
 	h.service.tick(context.Background())
 
 	cards, _ = h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
-	if len(cards) != 2 {
-		t.Fatalf("cards = %+v, want the predecessor preserved beside the clamped card", cards)
+	// Dayflow semantics: an ongoing rewrite replaces the predecessor outright —
+	// the duration rule overrides the category mismatch, and the merged card
+	// takes the combined span with the dominant category.
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want exactly the rewritten card", cards)
 	}
-	predecessor, clamped := cards[0], cards[1]
-	if predecessor.Title != "first" || predecessor.Category != "Coding" ||
-		predecessor.Start != "10:00 AM" || predecessor.End != "10:15 AM" {
-		t.Fatalf("predecessor = %s – %s %s %q, want the untouched Coding 'first'",
-			predecessor.Start, predecessor.End, predecessor.Category, predecessor.Title)
-	}
-	if clamped.Title != "merged" || clamped.Category != "Communication" ||
-		clamped.Start != "10:15 AM" || clamped.End != "10:30 AM" {
-		t.Fatalf("clamped card = %s – %s %s %q, want 10:15 AM – 10:30 AM Communication merged",
-			clamped.Start, clamped.End, clamped.Category, clamped.Title)
+	merged := cards[0]
+	if merged.Category != "Communication" || merged.Start != "10:00 AM" || merged.End != "10:30 AM" {
+		t.Fatalf("merged = %s – %s %s, want the Communication 10:00 – 10:30 rewrite",
+			merged.Start, merged.End, merged.Category)
 	}
 	var meta struct {
 		ActivityPoints []cardActivityPoint `json:"activityPoints"`
 	}
-	if err := json.Unmarshal([]byte(clamped.Metadata), &meta); err != nil {
-		t.Fatalf("decode clamped card metadata: %v", err)
+	if err := json.Unmarshal([]byte(merged.Metadata), &meta); err != nil {
+		t.Fatalf("decode merged card metadata: %v", err)
 	}
-	if len(meta.ActivityPoints) != 1 || meta.ActivityPoints[0].Time != "10:20 AM" {
-		t.Fatalf("activityPoints = %+v, want only the in-window 10:20 AM point", meta.ActivityPoints)
+	// The rewrite carries the predecessor's in-span point too.
+	if len(meta.ActivityPoints) != 2 || meta.ActivityPoints[0].Time != "10:00 AM" {
+		t.Fatalf("activityPoints = %+v, want both merged points", meta.ActivityPoints)
 	}
 }
 

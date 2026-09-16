@@ -63,7 +63,7 @@ func (s *Service) Probe(ctx context.Context, frames []storage.AnalysisFrame) (Pr
 	if err != nil {
 		return ProbeResult{}, &ProbeError{Stage: "load categories", Err: err}
 	}
-	cards, err := s.generateCards(ctx, chain, storage.Batch{Start: start, End: end}, existing, observations, categories)
+	cards, _, err := s.generateCards(ctx, chain, storage.Batch{Start: start, End: end}, existing, observations, categories, false)
 	if err != nil {
 		return ProbeResult{Observations: observations}, &ProbeError{Stage: "card generation", Err: err}
 	}

@@ -4,6 +4,9 @@ export type AppSiteIconKind =
   | 'chatgpt'
   | 'chrome'
   | 'claude'
+  | 'ghostty'
+  | 'gemini'
+  | 'iterm2'
   | 'cursor'
   | 'daygo'
   | 'discord'
@@ -37,6 +40,9 @@ interface BrandRule {
 const brandRules: readonly BrandRule[] = [
   { kind: 'daygo', matches: ['daygo'] },
   { kind: 'claude', matches: ['claude', 'anthropic'] },
+  { kind: 'gemini', matches: ['gemini'] },
+  { kind: 'ghostty', matches: ['ghostty'] },
+  { kind: 'iterm2', matches: ['iterm2', 'iterm'] },
   { kind: 'cursor', matches: ['cursor'] },
   { kind: 'warp', matches: ['warp'] },
   { kind: 'vscode', matches: ['visual studio code', 'vscode', 'code.visualstudio'] },

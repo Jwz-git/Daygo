@@ -19,9 +19,13 @@ const gridStyle = computed(() => ({
   minWidth: `${Math.max(680, props.presentation.slotCount * 20)}px`,
 }))
 
+// Dayflow baseline: 18px cell + 2px gap. Cells, axis and the distraction
+// track all share this exact width so hour ticks land on cell boundaries.
+const gridWidth = computed(() => props.presentation.slotCount * 20 - 2)
+
 const cellGridStyle = computed(() => ({
-  // Fixed square cells with the Dayflow baseline: 18px cell, 2px gap.
   gridTemplateColumns: `repeat(${props.presentation.slotCount}, 18px)`,
+  width: `${gridWidth.value}px`,
 }))
 
 function cellStyle(cell: DailyWorkflowCell, color: string) {
@@ -50,18 +54,61 @@ const distractionMarkers = computed(() => {
  * Hover tooltip (GitHub-contributions style): the slot's minutes in the row's
  * colour plus the card title covering it. One open tooltip at a time.
  */
-const hoveredCell = ref<{ rowId: string; index: number } | null>(null)
+interface TooltipState {
+  rowId: string
+  index: number
+  color: string
+  minutes: string
+  title: string
+  x: number
+  y: number
+}
 
-function tooltipOf(row: DailyWorkflowRow, index: number): { minutes: string; title: string } | null {
-  const state = hoveredCell.value
-  if (state === null || state.rowId !== row.id || state.index !== index) return null
+/*
+ * Dayflow's anti-flicker hover: leaving a cell schedules the hide 80ms out,
+ * so gliding across adjacent cells keeps one bubble that slides from cell to
+ * cell instead of blinking off and on.
+ */
+const tooltipData = ref<TooltipState | null>(null)
+const tooltipVisible = ref(false)
+let hideTimer: number | null = null
+
+function onCellEnter(
+  event: MouseEvent,
+  row: DailyWorkflowRow,
+  index: number,
+): void {
   const cell = row.cells[index]
-  if (cell === undefined) return null
-  return {
+  if (hideTimer !== null) {
+    window.clearTimeout(hideTimer)
+    hideTimer = null
+  }
+  // Empty cells carry no bubble (Dayflow only annotates recorded time).
+  if (cell === undefined || cell.occupancy <= 0) {
+    tooltipVisible.value = false
+    return
+  }
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  tooltipData.value = {
+    rowId: row.id,
+    index,
+    color: row.colorHex,
     minutes: duration(Math.round(cell.occupancy * (SLOT_SECONDS / 60))),
     title: cell.title ?? categoryLabel(row.name, t),
+    x: rect.left + rect.width / 2,
+    y: rect.top,
   }
+  tooltipVisible.value = true
 }
+
+function onCellLeave(): void {
+  if (hideTimer !== null) window.clearTimeout(hideTimer)
+  hideTimer = window.setTimeout(() => {
+    tooltipVisible.value = false
+    hideTimer = null
+  }, 80)
+}
+
 
 function formatTime(timestamp: number): string {
   return new Intl.DateTimeFormat(locale.value, {
@@ -91,7 +138,7 @@ const duration = useDurationFormat()
       <div v-else class="workflow-scroll">
         <div class="workflow-grid" :style="gridStyle">
           <div class="workflow-axis-label" aria-hidden="true"></div>
-          <div class="workflow-axis" aria-hidden="true">
+          <div class="workflow-axis" aria-hidden="true" :style="{ width: `${gridWidth}px` }">
             <span
               v-for="(tick, index) in presentation.ticks"
               :key="tick.timestamp"
@@ -117,18 +164,9 @@ const duration = useDurationFormat()
                 class="workflow-cell"
                 :class="{ 'is-occupied': cell.occupancy > 0, 'has-distraction': cell.hasDistraction }"
                 :style="cellStyle(cell, row.colorHex)"
-                @mouseenter="hoveredCell = { rowId: row.id, index }"
-                @mouseleave="hoveredCell = null"
-              >
-                <span
-                  v-if="tooltipOf(row, index) !== null"
-                  class="workflow-tip"
-                  role="status"
-                >
-                  <strong :style="{ color: row.colorHex }">{{ tooltipOf(row, index)!.minutes }}</strong>
-                  <span>{{ tooltipOf(row, index)!.title }}</span>
-                </span>
-              </span>
+                @mouseenter="onCellEnter($event, row, index)"
+                @mouseleave="onCellLeave"
+              ></span>
             </div>
           </template>
 
@@ -137,7 +175,7 @@ const duration = useDurationFormat()
               <span>{{ t('daily.workflow.distractions') }}</span>
             </div>
             <div class="workflow-distraction-cell">
-              <div class="workflow-distraction-track">
+              <div class="workflow-distraction-track" :style="{ width: `${gridWidth}px` }">
                 <span
                   v-for="marker in distractionMarkers"
                   :key="marker.key"
@@ -163,6 +201,24 @@ const duration = useDurationFormat()
       </div>
     </div>
   </section>
+
+  <!-- Fixed-position tooltip: escapes every scroll container so nothing
+       clips it. Stays mounted through the fade so gliding between adjacent
+       cells reads as one bubble moving, not a blink. -->
+  <Teleport to="body">
+    <div
+      v-if="tooltipData !== null"
+      class="workflow-tip"
+      :class="{ 'is-visible': tooltipVisible }"
+      role="status"
+      :style="tooltipData === null ? {} : { left: `${tooltipData.x}px`, top: `${tooltipData.y}px` }"
+    >
+      <template v-if="tooltipData !== null">
+        <strong :style="{ color: tooltipData.color }">{{ tooltipData.minutes }}</strong>
+        <span>{{ tooltipData.title }}</span>
+      </template>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -292,10 +348,8 @@ const duration = useDurationFormat()
 
 /* Hover tooltip floating above the cell (GitHub style). */
 .workflow-tip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  z-index: 20;
+  position: fixed;
+  z-index: 40;
   display: grid;
   gap: 4px;
   width: 200px;
@@ -305,9 +359,16 @@ const duration = useDurationFormat()
   background: var(--dg-popover-fill, var(--dg-surface));
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.12);
   text-align: left;
-  transform: translateX(-50%);
+  transform: translate(-50%, calc(-100% - 6px));
+  opacity: 0;
+  transition:
+    left 130ms var(--dg-ease-glide),
+    top 130ms var(--dg-ease-glide),
+    opacity 150ms ease;
   pointer-events: none;
 }
+
+.workflow-tip.is-visible { opacity: 1; }
 
 .workflow-tip strong {
   font-size: 12px;
