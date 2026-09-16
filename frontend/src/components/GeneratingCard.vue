@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 /*
  * Placeholder card at the current time. Capturing shows the nine-cell wave
- * and the generating label; paused shows a hold icon and asks for resume —
+ * and the recording label; paused shows a hold icon and asks for resume —
  * Dayflow-style. Geometry matches the activity cards: square corners, hairline
  * border, card fill.
  */
@@ -27,7 +27,7 @@ const paused = computed(() => props.state === 'paused')
         :style="{ animationDelay: `${cell * 0.11}s` }"
       ></i>
     </span>
-    <span>{{ paused ? t('timeline.pausedHere') : t('timeline.generating') }}</span>
+    <span>{{ paused ? t('timeline.pausedHere') : t('timeline.recordingNow') }}</span>
   </div>
 </template>
 

@@ -371,10 +371,7 @@ watch(
   </section>
 
   <section class="inspector__section inspector__section--frames">
-    <div>
-      <h3>{{ t('timeline.inspector.media') }}</h3>
-      <p v-if="mediaFrames.length === 0 && videoURLs.length === 0">{{ t('timeline.inspector.framesUnavailable') }}</p>
-    </div>
+    <p v-if="mediaFrames.length === 0 && videoURLs.length === 0">{{ t('timeline.inspector.framesUnavailable') }}</p>
     <template v-if="videoURLs.length > 0">
       <video
         v-for="url in videoURLs"

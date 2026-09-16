@@ -55,6 +55,7 @@ export default {
     ariaLabel: 'Activity timeline arranged by hour',
   },
   generating: 'Generating the next card',
+  recordingNow: 'Recording now',
   pausedHere: 'Daygo is paused. Press Resume to generate new activity cards.',
   manage2: {
     open: 'Edit categories',
@@ -181,7 +182,6 @@ export default {
     apps: 'Apps and sites',
     activityPoints: 'Activity points',
     distractions: 'Distractions',
-    media: 'Activity playback',
     mediaLabel: 'Activity playback {count}',
     framesUnavailable: 'Media will load on demand once its binding ships, without blocking the timeline.',
     actionsUnavailable: 'Editing, category changes and deletion will unlock with the card write bindings',

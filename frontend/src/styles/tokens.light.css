@@ -34,6 +34,11 @@
   --dg-panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   --dg-panel-radius: 10px;
 
+  /* The opaque raised surface content sits on: a chart's centre disc, a modal
+     panel, the halo that punches a swatch out of its background. Opaque on
+     purpose — it must not sample the glass underneath it. */
+  --dg-surface: #ffffff;
+
   /*
    * Liquid-glass surfaces (.dg-panel, the rail selection, popovers). The tint,
    * fallback, shadow and sheen are colour and differ per appearance; blur and

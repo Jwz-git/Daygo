@@ -80,7 +80,9 @@ const nowTs = ref(Math.floor(Date.now() / 1000))
 let nowTimer: number | null = null
 
 const generatingMark = computed(() => {
-  if (!props.generating) return null
+  // 'off' is the idle lifecycle, not an empty value: testing truthiness here
+  // let the marker render on a week whose recording is off entirely.
+  if (props.generating === 'off') return null
   const index = props.dayKeys.indexOf(todayKey.value)
   const column = props.columns[index]
   if (index === -1 || column === undefined || !column.hasData) return null

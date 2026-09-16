@@ -53,6 +53,7 @@ export default {
     ariaLabel: '按小时排列的活动时间线',
   },
   generating: '正在生成下一张卡片',
+  recordingNow: '正在记录',
   pausedHere: 'Daygo 已暂停。点按"继续"以生成新的活动卡片。',
   manage2: {
     open: '编辑分类',
@@ -179,7 +180,6 @@ export default {
     apps: '应用与站点',
     activityPoints: '时间点',
     distractions: '分心片段',
-    media: '活动回放',
     mediaLabel: '活动回放 {count}',
     framesUnavailable: '媒体读取绑定交付后按需加载，不阻塞时间线。',
     actionsUnavailable: '编辑、分类修改与删除将在卡片写入绑定交付后启用',

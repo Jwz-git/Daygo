@@ -34,6 +34,9 @@
   --dg-panel-fill: rgba(26, 26, 29, 0.94);
   --dg-panel-border: rgba(255, 255, 255, 0.08);
   --dg-panel-shadow: 0 1px 4px rgba(0, 0, 0, 0.32);
+  /* Same role as in the light palette: the raised surface behind content,
+     kept a step above the glass panels so it still reads as lifted. */
+  --dg-surface: #232329;
 
   /*
    * Liquid-glass surfaces (.dg-panel, the rail selection, popovers). Colour
