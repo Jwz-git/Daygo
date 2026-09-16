@@ -33,6 +33,20 @@ const frameIndex = ref(0)
 const expanded = ref(false)
 const hovered = ref(false)
 
+const started = ref(false)
+
+/* Cover: the middle frame — more representative than the opening shot —
+   stays on stage until the user presses play for the first time. */
+const coverFrame = computed(() => {
+  const frames = props.frames
+  if (frames.length === 0) return null
+  return frames[Math.floor(frames.length / 2)] ?? null
+})
+
+const displayFrame = computed(() =>
+  started.value ? currentFrame.value : coverFrame.value ?? currentFrame.value,
+)
+
 const rate = computed(() => RATES[rateIndex.value])
 const span = computed(() => {
   if (props.frames.length < 2) return 0
@@ -84,6 +98,9 @@ function seekTo(fraction: number): void {
 function startScrub(event: PointerEvent): void {
   const bar = event.currentTarget as HTMLElement | null
   if (bar === null || span.value <= 0) return
+  // Seeking is an interaction too: leave the cover state so the scrub is
+  // visible on stage.
+  started.value = true
   bar.setPointerCapture(event.pointerId)
   const seekFrom = (clientX: number): void => {
     const rect = bar.getBoundingClientRect()
@@ -124,6 +141,7 @@ function tick(now: number): void {
 
 function togglePlay(): void {
   if (props.frames.length === 0) return
+  started.value = true
   playing.value = !playing.value
   if (playing.value) {
     if (virtualTs >= clockStart.value + span.value) virtualTs = clockStart.value
@@ -142,6 +160,7 @@ watch(playing, (value) => {
 // A new card means a fresh clock.
 watch(() => props.frames, () => {
   playing.value = false
+  started.value = false
   virtualTs = clockStart.value
   setProgress(0)
 })
@@ -154,7 +173,7 @@ const clockLabel = (ts: number): string =>
   new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit' }).format(new Date(ts * 1000))
 
 const currentClock = computed(() =>
-  currentFrame.value === null ? '' : clockLabel(currentFrame.value.capturedAt),
+  displayFrame.value === null ? '' : clockLabel(displayFrame.value.capturedAt),
 )
 
 /* Warm the next few frames so stepping stays instant. */
@@ -199,7 +218,7 @@ onBeforeUnmount(() => {
     <template v-if="frames.length > 0">
       <img
         class="player__frame"
-        :src="frameSrc(currentFrame!.id)"
+        :src="frameSrc(displayFrame!.id)"
         :alt="title"
         draggable="false"
         @click="togglePlay"
@@ -253,7 +272,7 @@ onBeforeUnmount(() => {
         </header>
 
         <div class="lightbox__stage" @click="togglePlay">
-          <img class="lightbox__frame" :src="frameSrc(currentFrame!.id)" :alt="title" draggable="false">
+          <img class="lightbox__frame" :src="frameSrc(displayFrame!.id)" :alt="title" draggable="false">
           <button
             v-if="!playing"
             type="button"
