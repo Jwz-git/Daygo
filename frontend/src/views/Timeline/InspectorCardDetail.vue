@@ -52,7 +52,6 @@ const draft = ref('')
 
 /* A busy card's activity points run to dozens of rows; unfolded they would push
    the media and action rows off the pane, so the list starts folded. */
-const activityPointsOpen = ref(false)
 
 const titleInput = ref<HTMLInputElement | null>(null)
 const summaryInput = ref<HTMLTextAreaElement | null>(null)
@@ -166,7 +165,6 @@ watch(
     editingField.value = null
     confirmingDelete.value = false
     draft.value = ''
-    activityPointsOpen.value = false
   },
   { immediate: true },
 )
@@ -328,32 +326,6 @@ watch(
       <li v-for="site in displayedAppSites" :key="site.toLocaleLowerCase('en-US')">
         <AppSiteIcon :site="site" :accent="selectedColor" :size="20" />
         <span>{{ site }}</span>
-      </li>
-    </ul>
-  </section>
-
-  <section v-if="props.card.activityPoints.length > 0" class="inspector__section">
-    <h3 class="section-heading">
-      <button
-        type="button"
-        class="section-toggle"
-        :aria-expanded="activityPointsOpen"
-        @click="activityPointsOpen = !activityPointsOpen"
-      >
-        <svg
-          class="section-toggle__chevron"
-          :class="{ 'is-open': activityPointsOpen }"
-          viewBox="0 0 16 16"
-          aria-hidden="true"
-        ><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>{{ t('timeline.inspector.activityPoints') }}</span>
-        <span class="section-toggle__count">{{ props.card.activityPoints.length }}</span>
-      </button>
-    </h3>
-    <ul v-if="activityPointsOpen" class="activity-points">
-      <li v-for="(point, index) in props.card.activityPoints" :key="index">
-        <span class="activity-points__time">{{ point.time }}</span>
-        <span>{{ point.description }}</span>
       </li>
     </ul>
   </section>
@@ -553,20 +525,6 @@ watch(
   white-space: nowrap;
 }
 
-.activity-points { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.activity-points li {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-}
-.activity-points__time {
-  flex: none;
-  min-width: 52px;
-  color: var(--dg-text-muted);
-  font-variant-numeric: tabular-nums;
-}
 
 .distraction { display: grid; gap: 2px; padding: 8px 0; }
 .distraction span { color: var(--dg-text-muted); font-size: 9px; }
