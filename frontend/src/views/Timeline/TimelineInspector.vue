@@ -5,6 +5,7 @@ import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import type { DayGoalDTO, TimelineCardDTO, TimelineDayDTO, TimelineFailureDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import type { TimelineAction } from '@/stores/timeline'
+import type { ReviewTotals } from './review'
 
 import InspectorCardDetail from './InspectorCardDetail.vue'
 import InspectorDayOverview from './InspectorDayOverview.vue'
@@ -29,6 +30,7 @@ const props = defineProps<{
   goalUnavailable: boolean
   goalFailed: boolean
   goalSaving: boolean
+  reviewTotals: ReviewTotals
 }>()
 
 const emit = defineEmits<{
@@ -56,6 +58,7 @@ const { t } = useI18n()
       :goal-unavailable="props.goalUnavailable"
       :goal-failed="props.goalFailed"
       :goal-saving="props.goalSaving"
+      :review-totals="props.reviewTotals"
       @retry="(batchIDs) => emit('retry', batchIDs)"
       @save-goal="(goal) => emit('saveGoal', goal)"
       @reprocess="emit('reprocess')"

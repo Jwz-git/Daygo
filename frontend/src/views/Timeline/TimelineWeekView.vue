@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { WeekColumn } from './weekLayout'
-import { weekCardClampLines } from './weekLayout'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
 
@@ -35,41 +34,24 @@ const emit = defineEmits<{
 const { locale } = useI18n()
 
 /*
- * Hover stretches a card downward over its neighbours so a bit more of the
- * title is readable. Deliberately no transform: scaling is what made the
- * previous expand jitter — height and shadow alone animate smoothly while
- * text reflows once at the end. The motion is intentionally subtle: a small
- * reveal, not a takeover.
+ * Hover stretches a card downward over its neighbours to reveal the whole
+ * title. Deliberately no transform: scaling is what made the previous expand
+ * jitter — height and shadow alone animate smoothly.
  */
 const expandedId = ref<number | null>(null)
 const expandedHeight = ref(0)
-const EXPANDED_HEIGHT_CAP = 80
-
-/* The expanded box keeps its own clamp derived from its height, so the
-   cap ellipsizes the tail instead of cutting a line in half. */
-const expandedClamp = computed(() => weekCardClampLines(expandedHeight.value))
 
 function onCardEnter(event: MouseEvent, card: { id: number; height: number }): void {
   const el = event.currentTarget as HTMLElement | null
   if (el === null) return
   expandedId.value = card.id
   // scrollHeight cannot see past -webkit-line-clamp: the clamped-away lines
-  // never take part in layout, so measuring the still-clamped node returns
-  // the truncated height and the "expansion" would clip the text it reveals.
-  // Release the clamp on the live node first, then restore the final value
-  // by hand: when it equals the previous binding value Vue skips its style
-  // patch and would otherwise leave the manual 'none' in the DOM forever.
-  // The cap bounds only the reveal — a card already taller than it keeps its
-  // natural height instead of shrinking on hover.
+  // never take part in layout. Release the clamp synchronously (style applies
+  // immediately) so the measurement covers every line; the reactive binding
+  // keeps it at 'none' for as long as the card stays expanded.
   const text = el.querySelector<HTMLElement>('.week__card-text')
-  if (text !== null) {
-    text.style.setProperty('-webkit-line-clamp', 'none')
-    const target = Math.max(card.height, Math.min(EXPANDED_HEIGHT_CAP, el.scrollHeight + 2))
-    expandedHeight.value = target
-    text.style.setProperty('-webkit-line-clamp', String(expandedClamp.value))
-  } else {
-    expandedHeight.value = Math.max(card.height, Math.min(EXPANDED_HEIGHT_CAP, el.scrollHeight + 2))
-  }
+  if (text !== null) text.style.setProperty('-webkit-line-clamp', 'none')
+  expandedHeight.value = Math.max(card.height, el.scrollHeight + 8)
 }
 
 function onCardLeave(id: number): void {
@@ -210,7 +192,7 @@ onBeforeUnmount(() => {
             />
             <span
               class="week__card-text"
-              :style="{ '-webkit-line-clamp': expandedId === card.id ? expandedClamp : card.clampLines }"
+              :style="{ '-webkit-line-clamp': expandedId === card.id ? 'none' : card.clampLines }"
             >{{ card.title }}</span>
           </span>
         </button>      </div>
@@ -329,7 +311,12 @@ onBeforeUnmount(() => {
   position: absolute;
   right: 2px;
   left: 2px;
-  display: block;
+  /* Flex column kills the <button>'s built-in vertical centering: content
+     hangs from the card top. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   overflow: hidden;
   min-height: 34px;
   padding: 8px 10px;

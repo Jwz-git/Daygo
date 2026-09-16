@@ -33,7 +33,10 @@ const props = defineProps<{ title: string; hideTitle?: boolean }>()
  */
 .page-header {
   position: relative;
-  z-index: 3;
+  /* Above all page content layers (track marks z:7, floating buttons z:10):
+     the calendar popover lives inside this context and must never be
+     covered by the timeline underneath it. */
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -4,31 +4,33 @@ import { useI18n } from 'vue-i18n'
 
 import type { CardMediaFrameDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import { getCardMedia } from '@/api/media'
-import { updateCardCategory } from '@/api/timeline'
-import { categoryKey, categoryLabel } from '@/lib/categoryLabel'
+import { clearCardReview, saveCardReview } from '@/api/review'
+import { categoryLabel } from '@/lib/categoryLabel'
 import { useDurationFormat } from '@/lib/duration'
 
 import CardVideoPlayer from '@/components/CardVideoPlayer.vue'
 import { formatClockTime } from '@/lib/timeFormat'
 import { safeCategoryColor } from './layout'
+import { type ReviewTotals } from './review'
 
 /*
  * Sequential card review (审阅卡片): step through the day's activity cards and
- * judge each one's focus level. 分心/专注 persist through the existing
- * UpdateCardCategory binding (LLM categories remain the default; a judgment
- * only reclassifies when the user explicitly makes one). 中性 records the
- * judgment without touching the LLM category. 撤销 pops the last judgment and
- * restores the previous category.
+ * judge each one's focus level. Verdicts are statistics-only — they never
+ * rewrite the card's category; the session totals feed the review panel and
+ * the completion bar, and 撤销 unwinds the totals.
  */
 const props = defineProps<{
   day: TimelineDayDTO
   cards: TimelineCardDTO[]
   timeZone: string
+  /** Persisted verdict totals for the day, loaded by the parent. */
+  initialTotals: ReviewTotals
 }>()
 
 const emit = defineEmits<{
   close: []
   judged: [cardID: number, removed: boolean]
+  totals: [totals: ReviewTotals]
 }>()
 
 const { t, locale } = useI18n()
@@ -40,12 +42,12 @@ const queue = ref<TimelineCardDTO[]>([...props.cards])
 
 const index = ref(0)
 const saving = ref(false)
-const saveFailed = ref(false)
 /** Stack of judgments for 撤销, carrying the kind so the totals unwind. */
-const history = ref<Array<{ card: TimelineCardDTO; previousCategory: string; kind: 'distraction' | 'neutral' | 'focus' }>>([])
-const focusMinutes = ref(0)
-const neutralMinutes = ref(0)
-const distractionMinutes = ref(0)
+const history = ref<Array<{ card: TimelineCardDTO; kind: 'distraction' | 'neutral' | 'focus' }>>([])
+const saveFailed = ref(false)
+const focusMinutes = ref(props.initialTotals.focusMinutes)
+const neutralMinutes = ref(props.initialTotals.neutralMinutes)
+const distractionMinutes = ref(props.initialTotals.distractionMinutes)
 const duration = useDurationFormat()
 
 const current = computed(() => queue.value[index.value] ?? null)
@@ -56,17 +58,15 @@ const progressLabel = computed(() =>
 )
 
 /*
- * The completion bar is the judged time itself, split by verdict: red for
- * distraction, grey for neutral, teal for focus (all focus → all green).
+ * The verdict split (分心 / 中性 / 专注) — the same presentation the
+ * inspector's review panel renders. All three blocks always draw: a
+ * zero-minute verdict keeps a small stub instead of vanishing.
  */
-const doneSegments = computed(() => {
-  const parts = [
-    { kind: 'distraction', minutes: distractionMinutes.value, color: '#ef8a7a' },
-    { kind: 'neutral', minutes: neutralMinutes.value, color: '#c9c6d2' },
-    { kind: 'focus', minutes: focusMinutes.value, color: '#35c3a2' },
-  ].filter((segment) => segment.minutes > 0)
-  return parts
-})
+const verdictSegments = computed(() => [
+  { label: t('timeline.review.distraction'), minutes: distractionMinutes.value, color: '#ef8a7a' },
+  { label: t('timeline.review.neutral'), minutes: neutralMinutes.value, color: '#e7e4ec' },
+  { label: t('timeline.review.focus'), minutes: focusMinutes.value, color: '#35c3a2' },
+])
 
 const timeRange = computed(() => {
   if (current.value === null) return ''
@@ -96,50 +96,27 @@ watch(current, async (card) => {
   }
 }, { immediate: true })
 
-async function applyCategory(card: TimelineCardDTO, category: string): Promise<boolean> {
-  try {
-    await updateCardCategory(card.id, category)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /*
- * Judge targets resolve against the day's real category names (seeded as
- * "Focus Work" / "Distraction" — case matters to the backend's unknown-name
- * check). A judgment is only offered when that category exists.
+ * Every verdict is statistics-only: judgments never rewrite the card's
+ * category — the timeline keeps the LLM's classification, and the session
+ * totals feed the review panel and the completion bar.
  */
-const distractionCategory = computed(() =>
-  props.day.categories.find((category) => categoryKey(category.name) === 'distraction')?.name ?? null,
-)
-const focusCategory = computed(() =>
-  props.day.categories.find((category) => categoryKey(category.name) === 'focus work')?.name ?? null,
-)
-
 async function judge(kind: 'distraction' | 'neutral' | 'focus'): Promise<void> {
   const card = current.value
   if (card === null || saving.value) return
-  const target = kind === 'focus' ? focusCategory.value
-    : kind === 'distraction' ? distractionCategory.value
-    : null
-  if (kind !== 'neutral' && target === null) {
-    saveFailed.value = true
-    return
-  }
   saving.value = true
-  saveFailed.value = false
-
-  const succeeded = target === null || (await applyCategory(card, target))
-  if (!succeeded) {
+  try {
+    await saveCardReview(card.id, kind)
+  } catch {
     saveFailed.value = true
     saving.value = false
     return
   }
-  history.value.push({ card, previousCategory: card.category, kind })
+  history.value.push({ card, kind })
   if (kind === 'focus') focusMinutes.value += card.durationMinutes
   if (kind === 'neutral') neutralMinutes.value += card.durationMinutes
   if (kind === 'distraction') distractionMinutes.value += card.durationMinutes
+  emit('totals', totalsSnapshot())
   emit('judged', card.id, false)
   index.value += 1
   saving.value = false
@@ -149,28 +126,39 @@ async function undo(): Promise<void> {
   const last = history.value.pop()
   if (last === undefined || saving.value) return
   saving.value = true
-  saveFailed.value = false
-  const succeeded = await applyCategory(last.card, last.previousCategory)
-  if (!succeeded) {
+  try {
+    await clearCardReview(last.card.id)
+  } catch {
     history.value.push(last)
     saveFailed.value = true
     saving.value = false
     return
   }
-  emit('judged', last.card.id, true)
   if (last.kind === 'focus') focusMinutes.value = Math.max(0, focusMinutes.value - last.card.durationMinutes)
   if (last.kind === 'neutral') neutralMinutes.value = Math.max(0, neutralMinutes.value - last.card.durationMinutes)
   if (last.kind === 'distraction') distractionMinutes.value = Math.max(0, distractionMinutes.value - last.card.durationMinutes)
+  emit('totals', totalsSnapshot())
+  emit('judged', last.card.id, true)
   index.value = Math.max(0, index.value - 1)
   saving.value = false
+}
+
+/** Snapshot of the session totals for the inspector's review panel. */
+function totalsSnapshot(): ReviewTotals {
+  return {
+    distractionMinutes: distractionMinutes.value,
+    neutralMinutes: neutralMinutes.value,
+    focusMinutes: focusMinutes.value,
+  }
 }
 </script>
 
 <template>
   <div class="review" role="dialog" :aria-label="t('timeline.review.title')">
-    <div class="review__panel">
-      <button type="button" class="review__close" :aria-label="t('timeline.inspector.close')" @click="emit('close')">×</button>
+    <!-- Window-level close, clear of the card so nothing overlaps it. -->
+    <button type="button" class="review__close" :aria-label="t('timeline.inspector.close')" @click="emit('close')">×</button>
 
+    <div class="review__panel">
       <template v-if="current !== null">
         <div class="review__stage">
           <CardVideoPlayer
@@ -182,7 +170,7 @@ async function undo(): Promise<void> {
         </div>
 
         <div class="review__body">
-          <h2 class="review__title dg-reading">{{ current.title }}</h2>
+          <h2 class="review__title">{{ current.title }}</h2>
           <div class="review__meta">
             <span class="review__category" :style="{ borderColor: color, color }">
               <i :style="{ background: color }"></i>{{ categoryLabel(current.category, t) }}
@@ -199,15 +187,19 @@ async function undo(): Promise<void> {
       <p class="review__done-body">{{ t('timeline.review.doneBody') }}</p>
       <div class="review__done-bar" aria-hidden="true">
         <span
-          v-for="segment in doneSegments"
-          :key="segment.kind"
-          :style="{ flexGrow: segment.minutes, background: segment.color }"
+          v-for="segment in verdictSegments.filter((entry) => entry.minutes > 0)"
+          :key="segment.label"
+          :style="{ flexGrow: segment.minutes, '--seg': segment.color }"
         ></span>
       </div>
-      <p class="review__done-focus">
-        <span>✦ {{ t('timeline.review.focus') }}</span>
-        <strong>{{ duration(focusMinutes) }}</strong>
-      </p>
+      <div class="review__done-legend">
+        <div v-for="segment in verdictSegments" :key="segment.label" class="review__done-stat">
+          <span class="review__done-stat-label">
+            <i :style="{ background: segment.color }"></i>{{ segment.label }}
+          </span>
+          <strong>{{ duration(segment.minutes) }}</strong>
+        </div>
+      </div>
       <button type="button" class="dg-button review__done-close" @click="emit('close')">
         {{ t('common.action.close') }}
       </button>
@@ -246,13 +238,36 @@ async function undo(): Promise<void> {
 
 <style scoped>
 .review {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 18px;
-  width: min(680px, calc(100vw - 64px));
+  width: min(430px, calc(100vw - 64px));
   max-height: calc(100vh - 96px);
+  padding-top: 40px;
 }
+
+/* Solid close on the window corner — no see-through circle on the scrim. */
+.review__close {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 30;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--dg-accent);
+  color: #ffffff;
+  font-size: 17px;
+  box-shadow: var(--dg-shadow-sm);
+  cursor: pointer;
+}
+
+.review__close:hover { background: var(--dg-accent-strong); }
 
 /* The white card; hint and judge buttons live on the scrim below it. */
 .review__panel {
@@ -261,7 +276,7 @@ async function undo(): Promise<void> {
   flex-direction: column;
   width: 100%;
   overflow-y: auto;
-  padding: 18px 22px 14px;
+  padding: 10px 12px 12px;
   border-radius: 14px;
   background: var(--dg-popover-fill, var(--dg-surface));
   box-shadow: var(--lg-shadow-dense, var(--dg-shadow-lg));
@@ -292,8 +307,8 @@ async function undo(): Promise<void> {
 .review__title {
   margin: 0 0 12px;
   color: var(--dg-text-primary);
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 26px;
+  font-weight: 700;
   line-height: 1.4;
 }
 
@@ -375,36 +390,66 @@ async function undo(): Promise<void> {
   max-width: 46ch;
 }
 
+/* Segmented verdict bar: separate rounded blocks with a gap, widths
+   proportional to judged minutes. */
 .review__done-bar {
-  width: min(560px, 100%);
-  height: 42px;
-  margin: 18px 0 4px;
-  border-radius: 8px;
-  background: linear-gradient(100deg, #35c3a2, #4fd8b8);
-}
-
-.review__done-focus {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 10px 0 0;
+  gap: 8px;
+  width: min(560px, 100%);
+  height: 44px;
+  margin: 18px 0 0;
 }
 
-.review__done-focus span { color: var(--dg-text-secondary); font-size: 12px; }
-.review__done-focus strong { color: var(--dg-text-primary); font-size: 16px; font-weight: 650; }
+.review__done-bar span {
+  flex-basis: 56px;
+  border-radius: 12px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--seg) 72%, #ffffff),
+    var(--seg) 55%,
+    color-mix(in srgb, var(--seg) 86%, #000000)
+  );
+  box-shadow: 0 6px 14px rgba(45, 50, 80, 0.16);
+}
+
+.review__done-legend {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  margin-top: 12px;
+}
+
+.review__done-stat {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+
+.review__done-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+}
+
+.review__done-stat-label i {
+  width: 16px;
+  height: 10px;
+  border-radius: 4px;
+}
+
+.review__done-stat strong {
+  color: var(--dg-text-primary);
+  font-size: 14px;
+  font-weight: 650;
+}
 
 .review__done-close { margin-top: 16px; min-width: 96px; }
 
 .review__hint {
   margin: 0;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 12px;
-  text-align: center;
-}
-
-.review__error {
-  margin: 0;
-  color: #ffb3a8;
   font-size: 12px;
   text-align: center;
 }
@@ -426,7 +471,7 @@ async function undo(): Promise<void> {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: var(--dg-text-secondary);
+  color: rgba(255, 255, 255, 0.92);
   font-size: 12px;
   font-weight: 550;
   cursor: pointer;
@@ -438,18 +483,19 @@ async function undo(): Promise<void> {
 .review__judge:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .review__judge:disabled { opacity: 0.45; cursor: default; }
 
+/* All four judge icons share one opaque, high-contrast surface. */
 .review__judge-icon {
   display: grid;
   width: 34px;
   height: 34px;
   place-items: center;
   border-radius: 9px;
-  background: var(--dg-track-fill);
-  color: var(--dg-text-primary);
+  background: var(--dg-accent);
+  color: #ffffff;
   font-size: 13px;
 }
 
-.review__judge-icon--undo { color: var(--dg-accent-text); }
-.review__judge-icon--distraction { background: color-mix(in srgb, var(--dg-danger) 14%, transparent); color: var(--dg-danger); }
-.review__judge-icon--focus { background: color-mix(in srgb, var(--dg-success) 14%, transparent); color: var(--dg-success); }
+.review__judge-icon--undo,
+.review__judge-icon--distraction,
+.review__judge-icon--focus { background: var(--dg-accent); }
 </style>

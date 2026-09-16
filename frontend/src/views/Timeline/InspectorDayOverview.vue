@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CategoryDTO, DayGoalDTO, TimelineDayDTO } from '@/api/dto'
@@ -9,10 +9,14 @@ import { categoryLabel } from '@/lib/categoryLabel'
 import type { TimelineAction } from '@/stores/timeline'
 
 import GoalEditor from './GoalEditor.vue'
+import type { ReviewTotals } from './review'
 import { safeCategoryColor } from './layout'
 
-/* The inspector's no-selection pane: day totals, per-category time, the
-   day-goal form and the failed ranges that can be retried. */
+/*
+ * The inspector's no-selection pane, laid out like the Dayflow reference:
+ * a "today so far" donut with a category legend, the review-verdict split,
+ * then the day-goal form and the retryable failures.
+ */
 const props = defineProps<{
   day: TimelineDayDTO
   canWrite: boolean
@@ -22,6 +26,7 @@ const props = defineProps<{
   goalUnavailable: boolean
   goalFailed: boolean
   goalSaving: boolean
+  reviewTotals: ReviewTotals
 }>()
 
 const emit = defineEmits<{
@@ -30,7 +35,7 @@ const emit = defineEmits<{
   reprocess: []
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const duration = useDurationFormat()
 
 // The retryable flag describes automatic requeue behavior only — the backend
@@ -42,13 +47,6 @@ const failuresWithBatches = computed(() =>
 )
 
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
-
-const confirmingReprocess = ref(false)
-
-function confirmReprocess(): void {
-  emit('reprocess')
-  confirmingReprocess.value = false
-}
 
 interface CategoryTotal {
   category: CategoryDTO
@@ -74,30 +72,81 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
 })
 
 /*
- * Ring chart of the same totals (今天到目前为止). Segments are stroke-dash
- * arcs on one circle; a small gap keeps neighbouring categories readable.
+ * Ring chart of the analyzed day: one slice per category plus the idle cards
+ * in grey. The center total is tracked + idle — the time the pipeline has
+ * actually accounted for; unanalyzed wall-clock is intentionally absent
+ * (Dayflow-style) rather than drawn as a giant placeholder wedge.
  */
-const DONUT_RADIUS = 52
+const DONUT_RADIUS = 62
 const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS
 
-const activeTotalMinutes = computed(() =>
-  categoryTotals.value.reduce((sum, item) => sum + item.minutes, 0),
-)
+const IDLE_COLOR = '#c9c6d2'
+
+const centerMinutes = computed(() => props.day.trackedMinutes + props.day.idleMinutes)
+
+/* Hours on one line, minutes on the next; Chinese duration strings carry
+   wide full-width spaces, and the donut reads tighter without them. */
+const centerLines = computed(() => {
+  const total = Math.max(0, Math.round(centerMinutes.value))
+  const hours = Math.floor(total / 60)
+  const minutes = total % 60
+  const lines: string[] = []
+  if (hours > 0) lines.push(t('common.duration.hours', { count: hours }))
+  lines.push(t('common.duration.minutes', { count: minutes }))
+  const compact = (line: string): string =>
+    locale.value.startsWith('zh') ? line.replace(/\s+/g, '') : line
+  return lines.map(compact)
+})
+
+interface DonutSlice { label: string; minutes: number; color: string }
+
+const donutSlices = computed<DonutSlice[]>(() => {
+  const slices: DonutSlice[] = categoryTotals.value.map((item) => ({
+    label: categoryLabel(item.category.name, t),
+    minutes: item.minutes,
+    color: safeCategoryColor(item.category.colorHex),
+  }))
+  if (props.day.idleMinutes > 0) {
+    slices.push({ label: t('timeline.overview.idle'), minutes: props.day.idleMinutes, color: IDLE_COLOR })
+  }
+  return slices
+})
 
 const donutSegments = computed(() => {
+  const total = Math.max(1, donutSlices.value.reduce((sum, slice) => sum + slice.minutes, 0))
   let consumed = 0
-  return categoryTotals.value.map((item) => {
-    const fraction = item.percentage / 100
-    const arc = Math.max(0, fraction * DONUT_CIRCUMFERENCE - 2)
+  return donutSlices.value.map((slice, index) => {
+    const fraction = slice.minutes / total
+    const gap = donutSlices.value.length > 1 ? 6 : 0
+    const arc = Math.max(0, fraction * DONUT_CIRCUMFERENCE - gap)
     const segment = {
-      color: safeCategoryColor(item.category.colorHex),
+      color: slice.color,
+      gradientId: `donut-grad-${index}`,
       dashArray: `${arc} ${DONUT_CIRCUMFERENCE - arc}`,
-      offset: -consumed * DONUT_CIRCUMFERENCE,
+      offset: -consumed * DONUT_CIRCUMFERENCE - gap / 2,
     }
     consumed += fraction
     return segment
   })
 })
+
+/*
+ * The review split (你的回顾): session judgments only, one rounded block per
+ * verdict on a grey track, widths proportional to minutes. Zero-state shows
+ * a hint instead of an empty bar.
+ */
+const VERDICT_COLORS = {
+  distraction: '#ef8a7a',
+  neutral: '#e7e4ec',
+  focus: '#35c3a2',
+} as const
+
+const reviewSegments = computed(() => [
+  { label: t('timeline.review.distraction'), minutes: props.reviewTotals.distractionMinutes, color: VERDICT_COLORS.distraction },
+  { label: t('timeline.review.neutral'), minutes: props.reviewTotals.neutralMinutes, color: VERDICT_COLORS.neutral },
+  { label: t('timeline.review.focus'), minutes: props.reviewTotals.focusMinutes, color: VERDICT_COLORS.focus },
+])
+
 </script>
 
 <template>
@@ -109,16 +158,24 @@ const donutSegments = computed(() => {
   </header>
 
   <div class="donut" role="img" :aria-label="t('timeline.overview.donutAria')">
-    <svg viewBox="0 0 140 140" aria-hidden="true">
-      <circle class="donut__track" cx="70" cy="70" r="52" />
-      <g transform="rotate(-90 70 70)">
+    <svg viewBox="0 0 160 160" aria-hidden="true">
+      <defs>
+        <radialGradient id="donut-inner-shade">
+          <stop offset="0%" style="stop-color: var(--dg-surface, #ffffff)" />
+          <stop offset="80%" style="stop-color: var(--dg-surface, #ffffff)" />
+          <stop offset="97%" stop-color="rgba(30, 34, 60, 0.12)" />
+          <stop offset="100%" stop-color="rgba(30, 34, 60, 0.22)" />
+        </radialGradient>
+      </defs>
+      <circle class="donut__track" cx="80" cy="80" r="62" />
+      <g transform="rotate(-90 80 80)">
         <circle
           v-for="(segment, index) in donutSegments"
           :key="index"
           class="donut__segment"
-          cx="70"
-          cy="70"
-          r="52"
+          cx="80"
+          cy="80"
+          r="62"
           :stroke="segment.color"
           :stroke-dasharray="segment.dashArray"
           :stroke-dashoffset="segment.offset"
@@ -127,43 +184,40 @@ const donutSegments = computed(() => {
     </svg>
     <div class="donut__center">
       <span>{{ t('timeline.overview.total') }}</span>
-      <strong>{{ duration(activeTotalMinutes) }}</strong>
+      <strong v-for="line in centerLines" :key="line">{{ line }}</strong>
     </div>
   </div>
 
-  <div class="totals">
-    <div class="total total--primary">
-      <strong>{{ duration(props.day.trackedMinutes) }}</strong>
-      <span>{{ t('timeline.overview.tracked') }}</span>
-    </div>
-    <div class="total">
-      <strong>{{ duration(props.day.idleMinutes) }}</strong>
-      <span>{{ t('timeline.overview.idle') }}</span>
+  <div class="donut-legend">
+    <div v-for="slice in donutSlices" :key="slice.label" class="legend-chip">
+      <span class="legend-chip__name">
+        <i :style="{ background: slice.color }"></i>
+        {{ slice.label }}
+      </span>
+      <strong>{{ duration(slice.minutes) }}</strong>
     </div>
   </div>
 
-  <div class="category-list">
-    <p v-if="categoryTotals.length === 0" class="category-list__empty">
-      {{ t('timeline.overview.noCategories') }}
-    </p>
-    <div v-for="item in categoryTotals" :key="item.category.id" class="category-total">
-      <div class="category-total__meta">
-        <span>
-          <i :style="{ background: safeCategoryColor(item.category.colorHex) }"></i>
-          {{ categoryLabel(item.category.name, t) }}
+  <section class="inspector__section">
+    <h3>{{ t('timeline.overview.review') }}</h3>
+    <!-- Same verdict split as the review flow's completion bar; every block
+         draws, zero-minute verdicts keep a small stub. -->
+    <div class="review-bar" aria-hidden="true">
+      <span
+        v-for="segment in reviewSegments.filter((entry) => entry.minutes > 0)"
+        :key="segment.label"
+        :style="{ flexGrow: segment.minutes, '--seg': segment.color }"
+      ></span>
+    </div>
+    <div class="review-stats">
+      <div v-for="segment in reviewSegments" :key="segment.label" class="review-stat">
+        <span class="review-stat__label">
+          <i :style="{ background: segment.color }"></i>{{ segment.label }}
         </span>
-        <strong>{{ duration(item.minutes) }}</strong>
-      </div>
-      <div class="category-total__track" aria-hidden="true">
-        <span
-          :style="{
-            width: `${item.percentage}%`,
-            background: safeCategoryColor(item.category.colorHex),
-          }"
-        ></span>
+        <strong>{{ duration(segment.minutes) }}</strong>
       </div>
     </div>
-  </div>
+  </section>
 
   <section class="inspector__section">
     <h3>{{ t('daily.goal.title') }}</h3>
@@ -196,38 +250,16 @@ const donutSegments = computed(() => {
     </button>
   </section>
 
-  <section v-if="props.actions.reprocessDay" class="inspector__section inspector__reprocess-section">
-    <template v-if="confirmingReprocess">
-      <p class="inspector__confirm">{{ t('timeline.reprocess.confirm') }}</p>
-      <div class="reprocess-confirm">
-        <button
-          type="button"
-          class="dg-button"
-          :disabled="props.pendingAction !== null"
-          @click="confirmingReprocess = false"
-        >
-          {{ t('common.action.cancel') }}
-        </button>
-        <button
-          type="button"
-          class="dg-button inspector__delete"
-          :disabled="props.pendingAction !== null"
-          @click="confirmReprocess"
-        >
-          {{ t('timeline.reprocess.confirmYes') }}
-        </button>
-      </div>
-    </template>
+  <section v-if="props.actions.reprocessDay" class="inspector__section">
     <button
-      v-else
       type="button"
       class="dg-button inspector__reprocess"
       :disabled="!props.canWrite || props.pendingAction !== null"
       :title="props.canWrite ? t('timeline.reprocess.action') : t('timeline.inspector.actionsUnavailable')"
-      @click="confirmingReprocess = true"
+      @click="emit('reprocess')"
     >
       <svg viewBox="0 0 16 16" aria-hidden="true" class="reprocess-icon"><path d="M13.65 2.35A8 8 0 1 0 16 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 2l3 0 0 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      {{ props.pendingAction === 'reprocess-day' ? t('timeline.reprocess.running') : t('timeline.reprocess.action') }}
+      {{ t('timeline.reprocess.action') }}
     </button>
   </section>
 </template>
@@ -242,31 +274,28 @@ const donutSegments = computed(() => {
 
 .goal-state span { color: var(--dg-text-secondary); font-size: 11px; }
 
-.totals {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 8px;
-  padding: 18px 0 22px;
-}
-
+/* Donut with rounded caps and a soft shadow under the ring. */
 .donut {
   position: relative;
-  width: 168px;
-  margin: 4px auto 0;
+  width: 200px;
+  margin: 6px auto 4px;
+  /* Heavier shadow inside and out: the rim drop-shadow plus the radial
+     shade painted onto the center disk by the gradient above. */
+  filter: drop-shadow(0 16px 28px rgba(45, 50, 80, 0.32));
 }
 
 .donut svg { display: block; width: 100%; }
 
 .donut__track {
-  fill: none;
-  stroke: var(--dg-track-fill);
-  stroke-width: 20;
+  fill: url(#donut-inner-shade);
+  stroke: none;
 }
+
 
 .donut__segment {
   fill: none;
-  stroke-width: 20;
-  stroke-linecap: butt;
+  stroke-width: 24;
+  stroke-linecap: round;
 }
 
 .donut__center {
@@ -276,71 +305,121 @@ const donutSegments = computed(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   text-align: center;
 }
 
-.donut__center span {
+.donut__center strong {
+  max-width: 110px;
+  color: var(--dg-text-primary);
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+/* Two-line legend chips: swatch + name, duration beneath. */
+.donut-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 22px;
+  padding: 10px 0 4px;
+}
+
+.donut-legend__empty {
+  margin: 0;
   color: var(--dg-text-muted);
   font-size: 11px;
 }
 
-.donut__center strong {
-  max-width: 90px;
+.legend-chip {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 84px;
+}
+
+.legend-chip__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
   overflow: hidden;
-  color: var(--dg-text-primary);
-  font-size: 17px;
-  font-weight: 650;
+  color: var(--dg-text-secondary);
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.total {
+.legend-chip__name i {
+  flex: none;
+  width: 12px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+.legend-chip strong {
+  color: var(--dg-text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* Review verdict split on a grey track. */
+.review-bar {
   display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 13px;
-  border: 1px solid var(--dg-timeline-grid);
-  border-radius: 8px;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 5px;
+  border-radius: 12px;
   background: var(--dg-track-fill);
 }
 
-.total strong {
-  overflow: hidden;
-  color: var(--dg-text-primary);
-  font-size: 16px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.review-bar span {
+  flex-basis: 40px;
+  border-radius: 10px;
+  /* Cylindrical sheen: lighter crown, darker base, soft drop shadow. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--seg) 72%, #ffffff),
+    var(--seg) 55%,
+    color-mix(in srgb, var(--seg) 86%, #000000)
+  );
+  box-shadow: 0 6px 14px rgba(45, 50, 80, 0.16);
 }
 
-.total span,
-.category-list__empty {
-  color: var(--dg-text-muted);
-  font-size: 10px;
-}
-
-.total--primary {
-  border-color: color-mix(in srgb, var(--dg-accent) 22%, transparent);
-  background: var(--dg-control-fill);
-}
-
-.category-list { display: grid; gap: 15px; }
-.category-total__meta {
+.review-stats {
   display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.review-stat {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+
+.review-stat__label {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 6px;
+  gap: 6px;
   color: var(--dg-text-secondary);
   font-size: 11px;
 }
 
-.category-total__meta span { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.category-total__meta i { width: 7px; height: 7px; border-radius: 50%; }
-.category-total__meta strong { color: var(--dg-text-primary); font-weight: 600; }
-.category-total__track { height: 4px; overflow: hidden; border-radius: 99px; background: var(--dg-track-fill); }
-.category-total__track span { display: block; height: 100%; border-radius: inherit; }
+.review-stat__label i {
+  width: 16px;
+  height: 10px;
+  border-radius: 4px;
+}
+
+.review-stat strong {
+  color: var(--dg-text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
 
 .inspector__failures {
   display: flex;
@@ -352,13 +431,6 @@ const donutSegments = computed(() => {
 }
 
 .inspector__retry { color: var(--dg-text-secondary); }
-
-.reprocess-confirm {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
 
 .inspector__reprocess {
   display: flex;

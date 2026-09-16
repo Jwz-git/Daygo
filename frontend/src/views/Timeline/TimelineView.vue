@@ -19,7 +19,10 @@ import { safeTimeZone } from '@/lib/timeZone'
 import { useDailyStore } from '@/stores/daily'
 import { useRecordingStore } from '@/stores/recording'
 import { useTimelineStore } from '@/stores/timeline'
+import { getReviewTotals } from '@/api/review'
 import CardReviewFlow from './CardReviewFlow.vue'
+import CategoryManagerModal from './CategoryManagerModal.vue'
+import { ZERO_REVIEW_TOTALS, type ReviewTotals } from './review'
 import TimelineInspector from './TimelineInspector.vue'
 import TimelineStatePanel from './TimelineStatePanel.vue'
 import TimelineTrack from './TimelineTrack.vue'
@@ -174,6 +177,32 @@ function onJudged(cardID: number, removed: boolean): void {
   if (removed) next.delete(cardID)
   else next.add(cardID)
   reviewedIds.value = next
+}
+
+/*
+ * Session review totals for the inspector's "你的回顾" panel. The review flow
+ * is the single writer; the inspector only renders them.
+ */
+const reviewTotals = ref<ReviewTotals>({ ...ZERO_REVIEW_TOTALS })
+
+/*
+ * Totals are persisted per logical day; reload them whenever the displayed
+ * day changes so reopening the review flow or the inspector shows the stored
+ * split rather than a stale session snapshot.
+ */
+watch(context, (current) => {
+  if (current === null) return
+  void getReviewTotals(current.day)
+    .then((totals) => { reviewTotals.value = totals })
+    .catch(() => { reviewTotals.value = { ...ZERO_REVIEW_TOTALS } })
+})
+
+async function onCategoriesSaved(): Promise<void> {
+  showCategoryManager.value = false
+  // Names may have been rewritten on cards; refetch the day (and week when
+  // it is visible) so every surface reflects the new set.
+  await timeline.load(routeDay())
+  if (viewMode.value === 'week') await loadWeek({ silent: true })
 }
 
 async function closeReview(): Promise<void> {
@@ -488,11 +517,13 @@ onBeforeUnmount(() => {
       <span class="filter-bar__spacer"></span>
       <button
         type="button"
-        class="filter-manage"
+        class="filter-manage filter-edit"
+        :title="t('timeline.manage2.open')"
+        :aria-label="t('timeline.manage2.open')"
         :disabled="!actionAvailability.manageCategories"
         @click="showCategoryManager = true"
       >
-        {{ t('timeline.filter.manage') }}
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /></svg>
       </button>
       <span v-if="actionError !== null && selectedCard === null" class="filter-error" role="alert">
         {{ t('timeline.actionFailed') }}
@@ -555,6 +586,7 @@ onBeforeUnmount(() => {
               :goal-unavailable="daily.goalUnavailable"
               :goal-failed="daily.goalError !== null"
               :goal-saving="daily.goalSaving"
+              :review-totals="reviewTotals"
               @close="timeline.selectCard(null)"
               @save-edits="(cardID, edits) => timeline.saveCardEdits(cardID, edits)"
               @delete="timeline.removeCard"
@@ -583,6 +615,7 @@ onBeforeUnmount(() => {
           :goal-unavailable="daily.goalUnavailable"
           :goal-failed="daily.goalError !== null"
           :goal-saving="daily.goalSaving"
+          :review-totals="reviewTotals"
           @close="closeWeekCard"
           @save-edits="saveWeekEdits"
           @delete="deleteWeekCard"
@@ -627,60 +660,19 @@ onBeforeUnmount(() => {
       <span>{{ t('timeline.review.action') }}</span>
     </button>
 
-    <!-- Category Manager Modal -->
+    <!-- Category manager wizard -->
     <Teleport to="body">
       <div v-if="showCategoryManager" class="modal-backdrop" @click.self="showCategoryManager = false">
-        <div
-          class="modal-panel"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="t('timeline.filter.manage')"
-        >
-          <header class="modal-header">
-            <h2>{{ t('timeline.filter.manage') }}</h2>
-            <button
-              type="button"
-              class="modal-close"
-              :aria-label="t('common.action.close')"
-              @click="showCategoryManager = false"
-            >
-              ×
-            </button>
-          </header>
-          <div class="modal-body">
-            <p v-if="!day || managerRows.length === 0" class="modal-empty">
-              {{ t('timeline.filter.empty') }}
-            </p>
-            <ul v-else class="category-list">
-              <li v-for="row in managerRows" :key="row.category.id">
-                <button
-                  type="button"
-                  class="category-item"
-                  :class="{ 'is-active': categoryFilter === row.category.name }"
-                  @click="pickManagerCategory(row.category.name)"
-                >
-                  <span
-                    class="category-dot"
-                    :style="{ background: safeCategoryColor(row.category.colorHex) }"
-                  ></span>
-                  <span class="category-name">{{ categoryLabel(row.category.name, t) }}</span>
-                  <span v-if="row.stat" class="category-meta">
-                    <span>{{ t('timeline.filter.cards', { count: row.stat.count }) }}</span>
-                    <b>{{ t('timeline.filter.minutes', { count: row.stat.minutes }) }}</b>
-                  </span>
-                </button>
-              </li>
-            </ul>
-          </div>
-          <footer class="modal-footer">
-            <p class="modal-hint">{{ t('timeline.filter.manageHint') }}</p>
-            <button type="button" class="dg-button" @click="showCategoryManager = false">
-              {{ t('common.action.close') }}
-            </button>
-          </footer>
-        </div>
+        <CategoryManagerModal
+          v-if="day !== null"
+          :categories="day.categories"
+          :can-write="capabilities?.canWrite ?? false"
+          @close="showCategoryManager = false"
+          @saved="onCategoriesSaved"
+        />
       </div>
     </Teleport>
+
     <!-- Review flow modal -->
     <Teleport to="body">
       <div v-if="showReview" class="modal-backdrop" @click.self="closeReview">
@@ -689,8 +681,10 @@ onBeforeUnmount(() => {
           :day="day"
           :cards="reviewQueue"
           :time-zone="context?.timeZone ?? 'UTC'"
+          :initial-totals="reviewTotals"
           @close="closeReview"
           @judged="onJudged"
+          @totals="reviewTotals = $event"
         />
       </div>
     </Teleport>
@@ -730,19 +724,24 @@ onBeforeUnmount(() => {
   flex: none;
   align-items: center;
   gap: 7px;
-  min-height: 28px;
-  padding: 5px 10px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--dg-text-secondary);
+  min-height: 30px;
+  padding: 5px 12px;
+  border: 1px solid var(--dg-timeline-card-border);
+  border-radius: 7px;
+  background: var(--dg-timeline-card-fill);
+  color: var(--dg-text-primary);
   font-size: 11px;
+  font-weight: 600;
   white-space: nowrap;
   transition: background var(--dg-motion-fast) ease, border-color var(--dg-motion-fast) ease;
 }
 
-.filter-chip:hover { background: var(--dg-hover-fill); }
+.filter-chip:hover { background: var(--dg-timeline-card-hover); }
 .filter-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
-.filter-chip.is-selected { border-color: var(--dg-chip-border); background: var(--dg-chip-fill); color: var(--dg-text-primary); }
+.filter-chip.is-selected {
+  border-color: color-mix(in srgb, var(--dg-accent) 45%, transparent);
+  background: var(--dg-timeline-card-selected);
+}
 .filter-chip i { width: 7px; height: 7px; border-radius: 50%; }
 .filter-bar__spacer { flex: 1; }
 /* Hover feedback is fill + colour only — no transform or shadow lift, so the

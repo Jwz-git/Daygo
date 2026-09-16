@@ -1,10 +1,12 @@
 import type {
   CapabilitiesDTO,
+  CategoryDTO,
   DayContextDTO,
   TimelineDayDTO,
 } from '@/api/dto'
 
 interface TimelineBackend {
+  SaveCategories?: (categories: CategoryDTO[]) => Promise<void>
   GetCapabilities?: () => Promise<CapabilitiesDTO>
   GetDayContext?: (day: string) => Promise<DayContextDTO>
   GetTimelineDay?: (day: string) => Promise<TimelineDayDTO>
@@ -108,6 +110,10 @@ export async function getTimelineDay(day: string): Promise<TimelineDayDTO> {
 export async function getTimelineCapabilities(): Promise<CapabilitiesDTO | null> {
   const method = backend()?.GetCapabilities
   return typeof method === 'function' ? method() : null
+}
+
+export async function saveCategories(categories: CategoryDTO[]): Promise<void> {
+  return requiredMethod('SaveCategories')(categories)
 }
 
 export async function updateCardCategory(cardID: number, category: string): Promise<void> {

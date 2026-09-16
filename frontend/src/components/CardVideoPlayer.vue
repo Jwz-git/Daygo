@@ -201,6 +201,7 @@ onBeforeUnmount(() => {
         class="player__frame"
         :src="frameSrc(currentFrame!.id)"
         :alt="title"
+        draggable="false"
         @click="togglePlay"
       >
 
@@ -252,7 +253,7 @@ onBeforeUnmount(() => {
         </header>
 
         <div class="lightbox__stage" @click="togglePlay">
-          <img class="lightbox__frame" :src="frameSrc(currentFrame!.id)" :alt="title">
+          <img class="lightbox__frame" :src="frameSrc(currentFrame!.id)" :alt="title" draggable="false">
           <button
             v-if="!playing"
             type="button"
@@ -263,6 +264,12 @@ onBeforeUnmount(() => {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.4v13.2L19 12Z" fill="currentColor" /></svg>
           </button>
           <span class="lightbox__clock">{{ currentClock }}</span>
+          <button
+            type="button"
+            class="player__rate player__rate--lightbox"
+            :aria-label="t('timeline.player.rate')"
+            @click.stop="cycleRate"
+          >{{ rate }}x</button>
         </div>
 
         <div class="lightbox__scrub">
@@ -281,6 +288,7 @@ onBeforeUnmount(() => {
               :src="frameSrc(frame.id)"
               alt=""
               loading="lazy"
+              draggable="false"
             >
             <span class="filmstrip__played" :style="{ width: `${progress}%` }" aria-hidden="true"></span>
             <span class="filmstrip__cursor" :style="{ left: `${progress}%` }" aria-hidden="true"></span>
@@ -290,7 +298,6 @@ onBeforeUnmount(() => {
               <svg v-if="!playing" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.4v13.2L19 12Z" fill="currentColor" /></svg>
               <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor" /><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor" /></svg>
             </button>
-            <button type="button" class="player__rate player__rate--visible" :aria-label="t('timeline.player.rate')" @click="cycleRate">{{ rate }}x</button>
             <span class="lightbox__clock-chip">{{ currentClock }}</span>
           </div>
         </div>
@@ -306,6 +313,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border-radius: 10px;
   background: #0d0d12;
+  /* The player is a control surface, not text: no accidental selections or
+     native image drags stealing the gesture. */
+  user-select: none;
+  -webkit-user-select: none;
   transition:
     transform 220ms var(--dg-ease-glide),
     box-shadow 220ms ease;
@@ -319,6 +330,7 @@ onBeforeUnmount(() => {
 
 .player__frame,
 .player__placeholder {
+  -webkit-user-drag: none;
   display: block;
   width: 100%;
   max-height: 240px;
@@ -501,6 +513,7 @@ onBeforeUnmount(() => {
 }
 
 .lightbox__frame {
+  -webkit-user-drag: none;
   display: block;
   width: 100%;
   max-height: 62vh;
@@ -534,6 +547,7 @@ onBeforeUnmount(() => {
 }
 
 .filmstrip__thumb {
+  -webkit-user-drag: none;
   display: block;
   flex: 1 1 0;
   min-width: 0;
@@ -567,6 +581,17 @@ onBeforeUnmount(() => {
   gap: 12px;
   margin-top: 10px;
 }
+
+/* The rate badge sits on the video's bottom-right corner, same as the inline
+   player; hover on the stage keeps it revealed. */
+.player__rate--lightbox {
+  right: 10px;
+  bottom: 12px;
+  opacity: 1;
+}
+
+.lightbox__stage:hover .player__rate--lightbox,
+.player__rate--lightbox:focus-visible { opacity: 1; }
 
 .lightbox__play {
   display: grid;
