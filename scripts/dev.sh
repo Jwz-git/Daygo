@@ -20,6 +20,12 @@ if [[ "$(uname -s)" == "Darwin" ]] && ! command -v clang >/dev/null 2>&1; then
   exit 1
 fi
 
+# One writer, one status-bar item: a leftover dev instance would degrade the
+# fresh one to read-only (instance locks) and pile up status icons.
+printf 'Stopping leftover dev instances...\n'
+pkill -f "Daygo.app/Contents/MacOS/Daygo" 2>/dev/null || true
+sleep 1
+
 printf 'Syncing frontend dependencies...\n'
 npm --prefix "$ROOT_DIR/frontend" install --no-audit --no-fund
 
