@@ -57,13 +57,15 @@ function cardStyle(): CSSProperties {
     @click="emit('select', props.card.id)"
   >
     <span class="activity-card__rail" aria-hidden="true"></span>
-    <AppSiteIcon
-      v-if="appSite"
-      class="activity-card__icon"
-      :site="appSite"
-      :accent="props.color"
-      :size="18"
-    />
+    <span class="activity-card__icon-slot" aria-hidden="true">
+      <AppSiteIcon
+        v-if="appSite"
+        class="activity-card__icon"
+        :site="appSite"
+        :accent="props.color"
+        :size="18"
+      />
+    </span>
     <span class="activity-card__copy">
       <span class="activity-card__title">{{ props.card.title }}</span>
     </span>
@@ -95,8 +97,10 @@ function cardStyle(): CSSProperties {
     transform 720ms var(--dg-ease-glide);
 }
 
-.activity-card__icon {
-  margin-top: 0;
+.activity-card__icon-slot {
+  flex: none;
+  width: 18px;
+  height: 18px;
 }
 
 /* Hover grows the card slightly; :active below presses it back in. */

@@ -191,12 +191,14 @@ onBeforeUnmount(() => {
           @click="emit('selectCard', column.day, card.id)"
         >
           <span class="week__card-head">
-            <AppSiteIcon
-              v-if="card.site !== null"
-              :site="card.site"
-              :accent="card.color"
-              :size="13"
-            />
+            <span class="week__card-icon-slot">
+              <AppSiteIcon
+                v-if="card.site !== null"
+                :site="card.site"
+                :accent="card.color"
+                :size="13"
+              />
+            </span>
             <span
               class="week__card-text"
               :style="{ '-webkit-line-clamp': expandedId === card.id ? 'none' : card.clampLines }"

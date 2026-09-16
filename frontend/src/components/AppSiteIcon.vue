@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, type CSSProperties } from 'vue'
+import { computed, ref, watch, type CSSProperties } from 'vue'
 
 import { resolveAppSiteIdentity } from '@/lib/appSiteIcon'
+import { fetchFaviconDataUrl } from '@/lib/favicon'
 
 const props = withDefaults(defineProps<{
   site: string
@@ -13,6 +14,27 @@ const props = withDefaults(defineProps<{
 })
 
 const identity = computed(() => resolveAppSiteIdentity(props.site))
+
+/*
+ * Unbranded sites resolve a network favicon (Dayflow's FaviconService flow);
+ * failure keeps the monogram fallback. The cache lives in the favicon module.
+ */
+const faviconSrc = ref<string | null>(null)
+
+watch(
+  () => props.site,
+  async (site) => {
+    faviconSrc.value = null
+    if (identity.value.kind !== 'generic') return
+    try {
+      const dataUrl = await fetchFaviconDataUrl(site)
+      if (props.site === site) faviconSrc.value = dataUrl
+    } catch {
+      // Monogram fallback stays.
+    }
+  },
+  { immediate: true },
+)
 const iconStyle = computed<CSSProperties>(() => ({
   width: `${props.size}px`,
   height: `${props.size}px`,
@@ -119,6 +141,7 @@ const iconStyle = computed<CSSProperties>(() => ({
       <path d="M8 17V7.5h2.5l5 6.6V7.5H18V17h-2.4l-5.1-6.7V17H8Z" />
     </svg>
 
+    <img v-else-if="faviconSrc !== null" class="app-site-icon__favicon" :src="faviconSrc" alt="" draggable="false">
     <span v-else class="app-site-icon__monogram" aria-hidden="true">{{ identity.monogram }}</span>
   </span>
 </template>
@@ -138,6 +161,7 @@ const iconStyle = computed<CSSProperties>(() => ({
 }
 
 .app-site-icon svg { width: 100%; height: 100%; }
+.app-site-icon__favicon { width: 100%; height: 100%; object-fit: cover; }
 .app-site-icon--daygo { background: #4b79a6; color: white; }
 .app-site-icon--vscode { background: #2489ca; color: white; }
 .app-site-icon--github { background: #25292e; color: white; }
