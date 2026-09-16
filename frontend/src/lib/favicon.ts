@@ -17,7 +17,7 @@ const negativeUntil = new Map<string, number>()
 const inflight = new Map<string, Promise<string | null>>()
 
 /** Extract the bare host from a raw site string ("edge.com/x" → "edge.com"). */
-function hostOf(site: string): string | null {
+export function hostOf(site: string): string | null {
   const trimmed = site.trim()
   if (trimmed === '') return null
   const candidate = trimmed.includes('://') ? trimmed : `https://${trimmed}`

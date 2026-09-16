@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch, type CSSProperties } from 'vue'
 
-import { resolveAppSiteIdentity } from '@/lib/appSiteIcon'
-import { fetchFaviconDataUrl } from '@/lib/favicon'
+import { matchInstalledAppIcon, resolveAppSiteIdentity } from '@/lib/appSiteIcon'
+import { fetchFaviconDataUrl, hostOf } from '@/lib/favicon'
 
 const props = withDefaults(defineProps<{
   site: string
@@ -26,6 +26,19 @@ watch(
   async (site) => {
     faviconSrc.value = null
     if (identity.value.kind !== 'generic') return
+    // Installed-application names ("Clash Verge", "Microsoft Edge") resolve
+    // to the real bundle icon offline; bare hosts fall through to the
+    // network favicon; failure keeps the monogram.
+    try {
+      const appIcon = await matchInstalledAppIcon(site)
+      if (props.site === site && appIcon !== null) {
+        faviconSrc.value = appIcon
+        return
+      }
+    } catch {
+      // Fall through to the network favicon.
+    }
+    if (hostOf(site) === null) return
     try {
       const dataUrl = await fetchFaviconDataUrl(site)
       if (props.site === site) faviconSrc.value = dataUrl

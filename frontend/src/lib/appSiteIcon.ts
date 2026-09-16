@@ -127,3 +127,74 @@ export function resolveAppSiteIdentity(value: string): AppSiteIdentity {
     monogram: monogramFor(label, host),
   }
 }
+
+
+// ---------------------------------------------------------------------------
+// Installed-application icon resolution
+// ---------------------------------------------------------------------------
+
+/*
+ * Card appSites are usually installed-application names ("Clash Verge",
+ * "Microsoft Edge"). Those rarely have brand marks and rarely have hosts, but
+ * the platform enumeration (the privacy grid's source) can supply the real
+ * bundle icon offline. Match by normalized name tokens, best score wins.
+ */
+
+import { describeApplications, listInstalledApplications } from '@/api/application'
+import type { ApplicationDTO } from '@/api/application'
+import { i18n } from '@/i18n'
+
+let installedAppsCache: ApplicationDTO[] | null = null
+
+async function installedApps(): Promise<ApplicationDTO[]> {
+  if (installedAppsCache !== null) return installedAppsCache
+  try {
+    // The listing resolves names in the UI language; icons are filled per id
+    // by the describe cache afterwards.
+    installedAppsCache = await listInstalledApplications(i18n.global.locale.value)
+  } catch {
+    installedAppsCache = []
+  }
+  return installedAppsCache
+}
+
+function normalizeName(value: string): string {
+  return value.toLocaleLowerCase('en-US').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+}
+
+function nameScore(site: string, appName: string): number {
+  const siteTokens = normalizeName(site).split(' ').filter(Boolean)
+  if (siteTokens.length === 0) return 0
+  const appTokens = new Set(normalizeName(appName).split(' ').filter(Boolean))
+  let hits = 0
+  for (const token of siteTokens) {
+    if (appTokens.has(token)) hits += 1
+    else return 0
+  }
+  // Every site token matched; closer names score higher.
+  return siteTokens.length / Math.max(1, appTokens.size) + 0.5
+}
+
+/**
+ * Best-effort real icon for an installed application matching the site
+ * string, or null when nothing matches well enough.
+ */
+export async function matchInstalledAppIcon(site: string): Promise<string | null> {
+  const apps = await installedApps()
+  if (apps.length === 0) return null
+
+  let best: ApplicationDTO | null = null
+  let bestScore = 0
+  for (const app of apps) {
+    const score = nameScore(site, app.name)
+    if (score > bestScore) {
+      bestScore = score
+      best = app
+    }
+  }
+  if (best === null || bestScore < 0.6) return null
+
+  const described = await describeApplications([best.id])
+  const icon = described.find((app) => app.id === best.id)?.iconDataUrl ?? ''
+  return icon !== '' ? icon : null
+}
