@@ -66,7 +66,6 @@ function cardStyle(): CSSProperties {
     />
     <span class="activity-card__copy">
       <span class="activity-card__title">{{ props.card.title }}</span>
-      <span v-if="props.height >= 96" class="activity-card__summary">{{ props.card.summary }}</span>
     </span>
     <span class="activity-card__time">{{ props.card.start }} – {{ props.card.end }}</span>
   </button>
@@ -171,9 +170,9 @@ function cardStyle(): CSSProperties {
 .activity-card__title {
   overflow: hidden;
   color: var(--dg-text-primary);
-  font-size: 13px;
-  font-weight: 620;
-  line-height: 18px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

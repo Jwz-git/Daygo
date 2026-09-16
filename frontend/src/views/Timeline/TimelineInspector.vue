@@ -76,19 +76,22 @@ const { t } = useI18n()
       @dismiss="(batchIDs) => emit('dismissFailure', batchIDs)"
     />
 
-    <InspectorCardDetail
-      v-else-if="props.card !== null"
-      :day="props.day"
-      :time-zone="props.timeZone"
-      :card="props.card"
-      :can-write="props.canWrite"
-      :actions="props.actions"
-      :pending-action="props.pendingAction"
-      :action-failed="props.actionFailed"
-      @close="emit('close')"
-      @save-edits="(cardID: number, edits: { title?: string; category?: string; summary?: string; detailedSummary?: string }) => emit('saveEdits', cardID, edits)"
-      @delete="(cardID) => emit('delete', cardID)"
-    />
+    <Transition v-else-if="props.card !== null" name="card-swap" mode="out-in">
+      <div :key="props.card.id" class="card-swap-wrap">
+        <InspectorCardDetail
+          :day="props.day"
+          :time-zone="props.timeZone"
+          :card="props.card"
+          :can-write="props.canWrite"
+          :actions="props.actions"
+          :pending-action="props.pendingAction"
+          :action-failed="props.actionFailed"
+          @close="emit('close')"
+          @save-edits="(cardID: number, edits: { title?: string; category?: string; summary?: string; detailedSummary?: string }) => emit('saveEdits', cardID, edits)"
+          @delete="(cardID) => emit('delete', cardID)"
+        />
+      </div>
+    </Transition>
   </LiquidGlassSurface>
 </template>
 
@@ -129,9 +132,10 @@ const { t } = useI18n()
 }
 
 .inspector :deep(.inspector__title--card) {
-  font-size: 18px;
-  font-weight: 650;
-  line-height: 1.3;
+  color: var(--dg-text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .inspector :deep(.inspector__close) {
@@ -163,7 +167,7 @@ const { t } = useI18n()
 .inspector :deep(.inspector__section) { padding: 16px 0; border-top: 1px solid var(--dg-timeline-grid); }
 .inspector :deep(.inspector__section:first-of-type) { border-top: 0; }
 .inspector :deep(.inspector__section h3) { margin-bottom: 6px; color: var(--dg-text-primary); font-size: 11px; font-weight: 650; }
-.inspector :deep(.inspector__section p) { color: var(--dg-text-secondary); font-size: 11px; line-height: 1.6; }
+.inspector :deep(.inspector__section p) { color: var(--dg-text-primary); font-size: 13px; font-weight: 500; line-height: 1.65; }
 
 .inspector :deep(.inspector__actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 18px; border-top: 1px solid var(--dg-timeline-grid); }
 .inspector :deep(.inspector__readonly) { width: 100%; color: var(--dg-text-muted); font-size: 10px; }
@@ -179,4 +183,30 @@ const { t } = useI18n()
 
 .inspector :deep(.inspector__delete) { border-color: color-mix(in srgb, var(--dg-danger) 34%, transparent); color: var(--dg-danger); }
 .inspector :deep(.inspector__error) { margin: 4px 0 12px; color: var(--dg-danger); font-size: 11px; }
+
+/* Switching between cards: the outgoing detail shrinks away, the incoming
+   one grows in — same language as the review flow's card switch. */
+.card-swap-wrap { display: flex; flex-direction: column; min-height: 0; }
+
+.card-swap-enter-active {
+  transition:
+    opacity 220ms ease,
+    transform 280ms var(--dg-ease-glide);
+}
+
+.card-swap-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 200ms ease;
+}
+
+.card-swap-enter-from {
+  opacity: 0;
+  transform: scale(0.94);
+}
+
+.card-swap-leave-to {
+  opacity: 0;
+  transform: scale(0.94);
+}
 </style>

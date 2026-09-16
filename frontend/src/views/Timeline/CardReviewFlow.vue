@@ -159,29 +159,31 @@ function totalsSnapshot(): ReviewTotals {
     <button type="button" class="review__close" :aria-label="t('timeline.inspector.close')" @click="emit('close')">×</button>
 
     <div class="review__panel">
-      <template v-if="current !== null">
-        <div class="review__stage">
-          <CardVideoPlayer
-            :frames="mediaFrames"
-            :title="current.title"
-            :time-label="timeRange"
-            :time-zone="props.timeZone"
-          autoplay
-          />
-        </div>
-
-        <div class="review__body">
-          <h2 class="review__title">{{ current.title }}</h2>
-          <div class="review__meta">
-            <span class="review__category" :style="{ borderColor: color, color }">
-              <i :style="{ background: color }"></i>{{ categoryLabel(current.category, t) }}
-            </span>
-            <span class="review__time">{{ timeRange }}</span>
+      <Transition v-if="current !== null" name="card-swap" mode="out-in">
+        <div class="review__card" :key="current.id">
+          <div class="review__stage">
+            <CardVideoPlayer
+              :frames="mediaFrames"
+              :title="current.title"
+              :time-label="timeRange"
+              :time-zone="props.timeZone"
+              autoplay
+            />
           </div>
-          <p v-if="current.summary !== ''" class="review__summary">{{ current.summary }}</p>
+
+          <div class="review__body">
+            <h2 class="review__title">{{ current.title }}</h2>
+            <div class="review__meta">
+              <span class="review__category" :style="{ borderColor: color, color }">
+                <i :style="{ background: color }"></i>{{ categoryLabel(current.category, t) }}
+              </span>
+              <span class="review__time">{{ timeRange }}</span>
+            </div>
+            <p v-if="current.summary !== ''" class="review__summary">{{ current.summary }}</p>
+          </div>
+          <span class="review__progress">{{ progressLabel }}</span>
         </div>
-        <span class="review__progress">{{ progressLabel }}</span>
-    </template>
+      </Transition>
 
     <div v-else-if="finished" class="review__done">
       <h2>{{ t('timeline.review.doneTitle') }}</h2>
@@ -283,33 +285,47 @@ function totalsSnapshot(): ReviewTotals {
   box-shadow: var(--lg-shadow-dense, var(--dg-shadow-lg));
 }
 
-.review__close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--dg-danger) 45%, transparent);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--dg-danger);
-  font-size: 16px;
-  cursor: pointer;
-}
 
 .review__close:hover { background: color-mix(in srgb, var(--dg-danger) 10%, transparent); }
 
 .review__stage { border-radius: 12px; overflow: hidden; }
+
+.review__card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Card switch: the old card shrinks away, the new one grows in. */
+.card-swap-enter-active {
+  transition:
+    opacity 220ms ease,
+    transform 280ms var(--dg-ease-glide);
+}
+
+.card-swap-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 200ms ease;
+}
+
+.card-swap-enter-from {
+  opacity: 0;
+  transform: scale(0.94);
+}
+
+.card-swap-leave-to {
+  opacity: 0;
+  transform: scale(0.94);
+}
 
 .review__body { padding: 16px 2px 0; }
 
 .review__title {
   margin: 0 0 12px;
   color: var(--dg-text-primary);
-  font-size: 26px;
-  font-weight: 700;
+  font-size: 30px;
+  font-weight: 800;
   line-height: 1.4;
 }
 
@@ -327,8 +343,8 @@ function totalsSnapshot(): ReviewTotals {
   padding: 4px 12px;
   border: 1px solid;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .review__category i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
@@ -338,7 +354,7 @@ function totalsSnapshot(): ReviewTotals {
   border-radius: 999px;
   background: var(--dg-track-fill);
   color: var(--dg-text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -353,9 +369,9 @@ function totalsSnapshot(): ReviewTotals {
 
 .review__summary {
   margin: 12px 0 0;
-  color: var(--dg-text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
+  color: var(--dg-text-primary);
+  font-size: 15px;
+  line-height: 1.65;
 }
 
 .review__empty {
