@@ -15,12 +15,16 @@ import type { CardMediaFrameDTO } from '@/api/dto'
  * Frames arrive as numeric IDs and render through /media/frame?id=, which the
  * backend resolves inside the recordings root only.
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   frames: CardMediaFrameDTO[]
   title: string
   timeLabel: string
   timeZone: string
-}>()
+  /** Start playing as soon as frames arrive (the review flow). */
+  autoplay?: boolean
+}>(), {
+  autoplay: false,
+})
 
 const { t, locale } = useI18n()
 
@@ -139,15 +143,21 @@ function tick(now: number): void {
   if (playing.value) rafID = requestAnimationFrame(tick)
 }
 
+function startPlayback(): void {
+  started.value = true
+  if (virtualTs >= clockStart.value + span.value) virtualTs = clockStart.value
+  playing.value = true
+  lastTick = 0
+  rafID = requestAnimationFrame(tick)
+}
+
 function togglePlay(): void {
   if (props.frames.length === 0) return
-  started.value = true
-  playing.value = !playing.value
   if (playing.value) {
-    if (virtualTs >= clockStart.value + span.value) virtualTs = clockStart.value
-    lastTick = 0
-    rafID = requestAnimationFrame(tick)
+    playing.value = false
+    return
   }
+  startPlayback()
 }
 
 watch(playing, (value) => {
@@ -163,6 +173,7 @@ watch(() => props.frames, () => {
   started.value = false
   virtualTs = clockStart.value
   setProgress(0)
+  if (props.autoplay && props.frames.length > 0) startPlayback()
 })
 
 function openExpanded(): void {

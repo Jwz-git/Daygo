@@ -166,6 +166,7 @@ function totalsSnapshot(): ReviewTotals {
             :title="current.title"
             :time-label="timeRange"
             :time-zone="props.timeZone"
+          autoplay
           />
         </div>
 
