@@ -747,6 +747,19 @@ onBeforeUnmount(() => {
 /* Hover feedback is fill + colour only — no transform or shadow lift, so the
    chip never floats out of the bar. */
 .filter-manage { color: var(--dg-text-muted); }
+
+/* Pencil entry to the category wizard. */
+.filter-edit {
+  width: 30px;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+}
+
+.filter-edit:not(:disabled) { color: var(--dg-text-secondary); cursor: pointer; }
+.filter-edit:not(:disabled):hover { color: var(--dg-accent); background: var(--dg-hover-fill); }
+.filter-edit:not(:disabled):focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.filter-edit svg { width: 14px; height: 14px; }
 .filter-manage:not(:disabled) { color: var(--dg-text-secondary); cursor: pointer; }
 .filter-manage:not(:disabled):hover { background: var(--dg-hover-fill); color: var(--dg-text-primary); }
 .filter-manage:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }

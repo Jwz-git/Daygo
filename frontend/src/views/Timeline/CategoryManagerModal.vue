@@ -198,6 +198,9 @@ async function finish(): Promise<void> {
             :key="color"
             :style="{ background: color }"
             :class="{ 'is-active': color === selectedColor }"
+            role="button"
+            :aria-label="t('timeline.manage2.step2Title')"
+            @click="applyColor(color)"
           ></i>
         </div>
         <p class="wizard__note">{{ t('timeline.manage2.colorHint') }}</p>
@@ -360,6 +363,7 @@ async function finish(): Promise<void> {
   height: 20px;
   border-radius: 50%;
   opacity: 0.5;
+  cursor: pointer;
   transition: transform var(--dg-motion-fast) var(--dg-ease-out), opacity var(--dg-motion-fast) ease;
 }
 
