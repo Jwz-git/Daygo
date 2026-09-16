@@ -16,21 +16,35 @@ const props = defineProps<{
 const { locale, t } = useI18n()
 
 const gridStyle = computed(() => ({
-  minWidth: `${Math.max(680, props.presentation.slotCount * 18)}px`,
+  minWidth: `${Math.max(680, props.presentation.slotCount * 20)}px`,
 }))
 
 const cellGridStyle = computed(() => ({
-  // Fixed square cells: a fluid 1fr track squeezed cells into non-squares.
-  gridTemplateColumns: `repeat(${props.presentation.slotCount}, 15px)`,
+  // Fixed square cells with the Dayflow baseline: 18px cell, 2px gap.
+  gridTemplateColumns: `repeat(${props.presentation.slotCount}, 18px)`,
 }))
 
 function cellStyle(cell: DailyWorkflowCell, color: string) {
   if (cell.occupancy <= 0) return undefined
-  return {
-    '--daily-cell-color': color,
-    '--daily-cell-strength': `${Math.round(24 + cell.occupancy * 66)}%`,
-  }
+  // Partial occupancy stays dimmer; full occupancy reaches full intensity.
+  return { '--daily-cell-color': color, '--daily-cell-alpha': `${0.3 + cell.occupancy * 0.7}` }
 }
+
+/*
+ * Dayflow's dedicated distraction row: one red bar per slot that recorded a
+ * distraction in any category, placed by the slot's fraction of the window.
+ */
+const distractionMarkers = computed(() => {
+  const slots = props.presentation.slotCount
+  const markers: Array<{ key: string; slot: number }> = []
+  for (let index = 0; index < slots; index += 1) {
+    const distracted = props.presentation.rows.some(
+      (row) => row.cells[index]?.hasDistraction === true,
+    )
+    if (distracted) markers.push({ key: `d-${index}`, slot: index })
+  }
+  return markers
+})
 
 /*
  * Hover tooltip (GitHub-contributions style): the slot's minutes in the row's
@@ -117,6 +131,21 @@ const duration = useDurationFormat()
               </span>
             </div>
           </template>
+
+          <template v-if="distractionMarkers.length > 0">
+            <div class="workflow-label workflow-distraction-label">
+              <span>{{ t('daily.workflow.distractions') }}</span>
+            </div>
+            <div class="workflow-distraction-cell">
+              <div class="workflow-distraction-track">
+                <span
+                  v-for="marker in distractionMarkers"
+                  :key="marker.key"
+                  :style="{ left: `${marker.slot * 20}px` }"
+                ></span>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -176,7 +205,7 @@ const duration = useDurationFormat()
 .workflow-grid {
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr);
-  gap: 5px 14px;
+  gap: 2px 13px;
   align-items: center;
 }
 
@@ -228,36 +257,37 @@ const duration = useDurationFormat()
 
 .workflow-cells {
   display: grid;
-  gap: 3px;
+  gap: 2px;
 }
 
 .workflow-cell {
   position: relative;
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
   border: none;
-  border-radius: 3px;
+  /* Dayflow corner radius: 2.5px on the 18px square. */
+  border-radius: 2.5px;
   background: var(--dg-daily-cell-empty);
 }
 
 .workflow-cell.is-occupied {
-  border-color: transparent;
-  background: color-mix(
-    in srgb,
-    var(--daily-cell-color) var(--daily-cell-strength),
-    var(--dg-daily-cell-empty)
-  );
+  background: color-mix(in srgb, var(--daily-cell-color) calc(var(--daily-cell-alpha) * 100%), transparent);
 }
 
-.workflow-cell.has-distraction::after {
+/* Dedicated distraction marker row under the category rows. */
+.workflow-distraction-track {
+  position: relative;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--dg-daily-distraction-track, var(--dg-track-fill));
+}
+
+.workflow-distraction-track span {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--dg-daily-distraction);
-  content: '';
+  top: 0;
+  height: 10px;
+  border-radius: 2px;
+  background: #ff653b;
 }
 
 /* Hover tooltip floating above the cell (GitHub style). */
@@ -267,13 +297,13 @@ const duration = useDurationFormat()
   left: 50%;
   z-index: 20;
   display: grid;
-  gap: 2px;
-  width: max-content;
-  max-width: 260px;
-  padding: 8px 11px;
-  border-radius: 8px;
+  gap: 4px;
+  width: 200px;
+  padding: 8px;
+  border: 1px solid var(--dg-timeline-card-border);
+  border-radius: 4px;
   background: var(--dg-popover-fill, var(--dg-surface));
-  box-shadow: var(--dg-shadow-lg);
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.12);
   text-align: left;
   transform: translateX(-50%);
   pointer-events: none;

@@ -179,6 +179,7 @@
   --dg-daily-cell-empty: rgba(70, 63, 75, 0.055);
   --dg-daily-cell-border: rgba(70, 63, 75, 0.045);
   --dg-daily-distraction: #b8453d;
+  --dg-daily-distraction-track: rgba(255, 101, 59, 0.10);
   --dg-daily-footer-fill: rgba(247, 247, 249, 0.52);
 
   /* weekly summary */

@@ -7,6 +7,8 @@ export interface ReviewTotals {
   distractionMinutes: number
   neutralMinutes: number
   focusMinutes: number
+  /** Cards with a stored verdict; the queue excludes them. */
+  reviewedCardIds?: number[]
 }
 
 export const ZERO_REVIEW_TOTALS: ReviewTotals = {

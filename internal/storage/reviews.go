@@ -86,6 +86,34 @@ func (r *ReviewRepo) ClearVerdict(ctx context.Context, cardID int64) error {
 	})
 }
 
+// ReviewedCardIDs lists the cards with a stored verdict for one logical
+// day, so the review queue can exclude already-judged cards after a restart.
+func (r *ReviewRepo) ReviewedCardIDs(ctx context.Context, day string) ([]int64, error) {
+	if r == nil || r.store == nil {
+		return nil, fmt.Errorf("reviews: store unavailable")
+	}
+	var ids []int64
+	err := r.store.Read(ctx, "review reviewed ids", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx,
+			`SELECT cr.card_id FROM card_reviews cr
+			 JOIN timeline_cards c ON c.id = cr.card_id AND c.is_deleted = 0
+			 WHERE cr.day = ?`, day)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				return err
+			}
+			ids = append(ids, id)
+		}
+		return rows.Err()
+	})
+	return ids, err
+}
+
 // TotalsByDay sums judged minutes per verdict for one logical day. Cards that
 // were soft-deleted after judging drop out of the totals.
 func (r *ReviewRepo) TotalsByDay(ctx context.Context, day string) (ReviewDayTotals, error) {

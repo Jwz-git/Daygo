@@ -15,6 +15,7 @@ export default {
     description: 'Activity is grouped from its recorded time. The recap below only shows content already saved by the backend; the frontend does not fill in the gaps.',
   },
   workflow: {
+    distractions: 'Distractions',
     title: 'Workflow overview',
     description: 'See where the day went and when the context changed.',
     slotNote: '15 minutes per cell · a red corner dot marks an activity with a distraction record',

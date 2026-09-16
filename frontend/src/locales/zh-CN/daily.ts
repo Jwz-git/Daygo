@@ -15,6 +15,7 @@ export default {
     description: '活动按真实时间归入工作流；下方日报只呈现后端已经保存的内容，不会用前端推断补写。',
   },
   workflow: {
+    distractions: '分心',
     title: '工作流概览',
     description: '按分类查看一天里的投入与切换。',
     slotNote: '每格 15 分钟 · 右上角红点表示该活动含分心记录',

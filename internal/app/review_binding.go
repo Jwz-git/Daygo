@@ -55,11 +55,13 @@ func (b *Backend) ClearCardReview(cardID int64) error {
 	return nil
 }
 
-// ReviewTotalsDTO carries one day's judged minutes per verdict.
+// ReviewTotalsDTO carries one day's judged minutes per verdict plus the
+// card ids already judged, so the review queue excludes them after a restart.
 type ReviewTotalsDTO struct {
-	DistractionMinutes int `json:"distractionMinutes"`
-	NeutralMinutes     int `json:"neutralMinutes"`
-	FocusMinutes       int `json:"focusMinutes"`
+	DistractionMinutes int     `json:"distractionMinutes"`
+	NeutralMinutes     int     `json:"neutralMinutes"`
+	FocusMinutes       int     `json:"focusMinutes"`
+	ReviewedCardIDs    []int64 `json:"reviewedCardIds"`
 }
 
 func (b *Backend) GetReviewTotals(day string) (ReviewTotalsDTO, error) {
@@ -76,9 +78,17 @@ func (b *Backend) GetReviewTotals(day string) (ReviewTotalsDTO, error) {
 	if err != nil {
 		return ReviewTotalsDTO{}, mapStorageError("review totals", err)
 	}
+	reviewed, err := store.Reviews().ReviewedCardIDs(ctx, day)
+	if err != nil {
+		return ReviewTotalsDTO{}, mapStorageError("review totals", err)
+	}
+	if reviewed == nil {
+		reviewed = []int64{}
+	}
 	return ReviewTotalsDTO{
 		DistractionMinutes: totals.DistractionMinutes,
 		NeutralMinutes:     totals.NeutralMinutes,
 		FocusMinutes:       totals.FocusMinutes,
+		ReviewedCardIDs:    reviewed,
 	}, nil
 }

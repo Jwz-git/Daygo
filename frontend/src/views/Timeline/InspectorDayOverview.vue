@@ -109,22 +109,69 @@ const donutSlices = computed<DonutSlice[]>(() => {
   return slices
 })
 
-const donutSegments = computed(() => {
+interface DonutSector {
+  color: string
+  path: string
+}
+
+/*
+ * Annular-sector path for one slice (Dayflow's SectorMark): inner radius 75%
+ * of the outer, a 2-degree angular inset per side forming the visible gap,
+ * and corners rounded by stroking the same-colour path (round linejoin).
+ */
+function sectorPath(
+  cx: number,
+  cy: number,
+  rOuter: number,
+  rInner: number,
+  startAngle: number,
+  endAngle: number,
+): string {
+  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0
+  const point = (radius: number, angle: number): string =>
+    `${(cx + radius * Math.cos(angle)).toFixed(2)} ${(cy + radius * Math.sin(angle)).toFixed(2)}`
+  return [
+    `M ${point(rOuter, startAngle)}`,
+    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${point(rOuter, endAngle)}`,
+    `L ${point(rInner, endAngle)}`,
+    `A ${rInner} ${rInner} 0 ${largeArc} 0 ${point(rInner, startAngle)}`,
+    'Z',
+  ].join(' ')
+}
+
+const donutSectors = computed<DonutSector[]>(() => {
   const total = Math.max(1, donutSlices.value.reduce((sum, slice) => sum + slice.minutes, 0))
-  const circumference = 2 * Math.PI * 89.5
+  const outerRadius = 102.5
+  const innerRadius = outerRadius * 0.75
+  const gapAngle = (2 * Math.PI) / 180
   let consumed = 0
-  return donutSlices.value.map((slice) => {
+  const sectors: DonutSector[] = []
+  for (const slice of donutSlices.value) {
     const fraction = slice.minutes / total
-    const gap = donutSlices.value.length > 1 ? 4 : 0
-    const arc = Math.max(0, fraction * circumference - gap)
-    const segment = {
-      color: slice.color,
-      dashArray: `${arc} ${circumference - arc}`,
-      offset: -consumed * circumference - gap / 2,
+    if (fraction <= 0) continue
+    const startAngle = -Math.PI / 2 + consumed * 2 * Math.PI + gapAngle / 2
+    const endAngle = -Math.PI / 2 + (consumed + fraction) * 2 * Math.PI - gapAngle / 2
+    if (endAngle - startAngle < 0.008) {
+      // Degenerate sliver: still draw a small wedge so the category shows.
+      sectors.push({
+        color: slice.color,
+        path: sectorPath(102.5, 102.5, outerRadius, innerRadius, startAngle, startAngle + 0.008),
+      })
+    } else if (fraction >= 0.999) {
+      // Full ring: a single annulus, no corners to round.
+      sectors.push({
+        color: slice.color,
+        path: sectorPath(102.5, 102.5, outerRadius, innerRadius, -Math.PI / 2, (3 * Math.PI) / 2),
+      })
+    } else {
+      sectors.push({
+        color: slice.color,
+        path: sectorPath(102.5, 102.5, outerRadius, innerRadius, startAngle, endAngle),
+      })
     }
     consumed += fraction
-    return segment
-  })
+  }
+  return sectors
 })
 
 /*
@@ -164,26 +211,24 @@ const reviewSegments = computed(() => [
       </defs>
       <!-- Grey base circle with the soft ambient shadow. -->
       <circle class="donut__base" cx="102.5" cy="102.5" r="102.5" />
-      <!-- Category sectors: stroke arcs, 80% fill per the mock, rounded
-           caps standing in for the sector corner radius. -->
-      <g transform="rotate(-90 102.5 102.5)">
-        <circle
-          v-for="(segment, index) in donutSegments"
+      <!-- Category sectors: filled annular wedges with angular gaps and
+           round-cornered edges (the round-join stroke is the same colour). -->
+      <g class="donut__sectors">
+        <path
+          v-for="(sector, index) in donutSectors"
           :key="index"
-          class="donut__segment"
-          cx="102.5"
-          cy="102.5"
-          r="89.5"
-          :stroke="segment.color"
-          :stroke-dasharray="segment.dashArray"
-          :stroke-dashoffset="segment.offset"
+          :d="sector.path"
+          :fill="sector.color"
+          :stroke="sector.color"
+          stroke-width="6"
+          stroke-linejoin="round"
         />
       </g>
       <!-- White radial sheen from the inner edge fading outward. -->
       <circle cx="102.5" cy="102.5" r="102.5" fill="url(#donut-sheen)" />
       <!-- White center disk, slightly smaller than the hole: leaves the grey
            gap ring on the inner edge like the reference. -->
-      <circle class="donut__center-disk" cx="102.5" cy="102.5" r="71" />
+      <circle class="donut__center-disk" cx="102.5" cy="102.5" r="73" />
     </svg>
     <div class="donut__center">
       <span class="donut__total-label">{{ t('timeline.overview.total') }}</span>
@@ -295,11 +340,8 @@ const reviewSegments = computed(() => [
 
 :root[data-dg-appearance='dark'] .donut__base { fill: #26262c; }
 
-.donut__segment {
-  fill: none;
-  stroke-width: 25;
-  stroke-linecap: round;
-  stroke-opacity: 0.8;
+.donut__sectors path {
+  fill-opacity: 0.8;
 }
 
 .donut__center-disk { fill: var(--dg-surface, #ffffff); }

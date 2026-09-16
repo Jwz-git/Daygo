@@ -193,7 +193,12 @@ const reviewTotals = ref<ReviewTotals>({ ...ZERO_REVIEW_TOTALS })
 watch(context, (current) => {
   if (current === null) return
   void getReviewTotals(current.day)
-    .then((totals) => { reviewTotals.value = totals })
+    .then((totals) => {
+      reviewTotals.value = totals
+      // Verdicts persist across restarts: the already-judged cards re-enter
+      // neither the badge count nor the review queue.
+      reviewedIds.value = new Set(totals.reviewedCardIds ?? [])
+    })
     .catch(() => { reviewTotals.value = { ...ZERO_REVIEW_TOTALS } })
 })
 
