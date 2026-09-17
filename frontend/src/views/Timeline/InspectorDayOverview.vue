@@ -11,6 +11,7 @@ import type { TimelineAction } from '@/stores/timeline'
 import GoalEditor from './GoalEditor.vue'
 import type { ReviewTotals } from './review'
 import { safeCategoryColor } from './layout'
+import { buildDonutSectors, type DonutSector, type DonutSlice } from './donut'
 
 /*
  * The inspector's no-selection pane, laid out like the Dayflow reference:
@@ -55,6 +56,11 @@ interface CategoryTotal {
 }
 
 const categoryTotals = computed<CategoryTotal[]>(() => {
+  const categoryMap = new Map<string, CategoryDTO>()
+  for (const cat of props.day.categories) {
+    categoryMap.set(cat.name, cat)
+  }
+
   const totals = new Map<string, number>()
   for (const card of props.day.cards) {
     if (card.isIdle || card.category === 'System') continue
@@ -62,24 +68,46 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
   }
 
   const denominator = Math.max(1, [...totals.values()].reduce((sum, value) => sum + value, 0))
-  return props.day.categories
-    .filter((category) => totals.has(category.name))
-    .map((category) => {
-      const minutes = totals.get(category.name) ?? 0
-      return { category, minutes, percentage: (minutes / denominator) * 100 }
-    })
-    .sort((left, right) => right.minutes - left.minutes)
+  const result: CategoryTotal[] = []
+  for (const [name, minutes] of totals.entries()) {
+    const category = categoryMap.get(name) ?? {
+      id: '0',
+      name,
+      colorHex: '#888888',
+      details: '',
+      sortOrder: 999,
+      isSystem: false,
+      isIdle: false,
+      createdAtTs: 0,
+      updatedAtTs: 0,
+    }
+    result.push({ category, minutes, percentage: (minutes / denominator) * 100 })
+  }
+  return result.sort((left, right) => right.minutes - left.minutes)
 })
 
 /*
  * Ring chart of the analyzed day: one slice per category plus the idle cards
- * in grey. The center total is tracked + idle — the time the pipeline has
- * actually accounted for; unanalyzed wall-clock is intentionally absent
- * (Dayflow-style) rather than drawn as a giant placeholder wedge.
+ * in grey. The center total is the overall recorded time the pipeline has
+ * accounted for; unanalyzed wall-clock is intentionally absent (Dayflow-style).
  */
 const IDLE_COLOR = '#c9c6d2'
 
-const centerMinutes = computed(() => props.day.trackedMinutes + props.day.idleMinutes)
+const donutSlices = computed<DonutSlice[]>(() => {
+  const slices: DonutSlice[] = categoryTotals.value.map((item) => ({
+    label: categoryLabel(item.category.name, t),
+    minutes: item.minutes,
+    color: safeCategoryColor(item.category.colorHex),
+  }))
+  if (props.day.idleMinutes > 0) {
+    slices.push({ label: t('timeline.overview.idle'), minutes: props.day.idleMinutes, color: IDLE_COLOR })
+  }
+  return slices
+})
+
+const centerMinutes = computed(() =>
+  donutSlices.value.reduce((sum, slice) => sum + slice.minutes, 0),
+)
 
 /* Hours on one line, minutes on the next; Chinese duration strings carry
    wide full-width spaces, and the donut reads tighter without them. */
@@ -95,84 +123,9 @@ const centerLines = computed(() => {
   return lines.map(compact)
 })
 
-interface DonutSlice { label: string; minutes: number; color: string }
-
-const donutSlices = computed<DonutSlice[]>(() => {
-  const slices: DonutSlice[] = categoryTotals.value.map((item) => ({
-    label: categoryLabel(item.category.name, t),
-    minutes: item.minutes,
-    color: safeCategoryColor(item.category.colorHex),
-  }))
-  if (props.day.idleMinutes > 0) {
-    slices.push({ label: t('timeline.overview.idle'), minutes: props.day.idleMinutes, color: IDLE_COLOR })
-  }
-  return slices
-})
-
-interface DonutSector {
-  color: string
-  path: string
-}
-
-/*
- * Annular-sector path for one slice (Dayflow's SectorMark): inner radius 75%
- * of the outer, a 2-degree angular inset per side forming the visible gap,
- * and corners rounded by stroking the same-colour path (round linejoin).
- */
-function sectorPath(
-  cx: number,
-  cy: number,
-  rOuter: number,
-  rInner: number,
-  startAngle: number,
-  endAngle: number,
-): string {
-  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0
-  const point = (radius: number, angle: number): string =>
-    `${(cx + radius * Math.cos(angle)).toFixed(2)} ${(cy + radius * Math.sin(angle)).toFixed(2)}`
-  return [
-    `M ${point(rOuter, startAngle)}`,
-    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${point(rOuter, endAngle)}`,
-    `L ${point(rInner, endAngle)}`,
-    `A ${rInner} ${rInner} 0 ${largeArc} 0 ${point(rInner, startAngle)}`,
-    'Z',
-  ].join(' ')
-}
-
-const donutSectors = computed<DonutSector[]>(() => {
-  const total = Math.max(1, donutSlices.value.reduce((sum, slice) => sum + slice.minutes, 0))
-  const outerRadius = 102.5
-  const innerRadius = outerRadius * 0.75
-  const gapAngle = (2 * Math.PI) / 180
-  let consumed = 0
-  const sectors: DonutSector[] = []
-  for (const slice of donutSlices.value) {
-    const fraction = slice.minutes / total
-    if (fraction <= 0) continue
-    const startAngle = -Math.PI / 2 + consumed * 2 * Math.PI + gapAngle / 2
-    const endAngle = -Math.PI / 2 + (consumed + fraction) * 2 * Math.PI - gapAngle / 2
-    if (endAngle - startAngle < 0.008) {
-      // Degenerate sliver: still draw a small wedge so the category shows.
-      sectors.push({
-        color: slice.color,
-        path: sectorPath(102.5, 102.5, outerRadius, innerRadius, startAngle, startAngle + 0.008),
-      })
-    } else if (fraction >= 0.999) {
-      // Full ring: a single annulus, no corners to round.
-      sectors.push({
-        color: slice.color,
-        path: sectorPath(102.5, 102.5, outerRadius, innerRadius, -Math.PI / 2, (3 * Math.PI) / 2),
-      })
-    } else {
-      sectors.push({
-        color: slice.color,
-        path: sectorPath(102.5, 102.5, outerRadius, innerRadius, startAngle, endAngle),
-      })
-    }
-    consumed += fraction
-  }
-  return sectors
-})
+const donutSectors = computed<DonutSector[]>(() =>
+  buildDonutSectors(donutSlices.value),
+)
 
 /*
  * The review split (你的回顾): session judgments only, one rounded block per
@@ -237,6 +190,9 @@ const reviewSegments = computed(() => [
   </div>
 
   <div class="donut-legend">
+    <p v-if="donutSlices.length === 0" class="donut-legend__empty">
+      {{ t('timeline.overview.noCategories') }}
+    </p>
     <div v-for="slice in donutSlices" :key="slice.label" class="legend-chip">
       <span class="legend-chip__name">
         <i :style="{ background: slice.color }"></i>
@@ -376,54 +332,6 @@ const reviewSegments = computed(() => [
   font-size: 17px;
   font-weight: 450;
   line-height: 1.25;
-}
-
-/* Legend: three fixed columns like the reference grid. */
-.donut-legend {
-  display: grid;
-  grid-template-columns: repeat(3, 85px);
-  gap: 12px 14px;
-  justify-content: center;
-  padding: 20px 0 4px;
-}
-
-.donut-legend__empty {
-  margin: 0;
-  color: var(--dg-text-muted);
-  font-size: 11px;
-}
-
-.legend-chip {
-  display: grid;
-  justify-items: center;
-  gap: 3px;
-  min-width: 0;
-}
-
-.legend-chip__name {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--dg-text-secondary);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.legend-chip__name i {
-  flex: none;
-  width: 14px;
-  height: 10px;
-  border-radius: 3px;
-  opacity: 0.8;
-}
-
-.legend-chip strong {
-  color: var(--dg-text-primary);
-  font-size: 13px;
-  font-weight: 650;
 }
 
 /* Two-line legend chips: swatch + name, duration beneath. */
