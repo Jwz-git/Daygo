@@ -163,6 +163,97 @@ DG_CAPTURE_API int32_t DG_CAPTURE_CALL dg_capture_once(
     dg_capture_error_v1 *out_error
 );
 
+/*
+ * Input for dg_frame_append.
+ */
+typedef struct dg_frame_append_request_v1 {
+    uint32_t struct_size;
+    uint32_t flags;
+    uint32_t target_height;
+    uint32_t timeout_ms;
+    uint32_t blocked_application_id_count;
+    uint32_t synthetic_width;
+    uint32_t synthetic_height;
+    uint32_t reserved0;
+
+    dg_capture_string_view_v1 recordings_dir;
+    const dg_capture_string_view_v1 *blocked_application_ids;
+    uint64_t reserved1;
+} dg_frame_append_request_v1;
+
+/*
+ * Output for dg_frame_append.
+ */
+typedef struct dg_frame_append_result_v1 {
+    uint32_t struct_size;
+    uint32_t outcome;
+    uint32_t frame_index;
+    uint32_t width;
+    uint32_t height;
+    uint32_t reserved0;
+    int64_t captured_at_unix_ns;
+    uint64_t file_size;
+    char segment_rel_path[512];
+} dg_frame_append_result_v1;
+
+/*
+ * Output for dg_segment_probe.
+ */
+typedef struct dg_segment_info_v1 {
+    uint32_t struct_size;
+    uint32_t frame_count;
+    uint32_t width;
+    uint32_t height;
+    uint32_t readable;
+    uint32_t reserved0;
+} dg_segment_info_v1;
+
+/*
+ * Appends a frame to the active HEVC segment in recordings_dir.
+ * If synthetic_width > 0, appends a synthetic test frame of synthetic_width x synthetic_height.
+ * Otherwise, captures the primary display and appends it (or placeholder if blocked).
+ */
+DG_CAPTURE_API int32_t DG_CAPTURE_CALL dg_frame_append(
+    uint32_t requested_abi_major,
+    const dg_frame_append_request_v1 *request,
+    dg_frame_append_result_v1 *out_result,
+    dg_capture_error_v1 *out_error
+);
+
+/*
+ * Decodes one frame from a segment (or legacy JPEG) as JPEG bytes.
+ * Caller frees out_data with dg_frame_free().
+ */
+DG_CAPTURE_API int32_t DG_CAPTURE_CALL dg_frame_decode(
+    dg_capture_string_view_v1 recordings_dir,
+    dg_capture_string_view_v1 segment_rel_path,
+    uint32_t frame_index,
+    uint32_t max_pixel_size,
+    uint8_t **out_data,
+    uint64_t *out_len
+);
+
+/*
+ * Frees buffer allocated by dg_frame_decode.
+ */
+DG_CAPTURE_API void DG_CAPTURE_CALL dg_frame_free(
+    uint8_t *data
+);
+
+/*
+ * Probes a segment for frame count, geometry, and readability.
+ */
+DG_CAPTURE_API int32_t DG_CAPTURE_CALL dg_segment_probe(
+    dg_capture_string_view_v1 recordings_dir,
+    dg_capture_string_view_v1 segment_rel_path,
+    dg_segment_info_v1 *out_info
+);
+
+/*
+ * Closes the active segment writer (if any).
+ */
+DG_CAPTURE_API int32_t DG_CAPTURE_CALL dg_segment_close_active(void);
+
 #if defined(__cplusplus)
 } /* extern "C" */
 #endif

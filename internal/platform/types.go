@@ -8,10 +8,12 @@ import (
 	"unicode/utf8"
 )
 
-// CaptureRequest is the complete input for one screenshot attempt. OutputPath
-// is an absolute, not-yet-existing JPEG path allocated by Go storage.
+// CaptureRequest is the complete input for one screenshot attempt.
+// Either SegmentDirectory (for HEVC segment append) or OutputPath (for legacy
+// single-image capture) must be provided.
 type CaptureRequest struct {
 	OutputPath            string
+	SegmentDirectory      string
 	ImageFormat           CaptureImageFormat
 	TargetHeight          int
 	JPEGQuality           int
@@ -22,12 +24,18 @@ type CaptureRequest struct {
 // Validate checks platform-independent request bounds before an adapter touches
 // the filesystem or invokes a native API.
 func (r CaptureRequest) Validate() error {
-	if !filepath.IsAbs(r.OutputPath) || len(r.OutputPath) > 32768 || !utf8.ValidString(r.OutputPath) {
-		return &CaptureError{Code: CaptureInvalidArgument}
-	}
-	extension := strings.ToLower(filepath.Ext(r.OutputPath))
-	if extension != ".jpg" && extension != ".jpeg" {
-		return &CaptureError{Code: CaptureInvalidArgument}
+	if r.SegmentDirectory != "" {
+		if !filepath.IsAbs(r.SegmentDirectory) || len(r.SegmentDirectory) > 32768 || !utf8.ValidString(r.SegmentDirectory) {
+			return &CaptureError{Code: CaptureInvalidArgument}
+		}
+	} else {
+		if !filepath.IsAbs(r.OutputPath) || len(r.OutputPath) > 32768 || !utf8.ValidString(r.OutputPath) {
+			return &CaptureError{Code: CaptureInvalidArgument}
+		}
+		extension := strings.ToLower(filepath.Ext(r.OutputPath))
+		if extension != ".jpg" && extension != ".jpeg" {
+			return &CaptureError{Code: CaptureInvalidArgument}
+		}
 	}
 	if !r.ImageFormat.Valid() || r.TargetHeight < 1 || r.TargetHeight > 16384 {
 		return &CaptureError{Code: CaptureInvalidArgument}
@@ -51,11 +59,13 @@ func (r CaptureRequest) Validate() error {
 // CaptureResult describes one completed call. Image metadata is valid only
 // when Outcome is CaptureWritten.
 type CaptureResult struct {
-	Outcome    CaptureOutcome
-	CapturedAt time.Time
-	Width      int
-	Height     int
-	FileSize   int64
+	Outcome     CaptureOutcome
+	CapturedAt  time.Time
+	Width       int
+	Height      int
+	FileSize    int64
+	SegmentPath string
+	FrameIndex  int
 }
 
 // CapturePrivacyCompatibility is platform capability data, not a setting.

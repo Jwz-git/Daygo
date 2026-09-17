@@ -3,34 +3,31 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/ai"
 	"github.com/Jwz-git/Daygo/internal/ai/factory"
 	"github.com/Jwz-git/Daygo/internal/analysis"
+	"github.com/Jwz-git/Daygo/internal/platform"
+	platformfactory "github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
 
-// stagingFrameSource reads single-frame staging JPEGs by segment path.
-//
-// Provisional: it bypasses platform.Media, whose segment container and
-// encoding format are still open decisions (#7/#8). Today the recorder
-// commits each frame as its own staging JPEG with frame_index 0, so this is
-// the only shape on disk. When Media lands, this adapter is replaced and the
-// analysis package is untouched.
-type stagingFrameSource struct {
-	root string
+// mediaFrameSource adapts platform.Media to analysis.FrameSource.
+type mediaFrameSource struct {
+	media platform.Media
 }
 
-func (s stagingFrameSource) FrameBytes(_ context.Context, segmentPath string, frameIndex int) ([]byte, error) {
-	if frameIndex != 0 {
-		return nil, fmt.Errorf("staging frames are single-frame; index %d is invalid", frameIndex)
+func (s mediaFrameSource) FrameBytes(ctx context.Context, segmentPath string, frameIndex int) ([]byte, error) {
+	if s.media == nil {
+		return nil, fmt.Errorf("media frame source: media is unavailable")
 	}
-	return os.ReadFile(filepath.Join(s.root, filepath.FromSlash(segmentPath)))
+	return s.media.DecodeFrame(ctx, platform.DecodeRequest{
+		SegmentPath: segmentPath,
+		FrameIndex:  frameIndex,
+	})
 }
 
 // retryableFailureKind reports whether a failed batch is worth retrying. An
@@ -135,12 +132,16 @@ func analysisLanguage(b *Backend) func(context.Context) string {
 // instance. A read-only second instance does not analyze: it holds neither
 // the write lock nor the capture ownership the pipeline's writes require.
 func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, recordingsRoot string) (*analysis.Service, error) {
+	media, _ := b.mediaSnapshot()
+	if media == nil {
+		media = platformfactory.NewMedia(recordingsRoot)
+	}
 	service, err := analysis.New(analysis.Config{
 		Store:      store.Analysis(),
 		Cards:      store.Cards(),
 		Categories: store.Categories(),
 		Providers:  analysisChainSource{backend: b},
-		Media:      stagingFrameSource{root: recordingsRoot},
+		Media:      mediaFrameSource{media: media},
 		Language:   analysisLanguage(b),
 		// The service's zone must be the storage layer's zone: it prefilters
 		// card windows here while ReplaceCardsInRange derives start_ts/end_ts

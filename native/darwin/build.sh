@@ -33,6 +33,9 @@ for arch in arm64 x86_64; do
     -framework ImageIO \
     -framework ScreenCaptureKit \
     -framework UniformTypeIdentifiers \
+    -framework AVFoundation \
+    -framework CoreMedia \
+    -framework VideoToolbox \
     "${SOURCES[@]}" \
     -o "$archive"
   ARCHIVES+=("$archive")

@@ -38,6 +38,23 @@ intent，连续失败计数达到 3 次才放弃，成功即清零；初始 capt
 ④ 空闲采样仍未接入：`idle_seconds_at_capture` 恒为 NULL，空闲判定因此永不命中——
 platform 端口缺 idle 查询能力，属待定设计，需要在 `System` 或 `Capture` 端口决策后
 （docs/09 §9.8）补一个 `docs/decisions/` 记录再实现。
+
+**2026-09-17：直接追加 HEVC 帧段优化落盘（Dayflow 方式）**——
+落实 [HEVC 分段落盘决策](../decisions/recording-frame-segments-hevc.md) 的切片 A–D：
+① 捕获端免 JPEG staging：Swift `SegmentWriter` 采用 VideoToolbox / `AVAssetWriter`
+硬件编码器直接追加 HEVC 帧（质量 0.55、关键帧间隔 30、600 帧/600 秒滚动、分辨率变更滚动、
+前台应用屏蔽时写入脱敏占位帧）；`SegmentCloser` 接口用于暂停与进程退出时的活跃段安全收尾。
+② 读路径接入：Swift `SegmentReader` 采用 `AVAssetReader` 按段与帧序号随机访问解码（带 LRU
+段缓存与 `maxPixelSize` 缩略图下采样），并保留旧 JPEG staging 文件的 legacy 直读回退；
+Go 侧通过 darwin `platform.Media` 驱动，`/media/frame` 资源处理器与 analysis 流水线源已统一接入。
+③ 存储与迁移 v15：`pending_captures` 增加 `frame_index`（迁移 v15），支持同一段文件内多帧
+意图跟踪；`gen.go` 增加 v14 夹具，DB-2 迁移测试与崩溃对账测试通过；`Reconcile` 增加 `hasMoovAtom`
+校验，未收尾的残破 MP4 自动丢弃不入库。
+④ 整段清理：`cleanup.go` 改写为按 `segment_path` 整段软删除并物理删除段文件，豁免未收尾段与
+活跃分析批次租用段。
+⑤ 门禁：macOS 真实像素往返与段滚动 smoke、Go 单元 / 夹具测试、`CGO_ENABLED=0` 构建与
+`./scripts/gate.sh` 全绿通过。
+
 Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows` + `native/windows`），
 已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke，但仍**不在发布范围**；
 完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
@@ -103,6 +120,14 @@ G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixt
 恢复外壳。禁止以清空数据目录代替恢复。
 
 ## 验证记录
+
+2026-09-17：直接追加 HEVC 帧分段优化通过真实 macOS 原生 smoke、迁移夹具与全部门禁：
+Swift `SegmentWriter` / `SegmentReader` 实现 0.55 质量、30 关键帧间隔、600 帧/600 秒滚动与
+`AVAssetReader` LRU 随机访问解码；`dg_frame_append` / `dg_frame_decode` Universal 静态库与 cgo
+桥接完成；`pending_captures` 迁移至 v15 携带 `frame_index` 并由 v14 真实夹具验证；`cleanup.go`
+按 `segment_path` 聚合成段清理；`analysis` 流水线源与 `/media/frame` 绑定经 `platform.Media`
+统一读取帧；`segment_smoke_test.go`、`go test ./internal/...`、`CGO_ENABLED=0 go test ./internal/...`
+与 `./scripts/gate.sh` 全绿通过。
 
 2026-09-15（自 handoff-recording-settings.md 并入，原文档已删除）：录制设置与状态栏
 交接批次——存储设置经真实 `GetSettings` / `UpdateSettings` 读写（间隔 / 高度 /

@@ -24,10 +24,39 @@ type Capture struct {
 	permission             platform.PermissionState
 	frontmostApplicationID string
 	noDisplay              bool
+	frameIndex             int
+	SegmentMode            bool
 }
 
 func NewCapture() *Capture {
 	return &Capture{permission: platform.PermissionGranted}
+}
+
+// SegmentCapture wraps Capture to support platform.SegmentCloser and segment recording.
+type SegmentCapture struct {
+	inner *Capture
+}
+
+var (
+	_ platform.Capture       = (*SegmentCapture)(nil)
+	_ platform.SegmentCloser = (*SegmentCapture)(nil)
+)
+
+func NewSegmentCapture() *SegmentCapture {
+	c := NewCapture()
+	c.SegmentMode = true
+	return &SegmentCapture{inner: c}
+}
+
+func (s *SegmentCapture) Capture(ctx context.Context, req platform.CaptureRequest) (platform.CaptureResult, error) {
+	return s.inner.Capture(ctx, req)
+}
+
+func (s *SegmentCapture) CloseActiveSegment(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // SetPermission controls the authorization observed by the fake.
@@ -72,6 +101,46 @@ func (c *Capture) Capture(ctx context.Context, req platform.CaptureRequest) (pla
 	if noDisplay {
 		return platform.CaptureResult{}, captureError(platform.CaptureNoDisplay)
 	}
+
+	width := req.TargetHeight * 16 / 9
+	c.mu.RLock()
+	segMode := c.SegmentMode
+	c.mu.RUnlock()
+
+	if req.SegmentDirectory != "" && (segMode || req.OutputPath == "") {
+		c.mu.Lock()
+		idx := c.frameIndex
+		c.frameIndex++
+		c.mu.Unlock()
+
+		segRel := "segments/fake-segment.mp4"
+		segAbs := filepath.Join(req.SegmentDirectory, filepath.FromSlash(segRel))
+		_ = os.MkdirAll(filepath.Dir(segAbs), 0700)
+		_ = os.WriteFile(segAbs, []byte("fake-mp4-data"), 0600)
+
+		if blocked(frontmostApplicationID, req.BlockedApplicationIDs) {
+			return platform.CaptureResult{
+				Outcome:     platform.CaptureBlocked,
+				CapturedAt:  fakeEpoch,
+				Width:       width,
+				Height:      req.TargetHeight,
+				FileSize:    1024,
+				SegmentPath: segRel,
+				FrameIndex:  idx,
+			}, nil
+		}
+
+		return platform.CaptureResult{
+			Outcome:     platform.CaptureWritten,
+			CapturedAt:  fakeEpoch,
+			Width:       width,
+			Height:      req.TargetHeight,
+			FileSize:    1024,
+			SegmentPath: segRel,
+			FrameIndex:  idx,
+		}, nil
+	}
+
 	if blocked(frontmostApplicationID, req.BlockedApplicationIDs) {
 		return platform.CaptureResult{Outcome: platform.CaptureBlocked}, nil
 	}
@@ -79,10 +148,6 @@ func (c *Capture) Capture(ctx context.Context, req platform.CaptureRequest) (pla
 		return platform.CaptureResult{}, err
 	}
 
-	width := req.TargetHeight * 16 / 9
-	if width == 0 {
-		width = 1
-	}
 	fileSize, err := writeJPEG(ctx, req.OutputPath, width, req.TargetHeight, req.JPEGQuality)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {

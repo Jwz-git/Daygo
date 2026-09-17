@@ -1,14 +1,15 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 13`）有十六张表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 16`）有十七张表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
 > `day_goal_categories`（v5）、`llm_calls`（v6）、`chat_conversations.model` 会话模型
 > 覆盖列（v7）、分析流水线的 `batch_screenshots`、`observations`（v8，含
 > `idx_batch_screenshots_screenshot`）；`analysis_batches.attempts`（v9）、批次软删除列（v10）、
-> `providers.max_images`（v11）、首次启动分类种子（v12），以及 `daily_standup_entries`（v13）。本文其余表
+> `providers.max_images`（v11）、首次启动分类种子（v12）、`daily_standup_entries`（v13）、
+> `card_reviews`（v14）、`pending_captures.frame_index`（v15），以及分段截图大小均摊（v16）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -463,7 +464,7 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 |------|------|------|------|
 | WAL checkpoint | 300 秒 | ★ 已实现 | `PASSIVE`：不阻塞读写，宁可 WAL 大一会儿也不要卡住一次捕获写入 |
 | 数据库备份 | 启动后 1 小时，之后每 24 小时 | ★ 已实现 | `VACUUM INTO`（不是文件复制，避免撕裂的 WAL），保留最近 **7** 份（[决策](decisions/data-backup-retention.md)） |
-| 录制清理 | 启动 1 小时，之后每小时 | ★ 已实现（单帧粒度） | 当前管线为单帧分段（每截图一个 JPEG），清理按 `screenshots` 行执行：软删除（意图）→ 事务外删文件 → 孤儿清扫；`pending_captures` 的活跃文件与被 `pending`/`processing` 批次租用的帧绝不删除，时间线卡片保留。`recording_segments` 表与分段构建器落地后迁移为按段清理，边界规则不变。见[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
+| 录制清理 | 启动 1 小时，之后每小时 | ★ 已实现（分段粒度） | 清理以完整分段为单位（按 segment_path 聚合软删除 screenshots 行后物理删除段文件），保留未收尾 pending 段与活跃批次租用段，时间线卡片保留。见[HEVC分段落盘决策](decisions/recording-frame-segments-hevc.md)与[图片存储决策](decisions/recording-image-storage.md#7-清理流程) |
 | `llm_calls` 元数据留存 | 待定 | 写入已实现（analysis 与 chat）；清理未实现 | 只含 attempt 元数据，不含正文 |
 
 维护循环由 app 生命周期持有（`storage.Maintainer`），`ctx` 取消即退出，不存在全局单例。

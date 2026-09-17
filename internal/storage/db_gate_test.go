@@ -126,7 +126,7 @@ func seedRepresentativeData(t *testing.T, store *Store) {
 		t.Fatalf("seeded %d cards, want 1 (skipped: %d)", len(result.InsertedIDs), len(result.SkippedCards))
 	}
 
-	id, err := store.Captures().Begin(ctx, "2026/09/12/segment-0001", from, nil, 1920, 1080, false)
+	id, err := store.Captures().Begin(ctx, "2026/09/12/segment-0001", 0, from, nil, 1920, 1080, false)
 	if err != nil {
 		t.Fatalf("seed capture: %v", err)
 	}

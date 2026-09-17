@@ -12,7 +12,7 @@ func TestCaptureCommitIsIdempotent(t *testing.T) {
 	dir := newDir(t)
 	store := openWriter(t, dir)
 	repo := store.Captures()
-	id, err := repo.Begin(context.Background(), "staging/frame.jpg", time.Unix(100, 0), nil, 16, 9, false)
+	id, err := repo.Begin(context.Background(), "staging/frame.jpg", 0, time.Unix(100, 0), nil, 16, 9, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestCaptureCommitIsIdempotent(t *testing.T) {
 func commitFrame(t *testing.T, dir string, repo *CaptureRepo, capturedAt int64) int64 {
 	t.Helper()
 	rel := "staging/frame-" + time.Unix(capturedAt, 0).UTC().Format("20060102-150405") + ".jpg"
-	id, err := repo.Begin(context.Background(), rel, time.Unix(capturedAt, 0), nil, 16, 9, false)
+	id, err := repo.Begin(context.Background(), rel, 0, time.Unix(capturedAt, 0), nil, 16, 9, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,10 +126,57 @@ func TestFramePathResolvesAndRejectsDeleted(t *testing.T) {
 		t.Fatalf("frame path=%q, want %q", got, want)
 	}
 
+	locPath, locIdx, err := repo.FrameLocation(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if locPath != got || locIdx != 0 {
+		t.Fatalf("FrameLocation = (%q, %d), want (%q, 0)", locPath, locIdx, got)
+	}
+
 	if _, err := store.db.Exec(`UPDATE screenshots SET is_deleted = 1 WHERE id = ?`, id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := repo.FramePath(context.Background(), id); err == nil {
 		t.Fatal("deleted frame resolved a path; want error")
+	}
+}
+
+func TestAmortizeSegment(t *testing.T) {
+	dir := newDir(t)
+	store := openWriter(t, dir)
+	repo := store.Captures()
+	ctx := context.Background()
+
+	seg := "segments/test-segment.mp4"
+	id1, err := repo.Begin(ctx, seg, 0, time.Unix(1000, 0), nil, 1920, 1080, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, id1, 100); err != nil {
+		t.Fatal(err)
+	}
+	id2, err := repo.Begin(ctx, seg, 1, time.Unix(1001, 0), nil, 1920, 1080, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, id2, 200); err != nil {
+		t.Fatal(err)
+	}
+
+	// Amortize with total size 600
+	if err := repo.AmortizeSegment(ctx, seg, 600); err != nil {
+		t.Fatalf("AmortizeSegment: %v", err)
+	}
+
+	var size1, size2 int64
+	if err := store.db.QueryRow(`SELECT file_size FROM screenshots WHERE id = ?`, id1).Scan(&size1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow(`SELECT file_size FROM screenshots WHERE id = ?`, id2).Scan(&size2); err != nil {
+		t.Fatal(err)
+	}
+	if size1 != 300 || size2 != 300 {
+		t.Fatalf("sizes = (%d, %d), want (300, 300)", size1, size2)
 	}
 }

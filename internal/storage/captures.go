@@ -3,9 +3,11 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
@@ -20,6 +22,7 @@ const (
 type PendingCapture struct {
 	ID            int64
 	RelativePath  string
+	FrameIndex    int
 	CapturedAt    time.Time
 	IdleSeconds   *int
 	Width, Height int
@@ -36,16 +39,16 @@ func (s *Store) Captures() *CaptureRepo {
 	return &CaptureRepo{store: s}
 }
 
-func (r *CaptureRepo) Begin(ctx context.Context, relativePath string, capturedAt time.Time, idle *int, width, height int, redacted bool) (int64, error) {
+func (r *CaptureRepo) Begin(ctx context.Context, relativePath string, frameIndex int, capturedAt time.Time, idle *int, width, height int, redacted bool) (int64, error) {
 	if r == nil || r.store == nil {
 		return 0, fmt.Errorf("captures: store unavailable")
 	}
-	if !platform.ValidSegmentPath(relativePath) || width < 1 || height < 1 {
+	if !platform.ValidSegmentPath(relativePath) || frameIndex < 0 || width < 1 || height < 1 {
 		return 0, fmt.Errorf("captures: invalid pending capture")
 	}
 	var id int64
 	err := r.store.Write(ctx, "capture begin", func(ctx context.Context, tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `INSERT INTO pending_captures(relative_path,captured_at,idle_seconds,width,height,redacted,state,created_at) VALUES(?,?,?,?,?,?,?,?)`, relativePath, capturedAt.Unix(), idle, width, height, boolInt(redacted), PendingCaptureState, time.Now().Unix())
+		res, err := tx.ExecContext(ctx, `INSERT INTO pending_captures(relative_path,frame_index,captured_at,idle_seconds,width,height,redacted,state,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, relativePath, frameIndex, capturedAt.Unix(), idle, width, height, boolInt(redacted), PendingCaptureState, time.Now().Unix())
 		if err != nil {
 			return err
 		}
@@ -70,7 +73,7 @@ func (r *CaptureRepo) Commit(ctx context.Context, id int64, fileSize int64) erro
 		if state == CommittedCaptureState {
 			return nil
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO screenshots(segment_path,frame_index,captured_at,idle_seconds_at_capture,width,height,redacted,file_size) SELECT relative_path,0,captured_at,idle_seconds,width,height,redacted,? FROM pending_captures WHERE id=? ON CONFLICT(segment_path,frame_index) DO NOTHING`, fileSize, id); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO screenshots(segment_path,frame_index,captured_at,idle_seconds_at_capture,width,height,redacted,file_size) SELECT relative_path,frame_index,captured_at,idle_seconds,width,height,redacted,? FROM pending_captures WHERE id=? ON CONFLICT(segment_path,frame_index) DO NOTHING`, fileSize, id); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE pending_captures SET state=?,file_size=? WHERE id=?`, CommittedCaptureState, fileSize, id)
@@ -94,7 +97,7 @@ func (r *CaptureRepo) Pending(ctx context.Context) ([]PendingCapture, error) {
 	}
 	var out []PendingCapture
 	err := r.store.Read(ctx, "capture pending", func(ctx context.Context, tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, `SELECT id,relative_path,captured_at,idle_seconds,width,height,redacted,file_size,state FROM pending_captures WHERE state=? ORDER BY id`, PendingCaptureState)
+		rows, err := tx.QueryContext(ctx, `SELECT id,relative_path,frame_index,captured_at,idle_seconds,width,height,redacted,file_size,state FROM pending_captures WHERE state=? ORDER BY id`, PendingCaptureState)
 		if err != nil {
 			return err
 		}
@@ -104,7 +107,7 @@ func (r *CaptureRepo) Pending(ctx context.Context) ([]PendingCapture, error) {
 			var ts int64
 			var idle sql.NullInt64
 			var red int
-			if err := rows.Scan(&p.ID, &p.RelativePath, &ts, &idle, &p.Width, &p.Height, &red, &p.FileSize, &p.State); err != nil {
+			if err := rows.Scan(&p.ID, &p.RelativePath, &p.FrameIndex, &ts, &idle, &p.Width, &p.Height, &red, &p.FileSize, &p.State); err != nil {
 				return err
 			}
 			p.CapturedAt = time.Unix(ts, 0)
@@ -145,24 +148,85 @@ func (r *CaptureRepo) Reconcile(ctx context.Context, root string) error {
 		return err
 	}
 	for _, p := range pending {
-		info, e := os.Stat(filepath.Join(root, p.RelativePath))
+		filePath := filepath.Join(root, filepath.FromSlash(p.RelativePath))
+		info, e := os.Stat(filePath)
 		if os.IsNotExist(e) {
-			e = r.store.Write(ctx, "capture reconcile missing", func(ctx context.Context, tx *sql.Tx) error {
-				_, x := tx.ExecContext(ctx, `DELETE FROM pending_captures WHERE id=? AND state=?`, p.ID, PendingCaptureState)
-				return x
-			})
-			if e != nil {
+			if e = r.Abandon(ctx, p.ID); e != nil {
 				return e
 			}
+			continue
 		} else if e != nil {
 			return e
-		} else if info.Size() > 0 {
+		}
+
+		// For MP4 segments, verify the segment has been finalized (has moov atom).
+		// An unfinalized MP4 lacks moov and cannot be read; per decision doc §4,
+		// unfinalized frames are dropped and pending intent abandoned.
+		ext := strings.ToLower(filepath.Ext(p.RelativePath))
+		if ext == ".mp4" {
+			if !hasMoovAtom(filePath) {
+				if e = r.Abandon(ctx, p.ID); e != nil {
+					return e
+				}
+				continue
+			}
+		}
+
+		if info.Size() > 0 {
 			if e = r.Commit(ctx, p.ID, info.Size()); e != nil {
+				return e
+			}
+			if ext == ".mp4" {
+				_ = r.AmortizeSegment(ctx, p.RelativePath, info.Size())
+			}
+		} else {
+			if e = r.Abandon(ctx, p.ID); e != nil {
 				return e
 			}
 		}
 	}
 	return nil
+}
+
+// AmortizeSegment redistributes the segment's total file_size evenly across
+// all committed, non-deleted frames in that segment (docs/03 §3.4 and AGENTS.md:
+// screenshots.file_size is the amortized per-frame share).
+func (r *CaptureRepo) AmortizeSegment(ctx context.Context, segmentPath string, totalSize int64) error {
+	if r == nil || r.store == nil || segmentPath == "" {
+		return nil
+	}
+	return r.store.Write(ctx, "capture amortize segment", func(ctx context.Context, tx *sql.Tx) error {
+		var count int64
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM screenshots
+			WHERE segment_path = ? AND is_deleted = 0`, segmentPath).Scan(&count); err != nil {
+			return err
+		}
+		if count <= 0 {
+			return nil
+		}
+		if totalSize <= 0 {
+			if err := tx.QueryRowContext(ctx, `
+				SELECT COALESCE(MAX(file_size), 0)
+				FROM screenshots
+				WHERE segment_path = ? AND is_deleted = 0`, segmentPath).Scan(&totalSize); err != nil {
+				return err
+			}
+		}
+		if totalSize <= 0 {
+			return nil
+		}
+		perFrame := totalSize / count
+		if perFrame <= 0 {
+			perFrame = 1
+		}
+		_, err := tx.ExecContext(ctx, `
+			UPDATE screenshots
+			SET file_size = ?
+			WHERE segment_path = ? AND is_deleted = 0`, perFrame, segmentPath)
+		return err
+	})
 }
 func boolInt(v bool) int {
 	if v {
@@ -232,17 +296,67 @@ func (r *CaptureRepo) FramesInRange(ctx context.Context, start, end int64, limit
 // FramePath resolves one frame's relative segment path. Deleted frames
 // resolve as not found so an ID that outlived a cleanup cannot serve pixels.
 func (r *CaptureRepo) FramePath(ctx context.Context, id int64) (string, error) {
+	path, _, err := r.FrameLocation(ctx, id)
+	return path, err
+}
+
+// FrameLocation resolves one frame's relative segment path and frame index.
+func (r *CaptureRepo) FrameLocation(ctx context.Context, id int64) (string, int, error) {
 	if r == nil || r.store == nil {
-		return "", fmt.Errorf("captures: store unavailable")
+		return "", 0, fmt.Errorf("captures: store unavailable")
 	}
 	var segmentPath string
-	err := r.store.Read(ctx, "capture frame path", func(ctx context.Context, tx *sql.Tx) error {
+	var frameIndex int
+	err := r.store.Read(ctx, "capture frame location", func(ctx context.Context, tx *sql.Tx) error {
 		return tx.QueryRowContext(ctx,
-			`SELECT segment_path FROM screenshots WHERE id = ? AND is_deleted = 0`, id,
-		).Scan(&segmentPath)
+			`SELECT segment_path, frame_index FROM screenshots WHERE id = ? AND is_deleted = 0`, id,
+		).Scan(&segmentPath, &frameIndex)
 	})
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return segmentPath, nil
+	return segmentPath, frameIndex, nil
+}
+
+func hasMoovAtom(filePath string) bool {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil || stat.Size() < 8 {
+		return false
+	}
+	fileSize := stat.Size()
+	var offset int64
+
+	header := make([]byte, 8)
+	for offset+8 <= fileSize {
+		if _, err := f.ReadAt(header, offset); err != nil {
+			break
+		}
+		boxSize := int64(binary.BigEndian.Uint32(header[0:4]))
+		boxType := string(header[4:8])
+		if boxType == "moov" {
+			return true
+		}
+		if boxSize == 1 {
+			ext := make([]byte, 8)
+			if _, err := f.ReadAt(ext, offset+8); err != nil {
+				break
+			}
+			boxSize = int64(binary.BigEndian.Uint64(ext))
+			if boxSize < 16 {
+				break
+			}
+		} else if boxSize == 0 {
+			break
+		} else if boxSize < 8 {
+			break
+		}
+		offset += boxSize
+	}
+	return false
 }

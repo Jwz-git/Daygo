@@ -8,6 +8,11 @@ type Capture interface {
 	Capture(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 }
 
+// SegmentCloser allows finalizing the active recording segment on pause/stop/shutdown.
+type SegmentCloser interface {
+	CloseActiveSegment(ctx context.Context) error
+}
+
 // CapturePrivacyReporter describes whether the platform can exclude selected
 // applications from an image. It is separate from Capture so headless and
 // older adapters remain source-compatible while the settings UI can report an

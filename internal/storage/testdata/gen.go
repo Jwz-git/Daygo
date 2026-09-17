@@ -70,6 +70,12 @@ func main() {
 	if err := writeV13(outDir); err != nil {
 		log.Fatalf("v13-standup-entries.db: %v", err)
 	}
+	if err := writeV14(outDir); err != nil {
+		log.Fatalf("v14-card-reviews.db: %v", err)
+	}
+	if err := writeV15(outDir); err != nil {
+		log.Fatalf("v15-pending-frame-index.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -748,6 +754,98 @@ func writeV13(outDir string) error {
 		`INSERT INTO daily_standup_entries (standup_day, highlights_title, highlights, tasks_title, tasks, blockers_title, blockers_body, generated_at)
 		 VALUES ('2026-09-16', 'fixture highlights title', 'fixture highlights', 'fixture tasks title', 'fixture tasks', 'fixture blockers title', 'fixture blockers', 1789510000)`,
 		`PRAGMA user_version = 13`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV14 builds a version-14 database from the v13 fixture by applying the
+// v14 card_reviews table on top, plus a pending_captures row to test the v15
+// migration.
+func writeV14(outDir string) error {
+	v13Path := filepath.Join(outDir, "v13-standup-entries.db")
+	v14Path := filepath.Join(outDir, "v14-card-reviews.db")
+	data, err := os.ReadFile(v13Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v14Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v14Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`CREATE TABLE card_reviews (
+			card_id    INTEGER PRIMARY KEY REFERENCES timeline_cards(id) ON DELETE CASCADE,
+			day        TEXT    NOT NULL,
+			verdict    TEXT    NOT NULL CHECK (verdict IN ('distraction', 'neutral', 'focus')),
+			minutes    INTEGER NOT NULL,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`CREATE INDEX idx_card_reviews_day ON card_reviews (day)`,
+		`INSERT INTO card_reviews (card_id, day, verdict, minutes, created_at, updated_at) VALUES (1, '2026-09-16', 'focus', 30, 1789510000, 1789510000)`,
+		`INSERT INTO pending_captures (id, relative_path, captured_at, idle_seconds, width, height, redacted, file_size, state, created_at)
+		 VALUES (1, 'staging/fixture-frame.jpg', 1789501200, NULL, 1920, 1080, 0, 1024, 'pending', 1789501200)`,
+		`PRAGMA user_version = 14`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeV15(outDir string) error {
+	v14Path := filepath.Join(outDir, "v14-card-reviews.db")
+	v15Path := filepath.Join(outDir, "v15-pending-frame-index.db")
+	data, err := os.ReadFile(v14Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v15Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v15Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`CREATE TABLE pending_captures_v15 (
+			id            INTEGER PRIMARY KEY,
+			relative_path TEXT    NOT NULL,
+			frame_index   INTEGER NOT NULL DEFAULT 0,
+			captured_at   INTEGER NOT NULL,
+			idle_seconds  INTEGER,
+			width         INTEGER NOT NULL,
+			height        INTEGER NOT NULL,
+			redacted      INTEGER NOT NULL DEFAULT 0,
+			file_size     INTEGER NOT NULL DEFAULT 0,
+			state         TEXT    NOT NULL,
+			created_at    INTEGER NOT NULL,
+			UNIQUE(relative_path, frame_index)
+		)`,
+		`INSERT INTO pending_captures_v15 (id, relative_path, frame_index, captured_at, idle_seconds, width, height, redacted, file_size, state, created_at)
+		 SELECT id, relative_path, 0, captured_at, idle_seconds, width, height, redacted, file_size, state, created_at
+		 FROM pending_captures`,
+		`DROP TABLE pending_captures`,
+		`ALTER TABLE pending_captures_v15 RENAME TO pending_captures`,
+		`CREATE INDEX idx_pending_captures_state ON pending_captures (state, id)`,
+		`INSERT INTO screenshots (id, segment_path, frame_index, captured_at, idle_seconds_at_capture, width, height, redacted, file_size, is_deleted)
+		 VALUES (100, 'segments/fixture-segment.mp4', 0, 1789501000, NULL, 1920, 1080, 0, 1000, 0),
+		        (101, 'segments/fixture-segment.mp4', 1, 1789501010, NULL, 1920, 1080, 0, 2000, 0)`,
+		`PRAGMA user_version = 15`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

@@ -89,7 +89,7 @@ func (h *harness) commitFrames(t *testing.T, at time.Time, n int, interval time.
 		if err := os.WriteFile(filepath.Join(h.framesDir, filepath.FromSlash(path)), tinyJPEG, 0o600); err != nil {
 			t.Fatalf("write frame: %v", err)
 		}
-		id, err := h.store.Captures().Begin(context.Background(), path,
+		id, err := h.store.Captures().Begin(context.Background(), path, 0,
 			at.Add(time.Duration(i)*interval), idle(i), 1280, 720, false)
 		if err != nil {
 			t.Fatalf("begin: %v", err)

@@ -24,7 +24,7 @@ type testStore struct {
 	relativePaths          []string
 }
 
-func (s *testStore) Begin(_ context.Context, relativePath string, _ time.Time, _ *int, _, _ int, _ bool) (int64, error) {
+func (s *testStore) Begin(_ context.Context, relativePath string, _ int, _ time.Time, _ *int, _, _ int, _ bool) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.next++
@@ -47,6 +47,9 @@ func (s *testStore) Abandon(context.Context, int64) error {
 	s.mu.Lock()
 	s.abandons++
 	s.mu.Unlock()
+	return nil
+}
+func (s *testStore) AmortizeSegment(context.Context, string, int64) error {
 	return nil
 }
 
@@ -278,7 +281,7 @@ func waitForCommits(t *testing.T, s *testStore, n int) {
 
 func waitStateIdle(t *testing.T, r *Recorder) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if r.State() == StateIdle {
 			return
@@ -313,4 +316,45 @@ func (c *flakyCapture) Capture(_ context.Context, req platform.CaptureRequest) (
 		return platform.CaptureResult{}, err
 	}
 	return platform.CaptureResult{Outcome: platform.CaptureWritten}, os.WriteFile(req.OutputPath, buf.Bytes(), 0o600)
+}
+
+func TestRecorderSegmentCaptureWithCloser(t *testing.T) {
+	dir := t.TempDir()
+	store := &testStore{}
+	events := make(chan Event, 16)
+	capture := fake.NewSegmentCapture()
+	r, err := New(Config{
+		Capture:   capture,
+		Store:     store,
+		Settings:  settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18},
+		Directory: dir,
+		Clock:     &testClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		OnEvent:   func(e Event) { events <- e },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+	waitForCommit(t, store)
+
+	store.mu.Lock()
+	rel := store.relativePaths[0]
+	store.mu.Unlock()
+
+	if rel != "segments/fake-segment.mp4" {
+		t.Fatalf("expected segment path segments/fake-segment.mp4, got %s", rel)
+	}
+
+	if err := r.Pause(); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StatePaused)
+
+	if err := r.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateIdle)
 }

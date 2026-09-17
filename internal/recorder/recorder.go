@@ -4,6 +4,7 @@ package recorder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -28,10 +29,11 @@ const (
 )
 
 type CaptureStore interface {
-	Begin(context.Context, string, time.Time, *int, int, int, bool) (int64, error)
+	Begin(ctx context.Context, relativePath string, frameIndex int, capturedAt time.Time, idle *int, width, height int, redacted bool) (int64, error)
 	Commit(context.Context, int64, int64) error
 	MarkBlocked(context.Context, int64) error
 	Abandon(context.Context, int64) error
+	AmortizeSegment(ctx context.Context, segmentPath string, totalSize int64) error
 }
 type Clock interface{ Now() time.Time }
 type realClock struct{}
@@ -43,6 +45,7 @@ type Event struct {
 	At    time.Time
 	Err   error
 }
+
 type Config struct {
 	Capture     platform.Capture
 	Store       CaptureStore
@@ -64,6 +67,8 @@ type Recorder struct {
 	lastFrameAt      *time.Time
 	systemBlockers   map[platform.SystemEventKind]struct{}
 	resumeGeneration uint64
+	lastSegmentPath  string
+	lastSegmentSize  int64
 }
 
 func New(cfg Config) (*Recorder, error) {
@@ -133,6 +138,18 @@ func (r *Recorder) Pause() error {
 	r.state = StatePaused
 	r.resumeGeneration++
 	r.mu.Unlock()
+	if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
+		_ = closer.CloseActiveSegment(context.Background())
+		r.mu.Lock()
+		activePath := r.lastSegmentPath
+		activeSize := r.lastSegmentSize
+		r.lastSegmentPath = ""
+		r.lastSegmentSize = 0
+		r.mu.Unlock()
+		if activePath != "" {
+			_ = r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize)
+		}
+	}
 	r.emit(StatePaused, nil)
 	return nil
 }
@@ -238,7 +255,25 @@ func (r *Recorder) emit(s State, e error) {
 }
 func (r *Recorder) run(ctx context.Context) {
 	defer close(r.done)
-	defer func() { r.mu.Lock(); r.cancel = nil; r.state = StateIdle; r.mu.Unlock(); r.emit(StateIdle, nil) }()
+	defer func() {
+		if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
+			_ = closer.CloseActiveSegment(context.Background())
+			r.mu.Lock()
+			activePath := r.lastSegmentPath
+			activeSize := r.lastSegmentSize
+			r.lastSegmentPath = ""
+			r.lastSegmentSize = 0
+			r.mu.Unlock()
+			if activePath != "" {
+				_ = r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize)
+			}
+		}
+		r.mu.Lock()
+		r.cancel = nil
+		r.state = StateIdle
+		r.mu.Unlock()
+		r.emit(StateIdle, nil)
+	}()
 	if err := os.MkdirAll(r.cfg.Directory, 0700); err != nil {
 		r.fail(err)
 		return
@@ -337,6 +372,79 @@ func (r *Recorder) fail(err error) { r.emit(r.State(), err) }
 func (r *Recorder) capture(ctx context.Context) error {
 	now := r.cfg.Clock.Now()
 	current := r.captureSettings()
+
+	if _, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
+		req := platform.CaptureRequest{
+			SegmentDirectory:      r.cfg.Directory,
+			ImageFormat:           platform.CaptureImageJPEG,
+			TargetHeight:          current.CaptureHeightPixels,
+			JPEGQuality:           r.cfg.JPEGQuality,
+			ShowsCursor:           true,
+			BlockedApplicationIDs: current.BlockedApplicationIDs,
+		}
+		result, err := r.cfg.Capture.Capture(ctx, req)
+		if err != nil {
+			var capErr *platform.CaptureError
+			if errors.As(err, &capErr) && capErr.Code == platform.CaptureUnsupported {
+				return r.captureLegacy(ctx, now, current)
+			}
+			return err
+		}
+
+		r.mu.Lock()
+		paused := r.state == StatePaused
+		r.mu.Unlock()
+		if paused {
+			return nil
+		}
+
+		redacted := result.Outcome == platform.CaptureBlocked
+		id, err := r.cfg.Store.Begin(ctx, result.SegmentPath, result.FrameIndex, result.CapturedAt, nil, result.Width, result.Height, redacted)
+		if err != nil {
+			return err
+		}
+		if redacted {
+			if err := r.cfg.Store.MarkBlocked(ctx, id); err != nil {
+				return err
+			}
+		}
+		r.mu.Lock()
+		var rolledPath string
+		var rolledSize int64
+		if r.lastSegmentPath != "" && r.lastSegmentPath != result.SegmentPath {
+			rolledPath = r.lastSegmentPath
+			rolledSize = r.lastSegmentSize
+			r.lastSegmentSize = 0
+		}
+		r.lastSegmentPath = result.SegmentPath
+
+		frameDelta := result.FileSize - r.lastSegmentSize
+		if frameDelta <= 0 {
+			frameDelta = 1
+		}
+		r.lastSegmentSize = result.FileSize
+		r.mu.Unlock()
+
+		if rolledPath != "" {
+			_ = r.cfg.Store.AmortizeSegment(ctx, rolledPath, rolledSize)
+		}
+
+		if err := r.cfg.Store.Commit(ctx, id, frameDelta); err != nil {
+			return err
+		}
+
+		r.mu.Lock()
+		r.lastFrameAt = &now
+		state := r.state
+		r.mu.Unlock()
+		r.emit(state, nil)
+		return nil
+	}
+
+	return r.captureLegacy(ctx, now, current)
+}
+
+func (r *Recorder) captureLegacy(ctx context.Context, now time.Time, current settings.Snapshot) error {
 	name := now.UTC().Format("20060102-150405.000000000") + ".jpg"
 	// Persist slash-separated segment paths on every OS. Convert to the host
 	// filesystem form only when resolving the actual output file.
@@ -345,11 +453,17 @@ func (r *Recorder) capture(ctx context.Context) error {
 	if err := os.MkdirAll(filepath.Dir(abs), 0700); err != nil {
 		return err
 	}
-	id, err := r.cfg.Store.Begin(ctx, rel, now, nil, current.CaptureHeightPixels*16/9, current.CaptureHeightPixels, false)
+	id, err := r.cfg.Store.Begin(ctx, rel, 0, now, nil, current.CaptureHeightPixels*16/9, current.CaptureHeightPixels, false)
 	if err != nil {
 		return err
 	}
-	result, err := r.cfg.Capture.Capture(ctx, platform.CaptureRequest{OutputPath: abs, ImageFormat: platform.CaptureImageJPEG, TargetHeight: current.CaptureHeightPixels, JPEGQuality: r.cfg.JPEGQuality, BlockedApplicationIDs: current.BlockedApplicationIDs})
+	result, err := r.cfg.Capture.Capture(ctx, platform.CaptureRequest{
+		OutputPath:            abs,
+		ImageFormat:           platform.CaptureImageJPEG,
+		TargetHeight:          current.CaptureHeightPixels,
+		JPEGQuality:           r.cfg.JPEGQuality,
+		BlockedApplicationIDs: current.BlockedApplicationIDs,
+	})
 	if err != nil {
 		// The adapter failed before writing a usable file; whether the file
 		// exists is unknown, so the intent is abandoned rather than left for

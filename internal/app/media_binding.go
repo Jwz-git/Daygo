@@ -9,7 +9,7 @@ import (
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/platform"
-	"github.com/Jwz-git/Daygo/internal/platform/mediafile"
+	"github.com/Jwz-git/Daygo/internal/platform/factory"
 )
 
 /*
@@ -40,7 +40,7 @@ type CardMediaDTO struct {
 // directory is known. It runs during startup before any request can arrive,
 // so no lock guards the fields.
 func (b *Backend) attachMedia(root string) {
-	b.media = mediafile.New(root)
+	b.media = factory.NewMedia(root)
 	b.mediaRoot = root
 }
 
@@ -101,12 +101,12 @@ func (b *Backend) serveFrame(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	segmentPath, err := store.Captures().FramePath(ctx, id)
+	segmentPath, frameIndex, err := store.Captures().FrameLocation(ctx, id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := media.DecodeFrame(ctx, platform.DecodeRequest{SegmentPath: segmentPath, FrameIndex: 0})
+	data, err := media.DecodeFrame(ctx, platform.DecodeRequest{SegmentPath: segmentPath, FrameIndex: frameIndex})
 	if err != nil {
 		// The row can outlive its file (cleanup removes whole segments
 		// asynchronously); that is a missing resource, not a server error.

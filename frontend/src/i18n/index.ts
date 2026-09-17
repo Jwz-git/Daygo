@@ -46,8 +46,8 @@ export const i18n = createI18n({
   globalInjection: true,
   locale: DEFAULT_LOCALE,
   fallbackLocale: FALLBACK_LOCALE,
-  missingWarn: import.meta.env.DEV,
-  fallbackWarn: import.meta.env.DEV,
+  missingWarn: Boolean(import.meta.env?.DEV),
+  fallbackWarn: Boolean(import.meta.env?.DEV),
   messages,
   datetimeFormats,
 })

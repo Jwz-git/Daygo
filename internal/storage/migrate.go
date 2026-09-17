@@ -463,6 +463,65 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 15,
+		name:    "recording: pending_captures frame_index for segment appends",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// pending_captures previously had UNIQUE(relative_path), assuming
+			// one JPEG file per capture. Multi-frame HEVC segments append frames
+			// into the same segment file, so pending rows share relative_path
+			// and distinguish frames by frame_index.
+			for _, stmt := range []string{
+				`CREATE TABLE pending_captures_v15 (
+					id            INTEGER PRIMARY KEY,
+					relative_path TEXT    NOT NULL,
+					frame_index   INTEGER NOT NULL DEFAULT 0,
+					captured_at   INTEGER NOT NULL,
+					idle_seconds  INTEGER,
+					width         INTEGER NOT NULL,
+					height        INTEGER NOT NULL,
+					redacted      INTEGER NOT NULL DEFAULT 0,
+					file_size     INTEGER NOT NULL DEFAULT 0,
+					state         TEXT    NOT NULL,
+					created_at    INTEGER NOT NULL,
+					UNIQUE(relative_path, frame_index)
+				)`,
+				`INSERT INTO pending_captures_v15 (id, relative_path, frame_index, captured_at, idle_seconds, width, height, redacted, file_size, state, created_at)
+				 SELECT id, relative_path, 0, captured_at, idle_seconds, width, height, redacted, file_size, state, created_at
+				 FROM pending_captures`,
+				`DROP TABLE pending_captures`,
+				`ALTER TABLE pending_captures_v15 RENAME TO pending_captures`,
+				`CREATE INDEX idx_pending_captures_state ON pending_captures (state, id)`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("migrate v15 pending_captures table", err)
+				}
+			}
+			return nil
+		},
+	},
+	{
+		version: 16,
+		name:    "recording: amortize multi-frame segment screenshots file_size",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// Multi-frame segments previously stored cumulative file_size on
+			// each frame append. Amortize them per docs/03 §3.4 and AGENTS.md:
+			// screenshots.file_size is the amortized per-frame share.
+			_, err := tx.ExecContext(ctx, `
+				UPDATE screenshots
+				SET file_size = MAX(1, (
+					SELECT MAX(s2.file_size) / COUNT(*)
+					FROM screenshots s2
+					WHERE s2.segment_path = screenshots.segment_path AND s2.is_deleted = 0
+				))
+				WHERE segment_path LIKE '%.mp4'
+			`)
+			if err != nil {
+				return wrap("amortize v16 segment screenshots file_size", err)
+			}
+			return nil
+		},
+	},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like

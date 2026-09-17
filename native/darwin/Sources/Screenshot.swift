@@ -55,15 +55,43 @@ struct ScreenshotResult: Sendable {
 }
 
 func capturePrimaryDisplay(_ request: ScreenshotRequest) async throws -> ScreenshotResult {
+    let (image, startedAt, finishedAt) = try await capturePrimaryDisplayCGImage(
+        targetHeight: request.targetHeight,
+        showsCursor: request.showsCursor,
+        blockedApplicationIDs: request.blockedApplicationIDs
+    )
+    captureDiagnostic("jpeg.write.begin")
+    let fileSize = try writeJPEGAtomically(
+        image,
+        outputPath: request.outputPath,
+        quality: request.jpegQuality,
+        cancellation: request.cancellation
+    )
+    captureDiagnostic("jpeg.write.completed.\(fileSize)")
+    let midpoint = startedAt.timeIntervalSince1970
+        + finishedAt.timeIntervalSince(startedAt) / 2
+    return ScreenshotResult(
+        capturedAtUnixNS: Int64((midpoint * 1_000_000_000).rounded()),
+        fileSize: fileSize,
+        width: image.width,
+        height: image.height
+    )
+}
+
+func capturePrimaryDisplayCGImage(
+    targetHeight: Int,
+    showsCursor: Bool,
+    blockedApplicationIDs: Set<String>
+) async throws -> (image: CGImage, startedAt: Date, finishedAt: Date) {
     captureDiagnostic("permission.preflight.begin")
     guard CGPreflightScreenCaptureAccess() else {
         captureDiagnostic("permission.preflight.denied")
         throw ScreenshotFailure.permissionDenied
     }
     captureDiagnostic("permission.preflight.granted")
-    if !request.blockedApplicationIDs.isEmpty {
+    if !blockedApplicationIDs.isEmpty {
         captureDiagnostic("privacy.preflight.begin")
-        if try frontmostApplicationIsBlocked(request.blockedApplicationIDs) {
+        if try frontmostApplicationIsBlocked(blockedApplicationIDs) {
             captureDiagnostic("privacy.preflight.blocked")
             throw ScreenshotFailure.blocked
         }
@@ -87,16 +115,16 @@ func capturePrimaryDisplay(_ request: ScreenshotRequest) async throws -> Screens
         }
         captureDiagnostic("display.resolved.\(display.width)x\(display.height)")
 
-        if !request.blockedApplicationIDs.isEmpty {
+        if !blockedApplicationIDs.isEmpty {
             captureDiagnostic("privacy.final.begin")
-            if try frontmostApplicationIsBlocked(request.blockedApplicationIDs) {
+            if try frontmostApplicationIsBlocked(blockedApplicationIDs) {
                 captureDiagnostic("privacy.final.blocked")
                 throw ScreenshotFailure.blocked
             }
             captureDiagnostic("privacy.final.passed")
         }
         let excludedApplications = content.applications.filter {
-            request.blockedApplicationIDs.contains($0.bundleIdentifier)
+            blockedApplicationIDs.contains($0.bundleIdentifier)
         }
         let filter = SCContentFilter(
             display: display,
@@ -106,15 +134,15 @@ func capturePrimaryDisplay(_ request: ScreenshotRequest) async throws -> Screens
         let outputWidth = max(
             1,
             Int(
-                (Double(display.width) * Double(request.targetHeight) / Double(display.height))
+                (Double(display.width) * Double(targetHeight) / Double(display.height))
                     .rounded()
             )
         )
         let configuration = SCStreamConfiguration()
         configuration.width = outputWidth
-        configuration.height = request.targetHeight
+        configuration.height = targetHeight
         configuration.scalesToFit = true
-        configuration.showsCursor = request.showsCursor
+        configuration.showsCursor = showsCursor
 
         try Task.checkCancellation()
         captureDiagnostic("screenshot.capture.begin")
@@ -127,22 +155,7 @@ func capturePrimaryDisplay(_ request: ScreenshotRequest) async throws -> Screens
         captureDiagnostic("screenshot.capture.completed.\(image.width)x\(image.height)")
         try Task.checkCancellation()
 
-        captureDiagnostic("jpeg.write.begin")
-        let fileSize = try writeJPEGAtomically(
-            image,
-            outputPath: request.outputPath,
-            quality: request.jpegQuality,
-            cancellation: request.cancellation
-        )
-        captureDiagnostic("jpeg.write.completed.\(fileSize)")
-        let midpoint = startedAt.timeIntervalSince1970
-            + finishedAt.timeIntervalSince(startedAt) / 2
-        return ScreenshotResult(
-            capturedAtUnixNS: Int64((midpoint * 1_000_000_000).rounded()),
-            fileSize: fileSize,
-            width: image.width,
-            height: image.height
-        )
+        return (image, startedAt, finishedAt)
     } catch is CancellationError {
         captureDiagnostic("failure.cancelled")
         throw ScreenshotFailure.timeout
@@ -159,7 +172,7 @@ func capturePrimaryDisplay(_ request: ScreenshotRequest) async throws -> Screens
     }
 }
 
-private func frontmostApplicationIsBlocked(_ blockedApplicationIDs: Set<String>) throws -> Bool {
+func frontmostApplicationIsBlocked(_ blockedApplicationIDs: Set<String>) throws -> Bool {
     guard !blockedApplicationIDs.isEmpty else {
         return false
     }

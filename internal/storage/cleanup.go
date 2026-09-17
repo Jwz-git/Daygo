@@ -71,14 +71,14 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 	}
 
 	// Oldest first, stopping the moment the limit would be met.
-	var selected []cleanupFrame
+	var selected []cleanupSegment
 	freed := int64(0)
-	for _, frame := range candidates {
+	for _, seg := range candidates {
 		if usage-freed <= limitBytes {
 			break
 		}
-		selected = append(selected, frame)
-		freed += frame.fileSize
+		selected = append(selected, seg)
+		freed += seg.fileSize
 	}
 	result.SkippedRented = len(candidates) - len(selected)
 	if len(selected) == 0 {
@@ -91,7 +91,7 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 	// Phase 1: the intent. Soft-delete exactly these rows, re-asserting
 	// is_deleted = 0 so a concurrent pass cannot double-delete; only rows the
 	// update actually touched count toward the result.
-	deleted, freed, err := s.softDeleteFrames(ctx, selected)
+	deleted, freed, err := s.softDeleteSegments(ctx, selected)
 	if err != nil {
 		return result, err
 	}
@@ -101,11 +101,11 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 	// Phase 2: the files, outside any transaction. A missing file is fine —
 	// the row is already soft-deleted either way, and a removal failure only
 	// leaves an orphan the next pass's sweep will catch.
-	for _, frame := range selected {
-		if frame.segmentPath == "" {
+	for _, seg := range selected {
+		if seg.segmentPath == "" {
 			continue
 		}
-		if err := os.Remove(filepath.Join(root, filepath.FromSlash(frame.segmentPath))); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(filepath.Join(root, filepath.FromSlash(seg.segmentPath))); err != nil && !os.IsNotExist(err) {
 			continue
 		}
 	}
@@ -137,9 +137,9 @@ func (s *Store) remainingOverLimit(ctx context.Context) (int, error) {
 	return n, err
 }
 
-type cleanupFrame struct {
-	id          int64
+type cleanupSegment struct {
 	segmentPath string
+	oldestAt    int64
 	fileSize    int64
 }
 
@@ -154,14 +154,14 @@ func (s *Store) recordingsUsage(ctx context.Context) (int64, error) {
 	return usage, err
 }
 
-// cleanupCandidates lists deletable frames oldest-first: live rows that are
-// neither a pending capture's staging file (the ACTIVE segment) nor rented by
+// cleanupCandidates lists deletable segments oldest-first: live rows grouped by
+// segment_path that are neither a pending capture's active segment nor rented by
 // a pending or processing analysis batch.
-func (s *Store) cleanupCandidates(ctx context.Context) ([]cleanupFrame, error) {
-	var out []cleanupFrame
+func (s *Store) cleanupCandidates(ctx context.Context) ([]cleanupSegment, error) {
+	var out []cleanupSegment
 	err := s.Read(ctx, "cleanup candidates", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `
-			SELECT s.id, s.segment_path, s.file_size
+			SELECT s.segment_path, MIN(s.captured_at) AS oldest_at, SUM(s.file_size) AS total_size
 			FROM screenshots s
 			WHERE s.is_deleted = 0
 			  AND s.file_size IS NOT NULL
@@ -171,35 +171,42 @@ func (s *Store) cleanupCandidates(ctx context.Context) ([]cleanupFrame, error) {
 			  AND NOT EXISTS (
 			      SELECT 1 FROM batch_screenshots bs
 			      JOIN analysis_batches b ON b.id = bs.batch_id
-			      WHERE bs.screenshot_id = s.id AND b.status IN ('pending', 'processing'))
-			ORDER BY s.captured_at ASC, s.id ASC`)
+			      JOIN screenshots s2 ON s2.id = bs.screenshot_id
+			      WHERE s2.segment_path = s.segment_path AND b.status IN ('pending', 'processing'))
+			GROUP BY s.segment_path
+			ORDER BY oldest_at ASC, s.segment_path ASC`)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = rows.Close() }()
 		for rows.Next() {
-			var frame cleanupFrame
-			if err := rows.Scan(&frame.id, &frame.segmentPath, &frame.fileSize); err != nil {
+			var seg cleanupSegment
+			if err := rows.Scan(&seg.segmentPath, &seg.oldestAt, &seg.fileSize); err != nil {
 				return wrap("scan cleanup candidate", err)
 			}
-			out = append(out, frame)
+			out = append(out, seg)
 		}
 		return rows.Err()
 	})
 	return out, err
 }
 
-func (s *Store) softDeleteFrames(ctx context.Context, frames []cleanupFrame) (deleted int, freed int64, err error) {
-	err = s.Write(ctx, "cleanup soft-delete frames", func(ctx context.Context, tx *sql.Tx) error {
-		for _, frame := range frames {
-			res, execErr := tx.ExecContext(ctx,
-				"UPDATE screenshots SET is_deleted = 1 WHERE id = ? AND is_deleted = 0", frame.id)
-			if execErr != nil {
-				return wrap("soft-delete frame", execErr)
+func (s *Store) softDeleteSegments(ctx context.Context, segments []cleanupSegment) (deleted int, freed int64, err error) {
+	err = s.Write(ctx, "cleanup soft-delete segments", func(ctx context.Context, tx *sql.Tx) error {
+		for _, seg := range segments {
+			var segFreed int64
+			if err := tx.QueryRowContext(ctx,
+				"SELECT COALESCE(SUM(file_size), 0) FROM screenshots WHERE segment_path = ? AND is_deleted = 0", seg.segmentPath).Scan(&segFreed); err != nil {
+				return wrap("sum segment file size", err)
 			}
-			if n, rowsErr := res.RowsAffected(); rowsErr == nil && n == 1 {
-				deleted++
-				freed += frame.fileSize
+			res, execErr := tx.ExecContext(ctx,
+				"UPDATE screenshots SET is_deleted = 1 WHERE segment_path = ? AND is_deleted = 0", seg.segmentPath)
+			if execErr != nil {
+				return wrap("soft-delete segment", execErr)
+			}
+			if n, rowsErr := res.RowsAffected(); rowsErr == nil && n > 0 {
+				deleted += int(n)
+				freed += segFreed
 			}
 		}
 		return nil

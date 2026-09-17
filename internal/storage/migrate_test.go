@@ -910,3 +910,107 @@ func TestMigrateV13FixtureCreatesReviewTable(t *testing.T) {
 		t.Fatalf("focus minutes = %d, want 30", totals.FocusMinutes)
 	}
 }
+
+// DB-2 for v15: a v14 database (card_reviews + a pending_captures row) upgrades
+// with frame_index added to pending_captures; prior data is untouched; the upgraded
+// pending row has frame_index = 0, and a second pending frame for the same relative_path
+// can be recorded concurrently without violating uniqueness.
+func TestMigrateV14FixtureAddsPendingFrameIndex(t *testing.T) {
+	fixture := filepath.Join("testdata", "v14-card-reviews.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	src, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	if err := os.WriteFile(dst, src, 0o600); err != nil {
+		t.Fatalf("write fixture copy: %v", err)
+	}
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+	ctx := context.Background()
+
+	// The review row and standup entry survive the upgrade.
+	totals, err := store.Reviews().TotalsByDay(ctx, "2026-09-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if totals.FocusMinutes != 30 {
+		t.Fatalf("focus minutes = %d, want 30", totals.FocusMinutes)
+	}
+
+	// The pending_captures row has frame_index = 0.
+	pending, err := store.Captures().Pending(ctx)
+	if err != nil {
+		t.Fatalf("read pending: %v", err)
+	}
+	if len(pending) != 1 {
+		t.Fatalf("pending = %d, want 1", len(pending))
+	}
+	if pending[0].RelativePath != "staging/fixture-frame.jpg" || pending[0].FrameIndex != 0 {
+		t.Fatalf("pending[0] = %+v, want relative_path='staging/fixture-frame.jpg' frame_index=0", pending[0])
+	}
+
+	// A second pending capture sharing the same relative_path with frame_index = 1 succeeds.
+	now := time.Unix(1789501300, 0)
+	id2, err := store.Captures().Begin(ctx, "staging/fixture-frame.jpg", 1, now, nil, 1920, 1080, false)
+	if err != nil {
+		t.Fatalf("begin second pending frame: %v", err)
+	}
+	if id2 <= pending[0].ID {
+		t.Fatalf("new pending id = %d, want > %d", id2, pending[0].ID)
+	}
+}
+
+// DB-2 for v16: upgrade a database written by a v15 build and assert that
+// multi-frame segment screenshots have their file_size amortized.
+func TestMigrateV15FixtureAmortizesSegmentScreenshots(t *testing.T) {
+	fixture := filepath.Join("testdata", "v15-pending-frame-index.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, "daygo.sqlite")
+	src, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	if err := os.WriteFile(dst, src, 0o600); err != nil {
+		t.Fatalf("write fixture copy: %v", err)
+	}
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	// In the v15 fixture, two frames of 'segments/fixture-segment.mp4' had sizes 1000 and 2000 (max=2000).
+	// Migration v16 must amortize them to 2000 / 2 = 1000 each.
+	var size0, size1 int64
+	if err := store.db.QueryRow("SELECT file_size FROM screenshots WHERE id = 100").Scan(&size0); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow("SELECT file_size FROM screenshots WHERE id = 101").Scan(&size1); err != nil {
+		t.Fatal(err)
+	}
+	if size0 != 1000 || size1 != 1000 {
+		t.Fatalf("amortized sizes = (%d, %d), want (1000, 1000)", size0, size1)
+	}
+
+	// Sum across the segment must equal 2000, not 3000.
+	var total int64
+	if err := store.db.QueryRow("SELECT SUM(file_size) FROM screenshots WHERE segment_path = 'segments/fixture-segment.mp4'").Scan(&total); err != nil {
+		t.Fatal(err)
+	}
+	if total != 2000 {
+		t.Fatalf("total segment file_size = %d, want 2000", total)
+	}
+}

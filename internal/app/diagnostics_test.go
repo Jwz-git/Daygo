@@ -128,7 +128,7 @@ func TestDiagnosticsReflectsCommittedFrames(t *testing.T) {
 	ctx := context.Background()
 
 	capturedAt := time.Unix(1700000000, 0)
-	id, err := store.Captures().Begin(ctx, "2026/09/12/segment-0001", capturedAt, nil, 1920, 1080, false)
+	id, err := store.Captures().Begin(ctx, "2026/09/12/segment-0001", 0, capturedAt, nil, 1920, 1080, false)
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}

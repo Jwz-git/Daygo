@@ -54,6 +54,9 @@ LLM 发送路径不受影响：仍按 `recording-image-storage.md` §1.5，先�
   写路径切新段后由既有清理策略逐步消化旧文件；不做一次性转码。
 - `pending_captures` 迁移（v15）加 `frame_index INTEGER NOT NULL DEFAULT 0`；
   迁移测试沿用 DB-2 夹具链（`gen.go` 增加 v14→v15 前态夹具）。
+- `screenshots.file_size` 分段均摊修复（v16）：对历史库中的多帧 MP4 分段执行
+  `file_size = MAX(file_size) / count` 均摊更新，避免每帧累加导致统计虚高；
+  录制端追加帧写入 delta 并在分段滚动与暂停收尾时自动执行 `AmortizeSegment`。
 - 崩溃恢复：段文件未收尾即崩溃 → 该段未收尾帧丢弃（与现契约一致），
   pending 意图照常 Reconcile 失败 abandoning。
 
@@ -61,10 +64,20 @@ LLM 发送路径不受影响：仍按 `recording-image-storage.md` §1.5，先�
 
 | 切片 | 内容 | 验收 |
 |---|---|---|
-| A 原生段存储 | Swift `SegmentWriter`/`SegmentReader`（AVAssetWriter/Reader + 像素池 + LRU），cgo 桥 `dg_frame_append` / `dg_frame_decode` | 原生 smoke：追加/解码往返，段滚动与 legacy 读 |
-| B Go 侧接入 | darwin Capture 返回 (段相对路径, 帧号)；recorder 意图与 `screenshots` 行携带；pending v15 迁移 + 夹具 | DB-2 新夹具 + IT-13 不回归 |
-| C 媒体读 | darwin `platform.Media` 实现经桥解码（含 `maxPixelSize`），替换 `/media/frame` handler 后面的实现；legacy JPEG 回退 | 资源 handler 在真实段上行进 |
-| D 清理与门禁 | 清理按段删除（活跃段豁免）；G-host 观察磁盘曲线 | 真实 macOS 10 分钟存活 + 磁盘增速对比 |
+| A 原生段存储 | Swift `SegmentWriter`/`SegmentReader`（AVAssetWriter/Reader + 像素池 + LRU），cgo 桥 `dg_frame_append` / `dg_frame_decode` | ★ 已实现：原生 smoke（追加/解码往返、段滚动与 legacy 读通过） |
+| B Go 侧接入 | darwin Capture 返回 (段相对路径, 帧号)；recorder 意图与 `screenshots` 行携带；pending v15 迁移 + 夹具 | ★ 已实现：DB-2 v14→v15 迁移夹具与 IT-13 未回归 |
+| C 媒体读 | darwin `platform.Media` 实现经桥解码（含 `maxPixelSize`），替换 `/media/frame` handler 与流水线源；legacy JPEG 回退 | ★ 已实现：app 资源 handler 与 analysis 流水线接入 Media 端口 |
+| D 清理与门禁 | 清理按段删除（活跃段豁免）；G-host 观察磁盘曲线 | ★ 已实现：按 segment_path 聚合整段删除与 moov atom 对账 |
 
 C 在此之前继续用 `mediafile`（JPEG 直读）作为过渡实现，切片 C 落地后
 `mediafile` 保留为非 darwin 平台的兜底实现。
+
+## 6. 验证记录
+
+2026-09-17：切片 A–D 落地并通过门禁与真机 smoke：
+- **切片 A 原生段存储**：Swift `SegmentWriter` 实现 VideoToolbox 硬件 HEVC 编码（quality 0.55、关键帧间隔 30、600 帧/600 秒滚动、分辨率变更滚动、隐私占位帧）；`SegmentReader` 实现 `AVAssetReader` 逐段读与 LRU 缓存、`maxPixelSize` 缩略图下采样，以及 legacy `.jpg`/`.jpeg` 直读回退；`native/darwin/build.sh` 构建 universal 静态库（arm64 + x86_64）；通过 `segment_smoke_test.go` 真实 macOS 像素级往返与段滚动验证。
+- **切片 B Go 接入**：`internal/platform/ports.go` 扩展 `SegmentCloser` 接口；`darwin.Capture` 接入段追加并返回 `(segment_path, frame_index)`；`internal/recorder` 在适配器满足 `SegmentCloser` 时走段存储模式，并在暂停/退出时收尾活跃段；`storage.Captures` 写入 `(segment_path, frame_index)`；`pending_captures` 迁移至 v15（添加 `frame_index` 且联合唯一 `UNIQUE(relative_path, frame_index)`），通过 v14 真实夹具迁移升级测试（`migrate_test.go`）。
+- **切片 C 媒体读**：`internal/platform/darwin` 实现 `platform.Media`；`internal/platform/factory` 提供平台工厂；`internal/app` 的 `/media/frame` 资源处理器与 `internal/analysis` 流水线中的 `mediaFrameSource` 全面接入 `platform.Media` 解码。
+- **切片 D 清理与对账**：`internal/storage/cleanup.go` 改写为按 `segment_path` 整段软删除并物理删除段文件，且安全保护未收尾 pending 段与活跃分析批次租用的分段；`Reconcile` 增加 `hasMoovAtom` 检测未最终化的破损 MP4 并自动放弃；全套存储/清理/崩溃夹具测试全部通过。
+- **构建与门禁**：`CGO_ENABLED=0 go test ./internal/...`、`CGO_ENABLED=0 go build ./...`、`./scripts/gate.sh` 全绿（前端单元测试 50 通过、typecheck 通过、build 通过、check-docs 0 处问题）。
+

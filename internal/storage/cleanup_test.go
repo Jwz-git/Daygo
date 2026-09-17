@@ -27,7 +27,7 @@ func seedCleanupWorld(t *testing.T, store *Store) (root string, activeFile strin
 		capturedAt := base.Add(time.Duration(i) * time.Minute)
 		writeFileAt(t, filepath.Join(root, filepath.FromSlash(rel)), 1000, capturedAt)
 
-		id, err := store.Captures().Begin(ctx, rel, capturedAt, nil, 1920, 1080, false)
+		id, err := store.Captures().Begin(ctx, rel, 0, capturedAt, nil, 1920, 1080, false)
 		if err != nil {
 			t.Fatalf("begin %d: %v", i, err)
 		}
@@ -39,7 +39,7 @@ func seedCleanupWorld(t *testing.T, store *Store) (root string, activeFile strin
 	// The ACTIVE segment: a pending capture with its staging file on disk.
 	activeFile = filepath.Join(root, "staging", "active.jpg")
 	writeFileAt(t, activeFile, 2048, time.Now())
-	if _, err := store.Captures().Begin(ctx, "staging/active.jpg",
+	if _, err := store.Captures().Begin(ctx, "staging/active.jpg", 0,
 		time.Now(), nil, 1920, 1080, false); err != nil {
 		t.Fatalf("begin active: %v", err)
 	}
@@ -240,4 +240,57 @@ func TestCleanupRefusedOnReadOnlyInstance(t *testing.T) {
 		t.Fatalf("error = %v, want a read-only refusal", err)
 	}
 	_ = holder
+}
+
+func TestCleanupMultiFrameSegmentDeletesAllRowsAndFile(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	root := filepath.Join(newDir(t), "recordings")
+	ctx := context.Background()
+
+	// Segment 1: 3 frames sharing segment-1.mp4, 500 bytes each = 1500 bytes total
+	seg1 := "segments/segment-1.mp4"
+	writeFileAt(t, filepath.Join(root, filepath.FromSlash(seg1)), 1500, time.Unix(100, 0))
+	for f := 0; f < 3; f++ {
+		id, err := store.Captures().Begin(ctx, seg1, f, time.Unix(int64(100+f), 0), nil, 1920, 1080, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Captures().Commit(ctx, id, 500); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Segment 2: 2 frames sharing segment-2.mp4, 500 bytes each = 1000 bytes total
+	seg2 := "segments/segment-2.mp4"
+	writeFileAt(t, filepath.Join(root, filepath.FromSlash(seg2)), 1000, time.Unix(200, 0))
+	for f := 0; f < 2; f++ {
+		id, err := store.Captures().Begin(ctx, seg2, f, time.Unix(int64(200+f), 0), nil, 1920, 1080, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Captures().Commit(ctx, id, 500); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Limit is 1000 bytes: segment 1 (1500 bytes) must be deleted entirely, keeping segment 2 (1000 bytes)
+	res, err := store.CleanupRecordings(ctx, root, 1000)
+	if err != nil {
+		t.Fatalf("CleanupRecordings: %v", err)
+	}
+	if res.Deleted != 3 {
+		t.Fatalf("res.Deleted = %d, want 3 (all 3 frames of segment 1)", res.Deleted)
+	}
+	if res.FreedBytes != 1500 {
+		t.Fatalf("res.FreedBytes = %d, want 1500", res.FreedBytes)
+	}
+
+	// File for segment 1 must be removed
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(seg1))); !os.IsNotExist(err) {
+		t.Fatal("segment 1 file was not removed")
+	}
+	// File for segment 2 must still exist
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(seg2))); err != nil {
+		t.Fatal("segment 2 file was removed")
+	}
 }

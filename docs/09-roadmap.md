@@ -11,12 +11,12 @@
 
 | 模块 / 执行册 | 用户结果与职责 | 当前实现进度 | 当前验证状态 |
 |---|---|---|---|
-| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：Capture 端口 / fake、macOS 单次截图、Go recorder、pending 对账与 screenshots 提交、应用隐私选择、状态栏有限接入和启动自动录制；当前每帧为独立 JPEG，尚非正式分段媒体 | Go / fake 契约与 macOS 真实像素 smoke 通过；G-host、隐私双保护、权限 / 睡眠 / 锁屏完整 MC 矩阵和长期观察未验收；Windows 只有实验证据，不在发布范围 |
+| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：Capture 端口 / fake、macOS 单次截图与 HEVC 帧分段追加（Dayflow 方式，AVAssetWriter + VideoToolbox）、Go recorder、pending 对账与 screenshots 提交（迁移 v15）、应用隐私选择、状态栏有限接入和启动自动录制；支持 HEVC 硬件段追加与 legacy JPEG 直读回退 | Go / fake 契约与 macOS 真实像素 smoke 通过；G-host、隐私双保护、权限 / 睡眠 / 锁屏完整 MC 矩阵和长期观察未验收；Windows 只有实验证据，不在发布范围 |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、回退链路由、协议客户端、连接测试与模型列表 | 部分实现：三协议客户端、重试 / 回退、Provider 落库、有序路由链、macOS Keychain、CRUD / 密钥 / 模型列表 / 连接测试绑定与前端 store；旧 localStorage 仅用于一次性迁移 | Go 单元、Secrets fake、匿名 TLS fixture 与一次 macOS 钥匙串 smoke 通过；真实 Provider、同签名重启 / 升级身份与完整 Wails 闭环未验收 |
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间 / 周边界、卡片与分类 repository、两阶段分析流水线、失败批次重试、卡片编辑 / 删除、分类保存、日视图与失败 / 处理中状态；帧回放（`GetCardMedia` + `/media/frame` 资源）、周视图、卡片审查流与日历选择已提交 | Go 分批、时间、事务、重试和流水线夹具及前端构建通过；真实截图 → 真实 Provider → 卡片的 Wails 闭环、帧回放真机表现、搜索和 G-loop 未验收 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：日记 / 目标持久化与编辑、日报读写 repository / 绑定 / UI（v13）、`GenerateDailyRecap` 经分析 Provider 生成并覆盖重写、工作流与指标展示 | Go 存储与只读守卫、前端类型 / 构建通过；生成调度、通知、重启读回与 `wails dev` 真机闭环未验收 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定）、按日明细、洞察与节奏面板（`WeeklyInsightsDTO` / `WeeklyDayDTO`）、开发专用匿名样例 | Go 单元（周边界夹具与属性测试、聚合排除规则、非周一拒绝）、前端类型 / 构建通过；真实卡片周独立验收与跨周长期观察未运行 |
-| [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与单帧文件清理；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）；清理有自动化夹具，但 DB-9 / IT-12 真实宿主与正式分段模型仍未验收 |
+| [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）；清理已支持按 segment_path 整段清理，但 DB-9 / IT-12 真实宿主长期观察仍未验收 |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者未验收 |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：三平台开发入口，Linux / Windows 生产构建入口；Windows 构建校验 EXE 与原生 helper DLL | Windows 脚本需在真实 Windows 上运行；签名、安装、升级、Updater 与发布身份未验收 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 未开始：仅 05 §5.9 契约与执行册（2026-09-12 建立，设计准备） | 未运行；MCP 传输决策见 §9.8 #22 |
@@ -39,8 +39,8 @@ Capture / System 仍返回 `unsupported`，原生形态与发布包仍是 §9.8 
 
 已落盘并有自动化覆盖：
 
-- [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v13，从 `app_settings`
-  逐版增加 cards、recording、providers / chat、daily、analysis、分类种子与日报表）、
+- [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v16，从 `app_settings`
+  逐版增加 cards、recording、providers / chat、daily、analysis、分类种子、日报表、审查流、pending frame_index 与分段均摊）、
   POSIX `flock` / Windows `LockFileEx` 实例锁与只读降级、可观测读写封装、`app_settings` repository、
   cards / categories repository（`ReplaceCardsInRange` 单事务改写与时钟串派生）、
   `Checkpoint` / `Backup`（`VACUUM INTO`，保留 7 份）/ `RestoreFromBackup` / `IntegrityCheck`、

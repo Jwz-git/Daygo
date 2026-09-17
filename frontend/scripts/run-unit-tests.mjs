@@ -23,6 +23,9 @@ try {
     platform: 'node',
     target: 'node20',
     logLevel: 'silent',
+    define: {
+      'import.meta.env.DEV': 'false',
+    },
   })
   const outputFiles = testFiles.map((file) =>
     join(outputDirectory, `${basename(file, '.ts')}.mjs`),

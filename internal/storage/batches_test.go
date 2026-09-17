@@ -15,7 +15,7 @@ func insertFrames(t *testing.T, store *Store, at time.Time, count int) []Analysi
 	for i := 0; i < count; i++ {
 		path := "staging/frame-" + at.Format("150405") + "-" + string(rune('a'+i)) + ".jpg"
 		pending, err := store.Captures().Begin(context.Background(),
-			path, at.Add(time.Duration(i)*10*time.Second), nil, 1280, 720, false)
+			path, 0, at.Add(time.Duration(i)*10*time.Second), nil, 1280, 720, false)
 		if err != nil {
 			t.Fatalf("Begin frame %d: %v", i, err)
 		}

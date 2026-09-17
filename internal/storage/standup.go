@@ -9,7 +9,7 @@ import (
 
 // DailyStandupEntry is one row of daily_standup_entries.
 type DailyStandupEntry struct {
-	StandupDay      string    // calendar day yyyy-MM-dd
+	StandupDay      string // calendar day yyyy-MM-dd
 	HighlightsTitle string
 	Highlights      []string
 	TasksTitle      string
