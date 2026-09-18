@@ -185,6 +185,43 @@ func (r *CaptureRepo) Reconcile(ctx context.Context, root string) error {
 			}
 		}
 	}
+
+	// Also reconcile committed segments: if an MP4 segment on disk lacks a moov
+	// atom, it was left unfinalized by an interrupted process and can never be
+	// decoded. Mark all its frames as is_deleted = 1 so analysis batches do not
+	// repeatedly fail trying to decode unfinalizable files.
+	var distinctSegments []string
+	if err := r.store.Read(ctx, "capture reconcile distinct segments", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `SELECT DISTINCT segment_path FROM screenshots WHERE is_deleted = 0`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var seg string
+			if err := rows.Scan(&seg); err != nil {
+				return err
+			}
+			distinctSegments = append(distinctSegments, seg)
+		}
+		return rows.Err()
+	}); err != nil {
+		return err
+	}
+
+	for _, seg := range distinctSegments {
+		if strings.ToLower(filepath.Ext(seg)) != ".mp4" {
+			continue
+		}
+		filePath := filepath.Join(root, filepath.FromSlash(seg))
+		if !hasMoovAtom(filePath) {
+			_ = r.store.Write(ctx, "capture reconcile mark corrupt segment deleted", func(ctx context.Context, tx *sql.Tx) error {
+				_, err := tx.ExecContext(ctx, `UPDATE screenshots SET is_deleted = 1 WHERE segment_path = ?`, seg)
+				return err
+			})
+		}
+	}
+
 	return nil
 }
 

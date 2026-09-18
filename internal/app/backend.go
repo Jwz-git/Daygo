@@ -419,3 +419,12 @@ func (b *Backend) permissionState(op string, query func(ctx context.Context) (pl
 	}
 	return string(permission), nil
 }
+
+func (b *Backend) shutdown() {
+	b.recorderMu.Lock()
+	r := b.recorder
+	b.recorderMu.Unlock()
+	if r != nil {
+		_ = r.Stop()
+	}
+}

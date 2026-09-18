@@ -180,3 +180,67 @@ func TestAmortizeSegment(t *testing.T) {
 		t.Fatalf("sizes = (%d, %d), want (300, 300)", size1, size2)
 	}
 }
+
+func TestReconcileMarksUnfinalizedSegmentsDeleted(t *testing.T) {
+	dir := newDir(t)
+	store := openWriter(t, dir)
+	repo := store.Captures()
+	ctx := context.Background()
+
+	// 1. Commit frame pointing to an MP4 without moov atom
+	corruptSeg := "segments/corrupt.mp4"
+	absCorrupt := filepath.Join(dir, "recordings", filepath.FromSlash(corruptSeg))
+	if err := os.MkdirAll(filepath.Dir(absCorrupt), 0700); err != nil {
+		t.Fatal(err)
+	}
+	// Write dummy data with no moov atom
+	if err := os.WriteFile(absCorrupt, []byte("ftypisom\x00\x00\x00\x08mdatdata"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	id1, err := repo.Begin(ctx, corruptSeg, 0, time.Unix(1000, 0), nil, 1920, 1080, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, id1, 20); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Commit frame pointing to an MP4 WITH moov atom
+	validSeg := "segments/valid.mp4"
+	absValid := filepath.Join(dir, "recordings", filepath.FromSlash(validSeg))
+	// Valid MP4 header: 8-byte moov atom
+	validData := []byte{
+		0x00, 0x00, 0x00, 0x08, 'm', 'o', 'o', 'v',
+	}
+	if err := os.WriteFile(absValid, validData, 0600); err != nil {
+		t.Fatal(err)
+	}
+	id2, err := repo.Begin(ctx, validSeg, 0, time.Unix(1010, 0), nil, 1920, 1080, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, id2, 8); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reconcile
+	if err := repo.Reconcile(ctx, filepath.Join(dir, "recordings")); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	// Verify id1 (corrupt) is deleted
+	var deleted1, deleted2 int
+	if err := store.db.QueryRow(`SELECT is_deleted FROM screenshots WHERE id = ?`, id1).Scan(&deleted1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.db.QueryRow(`SELECT is_deleted FROM screenshots WHERE id = ?`, id2).Scan(&deleted2); err != nil {
+		t.Fatal(err)
+	}
+
+	if deleted1 != 1 {
+		t.Fatalf("corrupt screenshot is_deleted = %d, want 1", deleted1)
+	}
+	if deleted2 != 0 {
+		t.Fatalf("valid screenshot is_deleted = %d, want 0", deleted2)
+	}
+}

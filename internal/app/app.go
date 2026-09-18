@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/Jwz-git/Daygo/frontend"
@@ -126,7 +128,7 @@ func Run() error {
 			log.Printf("analysis pipeline unavailable: %v", err)
 		}
 	}
-	err = wails.Run(&options.App{
+	appOpts := &options.App{
 		Title:             "Daygo",
 		Width:             1180,
 		Height:            760,
@@ -208,12 +210,24 @@ func Run() error {
 			// the state the auto-start produces.
 			backend.maybeAutoStartRecording()
 		},
+		OnShutdown: func(ctx context.Context) {
+			backend.shutdown()
+		},
 		// Host window options are platform-specific; each lives in an
 		// options_<goos>.go file under a matching build tag.
 		Mac:     platformMacOptions(),
 		Linux:   platformLinuxOptions(),
 		Windows: platformWindowsOptions(),
-	})
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		backend.shutdown()
+	}()
+
+	err = wails.Run(appOpts)
 	if err != nil {
 		return fmt.Errorf("run Daygo desktop shell: %w", err)
 	}

@@ -8,6 +8,12 @@ import VideoToolbox
 final class SegmentWriter: @unchecked Sendable {
     static let shared = SegmentWriter()
 
+    private init() {
+        atexit {
+            try? SegmentWriter.shared.finishActive()
+        }
+    }
+
     private let lock = NSLock()
 
     private struct ActiveSegment: @unchecked Sendable {
