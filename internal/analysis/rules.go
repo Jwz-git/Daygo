@@ -22,6 +22,16 @@ const (
 	// FailureRetryCooldown is how long a failed batch stays failed before the
 	// scheduler requeues it.
 	FailureRetryCooldown = 10 * time.Minute
+	// DefaultSampledFrames is the target maximum number of frames sampled
+	// per batch for transcription, matching Dayflow's reference implementation
+	// (ClaudeTranscriptionInputBuilder.maximumFrameCount = 15). Evenly sampling
+	// across the batch bounds token consumption and API calls to one prompt per
+	// batch while maintaining full temporal coverage.
+	DefaultSampledFrames = 15
+	// DefaultBatchPacing is the default pause between processing consecutive
+	// analysis batches when multiple batches are queued, preventing multi-batch
+	// bursts from exhausting per-minute token quotas (TPM).
+	DefaultBatchPacing = 10 * time.Second
 )
 
 // IdleRules are the idle-detection parameters of docs/04 §4.4. They are a

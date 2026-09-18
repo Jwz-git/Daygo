@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -205,12 +206,33 @@ func statusError(status int, retryDelay time.Duration, body []byte, structuredOu
 	case status == http.StatusNotFound:
 		kind = daygoai.ErrorInvalidRequest
 	}
+	if kind != daygoai.ErrorAuthentication && bodyMentions(body, "rate_limit", "rate limit", "too many requests", "resource_exhausted", "quota exceeded", "quota", "tpm", "tokens per minute") {
+		kind = daygoai.ErrorRateLimited
+	}
+	if retryDelay == 0 && kind == daygoai.ErrorRateLimited {
+		retryDelay = extractRetryAfterFromBody(body)
+	}
 	if detail := providerErrorCode(body); detail != "" {
 		message += " (" + detail + ")"
 	}
 	err := daygoai.NewError(kind, message, status, nil)
 	err.RetryAfter = retryDelay
 	return err
+}
+
+var retryDelayRegex = regexp.MustCompile(`(?i)(?:retry after|try again in|retry_after["\s:]+)\s*(\d+)`)
+
+func extractRetryAfterFromBody(body []byte) time.Duration {
+	if len(body) > 4096 {
+		body = body[:4096]
+	}
+	m := retryDelayRegex.FindSubmatch(body)
+	if len(m) > 1 {
+		if secs, err := strconv.ParseInt(string(m[1]), 10, 64); err == nil && secs > 0 {
+			return time.Duration(secs) * time.Second
+		}
+	}
+	return 0
 }
 
 // bodyMentions reports whether the error body contains any keyword. Only the

@@ -152,6 +152,8 @@ Communication 融合声明 → 两卡并存、点过滤），既有「同分类�
 「idle 快路径融合」夹具不回归。契约同步 docs/03 §3.5、docs/04 §4.3.4。真实 LLM 下的融合
 质量未验证。
 
+2026-09-18：卡片生成速率限制与步频防护（TPM 限制防击穿）：转录引入等距帧采样（`DefaultSampledFrames = 15`，对齐 Dayflow 原版实现），单批请求由多次图片分组聚合为单次请求，输入 Token 消耗降低 >80%；调度器加入批次间步频控制（`DefaultBatchPacing = 10s`）与单 worker 串行化，遇 rate_limited 即刻熔断本轮排队；无 Retry-After 的 429 错误加入 long backoff 退避机制（15s 起算，封顶 30s），防止快速重试耗尽 attempt。
+
 2026-09-15：周视图三批前端修复（长标题单行溢出——flex 冻结选择器误命中无图标卡标题；
 clamp 测量顺序——先释放 `-webkit-line-clamp` 再读 `scrollHeight`；hover 展开动画去抖
 与幅度收敛——宽度瞬时跳变、上限 80px、超上限卡不反向缩小）经 Vite + mock 绑定浏览器

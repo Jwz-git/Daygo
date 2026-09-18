@@ -141,8 +141,10 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 		Cards:      store.Cards(),
 		Categories: store.Categories(),
 		Providers:  analysisChainSource{backend: b},
-		Media:      mediaFrameSource{media: media},
-		Language:   analysisLanguage(b),
+		Media:       mediaFrameSource{media: media},
+		Language:    analysisLanguage(b),
+		BatchPacing: analysis.DefaultBatchPacing,
+		Workers:     1,
 		// The service's zone must be the storage layer's zone: it prefilters
 		// card windows here while ReplaceCardsInRange derives start_ts/end_ts
 		// and day with store.location(). Two zones would split one decision.

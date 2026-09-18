@@ -1,11 +1,13 @@
 package analysis
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
+	"github.com/Jwz-git/Daygo/internal/ai"
 	"github.com/Jwz-git/Daygo/internal/domain"
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
@@ -364,6 +366,83 @@ func TestAppSitesFromListSwapsBrowserAndTarget(t *testing.T) {
 	single := appSitesFromList([]string{"Safari"})
 	if single == nil || *single.Primary != "Safari" || single.Secondary != nil {
 		t.Fatalf("expected single primary Safari, got %+v", single)
+	}
+}
+
+func TestEvenlySpacedIndices(t *testing.T) {
+	// 0 or negative counts return nil
+	if indices := evenlySpacedIndices(0, 15); indices != nil {
+		t.Fatalf("expected nil for itemCount 0, got %v", indices)
+	}
+	if indices := evenlySpacedIndices(10, 0); indices != nil {
+		t.Fatalf("expected nil for maxCount 0, got %v", indices)
+	}
+
+	// Fewer than or equal to maxCount returns all indices
+	indices10 := evenlySpacedIndices(10, 15)
+	if len(indices10) != 10 {
+		t.Fatalf("expected 10 indices, got %d", len(indices10))
+	}
+	for i, idx := range indices10 {
+		if idx != i {
+			t.Fatalf("expected index %d to be %d, got %d", i, i, idx)
+		}
+	}
+
+	// 90 frames downsampled to 15 (typical 15-minute batch, matching Dayflow)
+	indices90 := evenlySpacedIndices(90, 15)
+	if len(indices90) != 15 {
+		t.Fatalf("expected 15 indices, got %d", len(indices90))
+	}
+	if indices90[0] != 0 {
+		t.Fatalf("first index must be 0, got %d", indices90[0])
+	}
+	if indices90[14] != 89 {
+		t.Fatalf("last index must be 89, got %d", indices90[14])
+	}
+	// Strictly increasing
+	for i := 1; i < len(indices90); i++ {
+		if indices90[i] <= indices90[i-1] {
+			t.Fatalf("indices not strictly increasing: [%d]=%d <= [%d]=%d",
+				i, indices90[i], i-1, indices90[i-1])
+		}
+	}
+}
+
+func TestSampleFrames(t *testing.T) {
+	frames := framesAt(base, 90, 10*time.Second, nil)
+	sampled := sampleFrames(frames, 15)
+	if len(sampled) != 15 {
+		t.Fatalf("expected 15 sampled frames, got %d", len(sampled))
+	}
+	if !sampled[0].CapturedAt.Equal(frames[0].CapturedAt) {
+		t.Fatalf("first sampled frame timestamp mismatch: %v vs %v",
+			sampled[0].CapturedAt, frames[0].CapturedAt)
+	}
+	if !sampled[14].CapturedAt.Equal(frames[89].CapturedAt) {
+		t.Fatalf("last sampled frame timestamp mismatch: %v vs %v",
+			sampled[14].CapturedAt, frames[89].CapturedAt)
+	}
+}
+
+func TestIsRateLimitError(t *testing.T) {
+	if isRateLimitError(nil) {
+		t.Fatal("nil error should not be rate limit")
+	}
+	if !isRateLimitError(ai.NewError(ai.ErrorRateLimited, "too many requests", 429, nil)) {
+		t.Fatal("ErrorRateLimited should be recognized as rate limit")
+	}
+	if !isRateLimitError(errors.New("HTTP 429: rate limit exceeded, please retry later")) {
+		t.Fatal("string containing rate limit should be recognized")
+	}
+	if !isRateLimitError(errors.New("exceeded your current quota, please check plan")) {
+		t.Fatal("string containing quota should be recognized")
+	}
+	if !isRateLimitError(errors.New("TPM limit reached: tokens per minute")) {
+		t.Fatal("string containing tpm/tokens per minute should be recognized")
+	}
+	if isRateLimitError(errors.New("context deadline exceeded")) {
+		t.Fatal("timeout error should not be rate limit")
 	}
 }
 

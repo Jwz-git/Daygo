@@ -70,10 +70,13 @@ type Config struct {
 	Providers  ChainSource
 	Media      FrameSource
 	Language   func(ctx context.Context) string
-	Now        func() time.Time
-	TickEvery  time.Duration
-	Workers    int
-	IdleRules  IdleRules
+	Now              func() time.Time
+	TickEvery        time.Duration
+	Workers          int
+	// BatchPacing is the pause between processing batches when draining
+	// multiple pending or closed batches. 0 means no delay (used in tests).
+	BatchPacing      time.Duration
+	IdleRules        IdleRules
 	// Location is the zone for every local-time decision the service makes
 	// (idle card clocks, out-of-window prefiltering, day notification). It
 	// must match the storage layer's zone, because ReplaceCardsInRange
@@ -101,7 +104,7 @@ func New(cfg Config) (*Service, error) {
 		cfg.TickEvery = time.Minute
 	}
 	if cfg.Workers <= 0 {
-		cfg.Workers = 2
+		cfg.Workers = 1
 	}
 	if cfg.Language == nil {
 		cfg.Language = func(context.Context) string { return "" }
@@ -154,9 +157,16 @@ func (s *Service) tick(ctx context.Context) {
 	// the cooldown, and new pending batches created below run immediately.
 	batches, err := s.cfg.Store.PendingBatches(ctx)
 	if err == nil {
-		for _, batch := range batches {
+		for i, batch := range batches {
 			if ctx.Err() != nil {
 				return
+			}
+			if i > 0 && s.cfg.BatchPacing > 0 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(s.cfg.BatchPacing):
+				}
 			}
 			if err := s.processBatch(ctx, batch); err != nil {
 				if ctx.Err() != nil {
@@ -165,6 +175,10 @@ func (s *Service) tick(ctx context.Context) {
 					return
 				}
 				s.failBatch(ctx, batch, err)
+				if isRateLimitError(err) {
+					// Stop draining this tick to avoid cascading 429s.
+					return
+				}
 			}
 		}
 	}
@@ -175,7 +189,7 @@ func (s *Service) tick(ctx context.Context) {
 		return
 	}
 	split := SplitFrames(frames)
-	for _, plan := range split.Closed {
+	for i, plan := range split.Closed {
 		if plan.Span() < MinAnalysisDuration {
 			if _, err := s.cfg.Store.CreateBatch(ctx, plan.Frames, storage.BatchSkippedShort, now); err != nil {
 				return
@@ -186,11 +200,21 @@ func (s *Service) tick(ctx context.Context) {
 		if err != nil {
 			return
 		}
+		if (i > 0 || len(batches) > 0) && s.cfg.BatchPacing > 0 {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(s.cfg.BatchPacing):
+			}
+		}
 		if err := s.processBatch(ctx, batch); err != nil {
 			if ctx.Err() != nil {
 				return
 			}
 			s.failBatch(ctx, batch, err)
+			if isRateLimitError(err) {
+				return
+			}
 		}
 	}
 	// The latest run stays unbatched until its span reaches the target
@@ -200,11 +224,21 @@ func (s *Service) tick(ctx context.Context) {
 		if err != nil {
 			return
 		}
+		if (len(batches) > 0 || len(split.Closed) > 0) && s.cfg.BatchPacing > 0 {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(s.cfg.BatchPacing):
+			}
+		}
 		if err := s.processBatch(ctx, batch); err != nil {
 			if ctx.Err() != nil {
 				return
 			}
 			s.failBatch(ctx, batch, err)
+			if isRateLimitError(err) {
+				return
+			}
 		}
 	}
 }
@@ -361,10 +395,19 @@ func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error
 func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 	frames []storage.AnalysisFrame) ([]storage.Observation, error) {
 
+	// Downsample frames to at most DefaultSampledFrames (15 frames evenly spaced
+	// across the batch, matching Dayflow) or the chain's image cap if lower.
+	// This bounds token consumption per batch to ~20k tokens instead of >130k.
+	targetSamples := DefaultSampledFrames
+	if cap := s.cfg.Providers.ImageCap(ctx); cap > 0 && cap < targetSamples {
+		targetSamples = cap
+	}
+	sampled := sampleFrames(frames, targetSamples)
+
 	// The image cap comes from the chain source, not the request: grouping
 	// must size every group so ANY chain entry can serve it, since fallback
 	// may hand a group to a provider with a lower gateway limit mid-flight.
-	groups := groupFrames(frames, s.cfg.Providers.ImageCap(ctx))
+	groups := groupFrames(sampled, targetSamples)
 	type outcome struct {
 		obs []storage.Observation
 		err error
@@ -840,6 +883,72 @@ func clampFrameRange(from, to, n int) (int, int) {
 		return i
 	}
 	return clamp(from), clamp(to)
+}
+
+// evenlySpacedIndices returns up to maxCount indices evenly spaced across
+// itemCount items, anchored to 0 and itemCount-1. Matches Dayflow's
+// ClaudeTranscriptionInputBuilder.evenlySpacedIndices reference.
+func evenlySpacedIndices(itemCount, maxCount int) []int {
+	if itemCount <= 0 || maxCount <= 0 {
+		return nil
+	}
+	if itemCount <= maxCount || maxCount == 1 {
+		count := itemCount
+		if count > maxCount {
+			count = maxCount
+		}
+		indices := make([]int, count)
+		for i := range indices {
+			indices[i] = i
+		}
+		return indices
+	}
+
+	indices := make([]int, maxCount)
+	for i := 0; i < maxCount; i++ {
+		pos := float64(i) * float64(itemCount-1) / float64(maxCount-1)
+		indices[i] = int(pos + 0.5)
+	}
+	return indices
+}
+
+// sampleFrames selects up to maxCount frames evenly distributed across frames,
+// keeping the earliest and latest frames to preserve the window boundaries.
+func sampleFrames(frames []storage.AnalysisFrame, maxCount int) []storage.AnalysisFrame {
+	indices := evenlySpacedIndices(len(frames), maxCount)
+	if len(indices) == len(frames) {
+		return frames
+	}
+	sampled := make([]storage.AnalysisFrame, len(indices))
+	for i, idx := range indices {
+		sampled[i] = frames[idx]
+	}
+	return sampled
+}
+
+// isRateLimitError checks whether an error is caused by rate limiting (HTTP 429
+// or per-minute token quota exhaustion).
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if failureKind(err) == "rate_limited" {
+		return true
+	}
+	var aiErr *ai.Error
+	if errors.As(err, &aiErr) {
+		if aiErr.Kind == ai.ErrorRateLimited || aiErr.HTTPStatus == 429 {
+			return true
+		}
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "rate_limit") ||
+		strings.Contains(msg, "rate limit") ||
+		strings.Contains(msg, "too many requests") ||
+		strings.Contains(msg, "quota") ||
+		strings.Contains(msg, "resource_exhausted") ||
+		strings.Contains(msg, "tokens per minute") ||
+		strings.Contains(msg, "tpm")
 }
 
 // failBatch records the failure with a user-facing kind and notifies.

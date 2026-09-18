@@ -92,12 +92,36 @@ func (p *retryProvider) Generate(ctx context.Context, request Request) (Result, 
 				retryAfter = maxRetryAfter
 			}
 			delay = retryAfter
+		} else if ErrorKindOf(err) == ErrorRateLimited {
+			delay = p.rateLimitDelay(attempt)
+			if p.policy.Jitter != nil {
+				delay += p.policy.Jitter(2 * time.Second)
+			}
+			if delay > maxRetryAfter {
+				delay = maxRetryAfter
+			}
 		}
 		if sleepErr := p.policy.Sleep(ctx, delay); sleepErr != nil {
 			return Result{}, canceledError(sleepErr)
 		}
 	}
 	return result, err
+}
+
+// DefaultRateLimitDelay is the base backoff for ErrorRateLimited when no
+// Retry-After header is provided. A per-minute token rate limit needs 15–30s
+// to replenish tokens, matching Dayflow's longBackoff strategy.
+const DefaultRateLimitDelay = 15 * time.Second
+
+func (p *retryProvider) rateLimitDelay(attempt int) time.Duration {
+	delay := DefaultRateLimitDelay
+	for i := 1; i < attempt && delay < maxRetryAfter; i++ {
+		delay *= 2
+		if delay > maxRetryAfter {
+			delay = maxRetryAfter
+		}
+	}
+	return delay
 }
 
 func (p *retryProvider) delay(attempt int) time.Duration {

@@ -184,3 +184,24 @@ func TestGenerateClassifiesAndRedactsErrorBody(t *testing.T) {
 		t.Fatal("error exposed response body")
 	}
 }
+
+func TestGenerateClassifiesRateLimitInResponseBody(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"Rate limit exceeded: Please try again in 20s.","type":"requests","code":"rate_limit_exceeded"}}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.Client(), server.URL, "model", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.Generate(context.Background(), daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("test")}})
+	if daygoai.ErrorKindOf(err) != daygoai.ErrorRateLimited {
+		t.Fatalf("kind = %v, want rate_limited", daygoai.ErrorKindOf(err))
+	}
+	if daygoai.RetryAfterOf(err) != 20*time.Second {
+		t.Fatalf("retry after = %s, want 20s", daygoai.RetryAfterOf(err))
+	}
+}

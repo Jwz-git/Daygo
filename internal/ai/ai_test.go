@@ -169,6 +169,28 @@ func TestRetryHonorsCappedRetryAfter(t *testing.T) {
 	}
 }
 
+func TestRetryRateLimitedUsesLongBackoff(t *testing.T) {
+	providerErr := NewError(ErrorRateLimited, "rate limit exceeded", 429, nil)
+	provider := &sequenceProvider{
+		results: []Result{{}, {Text: "ok"}},
+		errors:  []error{providerErr, nil},
+	}
+	var slept time.Duration
+	policy := DefaultRetryPolicy()
+	policy.Sleep = func(_ context.Context, delay time.Duration) error {
+		slept = delay
+		return nil
+	}
+	policy.Jitter = func(time.Duration) time.Duration { return 0 }
+	result, err := WithRetry(provider, policy).Generate(context.Background(), Request{})
+	if err != nil || result.Text != "ok" {
+		t.Fatalf("result=%#v error=%v", result, err)
+	}
+	if slept != DefaultRateLimitDelay {
+		t.Fatalf("slept = %s, want %s", slept, DefaultRateLimitDelay)
+	}
+}
+
 type sequenceProvider struct {
 	mu      sync.Mutex
 	calls   int
