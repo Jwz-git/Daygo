@@ -17,25 +17,31 @@ func transcribePrompt(group []storage.AnalysisFrame, language string) string {
 	var b strings.Builder
 	b.WriteString("You are transcribing a sequence of consecutive screen captures from one computer. ")
 	b.WriteString("Each image is one screenshot, in order. Create an activity log detailed enough that someone could reconstruct what the user did.\n\n")
-	b.WriteString("Group frames into one observation per distinct activity, and give from_frame/to_frame ")
+	b.WriteString("Group frames into distinct activity segments, and give from_frame/to_frame ")
 	b.WriteString("as 0-based indices into this group's images.\n\n")
 	b.WriteString("Frames:\n")
 	for i, f := range group {
 		fmt.Fprintf(&b, "  frame %d: captured at %s\n", i, formatFrameClock(f.CapturedAt))
 	}
-	b.WriteString("\nFor each segment, ask yourself: \"What EXACTLY did they do? What SPECIFIC things can I see?\"\n")
+	b.WriteString("\nIdentifying the active app: On macOS, the app name is always shown in the top-left corner of the screen, right next to the Apple () menu. Check this FIRST to identify which app is being used. Do NOT guess — read the actual name from the menu bar. If you can't read it clearly, describe it generically (e.g., \"code editor,\" \"browser,\" \"messaging app\") rather than guessing a specific product name. Common code editors like Cursor, VS Code, Xcode, and Zed all look similar but have different names in the menu bar.\n\n")
+	b.WriteString("For each segment, ask yourself: \"What EXACTLY did they do? What SPECIFIC things can I see?\"\n")
 	b.WriteString("Capture from screenshots:\n")
-	b.WriteString("- Exact app/site names visible (on macOS, check the menu bar or window title for the app name; if browsing, extract the website domain or site name)\n")
+	b.WriteString("- Exact app/site names visible (check menu bar for app name; if browsing, extract the website domain or site name)\n")
 	b.WriteString("- Exact URLs, domain names, page titles\n")
-	b.WriteString("- Exact file names, search queries, commands, messages\n")
+	b.WriteString("- Exact usernames, search queries, messages, commands, file names\n")
 	b.WriteString("- Exact numbers, stats, prices shown\n\n")
 	b.WriteString("Examples:\n")
 	b.WriteString("  Bad: \"Checked email\"\n")
 	b.WriteString("  Good: \"Gmail: Read email from boss@company.com 'RE: Budget approval' - replied 'Looks good'\"\n")
-	b.WriteString("  Bad: \"Browsing web\"\n")
-	b.WriteString("  Good: \"Bilibili (Edge): Searched 'how to design icons' and watched design tutorial video\"\n")
+	b.WriteString("  Bad: \"Browsing Twitter\"\n")
+	b.WriteString("  Good: \"Twitter/X: Scrolled feed - viewed posts by @pmarca about AI, @sama thread on GPT-5 (12 tweets)\"\n")
 	b.WriteString("  Bad: \"Working on code\"\n")
-	b.WriteString("  Good: \"VS Code: Editing StorageManager.swift - fixed type error on line 47\"\n\n")
+	b.WriteString("  Good: \"VS Code: Editing StorageManager.swift in [exact app name from menu bar] - fixed type error on line 47, changed String to String?\"\n\n")
+	b.WriteString("Segments:\n")
+	b.WriteString("- 1-5 segments total\n")
+	b.WriteString("- You may use 1 segment only if the user appears idle or working on a single continuous task for most of the recording\n")
+	b.WriteString("- Group by GOAL not app (IDE + Terminal + Browser for the same task = 1 segment)\n")
+	b.WriteString("- Do not create gaps; cover the full timeline from frame 0 to the last frame\n\n")
 	b.WriteString("In the 'apps' array for each observation, list the specific website domains (e.g. 'bilibili.com', 'pinterest.com', 'github.com') and/or application names visible.\n")
 	b.WriteString("Do not speculate about content you cannot read.\n")
 	b.WriteString("Return only a json object matching the requested schema; do not include markdown.\n")
@@ -152,6 +158,7 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	b.WriteString("\n" + titleEvidenceBlock + "\n\n")
 	b.WriteString(summaryBlock + "\n\n")
 	b.WriteString(detailedSummaryBlock + "\n\n")
+	b.WriteString(distractionsBlock + "\n\n")
 	b.WriteString(appSitesBlock + "\n\n")
 
 	b.WriteString("\nOutput rules:\n")
@@ -265,11 +272,17 @@ Good example:
 Bad example:
 "7:00 AM - 7:30 AM writing Notion doc
 7:30 AM - 7:35 AM: Slack
-7:35 AM - 8:00 AM coding"
 (Too coarse — what doc? which Slack channel? coding what?)
 
 The goal: someone could reconstruct exactly what you did just from the detailed summary.
 Keep at most 15 lines and 2500 characters total.`
+
+// distractionsBlock ports Dayflow's distraction guidance (GeminiDirectProvider+ActivityCards.swift):
+// brief (<5 min) interruptions are logged as distractions within the card, not separate cards.
+const distractionsBlock = `DISTRACTIONS:
+A distraction is a brief (<5 min) unrelated interruption inside a card. Checking X for 2 minutes while debugging is a distraction. Spending 15 minutes on X is not a distraction — it's either part of the card's theme or it's a separate card.
+
+Don't label related sub-tasks as distractions. Googling an error message or reading documentation while debugging isn't a distraction, it's part of debugging.`
 
 // appSitesBlock ports Dayflow's explicit appSites guidance: identify the main app or website
 // (canonical domain, lowercase, no protocol) as primary, and enclosing app/browser as secondary.
