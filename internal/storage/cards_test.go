@@ -219,6 +219,46 @@ func TestReplaceCardsInRangeAbsorbsOtherBatchesSystemCards(t *testing.T) {
 	}
 }
 
+func TestReplaceCardsInRangeAbsorbsBackwardsMergedPredecessor(t *testing.T) {
+	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
+	seedBatch(t, store, 2)
+	ctx := context.Background()
+	loc := store.location()
+
+	// Batch 1 writes a card at 10:36 - 10:51.
+	from1, to1 := window(loc, 10, 36, 10, 51)
+	if _, err := store.Cards().ReplaceCardsInRange(ctx, from1, to1, []domain.CardShell{
+		shell("10:36 AM", "10:51 AM", "Coding", "initial-card"),
+	}, 1); err != nil {
+		t.Fatalf("first replace: %v", err)
+	}
+
+	// Batch 2 runs for window 11:07 - 11:21, but merges backwards with the
+	// 10:36 card, returning 10:36 - 11:21.
+	from2, to2 := window(loc, 11, 7, 11, 21)
+	res, err := store.Cards().ReplaceCardsInRange(ctx, from2, to2, []domain.CardShell{
+		shell("10:36 AM", "11:21 AM", "Coding", "merged-card"),
+	}, 2)
+	if err != nil {
+		t.Fatalf("second replace: %v", err)
+	}
+	if len(res.InsertedIDs) != 1 {
+		t.Fatalf("inserted = %d, want 1", len(res.InsertedIDs))
+	}
+
+	cards, err := store.Cards().CardsForDay(ctx, "2026-09-12")
+	if err != nil {
+		t.Fatalf("CardsForDay: %v", err)
+	}
+	if len(cards) != 1 || cards[0].Title != "merged-card" {
+		t.Fatalf("cards = %+v, want only merged-card (initial-card absorbed)", cards)
+	}
+	if cards[0].Start != "10:36 AM" || cards[0].End != "11:21 AM" {
+		t.Fatalf("unexpected card boundaries: %s - %s", cards[0].Start, cards[0].End)
+	}
+}
+
 func TestReplaceCardsInRangeCollectsDeletedVideoPaths(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
 	seedBatch(t, store, 1)

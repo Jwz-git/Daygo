@@ -162,15 +162,56 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 	loc := r.store.location()
 
 	err := r.store.Write(ctx, "replace cards in range", func(ctx context.Context, tx *sql.Tx) error {
-		// Step 1: the overlap predicate of docs/03 §3.5. No System carve-out:
-		// the only System writer today is the unknown-category fallback, and
-		// sparing those cards is exactly what left a merged card and its
-		// absorbed predecessor on screen at the same time.
+		// Resolve shells first so the effective deletion range covers both the
+		// batch window [from, to) and any backwards/forwards merged cards.
+		// When the model merges with an earlier card, its start extends before
+		// `from`, so effectiveFrom must expand to absorb the merged predecessor.
+		type resolvedCard struct {
+			shell   domain.CardShell
+			startTs time.Time
+			endTs   time.Time
+			day     string
+		}
+		var resolved []resolvedCard
+		effectiveFrom := from
+		effectiveTo := to
+		anchor := from.Add(to.Sub(from) / 2)
+
+		for _, shell := range cards {
+			startTs, err := timeutil.ResolveClock(shell.Start, anchor, loc)
+			if err != nil {
+				result.SkippedCards = append(result.SkippedCards, shell)
+				continue
+			}
+			endTs, err := timeutil.ResolveClock(shell.End, anchor, loc)
+			if err != nil {
+				result.SkippedCards = append(result.SkippedCards, shell)
+				continue
+			}
+			if endTs.Before(startTs) {
+				endTs = endTs.AddDate(0, 0, 1)
+			}
+			if startTs.Before(effectiveFrom) {
+				effectiveFrom = startTs
+			}
+			if endTs.After(effectiveTo) {
+				effectiveTo = endTs
+			}
+			day := timeutil.LogicalDay(startTs, loc)
+			resolved = append(resolved, resolvedCard{
+				shell:   shell,
+				startTs: startTs,
+				endTs:   endTs,
+				day:     day,
+			})
+		}
+
+		// Step 1: the overlap predicate of docs/03 §3.5 over the expanded span.
 		rows, err := tx.QueryContext(ctx, `
 			SELECT id, video_summary_path FROM timeline_cards
 			WHERE ((start_ts < ? AND end_ts > ?) OR (start_ts >= ? AND start_ts < ?))
 			  AND is_deleted = 0`,
-			to.Unix(), from.Unix(), from.Unix(), to.Unix())
+			effectiveTo.Unix(), effectiveFrom.Unix(), effectiveFrom.Unix(), effectiveTo.Unix())
 		if err != nil {
 			return wrap("select overlapping cards", err)
 		}
@@ -201,33 +242,17 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 			}
 		}
 
-		anchor := from.Add(to.Sub(from) / 2)
-		for _, shell := range cards {
-			startTs, err := timeutil.ResolveClock(shell.Start, anchor, loc)
-			if err != nil {
-				result.SkippedCards = append(result.SkippedCards, shell)
-				continue
-			}
-			endTs, err := timeutil.ResolveClock(shell.End, anchor, loc)
-			if err != nil {
-				result.SkippedCards = append(result.SkippedCards, shell)
-				continue
-			}
-			if endTs.Before(startTs) {
-				endTs = endTs.AddDate(0, 0, 1)
-			}
-			day := timeutil.LogicalDay(startTs, loc)
-
+		for _, rc := range resolved {
 			res, err := tx.ExecContext(ctx, `
 				INSERT INTO timeline_cards
 					(batch_id, day, start, end, start_ts, end_ts, category, subcategory,
 					 title, summary, detailed_summary, video_summary_path, metadata,
 					 is_deleted, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-				batchID, day, shell.Start, shell.End, startTs.Unix(), endTs.Unix(),
-				shell.Category, nullable(shell.Subcategory), shell.Title, shell.Summary,
-				nullable(shell.DetailedSummary), nullable(shell.VideoSummaryPath),
-				nullable(shell.Metadata), at, at)
+				batchID, rc.day, rc.shell.Start, rc.shell.End, rc.startTs.Unix(), rc.endTs.Unix(),
+				rc.shell.Category, nullable(rc.shell.Subcategory), rc.shell.Title, rc.shell.Summary,
+				nullable(rc.shell.DetailedSummary), nullable(rc.shell.VideoSummaryPath),
+				nullable(rc.shell.Metadata), at, at)
 			if err != nil {
 				return wrap("insert card", err)
 			}
