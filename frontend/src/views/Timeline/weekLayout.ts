@@ -25,7 +25,7 @@ export const MIN_WEEK_TRACK_HEIGHT = 1500
  * ellipsizing it.
  */
 export function weekCardClampLines(height: number): number {
-  return Math.max(1, Math.floor((height - 18) / 15.4))
+  return Math.max(1, Math.floor((height - 14) / 15.4))
 }
 
 export interface WeekCard {

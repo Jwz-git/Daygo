@@ -328,9 +328,9 @@ onBeforeUnmount(() => {
   justify-content: flex-start;
   overflow: hidden;
   min-height: 34px;
-  padding: 8px 10px;
+  padding: 2px 4px;
   border: 1px solid var(--dg-timeline-card-border);
-  border-left: 3px solid;
+  border-left: 5px solid;
   border-radius: 4px;
   background: var(--dg-timeline-card-fill);
   box-shadow: var(--dg-timeline-card-shadow);
@@ -399,7 +399,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   color: var(--dg-text-primary);
   font-size: 11px;
-  font-weight: 550;
+  font-weight: 700;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
