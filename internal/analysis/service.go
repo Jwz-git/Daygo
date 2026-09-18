@@ -461,6 +461,14 @@ type appSitesMetadata struct {
 	Secondary *string `json:"secondary"`
 }
 
+func isBrowserName(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "edge", "microsoft edge", "chrome", "google chrome", "safari", "firefox", "arc", "brave", "opera", "vivaldi":
+		return true
+	}
+	return false
+}
+
 // appSitesFromList maps the model's flat app/site list onto the contract
 // shape. Blank entries and anything past the second are dropped; an empty list
 // stores null rather than an empty object.
@@ -476,6 +484,11 @@ func appSitesFromList(values []string) *appSitesMetadata {
 	}
 	if len(kept) == 0 {
 		return nil
+	}
+	// If the model provided [Browser, Website], swap them so the website is Primary
+	// and the enclosing browser is Secondary.
+	if len(kept) == 2 && isBrowserName(kept[0]) && !isBrowserName(kept[1]) {
+		kept[0], kept[1] = kept[1], kept[0]
 	}
 	sites := &appSitesMetadata{Primary: &kept[0]}
 	if len(kept) == 2 {

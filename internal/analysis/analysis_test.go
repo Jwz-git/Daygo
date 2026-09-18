@@ -346,3 +346,24 @@ func TestCardsPromptExcludesBuiltInCategories(t *testing.T) {
 		}
 	}
 }
+
+func TestAppSitesFromListSwapsBrowserAndTarget(t *testing.T) {
+	// When the model outputs browser first, then website, it should swap so the website is primary.
+	swapped := appSitesFromList([]string{"Microsoft Edge", "pinterest.com"})
+	if swapped == nil || *swapped.Primary != "pinterest.com" || *swapped.Secondary != "Microsoft Edge" {
+		t.Fatalf("expected swapped primary pinterest.com and secondary Microsoft Edge, got %+v", swapped)
+	}
+
+	// Normal non-browser website first stays untouched.
+	normal := appSitesFromList([]string{"bilibili.com", "Google Chrome"})
+	if normal == nil || *normal.Primary != "bilibili.com" || *normal.Secondary != "Google Chrome" {
+		t.Fatalf("expected normal primary bilibili.com and secondary Google Chrome, got %+v", normal)
+	}
+
+	// Single browser stays primary.
+	single := appSitesFromList([]string{"Safari"})
+	if single == nil || *single.Primary != "Safari" || single.Secondary != nil {
+		t.Fatalf("expected single primary Safari, got %+v", single)
+	}
+}
+
