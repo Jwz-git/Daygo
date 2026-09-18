@@ -1,5 +1,5 @@
 import type { RangeDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
-import { appSiteValues } from '@/lib/appSiteIcon'
+import { preferredAppSite } from '@/lib/appSiteIcon'
 import { categoryLabel as translateCategory } from '@/lib/categoryLabel'
 import { boxesOverlap, positionRange, safeCategoryColor, uncoveredBy } from './layout'
 
@@ -137,7 +137,7 @@ export function buildWeekColumns(
         category: translateCategory(box.card.category, () => box.card.category),
         isIdle: box.card.isIdle,
         clampLines: weekCardClampLines(box.height),
-        site: appSiteValues(box.card.appSites ?? null)[0] ?? null,
+        site: preferredAppSite(box.card.appSites ?? null),
         regenerating: processing.some((block) => boxesOverlap(box, block)),
       })),
       // A window belongs to the card that already covers it: the block is the

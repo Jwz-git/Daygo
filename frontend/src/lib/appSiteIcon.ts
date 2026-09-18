@@ -67,13 +67,38 @@ function nonEmpty(value: string | null | undefined): string | null {
   return trimmed ? trimmed.slice(0, 200) : null
 }
 
+const BROWSER_NAMES = new Set([
+  'edge',
+  'microsoft edge',
+  'chrome',
+  'google chrome',
+  'safari',
+  'firefox',
+  'arc',
+  'brave',
+  'brave browser',
+  'opera',
+  'vivaldi',
+  'tor browser',
+  'chromium',
+])
+
+export function isBrowserName(name: string): boolean {
+  return BROWSER_NAMES.has(name.trim().toLowerCase())
+}
+
 /**
  * Extracts a display host only. The result is never turned into a request URL;
  * appSites is model-produced, untrusted activity metadata.
+ * Following Dayflow's normalizedHost: single-word sites without a dot normalize to .com.
  */
 export function displayHost(value: string): string | null {
-  const trimmed = value.trim()
+  let trimmed = value.trim()
   if (trimmed === '' || /\s/.test(trimmed)) return null
+
+  if (!trimmed.includes('.')) {
+    trimmed = `${trimmed}.com`
+  }
 
   try {
     const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
@@ -89,9 +114,19 @@ export function displayHost(value: string): string | null {
 export function appSiteValues(sites: AppSitesDTO | null): string[] {
   if (sites === null) return []
 
+  const candidates = [sites.primary, sites.secondary]
+  const p = nonEmpty(sites.primary)
+  const s = nonEmpty(sites.secondary)
+  // If primary is an enclosing browser and secondary is a website/target app,
+  // prioritize the target so the card highlights what was browsed.
+  if (p && s && isBrowserName(p) && !isBrowserName(s)) {
+    candidates[0] = s
+    candidates[1] = p
+  }
+
   const result: string[] = []
   const seen = new Set<string>()
-  for (const candidate of [sites.primary, sites.secondary]) {
+  for (const candidate of candidates) {
     const value = nonEmpty(candidate)
     if (value === null) continue
     const key = value.toLocaleLowerCase('en-US')

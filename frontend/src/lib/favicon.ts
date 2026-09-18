@@ -16,26 +16,25 @@ const cache = new Map<string, string | null>()
 const negativeUntil = new Map<string, number>()
 const inflight = new Map<string, Promise<string | null>>()
 
-/** Extract the bare host from a raw site string ("edge.com/x" → "edge.com"). */
+/** Extract the bare host from a raw site string ("edge.com/x" → "edge.com", "pinterest" → "pinterest.com"). */
 export function hostOf(site: string): string | null {
-  const trimmed = site.trim()
-  if (trimmed === '') return null
+  let trimmed = site.trim()
+  if (trimmed === '' || /\s/.test(trimmed)) return null
+  if (!trimmed.includes('.')) {
+    trimmed = `${trimmed}.com`
+  }
   const candidate = trimmed.includes('://') ? trimmed : `https://${trimmed}`
   try {
-    return new URL(candidate).hostname || null
+    return new URL(candidate).hostname.toLowerCase().replace(/^www\./, '') || null
   } catch {
     return null
   }
 }
 
-async function requestFavicon(host: string): Promise<string | null> {
-  const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+async function fetchBlobAsDataUrl(url: string, signal: AbortSignal): Promise<string | null> {
   try {
-    const response = await fetch(`${S2_ENDPOINT}${encodeURIComponent(host)}`, {
-      signal: controller.signal,
-      // The default image accept header is all this endpoint needs; the host
-      // is already in the URL, so no credentials or extra headers are sent.
+    const response = await fetch(url, {
+      signal,
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
     })
@@ -50,6 +49,21 @@ async function requestFavicon(host: string): Promise<string | null> {
     })
   } catch {
     return null
+  }
+}
+
+async function requestFavicon(host: string): Promise<string | null> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    // 1. Preferred: Google S2 service
+    const s2Url = `${S2_ENDPOINT}${encodeURIComponent(host)}`
+    const s2Result = await fetchBlobAsDataUrl(s2Url, controller.signal)
+    if (s2Result !== null) return s2Result
+
+    // 2. Fallback: direct site /favicon.ico (following Dayflow's dual-fetch approach)
+    const directUrl = `https://${host}/favicon.ico`
+    return await fetchBlobAsDataUrl(directUrl, controller.signal)
   } finally {
     window.clearTimeout(timer)
   }
