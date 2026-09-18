@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  type CSSProperties,
+} from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CardMediaFrameDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
@@ -7,17 +14,22 @@ import { getCardMedia } from '@/api/media'
 import { clearCardReview, saveCardReview } from '@/api/review'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { useDurationFormat } from '@/lib/duration'
+import { formatClockTime } from '@/lib/timeFormat'
 
 import CardVideoPlayer from '@/components/CardVideoPlayer.vue'
-import { formatClockTime } from '@/lib/timeFormat'
 import { safeCategoryColor } from './layout'
 import { type ReviewTotals } from './review'
 
 /*
  * Sequential card review (审阅卡片): step through the day's activity cards and
- * judge each one's focus level. Verdicts are statistics-only — they never
- * rewrite the card's category; the session totals feed the review panel and
- * the completion bar, and 撤销 unwinds the totals.
+ * judge each one's focus level with authentic Dayflow physics:
+ * - Tinder-style stacked deck (active card on top, next card underneath).
+ * - Directional exits: Distraction swipes left (◀), Focus swipes right (▶),
+ *   Neutral swipes up (▲).
+ * - Undo slides the previous card back in from the bottom (↺).
+ * - Interactive pointer drag/swipe with live overlay rating feedback.
+ * - Arrow key shortcuts (Left/Up/Right, Z/Backspace for Undo, Esc to close).
+ * - Statistics-only: verdicts never rewrite the card's category on the timeline.
  */
 const props = defineProps<{
   day: TimelineDayDTO
@@ -51,11 +63,9 @@ const distractionMinutes = ref(props.initialTotals.distractionMinutes)
 const duration = useDurationFormat()
 
 const current = computed(() => queue.value[index.value] ?? null)
+const nextCard = computed(() => queue.value[index.value + 1] ?? null)
 const total = queue.value.length
 const finished = computed(() => total > 0 && index.value >= total)
-const progressLabel = computed(() =>
-  t('timeline.review.progress', { current: Math.min(index.value + 1, total), total }),
-)
 
 /*
  * The verdict split (分心 / 中性 / 专注) — the same presentation the
@@ -68,33 +78,226 @@ const verdictSegments = computed(() => [
   { label: t('timeline.review.focus'), minutes: focusMinutes.value, color: '#35c3a2' },
 ])
 
-const timeRange = computed(() => {
-  if (current.value === null) return ''
-  return `${formatClockTime(current.value.startTs, locale.value, props.timeZone)} – ${formatClockTime(current.value.endTs, locale.value, props.timeZone)}`
-})
+function getTimeRange(card: TimelineCardDTO | null): string {
+  if (card === null) return ''
+  return `${formatClockTime(card.startTs, locale.value, props.timeZone)} – ${formatClockTime(card.endTs, locale.value, props.timeZone)}`
+}
 
-const color = computed(() => {
-  if (current.value === null) return safeCategoryColor(undefined)
-  const category = props.day.categories.find((entry) => entry.name === current.value?.category)
+function getCategoryColor(catName: string | undefined): string {
+  if (!catName) return safeCategoryColor(undefined)
+  const category = props.day.categories.find((entry) => entry.name === catName)
   return safeCategoryColor(category?.colorHex)
+}
+
+function getProgressLabel(cardIndex: number): string {
+  return t('timeline.review.progress', { current: Math.min(cardIndex + 1, total), total })
+}
+
+function ratingTitle(rating: 'distraction' | 'neutral' | 'focus'): string {
+  if (rating === 'distraction') return t('timeline.review.distraction')
+  if (rating === 'neutral') return t('timeline.review.neutral')
+  return t('timeline.review.focus')
+}
+
+function ratingIcon(rating: 'distraction' | 'neutral' | 'focus'): string {
+  if (rating === 'distraction') return '◀'
+  if (rating === 'neutral') return '▲'
+  return '▶'
+}
+
+/* Cache media frames per card ID so the leaving card's video does not flash blank
+   and the next card is already buffered underneath. */
+const mediaFramesCache = ref<Record<number, CardMediaFrameDTO[]>>({})
+
+async function fetchCardMedia(cardId: number): Promise<void> {
+  if (mediaFramesCache.value[cardId] !== undefined) return
+  try {
+    const media = await getCardMedia(cardId)
+    mediaFramesCache.value = {
+      ...mediaFramesCache.value,
+      [cardId]: media.frames,
+    }
+  } catch {
+    mediaFramesCache.value = {
+      ...mediaFramesCache.value,
+      [cardId]: [],
+    }
+  }
+}
+
+watch(
+  [() => current.value?.id, () => nextCard.value?.id],
+  ([curId, nxtId]) => {
+    if (curId) void fetchCardMedia(curId)
+    if (nxtId) void fetchCardMedia(nxtId)
+  },
+  { immediate: true },
+)
+
+/*
+ * Interactive Card Animation & Drag Mechanics:
+ * - isAnimatingOut: true while card is flying offscreen
+ * - exitDirection: 'distraction' (left) | 'neutral' (up) | 'focus' (right)
+ * - isEnteringFromBottom / isEnteringBack: true during Undo entrance
+ * - isDragging: pointer press & move tracking
+ */
+const isAnimatingOut = ref(false)
+const exitDirection = ref<'distraction' | 'neutral' | 'focus' | null>(null)
+const activeOverlayRating = ref<'distraction' | 'neutral' | 'focus' | null>(null)
+
+const isEnteringFromBottom = ref(false)
+const isEnteringBack = ref(false)
+
+const isDragging = ref(false)
+const dragOffset = ref({ x: 0, y: 0 })
+const dragStart = { x: 0, y: 0 }
+
+const activeCardStyle = computed<CSSProperties>(() => {
+  if (isDragging.value) {
+    const rot = dragOffset.value.x / 20
+    return {
+      transform: `translate(${dragOffset.value.x}px, ${dragOffset.value.y}px) rotate(${rot}deg)`,
+      transition: 'none',
+    }
+  }
+
+  if (isAnimatingOut.value && exitDirection.value) {
+    let tx = 0
+    let ty = 0
+    let rot = 0
+    if (exitDirection.value === 'distraction') {
+      tx = -580
+      rot = -16
+    } else if (exitDirection.value === 'focus') {
+      tx = 580
+      rot = 16
+    } else if (exitDirection.value === 'neutral') {
+      ty = -580
+      rot = 0
+    }
+    return {
+      transform: `translate(${tx}px, ${ty}px) rotate(${rot}deg)`,
+      opacity: 0,
+      transition: 'transform 260ms cubic-bezier(0.2, 0.9, 0.4, 1), opacity 240ms ease-out',
+      pointerEvents: 'none',
+    }
+  }
+
+  if (isEnteringFromBottom.value) {
+    return {
+      transform: 'translateY(120%)',
+      opacity: 0,
+      transition: 'none',
+    }
+  }
+
+  if (isEnteringBack.value) {
+    return {
+      transform: 'translateY(0)',
+      opacity: 1,
+      transition: 'transform 320ms var(--dg-ease-glide), opacity 260ms ease-out',
+    }
+  }
+
+  return {
+    transform: 'translate(0, 0) rotate(0deg)',
+    opacity: 1,
+    transition: 'transform 240ms cubic-bezier(0.2, 0.9, 0.4, 1), opacity 200ms ease',
+  }
 })
 
-/* Frames for the current card's timespan; a failed listing keeps the
-   placeholder (media is display data, never a blocker). */
-const mediaFrames = ref<CardMediaFrameDTO[]>([])
-const mediaCardID = ref<number | null>(null)
-
-watch(current, async (card) => {
-  if (card === null || card.id === mediaCardID.value) return
-  mediaFrames.value = []
-  mediaCardID.value = card.id
-  try {
-    const media = await getCardMedia(card.id)
-    if (mediaCardID.value === card.id) mediaFrames.value = media.frames
-  } catch {
-    // Placeholder stays; no invented frames.
+const underCardStyle = computed<CSSProperties>(() => {
+  if (isAnimatingOut.value) {
+    return {
+      transform: 'scale(1) translateY(0)',
+      opacity: 1,
+      filter: 'brightness(1)',
+      transition: 'transform 260ms cubic-bezier(0.2, 0.9, 0.4, 1), opacity 260ms ease, filter 260ms ease',
+      pointerEvents: 'none',
+    }
   }
-}, { immediate: true })
+
+  if (isDragging.value) {
+    const dragDistance = Math.hypot(dragOffset.value.x, dragOffset.value.y)
+    const progress = Math.min(1, dragDistance / 140)
+    const scale = 0.96 + 0.04 * progress
+    const ty = 8 - 8 * progress
+    const op = 0.85 + 0.15 * progress
+    const bri = 0.96 + 0.04 * progress
+    return {
+      transform: `scale(${scale}) translateY(${ty}px)`,
+      opacity: op,
+      filter: `brightness(${bri})`,
+      transition: 'none',
+      pointerEvents: 'none',
+    }
+  }
+
+  return {
+    transform: 'scale(0.96) translateY(8px)',
+    opacity: 0.85,
+    filter: 'brightness(0.96)',
+    transition: 'transform 240ms cubic-bezier(0.2, 0.9, 0.4, 1), opacity 200ms ease, filter 200ms ease',
+    pointerEvents: 'none',
+  }
+})
+
+function onPointerDown(e: PointerEvent): void {
+  if (isAnimatingOut.value || isEnteringFromBottom.value || isEnteringBack.value) return
+  if (e.button !== 0) return
+  const target = e.target as HTMLElement | null
+  if (!target) return
+  if (target.closest('button') || target.closest('.player__scrubber')) {
+    return
+  }
+
+  isDragging.value = true
+  dragStart.x = e.clientX
+  dragStart.y = e.clientY
+  dragOffset.value = { x: 0, y: 0 }
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', onPointerUp)
+  window.addEventListener('pointercancel', onPointerUp)
+}
+
+function onPointerMove(e: PointerEvent): void {
+  if (!isDragging.value) return
+  const dx = e.clientX - dragStart.x
+  const dy = e.clientY - dragStart.y
+  dragOffset.value = { x: dx, y: dy }
+
+  if (dx < -40) {
+    activeOverlayRating.value = 'distraction'
+  } else if (dx > 40) {
+    activeOverlayRating.value = 'focus'
+  } else if (dy < -40 && Math.abs(dx) < 30) {
+    activeOverlayRating.value = 'neutral'
+  } else {
+    activeOverlayRating.value = null
+  }
+}
+
+function onPointerUp(): void {
+  if (!isDragging.value) return
+  isDragging.value = false
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
+
+  const dx = dragOffset.value.x
+  const dy = dragOffset.value.y
+
+  if (dx < -90) {
+    void judge('distraction')
+  } else if (dx > 90) {
+    void judge('focus')
+  } else if (dy < -80 && Math.abs(dx) < 60) {
+    void judge('neutral')
+  } else {
+    activeOverlayRating.value = null
+    dragOffset.value = { x: 0, y: 0 }
+  }
+}
 
 /*
  * Every verdict is statistics-only: judgments never rewrite the card's
@@ -103,28 +306,46 @@ watch(current, async (card) => {
  */
 async function judge(kind: 'distraction' | 'neutral' | 'focus'): Promise<void> {
   const card = current.value
-  if (card === null || saving.value) return
+  if (card === null || saving.value || isAnimatingOut.value) return
   saving.value = true
-  try {
-    await saveCardReview(card.id, kind)
-  } catch {
-    saveFailed.value = true
+  isAnimatingOut.value = true
+  exitDirection.value = kind
+  activeOverlayRating.value = kind
+
+  const savePromise = saveCardReview(card.id, kind)
+    .then(() => {
+      history.value.push({ card, kind })
+      if (kind === 'focus') focusMinutes.value += card.durationMinutes
+      if (kind === 'neutral') neutralMinutes.value += card.durationMinutes
+      if (kind === 'distraction') distractionMinutes.value += card.durationMinutes
+      emit('totals', totalsSnapshot())
+      emit('judged', card.id, false)
+    })
+    .catch(() => {
+      saveFailed.value = true
+    })
+
+  setTimeout(async () => {
+    await savePromise
+    if (saveFailed.value) {
+      isAnimatingOut.value = false
+      exitDirection.value = null
+      activeOverlayRating.value = null
+      saving.value = false
+      return
+    }
+    index.value += 1
+    isAnimatingOut.value = false
+    exitDirection.value = null
+    activeOverlayRating.value = null
+    dragOffset.value = { x: 0, y: 0 }
     saving.value = false
-    return
-  }
-  history.value.push({ card, kind })
-  if (kind === 'focus') focusMinutes.value += card.durationMinutes
-  if (kind === 'neutral') neutralMinutes.value += card.durationMinutes
-  if (kind === 'distraction') distractionMinutes.value += card.durationMinutes
-  emit('totals', totalsSnapshot())
-  emit('judged', card.id, false)
-  index.value += 1
-  saving.value = false
+  }, 260)
 }
 
 async function undo(): Promise<void> {
   const last = history.value.pop()
-  if (last === undefined || saving.value) return
+  if (last === undefined || saving.value || isAnimatingOut.value) return
   saving.value = true
   try {
     await clearCardReview(last.card.id)
@@ -139,9 +360,55 @@ async function undo(): Promise<void> {
   if (last.kind === 'distraction') distractionMinutes.value = Math.max(0, distractionMinutes.value - last.card.durationMinutes)
   emit('totals', totalsSnapshot())
   emit('judged', last.card.id, true)
+
   index.value = Math.max(0, index.value - 1)
   saving.value = false
+
+  isEnteringFromBottom.value = true
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      isEnteringFromBottom.value = false
+      isEnteringBack.value = true
+      setTimeout(() => {
+        isEnteringBack.value = false
+      }, 340)
+    })
+  })
 }
+
+function handleKeydown(e: KeyboardEvent): void {
+  const target = e.target as HTMLElement | null
+  const tag = target?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    void judge('distraction')
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    void judge('focus')
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    void judge('neutral')
+  } else if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    void undo()
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    emit('close')
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
+})
 
 /** Snapshot of the session totals for the inspector's review panel. */
 function totalsSnapshot(): ReviewTotals {
@@ -158,60 +425,107 @@ function totalsSnapshot(): ReviewTotals {
     <!-- Window-level close, clear of the card so nothing overlaps it. -->
     <button type="button" class="review__close" :aria-label="t('timeline.inspector.close')" @click="emit('close')">×</button>
 
-    <div class="review__panel">
-      <Transition v-if="current !== null" name="card-swap" mode="out-in">
-        <div class="review__card" :key="current.id">
-          <div class="review__stage">
-            <CardVideoPlayer
-              :frames="mediaFrames"
-              :title="current.title"
-              :time-label="timeRange"
-              :time-zone="props.timeZone"
-              autoplay
-            />
-          </div>
-
-          <div class="review__body">
-            <h2 class="review__title">{{ current.title }}</h2>
-            <div class="review__meta">
-              <span class="review__category" :style="{ borderColor: color, color }">
-                <i :style="{ background: color }"></i>{{ categoryLabel(current.category, t) }}
-              </span>
-              <span class="review__time">{{ timeRange }}</span>
-            </div>
-            <p v-if="current.summary !== ''" class="review__summary">{{ current.summary }}</p>
-          </div>
-          <span class="review__progress">{{ progressLabel }}</span>
+    <div class="review__stack">
+      <!-- Underneath card (next in queue) -->
+      <div
+        v-if="nextCard !== null"
+        class="review__card review__card--under"
+        :style="underCardStyle"
+      >
+        <div class="review__stage">
+          <CardVideoPlayer
+            :frames="mediaFramesCache[nextCard.id] ?? []"
+            :title="nextCard.title"
+            :time-label="getTimeRange(nextCard)"
+            :time-zone="props.timeZone"
+            :autoplay="false"
+          />
         </div>
-      </Transition>
 
-    <div v-else-if="finished" class="review__done">
-      <h2>{{ t('timeline.review.doneTitle') }}</h2>
-      <p class="review__done-body">{{ t('timeline.review.doneBody') }}</p>
-      <div class="review__done-bar" aria-hidden="true">
-        <span
-          v-for="segment in verdictSegments.filter((entry) => entry.minutes > 0)"
-          :key="segment.label"
-          :style="{ flexGrow: segment.minutes, '--seg': segment.color }"
-        ></span>
+        <div class="review__body">
+          <h2 class="review__title">{{ nextCard.title }}</h2>
+          <div class="review__meta">
+            <span class="review__category" :style="{ borderColor: getCategoryColor(nextCard.category), color: getCategoryColor(nextCard.category) }">
+              <i :style="{ background: getCategoryColor(nextCard.category) }"></i>{{ categoryLabel(nextCard.category, t) }}
+            </span>
+            <span class="review__time">{{ getTimeRange(nextCard) }}</span>
+          </div>
+          <p v-if="nextCard.summary !== ''" class="review__summary">{{ nextCard.summary }}</p>
+        </div>
+        <span class="review__progress">{{ getProgressLabel(index + 1) }}</span>
       </div>
-      <div class="review__done-legend">
-        <div v-for="segment in verdictSegments" :key="segment.label" class="review__done-stat">
-          <span class="review__done-stat-label">
-            <i :style="{ background: segment.color }"></i>{{ segment.label }}
-          </span>
-          <strong>{{ duration(segment.minutes) }}</strong>
+
+      <!-- Active top card -->
+      <div
+        v-if="current !== null"
+        class="review__card review__card--active"
+        :style="activeCardStyle"
+        @pointerdown="onPointerDown"
+      >
+        <div class="review__stage">
+          <CardVideoPlayer
+            :frames="mediaFramesCache[current.id] ?? []"
+            :title="current.title"
+            :time-label="getTimeRange(current)"
+            :time-zone="props.timeZone"
+            autoplay
+          />
+        </div>
+
+        <div class="review__body">
+          <h2 class="review__title">{{ current.title }}</h2>
+          <div class="review__meta">
+            <span class="review__category" :style="{ borderColor: getCategoryColor(current.category), color: getCategoryColor(current.category) }">
+              <i :style="{ background: getCategoryColor(current.category) }"></i>{{ categoryLabel(current.category, t) }}
+            </span>
+            <span class="review__time">{{ getTimeRange(current) }}</span>
+          </div>
+          <p v-if="current.summary !== ''" class="review__summary">{{ current.summary }}</p>
+        </div>
+        <span class="review__progress">{{ getProgressLabel(index) }}</span>
+
+        <!-- Rating overlay badge -->
+        <div
+          v-if="activeOverlayRating"
+          class="review__badge"
+          :class="`review__badge--${activeOverlayRating}`"
+        >
+          <div class="review__badge-content">
+            <span class="review__badge-icon">{{ ratingIcon(activeOverlayRating) }}</span>
+            <span class="review__badge-title">{{ ratingTitle(activeOverlayRating) }}</span>
+          </div>
         </div>
       </div>
-      <button type="button" class="dg-button review__done-close" @click="emit('close')">
-        {{ t('common.action.close') }}
-      </button>
-    </div>
 
-    <div v-else class="review__empty">
-      <p>{{ t('timeline.review.empty') }}</p>
-      <button type="button" class="dg-button" @click="emit('close')">{{ t('common.action.close') }}</button>
-    </div>
+      <!-- Completion screen (已全部处理完毕) -->
+      <div v-else-if="finished" class="review__card review__done">
+        <h2>{{ t('timeline.review.doneTitle') }}</h2>
+        <p class="review__done-body">{{ t('timeline.review.doneBody') }}</p>
+        <div class="review__done-bar" aria-hidden="true">
+          <span
+            v-for="segment in verdictSegments.filter((entry) => entry.minutes > 0)"
+            :key="segment.label"
+            :style="{ flexGrow: segment.minutes, '--seg': segment.color }"
+          ></span>
+        </div>
+        <div class="review__done-legend">
+          <div v-for="segment in verdictSegments" :key="segment.label" class="review__done-stat">
+            <span class="review__done-stat-label">
+              <i :style="{ background: segment.color }"></i>{{ segment.label }}
+            </span>
+            <strong>{{ duration(segment.minutes) }}</strong>
+          </div>
+        </div>
+        <button type="button" class="dg-button review__done-close" @click="emit('close')">
+          {{ t('common.action.close') }}
+        </button>
+      </div>
+
+      <!-- Empty screen -->
+      <div v-else class="review__card review__empty">
+        <p>{{ t('timeline.review.empty') }}</p>
+        <button type="button" class="dg-button" @click="emit('close')">{{ t('common.action.close') }}</button>
+      </div>
     </div>
 
     <template v-if="current !== null">
@@ -222,15 +536,15 @@ function totalsSnapshot(): ReviewTotals {
           <span class="review__judge-icon review__judge-icon--undo">↺</span>
           {{ t('timeline.review.undo') }}
         </button>
-        <button type="button" class="review__judge" :disabled="saving" @click="judge('distraction')">
-          <span class="review__judge-icon review__judge-icon--distraction">▶</span>
+        <button type="button" class="review__judge" :disabled="saving || isAnimatingOut" @click="judge('distraction')">
+          <span class="review__judge-icon review__judge-icon--distraction">◀</span>
           {{ t('timeline.review.distraction') }}
         </button>
-        <button type="button" class="review__judge" :disabled="saving" @click="judge('neutral')">
-          <span class="review__judge-icon">▲</span>
+        <button type="button" class="review__judge" :disabled="saving || isAnimatingOut" @click="judge('neutral')">
+          <span class="review__judge-icon review__judge-icon--neutral">▲</span>
           {{ t('timeline.review.neutral') }}
         </button>
-        <button type="button" class="review__judge" :disabled="saving" @click="judge('focus')">
+        <button type="button" class="review__judge" :disabled="saving || isAnimatingOut" @click="judge('focus')">
           <span class="review__judge-icon review__judge-icon--focus">▶</span>
           {{ t('timeline.review.focus') }}
         </button>
@@ -268,56 +582,113 @@ function totalsSnapshot(): ReviewTotals {
   font-size: 17px;
   box-shadow: var(--dg-shadow-sm);
   cursor: pointer;
+  transition: background var(--dg-motion-fast) ease;
 }
 
 .review__close:hover { background: var(--dg-accent-strong); }
 
-/* The white card; hint and judge buttons live on the scrim below it. */
-.review__panel {
+/* Stacked card container: allows the active card to fly out without clipping. */
+.review__stack {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* The card surface: white card with elevation shadow and border radius. */
+.review__card {
   position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
+  max-height: calc(100vh - 220px);
   overflow-y: auto;
   padding: 10px 12px 12px;
   border-radius: 14px;
   background: var(--dg-popover-fill, var(--dg-surface));
   box-shadow: var(--lg-shadow-dense, var(--dg-shadow-lg));
+  will-change: transform, opacity;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 
+.review__card--active {
+  z-index: 2;
+  cursor: grab;
+}
 
-.review__close:hover { background: color-mix(in srgb, var(--dg-danger) 10%, transparent); }
+.review__card--active:active {
+  cursor: grabbing;
+}
 
-.review__stage { border-radius: 12px; overflow: hidden; }
+.review__card--under {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
 
-.review__card {
+/* Rating overlay badge displayed while swiping or animating out */
+.review__badge {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+  animation: badge-pop 160ms cubic-bezier(0.2, 0.9, 0.4, 1) both;
+}
+
+@keyframes badge-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.review__badge--distraction {
+  background: rgba(239, 138, 122, 0.88);
+  color: #ffffff;
+}
+
+.review__badge--neutral {
+  background: rgba(221, 215, 232, 0.92);
+  color: #333333;
+}
+
+.review__badge--focus {
+  background: rgba(53, 195, 162, 0.9);
+  color: #ffffff;
+}
+
+.review__badge-content {
   display: flex;
   flex-direction: column;
-  width: 100%;
+  align-items: center;
+  gap: 8px;
 }
 
-/* Card switch: the old card shrinks away, the new one grows in. */
-.card-swap-enter-active {
-  transition:
-    opacity 220ms ease,
-    transform 280ms var(--dg-ease-glide);
+.review__badge-icon {
+  font-size: 38px;
+  line-height: 1;
 }
 
-.card-swap-leave-active {
-  transition:
-    opacity 160ms ease,
-    transform 200ms ease;
+.review__badge-title {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
 }
 
-.card-swap-enter-from {
-  opacity: 0;
-  transform: scale(0.94);
-}
-
-.card-swap-leave-to {
-  opacity: 0;
-  transform: scale(0.94);
-}
+.review__stage { border-radius: 12px; overflow: hidden; }
 
 .review__body { padding: 16px 2px 0; }
 
@@ -388,8 +759,20 @@ function totalsSnapshot(): ReviewTotals {
   display: grid;
   justify-items: center;
   gap: 6px;
-  padding: 36px 0 18px;
+  padding: 36px 16px 24px;
   text-align: center;
+  animation: done-enter 300ms var(--dg-ease-glide) both;
+}
+
+@keyframes done-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .review__done h2 {
@@ -514,5 +897,15 @@ function totalsSnapshot(): ReviewTotals {
 
 .review__judge-icon--undo,
 .review__judge-icon--distraction,
+.review__judge-icon--neutral,
 .review__judge-icon--focus { background: var(--dg-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .review__card,
+  .review__badge,
+  .review__done {
+    transition: none !important;
+    animation: none !important;
+  }
+}
 </style>
