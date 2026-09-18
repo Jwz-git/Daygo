@@ -29,9 +29,13 @@ const (
 	// batch while maintaining full temporal coverage.
 	DefaultSampledFrames = 15
 	// DefaultBatchPacing is the default pause between processing consecutive
-	// analysis batches when multiple batches are queued, preventing multi-batch
-	// bursts from exhausting per-minute token quotas (TPM).
-	DefaultBatchPacing = 10 * time.Second
+	// analysis batches in the queue, preventing multi-batch bursts from
+	// exhausting per-minute token quotas (TPM).
+	DefaultBatchPacing = 20 * time.Second
+	// DefaultRateLimitCooldown is how long the queue pauses after encountering
+	// an API rate limit (429 / TPM quota exceeded) before attempting the next
+	// batch, allowing the provider's per-minute token quota to replenish.
+	DefaultRateLimitCooldown = 30 * time.Second
 )
 
 // IdleRules are the idle-detection parameters of docs/04 §4.4. They are a

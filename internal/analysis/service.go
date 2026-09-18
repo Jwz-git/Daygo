@@ -88,8 +88,12 @@ type Config struct {
 }
 
 type Service struct {
-	cfg     Config
-	cardsMu sync.Mutex // serializes the read→generate→rewrite card sequence (docs/04 §4.3.2)
+	cfg                   Config
+	cardsMu               sync.Mutex // serializes the read→generate→rewrite card sequence (docs/04 §4.3.2)
+	queueMu               sync.Mutex // guards queue pacing timestamps and rate limit tracking
+	lastBatchProcessedAt  time.Time
+	rateLimitBackoffUntil time.Time
+	rateLimitCount        map[int64]int
 }
 
 func New(cfg Config) (*Service, error) {
@@ -115,11 +119,64 @@ func New(cfg Config) (*Service, error) {
 	if cfg.Location == nil {
 		cfg.Location = time.Local
 	}
-	return &Service{cfg: cfg}, nil
+	return &Service{
+		cfg:            cfg,
+		rateLimitCount: make(map[int64]int),
+	}, nil
 }
 
 // loc is the single zone accessor for the service.
 func (s *Service) loc() *time.Location { return s.cfg.Location }
+
+// paceBatch ensures the configured BatchPacing delay has elapsed since the
+// previous batch completed before starting the next batch in the queue.
+func (s *Service) paceBatch(ctx context.Context) error {
+	if s.cfg.BatchPacing <= 0 {
+		return nil
+	}
+	s.queueMu.Lock()
+	last := s.lastBatchProcessedAt
+	s.queueMu.Unlock()
+	if last.IsZero() {
+		return nil
+	}
+	elapsed := s.cfg.Now().Sub(last)
+	if elapsed >= s.cfg.BatchPacing {
+		return nil
+	}
+	pause := s.cfg.BatchPacing - elapsed
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(pause):
+		return nil
+	}
+}
+
+func (s *Service) handleBatchRateLimit(ctx context.Context, batch storage.Batch, err error) {
+	s.queueMu.Lock()
+	s.rateLimitCount[batch.ID]++
+	count := s.rateLimitCount[batch.ID]
+	s.rateLimitBackoffUntil = s.cfg.Now().Add(DefaultRateLimitCooldown)
+	s.lastBatchProcessedAt = s.cfg.Now()
+	s.queueMu.Unlock()
+
+	if count >= 5 {
+		// Truly out of quota after multiple queue cooldown retries.
+		s.failBatch(ctx, batch, err)
+		return
+	}
+
+	// Transient TPM / RPM rate limit: reset status to pending without burning attempts
+	_ = s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchPending, "", "", s.cfg.Now())
+}
+
+func (s *Service) recordBatchSuccess(batchID int64) {
+	s.queueMu.Lock()
+	delete(s.rateLimitCount, batchID)
+	s.lastBatchProcessedAt = s.cfg.Now()
+	s.queueMu.Unlock()
+}
 
 // Run is the scheduler loop (docs/04 §4.3). It blocks until ctx is done and
 // must be owned by the app lifetime, like storage.Maintainer. On cancellation
@@ -147,6 +204,14 @@ func (s *Service) Run(ctx context.Context) {
 func (s *Service) tick(ctx context.Context) {
 	now := s.cfg.Now()
 
+	s.queueMu.Lock()
+	backoff := s.rateLimitBackoffUntil
+	s.queueMu.Unlock()
+	if !backoff.IsZero() && backoff.After(now) {
+		// Rate limit cooldown active: wait for token bucket to replenish before resuming queue
+		return
+	}
+
 	// Requeue failed batches past their cooldown.
 	if _, err := s.cfg.Store.RequeueFailed(ctx, now.Add(-FailureRetryCooldown), now); err != nil {
 		return
@@ -157,16 +222,12 @@ func (s *Service) tick(ctx context.Context) {
 	// the cooldown, and new pending batches created below run immediately.
 	batches, err := s.cfg.Store.PendingBatches(ctx)
 	if err == nil {
-		for i, batch := range batches {
+		for _, batch := range batches {
 			if ctx.Err() != nil {
 				return
 			}
-			if i > 0 && s.cfg.BatchPacing > 0 {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(s.cfg.BatchPacing):
-				}
+			if err := s.paceBatch(ctx); err != nil {
+				return
 			}
 			if err := s.processBatch(ctx, batch); err != nil {
 				if ctx.Err() != nil {
@@ -174,11 +235,16 @@ func (s *Service) tick(ctx context.Context) {
 					// next startup to adopt. Not a failure.
 					return
 				}
-				s.failBatch(ctx, batch, err)
 				if isRateLimitError(err) {
-					// Stop draining this tick to avoid cascading 429s.
+					s.handleBatchRateLimit(ctx, batch, err)
 					return
 				}
+				s.queueMu.Lock()
+				s.lastBatchProcessedAt = s.cfg.Now()
+				s.queueMu.Unlock()
+				s.failBatch(ctx, batch, err)
+			} else {
+				s.recordBatchSuccess(batch.ID)
 			}
 		}
 	}
@@ -189,7 +255,7 @@ func (s *Service) tick(ctx context.Context) {
 		return
 	}
 	split := SplitFrames(frames)
-	for i, plan := range split.Closed {
+	for _, plan := range split.Closed {
 		if plan.Span() < MinAnalysisDuration {
 			if _, err := s.cfg.Store.CreateBatch(ctx, plan.Frames, storage.BatchSkippedShort, now); err != nil {
 				return
@@ -200,21 +266,23 @@ func (s *Service) tick(ctx context.Context) {
 		if err != nil {
 			return
 		}
-		if (i > 0 || len(batches) > 0) && s.cfg.BatchPacing > 0 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(s.cfg.BatchPacing):
-			}
+		if err := s.paceBatch(ctx); err != nil {
+			return
 		}
 		if err := s.processBatch(ctx, batch); err != nil {
 			if ctx.Err() != nil {
 				return
 			}
-			s.failBatch(ctx, batch, err)
 			if isRateLimitError(err) {
+				s.handleBatchRateLimit(ctx, batch, err)
 				return
 			}
+			s.queueMu.Lock()
+			s.lastBatchProcessedAt = s.cfg.Now()
+			s.queueMu.Unlock()
+			s.failBatch(ctx, batch, err)
+		} else {
+			s.recordBatchSuccess(batch.ID)
 		}
 	}
 	// The latest run stays unbatched until its span reaches the target
@@ -224,21 +292,23 @@ func (s *Service) tick(ctx context.Context) {
 		if err != nil {
 			return
 		}
-		if (len(batches) > 0 || len(split.Closed) > 0) && s.cfg.BatchPacing > 0 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(s.cfg.BatchPacing):
-			}
+		if err := s.paceBatch(ctx); err != nil {
+			return
 		}
 		if err := s.processBatch(ctx, batch); err != nil {
 			if ctx.Err() != nil {
 				return
 			}
-			s.failBatch(ctx, batch, err)
 			if isRateLimitError(err) {
+				s.handleBatchRateLimit(ctx, batch, err)
 				return
 			}
+			s.queueMu.Lock()
+			s.lastBatchProcessedAt = s.cfg.Now()
+			s.queueMu.Unlock()
+			s.failBatch(ctx, batch, err)
+		} else {
+			s.recordBatchSuccess(batch.ID)
 		}
 	}
 }

@@ -72,8 +72,9 @@ func validateCards(spans []cardSpan, rewriteStart, batchEnd time.Time, requiresS
 		duration := span.End.Sub(span.Start)
 		name := fmt.Sprintf("card %d (%s)", i+1, span.Title)
 		// The 10-minute floor applies whenever the covered span can support
-		// it; a span shorter than ten minutes total is the one exception.
-		if duration < minCardDuration && wholeSpan >= minCardDuration {
+		// it; a span shorter than ten minutes total is the one exception,
+		// as is single-card mode (fresh segment without adjacent episodes).
+		if !requiresSingleCard && duration < minCardDuration && wholeSpan >= minCardDuration {
 			issues = append(issues, fmt.Sprintf(
 				"%s is %s long; every card must be at least 10 minutes — absorb it into the adjacent episode",
 				name, duration))
