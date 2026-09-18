@@ -137,3 +137,17 @@ export function uncoveredBy<T extends PositionedRange>(
 ): T[] {
   return boxes.filter((box) => !occupied.some((other) => boxesOverlap(box, other)))
 }
+
+/**
+ * True when a card's actual time span intersects a processing range by at least 1 second.
+ * Using temporal intersection instead of rendered pixel boxes prevents MIN_CARD_HEIGHT /
+ * PROCESSING_MIN_HEIGHT padding from bleeding into and coloring adjacent cards below/above.
+ */
+export function cardIntersectsRanges(
+  card: { startTs: number; endTs: number },
+  ranges: readonly { startTs: number; endTs: number }[],
+): boolean {
+  return ranges.some(
+    (range) => Math.min(card.endTs, range.endTs) > Math.max(card.startTs, range.startTs),
+  )
+}

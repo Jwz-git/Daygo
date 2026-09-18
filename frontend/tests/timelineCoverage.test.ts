@@ -4,6 +4,7 @@ import test from 'node:test'
 import type { TimelineCardDTO, TimelineDayDTO } from '../src/api/dto'
 import {
   boxesOverlap,
+  cardIntersectsRanges,
   coveredBy,
   layoutTimelineCards,
   MIN_CARD_HEIGHT,
@@ -208,4 +209,25 @@ test('the week column applies the same window ownership as the day track', () =>
     }) === false,
     'the surviving block must not sit on the card that kept its own position',
   )
+})
+
+test('an adjacent card below a regenerating card does not become regenerating', () => {
+  // Card 1 is a 4-minute card (600..604) that gets stretched to MIN_CARD_HEIGHT (34px)
+  // Card 2 is immediately adjacent or begins at 615 (615..630)
+  // Batch covers 600..615
+  const card1 = { startTs: DAY_START + 600 * 60, endTs: DAY_START + 604 * 60 }
+  const card2 = { startTs: DAY_START + 615 * 60, endTs: DAY_START + 630 * 60 }
+  const batch = [{ startTs: DAY_START + 600 * 60, endTs: DAY_START + 615 * 60 }]
+
+  assert.equal(cardIntersectsRanges(card1, batch), true)
+  assert.equal(cardIntersectsRanges(card2, batch), false)
+
+  // Week column with consecutive cards
+  const format = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit' })
+  const [column] = buildWeekColumns(
+    [weekDay([weekCard(1, 600, 615), weekCard(2, 615, 630)], [batch[0]])],
+    null,
+    format,
+  )
+  assert.deepEqual(column.cards.map((c) => [c.id, c.regenerating]), [[1, true], [2, false]])
 })

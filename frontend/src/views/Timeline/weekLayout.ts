@@ -1,7 +1,7 @@
 import type { RangeDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import { preferredAppSite } from '@/lib/appSiteIcon'
 import { categoryLabel as translateCategory } from '@/lib/categoryLabel'
-import { boxesOverlap, positionRange, safeCategoryColor, uncoveredBy } from './layout'
+import { boxesOverlap, cardIntersectsRanges, positionRange, safeCategoryColor, uncoveredBy } from './layout'
 
 /*
  * Week-grid layout, kept as pure functions so the column math is unit-testable
@@ -138,7 +138,7 @@ export function buildWeekColumns(
         isIdle: box.card.isIdle,
         clampLines: weekCardClampLines(box.height),
         site: preferredAppSite(box.card.appSites ?? null),
-        regenerating: processing.some((block) => boxesOverlap(box, block)),
+        regenerating: cardIntersectsRanges(box.card, day.processingRanges),
       })),
       // A window belongs to the card that already covers it: the block is the
       // stand-in for a gap, so it yields wherever a card exists.

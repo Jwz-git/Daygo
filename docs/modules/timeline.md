@@ -112,6 +112,8 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 `scripts/check-docs.py` 通过；契约同步 docs/03 §3.3.3。真实 Wails 窗口与真实库上的保存、卡片改写
 未复核。
 
+2026-09-18：修复卡片重新生成时下方相邻卡片底色被错误渲染为彩色的问题，并增强录制分段收尾与未完成分段对齐恢复。此前时间线使用像素矩形几何重叠（`boxesOverlap`）来判定卡片是否处于重新生成状态（`regenerating`），导致被 `MIN_CARD_HEIGHT` 撑到 34px 的短卡片或批次在垂直像素上压入下方相邻卡片，使其错误带上 `is-regenerating` 渐变彩底。现增加 `cardIntersectsRanges` 纯函数改由真实时间戳交集（时间重合度大于 0）精确判断卡片是否属于重分析批次，下方相邻卡片保持正常底色不变。同时在 `SegmentWriter.swift` 添加 `atexit` 自动收尾勾子并在 Wails 与系统信号中断时触发 `backend.shutdown()` 保证录制分段写入 moov atom，并在 `Reconcile` 启动时自动检查已提交分段，将缺失 moov atom 的残缺分段置为 `is_deleted = 1`，彻底杜绝 `frameDecode: failed with status -7` 拖垮整个分析批次。夹具：`timelineCoverage.test.ts` 与 `captures_test.go` 分别新增测试；`./scripts/gate.sh` 门禁全通。
+
 2026-09-16：修复「重新分析这一天」后时间线上「生成中」区块与旧卡片重叠。`ReprocessDay` 把当天
 终态批次改回 `pending` 时**不删除已有卡片**，于是 `processingRanges` 与 `cards` 同时覆盖同一
 窗口：日轨道把区块画成整行绝对定位盒（z-index 2），卡片（z-index 3）落在同一矩形上，两层叠在

@@ -15,6 +15,7 @@ import TimelineActivityCard from './TimelineActivityCard.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
 import {
   MIN_CARD_HEIGHT,
+  cardIntersectsRanges,
   coveredBy,
   layoutTimelineCards,
   positionRange,
@@ -132,9 +133,15 @@ const processingBoxes = computed(() =>
  */
 const visibleProcessing = computed(() => uncoveredBy(processingBoxes.value, placedCards.value))
 
-const regeneratingCardIDs = computed(
-  () => new Set(coveredBy(placedCards.value, processingBoxes.value).map((card) => card.id)),
-)
+const regeneratingCardIDs = computed(() => {
+  const ids = new Set<number>()
+  for (const card of props.cards) {
+    if (cardIntersectsRanges(card, props.processingRanges)) {
+      ids.add(card.id)
+    }
+  }
+  return ids
+})
 
 function handleTrackClick(event: MouseEvent): void {
   const target = event.target as HTMLElement
