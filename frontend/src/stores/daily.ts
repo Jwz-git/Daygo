@@ -65,16 +65,42 @@ export interface DailyMetrics {
   transitioningMinutes: number
 }
 
+export interface DailyWorkflowDistractionMarker {
+  id: string
+  title: string
+  startTs: number
+  endTs: number
+  durationMinutes: number
+}
+
 export interface DailyPresentation {
   rows: DailyWorkflowRow[]
   ticks: DailyWorkflowTick[]
   metrics: DailyMetrics
+  distractionMarkers: DailyWorkflowDistractionMarker[]
+  hasDistractionCategory: boolean
   windowStartTs: number
   windowEndTs: number
   slotCount: number
 }
 
 export type DailyState = 'loading' | 'unavailable' | 'failure' | 'empty' | 'populated'
+
+export function isDistractionCategoryKey(key: string): boolean {
+  const normalized = key.trim().toLowerCase()
+  return normalized === 'distraction' || normalized === 'distractions'
+}
+
+export function parseClockToMinutes(clock: string): number | null {
+  const match = clock.trim().match(/^(\d{1,2}):(\d{2})(?:\s*([ap]m))?$/i)
+  if (!match) return null
+  let hours = parseInt(match[1]!, 10)
+  const minutes = parseInt(match[2]!, 10)
+  const meridian = match[3]?.toLowerCase()
+  if (meridian === 'pm' && hours < 12) hours += 12
+  else if (meridian === 'am' && hours === 12) hours = 0
+  return hours * 60 + minutes
+}
 
 function safeColor(value: string): string {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : '#7D7A84'
@@ -199,6 +225,101 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
     }
   })
 
+  const hasDistractionCategory = categories.some((category) =>
+    isDistractionCategoryKey(category.name),
+  )
+  const rawMarkers: DailyWorkflowDistractionMarker[] = []
+
+  if (hasDistractionCategory) {
+    for (const card of cards) {
+      // Source 1: Full cards categorized as "Distraction"
+      if (isDistractionCategoryKey(card.category)) {
+        const clippedStart = Math.max(card.startTs, windowStartTs)
+        const clippedEnd = Math.min(card.endTs, windowEndTs)
+        if (clippedEnd > clippedStart) {
+          rawMarkers.push({
+            id: `distraction-macro-${rawMarkers.length}`,
+            title: card.title || 'Distraction',
+            startTs: clippedStart,
+            endTs: clippedEnd,
+            durationMinutes: Math.max(1, Math.round((clippedEnd - clippedStart) / 60)),
+          })
+        }
+      }
+
+      // Source 2: Mini distractions embedded within any card
+      if (card.distractions && card.distractions.length > 0) {
+        for (const distraction of card.distractions) {
+          let dStartTs = card.startTs
+          let dEndTs = card.endTs
+
+          const parentStartMin = parseClockToMinutes(card.start)
+          const rawStartMin = parseClockToMinutes(distraction.startTime)
+          const rawEndMin = parseClockToMinutes(distraction.endTime)
+
+          if (parentStartMin !== null && rawStartMin !== null && rawEndMin !== null) {
+            let startOffset = (rawStartMin - parentStartMin) * 60
+            if (startOffset < 0) startOffset += 24 * 3600
+            let endOffset = (rawEndMin - parentStartMin) * 60
+            if (endOffset < startOffset) endOffset += 24 * 3600
+
+            dStartTs = Math.min(card.endTs, Math.max(card.startTs, card.startTs + startOffset))
+            dEndTs = Math.min(card.endTs, Math.max(dStartTs + 60, card.startTs + endOffset))
+          }
+
+          const clippedStart = Math.max(dStartTs, windowStartTs)
+          const clippedEnd = Math.min(dEndTs, windowEndTs)
+          if (clippedEnd > clippedStart) {
+            rawMarkers.push({
+              id: `distraction-mini-${rawMarkers.length}`,
+              title: distraction.title || 'Distraction',
+              startTs: clippedStart,
+              endTs: clippedEnd,
+              durationMinutes: Math.max(1, Math.round((clippedEnd - clippedStart) / 60)),
+            })
+          }
+        }
+      }
+    }
+  }
+
+  // Merge overlapping or adjacent markers (within 2 minutes)
+  const distractionMarkers: DailyWorkflowDistractionMarker[] = []
+  if (rawMarkers.length > 0) {
+    rawMarkers.sort((a, b) => a.startTs - b.startTs)
+    let currentStart = rawMarkers[0]!.startTs
+    let currentEnd = rawMarkers[0]!.endTs
+    let currentTitles = [rawMarkers[0]!.title]
+
+    for (let i = 1; i < rawMarkers.length; i++) {
+      const marker = rawMarkers[i]!
+      if (marker.startTs <= currentEnd + 120) {
+        currentEnd = Math.max(currentEnd, marker.endTs)
+        if (!currentTitles.includes(marker.title)) {
+          currentTitles.push(marker.title)
+        }
+      } else {
+        distractionMarkers.push({
+          id: `distraction-merged-${distractionMarkers.length}`,
+          title: currentTitles.join(', '),
+          startTs: currentStart,
+          endTs: currentEnd,
+          durationMinutes: Math.max(1, Math.round((currentEnd - currentStart) / 60)),
+        })
+        currentStart = marker.startTs
+        currentEnd = marker.endTs
+        currentTitles = [marker.title]
+      }
+    }
+    distractionMarkers.push({
+      id: `distraction-merged-${distractionMarkers.length}`,
+      title: currentTitles.join(', '),
+      startTs: currentStart,
+      endTs: currentEnd,
+      durationMinutes: Math.max(1, Math.round((currentEnd - currentStart) / 60)),
+    })
+  }
+
   let contextSwitches = 0
   let interruptions = 0
   let focusedMinutes = 0
@@ -214,11 +335,12 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
         0,
         Math.min(day.dayEndTs, card.endTs) - Math.max(day.dayStartTs, card.startTs),
       ) / 60
+    const isDistraction = isDistractionCategoryKey(card.category)
     const isIdle = category?.isIdle ?? card.isIdle
 
-    if (isIdle) distractedMinutes += durationMinutes
+    if (isIdle || isDistraction) distractedMinutes += durationMinutes
     else focusedMinutes += durationMinutes
-    interruptions += card.distractions.length
+    if (card.distractions.length > 0) interruptions += 1
 
     const currentCategory = categoryKey(card.category)
     if (previousCategory !== null && previousCategory !== currentCategory) contextSwitches += 1
@@ -255,6 +377,8 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
       distractedMinutes: Math.round(distractedMinutes),
       transitioningMinutes: Math.round(transitioningMinutes),
     },
+    distractionMarkers,
+    hasDistractionCategory,
     windowStartTs,
     windowEndTs,
     slotCount,

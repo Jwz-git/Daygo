@@ -2,8 +2,13 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { DailyPresentation, DailyWorkflowCell, DailyWorkflowRow } from '@/stores/daily'
-import { SLOT_SECONDS } from '@/stores/daily'
+import type {
+  DailyPresentation,
+  DailyWorkflowCell,
+  DailyWorkflowDistractionMarker,
+  DailyWorkflowRow,
+} from '@/stores/daily'
+import { isDistractionCategoryKey, SLOT_SECONDS } from '@/stores/daily'
 import { useDurationFormat } from '@/lib/duration'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { safeTimeZone } from '@/lib/timeZone'
@@ -35,20 +40,34 @@ function cellStyle(cell: DailyWorkflowCell, color: string) {
 }
 
 /*
- * Dayflow's dedicated distraction row: one red bar per slot that recorded a
- * distraction in any category, placed by the slot's fraction of the window.
+ * Dayflow distraction track: when user has Distraction category and markers exist,
+ * replace the regular Distraction row with the dedicated continuous distraction track.
  */
-const distractionMarkers = computed(() => {
-  const slots = props.presentation.slotCount
-  const markers: Array<{ key: string; slot: number }> = []
-  for (let index = 0; index < slots; index += 1) {
-    const distracted = props.presentation.rows.some(
-      (row) => row.cells[index]?.hasDistraction === true,
-    )
-    if (distracted) markers.push({ key: `d-${index}`, slot: index })
+const showDistractionTrack = computed(
+  () =>
+    props.presentation.hasDistractionCategory &&
+    props.presentation.distractionMarkers.length > 0,
+)
+
+const displayRows = computed(() => {
+  if (showDistractionTrack.value) {
+    return props.presentation.rows.filter((row) => !isDistractionCategoryKey(row.name))
   }
-  return markers
+  return props.presentation.rows
 })
+
+function markerStyle(marker: DailyWorkflowDistractionMarker) {
+  const totalSec = props.presentation.windowEndTs - props.presentation.windowStartTs
+  if (totalSec <= 0) return { left: '0px', width: '6px' }
+  const startFraction = Math.max(0, (marker.startTs - props.presentation.windowStartTs) / totalSec)
+  const endFraction = Math.min(1, (marker.endTs - props.presentation.windowStartTs) / totalSec)
+  const left = startFraction * gridWidth.value
+  const width = Math.max(4, (endFraction - startFraction) * gridWidth.value)
+  return {
+    left: `${left}px`,
+    width: `${width}px`,
+  }
+}
 
 /*
  * Hover tooltip (GitHub-contributions style): the slot's minutes in the row's
@@ -109,6 +128,26 @@ function onCellLeave(): void {
   }, 80)
 }
 
+function onDistractionEnter(
+  event: MouseEvent,
+  marker: DailyWorkflowDistractionMarker,
+): void {
+  if (hideTimer !== null) {
+    window.clearTimeout(hideTimer)
+    hideTimer = null
+  }
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  tooltipData.value = {
+    rowId: marker.id,
+    index: -1,
+    color: '#FF653B',
+    minutes: duration(marker.durationMinutes),
+    title: marker.title,
+    x: rect.left + rect.width / 2,
+    y: rect.top,
+  }
+  tooltipVisible.value = true
+}
 
 function formatTime(timestamp: number): string {
   return new Intl.DateTimeFormat(locale.value, {
@@ -152,7 +191,7 @@ const duration = useDurationFormat()
             </span>
           </div>
 
-          <template v-for="row in presentation.rows" :key="row.id">
+          <template v-for="row in displayRows" :key="row.id">
             <div class="workflow-label">
               <i :style="{ background: row.colorHex }" aria-hidden="true"></i>
               <span>{{ categoryLabel(row.name, t) }}</span>
@@ -170,16 +209,19 @@ const duration = useDurationFormat()
             </div>
           </template>
 
-          <template v-if="distractionMarkers.length > 0">
+          <template v-if="showDistractionTrack">
             <div class="workflow-label workflow-distraction-label">
               <span>{{ t('daily.workflow.distractions') }}</span>
             </div>
             <div class="workflow-distraction-cell">
               <div class="workflow-distraction-track" :style="{ width: `${gridWidth}px` }">
                 <span
-                  v-for="marker in distractionMarkers"
-                  :key="marker.key"
-                  :style="{ left: `${marker.slot * 20}px` }"
+                  v-for="marker in presentation.distractionMarkers"
+                  :key="marker.id"
+                  class="workflow-distraction-marker"
+                  :style="markerStyle(marker)"
+                  @mouseenter="onDistractionEnter($event, marker)"
+                  @mouseleave="onCellLeave"
                 ></span>
               </div>
             </div>
@@ -344,6 +386,12 @@ const duration = useDurationFormat()
   height: 10px;
   border-radius: 2px;
   background: #ff653b;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+.workflow-distraction-track span:hover {
+  filter: brightness(1.15);
 }
 
 /* Hover tooltip floating above the cell (GitHub style). */
