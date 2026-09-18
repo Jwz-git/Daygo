@@ -23,6 +23,7 @@ export type AppSiteIconKind =
   | 'warp'
   | 'xcode'
   | 'youtube'
+  | 'bilibili'
   | 'generic'
 
 export interface AppSiteIdentity {
@@ -40,7 +41,18 @@ interface BrandRule {
 const brandRules: readonly BrandRule[] = [
   { kind: 'daygo', matches: ['daygo'] },
   { kind: 'claude', matches: ['claude', 'anthropic'] },
-  { kind: 'gemini', matches: ['gemini'] },
+  {
+    kind: 'gemini',
+    matches: [
+      'gemini',
+      'aistudio.google',
+      'google ai studio',
+      'ai studio',
+      'google studio',
+      'makersuite',
+    ],
+  },
+  { kind: 'bilibili', matches: ['bilibili', 'b23.tv', '哔哩哔哩'] },
   { kind: 'ghostty', matches: ['ghostty'] },
   { kind: 'iterm2', matches: ['iterm2', 'iterm'] },
   { kind: 'cursor', matches: ['cursor'] },

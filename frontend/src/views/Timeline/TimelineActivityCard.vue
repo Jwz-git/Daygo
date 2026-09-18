@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import type { TimelineCardDTO } from '@/api/dto'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
-import { preferredAppSite } from '@/lib/appSiteIcon'
+import { appSiteValues, preferredAppSite } from '@/lib/appSiteIcon'
 import { categoryLabel } from '@/lib/categoryLabel'
 
 import { MIN_CARD_HEIGHT } from './layout'
@@ -22,7 +22,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ select: [id: number] }>()
-const appSite = computed(() => preferredAppSite(props.card.appSites))
+const candidateSites = computed(() => appSiteValues(props.card.appSites))
 const { t } = useI18n()
 
 // Visual gap between consecutive cards: the slot owns `height`, the card
@@ -59,9 +59,9 @@ function cardStyle(): CSSProperties {
     <span class="activity-card__rail" aria-hidden="true"></span>
     <span class="activity-card__icon-slot" aria-hidden="true">
       <AppSiteIcon
-        v-if="appSite"
+        v-if="candidateSites.length > 0"
         class="activity-card__icon"
-        :site="appSite"
+        :sites="candidateSites"
         :accent="props.color"
         :size="18"
       />

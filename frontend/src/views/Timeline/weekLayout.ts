@@ -1,5 +1,5 @@
 import type { RangeDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
-import { preferredAppSite } from '@/lib/appSiteIcon'
+import { appSiteValues, preferredAppSite } from '@/lib/appSiteIcon'
 import { categoryLabel as translateCategory } from '@/lib/categoryLabel'
 import { boxesOverlap, cardIntersectsRanges, positionRange, safeCategoryColor, uncoveredBy } from './layout'
 
@@ -42,6 +42,8 @@ export interface WeekCard {
   clampLines: number
   /** First app/site of the card, for the leading icon. */
   site: string | null
+  /** Candidate apps/sites of the card, for icon resolution with fallback. */
+  sites: string[]
   /** A batch covering this card is being analyzed again; the card is stale. */
   regenerating: boolean
 }
@@ -138,6 +140,7 @@ export function buildWeekColumns(
         isIdle: box.card.isIdle,
         clampLines: weekCardClampLines(box.height),
         site: preferredAppSite(box.card.appSites ?? null),
+        sites: appSiteValues(box.card.appSites ?? null),
         regenerating: cardIntersectsRanges(box.card, day.processingRanges),
       })),
       // A window belongs to the card that already covers it: the block is the

@@ -52,17 +52,60 @@ async function fetchBlobAsDataUrl(url: string, signal: AbortSignal): Promise<str
   }
 }
 
+function loadFaviconUrl(url: string, timeoutMs: number): Promise<string | null> {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') {
+    return Promise.resolve(null)
+  }
+  return new Promise((resolve) => {
+    const img = new Image()
+    let settled = false
+    const timer = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      img.src = ''
+      resolve(null)
+    }, timeoutMs)
+
+    img.onload = () => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timer)
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        resolve(url)
+      } else {
+        resolve(null)
+      }
+    }
+    img.onerror = () => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timer)
+      resolve(null)
+    }
+    img.src = url
+  })
+}
+
 async function requestFavicon(host: string): Promise<string | null> {
+  const timeoutMs = 2500
+  const s2Url = `${S2_ENDPOINT}${encodeURIComponent(host)}`
+
+  // 1. Browser Image probe: loads cross-origin images without CORS restrictions
+  const imageResult = await loadFaviconUrl(s2Url, timeoutMs)
+  if (imageResult !== null) return imageResult
+
   const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   try {
-    // 1. Preferred: Google S2 service
-    const s2Url = `${S2_ENDPOINT}${encodeURIComponent(host)}`
+    // 2. Fetch blob fallback
     const s2Result = await fetchBlobAsDataUrl(s2Url, controller.signal)
     if (s2Result !== null) return s2Result
 
-    // 2. Fallback: direct site /favicon.ico (following Dayflow's dual-fetch approach)
+    // 3. Fallback: direct site /favicon.ico
     const directUrl = `https://${host}/favicon.ico`
+    const directImage = await loadFaviconUrl(directUrl, timeoutMs)
+    if (directImage !== null) return directImage
+
     return await fetchBlobAsDataUrl(directUrl, controller.signal)
   } finally {
     window.clearTimeout(timer)

@@ -193,8 +193,8 @@ onBeforeUnmount(() => {
           <span class="week__card-head">
             <span class="week__card-icon-slot">
               <AppSiteIcon
-                v-if="card.site !== null"
-                :site="card.site"
+                v-if="card.sites.length > 0"
+                :sites="card.sites"
                 :accent="card.color"
                 :size="13"
               />

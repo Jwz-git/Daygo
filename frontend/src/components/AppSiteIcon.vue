@@ -45,7 +45,8 @@ const BRAND_IMAGES: Partial<Record<AppSiteIconKind, string>> = {
 }
 
 const props = withDefaults(defineProps<{
-  site: string
+  site?: string
+  sites?: string[] | readonly string[]
   size?: number
   accent?: string
 }>(), {
@@ -53,42 +54,94 @@ const props = withDefaults(defineProps<{
   accent: 'var(--dg-accent)',
 })
 
-const identity = computed(() => resolveAppSiteIdentity(props.site))
-const brandImage = computed(() => BRAND_IMAGES[identity.value.kind])
+const candidateSites = computed<string[]>(() => {
+  if (props.sites && props.sites.length > 0) {
+    const list = Array.from(props.sites).filter((s): s is string => typeof s === 'string' && s.trim() !== '')
+    if (list.length > 0) return list
+  }
+  if (props.site && props.site.trim() !== '') {
+    return [props.site]
+  }
+  return []
+})
+
+const activeSite = ref<string>('')
+const activeIdentity = computed(() => resolveAppSiteIdentity(activeSite.value))
+const brandImage = computed(() => BRAND_IMAGES[activeIdentity.value.kind])
 
 /*
- * Unbranded sites resolve a network favicon (Dayflow's FaviconService flow);
- * failure keeps the monogram fallback. The cache lives in the favicon module.
+ * When a card has a list of candidate sites (e.g. browsed website + browser),
+ * iterate through them to find the first candidate with an available icon:
+ * 1. Built-in brand icon (SVG or BRAND_IMAGES)
+ * 2. Installed desktop application icon
+ * 3. Network favicon
+ * If none has a real icon, falls back to the primary site's monogram.
  */
 const faviconSrc = ref<string | null>(null)
+let resolveSeq = 0
 
 watch(
-  () => props.site,
-  async (site) => {
+  candidateSites,
+  async (sites) => {
+    const seq = ++resolveSeq
     faviconSrc.value = null
-    if (identity.value.kind !== 'generic') return
-    // Installed-application names ("Clash Verge", "Microsoft Edge") resolve
-    // to the real bundle icon offline; bare hosts fall through to the
-    // network favicon; failure keeps the monogram.
-    try {
-      const appIcon = await matchInstalledAppIcon(site)
-      if (props.site === site && appIcon !== null) {
-        faviconSrc.value = appIcon
+
+    if (sites.length === 0) {
+      activeSite.value = ''
+      return
+    }
+
+    // Default to the first site while checking
+    activeSite.value = sites[0]
+
+    for (const candidate of sites) {
+      const identity = resolveAppSiteIdentity(candidate)
+
+      // 1. Built-in brand icon (SVG or BRAND_IMAGES)
+      if (identity.kind !== 'generic') {
+        if (seq !== resolveSeq) return
+        activeSite.value = candidate
+        faviconSrc.value = null
         return
       }
-    } catch {
-      // Fall through to the network favicon.
+
+      // 2. Installed desktop application icon (e.g. "Microsoft Edge", "Clash Verge")
+      try {
+        const appIcon = await matchInstalledAppIcon(candidate)
+        if (seq !== resolveSeq) return
+        if (appIcon !== null) {
+          activeSite.value = candidate
+          faviconSrc.value = appIcon
+          return
+        }
+      } catch {
+        // Fall through to favicon
+      }
+
+      // 3. Network favicon
+      if (hostOf(candidate) !== null) {
+        try {
+          const dataUrl = await fetchFaviconDataUrl(candidate)
+          if (seq !== resolveSeq) return
+          if (dataUrl !== null) {
+            activeSite.value = candidate
+            faviconSrc.value = dataUrl
+            return
+          }
+        } catch {
+          // Fall through to next candidate
+        }
+      }
     }
-    if (hostOf(site) === null) return
-    try {
-      const dataUrl = await fetchFaviconDataUrl(site)
-      if (props.site === site) faviconSrc.value = dataUrl
-    } catch {
-      // Monogram fallback stays.
-    }
+
+    // None produced a real icon; keep the first candidate's monogram
+    if (seq !== resolveSeq) return
+    activeSite.value = sites[0]
+    faviconSrc.value = null
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 )
+
 const iconStyle = computed<CSSProperties>(() => ({
   width: `${props.size}px`,
   height: `${props.size}px`,
@@ -99,43 +152,47 @@ const iconStyle = computed<CSSProperties>(() => ({
 <template>
   <span
     class="app-site-icon"
-    :class="[`app-site-icon--${identity.kind}`, { 'is-raw': brandImage !== null }]"
+    :class="[`app-site-icon--${activeIdentity.kind}`, { 'is-raw': brandImage !== null }]"
     :style="iconStyle"
     role="img"
-    :aria-label="identity.label"
-    :title="identity.label"
+    :aria-label="activeIdentity.label"
+    :title="activeIdentity.label"
   >
     <img v-if="brandImage" class="app-site-icon__favicon" :src="brandImage" alt="" draggable="false">
 
-    <svg v-else-if="identity.kind === 'daygo'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'daygo'" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="6" y="12" width="2.8" height="6" rx="1.4" opacity=".68" />
       <rect x="10.6" y="5" width="2.8" height="13" rx="1.4" />
       <rect x="15.2" y="8.5" width="2.8" height="9.5" rx="1.4" opacity=".82" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'claude'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'claude'" viewBox="0 0 24 24" aria-hidden="true">
       <g class="claude-rays" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
         <path d="M12 3.2v17.6M3.2 12h17.6M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" />
       </g>
     </svg>
 
-    <svg v-else-if="identity.kind === 'cursor'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'gemini'" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 2C12 7.5 7.5 12 2 12C7.5 12 12 16.5 12 22C12 16.5 16.5 12 22 12C16.5 12 12 7.5 12 2Z" fill="currentColor" />
+    </svg>
+
+    <svg v-else-if="activeIdentity.kind === 'cursor'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 2.4 20.6 7v10L12 21.6 3.4 17V7L12 2.4Zm0 2.7L6 8.3l6 3.3 6-3.3-6-3.2Zm-6.4 5v5.9l5.4 3v-6l-5.4-2.9Zm12.8 0-5.4 2.9v6l5.4-3v-5.9Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'warp'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'warp'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3.5 5.5h17L13 12l7.5 6.5h-17L11 12 3.5 5.5Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'vscode'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'vscode'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M16.8 3.4 9.1 9.2 5.8 6.7 3.4 8.2l3.8 3.8-3.8 3.8 2.4 1.5 3.3-2.5 7.7 5.8 3.8-1.8V5.2l-3.8-1.8Zm0 4.6v8l-5.1-4 5.1-4Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'github'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'github'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M7 8.2 8.4 5l2.3 1.7c.4-.1.9-.1 1.3-.1s.9 0 1.3.1L15.6 5 17 8.2c1.1 1 1.7 2.4 1.7 4 0 4-2.5 6.7-6.7 6.7s-6.7-2.7-6.7-6.7c0-1.6.6-3 1.7-4Zm2.1 4.2c0 1.8 1.2 3.1 2.9 3.1s2.9-1.3 2.9-3.1c-.7.4-1.7.6-2.9.6s-2.2-.2-2.9-.6Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'chatgpt'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'chatgpt'" viewBox="0 0 24 24" aria-hidden="true">
       <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <path d="M12 4.1a4.2 4.2 0 0 1 6.2 3.6 4.2 4.2 0 0 1 1 7.1 4.2 4.2 0 0 1-6.2 5.1" />
         <path d="M12 19.9a4.2 4.2 0 0 1-6.2-3.6 4.2 4.2 0 0 1-1-7.1A4.2 4.2 0 0 1 11 4.1" />
@@ -143,62 +200,67 @@ const iconStyle = computed<CSSProperties>(() => ({
       </g>
     </svg>
 
-    <span v-else-if="identity.kind === 'chrome'" class="chrome-mark" aria-hidden="true"><i></i></span>
+    <span v-else-if="activeIdentity.kind === 'chrome'" class="chrome-mark" aria-hidden="true"><i></i></span>
 
-    <svg v-else-if="identity.kind === 'safari'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'safari'" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.5" />
       <path class="safari-needle" d="m14.8 8.2-1.6 5-4 2.6 1.6-5 4-2.6Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'messages'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'messages'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 11.3c0-4 3.5-7.1 8-7.1s8 3.1 8 7.1-3.5 7.1-8 7.1c-1 0-2-.2-2.9-.5L5.4 20l1-3.6A6.7 6.7 0 0 1 4 11.3Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'notes'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'notes'" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="4.5" y="3.5" width="15" height="17" rx="3" />
       <path d="M5 8h14" />
       <path class="notes-line" d="M8 12h8M8 15h6" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'terminal'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'terminal'" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
       <path d="m7.5 9 3 3-3 3M12.5 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'xcode'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'xcode'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="m8 5.1 3.3 3.3-6.2 8.9a1.5 1.5 0 0 0 .4 2.1 1.5 1.5 0 0 0 2.1-.4l6.3-8.9 3.5 1.2 2-2.8-4.3-3.2-2.2 1.1-3.1-3.1L8 5.1Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'youtube'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'youtube'" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="2.5" y="5.5" width="19" height="13" rx="4" />
       <path class="youtube-play" d="m10 9 5 3-5 3V9Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'google-docs'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'google-docs'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6 3h8l4 4v14H6V3Z" />
       <path class="docs-fold" d="M14 3v5h5" />
       <path class="docs-line" d="M9 12h6M9 15h6M9 18h4" />
     </svg>
 
-    <span v-else-if="identity.kind === 'figma'" class="figma-mark" aria-hidden="true">
+    <span v-else-if="activeIdentity.kind === 'figma'" class="figma-mark" aria-hidden="true">
       <i></i><i></i><i></i><i></i><i></i>
     </span>
 
-    <span v-else-if="identity.kind === 'slack'" class="slack-mark" aria-hidden="true">
+    <span v-else-if="activeIdentity.kind === 'slack'" class="slack-mark" aria-hidden="true">
       <i></i><i></i><i></i><i></i>
     </span>
 
-    <svg v-else-if="identity.kind === 'discord'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'discord'" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6.4 6.6A13 13 0 0 1 9.2 5l.7 1.3a9.7 9.7 0 0 1 4.2 0l.7-1.3a13 13 0 0 1 2.8 1.6c1.6 2.4 2.1 4.8 1.8 7.2a11 11 0 0 1-3.4 2.5l-.9-1.2c.6-.2 1.1-.5 1.6-.9-3 1.4-6.4 1.4-9.4 0 .5.4 1 .7 1.6.9L8 16.3a11 11 0 0 1-3.4-2.5c-.3-2.4.2-4.8 1.8-7.2Zm3.1 6.2c.7 0 1.2-.7 1.2-1.5s-.5-1.5-1.2-1.5-1.2.7-1.2 1.5.5 1.5 1.2 1.5Zm5 0c.7 0 1.2-.7 1.2-1.5s-.5-1.5-1.2-1.5-1.2.7-1.2 1.5.5 1.5 1.2 1.5Z" />
     </svg>
 
-    <svg v-else-if="identity.kind === 'notion'" viewBox="0 0 24 24" aria-hidden="true">
+    <svg v-else-if="activeIdentity.kind === 'bilibili'" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 10a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-6Z" fill="none" stroke="currentColor" stroke-width="1.9" />
+      <path d="m8 3 2 3M16 3l-2 3M9 13v-2M15 11v2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+
+    <svg v-else-if="activeIdentity.kind === 'notion'" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="3.5" y="3.5" width="17" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" />
       <path d="M8 17V7.5h2.5l5 6.6V7.5H18V17h-2.4l-5.1-6.7V17H8Z" />
     </svg>
 
     <img v-else-if="faviconSrc !== null" class="app-site-icon__favicon" :src="faviconSrc" alt="" draggable="false">
-    <span v-else class="app-site-icon__monogram" aria-hidden="true">{{ identity.monogram }}</span>
+    <span v-else class="app-site-icon__monogram" aria-hidden="true">{{ activeIdentity.monogram }}</span>
   </span>
 </template>
 
@@ -228,6 +290,8 @@ const iconStyle = computed<CSSProperties>(() => ({
 .app-site-icon--daygo { background: #4b79a6; color: white; }
 .app-site-icon--google-docs { background: #4285f4; color: white; }
 .app-site-icon--discord { background: #5865f2; color: white; }
+.app-site-icon--bilibili { background: #00aeec; color: white; }
+.app-site-icon--gemini { background: #1a73e8; color: white; }
 .app-site-icon--notion { background: #fff; color: #111; }
 
 .safari-needle { fill: #f25454; stroke: white; stroke-width: .7; }

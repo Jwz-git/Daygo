@@ -21,6 +21,11 @@ test('maps known applications and sites using only local rules', () => {
   assert.equal(resolveAppSiteIdentity('Visual Studio Code').kind, 'vscode')
   assert.equal(resolveAppSiteIdentity('https://docs.google.com/document/d/example').kind, 'google-docs')
   assert.equal(resolveAppSiteIdentity('Safari').kind, 'safari')
+  assert.equal(resolveAppSiteIdentity('bilibili.com').kind, 'bilibili')
+  assert.equal(resolveAppSiteIdentity('哔哩哔哩').kind, 'bilibili')
+  assert.equal(resolveAppSiteIdentity('aistudio.google.com').kind, 'gemini')
+  assert.equal(resolveAppSiteIdentity('Google AI Studio').kind, 'gemini')
+  assert.equal(resolveAppSiteIdentity('google studio').kind, 'gemini')
 })
 
 test('keeps unknown domains visible through a stable monogram fallback', () => {
