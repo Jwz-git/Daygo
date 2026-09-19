@@ -6,8 +6,8 @@
 >
 > 在决策落盘前，**不得**按某一种候选方案大规模实现，也不得删除其它候选路径。
 >
-> 22 项能力中只有“单次截图”有真实实现，且分 macOS 与 Windows 两套；
-> 逐项状态见 [§6.7](#67-平台实现状态)。
+> 22 项能力中只有少数落地真实实现（单次截图分 macOS 与 Windows 两套，帧解码 / 探测与
+> Secrets 亦已实现），其余仍为待定设计；逐项状态见 [§6.7](#67-平台实现状态)。
 
 ## 6.1 为什么单独隔离这一层
 
@@ -130,9 +130,9 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 
 ## 6.7 平台实现状态
 
-产品主线是 macOS。Windows 现在有一份**完成有限真机 smoke、但不在发布范围**的截图实现，
-它的存在不改变 v1 的目标平台（[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
-把它记在这里，是因为“仓库里有 Windows 代码”和“Windows 可用”是两件事，不写下来就会被混淆。
+macOS 是当前主线，Windows 与 Linux 是已排期的一等发布目标。Windows 现在有一份**完成有限真机
+smoke** 的截图实现，发布范围与其余能力逐项经决策记录推进（[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
+把状态写在这里，是因为“仓库里有 Windows 代码”和“Windows 已验收可发布”是两件事，不写下来就会被混淆。
 
 | 能力 | macOS | Windows | 说明 |
 |---|---|---|---|
@@ -145,7 +145,10 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 | 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | 待定 | 供隐私页应用网格；Windows 侧待定 |
 | 系统事件（第 15 / 16 项） | System ABI 已实现（睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保 / 显示器变化） | 待定 | 待实机矩阵验证 |
 | 状态栏（第 19 项） | `SetStatusItem` ABI 已实现，有限接入（重开窗口已验证） | 无适配器时调用已守卫 | 正式形态与长驻验收仍待定 |
-| 其余各项（第 4、8–11、17、18、20、22 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
+| 帧解码 / 段探测（第 8、10 项） | 原生段读取（`frameDecode` / `segmentProbe`） | 纯 Go `mediafile` | 两平台都经 `platform.Media` 真实实现；Windows / Linux 走 [`internal/platform/mediafile`](../internal/platform/mediafile/mediafile.go)：JPEG 单帧解码 + 探测，非 JPEG 多帧段报 `Readable=false` |
+| 视频编码（第 9 项） | 未实现 | 未实现 | 两平台 `EncodeVideo` 均返回错误，待 M2 编码决策 |
+| 自动更新（第 22 项） | 待定设计 | 待定设计 | `Updater` 端口已冻结，但无任何 `factory.NewUpdater` 构造器，全平台未接线 |
+| 其余各项（第 4、11、17、18、20 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
 `native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是

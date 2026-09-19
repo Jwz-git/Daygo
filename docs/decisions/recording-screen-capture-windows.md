@@ -1,8 +1,8 @@
 # recording 屏幕截屏（Windows）：DXGI/WGC 实现、差异与限制
 
-> **状态：已落盘并完成有限真机 smoke 的实验性原生切片，不在发布范围。** 提交 `c2950cf` 为 Windows 实现了与 macOS
-> 同一套 C ABI v1 的 `dg_capture_once`。Windows 是否进入发布仍是
-> [09 §9.8 第 18 项](../09-roadmap.md#98-待定设计清单) 的待定项，本文不改变该结论。
+> **状态：已落盘并完成有限真机 smoke 的原生切片；已排期，发布范围与完整 WC 矩阵经决策推进。** 提交 `c2950cf` 为 Windows 实现了与 macOS
+> 同一套 C ABI v1 的 `dg_capture_once`。Windows 发布范围按
+> [09 §9.8 第 18 项](../09-roadmap.md#98-待定设计清单) 排期推进，进入发布的门槛见 §6。
 >
 > 本文只记录**代码已经做了什么、与 macOS 有哪些不能忽略的差异、以及还缺什么**。
 > ABI 字段布局以 [`native/include/daygo_capture.h`](../../native/include/daygo_capture.h) 为准；
@@ -73,9 +73,10 @@ Windows 隐私能力的硬门禁是 build 26100。更旧系统继续按
 [单次调用契约 §7](recording-screen-capture.md#7-windows-约束) 失败关闭；不会降级为只检查前台、
 不会忽略屏蔽名单，也不会用 GDI 生成可能泄漏的图片。
 
-第四行是当前实现与 ABI 语义之间的**真实缺口**：`flags` 被接受却未生效。补齐方式是合成
-`DXGI_OUTDUPL_FRAME_INFO.PointerPosition` 指针，或在 ABI 上明确"该 flag 为平台尽力而为"。
-在两者之一落盘前，不要假定 Windows 截图包含光标。
+第四行的处置**已决定**（[09 §9.8 #21](../09-roadmap.md#98-待定设计清单)）：ABI 将 `ShowsCursor`
+定为**平台尽力而为**，Windows v1 不合成指针（Desktop Duplication 不含指针），置位记为 no-op 且不报错——
+因此**不要假定 Windows 截图包含光标**。合成 `DXGI_OUTDUPL_FRAME_INFO.PointerPosition` 指针留作后续
+可选增强，落地前不改变该语义，也不阻塞 §9.8 #18 的发布推进。
 
 ## 4. Store 兼容层
 
@@ -128,7 +129,7 @@ Go 1.25 时，为 Wails 子进程临时设置 `GOEXPERIMENT=nodwarf5` 并在退�
 - `go test ./internal/platform/...`、`go vet ./internal/platform/windows` 与无 cgo 构建通过。
 
 因此 WC-1 只能记为**本机有限通过**；WC-2–8 的完整构造条件、目标路径冲突、多屏切换/旋转、
-受保护内容、GDI 是否绕过保护、光标与 24 小时资源仍未验证。Windows 仍不在发布范围。
+受保护内容、GDI 是否绕过保护、光标与 24 小时资源仍未验证——这些是 §9.8 #18 排期推进时进入发布的门槛。
 
 2026-09-12（同一 Windows 主机，go1.25.4）：复现 Wails debug EXE 的 PE
 `SizeOfHeaders=1352`、`FileAlignment=512`，Windows loader 拒绝启动；启用 `nodwarf5` 后为

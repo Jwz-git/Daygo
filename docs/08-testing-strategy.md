@@ -235,7 +235,7 @@ MC-6–MC-8 是 [07 §7.2](07-privacy-security.md#72-捕获侧的两层保护) �
 
 ### 8.6.3 WC：真实 Windows 捕获矩阵
 
-Windows 适配器已落盘并完成 **WC-1 的有限真机 smoke，但仍不在发布范围**
+Windows 适配器已落盘并完成 **WC-1 的有限真机 smoke；已排期，发布范围待决策**
 （[决策记录](decisions/recording-screen-capture-windows.md)，[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
 这只证明当前机器上 DXGI 能生成可解码非黑 JPEG；WC 其余项仍是进入任何真实使用前的最小证据集。
 

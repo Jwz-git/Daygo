@@ -35,6 +35,18 @@ go vet ./...
 gofmt -l .
 printf 'gofmt: clean\n'
 
+printf '\n== cross-platform core build ==\n'
+# The host build above only compiles the platform files for this GOOS. The
+# windows/darwin adapters and their //go:build stubs (unavailable_*.go,
+# lock_windows.go, zone_windows.go, credential_windows.go, factory selectors)
+# never get compiled otherwise, so a broken build tag would surface only on
+# that OS. Cross-compile the core with cgo off — the cgo adapters stay
+# excluded, but every pure-Go platform file has to build on every GOOS.
+for goos in linux darwin windows; do
+  GOOS="$goos" CGO_ENABLED=0 go build ./internal/...
+  printf 'build: GOOS=%s CGO_ENABLED=0 ./internal/... ok\n' "$goos"
+done
+
 printf '\n== frontend ==\n'
 npm --prefix frontend run test:unit
 npm --prefix frontend run typecheck

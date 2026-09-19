@@ -74,7 +74,7 @@ internal/
 native/                     原生截图实现（共用一份 C ABI）
   include/daygo_capture.h   ABI v1
   darwin/                   Swift + ScreenCaptureKit
-  windows/                  C++ + DXGI（实验，有限真机 smoke）
+  windows/                  C++ + DXGI（已排期；有限真机 smoke）
 frontend/                   Vue 3 + TypeScript 前端
 scripts/                    引导、门禁与开发脚本
 build/                      Wails 构建资源与产物
@@ -88,16 +88,16 @@ docs/                       设计文档
 **关于 Linux：** Linux 桌面壳（Wails v2 + GTK3 + WebKit2GTK）已经能启动并加载 Vue 前端，
 Go Core 与 SQLite 数据库层在 Linux 上与 macOS 等价。屏幕截图、系统授权、状态栏、钥匙串这些
 需要原生能力的功能按 `internal/platform` 端口的"未实现 = 返回 `unsupported`"约定工作；
-真正的 Linux 适配器属于 [docs/09 §9.8](docs/09-roadmap.md#98-待定设计清单) 的待定设计，
-落决策前不会大规模实现。
+真正的 Linux 适配器已提上日程（[docs/09 §9.8 #24](docs/09-roadmap.md#98-待定设计清单)），
+形态经决策记录逐项落地；落记录前仍不按单一候选大规模实现。
 
 ## 构建与运行
 
 环境要求：
 
 - **macOS（主目标）：** macOS 14+、Go 1.25+、Node.js 20.19+（或 22.12+）、npm、Xcode Command Line Tools
-- **Windows（实验）：** Windows 10/11、Go 1.25+、Node.js 20.19+、npm、（可选）MinGW-w64
-- **Linux（初级适配）：** 任意较新的发行版、Go 1.25+、Node.js 20.19+、npm、GTK3 与 WebKit2GTK 开发头文件（见下）
+- **Windows（已排期）：** Windows 10/11、Go 1.25+、Node.js 20.19+、npm、（可选）MinGW-w64
+- **Linux（已排期；初级适配）：** 任意较新的发行版、Go 1.25+、Node.js 20.19+、npm、GTK3 与 WebKit2GTK 开发头文件（见下）
 
 ```bash
 git clone https://github.com/Jwz-git/Daygo.git
@@ -169,8 +169,8 @@ go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform linux/amd6
 
 产物分别位于 `build/bin/Daygo.app`、`build/bin/Daygo.exe`、`build/bin/Daygo`。
 `wails` 命令需在 `cmd/daygo` 目录执行，它会自动解析仓库根目录下的 `frontend/` 和 `build/`，并通过
-`preBuildHooks` 构建原生静态库——**目前仅 darwin/windows 触发 preBuildHooks，Linux 的 `native/` 适配器
-是「待定设计」（docs/09 §9.8 #1）。**
+`preBuildHooks` 构建原生静态库——**目前仅 darwin/windows 触发 preBuildHooks；Linux 的 `native/` 适配器
+已排期（docs/09 §9.8 #24），形态经决策记录落地。**
 
 ### 三平台的功能差异
 
@@ -180,7 +180,7 @@ go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform linux/amd6
 
 | 能力                | macOS | Windows | Linux（当前） |
 |--------------------|:-----:|:-------:|:------:|
-| 屏幕截图            | ✅ ScreenCaptureKit | ⚠️ DXGI / WGC（实验，限有限 smoke） | ❌ 未实现，返回 `CaptureUnsupported` |
+| 屏幕截图            | ✅ ScreenCaptureKit | ⚠️ DXGI / WGC（有限 smoke，排期中） | ❌ 未实现，返回 `CaptureUnsupported` |
 | 系统授权 / TCC      | ✅ | ⚠️ 部分 | ❌ 未实现 |
 | 状态栏 / 系统托盘  | ✅ | ⚠️ 部分 | ❌ 未实现 |
 | 钥匙串 / 凭据      | ✅ `security` 子进程 | ✅ Credential Manager | ⚠️ Secret Service / `secret-tool`（待真机验收） |
@@ -188,9 +188,9 @@ go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0 build -platform linux/amd6
 | 系统事件订阅        | ✅ | ⚠️ 部分 | ❌ 未实现 |
 | SQLite + 设置 + 时间线前端 | ✅ | ✅ | ✅（与 macOS 完全一致） |
 
-**目标平台仍是 macOS。** Linux 与 Windows 上的完整功能矩阵属于 docs/09 §9.8 中的待定设计，
-实现前需要各自独立的决策记录。在那之前，Linux 与 Windows 上能做的有：浏览已存在的数据、设置、AI
-provider 配置与连接测试、对话——这些都走纯 Go Core，不依赖平台适配。
+**macOS 为主线，Windows 与 Linux 为已排期的一等发布目标。** 其完整功能矩阵经 docs/09 §9.8
+（#18 / #24）逐项决策，并按 G-host / G-native 门禁推进。当前 Linux 与 Windows 上已能做的有：
+浏览已存在的数据、设置、AI provider 配置与连接测试、对话——这些都走纯 Go Core，不依赖平台适配。
 
 发布链路（签名、公证、自动更新）尚未建立。
 

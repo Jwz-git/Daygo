@@ -36,10 +36,6 @@ fi
 
 # ─── shared helpers (defined unconditionally so source + run both work) ───
 
-# daygo_done_sourcing is a no-op kept for script authors who used the old
-# internal marker. The _daygo_sourced flag handles the common case.
-daygo_done_sourcing() { :; }
-
 # require_tool prints a one-line error and exits non-zero when $1 is not on
 # PATH. Each caller lists what it actually needs; we do not assume a fixed
 # host because the three dev scripts each have different tool requirements

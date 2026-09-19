@@ -78,7 +78,7 @@ internal/
 native/                     native capture implementations (one shared C ABI)
   include/daygo_capture.h   ABI v1
   darwin/                   Swift + ScreenCaptureKit
-  windows/                  C++ + DXGI (experimental, unverified)
+  windows/                  C++ + DXGI (scheduled; limited real-machine smoke)
 frontend/                   Vue 3 + TypeScript frontend
 scripts/                    bootstrap, commit gate, and dev scripts
 build/                      Wails build assets and output
@@ -94,14 +94,16 @@ Vue frontend on Linux, and the Go core plus SQLite layer behave identically to m
 are wired through Secret Service / `secret-tool` (not yet verified on a real desktop keyring).
 Capabilities that still need native code (screen capture, system permissions, status item)
 follow the `internal/platform` convention of returning `unsupported` when no adapter is
-implemented. The remaining Linux adapter work belongs to the undecided designs in
-[docs/09 §9.8](docs/09-roadmap.md#98-待定设计清单).
+implemented. The remaining Linux adapter work is now scheduled
+([docs/09 §9.8 #24](docs/09-roadmap.md#98-待定设计清单)); its form is settled per decision
+record, and no single candidate is implemented at scale before that record lands.
 
-**About Windows:** the tree contains an experimental Windows capture implementation. It has
+**About Windows:** the tree contains a Windows capture implementation that has
 passed limited real-machine smoke tests (single non-black JPEG capture, `LockFileEx`
 instance locks with read-only fallback and release-on-terminate smoke, a 6-frame recorder
-persistence loop), but the full privacy matrix, long-run stability, and release identity
-remain unverified. It is **not in release scope**; macOS remains the only target platform —
+persistence loop); the full privacy matrix, long-run stability, and release identity
+remain unverified. Windows is a **scheduled first-class release target**, with its release
+scope driven per decision record and the G-host / G-native gates —
 see the [decision record](docs/decisions/recording-screen-capture-windows.md).
 
 ## Build and run
@@ -109,8 +111,8 @@ see the [decision record](docs/decisions/recording-screen-capture-windows.md).
 Requirements:
 
 - **macOS (primary):** macOS 14+, Go 1.25+, Node.js 20.19+ (or 22.12+), npm, Xcode Command Line Tools
-- **Windows (experimental):** Windows 10/11, Go 1.25+, Node.js 20.19+, npm, optional MinGW-w64
-- **Linux (early adapter):** any modern distribution, Go 1.25+, Node.js 20.19+, npm, GTK3 and WebKit2GTK development headers (see below)
+- **Windows (scheduled):** Windows 10/11, Go 1.25+, Node.js 20.19+, npm, optional MinGW-w64
+- **Linux (scheduled; early adapter):** any modern distribution, Go 1.25+, Node.js 20.19+, npm, GTK3 and WebKit2GTK development headers (see below)
 
 ```bash
 git clone https://github.com/Jwz-git/Daygo.git
@@ -181,7 +183,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1
 The outputs are `build/bin/Daygo.app`, `build/bin/Daygo.exe`, and `build/bin/Daygo` respectively.
 `wails` must run from `cmd/daygo`; it resolves `frontend/` and `build/` at the repo root and builds
 the native static library through `preBuildHooks` — currently only `darwin/*` and `windows/*` are
-hooked. The Linux native adapter is one of the undecided designs in docs/09 §9.8 (#1).
+hooked. The Linux native adapter is scheduled — docs/09 §9.8 (#24).
 
 ### Feature differences across platforms
 
@@ -191,7 +193,7 @@ three platforms. The native capabilities still differ substantially:
 
 | Capability                | macOS | Windows | Linux (today) |
 |---------------------------|:-----:|:-------:|:------:|
-| Screen capture            | ✅ ScreenCaptureKit | ⚠️ DXGI / WGC (experimental, limited smoke) | ❌ not implemented (`CaptureUnsupported`) |
+| Screen capture            | ✅ ScreenCaptureKit | ⚠️ DXGI / WGC (limited smoke, scheduled) | ❌ not implemented (`CaptureUnsupported`) |
 | System permission / TCC   | ✅ | ⚠️ partial | ❌ not implemented |
 | Status item / tray        | ✅ | ⚠️ partial | ❌ not implemented |
 | Keychain / credentials    | ✅ `security` subprocess | ✅ Credential Manager | ⚠️ Secret Service / `secret-tool` (real keyring unverified) |
@@ -199,8 +201,8 @@ three platforms. The native capabilities still differ substantially:
 | System event subscription | ✅ | ⚠️ partial | ❌ not implemented |
 | SQLite + settings + timeline UI | ✅ | ✅ | ✅ (identical to macOS) |
 
-**macOS remains the target platform.** Completing the Linux and Windows feature matrices belongs to
-docs/09 §9.8 and requires its own decision record before implementation. Until then, what already
+**macOS leads; Windows and Linux are scheduled first-class release targets.** Their feature matrices
+are completed per docs/09 §9.8 (#18 / #24) and the G-host / G-native gates. Today, what already
 works on Linux and Windows is everything that does not need a platform adapter: viewing existing
 data, settings, AI provider configuration and connection probing, and the chat surface — all of
 which live in the Go core.

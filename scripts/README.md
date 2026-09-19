@@ -3,6 +3,7 @@
 Every entry point that is not part of a normal `go test` / `npm test` run lives
 here. The split is by **role**, not by language — three platform dev scripts
 (`dev.sh`, `dev.ps1`, `dev-linux.sh`), Windows / Linux production build scripts,
+a macOS packager (`package-macos.sh`) that builds, signs and produces a DMG,
 one headless CI gate (`gate.sh`),
 shared bootstrap and shell helpers (`bootstrap-frontend.sh`), a docs sanity
 check (`check-docs.py`), and a `probe/` directory for one-off diagnostic
@@ -11,13 +12,14 @@ script owns a responsibility and which one a new contributor should reach for.
 
 | Script | Role | Caller |
 |---|---|---|
-| `bootstrap-frontend.sh` | Standalone: placeholder dist → bindings → real bundle. Sourced: exports `require_tool`, `webkit_tag`, `run_wails`, `daygo_done_sourcing` for the other scripts. | All `dev*` scripts and `gate.sh` |
+| `bootstrap-frontend.sh` | Standalone: placeholder dist → bindings → real bundle. Sourced: exports `require_tool`, `webkit_tag`, `run_wails`, `daygo_bootstrap` for the other scripts. | All `dev*` / `build-*` scripts, `gate.sh`, `package-macos.sh` |
 | `dev.sh` | macOS `wails dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline. | Local development on macOS |
 | `dev.ps1` | Windows `wails dev` entry; applies the Go 1.25 cgo debug workaround only when needed. | Local development on Windows |
 | `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1` |
 | `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
 | `dev-linux.sh` | Linux `wails dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
 | `build-linux.sh` | Linux `wails build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
+| `package-macos.sh` | macOS packager: bootstrap → `wails build` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Ad-hoc signs by default; Developer ID + notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. | macOS release packaging |
 | `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + `check-docs.py`. Skipped only when `python3` is missing (Python is for docs only). | CI runner, also local pre-commit |
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
 | `probe/analysis.go` | Provider-agnostic diagnostic: runs the production transcription + card-generation pipeline against the user-configured provider, never writes the database. | Manual, when debugging AI integration |
@@ -53,7 +55,9 @@ Adding a new helper (e.g. a future `darwin_sdk_path` resolver) belongs in
   `scripts/probe/<topic>.go` or `scripts/probe/<topic>.sh`; do not put
   diagnostic scripts at the `scripts/` root.
 - `dev-*` means "run `wails dev`". `build-*` means "run `wails build`".
-  Anything that does neither is misfiled.
+  `package-*` means "build a signed, distributable artifact" (more than a
+  bare `wails build`: signing, notarization, DMG/installer packaging).
+  Anything that does none of these is misfiled.
 - `*.sh` is bash, `*.ps1` is PowerShell, `*.py` is Python. The single
   `.py` script (`check-docs.py`) is the only Python in the repo and is
   intentionally stdlib-only so it runs anywhere.
