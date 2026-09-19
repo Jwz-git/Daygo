@@ -87,26 +87,42 @@ function submit(): void {
 
     <template v-else>
       <div class="journal-grid dg-card">
-        <label class="journal-field">
-          <span>{{ t('daily.journal.intentions') }}</span>
-          <textarea v-model="draft.intentions" class="dg-reading" rows="3" :placeholder="t('daily.journal.intentionsPlaceholder')" />
-        </label>
-        <label class="journal-field">
-          <span>{{ t('daily.journal.notes') }}</span>
-          <textarea v-model="draft.notes" class="dg-reading" rows="3" :placeholder="t('daily.journal.notesPlaceholder')" />
-        </label>
-        <label class="journal-field">
-          <span>{{ t('daily.journal.goals') }}</span>
-          <textarea v-model="draft.goals" class="dg-reading" rows="2" :placeholder="t('daily.journal.goalsPlaceholder')" />
-        </label>
-        <label class="journal-field">
-          <span>{{ t('daily.journal.reflections') }}</span>
-          <textarea v-model="draft.reflections" class="dg-reading" rows="2" :placeholder="t('daily.journal.reflectionsPlaceholder')" />
-        </label>
+        <div class="journal-group">
+          <span class="journal-group__label journal-group__label--plan">
+            {{ t('daily.journal.plannedLabel') }}
+          </span>
+          <label class="journal-field">
+            <span>{{ t('daily.journal.intentions') }}</span>
+            <textarea v-model="draft.intentions" class="dg-reading" rows="3" :placeholder="t('daily.journal.intentionsPlaceholder')" />
+          </label>
+          <label class="journal-field">
+            <span>{{ t('daily.journal.goals') }}</span>
+            <textarea v-model="draft.goals" class="dg-reading" rows="2" :placeholder="t('daily.journal.goalsPlaceholder')" />
+          </label>
+        </div>
+        <div class="journal-group">
+          <span class="journal-group__label journal-group__label--log">
+            {{ t('daily.journal.loggedLabel') }}
+          </span>
+          <label class="journal-field">
+            <span>{{ t('daily.journal.notes') }}</span>
+            <textarea v-model="draft.notes" class="dg-reading" rows="3" :placeholder="t('daily.journal.notesPlaceholder')" />
+          </label>
+          <label class="journal-field">
+            <span>{{ t('daily.journal.reflections') }}</span>
+            <textarea v-model="draft.reflections" class="dg-reading" rows="2" :placeholder="t('daily.journal.reflectionsPlaceholder')" />
+          </label>
+        </div>
       </div>
-      <div v-if="journal?.summary" class="journal-summary dg-card">
-        <h3>{{ t('daily.journal.summary') }}</h3>
-        <p class="dg-reading">{{ journal.summary }}</p>
+
+      <div class="journal-summary dg-card" :class="{ 'journal-summary--pending': !journal?.summary }">
+        <div class="journal-summary__head">
+          <span class="journal-summary__badge">AI</span>
+          <h3>{{ t('daily.journal.summary') }}</h3>
+          <span class="journal-summary__readonly">{{ t('daily.journal.readonly') }}</span>
+        </div>
+        <p v-if="journal?.summary" class="dg-reading journal-summary__body">{{ journal.summary }}</p>
+        <p v-else class="journal-summary__pending">{{ t('daily.journal.summaryPending') }}</p>
       </div>
     </template>
   </section>
@@ -133,12 +149,46 @@ function submit(): void {
 
 .journal-state { display: flex; flex-direction: column; gap: 6px; padding: 18px; }
 
+/* Two labelled columns — the left holds what you meant to do (intentions,
+   goals), the right what actually happened (notes, reflections) — split by a
+   hairline that folds away on narrow widths. */
 .journal-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  padding: 16px;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
 }
+
+.journal-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 20px;
+}
+
+.journal-group + .journal-group { border-left: 1px solid var(--dg-card-border); }
+
+.journal-group__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dg-text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.journal-group__label::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  content: '';
+}
+
+.journal-group__label--plan::before { background: var(--dg-accent); }
+.journal-group__label--log::before { background: var(--dg-success, #39815e); }
 
 .journal-field { display: flex; flex-direction: column; gap: 6px; }
 
@@ -149,35 +199,83 @@ function submit(): void {
 }
 
 .journal-field textarea {
-  resize: vertical;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 8px;
+  resize: none;
+  border: 1px solid var(--dg-input-border);
+  border-radius: 9px;
   background: var(--dg-input-fill);
   color: var(--dg-text-primary);
   font: inherit;
   font-size: 12px;
-  line-height: 1.55;
-  padding: 9px 11px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  transition:
+    border-color var(--dg-motion-base) var(--dg-ease-out),
+    background var(--dg-motion-base) var(--dg-ease-out),
+    box-shadow var(--dg-motion-base) var(--dg-ease-out);
 }
+
+.journal-field textarea::placeholder { color: var(--dg-text-muted); }
+
+.journal-field textarea:hover { background: var(--dg-input-fill-hover); }
 
 .journal-field textarea:focus-visible {
   outline: none;
+  background: var(--dg-input-fill-hover);
   border-color: var(--dg-accent, var(--dg-focus-ring));
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
-.journal-summary { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; }
-
-.journal-summary h3 {
-  color: var(--dg-text-secondary);
-  font-size: 11px;
-  font-weight: 600;
+/* AI summary: an accent-tinted, read-only slab. Shows the generated text or a
+   quiet placeholder describing where it will land. */
+.journal-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 15px 17px 16px;
+  border-left: 2px solid var(--dg-accent);
 }
 
-.journal-summary p { color: var(--dg-text-primary); font-size: 12px; line-height: 1.6; }
+.journal-summary--pending { border-left-color: var(--dg-timeline-grid); }
+
+.journal-summary__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.journal-summary__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--dg-control-fill);
+  color: var(--dg-accent-text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.journal-summary__head h3 {
+  flex: 1;
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.journal-summary__readonly {
+  color: var(--dg-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.journal-summary__body { color: var(--dg-text-primary); font-size: 12px; line-height: 1.65; }
+
+.journal-summary__pending { color: var(--dg-text-tertiary); font-size: 12px; line-height: 1.55; }
 
 @media (max-width: 760px) {
   .journal-grid { grid-template-columns: minmax(0, 1fr); }
+  .journal-group + .journal-group { border-left: 0; border-top: 1px solid var(--dg-card-border); }
   .section-heading { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
 </style>
