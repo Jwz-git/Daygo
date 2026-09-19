@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useChatStore } from '@/stores/chat'
@@ -22,11 +22,26 @@ async function perform(action: () => Promise<unknown>): Promise<void> {
 
 // ---- draft ----
 
+const inputEl = ref<HTMLTextAreaElement | null>(null)
 const drafts = ref<Record<string, string>>({})
 const draft = computed({
   get: () => drafts.value[store.activeId ?? ''] ?? '',
   set: (value: string) => { drafts.value[store.activeId ?? ''] = value },
 })
+
+// A welcome-screen suggestion sends immediately. If it can't send yet (no
+// provider, a turn in flight), the text stays in the composer and takes focus
+// so the user can resolve the blocker and submit manually.
+async function sendPrompt(text: string): Promise<void> {
+  draft.value = text
+  if (!canSend.value) {
+    void nextTick(() => inputEl.value?.focus())
+    return
+  }
+  await submit()
+}
+
+defineExpose({ sendPrompt })
 
 const providerMissing = computed(() => !store.activeConversation?.providerId)
 const tooLong = computed(() => new TextEncoder().encode(draft.value.trim()).length > 32 * 1024)
@@ -83,6 +98,7 @@ const effectiveModel = computed(() => {
   <!-- Input area -->
   <form class="composer" @submit.prevent="submit">
     <textarea
+      ref="inputEl"
       v-model="draft"
       class="dg-input composer__input"
       rows="1"

@@ -67,18 +67,14 @@ export default {
     title: '你好，有什么可以帮你的？',
     subtitle: '问我关于你的时间线、日报、周报、分类或卡片',
     hints: [
-      '「今天我做了什么？」',
-      '「本周工作分类占比？」',
-      '「添加一个新分类：学习」',
-      '「帮我看看昨天的日记」',
+      '今天我做了什么？',
+      '本周工作分类占比？',
+      '添加一个新分类：学习',
+      '帮我看看昨天的日记',
     ],
   },
 
   // New: context bar
-  contextBar: {
-    readonly: '只读',
-  },
-
   // New: date divider
   dateDivider: {
     today: '今天',

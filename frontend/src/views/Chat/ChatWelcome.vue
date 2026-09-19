@@ -2,6 +2,10 @@
 import { useI18n } from 'vue-i18n'
 
 const { tm, rt } = useI18n()
+
+const emit = defineEmits<{
+  select: [prompt: string]
+}>()
 </script>
 
 <template>
@@ -20,8 +24,10 @@ const { tm, rt } = useI18n()
     <p class="welcome__subtitle">{{ $t('chat.welcome.subtitle') }}</p>
 
     <ul class="welcome__hints">
-      <li v-for="(hint, idx) in (tm('chat.welcome.hints') as string[])" :key="idx" class="welcome__hint">
-        {{ rt(hint) }}
+      <li v-for="(hint, idx) in (tm('chat.welcome.hints') as string[])" :key="idx">
+        <button type="button" class="welcome__hint" @click="emit('select', rt(hint))">
+          {{ rt(hint) }}
+        </button>
       </li>
     </ul>
   </div>
@@ -72,17 +78,35 @@ const { tm, rt } = useI18n()
   text-align: left;
 }
 
+.welcome__hints li { list-style: none; }
+
 .welcome__hint {
-  padding: 6px 8px;
-  border-radius: 6px;
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
   color: var(--dg-text-secondary);
+  font: inherit;
   font-size: 13px;
+  text-align: left;
   background: var(--dg-track-fill);
-  cursor: default;
-  transition: background var(--dg-motion-base) ease;
+  cursor: pointer;
+  transition:
+    background var(--dg-motion-base) ease,
+    border-color var(--dg-motion-base) ease,
+    color var(--dg-motion-base) ease;
 }
 
 .welcome__hint:hover {
-  background: var(--dg-hover-fill);
+  border-color: var(--dg-accent);
+  color: var(--dg-text-primary);
+  background: var(--dg-control-fill);
+}
+
+.welcome__hint:focus-visible {
+  outline: none;
+  border-color: var(--dg-accent);
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 </style>

@@ -75,11 +75,6 @@ const providerMissing = computed(() => !activeConversation.value?.providerId)
         </option>
       </select>
     </div>
-
-    <!-- Edit mode badge -->
-    <span class="context-bar__badge context-bar__badge--readonly">
-      {{ t('chat.contextBar.readonly') }}
-    </span>
   </div>
 </template>
 
@@ -126,22 +121,4 @@ const providerMissing = computed(() => !activeConversation.value?.providerId)
   cursor: not-allowed;
 }
 
-.context-bar__badge {
-  margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 620;
-}
-
-.context-bar__badge--readonly {
-  background: var(--dg-track-fill);
-  border: 1px solid var(--dg-chip-border);
-  color: var(--dg-text-muted);
-}
-
-.context-bar__badge--editable {
-  background: color-mix(in srgb, var(--dg-accent) 12%, transparent);
-  color: var(--dg-accent-text);
-}
 </style>

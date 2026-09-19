@@ -64,15 +64,11 @@ export default {
     title: "Hi, how can I help you?",
     subtitle: "Ask about your timeline, daily summary, weekly review, categories or cards",
     hints: [
-      "\"What did I do today?\"",
-      "\"Show me this week's category breakdown.\"",
-      "\"Add a new category: Learning\"",
-      "\"Check yesterday's journal.\"",
+      'What did I do today?',
+      "Show me this week's category breakdown.",
+      'Add a new category: Learning',
+      "Check yesterday's journal.",
     ],
-  },
-
-  contextBar: {
-    readonly: "Read-only",
   },
 
   dateDivider: {

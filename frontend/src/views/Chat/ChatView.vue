@@ -12,6 +12,8 @@ import ChatTranscript from './ChatTranscript.vue'
 import ChatWelcome from './ChatWelcome.vue'
 import ConversationTitle from './ConversationTitle.vue'
 
+type ComposerExposed = { sendPrompt: (text: string) => void }
+
 /*
  * Page owns: drawer toggle, error banner, unavailable state, layout.
  * Transcript / Composer / ContextBar handle their own interactions.
@@ -24,6 +26,11 @@ const actionError = ref('')
 const drawerOpen = ref(false)
 const renameError = ref('')
 const renaming = ref(false)
+const composer = ref<ComposerExposed | null>(null)
+
+function onHintSelect(prompt: string): void {
+  composer.value?.sendPrompt(prompt)
+}
 
 async function retrySelect(): Promise<void> {
   actionError.value = ''
@@ -121,14 +128,14 @@ onMounted(() => {
         <div class="panel__body">
           <ChatTranscript>
             <template #empty>
-              <ChatWelcome />
+              <ChatWelcome @select="onHintSelect" />
             </template>
           </ChatTranscript>
         </div>
 
         <!-- Composer -->
         <div v-if="store.activeConversation !== null" class="panel__foot">
-          <ChatComposer @error="actionError = $event" />
+          <ChatComposer ref="composer" @error="actionError = $event" />
         </div>
       </LiquidGlassSurface>
     </div>
