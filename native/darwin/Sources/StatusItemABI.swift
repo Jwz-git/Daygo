@@ -66,8 +66,11 @@ private final class StatusController: NSObject {
     func update(snapshot: StatusSnapshot) {
         item.button?.image = NSImage(systemSymbolName: "clock", accessibilityDescription: snapshot.tooltip)
         item.button?.image?.isTemplate = true
-        item.button?.toolTip = snapshot.tooltip
-        item.button?.title = snapshot.title
+        // squareLength sizes the button for an icon alone; also setting a title
+        // crams text into that square and renders as clipped, garbled glyphs.
+        // Recording state moves to the tooltip and the menu items instead.
+        item.button?.title = ""
+        item.button?.toolTip = snapshot.title.isEmpty ? snapshot.tooltip : "\(snapshot.tooltip) — \(snapshot.title)"
         item.button?.target = self; item.button?.action = #selector(openAction(_:))
         pauseItem.title = snapshot.pauseLabel
         pauseItem.isEnabled = snapshot.pauseEnabled
