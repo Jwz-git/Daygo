@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -112,6 +113,31 @@ func (r *ReviewRepo) ReviewedCardIDs(ctx context.Context, day string) ([]int64, 
 		return rows.Err()
 	})
 	return ids, err
+}
+
+// Verdict returns the stored verdict for one card, or "" when the card has no
+// judgment (or was soft-deleted after judging). Statistics only — the card's
+// category is untouched.
+func (r *ReviewRepo) Verdict(ctx context.Context, cardID int64) (string, error) {
+	if r == nil || r.store == nil {
+		return "", fmt.Errorf("reviews: store unavailable")
+	}
+	var verdict string
+	err := r.store.Read(ctx, "review card verdict", func(ctx context.Context, tx *sql.Tx) error {
+		row := tx.QueryRowContext(ctx,
+			`SELECT cr.verdict FROM card_reviews cr
+			 JOIN timeline_cards c ON c.id = cr.card_id AND c.is_deleted = 0
+			 WHERE cr.card_id = ?`, cardID)
+		switch err := row.Scan(&verdict); {
+		case errors.Is(err, sql.ErrNoRows):
+			verdict = ""
+			return nil
+		case err != nil:
+			return err
+		}
+		return nil
+	})
+	return verdict, err
 }
 
 // TotalsByDay sums judged minutes per verdict for one logical day. Cards that

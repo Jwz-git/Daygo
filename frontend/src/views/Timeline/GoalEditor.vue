@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import type { CategoryDTO, DayGoalDTO } from '@/api/dto'
 import { categoryLabel } from '@/lib/categoryLabel'
+import { safeCategoryColor } from './layout'
 
 /*
  * The day-goal form: focus/distraction minute targets, skip flag and the
@@ -150,7 +151,7 @@ function submit(): void {
             type="button"
             class="goal-chip"
             :class="{ 'goal-chip--active': draft.focusCategories.includes(category.id) }"
-            :style="{ '--chip-color': category.colorHex }"
+            :style="{ '--chip-color': safeCategoryColor(category.colorHex) }"
             @click="toggleFocus(category.id)"
           >
             {{ categoryLabel(category.name, t) }}
@@ -166,7 +167,7 @@ function submit(): void {
             type="button"
             class="goal-chip"
             :class="{ 'goal-chip--active': draft.distractionCategories.includes(category.id) }"
-            :style="{ '--chip-color': category.colorHex }"
+            :style="{ '--chip-color': safeCategoryColor(category.colorHex) }"
             @click="toggleDistraction(category.id)"
           >
             {{ categoryLabel(category.name, t) }}

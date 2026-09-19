@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n'
 import type { CardMediaFrameDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import { getCardMedia } from '@/api/media'
+import { clearCardReview, getCardVerdict, saveCardReview } from '@/api/review'
+import type { ReviewVerdict } from './review'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import CardVideoPlayer from '@/components/CardVideoPlayer.vue'
 import { appSiteValues } from '@/lib/appSiteIcon'
@@ -35,6 +37,8 @@ const emit = defineEmits<{
   close: []
   saveEdits: [cardID: number, edits: { title?: string; category?: string; summary?: string; detailedSummary?: string }]
   delete: [cardID: number]
+  reprocess: [cardID: number]
+  verdictChanged: []
 }>()
 
 const { t, locale } = useI18n()
@@ -53,7 +57,7 @@ const draft = ref('')
 /* A busy card's activity points run to dozens of rows; unfolded they would push
    the media and action rows off the pane, so the list starts folded. */
 
-const titleInput = ref<HTMLInputElement | null>(null)
+const titleInput = ref<HTMLTextAreaElement | null>(null)
 const summaryInput = ref<HTMLTextAreaElement | null>(null)
 const detailedInput = ref<HTMLTextAreaElement | null>(null)
 const categoryInput = ref<HTMLSelectElement | null>(null)
@@ -89,6 +93,62 @@ watch(
   },
   { immediate: true },
 )
+
+/*
+ * The card's focus verdict, re-review outside the sequential flow: read back
+ * per card (day totals track the day-view day, which differs from the selected
+ * card in week mode). Verdicts are statistics only — saving never rewrites the
+ * card's category. A change re-fetches the day totals in the parent so the
+ * "你的回顾" panel and the review queue stay in sync.
+ */
+const VERDICTS: readonly ReviewVerdict[] = ['distraction', 'neutral', 'focus']
+const VERDICT_COLORS: Record<ReviewVerdict, string> = {
+  distraction: 'var(--dg-danger)',
+  neutral: '#e7e4ec',
+  focus: '#35c3a2',
+}
+const verdict = ref<ReviewVerdict | null>(null)
+const verdictSaving = ref(false)
+const verdictFailed = ref(false)
+const verdictEditable = computed(() => props.canWrite && props.pendingAction === null)
+
+watch(
+  () => props.card.id,
+  async (cardID) => {
+    verdict.value = null
+    verdictFailed.value = false
+    try {
+      const current = await getCardVerdict(cardID)
+      if (props.card.id === cardID) verdict.value = current
+    } catch {
+      // No verdict shown; the buttons still let the user set one.
+    }
+  },
+  { immediate: true },
+)
+
+async function setVerdict(next: ReviewVerdict): Promise<void> {
+  if (!verdictEditable.value || verdictSaving.value) return
+  // Tapping the active verdict again clears it, mirroring 撤销 in the flow.
+  const clearing = verdict.value === next
+  verdictSaving.value = true
+  verdictFailed.value = false
+  const cardID = props.card.id
+  try {
+    if (clearing) {
+      await clearCardReview(cardID)
+      if (props.card.id === cardID) verdict.value = null
+    } else {
+      await saveCardReview(cardID, next)
+      if (props.card.id === cardID) verdict.value = next
+    }
+    emit('verdictChanged')
+  } catch {
+    verdictFailed.value = true
+  } finally {
+    verdictSaving.value = false
+  }
+}
 
 /* The category picker lists the user-editable category names; the built-ins
    (System / Idle) are pipeline-assigned and rejected by the backend, so they
@@ -136,7 +196,19 @@ async function beginEditing(field: Field): Promise<void> {
     : field === 'summary' ? summaryInput.value
     : detailedInput.value
   input?.focus()
-  if (input instanceof HTMLInputElement) input.select()
+  if (field === 'title') {
+    growTitle()
+    titleInput.value?.select()
+  }
+}
+
+/* Keep the borderless title editor exactly as tall as its wrapped text so the
+   heading matches the displayed <h2> and the pane below stays put. */
+function growTitle(): void {
+  const el = titleInput.value
+  if (el === null) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
 }
 
 function cancelEditing(): void {
@@ -159,11 +231,28 @@ function confirmDeletion(): void {
   confirmingDelete.value = false
 }
 
+/*
+ * Regenerate one card: re-run the LLM on the batch that produced it. A card
+ * with no originating batch (batchId null — a System fallback) cannot be
+ * regenerated, so the control hides. It re-runs the whole batch (analysis is
+ * per batch, not per card), so it is confirmed like delete before firing.
+ */
+const confirmingReprocess = ref(false)
+const canReprocess = computed(
+  () => props.canWrite && props.actions.reprocessCard && props.card.batchId !== null,
+)
+
+function confirmReprocess(): void {
+  emit('reprocess', props.card.id)
+  confirmingReprocess.value = false
+}
+
 watch(
   () => props.card.id,
   () => {
     editingField.value = null
     confirmingDelete.value = false
+    confirmingReprocess.value = false
     draft.value = ''
   },
   { immediate: true },
@@ -173,7 +262,25 @@ watch(
 <template>
   <header class="inspector__header">
     <div class="inspector__heading">
-      <p class="inspector__eyebrow">
+      <div v-if="editingField === 'category'" class="field-editor field-editor--category">
+        <select
+          ref="categoryInput"
+          v-model="draft"
+          class="dg-input"
+          @keydown.esc="cancelEditing"
+          @change="submitEditing"
+          @blur="submitEditing"
+        >
+          <option
+            v-for="name in categoryOptions"
+            :key="name"
+            :value="name"
+          >
+            {{ categoryLabel(name, t) }}
+          </option>
+        </select>
+      </div>
+      <p v-else class="inspector__eyebrow">
         <span>{{ localizedCategory }}</span>
         <button
           v-if="fieldEditable('category')"
@@ -187,16 +294,17 @@ watch(
       </p>
 
       <div v-if="editingField === 'title'" class="field-editor">
-        <input
+        <textarea
           ref="titleInput"
           v-model="draft"
           class="dg-input field-editor__title"
-          type="text"
+          rows="1"
           maxlength="160"
+          @input="growTitle"
           @keydown.esc="cancelEditing"
           @keydown.enter.prevent="submitEditing"
           @blur="submitEditing"
-        />
+        ></textarea>
       </div>
       <h2 v-else class="inspector__title inspector__title--card">
         <span class="title-text">{{ props.card.title }}</span>
@@ -236,25 +344,6 @@ watch(
     :time-label="timeRange"
     :time-zone="timeZone"
   />
-
-  <div v-if="editingField === 'category'" class="field-editor">
-    <select
-      ref="categoryInput"
-      v-model="draft"
-      class="dg-input"
-      @keydown.esc="cancelEditing"
-      @change="submitEditing"
-      @blur="submitEditing"
-    >
-      <option
-        v-for="name in categoryOptions"
-        :key="name"
-        :value="name"
-      >
-        {{ categoryLabel(name, t) }}
-      </option>
-    </select>
-  </div>
 
   <section class="inspector__section">
     <h3 class="section-heading">
@@ -359,6 +448,30 @@ watch(
     </p>
   </section>
 
+  <!-- Focus verdict: re-review one card outside the sequential flow. The
+       active verdict is highlighted; tapping it again clears it. -->
+  <section class="inspector__section verdict">
+    <h3>{{ t('timeline.inspector.verdictTitle') }}</h3>
+    <div class="verdict__options" role="group" :aria-label="t('timeline.inspector.verdictTitle')">
+      <button
+        v-for="option in VERDICTS"
+        :key="option"
+        type="button"
+        class="verdict__option"
+        :class="{ 'is-active': verdict === option }"
+        :style="{ '--verdict': VERDICT_COLORS[option] }"
+        :disabled="!verdictEditable || verdictSaving"
+        :aria-pressed="verdict === option"
+        @click="setVerdict(option)"
+      >
+        <i></i>{{ t(`timeline.review.${option}`) }}
+      </button>
+    </div>
+    <p v-if="verdictFailed" class="inspector__error" role="alert">{{ t('timeline.inspector.verdictSaveFailed') }}</p>
+    <p v-else-if="!props.canWrite" class="verdict__hint">{{ t('timeline.inspector.verdictUnavailable') }}</p>
+    <p v-else class="verdict__hint">{{ t('timeline.inspector.verdictHint') }}</p>
+  </section>
+
   <!-- Summary rating: the binding is not delivered yet, so the controls stay
        visibly present but disabled instead of pretending to save. -->
   <div class="rating-row">
@@ -376,6 +489,7 @@ watch(
   </p>
 
   <div class="inspector__actions">
+    <!-- Delete confirm takes over the row. -->
     <template v-if="confirmingDelete">
       <span class="inspector__confirm">{{ t('timeline.inspector.deleteConfirm') }}</span>
       <button type="button" class="dg-button" @click="confirmingDelete = false">
@@ -390,7 +504,35 @@ watch(
         {{ t('common.action.delete') }}
       </button>
     </template>
+    <!-- Regenerate confirm takes over the row: re-running the LLM overwrites
+         the batch's cards, so it is confirmed like delete before firing. -->
+    <template v-else-if="confirmingReprocess">
+      <span class="inspector__confirm">{{ t('timeline.reprocess.cardConfirm') }}</span>
+      <button type="button" class="dg-button" @click="confirmingReprocess = false">
+        {{ t('common.action.cancel') }}
+      </button>
+      <button
+        type="button"
+        class="dg-button inspector__regenerate"
+        :disabled="props.pendingAction !== null"
+        @click="confirmReprocess"
+      >
+        {{ t('timeline.reprocess.cardConfirmYes') }}
+      </button>
+    </template>
+    <!-- Default row: regenerate beside delete. -->
     <template v-else>
+      <button
+        v-if="props.card.batchId !== null"
+        type="button"
+        class="dg-button inspector__regenerate"
+        :disabled="!canReprocess || props.pendingAction !== null"
+        :title="canReprocess ? t('timeline.reprocess.card') : t('timeline.reprocess.cardUnavailable')"
+        @click="confirmingReprocess = true"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true" class="reprocess-icon"><path d="M13.65 2.35A8 8 0 1 0 16 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 2l3 0 0 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        {{ props.pendingAction === 'reprocess-card' ? t('timeline.reprocess.cardRunning') : t('timeline.reprocess.card') }}
+      </button>
       <button
         type="button"
         class="dg-button inspector__delete"
@@ -416,13 +558,25 @@ watch(
 <style scoped>
 .inspector__heading { min-width: 0; }
 
+/* The pencil floats in the top-right corner rather than taking a flex slot, so
+   the title text runs the full column width — the editor then matches at full
+   width with no reserved right inset. */
 .inspector__title--card {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  position: relative;
+  display: block;
 }
 
-.title-text { min-width: 0; overflow-wrap: anywhere; }
+/* The floating pencil overlaps the title text, so it carries the pane's own
+   background to stay legible on top of any glyphs behind it. */
+.inspector__title--card .field-pencil {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  background: var(--dg-timeline-inspector-fill);
+}
+
+.title-text { overflow-wrap: anywhere; }
 
 /* Pencil affordance beside an editable field. Faint until the row is
    hovered, so read-only scanning stays clean. */
@@ -490,7 +644,45 @@ watch(
 
 .field-editor { display: grid; gap: 6px; }
 
-.field-editor__title { font-size: 15px; font-weight: 620; }
+/* The title editor mirrors the displayed <h2>: same font and no input chrome or
+   padding, so entering edit mode neither shrinks the text nor changes the box
+   height. Its height tracks content via the grow handler, matching how the
+   heading wraps, so the rows below never jump. */
+.field-editor__title {
+  min-height: 0;
+  /* Full width, matching the display <h2> whose pencil is out of flow, so the
+     text wraps into the same column and the line count — and therefore the
+     height — matches exactly, with no empty strip on the right. */
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 4px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+  resize: none;
+  overflow: hidden;
+}
+
+.field-editor__title:focus-visible { box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+
+/* The category picker's resting height is taller than its small label, so the
+   eyebrow reserves that height — swapping in the select then leaves the title
+   and everything under it in place. The label is vertically centred to sit at
+   the same height as the select's own centred text, so it does not appear to
+   jump between the display and edit states. */
+.field-editor--category { max-width: 120px; min-height: 34px; margin-bottom: 5px; }
+
+.inspector__heading .inspector__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+}
+
+/* The category label reads as the card's type, so it carries more weight than
+   the shared eyebrow default. */
+.inspector__heading .inspector__eyebrow span { font-size: 13px; }
 
 .field-editor__summary { resize: vertical; min-height: 88px; font: inherit; line-height: 1.6; }
 
@@ -538,6 +730,73 @@ watch(
 .card-player {
   margin: 10px 0 2px;
 }
+
+/* Focus verdict: three segmented toggles on the platform surface, the active
+   one filled with its verdict colour. Solid controls, not glass (chrome only). */
+.verdict__options {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+
+.verdict__option {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 9px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    background var(--dg-motion-fast) ease,
+    border-color var(--dg-motion-fast) ease,
+    color var(--dg-motion-fast) ease;
+}
+
+.verdict__option i {
+  width: 12px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--verdict);
+}
+
+.verdict__option:hover:not(:disabled) { border-color: color-mix(in srgb, var(--verdict) 55%, var(--dg-timeline-grid)); }
+
+.verdict__option.is-active {
+  border-color: var(--verdict);
+  background: color-mix(in srgb, var(--verdict) 16%, transparent);
+  color: var(--dg-text-primary);
+}
+
+.verdict__option:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.verdict__option:disabled { opacity: 0.5; cursor: default; }
+
+.verdict__hint { margin: 8px 0 0; color: var(--dg-text-muted); font-size: 10px; line-height: 1.5; }
+
+/* Regenerate: sits in the action row beside delete, re-running the LLM on the
+   card's batch. Accent-tinted on hover to read as the constructive counterpart
+   to the destructive delete. */
+.inspector__regenerate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inspector__regenerate:hover:not(:disabled) {
+  border-color: var(--dg-accent);
+  color: var(--dg-accent);
+  background: var(--dg-accent-subtle);
+}
+
+.inspector__regenerate:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.reprocess-icon { width: 14px; height: 14px; flex-shrink: 0; }
 
 .rating-row {
   display: flex;

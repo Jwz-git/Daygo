@@ -36,6 +36,26 @@ func (b *Backend) SaveCardReview(cardID int64, verdict string) error {
 	return nil
 }
 
+// GetCardVerdict returns the stored focus verdict for one card, or "" when it
+// has not been judged, so the inspector can show and change the current choice
+// outside the sequential review flow. Read-only: no write lock required.
+func (b *Backend) GetCardVerdict(cardID int64) (string, error) {
+	if cardID <= 0 {
+		return "", apperr.E(apperr.InvalidArgument, "invalid card id", nil)
+	}
+	store := b.store()
+	if store == nil {
+		return "", apperr.E(apperr.DatabaseError, "review requires a database", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	verdict, err := store.Reviews().Verdict(ctx, cardID)
+	if err != nil {
+		return "", mapStorageError("card verdict", err)
+	}
+	return verdict, nil
+}
+
 func (b *Backend) ClearCardReview(cardID int64) error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err

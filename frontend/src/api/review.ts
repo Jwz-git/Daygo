@@ -1,11 +1,12 @@
 import {
   ClearCardReview,
+  GetCardVerdict,
   GetReviewTotals,
   SaveCardReview,
 } from '../../wailsjs/go/app/Backend'
 
 import { WAILS_UNAVAILABLE } from '@/api/settings'
-import type { ReviewTotals } from '@/views/Timeline/review'
+import type { ReviewTotals, ReviewVerdict } from '@/views/Timeline/review'
 
 function hasBridge(): boolean {
   return (window as { go?: unknown }).go !== undefined
@@ -18,9 +19,16 @@ export async function getReviewTotals(day: string): Promise<ReviewTotals> {
 }
 
 /** Record (or overwrite) the verdict for one card; minutes snapshot server-side. */
-export async function saveCardReview(cardID: number, verdict: 'distraction' | 'neutral' | 'focus'): Promise<void> {
+export async function saveCardReview(cardID: number, verdict: ReviewVerdict): Promise<void> {
   if (!hasBridge()) throw new Error(WAILS_UNAVAILABLE)
   await SaveCardReview(cardID, verdict)
+}
+
+/** Stored verdict for one card, or null when it has not been judged. */
+export async function getCardVerdict(cardID: number): Promise<ReviewVerdict | null> {
+  if (!hasBridge()) throw new Error(WAILS_UNAVAILABLE)
+  const verdict = await GetCardVerdict(cardID)
+  return verdict === '' ? null : (verdict as ReviewVerdict)
 }
 
 /** Remove the verdict for one card (撤销). */

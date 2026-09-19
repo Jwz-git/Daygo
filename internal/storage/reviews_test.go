@@ -115,6 +115,53 @@ func TestReviewClearAndSoftDeletedExcluded(t *testing.T) {
 	}
 }
 
+func TestReviewVerdictReadback(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	reviews := store.Reviews()
+	ctx := context.Background()
+	now := time.Unix(1789600000, 0)
+
+	judged := seedReviewCard(t, store, "judged", 10, 30)
+	unjudged := seedReviewCard(t, store, "unjudged", 14, 20)
+	removed := seedReviewCard(t, store, "removed", 16, 15)
+
+	if err := reviews.SetVerdict(ctx, judged, VerdictFocus, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := reviews.SetVerdict(ctx, removed, VerdictDistraction, now); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := reviews.Verdict(ctx, judged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != VerdictFocus {
+		t.Fatalf("verdict = %q, want %q", got, VerdictFocus)
+	}
+
+	// An unjudged card reads back as the empty string, not an error.
+	empty, err := reviews.Verdict(ctx, unjudged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty != "" {
+		t.Fatalf("unjudged verdict = %q, want empty", empty)
+	}
+
+	// A soft-deleted card drops out through the join like the totals do.
+	if _, err := store.Cards().SoftDeleteCard(ctx, removed); err != nil {
+		t.Fatal(err)
+	}
+	gone, err := reviews.Verdict(ctx, removed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gone != "" {
+		t.Fatalf("soft-deleted verdict = %q, want empty", gone)
+	}
+}
+
 func TestReviewRejectsUnknownVerdict(t *testing.T) {
 	store := openWriter(t, newDir(t))
 	id := seedReviewCard(t, store, "gamma", 10, 10)

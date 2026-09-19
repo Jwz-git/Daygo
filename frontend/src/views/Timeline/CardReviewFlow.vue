@@ -73,7 +73,7 @@ const finished = computed(() => total > 0 && index.value >= total)
  * zero-minute verdict keeps a small stub instead of vanishing.
  */
 const verdictSegments = computed(() => [
-  { label: t('timeline.review.distraction'), minutes: distractionMinutes.value, color: '#ef8a7a' },
+  { label: t('timeline.review.distraction'), minutes: distractionMinutes.value, color: 'var(--dg-danger)' },
   { label: t('timeline.review.neutral'), minutes: neutralMinutes.value, color: '#e7e4ec' },
   { label: t('timeline.review.focus'), minutes: focusMinutes.value, color: '#35c3a2' },
 ])
@@ -656,7 +656,7 @@ function totalsSnapshot(): ReviewTotals {
 }
 
 .review__badge--distraction {
-  background: rgba(239, 138, 122, 0.88);
+  background: color-mix(in srgb, var(--dg-danger) 88%, transparent);
   color: #ffffff;
 }
 

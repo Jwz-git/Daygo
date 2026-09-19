@@ -107,10 +107,16 @@ export function layoutTimelineCards(
   return placed
 }
 
+// Neutral grey for a category whose colour is missing or malformed (e.g. a
+// deleted category a card still references). Kept in sync with the daily and
+// weekly stores' safeColor fallback so the same category reads identically
+// across timeline, daily and weekly instead of drifting to the accent hue.
+export const FALLBACK_CATEGORY_COLOR = '#7D7A84'
+
 export function safeCategoryColor(color: string | undefined): string {
   return typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)
     ? color
-    : 'var(--dg-accent)'
+    : FALLBACK_CATEGORY_COLOR
 }
 
 /**

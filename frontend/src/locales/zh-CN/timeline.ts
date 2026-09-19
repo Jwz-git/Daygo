@@ -127,6 +127,11 @@ export default {
     confirm: '将重新分析这一天的所有时段，会重新调用 LLM。确定吗？',
     confirmYes: '重新分析',
     running: '已提交，正在分析…',
+    card: '重新生成',
+    cardConfirm: '将用这张卡片所在批次的截图重新调用 LLM，覆盖该时段的卡片。确定吗？',
+    cardConfirmYes: '重新生成',
+    cardRunning: '已提交，正在重新生成…',
+    cardUnavailable: '这张卡片没有可重新生成的分析批次',
   },
   state: {
     loading: {
@@ -187,6 +192,11 @@ export default {
     readOnly: '当前为只读状态',
     rating: '为此摘要评分',
     ratingUnavailable: '评分绑定尚未交付',
+    verdictTitle: '你的判定',
+    verdictHint: '判定只计入「你的回顾」统计，不会改变这张卡片的分类。',
+    verdictClear: '清除判定',
+    verdictSaveFailed: '判定没有保存成功，已保留原判定。',
+    verdictUnavailable: '当前为只读状态，无法修改判定。',
     frameCount: '{count} 张屏幕截图',
     editTitle: '编辑标题',
     editCategory: '修改分类',

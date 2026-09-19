@@ -487,6 +487,47 @@ func (b *Backend) ReprocessDay(day string) error {
 	return nil
 }
 
+// ReprocessCard requeues the batch that produced one card, so the user can
+// regenerate a single card from its detail pane instead of the whole day.
+// Analysis works per batch, not per card: reprocessing rebuilds every card in
+// that batch's window (ReplaceCardsInRange), which is the same granularity the
+// timeline's regenerating state already shows. A card with no originating
+// batch (a System fallback, or one already reprocessing) cannot be
+// regenerated. It returns immediately; progress arrives as batch:progress /
+// timeline:updated events.
+func (b *Backend) ReprocessCard(cardID int64) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	if cardID <= 0 {
+		return apperr.E(apperr.InvalidArgument, "invalid card id", nil)
+	}
+	store := b.store()
+	if store == nil {
+		if err := b.storageFailure(); err != nil {
+			return mapStorageError("reprocess card", err)
+		}
+		return apperr.E(apperr.DatabaseError, "reprocess card requires a database", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	card, err := store.Cards().CardByID(ctx, cardID)
+	if err != nil {
+		return mapStorageError("reprocess card", err)
+	}
+	if card.BatchID == nil {
+		return apperr.E(apperr.InvalidArgument, "card has no batch to regenerate", nil)
+	}
+	requeued, err := store.Analysis().ReprocessBatches(ctx, []int64{*card.BatchID}, b.clock.Now())
+	if err != nil {
+		return mapStorageError("reprocess card", err)
+	}
+	if len(requeued) > 0 {
+		b.emitTimelineInvalidation(card.Day)
+	}
+	return nil
+}
+
 // DeleteBatches dismisses failed batches from the timeline's failure panel
 // (soft delete: the rows and frame membership stay, so the frames never get
 // re-analyzed). Configuration and cards are untouched.

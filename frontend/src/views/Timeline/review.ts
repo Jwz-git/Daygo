@@ -1,8 +1,10 @@
 /*
- * Session-local review statistics shared between the review flow and the
- * inspector's "你的回顾" panel. Judgments are not persisted backend-side yet,
- * so these reset with the page — the panel shows zeros until a review runs.
+ * Persisted review statistics shared between the review flow and the
+ * inspector's "你的回顾" panel. The backend returns the day totals and the
+ * reviewed-card ids; the frontend only caches that authoritative snapshot.
  */
+export type ReviewVerdict = 'distraction' | 'neutral' | 'focus'
+
 export interface ReviewTotals {
   distractionMinutes: number
   neutralMinutes: number

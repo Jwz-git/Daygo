@@ -628,6 +628,70 @@ func TestReprocessDayRequeuesTerminalBatches(t *testing.T) {
 	}
 }
 
+func TestReprocessBatchesRequeuesOnlyNamedTerminal(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	// A succeeded batch (the one behind the card the user wants to regenerate),
+	// a second succeeded batch that is NOT named (must stay succeeded), a
+	// processing batch (in-flight, cannot reprocess), and a dismissed batch.
+	target := failedBatchAt(t, store, base, "network", 1)
+	driveBatchTo(t, store, target, BatchSucceeded, base)
+	other := failedBatchAt(t, store, base.Add(time.Hour), "network", 1)
+	driveBatchTo(t, store, other, BatchSucceeded, base)
+	processing := failedBatchAt(t, store, base.Add(2*time.Hour), "network", 1)
+	if _, err := store.Analysis().RetryBatches(ctx, []int64{processing.ID}, base); err != nil {
+		t.Fatalf("RetryBatches prep: %v", err)
+	}
+	if err := store.Analysis().SetBatchStatus(ctx, processing.ID, BatchProcessing, "", "", base); err != nil {
+		t.Fatalf("SetBatchStatus processing: %v", err)
+	}
+	dismissed := failedBatchAt(t, store, base.Add(3*time.Hour), "network", 1)
+	if _, err := store.Analysis().DeleteBatches(ctx, []int64{dismissed.ID}, base.Add(4*time.Hour)); err != nil {
+		t.Fatalf("DeleteBatches prep: %v", err)
+	}
+
+	// Name the target plus the in-flight and dismissed ones: only the target is
+	// reprocessable, the rest are silently skipped.
+	requeued, err := store.Analysis().ReprocessBatches(ctx,
+		[]int64{target.ID, processing.ID, dismissed.ID}, base.Add(5*time.Hour))
+	if err != nil {
+		t.Fatalf("ReprocessBatches: %v", err)
+	}
+	if len(requeued) != 1 || requeued[0].ID != target.ID {
+		t.Fatalf("requeued = %+v, want only target %d", requeued, target.ID)
+	}
+
+	byID := map[int64]Batch{}
+	batches, err := store.Analysis().BatchesInRange(ctx, base.Add(-time.Hour), base.Add(5*time.Hour))
+	if err != nil {
+		t.Fatalf("BatchesInRange: %v", err)
+	}
+	for _, batch := range batches {
+		byID[batch.ID] = batch
+	}
+	for id, want := range map[int64]BatchStatus{
+		target.ID:     BatchPending,
+		other.ID:      BatchSucceeded,
+		processing.ID: BatchProcessing,
+		dismissed.ID:  BatchFailed,
+	} {
+		if byID[id].Status != want {
+			t.Fatalf("batch %d = %s, want %s", id, byID[id].Status, want)
+		}
+	}
+
+	// An empty id list is a no-op, not an error.
+	none, err := store.Analysis().ReprocessBatches(ctx, nil, base.Add(6*time.Hour))
+	if err != nil {
+		t.Fatalf("ReprocessBatches(nil): %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("empty reprocess requeued %d batches, want 0", len(none))
+	}
+}
+
 // driveBatchTo walks a failed batch back through pending → processing → to.
 func driveBatchTo(t *testing.T, store *Store, batch Batch, to BatchStatus, at time.Time) {
 	t.Helper()

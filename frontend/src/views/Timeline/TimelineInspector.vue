@@ -40,7 +40,9 @@ const emit = defineEmits<{
   retry: [batchIDs: number[]]
   dismissFailure: [batchIDs: number[]]
   reprocess: []
+  reprocessCard: [cardID: number]
   saveGoal: [goal: DayGoalDTO]
+  verdictChanged: []
 }>()
 
 const { t } = useI18n()
@@ -89,6 +91,8 @@ const { t } = useI18n()
           @close="emit('close')"
           @save-edits="(cardID: number, edits: { title?: string; category?: string; summary?: string; detailedSummary?: string }) => emit('saveEdits', cardID, edits)"
           @delete="(cardID) => emit('delete', cardID)"
+          @reprocess="(cardID) => emit('reprocessCard', cardID)"
+          @verdict-changed="emit('verdictChanged')"
         />
       </div>
     </Transition>

@@ -129,6 +129,11 @@ export default {
     confirm: 'Every batch of this day will be re-analyzed with fresh LLM calls. Continue?',
     confirmYes: 'Re-analyze',
     running: 'Submitted, analyzing…',
+    card: 'Regenerate',
+    cardConfirm: "This re-runs the LLM on the batch behind this card, overwriting the cards in that span. Continue?",
+    cardConfirmYes: 'Regenerate',
+    cardRunning: 'Submitted, regenerating…',
+    cardUnavailable: 'This card has no analysis batch to regenerate',
   },
   state: {
     loading: {
@@ -189,6 +194,11 @@ export default {
     readOnly: 'Currently read-only',
     rating: 'Rate this summary',
     ratingUnavailable: 'The rating binding is not delivered yet',
+    verdictTitle: 'Your verdict',
+    verdictHint: 'Verdicts only feed the "Your review" stats; they never change this card\'s category.',
+    verdictClear: 'Clear verdict',
+    verdictSaveFailed: "The verdict wasn't saved; the previous one is kept.",
+    verdictUnavailable: 'Read-only right now, so the verdict cannot be changed.',
     frameCount: '{count} screenshots',
     editTitle: 'Edit title',
     editCategory: 'Change category',

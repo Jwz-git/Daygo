@@ -10,7 +10,7 @@ import type { TimelineAction } from '@/stores/timeline'
 
 import GoalEditor from './GoalEditor.vue'
 import type { ReviewTotals } from './review'
-import { safeCategoryColor } from './layout'
+import { FALLBACK_CATEGORY_COLOR, safeCategoryColor } from './layout'
 import { buildDonutSectors, fullRingPath, type DonutSector, type DonutSlice } from './donut'
 
 /*
@@ -81,7 +81,7 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
     const category = categoryMap.get(name) ?? {
       id: '0',
       name,
-      colorHex: '#888888',
+      colorHex: FALLBACK_CATEGORY_COLOR,
       details: '',
       sortOrder: 999,
       isSystem: false,
@@ -150,7 +150,7 @@ const activeSlice = ref<number | null>(null)
  * a hint instead of an empty bar.
  */
 const VERDICT_COLORS = {
-  distraction: '#ef8a7a',
+  distraction: 'var(--dg-danger)',
   neutral: '#e7e4ec',
   focus: '#35c3a2',
 } as const
@@ -161,13 +161,17 @@ const reviewSegments = computed(() => [
   { label: t('timeline.review.focus'), minutes: props.reviewTotals.focusMinutes, color: VERDICT_COLORS.focus },
 ])
 
+const reviewMinutesTotal = computed(() =>
+  reviewSegments.value.reduce((sum, segment) => sum + segment.minutes, 0),
+)
+
 </script>
 
 <template>
   <header class="inspector__header">
-    <div>
+    <div class="inspector__heading">
       <p class="inspector__eyebrow">{{ t('timeline.overview.eyebrow') }}</p>
-      <h2 class="inspector__title dg-display">{{ t('timeline.overview.title') }}</h2>
+      <h2 class="inspector__title inspector__title--card">{{ t('timeline.overview.title') }}</h2>
     </div>
   </header>
 
@@ -258,23 +262,30 @@ const reviewSegments = computed(() => [
 
   <section class="inspector__section">
     <h3>{{ t('timeline.overview.review') }}</h3>
-    <!-- Same verdict split as the review flow's completion bar; every block
-         draws, zero-minute verdicts keep a small stub. -->
-    <div class="review-bar" aria-hidden="true">
-      <span
-        v-for="segment in reviewSegments.filter((entry) => entry.minutes > 0)"
-        :key="segment.label"
-        :style="{ flexGrow: segment.minutes, '--seg': segment.color }"
-      ></span>
-    </div>
-    <div class="review-stats">
-      <div v-for="segment in reviewSegments" :key="segment.label" class="review-stat">
-        <span class="review-stat__label">
-          <i :style="{ background: segment.color }"></i>{{ segment.label }}
-        </span>
-        <strong>{{ duration(segment.minutes) }}</strong>
+    <!-- No judged minutes yet: a hint instead of an empty bar and three zeros,
+         since review verdicts are session-local and start unset. -->
+    <p v-if="reviewMinutesTotal === 0" class="review-empty">
+      {{ t('timeline.overview.reviewEmpty') }}
+    </p>
+    <template v-else>
+      <!-- Same verdict split as the review flow's completion bar; only judged
+           verdicts draw a block, widths proportional to minutes. -->
+      <div class="review-bar" aria-hidden="true">
+        <span
+          v-for="segment in reviewSegments.filter((entry) => entry.minutes > 0)"
+          :key="segment.label"
+          :style="{ flexGrow: segment.minutes, '--seg': segment.color }"
+        ></span>
       </div>
-    </div>
+      <div class="review-stats">
+        <div v-for="segment in reviewSegments" :key="segment.label" class="review-stat">
+          <span class="review-stat__label">
+            <i :style="{ background: segment.color }"></i>{{ segment.label }}
+          </span>
+          <strong>{{ duration(segment.minutes) }}</strong>
+        </div>
+      </div>
+    </template>
   </section>
 
   <section class="inspector__section">
@@ -321,6 +332,11 @@ const reviewSegments = computed(() => [
 </template>
 
 <style scoped>
+/* Match the selected-card header: the eyebrow uses the card pane's larger type
+   scale so the inspector reads as one component across its panes. The title
+   shares .inspector__title--card from the shell. */
+.inspector__heading .inspector__eyebrow { font-size: 13px; }
+
 .goal-state {
   padding: 10px 12px;
   border: 1px solid var(--dg-timeline-grid);
@@ -361,9 +377,14 @@ const reviewSegments = computed(() => [
 
 .donut__sector {
   fill-opacity: 0.86;
+  /* Pin the hover scale to the ring centre. Without an explicit box WebKit
+     pivots around each wedge's own bounding box, so the active sector drifts
+     off the ring instead of lifting in place. */
+  transform-box: view-box;
   transform-origin: 102.5px 102.5px;
   transition:
     fill-opacity var(--dg-motion-base) var(--dg-ease-out),
+    opacity var(--dg-motion-base) var(--dg-ease-out),
     transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
@@ -372,8 +393,10 @@ const reviewSegments = computed(() => [
   transform: scale(1.035);
 }
 
+/* Hovering a type isolates it: the other wedges (fill + round-join stroke)
+   fade out entirely, leaving only the hovered category on the grey base. */
 .donut__sector.is-muted {
-  fill-opacity: 0.3;
+  opacity: 0;
 }
 
 /* Volume + gloss overlays sit above the wedges but must not eat pointer
@@ -508,6 +531,18 @@ const reviewSegments = computed(() => [
   color: var(--dg-text-primary);
   font-size: 13px;
   font-weight: 650;
+}
+
+/* Zero-state hint shown before any card has been judged. */
+.review-empty {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 12px;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 /* Review verdict split on a grey track. */

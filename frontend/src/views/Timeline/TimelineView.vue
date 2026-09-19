@@ -190,9 +190,8 @@ const reviewTotals = ref<ReviewTotals>({ ...ZERO_REVIEW_TOTALS })
  * day changes so reopening the review flow or the inspector shows the stored
  * split rather than a stale session snapshot.
  */
-watch(context, (current) => {
-  if (current === null) return
-  void getReviewTotals(current.day)
+function refreshReviewTotals(day: string): void {
+  void getReviewTotals(day)
     .then((totals) => {
       reviewTotals.value = totals
       // Verdicts persist across restarts: the already-judged cards re-enter
@@ -200,7 +199,19 @@ watch(context, (current) => {
       reviewedIds.value = new Set(totals.reviewedCardIds ?? [])
     })
     .catch(() => { reviewTotals.value = { ...ZERO_REVIEW_TOTALS } })
+}
+
+watch(context, (current) => {
+  if (current === null) return
+  refreshReviewTotals(current.day)
 })
+
+// A per-card verdict edit from the inspector re-reads the day totals so the
+// "你的回顾" panel and the review queue reflect the change on the next open.
+function onVerdictChanged(): void {
+  if (context.value === null) return
+  refreshReviewTotals(context.value.day)
+}
 
 async function onCategoriesSaved(): Promise<void> {
   showCategoryManager.value = false
@@ -258,6 +269,13 @@ async function deleteWeekCard(cardID: number): Promise<void> {
   await timeline.removeCard(cardID)
   weekSelection.value = null
   window.setTimeout(() => { void loadWeek({ silent: true }) }, 450)
+}
+
+async function reprocessWeekCard(cardID: number): Promise<void> {
+  const ok = await timeline.reprocessCard(cardID)
+  // Reflect the batch's regenerating state in the week columns; the finished
+  // cards arrive on the next timeline:updated after the LLM run.
+  if (ok) await loadWeek({ silent: true })
 }
 
 watch(viewMode, (mode) => {
@@ -598,10 +616,12 @@ onBeforeUnmount(() => {
               @close="timeline.selectCard(null)"
               @save-edits="(cardID, edits) => timeline.saveCardEdits(cardID, edits)"
               @delete="timeline.removeCard"
+              @reprocess-card="timeline.reprocessCard"
               @retry="timeline.retryFailure"
               @dismiss-failure="timeline.dismissFailure"
               @reprocess="reprocessCurrentDay"
               @save-goal="daily.saveGoal"
+              @verdict-changed="onVerdictChanged"
             />
           </template>
         </div>
@@ -627,10 +647,12 @@ onBeforeUnmount(() => {
           @close="closeWeekCard"
           @save-edits="saveWeekEdits"
           @delete="deleteWeekCard"
+          @reprocess-card="reprocessWeekCard"
           @retry="timeline.retryFailure"
           @dismiss-failure="timeline.dismissFailure"
           @reprocess="reprocessCurrentDay"
           @save-goal="daily.saveGoal"
+          @verdict-changed="onVerdictChanged"
         />
       </Transition>
     </div>
