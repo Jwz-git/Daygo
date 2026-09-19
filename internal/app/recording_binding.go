@@ -64,7 +64,7 @@ func (b *Backend) PauseRecording(minutes int) error {
 	if err != nil {
 		return err
 	}
-	if err := r.Pause(); err != nil {
+	if err := r.Pause(time.Duration(minutes) * time.Minute); err != nil {
 		return apperr.E(apperr.Conflict, "pause recording failed", err)
 	}
 	return nil

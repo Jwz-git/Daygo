@@ -60,6 +60,11 @@ type System interface {
 	SetLaunchAtLogin(ctx context.Context, enabled bool) error
 	SetActivationPolicy(ctx context.Context, p ActivationPolicy) error
 	SetStatusItem(ctx context.Context, s StatusItemState) error
+	// RevealPath opens an absolute path in the OS file browser (Finder on
+	// macOS, Explorer on Windows). The app layer resolves and creates the path;
+	// the adapter only hands it to the system so it never constructs paths of
+	// its own. Used by the menu-bar "open recordings folder" action.
+	RevealPath(ctx context.Context, path string) error
 	ScheduleNotification(ctx context.Context, n Notification) error
 	CancelNotifications(ctx context.Context, ids []string) error
 	Events() <-chan SystemEvent

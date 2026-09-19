@@ -128,7 +128,13 @@ func (r *Recorder) Stop() error {
 	<-done
 	return nil
 }
-func (r *Recorder) Pause() error {
+
+// Pause stops capture at the user's request. A positive duration schedules an
+// automatic resume once it elapses; a zero duration pauses indefinitely until
+// the user resumes. The auto-resume is guarded by resumeGeneration, so a later
+// Resume, Stop, or system event cancels a pending timer just as it does for the
+// system-event resume path.
+func (r *Recorder) Pause(duration time.Duration) error {
 	r.mu.Lock()
 	if r.state != StateCapturing {
 		r.mu.Unlock()
@@ -137,6 +143,7 @@ func (r *Recorder) Pause() error {
 	r.userPaused = true
 	r.state = StatePaused
 	r.resumeGeneration++
+	generation := r.resumeGeneration
 	r.mu.Unlock()
 	if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
 		_ = closer.CloseActiveSegment(context.Background())
@@ -150,8 +157,32 @@ func (r *Recorder) Pause() error {
 			_ = r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize)
 		}
 	}
+	if duration > 0 {
+		time.AfterFunc(duration, func() { r.resumeAfterUserPause(generation) })
+	}
 	r.emit(StatePaused, nil)
 	return nil
+}
+
+// resumeAfterUserPause ends a timed user pause. It drops the user hold in every
+// case the generation still matches, but only returns to capturing when no
+// system blocker (sleep, lock, screensaver) is active — a timed pause that
+// expires while the screen is locked must not start capturing an unavailable
+// display; capture resumes when the system unblocks instead.
+func (r *Recorder) resumeAfterUserPause(generation uint64) {
+	r.mu.Lock()
+	if generation != r.resumeGeneration || r.state != StatePaused {
+		r.mu.Unlock()
+		return
+	}
+	r.userPaused = false
+	if len(r.systemBlockers) != 0 {
+		r.mu.Unlock()
+		return
+	}
+	r.state = StateCapturing
+	r.mu.Unlock()
+	r.emit(StateCapturing, nil)
 }
 func (r *Recorder) Resume() error {
 	r.mu.Lock()

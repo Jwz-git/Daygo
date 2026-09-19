@@ -11,12 +11,19 @@ import Foundation
 /// boundary later.
 private struct StatusSnapshot: Sendable {
     var visible: Bool
-    var pauseEnabled: Bool
+    var pauseDurationsEnabled: Bool
+    var primaryActionEnabled: Bool
     var title: String
     var tooltip: String
     var openLabel: String
-    var pauseLabel: String
+    var recordingsLabel: String
     var quitLabel: String
+    var pauseMenuLabel: String
+    var pause15Label: String
+    var pause30Label: String
+    var pause60Label: String
+    var pauseIndefiniteLabel: String
+    var primaryActionLabel: String
 }
 
 /// The callback and its user data, which exist only to be handed back to the
@@ -33,12 +40,19 @@ private struct StatusHandles: @unchecked Sendable {
 private func snapshot(from state: UnsafePointer<dg_status_item_state_v1>) -> StatusSnapshot {
     StatusSnapshot(
         visible: state.pointee.visible != 0,
-        pauseEnabled: state.pointee.pause_enabled != 0,
+        pauseDurationsEnabled: state.pointee.pause_durations_enabled != 0,
+        primaryActionEnabled: state.pointee.primary_action_enabled != 0,
         title: String(cString: state.pointee.title),
         tooltip: String(cString: state.pointee.tooltip),
         openLabel: String(cString: state.pointee.open_label),
-        pauseLabel: String(cString: state.pointee.pause_label),
-        quitLabel: String(cString: state.pointee.quit_label)
+        recordingsLabel: String(cString: state.pointee.recordings_label),
+        quitLabel: String(cString: state.pointee.quit_label),
+        pauseMenuLabel: String(cString: state.pointee.pause_menu_label),
+        pause15Label: String(cString: state.pointee.pause_15_label),
+        pause30Label: String(cString: state.pointee.pause_30_label),
+        pause60Label: String(cString: state.pointee.pause_60_label),
+        pauseIndefiniteLabel: String(cString: state.pointee.pause_indefinite_label),
+        primaryActionLabel: String(cString: state.pointee.primary_action_label)
     )
 }
 
@@ -46,39 +60,90 @@ private func snapshot(from state: UnsafePointer<dg_status_item_state_v1>) -> Sta
 private final class StatusController: NSObject {
     let item: NSStatusItem
     let menu = NSMenu()
-    let pauseItem = NSMenuItem()
     let handles: StatusHandles
 
     init(snapshot: StatusSnapshot, handles: StatusHandles) {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         self.handles = handles
         super.init()
-        let open = NSMenuItem(title: snapshot.openLabel, action: #selector(openAction(_:)), keyEquivalent: "")
-        open.target = self
-        pauseItem.action = #selector(pauseAction(_:)); pauseItem.target = self
-        let quit = NSMenuItem(title: snapshot.quitLabel, action: #selector(quitAction(_:)), keyEquivalent: "")
-        quit.target = self
-        menu.addItem(open); menu.addItem(pauseItem); menu.addItem(.separator()); menu.addItem(quit)
+        // AppKit otherwise auto-enables items whose target responds to the
+        // action, which would override primaryActionEnabled (disabled while
+        // starting) and re-enable the disabled pause-duration header.
+        menu.autoenablesItems = false
         item.menu = menu
         update(snapshot: snapshot)
     }
 
     func update(snapshot: StatusSnapshot) {
-        item.button?.image = NSImage(systemSymbolName: "clock", accessibilityDescription: snapshot.tooltip)
+        // pauseDurationsEnabled is set exactly while the recorder is capturing
+        // (see the app layer's statusItemState), so it doubles as the recording
+        // indicator: a filled glyph while capturing, an outline otherwise.
+        let symbol = snapshot.pauseDurationsEnabled ? "record.circle.fill" : "record.circle"
+        item.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: snapshot.title.isEmpty ? snapshot.tooltip : snapshot.title)
         item.button?.image?.isTemplate = true
         // squareLength sizes the button for an icon alone; also setting a title
         // crams text into that square and renders as clipped, garbled glyphs.
         // Recording state moves to the tooltip and the menu items instead.
         item.button?.title = ""
         item.button?.toolTip = snapshot.title.isEmpty ? snapshot.tooltip : "\(snapshot.tooltip) — \(snapshot.title)"
-        item.button?.target = self; item.button?.action = #selector(openAction(_:))
-        pauseItem.title = snapshot.pauseLabel
-        pauseItem.isEnabled = snapshot.pauseEnabled
+        // The pause region changes shape between states (a duration submenu
+        // while capturing, a single action otherwise), so the whole menu is
+        // rebuilt on each update rather than mutating items in place.
+        rebuildMenu(snapshot: snapshot)
         item.isVisible = snapshot.visible
+    }
+
+    private func rebuildMenu(snapshot: StatusSnapshot) {
+        menu.removeAllItems()
+
+        let open = NSMenuItem(title: snapshot.openLabel, action: #selector(openAction(_:)), keyEquivalent: "")
+        open.target = self
+        menu.addItem(open)
+
+        if snapshot.pauseDurationsEnabled {
+            // Show the durations inline under a disabled header (like the legacy
+            // picker) rather than hiding them one level down in a submenu, so
+            // 15/30/60/∞ are visible the moment the menu opens while capturing.
+            let header = NSMenuItem(title: snapshot.pauseMenuLabel, action: nil, keyEquivalent: "")
+            header.isEnabled = false
+            menu.addItem(header)
+            let durations: [(String, Int)] = [
+                (snapshot.pause15Label, Int(DG_STATUS_ITEM_PAUSE_15)),
+                (snapshot.pause30Label, Int(DG_STATUS_ITEM_PAUSE_30)),
+                (snapshot.pause60Label, Int(DG_STATUS_ITEM_PAUSE_60)),
+                (snapshot.pauseIndefiniteLabel, Int(DG_STATUS_ITEM_PAUSE_INDEFINITE)),
+            ]
+            for (label, action) in durations {
+                let entry = NSMenuItem(title: label, action: #selector(durationAction(_:)), keyEquivalent: "")
+                entry.target = self
+                entry.tag = action
+                menu.addItem(entry)
+            }
+        } else {
+            let primary = NSMenuItem(title: snapshot.primaryActionLabel, action: #selector(pauseAction(_:)), keyEquivalent: "")
+            primary.target = self
+            primary.isEnabled = snapshot.primaryActionEnabled
+            menu.addItem(primary)
+        }
+
+        let recordings = NSMenuItem(title: snapshot.recordingsLabel, action: #selector(recordingsAction(_:)), keyEquivalent: "")
+        recordings.target = self
+        menu.addItem(recordings)
+
+        menu.addItem(.separator())
+
+        let quit = NSMenuItem(title: snapshot.quitLabel, action: #selector(quitAction(_:)), keyEquivalent: "")
+        quit.target = self
+        menu.addItem(quit)
     }
 
     @objc func openAction(_ sender: Any?) { handles.callback?(UInt32(DG_STATUS_ITEM_OPEN), handles.data) }
     @objc func pauseAction(_ sender: Any?) { handles.callback?(UInt32(DG_STATUS_ITEM_TOGGLE_PAUSE), handles.data) }
+    @objc func durationAction(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        handles.callback?(UInt32(item.tag), handles.data)
+    }
+    @objc func recordingsAction(_ sender: Any?) { handles.callback?(UInt32(DG_STATUS_ITEM_OPEN_RECORDINGS), handles.data) }
     @objc func quitAction(_ sender: Any?) { handles.callback?(UInt32(DG_STATUS_ITEM_QUIT), handles.data) }
 }
 
@@ -104,17 +169,29 @@ private func clearStatus() {
     statusLock.unlock()
 }
 
-/// Runs body synchronously on the main actor from any thread.
+/// Runs body on the main actor from any thread.
+///
+/// Off the main thread the hop is async, not sync, and that asymmetry is
+/// load-bearing: a status repaint is fired from the recorder's event callback,
+/// which runs on the goroutine draining Recorder.run. During shutdown the main
+/// thread is inside Recorder.Stop blocked on <-done waiting for that same
+/// goroutine to exit. A sync hop here would block the goroutine on the main
+/// thread while the main thread blocks on the goroutine — a deadlock that hangs
+/// the app on menu-bar Quit. Async lets the repaint queue and return, so the
+/// goroutine finishes and Stop unblocks. Repaints carry no return value, so
+/// nothing depends on the hop completing before this returns.
 ///
 /// The closure is @Sendable because it crosses an isolation boundary; the
 /// callers below therefore hand it only Sendable values.
-private func runOnMainActor(_ body: @Sendable @MainActor () -> Void) {
+private func runOnMainActor(_ body: @escaping @Sendable @MainActor () -> Void) {
     if Thread.isMainThread {
         // Already on the main thread, so the main actor's executor is this
-        // thread and no hop is needed.
+        // thread and no hop is needed. Kept synchronous because startup builds
+        // the item on the main thread before first paint, and a sync dispatch
+        // onto the queue we are already on would itself deadlock.
         MainActor.assumeIsolated { body() }
     } else {
-        DispatchQueue.main.sync { MainActor.assumeIsolated { body() } }
+        DispatchQueue.main.async { MainActor.assumeIsolated { body() } }
     }
 }
 

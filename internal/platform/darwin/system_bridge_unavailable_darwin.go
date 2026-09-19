@@ -19,3 +19,6 @@ func setStatusItem(platform.StatusItemState) error {
 }
 func stopStatusItem() {}
 func systemStop()     {}
+func setActivationPolicy(platform.ActivationPolicy) error {
+	return errors.New("activation policy ABI unavailable without cgo")
+}

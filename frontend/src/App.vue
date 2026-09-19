@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterView } from 'vue-router'
 
+import { setStatusItemLabels } from '@/api/recording'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import FatalErrorOverlay from '@/components/FatalErrorOverlay.vue'
 import AppShell from '@/layout/AppShell.vue'
@@ -9,6 +12,34 @@ import { useTestToolsStore } from '@/stores/testTools'
 // Root-level init: the shell never unmounts, so the subscription needs no teardown.
 const testTools = useTestToolsStore()
 void testTools.initialize()
+
+// The native menu-bar item renders outside the webview, so vue-i18n cannot
+// reach it. Push the translated bundle to the backend on load and whenever the
+// locale changes, so the status item follows the app's language. The shell
+// never unmounts, so the watcher needs no teardown.
+const { t, locale } = useI18n()
+watch(
+  locale,
+  () => {
+    void setStatusItemLabels({
+      open: t('recording.menuBar.open'),
+      recordings: t('recording.menuBar.recordings'),
+      quit: t('recording.menuBar.quit'),
+      pauseMenu: t('recording.menuBar.pauseMenu'),
+      pause15: t('recording.menuBar.pause15'),
+      pause30: t('recording.menuBar.pause30'),
+      pause60: t('recording.menuBar.pause60'),
+      pauseIndefinite: t('recording.menuBar.pauseIndefinite'),
+      start: t('recording.menuBar.start'),
+      resume: t('recording.menuBar.resume'),
+      tooltip: t('recording.menuBar.tooltip'),
+      titleRecording: t('recording.menuBar.titleRecording'),
+      titlePaused: t('recording.menuBar.titlePaused'),
+      titleIdle: t('recording.menuBar.titleIdle'),
+    })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

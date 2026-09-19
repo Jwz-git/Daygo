@@ -9,7 +9,7 @@ import (
 
 func TestSystemSetStatusItemStoresState(t *testing.T) {
 	system := NewSystem()
-	want := platform.StatusItemState{Visible: true, Tooltip: "Daygo", OpenLabel: "Open", PauseLabel: "Pause", QuitLabel: "Quit", PauseEnabled: true}
+	want := platform.StatusItemState{Visible: true, Tooltip: "Daygo", OpenLabel: "Open", RecordingsLabel: "Recordings", QuitLabel: "Quit", PauseMenuLabel: "Pause", Pause15Label: "15", Pause30Label: "30", Pause60Label: "60", PauseIndefiniteLabel: "Indefinite", PrimaryActionLabel: "Start", PauseDurationsEnabled: true, PrimaryActionEnabled: true}
 	if err := system.SetStatusItem(context.Background(), want); err != nil {
 		t.Fatal(err)
 	}

@@ -49,6 +49,7 @@ func (*systemStub) LaunchAtLogin(context.Context) (bool, error)                 
 func (*systemStub) SetLaunchAtLogin(context.Context, bool) error                         { return nil }
 func (*systemStub) SetActivationPolicy(context.Context, platform.ActivationPolicy) error { return nil }
 func (*systemStub) SetStatusItem(context.Context, platform.StatusItemState) error        { return nil }
+func (*systemStub) RevealPath(context.Context, string) error                             { return nil }
 func (*systemStub) ScheduleNotification(context.Context, platform.Notification) error    { return nil }
 func (*systemStub) CancelNotifications(context.Context, []string) error                  { return nil }
 func (*systemStub) Events() <-chan platform.SystemEvent                                  { return nil }

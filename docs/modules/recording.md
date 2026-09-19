@@ -56,7 +56,7 @@ Go 侧通过 darwin `platform.Media` 驱动，`/media/frame` 资源处理器与 
 `./scripts/gate.sh` 全绿通过。
 
 Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows` + `native/windows`），
-已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke，但仍**不在发布范围**；
+已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke；发布范围经决策记录推进（§9.8 #18），
 完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
 无法打开数据库。以上不改变本模块的验收口径。
 `internal/recorder` 提供可停止的 Go 状态机：`idle → starting → capturing`，支持 `paused`

@@ -154,14 +154,30 @@ type ApplicationIdentity struct {
 
 // StatusItemState describes the public menu-bar surface. Labels are supplied
 // by the app layer so the native adapter never owns product state or locale.
+//
+// The pause/resume region has two shapes. When PauseDurationsEnabled is true
+// (the recorder is capturing), the adapter renders PauseMenuLabel as a submenu
+// of the four duration items. Otherwise it renders PrimaryActionLabel as a
+// single item — "start recording" when idle, "resume" when paused. Keeping the
+// mapping in the app layer means the adapter neither knows the recorder states
+// nor picks the copy for them.
 type StatusItemState struct {
-	Visible      bool
-	Title        string
-	Tooltip      string
-	OpenLabel    string
-	PauseLabel   string
-	QuitLabel    string
-	PauseEnabled bool
+	Visible         bool
+	Title           string
+	Tooltip         string
+	OpenLabel       string
+	RecordingsLabel string
+	QuitLabel       string
+
+	PauseDurationsEnabled bool
+	PauseMenuLabel        string
+	Pause15Label          string
+	Pause30Label          string
+	Pause60Label          string
+	PauseIndefiniteLabel  string
+
+	PrimaryActionLabel   string
+	PrimaryActionEnabled bool
 }
 
 type Notification struct {

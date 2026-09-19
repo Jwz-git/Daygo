@@ -33,6 +33,24 @@ func systemStart() error {
 }
 func systemStop() { C.dg_system_stop() }
 
+func setActivationPolicy(p platform.ActivationPolicy) error {
+	var policy C.uint32_t
+	switch p {
+	case platform.ActivationRegular:
+		policy = C.uint32_t(C.DG_ACTIVATION_REGULAR)
+	case platform.ActivationAccessory:
+		policy = C.uint32_t(C.DG_ACTIVATION_ACCESSORY)
+	case platform.ActivationProhibited:
+		policy = C.uint32_t(C.DG_ACTIVATION_PROHIBITED)
+	default:
+		return fmt.Errorf("set activation policy: unknown policy %q", p)
+	}
+	if code := C.dg_activation_policy_set(policy); code != 0 {
+		return fmt.Errorf("activation policy ABI set failed: %d", code)
+	}
+	return nil
+}
+
 //export dgSystemEvent
 func dgSystemEvent(kind C.uint32_t, at C.int64_t, _ unsafe.Pointer) {
 	activeSystem.Lock()
@@ -43,13 +61,44 @@ func dgSystemEvent(kind C.uint32_t, at C.int64_t, _ unsafe.Pointer) {
 	}
 }
 func setStatusItem(state platform.StatusItemState) error {
-	title, tooltip, open, pause, quit := C.CString(state.Title), C.CString(state.Tooltip), C.CString(state.OpenLabel), C.CString(state.PauseLabel), C.CString(state.QuitLabel)
+	title := C.CString(state.Title)
+	tooltip := C.CString(state.Tooltip)
+	open := C.CString(state.OpenLabel)
+	recordings := C.CString(state.RecordingsLabel)
+	quit := C.CString(state.QuitLabel)
+	pauseMenu := C.CString(state.PauseMenuLabel)
+	pause15 := C.CString(state.Pause15Label)
+	pause30 := C.CString(state.Pause30Label)
+	pause60 := C.CString(state.Pause60Label)
+	pauseIndefinite := C.CString(state.PauseIndefiniteLabel)
+	primary := C.CString(state.PrimaryActionLabel)
 	defer C.free(unsafe.Pointer(title))
 	defer C.free(unsafe.Pointer(tooltip))
 	defer C.free(unsafe.Pointer(open))
-	defer C.free(unsafe.Pointer(pause))
+	defer C.free(unsafe.Pointer(recordings))
 	defer C.free(unsafe.Pointer(quit))
-	native := C.dg_status_item_state_v1{visible: C.uint32_t(boolToUint(state.Visible)), pause_enabled: C.uint32_t(boolToUint(state.PauseEnabled)), title: title, tooltip: tooltip, open_label: open, pause_label: pause, quit_label: quit}
+	defer C.free(unsafe.Pointer(pauseMenu))
+	defer C.free(unsafe.Pointer(pause15))
+	defer C.free(unsafe.Pointer(pause30))
+	defer C.free(unsafe.Pointer(pause60))
+	defer C.free(unsafe.Pointer(pauseIndefinite))
+	defer C.free(unsafe.Pointer(primary))
+	native := C.dg_status_item_state_v1{
+		visible:                 C.uint32_t(boolToUint(state.Visible)),
+		pause_durations_enabled: C.uint32_t(boolToUint(state.PauseDurationsEnabled)),
+		primary_action_enabled:  C.uint32_t(boolToUint(state.PrimaryActionEnabled)),
+		title:                   title,
+		tooltip:                 tooltip,
+		open_label:              open,
+		recordings_label:        recordings,
+		quit_label:              quit,
+		pause_menu_label:        pauseMenu,
+		pause_15_label:          pause15,
+		pause_30_label:          pause30,
+		pause_60_label:          pause60,
+		pause_indefinite_label:  pauseIndefinite,
+		primary_action_label:    primary,
+	}
 	if code := C.dg_status_item_set(C.DG_STATUS_ITEM_ABI_MAJOR, &native, (C.dg_status_item_action_callback_v1)(C.dgStatusItemAction), nil); code != 0 {
 		return fmt.Errorf("status item ABI set failed: %d", code)
 	}
@@ -71,16 +120,10 @@ func dgStatusItemAction(action C.uint32_t, _ unsafe.Pointer) {
 	if s == nil {
 		return
 	}
-	var kind platform.SystemEventKind
-	switch uint32(action) {
-	case 1:
-		kind = platform.EventStatusItemClick
-	case 2:
-		kind = platform.EventStatusItemClick
-	case 3:
-		kind = platform.EventStatusItemClick
-	default:
+	// statusActionID is the single source of truth for which codes are valid;
+	// an unrecognized code yields a nil ID and is dropped by pushAction.
+	if statusActionID(uint32(action)) == nil {
 		return
 	}
-	s.pushAction(kind, uint32(action))
+	s.pushAction(platform.EventStatusItemClick, uint32(action))
 }

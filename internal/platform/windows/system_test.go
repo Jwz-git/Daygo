@@ -29,6 +29,11 @@ func TestStatusActionID(t *testing.T) {
 		1: "open",
 		2: "toggle_pause",
 		3: "quit",
+		4: "open_recordings",
+		6: "pause_indefinite",
+		7: "pause_15",
+		8: "pause_30",
+		9: "pause_60",
 	}
 	for input, want := range tests {
 		got := statusActionID(input)

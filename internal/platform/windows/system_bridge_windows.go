@@ -38,22 +38,41 @@ func setStatusItem(state platform.StatusItemState) error {
 	title := C.CString(state.Title)
 	tooltip := C.CString(state.Tooltip)
 	open := C.CString(state.OpenLabel)
-	pause := C.CString(state.PauseLabel)
+	recordings := C.CString(state.RecordingsLabel)
 	quit := C.CString(state.QuitLabel)
+	pauseMenu := C.CString(state.PauseMenuLabel)
+	pause15 := C.CString(state.Pause15Label)
+	pause30 := C.CString(state.Pause30Label)
+	pause60 := C.CString(state.Pause60Label)
+	pauseIndefinite := C.CString(state.PauseIndefiniteLabel)
+	primary := C.CString(state.PrimaryActionLabel)
 	defer C.free(unsafe.Pointer(title))
 	defer C.free(unsafe.Pointer(tooltip))
 	defer C.free(unsafe.Pointer(open))
-	defer C.free(unsafe.Pointer(pause))
+	defer C.free(unsafe.Pointer(recordings))
 	defer C.free(unsafe.Pointer(quit))
+	defer C.free(unsafe.Pointer(pauseMenu))
+	defer C.free(unsafe.Pointer(pause15))
+	defer C.free(unsafe.Pointer(pause30))
+	defer C.free(unsafe.Pointer(pause60))
+	defer C.free(unsafe.Pointer(pauseIndefinite))
+	defer C.free(unsafe.Pointer(primary))
 
 	native := C.dg_status_item_state_v1{
-		visible:       C.uint32_t(boolToUint(state.Visible)),
-		pause_enabled: C.uint32_t(boolToUint(state.PauseEnabled)),
-		title:         title,
-		tooltip:       tooltip,
-		open_label:    open,
-		pause_label:   pause,
-		quit_label:    quit,
+		visible:                 C.uint32_t(boolToUint(state.Visible)),
+		pause_durations_enabled: C.uint32_t(boolToUint(state.PauseDurationsEnabled)),
+		primary_action_enabled:  C.uint32_t(boolToUint(state.PrimaryActionEnabled)),
+		title:                   title,
+		tooltip:                 tooltip,
+		open_label:              open,
+		recordings_label:        recordings,
+		quit_label:              quit,
+		pause_menu_label:        pauseMenu,
+		pause_15_label:          pause15,
+		pause_30_label:          pause30,
+		pause_60_label:          pause60,
+		pause_indefinite_label:  pauseIndefinite,
+		primary_action_label:    primary,
 	}
 	if code := C.dg_status_item_set(
 		C.DG_STATUS_ITEM_ABI_MAJOR,

@@ -17,9 +17,12 @@ delivery / chat）均已**部分实现**，但**没有任何模块完成真实�
 `docs/modules/<module>.md`。不要依赖本文件或其他文档中的历史快照描述现状，
 也不要把规划中的目录、接口、命令或行为描述成现状。
 
-**目标平台是 macOS。** 仓库里另有一份实验性 Windows 截图实现，只完成了单机有限
-smoke，不在发布范围；隐私、长时间稳定性与发布身份未验收，不要当作“已支持 Windows”
-（`docs/decisions/recording-screen-capture-windows.md`）。
+**macOS 是当前主线开发平台，Windows 与 Linux 是已排期的一等发布目标**，不再是「仅实验 / someday」。
+但「已排期」不等于「已就绪」：Windows 截图目前只完成单机有限 smoke，隐私双保护、长期稳定性与发布
+身份仍未验收；Linux 的 Capture / System 仍是 `unsupported` 桩。具体原生选型与发布范围逐项经
+`docs/decisions/` 决策记录确定，真机能力仍须过 G-host / G-native 验收门禁——未验收前不得宣称
+「已支持」（`docs/decisions/recording-screen-capture-windows.md`、
+`docs/decisions/recording-screen-capture-linux.md`）。
 
 `docs/README.md` 是设计入口，`docs/01`–`10` 是设计规格，**不代表其中目标已经实现**；
 跨界接口（Wails 绑定、DTO、事件、错误码、平台端口）以 `docs/05-interface-contract.md`
@@ -300,7 +303,7 @@ Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 
 Daygo 是常驻后台 Agent，不是"关闭最后一个窗口即退出"的普通桌面应用。
 
 - 关闭窗口后捕获必须继续，状态栏可重新打开窗口。
-- Cmd+Q、窗口关闭、更新重启、适配层退出和系统关机是不同事件，必须分别建模。
+- Cmd+Q / Dock 退出（软退出）、窗口关闭、状态栏退出（真退出）、更新重启、适配层退出和系统关机是不同事件，必须分别建模。
 - **不要假定退出 UI 等于用户要求停止录制。**
 - 无窗口常驻、激活策略和状态栏受 G-host 约束；自动更新可行性与分发身份受 G-native 约束。
   宿主验证失败时停止大规模 UI 扩张并重新评估架构，独立模块核心与契约工作可继续。

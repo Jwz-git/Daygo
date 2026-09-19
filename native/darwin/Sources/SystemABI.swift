@@ -66,6 +66,27 @@ private func kind(for name: Notification.Name) -> UInt32 {
     return UInt32(DG_SYSTEM_DISPLAYS_CHANGED)
 }
 
+private func activationRunOnMain(_ body: @Sendable @escaping @MainActor () -> Void) {
+    if Thread.isMainThread {
+        MainActor.assumeIsolated { body() }
+    } else {
+        DispatchQueue.main.async { MainActor.assumeIsolated { body() } }
+    }
+}
+
+@_cdecl("dg_activation_policy_set")
+func dg_activation_policy_set(_ policy: UInt32) -> Int32 {
+    let target: NSApplication.ActivationPolicy
+    switch policy {
+    case UInt32(DG_ACTIVATION_REGULAR): target = .regular
+    case UInt32(DG_ACTIVATION_ACCESSORY): target = .accessory
+    case UInt32(DG_ACTIVATION_PROHIBITED): target = .prohibited
+    default: return -1
+    }
+    activationRunOnMain { NSApp.setActivationPolicy(target) }
+    return 0
+}
+
 @_cdecl("dg_system_stop")
 func dg_system_stop() {
     let workspace = NSWorkspace.shared.notificationCenter

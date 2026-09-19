@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
@@ -68,8 +69,15 @@ type Backend struct {
 	systemEventBuffer    []platform.SystemEvent
 	statusActionMu       sync.RWMutex
 	statusAction         func(string)
-	statusUpdaterMu      sync.RWMutex
-	statusUpdater        func(recorder.State)
+	// allowQuit gates the Wails OnBeforeClose hook. It stays false so Cmd+Q,
+	// the Dock "Quit" item and closing the window are downgraded to a
+	// background soft-quit; only the status-bar Quit sets it (requestQuit)
+	// before runtime.Quit, letting that one path terminate for real. See
+	// docs/decisions/lifecycle-quit-model.md.
+	allowQuit       atomic.Bool
+	statusUpdaterMu sync.RWMutex
+	statusUpdater   func(recorder.State)
+	statusLabels    statusItemLabelStore
 	// windowCtx is the Wails runtime context handed over in OnStartup; it
 	// scopes WindowSetBackgroundColour calls (window_background.go). It is
 	// nil in headless construction, where those calls become no-ops.
@@ -182,7 +190,7 @@ func NewBackend(system platform.System, store *storage.Store) *Backend {
 }
 
 func newBackend(clock Clock, system platform.System, store *storage.Store, canWrite, isCaptureOwner bool) *Backend {
-	return &Backend{
+	b := &Backend{
 		clock:          clock,
 		system:         system,
 		storage:        store,
@@ -190,6 +198,10 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 		isCaptureOwner: isCaptureOwner,
 		emitter:        nopEmitter{},
 	}
+	// Seed the menu bar before the frontend pushes a localized bundle: the
+	// status item is created during OnStartup, ahead of the first webview paint.
+	b.statusLabels.set(defaultStatusItemLabels())
+	return b
 }
 
 // attachStorage binds an open store. It is called once during startup, before
@@ -268,6 +280,33 @@ func (b *Backend) setStatusAction(handler func(string)) {
 	b.statusActionMu.Lock()
 	b.statusAction = handler
 	b.statusActionMu.Unlock()
+}
+
+// requestQuit marks the next quit attempt as a real termination. The status-bar
+// Quit calls it before runtime.Quit so OnBeforeClose lets the process exit;
+// every other quit path leaves the flag false and soft-quits to background.
+func (b *Backend) requestQuit() { b.allowQuit.Store(true) }
+
+// quitAllowed reports whether a real termination was requested.
+func (b *Backend) quitAllowed() bool { return b.allowQuit.Load() }
+
+// enterBackground drops the app to accessory (no Dock icon) for a soft-quit.
+// The status item stays as the only way back. It is a no-op without a platform
+// System (headless construction).
+func (b *Backend) enterBackground(ctx context.Context) error {
+	if b.system == nil {
+		return nil
+	}
+	return b.system.SetActivationPolicy(ctx, platform.ActivationAccessory)
+}
+
+// exitBackground restores the regular (Dock-visible) policy when the user
+// reopens the window from the status item.
+func (b *Backend) exitBackground(ctx context.Context) error {
+	if b.system == nil {
+		return nil
+	}
+	return b.system.SetActivationPolicy(ctx, platform.ActivationRegular)
 }
 
 // Unexported on purpose: while it was exported, Wails bound it and pulled

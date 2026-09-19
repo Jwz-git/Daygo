@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Jwz-git/Daygo/frontend"
-	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/recorder"
@@ -179,14 +178,10 @@ func Run() error {
 				if backend.system == nil {
 					return
 				}
-				title, pause := "Not recording", "Start Recording"
-				switch state {
-				case recorder.StateStarting, recorder.StateCapturing:
-					title, pause = "Recording", "Pause Recording"
-				case recorder.StatePaused:
-					title, pause = "Paused", "Resume Recording"
-				}
-				if err := backend.system.SetStatusItem(ctx, platform.StatusItemState{Visible: true, Title: title, Tooltip: "Daygo", OpenLabel: "Open Daygo", PauseLabel: pause, QuitLabel: "Quit Daygo", PauseEnabled: state != recorder.StateStarting}); err != nil {
+				// Labels come from the frontend (vue-i18n); the state → surface
+				// mapping stays here so the adapter never learns recorder states.
+				item := statusItemState(state, backend.statusLabels.get())
+				if err := backend.system.SetStatusItem(ctx, item); err != nil {
 					log.Printf("status item update unavailable: %v", err)
 				}
 			}
@@ -195,9 +190,33 @@ func Run() error {
 			backend.setStatusAction(func(action string) {
 				switch action {
 				case "open":
+					if err := backend.exitBackground(ctx); err != nil {
+						log.Printf("restore dock icon on reopen unavailable: %v", err)
+					}
 					runtime.WindowShow(ctx)
 					runtime.Show(ctx)
+				case "open_recordings":
+					if backend.system == nil {
+						return
+					}
+					dir, err := backend.GetRecordingDirectory()
+					if err != nil {
+						log.Printf("open recordings folder unavailable: %v", err)
+						return
+					}
+					// The directory only exists after the first capture; create
+					// it so the folder always opens instead of failing silently.
+					if err := os.MkdirAll(dir, 0o755); err != nil {
+						log.Printf("create recordings folder unavailable: %v", err)
+						return
+					}
+					// Finder, not BrowserOpenURL: Wails' URL validator rejects the
+					// file:// scheme outright, so a file URL never opens the folder.
+					if err := backend.system.RevealPath(ctx, dir); err != nil {
+						log.Printf("open recordings folder unavailable: %v", err)
+					}
 				case "quit":
+					backend.requestQuit()
 					runtime.Quit(ctx)
 				case "toggle_pause":
 					switch backend.recorderState() {
@@ -208,6 +227,14 @@ func Run() error {
 					case recorder.StateCapturing:
 						_ = backend.PauseRecording(0)
 					}
+				case "pause_15":
+					_ = backend.PauseRecording(15)
+				case "pause_30":
+					_ = backend.PauseRecording(30)
+				case "pause_60":
+					_ = backend.PauseRecording(60)
+				case "pause_indefinite":
+					_ = backend.PauseRecording(0)
 				}
 			})
 			// After the status action is installed so the status item reflects
@@ -216,6 +243,23 @@ func Run() error {
 		},
 		OnShutdown: func(ctx context.Context) {
 			backend.shutdown()
+		},
+		// Daygo is a resident agent: Cmd+Q and the Dock "Quit" item must not
+		// end the process. Wails routes every quit attempt (window close is
+		// intercepted separately by HideWindowOnClose) through this hook, and
+		// returning true keeps the app alive. Only the status-bar Quit sets
+		// requestQuit first, so that one path returns false and terminates.
+		// The soft-quit hides the window and drops the Dock icon, leaving the
+		// status item as the way back (docs/decisions/lifecycle-quit-model.md).
+		OnBeforeClose: func(ctx context.Context) (prevent bool) {
+			if backend.quitAllowed() {
+				return false
+			}
+			runtime.WindowHide(ctx)
+			if err := backend.enterBackground(ctx); err != nil {
+				log.Printf("drop dock icon on background quit unavailable: %v", err)
+			}
+			return true
 		},
 		// Host window options are platform-specific; each lives in an
 		// options_<goos>.go file under a matching build tag.

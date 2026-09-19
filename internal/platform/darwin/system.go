@@ -4,9 +4,12 @@ package darwin
 
 import (
 	"context"
-	"github.com/Jwz-git/Daygo/internal/platform"
+	"fmt"
+	"os/exec"
 	"sync"
 	"time"
+
+	"github.com/Jwz-git/Daygo/internal/platform"
 )
 
 type System struct {
@@ -78,6 +81,16 @@ func statusActionID(action uint32) *string {
 		value = "toggle_pause"
 	case 3:
 		value = "quit"
+	case 4:
+		value = "open_recordings"
+	case 6:
+		value = "pause_indefinite"
+	case 7:
+		value = "pause_15"
+	case 8:
+		value = "pause_30"
+	case 9:
+		value = "pause_60"
 	default:
 		return nil
 	}
@@ -117,11 +130,23 @@ func (s *System) FrontmostApplication(context.Context) (platform.AppInfo, error)
 func (s *System) InstalledApplications(ctx context.Context, language string) ([]platform.AppInfo, error) {
 	return listApplications(ctx, language)
 }
-func (s *System) LaunchAtLogin(context.Context) (bool, error)                          { return false, nil }
-func (s *System) SetLaunchAtLogin(context.Context, bool) error                         { return nil }
-func (s *System) SetActivationPolicy(context.Context, platform.ActivationPolicy) error { return nil }
+func (s *System) LaunchAtLogin(context.Context) (bool, error)  { return false, nil }
+func (s *System) SetLaunchAtLogin(context.Context, bool) error { return nil }
+func (s *System) SetActivationPolicy(_ context.Context, p platform.ActivationPolicy) error {
+	return setActivationPolicy(p)
+}
 func (s *System) SetStatusItem(_ context.Context, state platform.StatusItemState) error {
 	return setStatusItem(state)
+}
+
+// RevealPath opens the path in Finder via /usr/bin/open. open hands the path to
+// LaunchServices and exits, so Run waits only for that dispatch, not for the
+// window; its exit code still surfaces a missing path as an error.
+func (s *System) RevealPath(ctx context.Context, path string) error {
+	if err := exec.CommandContext(ctx, "/usr/bin/open", path).Run(); err != nil {
+		return fmt.Errorf("reveal path in finder: %w", err)
+	}
+	return nil
 }
 func (s *System) ScheduleNotification(context.Context, platform.Notification) error { return nil }
 func (s *System) CancelNotifications(context.Context, []string) error               { return nil }

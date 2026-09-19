@@ -106,6 +106,16 @@ func statusActionID(action uint32) *string {
 		value = "toggle_pause"
 	case 3:
 		value = "quit"
+	case 4:
+		value = "open_recordings"
+	case 6:
+		value = "pause_indefinite"
+	case 7:
+		value = "pause_15"
+	case 8:
+		value = "pause_30"
+	case 9:
+		value = "pause_60"
 	default:
 		return nil
 	}
@@ -136,23 +146,11 @@ func (*System) RequestScreenRecordingPermission(context.Context) error { return 
 func (*System) NotificationsPermission(context.Context) (platform.PermissionState, error) {
 	return "", errSystemCapabilityUnavailable
 }
-func (*System) OpenSystemSettings(context.Context, platform.SettingsPane) error {
-	return errSystemCapabilityUnavailable
-}
-func (*System) Displays(context.Context) ([]platform.Display, error) {
-	return nil, errSystemCapabilityUnavailable
-}
 func (*System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, errSystemCapabilityUnavailable
 }
 func (*System) InstalledApplications(context.Context, string) ([]platform.AppInfo, error) {
 	return nil, errSystemCapabilityUnavailable
-}
-func (*System) LaunchAtLogin(context.Context) (bool, error) {
-	return false, errSystemCapabilityUnavailable
-}
-func (*System) SetLaunchAtLogin(context.Context, bool) error {
-	return errSystemCapabilityUnavailable
 }
 func (*System) SetActivationPolicy(context.Context, platform.ActivationPolicy) error {
 	return errSystemCapabilityUnavailable

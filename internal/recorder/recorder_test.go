@@ -101,7 +101,7 @@ func TestRecorderPauseResumeAndStop(t *testing.T) {
 	if !platform.ValidSegmentPath(relativePath) {
 		t.Fatalf("relative capture path %q is not canonical", relativePath)
 	}
-	if err := r.Pause(); err != nil {
+	if err := r.Pause(0); err != nil {
 		t.Fatal(err)
 	}
 	waitState(t, events, StatePaused)
@@ -348,10 +348,37 @@ func TestRecorderSegmentCaptureWithCloser(t *testing.T) {
 		t.Fatalf("expected segment path segments/fake-segment.mp4, got %s", rel)
 	}
 
-	if err := r.Pause(); err != nil {
+	if err := r.Pause(0); err != nil {
 		t.Fatal(err)
 	}
 	waitState(t, events, StatePaused)
+
+	if err := r.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateIdle)
+}
+
+func TestRecorderTimedPauseAutoResumes(t *testing.T) {
+	dir := t.TempDir()
+	store := &testStore{}
+	events := make(chan Event, 16)
+	r, err := New(Config{Capture: fake.NewCapture(), Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: dir, Clock: &testClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+
+	if err := r.Pause(40 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StatePaused)
+	// The timer fires on real time; the recorder returns to capturing on its
+	// own without a Resume call.
+	waitState(t, events, StateCapturing)
 
 	if err := r.Stop(); err != nil {
 		t.Fatal(err)
