@@ -13,7 +13,7 @@ script owns a responsibility and which one a new contributor should reach for.
 | Script | Role | Caller |
 |---|---|---|
 | `bootstrap-frontend.sh` | Standalone: placeholder dist → bindings → real bundle. Sourced: exports `require_tool`, `webkit_tag`, `run_wails`, `daygo_bootstrap` for the other scripts. | All `dev*` / `build-*` scripts, `gate.sh`, `package-macos.sh` |
-| `dev.sh` | macOS `wails dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline. | Local development on macOS |
+| `dev.sh` | macOS `wails dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline, and recreates the generated `.app` so Dock does not retain a stale application icon. | Local development on macOS |
 | `dev.ps1` | Windows `wails dev` entry; applies the Go 1.25 cgo debug workaround only when needed. | Local development on Windows |
 | `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1` |
 | `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
@@ -36,7 +36,10 @@ invocation. After the 2026-09-14 cleanup:
   pipeline.
 - **`scripts/dev.sh`** keeps the macOS-only `clang` check inline. That check
   is the only piece that is genuinely platform-specific (clang is required
-  on macOS for the cgo build, not on Linux/Windows).
+  on macOS for the cgo build, not on Linux/Windows). Before starting Wails it
+  also recreates the generated `build/bin/Daygo.app`; Wails otherwise updates
+  the bundle contents in place and macOS may continue displaying a cached
+  icon after `build/appicon.png` changes.
 - **`scripts/windows-common.ps1`** is dot-sourced by the two Windows entry
   points and owns their shared tool checks, frontend bootstrap and Go 1.25
   debug-linker workaround. `dev.ps1` uses `npm install`; `build.ps1` uses the
