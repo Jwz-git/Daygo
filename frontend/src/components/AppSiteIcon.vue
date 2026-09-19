@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, type CSSProperties } from 'vue'
 
-import { matchInstalledAppIcon, resolveAppSiteIdentity, type AppSiteIconKind } from '@/lib/appSiteIcon'
+import { isWebsiteKind, matchInstalledAppIcon, resolveAppSiteIdentity, type AppSiteIconKind } from '@/lib/appSiteIcon'
 import { fetchFaviconDataUrl, hostOf } from '@/lib/favicon'
 
 /*
@@ -67,15 +67,24 @@ const candidateSites = computed<string[]>(() => {
 
 const activeSite = ref<string>('')
 const activeIdentity = computed(() => resolveAppSiteIdentity(activeSite.value))
-const brandImage = computed(() => BRAND_IMAGES[activeIdentity.value.kind])
+// Missing kinds (drawn-SVG brands like bilibili) map to undefined; normalize to
+// null so the `is-raw` class check (brandImage !== null) only fires for real
+// bundled images. Without this, a drawn-SVG brand wrongly gets is-raw, whose
+// transparent background overrides the brand's colored fill.
+const brandImage = computed(() => BRAND_IMAGES[activeIdentity.value.kind] ?? null)
 
 /*
  * When a card has a list of candidate sites (e.g. browsed website + browser),
  * iterate through them to find the first candidate with an available icon:
- * 1. Built-in brand icon (SVG or BRAND_IMAGES)
- * 2. Installed desktop application icon
- * 3. Network favicon
- * If none has a real icon, falls back to the primary site's monogram.
+ * 1. Website brand → real network favicon, falling back to its bundled/drawn
+ *    mark when the fetch fails (offline still shows the brand).
+ * 2. App / browser brand → bundled or drawn mark (no favicon exists).
+ * 3. Installed desktop application icon.
+ * 4. Network favicon for generic hosts.
+ * If none produces a real icon, falls back to the primary site's monogram.
+ *
+ * faviconSrc holds a resolved image (network favicon or installed-app icon)
+ * and, when set, takes precedence over the brand mark in the template.
  */
 const faviconSrc = ref<string | null>(null)
 let resolveSeq = 0
@@ -97,7 +106,30 @@ watch(
     for (const candidate of sites) {
       const identity = resolveAppSiteIdentity(candidate)
 
-      // 1. Built-in brand icon (SVG or BRAND_IMAGES)
+      // 1. Website brand WITHOUT a crisp bundled image (bilibili / google-docs
+      // / notion / figma / slack): prefer the real network favicon over the
+      // rough drawn approximation; on failure keep the candidate so the drawn
+      // mark renders as the offline fallback. Website brands that DO ship a
+      // bundled PNG (github / youtube / chatgpt / …) skip this and use the
+      // crisp asset below, matching Dayflow's brand-first order.
+      if (
+        isWebsiteKind(identity.kind) &&
+        BRAND_IMAGES[identity.kind] === undefined &&
+        hostOf(candidate) !== null
+      ) {
+        let dataUrl: string | null = null
+        try {
+          dataUrl = await fetchFaviconDataUrl(candidate)
+        } catch {
+          dataUrl = null
+        }
+        if (seq !== resolveSeq) return
+        activeSite.value = candidate
+        faviconSrc.value = dataUrl
+        return
+      }
+
+      // 2. App / browser brand: bundled or drawn mark.
       if (identity.kind !== 'generic') {
         if (seq !== resolveSeq) return
         activeSite.value = candidate
@@ -105,7 +137,7 @@ watch(
         return
       }
 
-      // 2. Installed desktop application icon (e.g. "Microsoft Edge", "Clash Verge")
+      // 3. Installed desktop application icon (e.g. "Microsoft Edge", "Clash Verge")
       try {
         const appIcon = await matchInstalledAppIcon(candidate)
         if (seq !== resolveSeq) return
@@ -118,7 +150,7 @@ watch(
         // Fall through to favicon
       }
 
-      // 3. Network favicon
+      // 4. Network favicon
       if (hostOf(candidate) !== null) {
         try {
           const dataUrl = await fetchFaviconDataUrl(candidate)
@@ -142,6 +174,11 @@ watch(
   { immediate: true, deep: true },
 )
 
+// A resolved favicon (network or installed-app) wins over the brand mark; the
+// bundled brand image renders only when no favicon was resolved.
+const showFavicon = computed(() => faviconSrc.value !== null)
+const showBrandImage = computed(() => !showFavicon.value && brandImage.value !== null)
+
 const iconStyle = computed<CSSProperties>(() => ({
   width: `${props.size}px`,
   height: `${props.size}px`,
@@ -152,13 +189,15 @@ const iconStyle = computed<CSSProperties>(() => ({
 <template>
   <span
     class="app-site-icon"
-    :class="[`app-site-icon--${activeIdentity.kind}`, { 'is-raw': brandImage !== null }]"
+    :class="[`app-site-icon--${activeIdentity.kind}`, { 'is-raw': showBrandImage }]"
     :style="iconStyle"
     role="img"
     :aria-label="activeIdentity.label"
     :title="activeIdentity.label"
   >
-    <img v-if="brandImage" class="app-site-icon__favicon" :src="brandImage" alt="" draggable="false">
+    <img v-if="showFavicon" class="app-site-icon__favicon" :src="faviconSrc!" alt="" draggable="false">
+
+    <img v-else-if="showBrandImage" class="app-site-icon__favicon" :src="brandImage!" alt="" draggable="false">
 
     <svg v-else-if="activeIdentity.kind === 'daygo'" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="6" y="12" width="2.8" height="6" rx="1.4" opacity=".68" />
@@ -259,7 +298,6 @@ const iconStyle = computed<CSSProperties>(() => ({
       <path d="M8 17V7.5h2.5l5 6.6V7.5H18V17h-2.4l-5.1-6.7V17H8Z" />
     </svg>
 
-    <img v-else-if="faviconSrc !== null" class="app-site-icon__favicon" :src="faviconSrc" alt="" draggable="false">
     <span v-else class="app-site-icon__monogram" aria-hidden="true">{{ activeIdentity.monogram }}</span>
   </span>
 </template>
@@ -290,7 +328,7 @@ const iconStyle = computed<CSSProperties>(() => ({
 .app-site-icon--daygo { background: #4b79a6; color: white; }
 .app-site-icon--google-docs { background: #4285f4; color: white; }
 .app-site-icon--discord { background: #5865f2; color: white; }
-.app-site-icon--bilibili { background: #00aeec; color: white; }
+.app-site-icon--bilibili { color: #00aeec; }
 .app-site-icon--gemini { background: #1a73e8; color: white; }
 .app-site-icon--notion { background: #fff; color: #111; }
 

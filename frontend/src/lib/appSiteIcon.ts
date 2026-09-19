@@ -99,6 +99,30 @@ export function isBrowserName(name: string): boolean {
   return BROWSER_NAMES.has(name.trim().toLowerCase())
 }
 
+/*
+ * Website brands resolve to their real network favicon first (the true logo),
+ * falling back to the bundled/drawn mark only when the fetch fails. App and
+ * browser brands (safari / chrome / vscode / xcode / terminal / …) have no
+ * favicon and always use their bundled/drawn mark.
+ */
+const WEBSITE_KINDS: ReadonlySet<AppSiteIconKind> = new Set([
+  'bilibili',
+  'github',
+  'youtube',
+  'chatgpt',
+  'claude',
+  'gemini',
+  'google-docs',
+  'notion',
+  'discord',
+  'figma',
+  'slack',
+])
+
+export function isWebsiteKind(kind: AppSiteIconKind): boolean {
+  return WEBSITE_KINDS.has(kind)
+}
+
 /**
  * Extracts a display host only. The result is never turned into a request URL;
  * appSites is model-produced, untrusted activity metadata.
