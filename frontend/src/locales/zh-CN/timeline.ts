@@ -102,6 +102,7 @@ export default {
     title: '分析未完成',
     detailTitle: '失败详情',
     retry: '重试这个失败时段',
+    retryAll: '重试全部失败时段（{count}）',
     retrying: '正在重试…',
     retryUnavailable: '批次重试绑定尚未交付或当前实例只读',
     retryHint: '失败时段可在这里重新提交分析。',

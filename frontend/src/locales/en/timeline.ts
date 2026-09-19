@@ -104,6 +104,7 @@ export default {
     title: 'Analysis incomplete',
     detailTitle: 'Failure details',
     retry: 'Retry this failed range',
+    retryAll: 'Retry all failed ranges ({count})',
     retrying: 'Retrying…',
     retryUnavailable: 'Batch retry is not connected or this instance is read-only',
     retryHint: 'Failed ranges can be resubmitted for analysis here.',

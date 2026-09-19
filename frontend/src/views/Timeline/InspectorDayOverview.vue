@@ -11,7 +11,7 @@ import type { TimelineAction } from '@/stores/timeline'
 import GoalEditor from './GoalEditor.vue'
 import type { ReviewTotals } from './review'
 import { safeCategoryColor } from './layout'
-import { buildDonutSectors, type DonutSector, type DonutSlice } from './donut'
+import { buildDonutSectors, fullRingPath, type DonutSector, type DonutSlice } from './donut'
 
 /*
  * The inspector's no-selection pane, laid out like the Dayflow reference:
@@ -45,6 +45,14 @@ const duration = useDurationFormat()
 // with batches gets a manual retry button regardless of that flag.
 const failuresWithBatches = computed(() =>
   props.day.failures.filter((failure) => failure.batchIds.length > 0),
+)
+
+// A single retry submits every failed range's batches at once. The backend
+// requeues them to pending and the scheduler works through them one tick at a
+// time (respecting rate-limit pacing), so this is a sequential retry of all
+// failures behind one button rather than a button per range.
+const allFailedBatchIds = computed(() =>
+  failuresWithBatches.value.flatMap((failure) => failure.batchIds),
 )
 
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
@@ -127,6 +135,15 @@ const donutSectors = computed<DonutSector[]>(() =>
   buildDonutSectors(donutSlices.value),
 )
 
+// Annulus that the volume/gloss overlays paint over — matches the sectors'
+// outer 102.5 / inner 76.875 (0.75) band so the sheen never bleeds into the hole.
+const OVERLAY_RING = fullRingPath(102.5, 102.5, 102.5, 76.875)
+
+// Sectors and legend chips share the donutSlices order 1:1 (every slice has
+// positive minutes), so a single hovered index links the two: the matching
+// wedge lifts to full strength while the rest recede.
+const activeSlice = ref<number | null>(null)
+
 /*
  * The review split (你的回顾): session judgments only, one rounded block per
  * verdict on a grey track, widths proportional to minutes. Zero-state shows
@@ -154,12 +171,31 @@ const reviewSegments = computed(() => [
     </div>
   </header>
 
-  <div class="donut" role="img" :aria-label="t('timeline.overview.donutAria')">
+  <div
+    class="donut"
+    :class="{ 'donut--focused': activeSlice !== null }"
+    role="img"
+    :aria-label="t('timeline.overview.donutAria')"
+  >
     <svg viewBox="0 0 205 205" aria-hidden="true">
       <defs>
-        <radialGradient id="donut-sheen" cx="50%" cy="50%" r="50%">
-          <stop offset="76%" stop-color="rgba(255, 255, 255, 0.35)" />
-          <stop offset="100%" stop-color="rgba(255, 255, 255, 0)" />
+        <!-- Top-lit volume: a white crown fading to a shaded base, blended
+             over the wedges so any hue reads as a rounded band. -->
+        <linearGradient id="donut-volume" x1="0" y1="0" x2="0" y2="1">
+          <stop class="donut-stop--crown" offset="0%" />
+          <stop class="donut-stop--fade" offset="52%" />
+          <stop class="donut-stop--base" offset="100%" />
+        </linearGradient>
+        <!-- Specular pool near the upper-left, matching the panel light. -->
+        <radialGradient id="donut-sheen" cx="34%" cy="26%" r="72%">
+          <stop class="donut-stop--sheen-in" offset="0%" />
+          <stop class="donut-stop--sheen-out" offset="60%" />
+        </radialGradient>
+        <!-- Soft contact shadow hugging the inner edge of the ring. -->
+        <radialGradient id="donut-inner-shade" cx="50%" cy="50%" r="50%">
+          <stop offset="70%" stop-color="rgba(20, 22, 40, 0)" />
+          <stop class="donut-stop--rim" offset="75%" />
+          <stop offset="80%" stop-color="rgba(20, 22, 40, 0)" />
         </radialGradient>
       </defs>
       <!-- Grey base circle with the soft ambient shadow. -->
@@ -170,17 +206,25 @@ const reviewSegments = computed(() => [
         <path
           v-for="(sector, index) in donutSectors"
           :key="index"
+          class="donut__sector"
+          :class="{
+            'is-active': activeSlice === index,
+            'is-muted': activeSlice !== null && activeSlice !== index,
+          }"
           :d="sector.path"
           :fill="sector.color"
           :stroke="sector.color"
           stroke-width="6"
           stroke-linejoin="round"
+          @mouseenter="activeSlice = index"
+          @mouseleave="activeSlice = null"
         />
       </g>
-      <!-- White radial sheen from the inner edge fading outward. -->
-      <circle cx="102.5" cy="102.5" r="102.5" fill="url(#donut-sheen)" />
-      <!-- White center disk, slightly smaller than the hole: leaves the grey
-           gap ring on the inner edge like the reference. -->
+      <!-- Volume + specular gloss painted only over the ring band. -->
+      <path class="donut__volume" :d="OVERLAY_RING" fill="url(#donut-volume)" />
+      <path class="donut__sheen" :d="OVERLAY_RING" fill="url(#donut-sheen)" />
+      <!-- Contact shadow at the hole, then the raised white center disk. -->
+      <circle cx="102.5" cy="102.5" r="102.5" fill="url(#donut-inner-shade)" />
       <circle class="donut__center-disk" cx="102.5" cy="102.5" r="73" />
     </svg>
     <div class="donut__center">
@@ -193,7 +237,17 @@ const reviewSegments = computed(() => [
     <p v-if="donutSlices.length === 0" class="donut-legend__empty">
       {{ t('timeline.overview.noCategories') }}
     </p>
-    <div v-for="slice in donutSlices" :key="slice.label" class="legend-chip">
+    <div
+      v-for="(slice, index) in donutSlices"
+      :key="slice.label"
+      class="legend-chip"
+      :class="{
+        'is-active': activeSlice === index,
+        'is-muted': activeSlice !== null && activeSlice !== index,
+      }"
+      @mouseenter="activeSlice = index"
+      @mouseleave="activeSlice = null"
+    >
       <span class="legend-chip__name">
         <i :style="{ background: slice.color }"></i>
         {{ slice.label }}
@@ -242,15 +296,13 @@ const reviewSegments = computed(() => [
     <h3>{{ t('timeline.failure.title') }}</h3>
     <p class="inspector__failure-note">{{ t('timeline.failure.retryHint') }}</p>
     <button
-      v-for="failure in failuresWithBatches"
-      :key="`${failure.startTs}-${failure.endTs}`"
       type="button"
       class="dg-button inspector__retry"
       :disabled="!canRetry || props.pendingAction !== null"
-      :title="canRetry ? t('timeline.failure.retry') : t('timeline.failure.retryUnavailable')"
-      @click="emit('retry', failure.batchIds)"
+      :title="canRetry ? t('timeline.failure.retryAll', { count: failuresWithBatches.length }) : t('timeline.failure.retryUnavailable')"
+      @click="emit('retry', allFailedBatchIds)"
     >
-      {{ props.pendingAction === 'retry-batches' ? t('timeline.failure.retrying') : t('timeline.failure.retry') }}
+      {{ props.pendingAction === 'retry-batches' ? t('timeline.failure.retrying') : t('timeline.failure.retryAll', { count: failuresWithBatches.length }) }}
     </button>
   </section>
 
@@ -278,9 +330,10 @@ const reviewSegments = computed(() => [
 
 .goal-state span { color: var(--dg-text-secondary); font-size: 11px; }
 
-/* Dayflow-spec donut: grey base circle + ambient shadow, 80%-opacity
-   sectors with rounded caps, white radial sheen, and a white center disk
-   that leaves a grey gap ring on the inner edge. */
+/* Dayflow-lineage donut, given depth: a grey base with ambient shadow, tinted
+   wedges carrying a top-lit volume gradient and an upper-left specular pool,
+   a contact shadow at the hole and a raised white center disk. Hovering a
+   wedge or its legend chip lifts that slice and lets the others recede. */
 .donut {
   position: relative;
   width: 205px;
@@ -293,20 +346,84 @@ const reviewSegments = computed(() => [
   /* The base circle fills the viewBox exactly, so its drop-shadow lives
      outside the viewport — let it render instead of clipping. */
   overflow: visible;
+  animation: donut-rise var(--dg-motion-slow) var(--dg-ease-glide) both;
 }
 
 .donut__base {
-  fill: #f1f1f4;
-  filter: drop-shadow(0 0 10px rgba(45, 50, 80, 0.18));
+  fill: #ececf1;
+  filter: drop-shadow(0 6px 16px rgba(45, 50, 80, 0.2));
 }
 
-:root[data-dg-appearance='dark'] .donut__base { fill: #26262c; }
-
-.donut__sectors path {
-  fill-opacity: 0.8;
+:root[data-dg-appearance='dark'] .donut__base {
+  fill: #24242a;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5));
 }
 
-.donut__center-disk { fill: var(--dg-surface, #ffffff); }
+.donut__sector {
+  fill-opacity: 0.86;
+  transform-origin: 102.5px 102.5px;
+  transition:
+    fill-opacity var(--dg-motion-base) var(--dg-ease-out),
+    transform var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+.donut__sector.is-active {
+  fill-opacity: 1;
+  transform: scale(1.035);
+}
+
+.donut__sector.is-muted {
+  fill-opacity: 0.3;
+}
+
+/* Volume + gloss overlays sit above the wedges but must not eat pointer
+   events aimed at them. soft-light keeps the wedge hue while shaping light. */
+.donut__volume,
+.donut__sheen {
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+}
+
+.donut__sheen { mix-blend-mode: screen; opacity: 0.7; }
+
+:root[data-dg-appearance='dark'] .donut__sheen { opacity: 0.4; }
+
+.donut-stop--crown { stop-color: rgba(255, 255, 255, 0.6); }
+.donut-stop--fade { stop-color: rgba(255, 255, 255, 0); }
+.donut-stop--base { stop-color: rgba(10, 12, 26, 0.32); }
+.donut-stop--sheen-in { stop-color: rgba(255, 255, 255, 0.55); }
+.donut-stop--sheen-out { stop-color: rgba(255, 255, 255, 0); }
+.donut-stop--rim { stop-color: rgba(20, 22, 40, 0.16); }
+
+:root[data-dg-appearance='dark'] .donut-stop--crown { stop-color: rgba(255, 255, 255, 0.28); }
+:root[data-dg-appearance='dark'] .donut-stop--base { stop-color: rgba(0, 0, 0, 0.4); }
+:root[data-dg-appearance='dark'] .donut-stop--rim { stop-color: rgba(0, 0, 0, 0.34); }
+
+.donut__center-disk {
+  fill: var(--dg-surface, #ffffff);
+  filter: drop-shadow(0 1px 3px rgba(45, 50, 80, 0.14));
+}
+
+:root[data-dg-appearance='dark'] .donut__center-disk {
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.45));
+}
+
+@keyframes donut-rise {
+  from {
+    opacity: 0;
+    transform: scale(0.94) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .donut svg { animation: none; }
+  .donut__sector { transition: fill-opacity var(--dg-motion-base) var(--dg-ease-out); }
+  .donut__sector.is-active { transform: none; }
+}
 
 .donut__center {
   position: absolute;
@@ -320,18 +437,20 @@ const reviewSegments = computed(() => [
 }
 
 .donut__total-label {
-  color: #b1b1b1;
-  font-size: 12px;
+  color: var(--dg-text-muted);
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .donut__center strong {
   color: var(--dg-text-primary);
   font-family: var(--dg-font-reading);
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 450;
-  line-height: 1.25;
+  line-height: 1.22;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Two-line legend chips: swatch + name, duration beneath. */
@@ -354,7 +473,17 @@ const reviewSegments = computed(() => [
   justify-items: center;
   gap: 2px;
   min-width: 84px;
+  padding: 3px 8px;
+  border-radius: 9px;
+  cursor: default;
+  transition:
+    background var(--dg-motion-base) var(--dg-ease-out),
+    opacity var(--dg-motion-base) var(--dg-ease-out);
 }
+
+.legend-chip.is-active { background: var(--dg-hover-fill); }
+
+.legend-chip.is-muted { opacity: 0.4; }
 
 .legend-chip__name {
   display: inline-flex;
