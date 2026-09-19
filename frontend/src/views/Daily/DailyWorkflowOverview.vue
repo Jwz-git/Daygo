@@ -142,7 +142,7 @@ function onDistractionEnter(
     index: -1,
     color: '#FF653B',
     minutes: duration(marker.durationMinutes),
-    title: marker.title,
+    title: marker.title || t('timeline.category.distraction'),
     x: rect.left + rect.width / 2,
     y: rect.top,
   }

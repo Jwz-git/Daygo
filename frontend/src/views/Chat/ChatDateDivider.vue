@@ -7,7 +7,7 @@ const props = defineProps<{
   timestamp: number
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const label = computed(() => {
   const now = Date.now()
@@ -22,14 +22,14 @@ const label = computed(() => {
 
   // format as locale date
   return new Intl.DateTimeFormat(
-    navigator.language,
+    locale.value,
     { month: 'short', day: 'numeric', year: 'numeric' },
   ).format(new Date(props.timestamp))
 })
 </script>
 
 <template>
-  <div class="date-divider" role="separator" aria-label="label">
+  <div class="date-divider" role="separator" :aria-label="label">
     <span class="date-divider__line" />
     <span class="date-divider__label">{{ label }}</span>
     <span class="date-divider__line" />

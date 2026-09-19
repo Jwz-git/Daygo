@@ -25,6 +25,7 @@
  * click would only reveal the component's internal pen.
  */
 import { nextTick, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   title: string
@@ -132,7 +133,7 @@ function onBlur(): void {
   if (editing.value) confirm()
 }
 
-const editLabel = 'rename'
+const { t } = useI18n()
 </script>
 
 <template>
@@ -146,8 +147,8 @@ const editLabel = 'rename'
         v-if="!props.disabled"
         type="button"
         class="ct__edit"
-        :aria-label="editLabel"
-        :title="editLabel"
+        :aria-label="t('chat.rename')"
+        :title="t('chat.rename')"
         @click="beginEdit"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">

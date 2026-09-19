@@ -239,7 +239,7 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
         if (clippedEnd > clippedStart) {
           rawMarkers.push({
             id: `distraction-macro-${rawMarkers.length}`,
-            title: card.title || 'Distraction',
+            title: card.title,
             startTs: clippedStart,
             endTs: clippedEnd,
             durationMinutes: Math.max(1, Math.round((clippedEnd - clippedStart) / 60)),
@@ -272,7 +272,7 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
           if (clippedEnd > clippedStart) {
             rawMarkers.push({
               id: `distraction-mini-${rawMarkers.length}`,
-              title: distraction.title || 'Distraction',
+              title: distraction.title,
               startTs: clippedStart,
               endTs: clippedEnd,
               durationMinutes: Math.max(1, Math.round((clippedEnd - clippedStart) / 60)),
@@ -301,7 +301,7 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
       } else {
         distractionMarkers.push({
           id: `distraction-merged-${distractionMarkers.length}`,
-          title: currentTitles.join(', '),
+          title: currentTitles.filter(Boolean).join(', '),
           startTs: currentStart,
           endTs: currentEnd,
           durationMinutes: Math.max(1, Math.round((currentEnd - currentStart) / 60)),
@@ -313,7 +313,7 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
     }
     distractionMarkers.push({
       id: `distraction-merged-${distractionMarkers.length}`,
-      title: currentTitles.join(', '),
+      title: currentTitles.filter(Boolean).join(', '),
       startTs: currentStart,
       endTs: currentEnd,
       durationMinutes: Math.max(1, Math.round((currentEnd - currentStart) / 60)),

@@ -18,7 +18,7 @@ const emit = defineEmits<{
   copy: [text: string]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const copied = ref(false)
 const codeCopied = ref<Record<number, boolean>>({})
 
@@ -64,7 +64,7 @@ function escapeHtml(s: string): string {
 
 const timeLabel = computed(() => {
   if (!props.timestamp) return ''
-  return new Intl.DateTimeFormat(navigator.language, {
+  return new Intl.DateTimeFormat(locale.value, {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
