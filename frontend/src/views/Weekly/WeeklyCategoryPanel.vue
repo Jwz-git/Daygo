@@ -37,7 +37,9 @@ const arcs = computed(() => {
 const totalDuration = computed(() => duration(props.presentation.trackedMinutes))
 
 function sliceColor(category: WeeklyCategoryPresentation): string {
-  return `var(--dg-weekly-series-${category.seriesIndex + 1})`
+  // Always the user-configured category colour (validated in the presentation
+  // layer, grey fallback), so the weekly page matches the timeline and daily.
+  return category.colorHex
 }
 </script>
 
@@ -54,7 +56,28 @@ function sliceColor(category: WeeklyCategoryPresentation): string {
     <div class="categories__body">
       <div class="donut" role="img" :aria-label="t('weekly.categories.distributionAria')">
         <svg viewBox="0 0 42 42" class="donut__svg">
+          <defs>
+            <!-- Soft inner glow band tracing each slice edge (dayflow signature). -->
+            <filter id="weeklyDonutGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="0.85" />
+            </filter>
+          </defs>
           <circle class="donut__track" cx="21" cy="21" :r="RADIUS" fill="none" />
+          <g class="donut__glow" filter="url(#weeklyDonutGlow)" aria-hidden="true">
+            <circle
+              v-for="arc in arcs"
+              :key="arc.category.name"
+              class="donut__slice"
+              :class="{ 'donut__slice--idle': arc.category.name === 'Idle' }"
+              cx="21"
+              cy="21"
+              :r="RADIUS"
+              fill="none"
+              :stroke="sliceColor(arc.category)"
+              :stroke-dasharray="`${arc.length} ${100 - arc.length}`"
+              :stroke-dashoffset="arc.offset"
+            />
+          </g>
           <circle
             v-for="arc in arcs"
             :key="arc.category.name"
@@ -110,18 +133,24 @@ function sliceColor(category: WeeklyCategoryPresentation): string {
 }
 
 .categories__header p {
-  color: var(--dg-accent-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--dg-weekly-tag-fill);
+  color: var(--dg-weekly-tag-text);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .categories__header h2 {
-  margin-top: 4px;
+  margin-top: 7px;
   color: var(--dg-text-primary);
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.012em;
+  font-family: var(--dg-font-serif);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .categories__header > span { color: var(--dg-text-muted); font-size: 11px; }
@@ -154,19 +183,32 @@ function sliceColor(category: WeeklyCategoryPresentation): string {
 
 .donut__slice--idle { opacity: 0.55; }
 
+/* Blurred duplicate of the slices, sitting under the crisp ring, so each
+   sector edge carries a soft bloom in its own colour. */
+.donut__glow { opacity: 0.6; }
+
 .donut__center {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-content: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 6px;
   text-align: center;
 }
 
+/* Capped to the ring's inner width so long totals ("80 小时 45 分钟") wrap
+   inside the donut instead of spilling past the diameter. */
 .donut__center strong {
+  max-width: 100px;
   color: var(--dg-text-primary);
-  font-size: 16px;
-  font-weight: 620;
-  letter-spacing: -0.02em;
+  font-family: var(--dg-font-serif);
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: 0;
 }
 
 .donut__center span {

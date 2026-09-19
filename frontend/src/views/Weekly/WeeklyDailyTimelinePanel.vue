@@ -38,7 +38,7 @@ function segmentStyle(segment: { startMinute: number; endMinute: number; colorHe
   return {
     left: `${left}%`,
     width: `${width}%`,
-    background: segment.colorHex || undefined,
+    background: segment.colorHex,
   }
 }
 
@@ -82,7 +82,7 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
               v-for="(segment, index) in day.segments"
               :key="index"
               class="daily__segment"
-              :class="{ 'daily__segment--idle': segment.isIdle, [`series-${(index % 6) + 1}`]: !segment.colorHex }"
+              :class="{ 'daily__segment--idle': segment.isIdle }"
               :style="segmentStyle(segment)"
               :title="segmentTitle(day.day, segment)"
             />
@@ -107,7 +107,7 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
 
     <div class="daily__legend">
       <span v-for="category in presentation.categories" :key="category.name">
-        <i :style="{ background: category.colorHex || undefined }" :class="`series-${category.seriesIndex + 1}`" />
+        <i :style="{ background: category.colorHex }" />
         {{ categoryLabel(category.name, t) }}
       </span>
     </div>
@@ -126,18 +126,24 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
 }
 
 .daily__header p {
-  color: var(--dg-accent-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--dg-weekly-tag-fill);
+  color: var(--dg-weekly-tag-text);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .daily__header h2 {
-  margin-top: 4px;
+  margin-top: 7px;
   color: var(--dg-text-primary);
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.012em;
+  font-family: var(--dg-font-serif);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .daily__header > span { color: var(--dg-text-muted); font-size: 10px; }
@@ -232,13 +238,6 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
   height: 10px;
   border-radius: 3px;
 }
-
-.series-1 { background: var(--dg-weekly-series-1); }
-.series-2 { background: var(--dg-weekly-series-2); }
-.series-3 { background: var(--dg-weekly-series-3); }
-.series-4 { background: var(--dg-weekly-series-4); }
-.series-5 { background: var(--dg-weekly-series-5); }
-.series-6 { background: var(--dg-weekly-series-6); }
 
 @media (prefers-reduced-motion: no-preference) {
   .daily__segment {

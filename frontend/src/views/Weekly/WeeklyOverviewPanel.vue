@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { useDurationFormat } from '@/lib/duration'
 import type { WeeklyPresentation } from '@/stores/weeklyPresentation'
 import { percentageLabel } from '@/stores/weeklyPresentation'
@@ -18,7 +19,7 @@ const ringStyle = computed(() => ({
 </script>
 
 <template>
-  <section class="overview dg-card" :aria-label="t('weekly.overview.title')">
+  <LiquidGlassSurface intensity="air" as="section" class="overview" :aria-label="t('weekly.overview.title')">
     <div class="overview__header">
       <div>
         <p class="overview__eyebrow">{{ t('weekly.overview.eyebrow') }}</p>
@@ -55,7 +56,7 @@ const ringStyle = computed(() => ({
         </div>
       </dl>
     </div>
-  </section>
+  </LiquidGlassSurface>
 </template>
 
 <style scoped>
@@ -71,18 +72,24 @@ const ringStyle = computed(() => ({
 }
 
 .overview__eyebrow {
-  color: var(--dg-accent-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--dg-weekly-tag-fill);
+  color: var(--dg-weekly-tag-text);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .overview h2 {
-  margin-top: 4px;
+  margin-top: 7px;
   color: var(--dg-text-primary);
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.012em;
+  font-family: var(--dg-font-serif);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .overview__header > p {
@@ -127,9 +134,11 @@ const ringStyle = computed(() => ({
 
 .focus-ring strong {
   color: var(--dg-text-primary);
-  font-size: 27px;
-  font-weight: 620;
-  letter-spacing: -0.03em;
+  font-family: var(--dg-font-serif);
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 .focus-ring span {
@@ -160,11 +169,12 @@ const ringStyle = computed(() => ({
 }
 
 .metrics dd {
-  margin-top: 7px;
+  margin-top: 6px;
   color: var(--dg-text-primary);
-  font-size: 17px;
-  font-weight: 620;
-  letter-spacing: -0.015em;
+  font-family: var(--dg-font-serif);
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 

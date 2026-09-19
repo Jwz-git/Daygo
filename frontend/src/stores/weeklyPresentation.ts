@@ -67,6 +67,16 @@ function finiteNonNegative(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0
 }
 
+/*
+ * Validate a category colour, falling back to the same neutral grey the daily
+ * view uses (safeColor in stores/daily.ts) so a custom or uncoloured category
+ * renders identically across Daily and Weekly instead of being assigned an
+ * arbitrary synthetic series colour. Idle passes its own lighter grey.
+ */
+function safeCategoryColor(value: string | undefined, fallback = '#7D7A84'): string {
+  return value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback
+}
+
 function clampedShare(value: number): number {
   return Math.min(1, finiteNonNegative(value))
 }
@@ -99,7 +109,7 @@ function presentationCategory(
     name: name.trim(),
     minutes: finiteNonNegative(minutes),
     share: clampedShare(share),
-    colorHex: colorHex,
+    colorHex: safeCategoryColor(colorHex),
     seriesIndex,
   }
 }
@@ -129,9 +139,10 @@ export function buildWeeklyPresentation(dashboard: WeeklyDashboardDTO): WeeklyPr
         const minutes = finiteNonNegative((segment.endTs - segment.startTs) / 60)
         return {
           category: segment.category,
-          colorHex: segment.category === 'Idle'
-            ? (categoryColors.get(segment.category) ?? '#C7C7CC')
-            : categoryColors.get(segment.category) ?? '',
+          colorHex: safeCategoryColor(
+            categoryColors.get(segment.category),
+            segment.category === 'Idle' ? '#C7C7CC' : '#7D7A84',
+          ),
           isIdle: segment.isIdle,
           startMinute: localMinuteOfDay(segment.startTs),
           endMinute: localMinuteOfDay(segment.startTs) + minutes,

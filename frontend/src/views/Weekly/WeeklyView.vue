@@ -135,17 +135,24 @@ onBeforeUnmount(() => weekly.stopListening())
 }
 
 .weekly-intro span {
-  color: var(--dg-accent-text);
-  font-size: 11px;
-  font-weight: 650;
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--dg-weekly-tag-fill);
+  color: var(--dg-weekly-tag-text);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .weekly-intro h2 {
-  margin-top: 4px;
+  margin-top: 8px;
   color: var(--dg-text-primary);
-  font-size: 22px;
-  font-weight: 650;
-  letter-spacing: -0.015em;
+  font-family: var(--dg-font-serif);
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .weekly-intro p { color: var(--dg-text-tertiary); font-size: 12px; line-height: 1.55; }

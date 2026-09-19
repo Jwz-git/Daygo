@@ -97,18 +97,24 @@ const dayWidthStyle = (bar: { total: number }) => ({
 }
 
 .rhythm__header p {
-  color: var(--dg-accent-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--dg-weekly-tag-fill);
+  color: var(--dg-weekly-tag-text);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .rhythm__header h2 {
-  margin-top: 4px;
+  margin-top: 7px;
   color: var(--dg-text-primary);
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.012em;
+  font-family: var(--dg-font-serif);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .rhythm__legend {

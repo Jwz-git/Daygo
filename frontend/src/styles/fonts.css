@@ -16,6 +16,15 @@
   font-display: block;
 }
 
+/* Editorial serif for large display numerals (weekly hero totals). */
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('../assets/fonts/InstrumentSerif-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --dg-font-ui:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
@@ -28,6 +37,7 @@
   --dg-font-display-weight: 650;
   --dg-font-display-tracking: -0.02em;
   --dg-font-reading: 'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB', serif;
+  --dg-font-serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino', 'Georgia', serif;
 }
 
 :root[data-dg-lang-script='hans'] {

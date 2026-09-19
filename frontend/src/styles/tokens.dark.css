@@ -149,6 +149,9 @@
   --dg-weekly-ring-glow: rgba(75, 141, 240, 0.22);
   --dg-weekly-summary-fill: rgba(0, 0, 0, 0.15);
   --dg-weekly-bar-track: rgba(255, 255, 255, 0.055);
+  /* Eyebrow/tag chip: soft accent wash behind uppercase section labels. */
+  --dg-weekly-tag-fill: rgba(75, 141, 240, 0.14);
+  --dg-weekly-tag-text: #7fb0f7;
   --dg-weekly-series-1: #6d9bc3;
   --dg-weekly-series-2: #f08a5d;
   --dg-weekly-series-3: #69a58d;
