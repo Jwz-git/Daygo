@@ -8,6 +8,7 @@ import (
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/chat"
+	"github.com/Jwz-git/Daygo/internal/favicon"
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/storage"
@@ -81,6 +82,11 @@ type Backend struct {
 	mediaMu   sync.RWMutex
 	media     platform.Media
 	mediaRoot string
+
+	// favicons resolves site icons for timeline cards on the Go side. It is
+	// nil in headless construction (no support dir); the handler then 404s and
+	// the frontend renders its monogram fallback. Set once during startup.
+	favicons *favicon.Resolver
 	// no store is attached. With a store present they are ignored in favor of
 	// the real instance locks, so the reported ownership cannot drift from
 	// the locks actually held (docs/modules/data.md).

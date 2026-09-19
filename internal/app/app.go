@@ -70,6 +70,10 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	// Site favicons for timeline cards are cached under the support dir. This
+	// does not depend on the database, so a read-only second instance (which
+	// still renders cards) resolves icons too.
+	backend.attachFavicons(filepath.Join(dir, "favicons"))
 	// Capture ownership is requested at startup because this process is the
 	// one the user launched; a second instance loses the race and reports
 	// isCaptureOwner false.
@@ -157,7 +161,7 @@ func Run() error {
 			Assets: frontend.Assets,
 			// Numeric-ID screenshot frames for card playback; everything the
 			// embedded bundle does not claim falls through to this handler.
-			Handler: http.HandlerFunc(backend.serveFrame),
+			Handler: http.HandlerFunc(backend.serveAsset),
 		},
 		// System may still be nil when the current platform adapter cannot
 		// start; capability and day methods remain available in that mode.

@@ -73,12 +73,26 @@ func (b *Backend) GetCardMedia(cardID int64) (CardMediaDTO, error) {
 	return CardMediaDTO{CardID: cardID, Frames: frames}, nil
 }
 
-// serveFrame is the asset-server fallback handler: GET /media/frame?id=NNN
-// streams one screenshot. Everything else is 404. IDs are digits only, the
-// resolved path is pinned inside the recordings root by the Media adapter,
-// and frames are immutable once written, so responses may be cached.
+// serveAsset is the single AssetServer fallback handler: it dispatches the
+// custom resource routes the embedded frontend bundle does not claim. Frames
+// and favicons are served here; everything else is 404.
+func (b *Backend) serveAsset(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/media/frame":
+		b.serveFrame(w, r)
+	case "/favicon":
+		b.serveFavicon(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// serveFrame is the asset-server handler: GET /media/frame?id=NNN streams one
+// screenshot. IDs are digits only, the resolved path is pinned inside the
+// recordings root by the Media adapter, and frames are immutable once written,
+// so responses may be cached.
 func (b *Backend) serveFrame(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet || r.URL.Path != "/media/frame" {
+	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
