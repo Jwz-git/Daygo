@@ -30,6 +30,18 @@ constexpr LONGLONG kFrameDuration = 10'000'000;  // one second
 constexpr uint32_t kMaxFrames = 600;
 constexpr auto kMaxDuration = std::chrono::seconds(600);
 
+// JPEG fallback quality. Only reached when no usable video encoder exists, so
+// this trades size for the guarantee that the frame can be written at all.
+constexpr uint32_t kFallbackJPEGQuality = 90;
+
+// Segment codec, in preference order. HEVC is an optional Windows component (an
+// OEM-supplied encoder or the Store "HEVC Video Extensions" package) and is
+// missing on many machines; H.264 ships with Media Foundation on every non-N
+// edition; WIC JPEG is always present. A resident recorder must not stop because
+// the preferred encoder is absent, so the adapter resolves the best available
+// codec once and degrades instead of failing every frame.
+enum class SegmentCodec { kHevc = 0, kH264 = 1, kJpeg = 2 };
+
 std::mutex g_segment_mutex;
 ComPtr<IMFSinkWriter> g_writer;
 DWORD g_stream = 0;
@@ -37,6 +49,47 @@ uint32_t g_width = 0, g_height = 0, g_frames = 0;
 std::chrono::steady_clock::time_point g_started;
 std::wstring g_path;
 std::string g_relative;
+SegmentCodec g_codec = SegmentCodec::kHevc;
+bool g_codec_resolved = false;
+uint64_t g_segment_sequence = 0;
+
+bool segment_debug_enabled() {
+  char enabled[2] = {};
+  const DWORD count = GetEnvironmentVariableA("DAYGO_CAPTURE_DEBUG", enabled, sizeof(enabled));
+  return count == 1 && enabled[0] == '1';
+}
+
+// Reports the codec decision without leaking paths or image content. `codec` is
+// the SegmentCodec ordinal; `stage` names the transition.
+void segment_debug_codec(const char* stage, SegmentCodec codec) {
+  if (!segment_debug_enabled()) return;
+  std::fprintf(stderr, "[daygo.segment] stage=%s codec=%d\n", stage, static_cast<int>(codec));
+}
+
+const GUID& codec_subtype(SegmentCodec codec) {
+  return codec == SegmentCodec::kHevc ? MFVideoFormat_HEVC : MFVideoFormat_H264;
+}
+
+// COM must be initialized on the calling thread for WIC and Media Foundation.
+// Go goroutines migrate between OS threads, so each ABI entry point establishes
+// its own apartment for the duration of the call rather than assuming one was
+// set up earlier on this thread.
+struct ComScope {
+  HRESULT result;
+  ComScope() : result(CoInitializeEx(nullptr, COINIT_MULTITHREADED)) {}
+  ~ComScope() {
+    if (SUCCEEDED(result)) CoUninitialize();
+  }
+};
+
+bool wide_to_utf8(const std::wstring& input, std::string* output) {
+  const int bytes = WideCharToMultiByte(CP_UTF8, 0, input.c_str(), static_cast<int>(input.size()),
+                                        nullptr, 0, nullptr, nullptr);
+  if (bytes <= 0) return false;
+  output->resize(static_cast<size_t>(bytes));
+  return WideCharToMultiByte(CP_UTF8, 0, input.c_str(), static_cast<int>(input.size()),
+                             output->data(), bytes, nullptr, nullptr) == bytes;
+}
 
 std::wstring widen(dg_capture_string_view_v1 view) {
   if (!view.data || view.len == 0 || view.len > 32768) return {};
@@ -93,34 +146,42 @@ HRESULT finish_writer() {
   return hr;
 }
 
-HRESULT start_writer(const std::wstring& root, uint32_t width, uint32_t height) {
-  if (!ensure_mf()) return E_FAIL;
+// segment_name produces a unique path for a new segment under `root`. The
+// in-process sequence keeps segments built within the same millisecond distinct.
+bool segment_name(const std::wstring& root, const wchar_t* extension, std::wstring* path,
+                  std::string* relative) {
   std::error_code ec;
-  fs::create_directories(fs::path(root) / L"segments", ec);
-  if (ec) return HRESULT_FROM_WIN32(ec.value());
+  const fs::path directory = fs::path(root) / L"segments";
+  fs::create_directories(directory, ec);
+  if (ec) return false;
   const auto stamp = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::system_clock::now().time_since_epoch()).count();
-  wchar_t name[128]{};
-  swprintf_s(name, L"daygo-%lld-%lu.mp4", static_cast<long long>(stamp), GetCurrentProcessId());
-  g_path = (fs::path(root) / L"segments" / name).wstring();
-  std::string utf8Name;
-  const int bytes = WideCharToMultiByte(CP_UTF8, 0, name, -1, nullptr, 0, nullptr, nullptr);
-  if (bytes <= 1) return E_FAIL;
-  utf8Name.resize(bytes - 1);
-  WideCharToMultiByte(CP_UTF8, 0, name, static_cast<int>(wcslen(name)), utf8Name.data(), bytes - 1, nullptr, nullptr);
-  g_relative = "segments/" + utf8Name;
+  wchar_t name[160]{};
+  swprintf_s(name, L"daygo-%lld-%lu-%llu.%s", static_cast<long long>(stamp),
+             GetCurrentProcessId(), static_cast<unsigned long long>(++g_segment_sequence), extension);
+  std::string utf8_name;
+  if (!wide_to_utf8(name, &utf8_name)) return false;
+  *path = (directory / name).wstring();
+  *relative = "segments/" + utf8_name;
+  return true;
+}
 
-  HRESULT hr = MFCreateSinkWriterFromURL(g_path.c_str(), nullptr, nullptr, &g_writer);
+// build_writer creates a sink writer for `codec` at `path` and starts it. Every
+// failure path releases the writer and deletes the partial file, so the caller
+// can try the next codec at the same path without leaving debris behind.
+HRESULT build_writer(const std::wstring& path, uint32_t width, uint32_t height,
+                     SegmentCodec codec, ComPtr<IMFSinkWriter>* writer, DWORD* stream) {
+  HRESULT hr = MFCreateSinkWriterFromURL(path.c_str(), nullptr, nullptr, &(*writer));
   ComPtr<IMFMediaType> output;
   if (SUCCEEDED(hr)) hr = MFCreateMediaType(&output);
   if (SUCCEEDED(hr)) hr = output->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-  if (SUCCEEDED(hr)) hr = output->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_HEVC);
+  if (SUCCEEDED(hr)) hr = output->SetGUID(MF_MT_SUBTYPE, codec_subtype(codec));
   if (SUCCEEDED(hr)) hr = output->SetUINT32(MF_MT_AVG_BITRATE, std::max<uint32_t>(1'000'000, width * height * 2));
   if (SUCCEEDED(hr)) hr = MFSetAttributeSize(output.Get(), MF_MT_FRAME_SIZE, width, height);
   if (SUCCEEDED(hr)) hr = MFSetAttributeRatio(output.Get(), MF_MT_FRAME_RATE, 1, 1);
   if (SUCCEEDED(hr)) hr = MFSetAttributeRatio(output.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
   if (SUCCEEDED(hr)) hr = output->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-  if (SUCCEEDED(hr)) hr = g_writer->AddStream(output.Get(), &g_stream);
+  if (SUCCEEDED(hr)) hr = (*writer)->AddStream(output.Get(), stream);
   ComPtr<IMFMediaType> input;
   if (SUCCEEDED(hr)) hr = MFCreateMediaType(&input);
   if (SUCCEEDED(hr)) hr = input->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
@@ -129,21 +190,148 @@ HRESULT start_writer(const std::wstring& root, uint32_t width, uint32_t height) 
   if (SUCCEEDED(hr)) hr = MFSetAttributeRatio(input.Get(), MF_MT_FRAME_RATE, 1, 1);
   if (SUCCEEDED(hr)) hr = MFSetAttributeRatio(input.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
   if (SUCCEEDED(hr)) hr = input->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-  if (SUCCEEDED(hr)) hr = g_writer->SetInputMediaType(g_stream, input.Get(), nullptr);
+  if (SUCCEEDED(hr)) hr = (*writer)->SetInputMediaType(*stream, input.Get(), nullptr);
   if (SUCCEEDED(hr)) {
-    ComPtr<ICodecAPI> codec;
-    if (SUCCEEDED(g_writer->GetServiceForStream(g_stream, GUID{}, IID_PPV_ARGS(&codec)))) {
+    ComPtr<ICodecAPI> encoder_options;
+    if (SUCCEEDED((*writer)->GetServiceForStream(*stream, GUID{}, IID_PPV_ARGS(&encoder_options)))) {
       VARIANT value{};
       value.vt = VT_UI4;
       value.ulVal = 30;
-      codec->SetValue(&CODECAPI_AVEncMPVGOPSize, &value);
+      encoder_options->SetValue(&CODECAPI_AVEncMPVGOPSize, &value);
       value.ulVal = 55;
-      codec->SetValue(&CODECAPI_AVEncCommonQuality, &value);
+      encoder_options->SetValue(&CODECAPI_AVEncCommonQuality, &value);
     }
   }
-  if (SUCCEEDED(hr)) hr = g_writer->BeginWriting();
-  if (FAILED(hr)) { finish_writer(); DeleteFileW(g_path.c_str()); return hr; }
-  g_width = width; g_height = height; g_frames = 0; g_started = std::chrono::steady_clock::now();
+  if (SUCCEEDED(hr)) hr = (*writer)->BeginWriting();
+  if (FAILED(hr)) {
+    writer->Reset();
+    *stream = 0;
+    DeleteFileW(path.c_str());
+  }
+  return hr;
+}
+
+// start_writer resolves the segment codec on first use and opens a segment.
+// MF_E_TOPO_CODEC_NOT_FOUND means no video encoder works at all on this machine,
+// which tells the caller to use the per-frame JPEG path instead.
+HRESULT start_writer(const std::wstring& root, uint32_t width, uint32_t height) {
+  if (!ensure_mf()) return E_FAIL;
+  std::wstring path;
+  std::string relative;
+  if (!segment_name(root, L"mp4", &path, &relative)) return E_FAIL;
+
+  // Once resolved, the working codec is tried first; a segment still walks the
+  // remaining lower codecs so a one-off failure does not end the process.
+  const int first = g_codec_resolved ? static_cast<int>(g_codec) : static_cast<int>(SegmentCodec::kHevc);
+  for (int index = first; index <= static_cast<int>(SegmentCodec::kH264); ++index) {
+    const SegmentCodec candidate = static_cast<SegmentCodec>(index);
+    ComPtr<IMFSinkWriter> writer;
+    DWORD stream = 0;
+    if (SUCCEEDED(build_writer(path, width, height, candidate, &writer, &stream))) {
+      g_codec = candidate;
+      g_codec_resolved = true;
+      g_writer = writer;
+      g_stream = stream;
+      g_path = path;
+      g_relative = relative;
+      g_width = width;
+      g_height = height;
+      g_frames = 0;
+      g_started = std::chrono::steady_clock::now();
+      segment_debug_codec("codec.resolved", candidate);
+      return S_OK;
+    }
+  }
+
+  g_codec = SegmentCodec::kJpeg;
+  g_codec_resolved = true;
+  segment_debug_codec("codec.resolved", SegmentCodec::kJpeg);
+  return MF_E_TOPO_CODEC_NOT_FOUND;
+}
+
+// degrade_codec steps down the preference chain after the resolved codec failed
+// to encode a real frame. Only the first frame of a segment may degrade: once
+// frames are committed to a file, switching codecs would leave a segment that no
+// single decoder can read.
+void degrade_codec() {
+  g_codec = g_codec == SegmentCodec::kHevc ? SegmentCodec::kH264 : SegmentCodec::kJpeg;
+  g_codec_resolved = true;
+}
+
+// encode_jpeg_file writes tightly packed BGRA `pixels` to `path` as a JPEG. The
+// image is encoded beside the target and published with a write-through rename,
+// so an interrupted write cannot leave a truncated frame in the segment listing.
+HRESULT encode_jpeg_file(const std::wstring& path, const std::vector<uint8_t>& pixels,
+                         uint32_t width, uint32_t height) {
+  const std::wstring temporary = path + L".partial";
+  DeleteFileW(temporary.c_str());
+  HRESULT hr = S_OK;
+  {
+    ComPtr<IWICImagingFactory> factory;
+    hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory));
+    ComPtr<IWICStream> stream;
+    if (SUCCEEDED(hr)) hr = factory->CreateStream(&stream);
+    if (SUCCEEDED(hr)) hr = stream->InitializeFromFilename(temporary.c_str(), GENERIC_WRITE);
+    ComPtr<IWICBitmapEncoder> encoder;
+    if (SUCCEEDED(hr)) hr = factory->CreateEncoder(GUID_ContainerFormatJpeg, nullptr, &encoder);
+    if (SUCCEEDED(hr)) hr = encoder->Initialize(stream.Get(), WICBitmapEncoderNoCache);
+    ComPtr<IWICBitmapFrameEncode> frame;
+    ComPtr<IPropertyBag2> options;
+    if (SUCCEEDED(hr)) hr = encoder->CreateNewFrame(&frame, &options);
+    if (SUCCEEDED(hr) && options) {
+      PROPBAG2 option{};
+      option.pstrName = const_cast<LPOLESTR>(L"ImageQuality");
+      VARIANT value;
+      VariantInit(&value);
+      value.vt = VT_R4;
+      value.fltVal = static_cast<float>(kFallbackJPEGQuality) / 100.0f;
+      options->Write(1, &option, &value);
+      VariantClear(&value);
+    }
+    if (SUCCEEDED(hr)) hr = frame->Initialize(options.Get());
+    if (SUCCEEDED(hr)) hr = frame->SetSize(width, height);
+    WICPixelFormatGUID format = GUID_WICPixelFormat24bppBGR;
+    if (SUCCEEDED(hr)) hr = frame->SetPixelFormat(&format);
+    ComPtr<IWICBitmap> bitmap;
+    if (SUCCEEDED(hr)) hr = factory->CreateBitmapFromMemory(width, height, GUID_WICPixelFormat32bppBGRA,
+                                                            width * 4, static_cast<UINT>(pixels.size()),
+                                                            const_cast<BYTE*>(pixels.data()), &bitmap);
+    ComPtr<IWICFormatConverter> converter;
+    if (SUCCEEDED(hr)) hr = factory->CreateFormatConverter(&converter);
+    if (SUCCEEDED(hr)) hr = converter->Initialize(bitmap.Get(), GUID_WICPixelFormat24bppBGR,
+                                                  WICBitmapDitherTypeNone, nullptr, 0.0,
+                                                  WICBitmapPaletteTypeCustom);
+    if (SUCCEEDED(hr)) hr = frame->WriteSource(converter.Get(), nullptr);
+    if (SUCCEEDED(hr)) hr = frame->Commit();
+    if (SUCCEEDED(hr)) hr = encoder->Commit();
+  }
+  if (SUCCEEDED(hr) && !MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_WRITE_THROUGH)) {
+    hr = HRESULT_FROM_WIN32(GetLastError());
+  }
+  if (FAILED(hr)) DeleteFileW(temporary.c_str());
+  return hr;
+}
+
+// append_jpeg_frame writes one frame as its own single-frame segment, used only
+// when no video encoder is usable. The (segment_path, frame_index) contract is
+// preserved by giving every frame a distinct path and index 0: probe, decode,
+// cleanup and amortization already handle the `.jpg` form.
+HRESULT append_jpeg_frame(const std::wstring& root, const std::vector<uint8_t>& pixels,
+                          uint32_t width, uint32_t height, uint32_t* index) {
+  std::wstring path;
+  std::string relative;
+  if (!segment_name(root, L"jpg", &path, &relative)) return E_FAIL;
+  const HRESULT hr = encode_jpeg_file(path, pixels, width, height);
+  if (FAILED(hr)) {
+    DeleteFileW(path.c_str());
+    return hr;
+  }
+  g_path = path;
+  g_relative = relative;
+  g_width = width;
+  g_height = height;
+  g_frames = 0;
+  *index = 0;
   return S_OK;
 }
 
@@ -153,7 +341,16 @@ HRESULT append_pixels(const std::wstring& root, const std::vector<uint8_t>& pixe
       std::chrono::steady_clock::now() - g_started >= kMaxDuration)) {
     const HRESULT hr = finish_writer(); if (FAILED(hr)) return hr;
   }
-  if (!g_writer) { const HRESULT hr = start_writer(root, width, height); if (FAILED(hr)) return hr; }
+  // The JPEG path owns no container writer, so the rollover above never applies
+  // to it: every frame is already its own finalized segment.
+  if (g_codec_resolved && g_codec == SegmentCodec::kJpeg) {
+    return append_jpeg_frame(root, pixels, width, height, index);
+  }
+  if (!g_writer) {
+    const HRESULT started = start_writer(root, width, height);
+    if (started == MF_E_TOPO_CODEC_NOT_FOUND) return append_jpeg_frame(root, pixels, width, height, index);
+    if (FAILED(started)) return started;
+  }
   ComPtr<IMFMediaBuffer> buffer;
   HRESULT hr = MFCreateMemoryBuffer(static_cast<DWORD>(pixels.size()), &buffer);
   BYTE* data = nullptr;
@@ -165,7 +362,18 @@ HRESULT append_pixels(const std::wstring& root, const std::vector<uint8_t>& pixe
   if (SUCCEEDED(hr)) hr = sample->SetSampleTime(static_cast<LONGLONG>(g_frames) * kFrameDuration);
   if (SUCCEEDED(hr)) hr = sample->SetSampleDuration(kFrameDuration);
   if (SUCCEEDED(hr)) hr = g_writer->WriteSample(g_stream, sample.Get());
-  if (SUCCEEDED(hr)) { *index = g_frames; ++g_frames; }
+  if (SUCCEEDED(hr)) { *index = g_frames; ++g_frames; return hr; }
+  if (g_frames == 0) {
+    // The writer accepted the stream but rejected the very first real frame, so
+    // the resolved codec is not usable at this resolution after all. Drop the
+    // empty segment and step down the chain: the recorder's next attempt lands
+    // on the fallback codec instead of spending its failure budget here.
+    const std::wstring empty_segment = g_path;
+    finish_writer();
+    DeleteFileW(empty_segment.c_str());
+    degrade_codec();
+    segment_debug_codec("codec.degraded", g_codec);
+  }
   return hr;
 }
 
@@ -188,8 +396,15 @@ bool resolve_media_path(dg_capture_string_view_v1 root_view, dg_capture_string_v
 HRESULT read_video_frame(const std::wstring& path, uint32_t wanted, std::vector<uint8_t>* pixels,
                          uint32_t* width, uint32_t* height, uint32_t* total) {
   if (!ensure_mf()) return E_FAIL;
+  // The decoder for an HEVC segment outputs NV12. The source reader only
+  // inserts the video processor that converts it to RGB32 when advanced video
+  // processing is enabled; without the attribute SetCurrentMediaType below
+  // fails with MF_E_INVALIDMEDIATYPE and the segment reads back as unplayable.
+  ComPtr<IMFAttributes> attributes;
+  HRESULT hr = MFCreateAttributes(&attributes, 1);
+  if (SUCCEEDED(hr)) hr = attributes->SetUINT32(MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, TRUE);
   ComPtr<IMFSourceReader> reader;
-  HRESULT hr = MFCreateSourceReaderFromURL(path.c_str(), nullptr, &reader);
+  if (SUCCEEDED(hr)) hr = MFCreateSourceReaderFromURL(path.c_str(), attributes.Get(), &reader);
   ComPtr<IMFMediaType> type;
   if (SUCCEEDED(hr)) hr = MFCreateMediaType(&type);
   if (SUCCEEDED(hr)) hr = type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
@@ -270,6 +485,7 @@ HRESULT encode_jpeg_memory(const std::vector<uint8_t>& pixels, uint32_t width, u
   memcpy(*output, bytes, size); GlobalUnlock(global); *output_size = size;
   return S_OK;
 }
+
 }  // namespace
 
 extern "C" int32_t DG_CAPTURE_CALL dg_frame_append(uint32_t major,
@@ -279,6 +495,9 @@ extern "C" int32_t DG_CAPTURE_CALL dg_frame_append(uint32_t major,
       request->struct_size != sizeof(*request) || result->struct_size != sizeof(*result)) return DG_CAPTURE_E_INVALID_ARGUMENT;
   const std::wstring root = widen(request->recordings_dir);
   if (root.empty() || !fs::path(root).is_absolute()) return DG_CAPTURE_E_INVALID_ARGUMENT;
+  // Go goroutines migrate between OS threads, so this call cannot assume an
+  // earlier call initialized COM here; WIC and Media Foundation both need it.
+  ComScope com;
   std::lock_guard lock(g_segment_mutex);
   std::vector<uint8_t> pixels;
   uint32_t width = 0, height = 0;
@@ -327,6 +546,7 @@ extern "C" int32_t DG_CAPTURE_CALL dg_frame_decode(dg_capture_string_view_v1 roo
     uint8_t** output, uint64_t* output_size) {
   if (!output || !output_size) return DG_CAPTURE_E_INVALID_ARGUMENT;
   *output = nullptr; *output_size = 0;
+  ComScope com;
   std::wstring path;
   if (!resolve_media_path(root, rel, &path)) return DG_CAPTURE_E_INVALID_ARGUMENT;
   const std::wstring extension = fs::path(path).extension().wstring();
@@ -351,6 +571,7 @@ extern "C" void DG_CAPTURE_CALL dg_frame_free(uint8_t* data) { free(data); }
 extern "C" int32_t DG_CAPTURE_CALL dg_segment_probe(dg_capture_string_view_v1 root,
     dg_capture_string_view_v1 rel, dg_segment_info_v1* info) {
   if (!info || info->struct_size != sizeof(*info)) return DG_CAPTURE_E_INVALID_ARGUMENT;
+  ComScope com;
   std::wstring path;
   if (!resolve_media_path(root, rel, &path)) return DG_CAPTURE_E_INVALID_ARGUMENT;
   const std::wstring extension = fs::path(path).extension().wstring();

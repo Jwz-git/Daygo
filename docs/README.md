@@ -67,6 +67,7 @@
 | [屏幕截屏（Linux）：候选与决策进度](decisions/recording-screen-capture-linux.md) | 已排期，决策进行中 | X11 vs Wayland、离散截图约束、分发形态与 LC 门禁 |
 | [图片存储流水线](decisions/recording-image-storage.md) | 公共边界保留；staging 方案已被取代 | 像素 / SQLite 边界、整段清理与 LLM 内存图片发送；现行实现见下一项 |
 | [HEVC 帧分段](decisions/recording-frame-segments-hevc.md) | 已决定并有限实现 | macOS 直接追加、帧解码、v15/v16 迁移、按段清理与未验收门禁 |
+| [Windows 分段编码：探测与降级](decisions/recording-windows-segment-codec.md) | 已决定，待真机验证 | HEVC→H.264→逐帧 JPEG、一次性探测、首帧降级与 JPEG 单帧段契约 |
 | [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
 | [data 损坏恢复](decisions/data-corruption-recovery.md) | 已决定 | 备份识别、恢复流程与只读降级 |

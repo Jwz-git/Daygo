@@ -149,31 +149,55 @@ int main() {
   dg_frame_append_result_v1 first{sizeof(first)}, second{sizeof(second)};
   if (dg_frame_append(DG_CAPTURE_ABI_MAJOR, &append, &first, &error) != DG_CAPTURE_OK ||
       dg_frame_append(DG_CAPTURE_ABI_MAJOR, &append, &second, &error) != DG_CAPTURE_OK ||
-      first.frame_index != 0 || second.frame_index != 1 ||
-      std::string(first.segment_rel_path) != std::string(second.segment_rel_path) ||
       dg_segment_close_active() != DG_CAPTURE_OK) {
-    std::fprintf(stderr, "HEVC segment append/close failed\n");
+    std::fprintf(stderr, "segment append/close failed\n");
     return 1;
   }
-  const std::string segment(first.segment_rel_path);
   const dg_capture_string_view_v1 root_view{reinterpret_cast<const uint8_t*>(recordings.data()), recordings.size()};
-  const dg_capture_string_view_v1 segment_view{reinterpret_cast<const uint8_t*>(segment.data()), segment.size()};
-  dg_segment_info_v1 segment_info{sizeof(segment_info)};
-  if (dg_segment_probe(root_view, segment_view, &segment_info) != DG_CAPTURE_OK ||
-      !segment_info.readable || segment_info.frame_count != 2 ||
-      segment_info.width != 64 || segment_info.height != 36) {
-    std::fprintf(stderr, "HEVC segment probe failed\n");
-    return 1;
+  // A container stores the coded size, which Media Foundation rounds up to the
+  // encoder's block granularity: the 64x36 synthetic frame is stored as 64x48.
+  // The block size is encoder-specific (16 for a macroblock grid, up to 64 for a
+  // CTU grid), so the probe result is bounded by the padded size instead of
+  // being compared against the requested one.
+  const auto coded = [](uint32_t value) { return (value + 63u) / 64u * 64u; };
+  auto segment_round_trips = [&](const std::string& rel, uint32_t index, uint32_t want_frames) -> bool {
+    const dg_capture_string_view_v1 segment_view{reinterpret_cast<const uint8_t*>(rel.data()), rel.size()};
+    dg_segment_info_v1 info{sizeof(info)};
+    const int32_t probe_status = dg_segment_probe(root_view, segment_view, &info);
+    if (probe_status != DG_CAPTURE_OK || !info.readable || info.frame_count != want_frames ||
+        info.width < 64 || info.width > coded(64) || info.height < 36 || info.height > coded(36)) {
+      std::fprintf(stderr, "segment probe failed rel=%s status=%ld readable=%u frames=%u size=%ux%u\n", rel.c_str(),
+                   static_cast<long>(probe_status), info.readable, info.frame_count, info.width, info.height);
+      return false;
+    }
+    uint8_t* decoded = nullptr;
+    uint64_t decoded_size = 0;
+    if (dg_frame_decode(root_view, segment_view, index, 32, &decoded, &decoded_size) != DG_CAPTURE_OK ||
+        decoded == nullptr || decoded_size == 0) {
+      std::fprintf(stderr, "segment decode failed rel=%s index=%u\n", rel.c_str(), index);
+      return false;
+    }
+    dg_frame_free(decoded);
+    return true;
+  };
+  // A host with no usable video encoder must degrade to one JPEG per frame
+  // instead of failing the recording, so both the container form and the
+  // single-frame form are valid outcomes here.
+  const std::string first_segment(first.segment_rel_path);
+  const std::string second_segment(second.segment_rel_path);
+  if (first_segment == second_segment) {
+    if (first.frame_index != 0 || second.frame_index != 1 || !segment_round_trips(first_segment, 1, 2)) {
+      std::fprintf(stderr, "container segment append/probe/decode failed\n");
+      return 1;
+    }
+    std::printf("container segment ok: 2 frames\n");
+  } else {
+    if (first.frame_index != 0 || second.frame_index != 0 ||
+        !segment_round_trips(first_segment, 0, 1) || !segment_round_trips(second_segment, 0, 1)) {
+      std::fprintf(stderr, "single-frame segment append/probe/decode failed\n");
+      return 1;
+    }
+    std::printf("single-frame segment ok: 1 frame each\n");
   }
-  uint8_t* decoded = nullptr;
-  uint64_t decoded_size = 0;
-  if (dg_frame_decode(root_view, segment_view, 1, 32, &decoded, &decoded_size) != DG_CAPTURE_OK ||
-      decoded == nullptr || decoded_size == 0) {
-    std::fprintf(stderr, "HEVC segment frame decode failed\n");
-    return 1;
-  }
-  dg_frame_free(decoded);
-  std::printf("HEVC segment ok: %u frames, %ux%u\n", segment_info.frame_count,
-              segment_info.width, segment_info.height);
   return 0;
 }

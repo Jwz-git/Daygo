@@ -209,9 +209,15 @@ typedef struct dg_segment_info_v1 {
 } dg_segment_info_v1;
 
 /*
- * Appends a frame to the active HEVC segment in recordings_dir.
+ * Appends a frame to the active segment in recordings_dir.
  * If synthetic_width > 0, appends a synthetic test frame of synthetic_width x synthetic_height.
  * Otherwise, captures the primary display and appends it (or placeholder if blocked).
+ *
+ * The video codec is a platform capability, not a caller choice: an implementation
+ * may select any codec it can actually encode and may fall back when the preferred
+ * one is unavailable. The only caller-visible guarantee is the
+ * (segment_rel_path, frame_index) addressing above, so frame_index is 0 for a
+ * single-frame segment and segment_rel_path may name a container or a still image.
  */
 DG_CAPTURE_API int32_t DG_CAPTURE_CALL dg_frame_append(
     uint32_t requested_abi_major,

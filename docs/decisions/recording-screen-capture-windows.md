@@ -199,9 +199,15 @@ Go 层与 macOS 未改动。
 
 ## 8. macOS 能力差集接入（2026-09-20）
 
-- Windows Capture 已接 `SegmentCloser`，非空 `SegmentDirectory` 走 Media Foundation HEVC/MP4
-  分段；读取走 Source Reader + WIC，历史 JPEG 仍可读。格式和滚动语义以
-  [HEVC 分段决策](recording-frame-segments-hevc.md)为准。
+- Windows Capture 已接 `SegmentCloser`，非空 `SegmentDirectory` 走 Media Foundation 分段；
+  读取走 Source Reader + WIC，历史 JPEG 仍可读。格式和滚动语义以
+  [HEVC 分段决策](recording-frame-segments-hevc.md)为准，编码选型与降级见
+  [Windows 分段编码决策](recording-windows-segment-codec.md)：HEVC 不是 Windows 必装组件，
+  缺失时按 HEVC → H.264 → 逐帧 JPEG 降级，避免录制因编码器缺失而永久停止。
+  读取端建 Source Reader 时必须设置 `MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING`：
+  HEVC 解码器输出 NV12，只有启用该属性 Media Foundation 才会插入转 RGB32 的 video processor；
+  否则 `SetCurrentMediaType(RGB32)` 返回 `MF_E_INVALIDMEDIATYPE`，分段被判为不可读，
+  时间线与分析拿不到任何帧。
 - System 事件新增屏保开始/结束与显示器变化。屏保状态通过
   `SPI_GETSCREENSAVERRUNNING` 定时观察状态转换，显示器变化使用 `WM_DISPLAYCHANGE`；不生成重复
   状态事件。

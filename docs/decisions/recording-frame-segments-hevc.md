@@ -85,6 +85,11 @@ Windows 采用同一 MP4/HEVC、600 帧或 600 秒滚动、1 fps presentation ti
 Media Foundation 编译、硬件 HEVC 可用性、逐帧随机读取、滚动和资源释放仍必须在 Windows 主机
 运行 `native/windows/build.ps1 -RunSmoke` 及新增分段 smoke 后，才能记为真实通过。
 
+**Windows 的 HEVC 不是必装组件**，缺失时按本文写死的 `MFVideoFormat_HEVC` 会让录制永久停止
+（连续 3 帧失败即回到 `idle`）。因此 Windows 段编码改为运行时探测并支持降级，见
+[Windows 分段编码：探测与降级](recording-windows-segment-codec.md)；该决策不改变本文其余参数
+（600 帧 / 600 秒滚动、1 fps presentation time、`(segment_path, frame_index)` 契约）。
+
 ## 6. 验证记录
 
 2026-09-17：切片 A–D 落地并通过门禁与真机 smoke：
