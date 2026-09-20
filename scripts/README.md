@@ -3,8 +3,8 @@
 Every entry point that is not part of a normal `go test` / `npm test` run lives
 here. The split is by **role**, not by language — three platform dev scripts
 (`dev.sh`, `dev.ps1`, `dev-linux.sh`), Windows / Linux production build scripts,
-a macOS packager (`package-macos.sh`) that builds, signs and produces a DMG,
-one headless CI gate (`gate.sh`),
+platform packagers (`package-macos.sh` → signed DMG, `package-windows.ps1` →
+signable NSIS installer), one headless CI gate (`gate.sh`),
 shared bootstrap and shell helpers (`bootstrap-frontend.sh`), a docs sanity
 check (`check-docs.py`), and a `probe/` directory for one-off diagnostic
 tools. The README documents the contract for each so it stays obvious which
@@ -15,11 +15,13 @@ script owns a responsibility and which one a new contributor should reach for.
 | `bootstrap-frontend.sh` | Standalone: placeholder dist → bindings → real bundle. Sourced: exports `require_tool`, `webkit_tag`, `run_wails`, `daygo_bootstrap` for the other scripts. | All `dev*` / `build-*` scripts, `gate.sh`, `package-macos.sh` |
 | `dev.sh` | macOS `wails dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline, and recreates the generated `.app` so Dock does not retain a stale application icon. | Local development on macOS |
 | `dev.ps1` | Windows `wails dev` entry; applies the Go 1.25 cgo debug workaround only when needed. | Local development on Windows |
-| `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1` |
+| `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1`, `package-windows.ps1` |
 | `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
 | `dev-linux.sh` | Linux `wails dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
 | `build-linux.sh` | Linux `wails build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
 | `package-macos.sh` | macOS packager: bootstrap → `wails build` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Ad-hoc signs by default; Developer ID + notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. | macOS release packaging |
+| `package-windows.ps1` | Windows packager: bootstrap → Wails/NSIS materialisation → sign EXE + native DLL → repackage those final bytes → sign installer → emit SHA-256 acceptance manifest. The tracked `windows-installer/project.nsi` is required because stock Wails only installs the EXE. Supports `-InstallScope machine|user`; unsigned by default. Certificate file via `DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD`, or installed cert via `DAYGO_WIN_CERT_THUMBPRINT`. Windows-only; host run still required (see delivery module). | Windows release packaging |
+| `windows-installer/project.nsi` | Wails-compatible NSIS project that installs `Daygo.exe` and the required `daygo_windows_native.dll` together. Copied into ignored `build/windows/installer/` at package time. | `package-windows.ps1` |
 | `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + `check-docs.py`. Skipped only when `python3` is missing (Python is for docs only). | CI runner, also local pre-commit |
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
 | `probe/analysis.go` | Provider-agnostic diagnostic: runs the production transcription + card-generation pipeline against the user-configured provider, never writes the database. | Manual, when debugging AI integration |
@@ -52,6 +54,25 @@ invocation. After the 2026-09-14 cleanup:
 Adding a new helper (e.g. a future `darwin_sdk_path` resolver) belongs in
 `bootstrap-frontend.sh` so the three dev scripts pick it up automatically.
 
+## Windows acceptance packaging
+
+Run the release-candidate path only on Windows with MinGW-w64, Visual Studio 2022 C++ tools,
+Windows SDK 26100 and NSIS available. `-RunSmoke` is required for an acceptance record:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1 `
+  -Version 0.1.0 -InstallScope machine -RunSmoke
+```
+
+The packager deliberately performs two NSIS passes. The first materialises Wails' generated
+`wails_tools.nsh` and WebView2 bootstrapper. It then signs `Daygo.exe` and
+`daygo_windows_native.dll`, rebuilds the installer from those final bytes using the tracked
+project file, and signs the installer. A one-pass `wails build -nsis` is not an equivalent
+release path: Wails' stock template omits the native DLL, and signing after packaging would
+leave the embedded executable unsigned. The resulting `dist/windows-package.json` is evidence
+for artifact identity only; the WD matrix still requires installed-file signature checks,
+interactive and silent install/uninstall, upgrade, and clean-machine startup.
+
 ## Naming
 
 - `probe/` collects one-off diagnostic tools. Add a new diagnostic as
@@ -59,7 +80,10 @@ Adding a new helper (e.g. a future `darwin_sdk_path` resolver) belongs in
   diagnostic scripts at the `scripts/` root.
 - `dev-*` means "run `wails dev`". `build-*` means "run `wails build`".
   `package-*` means "build a signed, distributable artifact" (more than a
-  bare `wails build`: signing, notarization, DMG/installer packaging).
+  bare `wails build`: signing, notarization, DMG/installer packaging). Its
+  extension follows the host it runs on — `package-macos.sh` is bash,
+  `package-windows.ps1` is PowerShell, because the signing and installer tools
+  are host-native.
   Anything that does none of these is misfiled.
 - `*.sh` is bash, `*.ps1` is PowerShell, `*.py` is Python. The single
   `.py` script (`check-docs.py`) is the only Python in the repo and is
