@@ -547,6 +547,44 @@ func TestPipelineOutOfWindowCardDropped(t *testing.T) {
 	}
 }
 
+// When every returned card sits outside the owned rewrite span, the
+// correction pass needs the rejected clock range and the required window.
+// Reporting only "no cards returned" hides the actual defect and gives the
+// model no deterministic way to repair its otherwise non-empty response.
+func TestPipelineAllCardsOutsideWindowReportsActionableCorrection(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"8:00 AM","end":"8:30 AM","category":"Coding","subcategory":"","title":"Wrong window","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+
+	h.service.tick(context.Background())
+
+	batches := mustBatches(t, h.store)
+	if len(batches) != 1 || batches[0].Status != storage.BatchFailed {
+		t.Fatalf("batches = %+v, want one failed", batches)
+	}
+	if !strings.Contains(batches[0].FailureNote, `card 1 (Wrong window) spans 8:00 AM-8:30 AM outside`) {
+		t.Fatalf("failure note = %q, want rejected card and clock range", batches[0].FailureNote)
+	}
+
+	h.provider.mu.Lock()
+	calls := append([]ai.Request(nil), h.provider.calls...)
+	h.provider.mu.Unlock()
+	var correction string
+	for _, call := range calls {
+		if call.Purpose == ai.PurposeCards && len(call.Parts) > 0 && strings.Contains(call.Parts[0].Text(), "validation errors") {
+			correction = call.Parts[0].Text()
+			break
+		}
+	}
+	if !strings.Contains(correction, "10:00 AM to 10:15 AM") {
+		t.Fatalf("correction prompt = %q, want required rewrite window", correction)
+	}
+}
+
 // mustBatches reads all batches through the repository's range query over an
 // unbounded window — the public surface an external package can use.
 func mustBatches(t *testing.T, store *storage.Store) []storage.Batch {

@@ -43,6 +43,7 @@ var cardsOutput = ai.OutputSchema{Name: "daygo_cards", Schema: json.RawMessage(`
 	"properties": {
 		"cards": {
 			"type": "array",
+			"minItems": 1,
 			"items": {
 				"type": "object",
 				"properties": {

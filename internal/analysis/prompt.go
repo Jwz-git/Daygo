@@ -310,7 +310,7 @@ Common mappings:
 // cardsCorrectionPrompt ports Dayflow's correction pass: when the validated
 // output breaks the span rules, the previous JSON goes back with structured
 // issues and the duration-merging rules, up to three attempts.
-func cardsCorrectionPrompt(rawJSON string, issues []string, requiresSingleCard bool) string {
+func cardsCorrectionPrompt(rawJSON string, issues []string, requiresSingleCard bool, rewriteStart, rewriteEnd time.Time) string {
 	modeRequirement := "- This call was an ongoing-segment rewrite. Recheck the entire array, not only the "
 	modeRequirement += "issue named below. Absorb every 1-4-minute card into the longer adjacent episode; a "
 	modeRequirement += "short first card merges into the full following session and a short final card merges "
@@ -325,6 +325,7 @@ func cardsCorrectionPrompt(rawJSON string, issues []string, requiresSingleCard b
 	}
 
 	return "The previous JSON output has validation errors. Fix the existing output using the context from our ongoing conversation.\n\n" +
+		"Required rewrite window: " + formatFrameClock(rewriteStart) + " to " + formatFrameClock(rewriteEnd) + ".\n\n" +
 		"Issues:\n" + joinIssues(issues) + "\n\n" +
 		"Requirements:\n" +
 		"- Return the FULL corrected JSON output (not a diff).\n" +

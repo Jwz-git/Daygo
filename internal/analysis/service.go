@@ -747,7 +747,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		} else {
 			request = ai.Request{
 				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, requiresSingleCard))},
+				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, requiresSingleCard, rewriteStart, batch.End))},
 				Output:          &cardsOutput,
 				MaxOutputTokens: 4096,
 			}
@@ -767,7 +767,8 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		}
 
 		var shells []domain.CardShell
-		for _, c := range envelope.Cards {
+		var rejectedIssues []string
+		for cardIndex, c := range envelope.Cards {
 			category := c.Category
 			if !known[category] {
 				category = "System"
@@ -797,13 +798,21 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			// A shell the model resolved entirely outside the rewrite span is
 			// a context-merge hallucination; drop it rather than let the
 			// rewrite duplicate it outside the range we own.
-			if s.shellOverlapsSpan(shell, rewriteStart, batch.End) {
+			if issue := s.shellSpanIssue(shell, rewriteStart, batch.End); issue == "" {
 				shells = append(shells, shell)
+			} else {
+				rejectedIssues = append(rejectedIssues, fmt.Sprintf("card %d (%s) %s", cardIndex+1, shell.Title, issue))
 			}
 		}
 
 		spans := resolveCardSpans(shells, batch, s.loc())
 		issues = validateCards(spans, rewriteStart, batch.End, requiresSingleCard)
+		// If the provider returned cards but every one was rejected before
+		// validation, "no cards returned" is false and unactionable. Preserve
+		// the rejected clocks and required span for the correction pass.
+		if len(shells) == 0 && len(rejectedIssues) > 0 {
+			issues = rejectedIssues
+		}
 		if len(issues) == 0 {
 			return shells, rewriteStart, nil
 		}
@@ -816,21 +825,28 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 	return nil, rewriteStart, fmt.Errorf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; "))
 }
 
-// shellOverlapsSpan keeps only shells whose resolved clocks overlap the
-// rewrite span. Shells whose clocks do not resolve at all are dropped —
-// an unresolvable card cannot be stored coherently.
-func (s *Service) shellOverlapsSpan(shell domain.CardShell, spanStart, spanEnd time.Time) bool {
+// shellSpanIssue explains why a model-returned shell cannot be owned by this
+// rewrite. The correction loop uses it only when all returned shells were
+// rejected; mixed valid/context-only output retains the established behavior
+// of silently dropping the context hallucination.
+func (s *Service) shellSpanIssue(shell domain.CardShell, spanStart, spanEnd time.Time) string {
 	loc := s.loc()
 	anchor := spanStart.Add(spanEnd.Sub(spanStart) / 2)
 	start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
 	if err != nil {
-		return false
+		return fmt.Sprintf("has unparseable start time %q; use h:mm AM/PM inside %s-%s",
+			shell.Start, formatFrameClock(spanStart), formatFrameClock(spanEnd))
 	}
 	end, err := timeutil.ResolveClock(shell.End, anchor, loc)
 	if err != nil {
-		return false
+		return fmt.Sprintf("has unparseable end time %q; use h:mm AM/PM inside %s-%s",
+			shell.End, formatFrameClock(spanStart), formatFrameClock(spanEnd))
 	}
-	return start.Before(spanEnd) && end.After(spanStart)
+	if !start.Before(spanEnd) || !end.After(spanStart) {
+		return fmt.Sprintf("spans %s-%s outside required rewrite window %s-%s; move it into that window",
+			shell.Start, shell.End, formatFrameClock(spanStart), formatFrameClock(spanEnd))
+	}
+	return ""
 }
 
 // enforceMergeGate is the deterministic backstop behind the prompt's merge
