@@ -22,8 +22,9 @@ Windows 发布也保持待决。CLI / agent socket / MCP 已移交
 `scripts/package-windows.ps1` 走 `wails build -nsis` 产出 NSIS 安装程序并可选 `signtool` 签名。
 Windows 流程先签 EXE 与原生 DLL，再用仓库内 NSIS 模板重新封装最终字节并签安装器；模板显式安装
 `daygo_windows_native.dll`，同时输出带源码 commit、文件大小与 SHA-256 的验收清单。
-`package-windows.ps1` **仍未在真实 Windows 上运行**：`-nsis`、makensis 与 signtool
-均为 Windows 原生工具，安装程序内容、签名、静默安装 / 卸载与干净机启动仍需实机验证。
+`package-windows.ps1` 已在真实 Windows 上产出 v0.1.0 amd64 NSIS 安装包，并与 macOS arm64 DMG
+一同发布到 GitHub Releases。该事实只证明发布资产存在，不自动证明其签名、安装、卸载或升级行为；
+安装程序内容、签名、静默安装 / 卸载与干净机启动仍需按验收矩阵补充可复现证据。
 签名、公证、Gatekeeper、Updater fake / 原生、安装升级与首次引导均未验收。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 
@@ -101,6 +102,10 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 签名、公证、干净机器、升级、Updater 与崩溃上报实验均未运行。
 记录 commit、构建身份、设备、步骤及匿名结果；证书、密钥、用户数据不入库。
+
+2026-09-20：GitHub Release `v0.1.0` 已发布为预发布版本，包含
+`Daygo-0.1.0-arm64.dmg` 与 `Daygo-0.1.0-amd64.exe`。此记录证明两个资产可从公开 Release 获取；
+缺少签名 / 公证、干净机安装、卸载、真实升级和 WD 完整记录，因此不提升 delivery 验收状态。
 
 2026-09-20（Windows 11 amd64、Windows PowerShell 5.1）：`package-windows.ps1` 明确保存为
 带 BOM 的 UTF-8，避免 Windows PowerShell 5.1 按本地代码页误解脚本中的 Unicode 输出字符，
