@@ -445,4 +445,3 @@ func TestIsRateLimitError(t *testing.T) {
 		t.Fatal("timeout error should not be rate limit")
 	}
 }
-
