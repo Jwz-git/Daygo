@@ -102,6 +102,11 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 签名、公证、干净机器、升级、Updater 与崩溃上报实验均未运行。
 记录 commit、构建身份、设备、步骤及匿名结果；证书、密钥、用户数据不入库。
 
+2026-09-20（Windows 11 amd64、Windows PowerShell 5.1）：`package-windows.ps1` 明确保存为
+带 BOM 的 UTF-8，避免 Windows PowerShell 5.1 按本地代码页误解脚本中的 Unicode 输出字符，
+并在后续 ASCII 字符串处误报 `MissingArgument`。已用 5.1 parser 验证脚本无语法错误；尚未执行
+构建、NSIS 封装、签名、安装或升级，因此不提升 WD 状态。
+
 2026-09-14（Windows 11 amd64）：通知区适配器把 `NOTIFYICON_VERSION_4` 的
 `NIN_SELECT`（并兼容传统 `WM_LBUTTONUP`）映射到既有 open 动作，普通左键单击不再要求先打开
 右键菜单。`system_smoke.cpp` 新增 Explorer 回调消息夹具；状态栏源文件通过 `g++ -Wall -Wextra

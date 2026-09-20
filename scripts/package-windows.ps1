@@ -1,4 +1,4 @@
-# ─────────────────────────────────────────────────────────────
+﻿# ─────────────────────────────────────────────────────────────
 # Daygo Windows Packager
 #
 # Builds a windows/amd64 release, wraps it in an NSIS installer
