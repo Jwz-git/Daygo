@@ -12,6 +12,7 @@ import (
 
 var _ platform.Capture = (*Capture)(nil)
 var _ platform.CapturePrivacyReporter = (*Capture)(nil)
+var _ platform.SegmentCloser = (*Capture)(nil)
 
 const minimumPrivacyBuild = 26100
 
@@ -27,7 +28,17 @@ func (c *Capture) Capture(ctx context.Context, req platform.CaptureRequest) (pla
 	if err := req.Validate(); err != nil {
 		return platform.CaptureResult{}, err
 	}
+	if req.SegmentDirectory != "" {
+		return frameAppend(ctx, req)
+	}
 	return captureOnce(ctx, req)
+}
+
+func (c *Capture) CloseActiveSegment(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return segmentCloseActive()
 }
 
 func (c *Capture) CapturePrivacyCompatibility(ctx context.Context) (platform.CapturePrivacyCompatibility, error) {

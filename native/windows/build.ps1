@@ -12,12 +12,14 @@ $ApplicationSource = Join-Path $PSScriptRoot 'Sources\daygo_application_proxy.cp
 $NativeSource = Join-Path $PSScriptRoot 'Sources\daygo_windows_native.cpp'
 $SystemSource = Join-Path $PSScriptRoot 'Sources\daygo_system.cpp'
 $StatusItemSource = Join-Path $PSScriptRoot 'Sources\daygo_status_item.cpp'
+$SegmentSource = Join-Path $PSScriptRoot 'Sources\daygo_segment.cpp'
 $IncludeDir = Join-Path $RootDir 'native\include'
 $OutDir = Join-Path $RootDir 'build\native\windows\amd64'
 $Object = Join-Path $OutDir 'daygo_capture.o'
 $ApplicationObject = Join-Path $OutDir 'daygo_application_proxy.o'
 $SystemObject = Join-Path $OutDir 'daygo_system.o'
 $StatusItemObject = Join-Path $OutDir 'daygo_status_item.o'
+$SegmentObject = Join-Path $OutDir 'daygo_segment.o'
 $Archive = Join-Path $OutDir 'libdaygo_capture.a'
 $NativeDLL = Join-Path $OutDir 'daygo_windows_native.dll'
 $NativeObject = Join-Path $OutDir 'daygo_windows_native.obj'
@@ -91,7 +93,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "C++ status item compilation failed ($LASTEXITCODE)."
 }
 
-& ar rcs $Archive $Object $ApplicationObject $SystemObject $StatusItemObject
+& g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -DDAYGO_CAPTURE_STATIC=1 -I $IncludeDir -c $SegmentSource -o $SegmentObject
+if ($LASTEXITCODE -ne 0) {
+    throw "C++ Media Foundation segment compilation failed ($LASTEXITCODE)."
+}
+
+& ar rcs $Archive $Object $ApplicationObject $SystemObject $StatusItemObject $SegmentObject
 if ($LASTEXITCODE -ne 0) {
     throw "Static archive creation failed ($LASTEXITCODE)."
 }
@@ -106,7 +113,8 @@ if ($RunSmoke) {
     New-Item -ItemType Directory -Path $SmokeOutputDir -Force | Out-Null
     & g++ -std=c++17 -O2 $SmokeSource $Archive -I $IncludeDir `
         -ld3d11 -ldxgi -ldxguid -lole32 -loleaut32 -lwindowscodecs `
-        -luser32 -lgdi32 -ladvapi32 -static-libgcc -static-libstdc++ -o $SmokeBinary
+        -luser32 -lgdi32 -ladvapi32 -lmfplat -lmfreadwrite -lmfuuid `
+        -static-libgcc -static-libstdc++ -o $SmokeBinary
     if ($LASTEXITCODE -ne 0) {
         throw "Smoke executable link failed ($LASTEXITCODE)."
     }

@@ -138,5 +138,42 @@ int main() {
     return 1;
   }
   std::printf("privacy capture ok: WGC exclusion path is available\n");
+
+  const std::wstring recordings_wide = output_wide.substr(0, output_wide.find_last_of(L"\\/"));
+  const std::string recordings = utf8(recordings_wide);
+  dg_frame_append_request_v1 append{};
+  append.struct_size = sizeof(append);
+  append.synthetic_width = 64;
+  append.synthetic_height = 36;
+  append.recordings_dir = {reinterpret_cast<const uint8_t*>(recordings.data()), recordings.size()};
+  dg_frame_append_result_v1 first{sizeof(first)}, second{sizeof(second)};
+  if (dg_frame_append(DG_CAPTURE_ABI_MAJOR, &append, &first, &error) != DG_CAPTURE_OK ||
+      dg_frame_append(DG_CAPTURE_ABI_MAJOR, &append, &second, &error) != DG_CAPTURE_OK ||
+      first.frame_index != 0 || second.frame_index != 1 ||
+      std::string(first.segment_rel_path) != std::string(second.segment_rel_path) ||
+      dg_segment_close_active() != DG_CAPTURE_OK) {
+    std::fprintf(stderr, "HEVC segment append/close failed\n");
+    return 1;
+  }
+  const std::string segment(first.segment_rel_path);
+  const dg_capture_string_view_v1 root_view{reinterpret_cast<const uint8_t*>(recordings.data()), recordings.size()};
+  const dg_capture_string_view_v1 segment_view{reinterpret_cast<const uint8_t*>(segment.data()), segment.size()};
+  dg_segment_info_v1 segment_info{sizeof(segment_info)};
+  if (dg_segment_probe(root_view, segment_view, &segment_info) != DG_CAPTURE_OK ||
+      !segment_info.readable || segment_info.frame_count != 2 ||
+      segment_info.width != 64 || segment_info.height != 36) {
+    std::fprintf(stderr, "HEVC segment probe failed\n");
+    return 1;
+  }
+  uint8_t* decoded = nullptr;
+  uint64_t decoded_size = 0;
+  if (dg_frame_decode(root_view, segment_view, 1, 32, &decoded, &decoded_size) != DG_CAPTURE_OK ||
+      decoded == nullptr || decoded_size == 0) {
+    std::fprintf(stderr, "HEVC segment frame decode failed\n");
+    return 1;
+  }
+  dg_frame_free(decoded);
+  std::printf("HEVC segment ok: %u frames, %ux%u\n", segment_info.frame_count,
+              segment_info.width, segment_info.height);
   return 0;
 }

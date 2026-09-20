@@ -5,7 +5,7 @@ package windows
 /*
 #cgo CFLAGS: -DDAYGO_CAPTURE_STATIC -I${SRCDIR}/../../../native/include
 #cgo LDFLAGS: ${SRCDIR}/../../../build/native/windows/amd64/libdaygo_capture.a
-#cgo LDFLAGS: -ld3d11 -ldxgi -ldxguid -lole32 -loleaut32 -lwindowscodecs -luser32 -lgdi32 -ladvapi32 -lstdc++ -lgcc -lgcc_eh
+#cgo LDFLAGS: -ld3d11 -ldxgi -ldxguid -lole32 -loleaut32 -lwindowscodecs -luser32 -lgdi32 -ladvapi32 -lmfplat -lmfreadwrite -lmfuuid -lstdc++ -lgcc -lgcc_eh
 #include <stdlib.h>
 #include "daygo_capture.h"
 */
@@ -13,6 +13,7 @@ import "C"
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime"
 	"time"
@@ -89,6 +90,94 @@ func captureOnce(ctx context.Context, req platform.CaptureRequest) (platform.Cap
 		return platform.CaptureResult{Outcome: platform.CaptureBlocked}, nil
 	}
 	return platform.CaptureResult{}, mapCaptureError(status, nativeError)
+}
+
+func frameAppend(ctx context.Context, req platform.CaptureRequest) (platform.CaptureResult, error) {
+	dir := C.CBytes([]byte(req.SegmentDirectory))
+	if dir == nil {
+		return platform.CaptureResult{}, &platform.CaptureError{Code: platform.CaptureNative}
+	}
+	defer C.free(dir)
+	blocked, release, err := makeBlockedApplicationViews(req.BlockedApplicationIDs)
+	if err != nil {
+		return platform.CaptureResult{}, err
+	}
+	defer release()
+	var flags C.uint32_t
+	if req.ShowsCursor {
+		flags = C.DG_CAPTURE_SHOWS_CURSOR
+	}
+	nativeReq := C.dg_frame_append_request_v1{
+		struct_size: C.sizeof_dg_frame_append_request_v1, flags: flags,
+		target_height: C.uint32_t(req.TargetHeight), timeout_ms: C.uint32_t(captureTimeoutMillis(ctx)),
+		blocked_application_id_count: C.uint32_t(len(req.BlockedApplicationIDs)),
+		recordings_dir:               C.dg_capture_string_view_v1{data: (*C.uint8_t)(dir), len: C.uint64_t(len(req.SegmentDirectory))},
+		blocked_application_ids:      blocked,
+	}
+	result := C.dg_frame_append_result_v1{struct_size: C.sizeof_dg_frame_append_result_v1}
+	nativeErr := C.dg_capture_error_v1{struct_size: C.sizeof_dg_capture_error_v1}
+	status := C.dg_frame_append(C.DG_CAPTURE_ABI_MAJOR, &nativeReq, &result, &nativeErr)
+	runtime.KeepAlive(req)
+	if err := ctx.Err(); err != nil {
+		return platform.CaptureResult{}, err
+	}
+	if status != C.DG_CAPTURE_OK && status != C.DG_CAPTURE_BLOCKED {
+		return platform.CaptureResult{}, mapCaptureError(status, nativeErr)
+	}
+	outcome := platform.CaptureWritten
+	if status == C.DG_CAPTURE_BLOCKED {
+		outcome = platform.CaptureBlocked
+	}
+	return platform.CaptureResult{Outcome: outcome, CapturedAt: time.Unix(0, int64(result.captured_at_unix_ns)), Width: int(result.width), Height: int(result.height), FileSize: int64(result.file_size), SegmentPath: C.GoString(&result.segment_rel_path[0]), FrameIndex: int(result.frame_index)}, nil
+}
+
+func frameDecode(ctx context.Context, root, rel string, frameIndex, maxPixelSize int) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	rootData, pathData := C.CBytes([]byte(root)), C.CBytes([]byte(rel))
+	if rootData == nil || pathData == nil {
+		C.free(rootData)
+		C.free(pathData)
+		return nil, &platform.CaptureError{Code: platform.CaptureNative}
+	}
+	defer C.free(rootData)
+	defer C.free(pathData)
+	var data *C.uint8_t
+	var size C.uint64_t
+	status := C.dg_frame_decode(C.dg_capture_string_view_v1{data: (*C.uint8_t)(rootData), len: C.uint64_t(len(root))}, C.dg_capture_string_view_v1{data: (*C.uint8_t)(pathData), len: C.uint64_t(len(rel))}, C.uint32_t(frameIndex), C.uint32_t(maxPixelSize), &data, &size)
+	if status != C.DG_CAPTURE_OK || data == nil || size == 0 {
+		return nil, fmt.Errorf("windows frame decode failed: %d", int(status))
+	}
+	defer C.dg_frame_free(data)
+	return C.GoBytes(unsafe.Pointer(data), C.int(size)), nil
+}
+
+func segmentProbe(ctx context.Context, root, rel string) (platform.SegmentInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return platform.SegmentInfo{}, err
+	}
+	rootData, pathData := C.CBytes([]byte(root)), C.CBytes([]byte(rel))
+	if rootData == nil || pathData == nil {
+		C.free(rootData)
+		C.free(pathData)
+		return platform.SegmentInfo{}, &platform.CaptureError{Code: platform.CaptureNative}
+	}
+	defer C.free(rootData)
+	defer C.free(pathData)
+	info := C.dg_segment_info_v1{struct_size: C.sizeof_dg_segment_info_v1}
+	status := C.dg_segment_probe(C.dg_capture_string_view_v1{data: (*C.uint8_t)(rootData), len: C.uint64_t(len(root))}, C.dg_capture_string_view_v1{data: (*C.uint8_t)(pathData), len: C.uint64_t(len(rel))}, &info)
+	if status != C.DG_CAPTURE_OK {
+		return platform.SegmentInfo{Readable: false}, nil
+	}
+	return platform.SegmentInfo{FrameCount: int(info.frame_count), Width: int(info.width), Height: int(info.height), Readable: info.readable != 0}, nil
+}
+
+func segmentCloseActive() error {
+	if status := C.dg_segment_close_active(); status != C.DG_CAPTURE_OK {
+		return fmt.Errorf("windows segment close failed: %d", int(status))
+	}
+	return nil
 }
 
 func makeBlockedApplicationViews(ids []string) (*C.dg_capture_string_view_v1, func(), error) {

@@ -16,6 +16,8 @@ namespace {
 
 constexpr wchar_t kWindowClassName[] = L"DaygoSystemEventWindowV1";
 constexpr UINT kStopMessage = WM_APP + 1;
+constexpr UINT_PTR kScreensaverTimer = 1;
+constexpr UINT kScreensaverPollMilliseconds = 1000;
 
 SRWLOCK g_api_lock = SRWLOCK_INIT;
 HANDLE g_thread = nullptr;
@@ -25,6 +27,8 @@ std::atomic<HWND> g_window{nullptr};
 std::atomic<int32_t> g_start_result{-1};
 std::atomic<dg_system_event_callback_v1> g_callback{nullptr};
 std::atomic<void*> g_user_data{nullptr};
+bool g_screensaver_known = false;
+bool g_screensaver_running = false;
 
 class ExclusiveLock {
  public:
@@ -51,6 +55,17 @@ void emit(uint32_t kind) {
   }
 }
 
+void poll_screensaver() {
+  BOOL running = FALSE;
+  if (!SystemParametersInfoW(SPI_GETSCREENSAVERRUNNING, 0, &running, 0)) return;
+  const bool current = running != FALSE;
+  if (g_screensaver_known && current != g_screensaver_running) {
+    emit(current ? DG_SYSTEM_SCREENSAVER_START : DG_SYSTEM_SCREENSAVER_STOP);
+  }
+  g_screensaver_running = current;
+  g_screensaver_known = true;
+}
+
 LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
   LRESULT status_result = 0;
   if (daygo_status_item_handle_message(window, message, wparam, lparam,
@@ -74,7 +89,14 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         emit(DG_SYSTEM_SCREEN_UNLOCKED);
       }
       return 0;
+    case WM_DISPLAYCHANGE:
+      emit(DG_SYSTEM_DISPLAYS_CHANGED);
+      return 0;
+    case WM_TIMER:
+      if (wparam == kScreensaverTimer) poll_screensaver();
+      return 0;
     case kStopMessage:
+      KillTimer(window, kScreensaverTimer);
       daygo_status_item_shutdown_on_window_thread(window);
       WTSUnRegisterSessionNotification(window);
       DestroyWindow(window);
@@ -120,6 +142,15 @@ DWORD WINAPI message_thread(void*) {
   }
 
   g_window.store(window, std::memory_order_release);
+  g_screensaver_known = false;
+  poll_screensaver();
+  if (SetTimer(window, kScreensaverTimer, kScreensaverPollMilliseconds, nullptr) == 0) {
+    g_start_result.store(-6, std::memory_order_release);
+    WTSUnRegisterSessionNotification(window);
+    DestroyWindow(window);
+    SetEvent(g_ready);
+    return 0;
+  }
   g_start_result.store(0, std::memory_order_release);
   SetEvent(g_ready);
 

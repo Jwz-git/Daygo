@@ -3,6 +3,7 @@
 package windows
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -20,6 +21,37 @@ func TestSystemEventKind(t *testing.T) {
 	for input, want := range tests {
 		if got := systemEventKind(input); got != want {
 			t.Errorf("systemEventKind(%d) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestSetActivationPolicyUsesWindowsEquivalentSemantics(t *testing.T) {
+	system := &System{}
+	for _, policy := range []platform.ActivationPolicy{
+		platform.ActivationRegular,
+		platform.ActivationAccessory,
+		platform.ActivationProhibited,
+	} {
+		if err := system.SetActivationPolicy(context.Background(), policy); err != nil {
+			t.Fatalf("SetActivationPolicy(%q): %v", policy, err)
+		}
+		if system.policy != policy {
+			t.Fatalf("policy = %q, want %q", system.policy, policy)
+		}
+	}
+	if err := system.SetActivationPolicy(context.Background(), "invalid"); err == nil {
+		t.Fatal("invalid policy succeeded")
+	}
+}
+
+func TestSystemEventKindIncludesScreensaverAndDisplays(t *testing.T) {
+	for input, want := range map[uint32]platform.SystemEventKind{
+		5: platform.EventScreensaverStart,
+		6: platform.EventScreensaverStop,
+		7: platform.EventDisplaysChanged,
+	} {
+		if got := systemEventKind(input); got != want {
+			t.Fatalf("systemEventKind(%d) = %q, want %q", input, got, want)
 		}
 	}
 }

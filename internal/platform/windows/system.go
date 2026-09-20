@@ -5,6 +5,7 @@ package windows
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type System struct {
 	mu      sync.Mutex
 	events  chan platform.SystemEvent
 	started bool
+	policy  platform.ActivationPolicy
 }
 
 func NewSystem() (*System, error) {
@@ -132,6 +134,12 @@ func systemEventKind(kind uint32) platform.SystemEventKind {
 		return platform.EventScreenLocked
 	case 4:
 		return platform.EventScreenUnlocked
+	case 5:
+		return platform.EventScreensaverStart
+	case 6:
+		return platform.EventScreensaverStop
+	case 7:
+		return platform.EventDisplaysChanged
 	default:
 		return ""
 	}
@@ -149,11 +157,25 @@ func (*System) NotificationsPermission(context.Context) (platform.PermissionStat
 func (*System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, errSystemCapabilityUnavailable
 }
-func (*System) InstalledApplications(context.Context, string) ([]platform.AppInfo, error) {
-	return nil, errSystemCapabilityUnavailable
+func (*System) InstalledApplications(ctx context.Context, _ string) ([]platform.AppInfo, error) {
+	return installedApplications(ctx)
 }
-func (*System) SetActivationPolicy(context.Context, platform.ActivationPolicy) error {
-	return errSystemCapabilityUnavailable
+func (s *System) SetActivationPolicy(ctx context.Context, policy platform.ActivationPolicy) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if policy != platform.ActivationRegular && policy != platform.ActivationAccessory && policy != platform.ActivationProhibited {
+		return fmt.Errorf("windows activation policy: invalid policy %q", policy)
+	}
+	// Windows has no process-wide equivalent of NSApplicationActivationPolicy.
+	// Daygo's notification-area host already owns the equivalent lifecycle:
+	// regular and accessory differ only in whether the Wails window is visible,
+	// which remains app-layer state. Remembering the requested policy makes this
+	// capability explicit and idempotent instead of reporting it unavailable.
+	s.mu.Lock()
+	s.policy = policy
+	s.mu.Unlock()
+	return nil
 }
 func (*System) SetStatusItem(_ context.Context, state platform.StatusItemState) error {
 	return setStatusItem(state)
