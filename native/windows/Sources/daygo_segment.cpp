@@ -190,6 +190,16 @@ HRESULT build_writer(const std::wstring& path, uint32_t width, uint32_t height,
   if (SUCCEEDED(hr)) hr = MFSetAttributeRatio(input.Get(), MF_MT_FRAME_RATE, 1, 1);
   if (SUCCEEDED(hr)) hr = MFSetAttributeRatio(input.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
   if (SUCCEEDED(hr)) hr = input->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+  // Declare the row order of the frame buffers append_pixels writes. The
+  // capture path hands over top-down rows, and Media Foundation reads an
+  // RGB32 buffer without this attribute as bottom-up — RGB images in system
+  // memory usually are, and MFGetStrideForBitmapInfoHeader answers with a
+  // negative stride for RGB32. Declaring the positive stride is what keeps the
+  // stored picture the right way up: without it every segment is written
+  // vertically mirrored, which no reader can undo because the flip is baked
+  // into the coded frame. Both the HEVC and the H.264 encoder honor it.
+  const uint32_t stride = width * 4;
+  if (SUCCEEDED(hr)) hr = input->SetUINT32(MF_MT_DEFAULT_STRIDE, stride);
   if (SUCCEEDED(hr)) hr = (*writer)->SetInputMediaType(*stream, input.Get(), nullptr);
   if (SUCCEEDED(hr)) {
     ComPtr<ICodecAPI> encoder_options;
@@ -486,6 +496,27 @@ HRESULT encode_jpeg_memory(const std::vector<uint8_t>& pixels, uint32_t width, u
   return S_OK;
 }
 
+// The image a synthetic append writes is the test's own, so it is shaped to
+// reveal something a screenshot cannot: the top and bottom halves carry
+// different values, which makes a vertical flip visible when the frame is read
+// back. That is how the smoke test guards the row order the writer declares to
+// Media Foundation. The two values only have to be far enough apart to survive
+// the encode, so they are placeholders rather than content.
+constexpr uint8_t kSyntheticTopHalf = 0xC0;
+constexpr uint8_t kSyntheticBottomHalf = 0x20;
+
+std::vector<uint8_t> synthetic_frame(uint32_t width, uint32_t height) {
+  std::vector<uint8_t> pixels(size_t(width) * height * 4);
+  for (uint32_t y = 0; y < height; ++y) {
+    const uint8_t value = (y < height / 2) ? kSyntheticTopHalf : kSyntheticBottomHalf;
+    for (uint32_t x = 0; x < width; ++x) {
+      uint8_t* pixel = &pixels[(size_t(y) * width + x) * 4];
+      pixel[0] = pixel[1] = pixel[2] = value;
+      pixel[3] = 0xFF;
+    }
+  }
+  return pixels;
+}
 }  // namespace
 
 extern "C" int32_t DG_CAPTURE_CALL dg_frame_append(uint32_t major,
@@ -504,7 +535,7 @@ extern "C" int32_t DG_CAPTURE_CALL dg_frame_append(uint32_t major,
   int32_t outcome = DG_CAPTURE_OK;
   if (request->synthetic_width && request->synthetic_height) {
     width = request->synthetic_width; height = request->synthetic_height;
-    pixels.assign(size_t(width) * height * 4, 0x40);
+    pixels = synthetic_frame(width, height);
   } else {
     const fs::path temporary = fs::path(root) / (L".daygo-capture-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64()) + L".jpg");
     const std::string utf8 = temporary.u8string();

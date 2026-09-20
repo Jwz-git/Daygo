@@ -90,13 +90,24 @@ Media Foundation 会把它向上取整到编码器的块粒度——64×36 的�
 （真实桌面常见的 1280×720 即如此）。当前没有生产代码消费 `SegmentInfo.Width/Height`
 （只有 darwin 的 smoke 测试），因此不构成缺陷，但读回尺寸**不能假定等于采集尺寸**。
 
+写入端的**行序**是同一类内部不变量，而且漏掉它不会报错。`append_pixels` 交出的缓冲区是
+自上而下的 BGRA（采集与 WIC 都按这个方向产出），而 Media Foundation 把不带
+`MF_MT_DEFAULT_STRIDE` 的 RGB32 输入按**自下而上**读：系统内存里的 RGB 图像通常就是自下而上的，
+`MFGetStrideForBitmapInfoHeader` 对 RGB32 也返回负 stride。因此 `build_writer` 必须在输入类型上
+显式声明 `MF_MT_DEFAULT_STRIDE = width × 4`，不能依赖默认值。漏掉的结果是每一段都被写成上下
+镜像，且**读取端无法补救**：`read_video_frame` 按行线性拷贝 RGB32 解码输出（实测该输出的内存
+行序与画面行序一致，即解码器交回的是正向行序），所以它忠实读出同一份镜像画面，而不是把它翻
+回来；镜像已经烘进编码帧，外部播放器与后续的转封装同样看到倒置画面。H.264 与 HEVC 行为一致
+（两者都由 sink writer 插入的 video processor 做 RGB32 → NV12 转换，该转换按声明的 stride 取行），
+原生 smoke 用「合成帧上亮下暗」的断言守住这一点。
+
 ## 5. 实现切片
 
 | 切片 | 内容 | 验收 |
 |---|---|---|
 | A 探测与降级 | `daygo_segment.cpp` 内编码偏好链、一次性探测、JPEG 单帧段写入路径与 WIC 编码 | 无编码器机器上录制不中断（真机） |
 | B 可观测 | `DAYGO_CAPTURE_DEBUG=1` 输出选中/降级到的编码，不输出路径或图像内容 | 日志可见 `codec.*` 阶段 |
-| C 原生 smoke | `native/windows/smoke.cpp` 的分段断言同时接受多帧 MP4 与单帧 JPEG 两种形态 | build.ps1 -RunSmoke 通过 |
+| C 原生 smoke | `native/windows/smoke.cpp` 的分段断言同时接受多帧 MP4 与单帧 JPEG 两种形态，并断言合成帧解码后仍然上亮下暗 | build.ps1 -RunSmoke 通过 |
 
 ## 6. 边界与回退
 
@@ -124,3 +135,25 @@ Media Foundation 会把它向上取整到编码器的块粒度——64×36 的�
 H.264 都可用，`codec.degraded` 与 JPEG 单帧段分支只有源码层面的证据。因此 §2 的偏好链
 记为「已实现、主路径已真机验证、降级路径未验证」。§6 的残余风险不变：探测用的合成帧
 远小于真实桌面，真实分辨率下的编码失败只能靠 §2.4 的首帧降级兜住，该路径同样未在真机触发。
+
+2026-09-20（同一台机器）：用户报告 Windows 上取回的图片是倒着的。根因是 §4 记录的行序
+不变量没有被声明——`build_writer` 未在输入类型上设置 `MF_MT_DEFAULT_STRIDE`，于是每个分段
+都被写成上下镜像。定位用一个独立探针完成，而不是靠推理：探针把「上半白、下半黑」的自上而
+下缓冲区经 sink writer 写入后，分别用 NV12（YUV 在内存中恒为自上而下）与 RGB32 读回。
+结果对 H.264 与 HEVC 一致：
+
+| 输入类型 | NV12 回读 | RGB32 线性拷贝回读 |
+|---|---|---|
+| 无 `MF_MT_DEFAULT_STRIDE` | 顶行暗、底行亮 → 画面倒置 | 首行暗 → 倒置 |
+| `MF_MT_DEFAULT_STRIDE = +width × 4` | 顶行亮、底行暗 → 画面正向 | 首行亮 → 正向 |
+
+同一探针否定了「读取端也要翻回来」的假设：解码器的 RGB32 输出类型不带 stride 属性，
+`MFGetStrideForBitmapInfoHeader` 报 −256，但实测该缓冲区**内存行序与画面行序一致**，
+即按行线性拷贝是正确的。因此改动只在写入端一处，`read_video_frame` 不动。
+
+验证方式不是人工看图：合成帧改为上亮下暗后，smoke 的分段断言解码回读的 JPEG 并比较
+上下四分之一的亮度。把 `MF_MT_DEFAULT_STRIDE` 那行去掉重跑，smoke 如实失败
+（`segment frame came back flipped`）；恢复后通过。改动只在
+`native/windows/Sources/daygo_segment.cpp` 与 `native/windows/smoke.cpp`，ABI、Go 层与
+macOS 未改动。真机上仍未验证：真实分辨率（1280×720 及以上）下的行序——smoke 用的是
+64×36 合成帧。

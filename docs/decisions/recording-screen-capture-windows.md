@@ -187,6 +187,14 @@ Go 层与 macOS 未改动。
 仍未验证：`AcquireNextFrame` 在会话建立之后返回的错误码、多屏/旋转、受保护内容与长时间运行；
 本机是**虚拟/流式显示**环境，DXGI 回退才被触发，不代表普通物理显示器主机也会走到 GDI。
 
+2026-09-20（同一台机器）：用户报告录下来的画面是倒着的。根因在 §8 的分段写入路径——
+`sink writer` 的输入类型没有声明行序，Media Foundation 因此按自下而上读走自上而下的采集
+缓冲区，每个分段都被写成上下镜像。修复是在 `build_writer` 的输入类型上声明
+`MF_MT_DEFAULT_STRIDE`；读取端不动（实测解码输出的内存行序与画面一致）。探针数据、被否定的
+「读取端翻回」假设与 smoke 回归断言见
+[Windows 分段编码](recording-windows-segment-codec.md) §7。改动只在
+`native/windows/Sources/daygo_segment.cpp` 与 `native/windows/smoke.cpp`。
+
 ## 7. 边界与回退
 
 - 不得为了让 Windows 出图而放宽隐私规则：把 `privacy_unsupported` 降级成"只检查前台"

@@ -5,6 +5,7 @@
 #include <wincodec.h>
 
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -54,6 +55,86 @@ static bool jpeg_has_nonblack_pixel(const std::wstring& path) {
   if (factory) factory->Release();
   if (SUCCEEDED(com_result)) CoUninitialize();
   return nonblack;
+}
+
+// A frame the segment writer puts in and takes back out must come back the same
+// way up. The synthetic frames this smoke appends are deliberately asymmetric
+// — bright on top, dark on the bottom — so a decoded frame whose dark half sits
+// on top says the picture was flipped between the capture and the reader, which
+// is what happens when the writer lets Media Foundation take an RGB32 buffer for
+// bottom-up. Returns false for an image that cannot be read at all.
+static bool jpeg_top_half_is_brighter(const uint8_t* data, uint64_t size) {
+  const HRESULT com_result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  IWICImagingFactory* factory = nullptr;
+  IWICBitmapDecoder* decoder = nullptr;
+  IWICBitmapFrameDecode* frame = nullptr;
+  IWICFormatConverter* converter = nullptr;
+  IStream* stream = nullptr;
+  bool upright = false;
+  HRESULT hr = S_OK;
+  if (size != 0 && size <= 64ull * 1024 * 1024) {
+    HGLOBAL global = GlobalAlloc(GMEM_MOVEABLE, static_cast<SIZE_T>(size));
+    if (global) {
+      void* bytes = GlobalLock(global);
+      if (bytes) {
+        memcpy(bytes, data, static_cast<size_t>(size));
+        GlobalUnlock(global);
+        hr = CreateStreamOnHGlobal(global, TRUE, &stream);
+      } else {
+        hr = E_OUTOFMEMORY;
+      }
+      if (FAILED(hr)) GlobalFree(global);
+    } else {
+      hr = E_OUTOFMEMORY;
+    }
+  } else {
+    hr = E_INVALIDARG;
+  }
+  if (SUCCEEDED(hr)) hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                           IID_PPV_ARGS(&factory));
+  if (SUCCEEDED(hr)) hr = factory->CreateDecoderFromStream(stream, nullptr,
+                                                           WICDecodeMetadataCacheOnDemand, &decoder);
+  if (SUCCEEDED(hr)) hr = decoder->GetFrame(0, &frame);
+  if (SUCCEEDED(hr)) hr = factory->CreateFormatConverter(&converter);
+  if (SUCCEEDED(hr)) hr = converter->Initialize(frame, GUID_WICPixelFormat32bppBGRA,
+                                                WICBitmapDitherTypeNone, nullptr, 0.0,
+                                                WICBitmapPaletteTypeCustom);
+  UINT width = 0;
+  UINT height = 0;
+  if (SUCCEEDED(hr)) hr = converter->GetSize(&width, &height);
+  std::vector<uint8_t> pixels;
+  if (SUCCEEDED(hr) && width != 0 && height >= 4) {
+    const UINT stride = width * 4;
+    pixels.resize(static_cast<size_t>(stride) * height);
+    hr = converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixels.size()), pixels.data());
+  }
+  if (SUCCEEDED(hr) && !pixels.empty()) {
+    // A quarter of the height on each end, far enough from the seam that the
+    // encoder's block rounding and chroma smoothing cannot reach either mean.
+    const UINT sample = height / 4;
+    double top = 0.0;
+    double bottom = 0.0;
+    for (UINT y = 0; y < sample; ++y) {
+      for (UINT x = 0; x < width; ++x) {
+        const size_t offset = (static_cast<size_t>(y) * width + x) * 4;
+        top += pixels[offset] + pixels[offset + 1] + pixels[offset + 2];
+      }
+    }
+    for (UINT y = height - sample; y < height; ++y) {
+      for (UINT x = 0; x < width; ++x) {
+        const size_t offset = (static_cast<size_t>(y) * width + x) * 4;
+        bottom += pixels[offset] + pixels[offset + 1] + pixels[offset + 2];
+      }
+    }
+    upright = top > bottom;
+  }
+  if (stream) stream->Release();
+  if (converter) converter->Release();
+  if (frame) frame->Release();
+  if (decoder) decoder->Release();
+  if (factory) factory->Release();
+  if (SUCCEEDED(com_result)) CoUninitialize();
+  return upright;
 }
 
 int main() {
@@ -177,7 +258,16 @@ int main() {
       std::fprintf(stderr, "segment decode failed rel=%s index=%u\n", rel.c_str(), index);
       return false;
     }
+    // These segments hold synthetic frames, so the decoded picture has to be
+    // brighter on top and darker on the bottom. A reader is not told the row
+    // order of a coded frame, so the writer is the only place this can be got
+    // right.
+    const bool upright = jpeg_top_half_is_brighter(decoded, decoded_size);
     dg_frame_free(decoded);
+    if (!upright) {
+      std::fprintf(stderr, "segment frame came back flipped rel=%s index=%u\n", rel.c_str(), index);
+      return false;
+    }
     return true;
   };
   // A host with no usable video encoder must degrade to one JPEG per frame
