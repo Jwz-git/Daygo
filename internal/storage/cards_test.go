@@ -259,6 +259,38 @@ func TestReplaceCardsInRangeAbsorbsBackwardsMergedPredecessor(t *testing.T) {
 	}
 }
 
+func TestReplaceCardsInRangeRejectsPartialOverlapThatWouldLosePrefix(t *testing.T) {
+	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
+	seedBatch(t, store, 2)
+	ctx := context.Background()
+	loc := store.location()
+
+	from1, to1 := window(loc, 10, 16, 11, 6)
+	if _, err := store.Cards().ReplaceCardsInRange(ctx, from1, to1, []domain.CardShell{
+		shell("10:16 AM", "11:06 AM", "Coding", "must-survive"),
+	}, 1); err != nil {
+		t.Fatalf("seed card: %v", err)
+	}
+
+	// This rewrite touches only the final two minutes of the existing card.
+	// Deleting the whole row and inserting from 11:04 would lose 10:16–11:04.
+	from2, to2 := window(loc, 11, 4, 11, 19)
+	if _, err := store.Cards().ReplaceCardsInRange(ctx, from2, to2, []domain.CardShell{
+		shell("11:04 AM", "11:19 AM", "Coding", "partial-replacement"),
+	}, 2); err == nil {
+		t.Fatal("partial-overlap rewrite succeeded; want ownership constraint error")
+	}
+
+	cards, err := store.Cards().CardsForDay(ctx, "2026-09-12")
+	if err != nil {
+		t.Fatalf("cards after rejected rewrite: %v", err)
+	}
+	if len(cards) != 1 || cards[0].Title != "must-survive" || cards[0].Start != "10:16 AM" || cards[0].End != "11:06 AM" {
+		t.Fatalf("cards after rejected rewrite = %+v, want original card intact", cards)
+	}
+}
+
 func TestReplaceCardsInRangeCollectsDeletedVideoPaths(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
 	seedBatch(t, store, 1)

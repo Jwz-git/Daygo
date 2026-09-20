@@ -767,6 +767,52 @@ func TestPipelineMergeCardAbsorbsPredecessor(t *testing.T) {
 	}
 }
 
+// Reprocessing a batch whose earlier output had merged backward must rewrite
+// that whole merged span. The old implementation treated the rerun as fresh,
+// deleted the straddling card because it overlapped the batch window, and only
+// rebuilt from the batch start — silently losing the card's earlier prefix.
+func TestPipelineReprocessPreservesStraddlingCardPrefix(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"merged","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	batches, err := h.store.Analysis().BatchesInRange(context.Background(), base2.Add(-time.Minute), base2.Add(20*time.Minute))
+	if err != nil || len(batches) != 1 {
+		t.Fatalf("second batch = %+v, err=%v; want one", batches, err)
+	}
+	if _, err := h.store.Analysis().ReprocessBatches(context.Background(), []int64{batches[0].ID}, testNow.Add(time.Minute)); err != nil {
+		t.Fatalf("reprocess batch: %v", err)
+	}
+
+	// The rerun may split the merged span into short evidence-backed cards,
+	// but it must cover from 10:00 rather than dropping 10:00–10:16.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:20 AM","category":"Coding","subcategory":"","title":"before","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},{"start":"10:20 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"after","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	h.service.tick(context.Background())
+
+	cards, err := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if err != nil {
+		t.Fatalf("cards after reprocess: %v", err)
+	}
+	if len(cards) != 2 || cards[0].Start != "10:00 AM" || cards[0].End != "10:20 AM" ||
+		cards[1].Start != "10:20 AM" || cards[1].End != "10:30 AM" {
+		t.Fatalf("cards after reprocess = %+v, want continuous 10:00–10:30 coverage", cards)
+	}
+}
+
 // The same merge, but the predecessor is a System fallback card (the model
 // emitted an unknown category name). Sparing other batches' System cards in
 // the rewrite left both cards on screen in parallel — the reported bug.

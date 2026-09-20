@@ -430,35 +430,20 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 		return err
 	}
 
-	// Merge candidate (Dayflow's hasPreviousCardWithinFiveMinutes): the card
-	// immediately before the window whose end sits within five minutes of it.
-	// Its presence flips the card prompt into the ongoing-segmentation rewrite
-	// mode, and its start becomes the rewrite span's start — earlier cards are
-	// preserved untouched, exactly like the reference pipeline.
-	var mergeCandidate *domain.TimelineCard
-	for i := len(existing) - 1; i >= 0; i-- {
-		card := existing[i]
-		if card.EndTs <= batch.Start.Unix() {
-			if batch.Start.Unix()-card.EndTs <= 300 {
-				mergeCandidate = &existing[i]
-			}
-			break
-		}
-	}
-	ongoing := mergeCandidate != nil
+	// Generation, validation, and storage must own the exact same left edge.
+	// A card crossing the batch start is especially important on reprocess: if
+	// storage deletes it as an overlap while generation starts at the batch
+	// boundary, the card's earlier prefix silently disappears.
+	rewriteStart, ongoing := cardRewriteStart(existing, batch.Start)
 
-	shells, _, err := s.generateCards(ctx, chain, batch, existing, observations, categories, ongoing)
+	shells, _, err := s.generateCards(ctx, chain, batch, existing, observations, categories, rewriteStart, ongoing)
 	if err != nil {
 		return err
 	}
 	// The rewrite replaces everything from the span's start (the merged
 	// predecessor's start in ongoing mode) through the window end; cards
 	// before the span survive beside the rewrite.
-	replaceFrom := batch.Start
-	if ongoing && mergeCandidate != nil {
-		replaceFrom = time.Unix(mergeCandidate.StartTs, 0)
-	}
-	result, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End, shells, batch.ID)
+	result, err := s.cfg.Cards.ReplaceCardsInRange(ctx, rewriteStart, batch.End, shells, batch.ID)
 	if err != nil {
 		return err
 	}
@@ -474,6 +459,35 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	}
 	s.notifyDays(batch.Start, batch.End)
 	return nil
+}
+
+// cardRewriteStart returns the connected span owned by the next card pass. A
+// straddling card wins because replacing only its overlap would delete its
+// prefix. Otherwise only the nearest predecessor within five minutes is
+// eligible for an ongoing rewrite.
+func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (time.Time, bool) {
+	startUnix := batchStart.Unix()
+	var straddling *domain.TimelineCard
+	for i := range existing {
+		card := &existing[i]
+		if card.StartTs <= startUnix && card.EndTs > startUnix &&
+			(straddling == nil || card.StartTs < straddling.StartTs) {
+			straddling = card
+		}
+	}
+	if straddling != nil {
+		return time.Unix(straddling.StartTs, 0), true
+	}
+	for i := len(existing) - 1; i >= 0; i-- {
+		card := existing[i]
+		if card.EndTs <= startUnix {
+			if startUnix-card.EndTs <= 300 {
+				return time.Unix(card.StartTs, 0), true
+			}
+			break
+		}
+	}
+	return batchStart, false
 }
 
 // commitIdleCard writes the Idle card directly, merging with a directly
@@ -707,19 +721,7 @@ func appSitesFromList(values []string) *appSitesMetadata {
 // the accepted shells and the rewrite span start the caller must replace from.
 func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch storage.Batch,
 	existing []domain.TimelineCard, obs []storage.Observation,
-	categories []domain.Category, ongoing bool) ([]domain.CardShell, time.Time, error) {
-
-	rewriteStart := batch.Start
-	if ongoing {
-		// The earliest predecessor the ongoing rewrite may replace. Later
-		// attempts keep this anchored — validation holds the cards to it.
-		for _, card := range existing {
-			if card.EndTs <= batch.Start.Unix() {
-				rewriteStart = time.Unix(card.StartTs, 0)
-				break
-			}
-		}
-	}
+	categories []domain.Category, rewriteStart time.Time, ongoing bool) ([]domain.CardShell, time.Time, error) {
 
 	// Built-in names are not valid model output: a model echoing "Idle" from
 	// nearby-card context must fall into the System fallback, never land as

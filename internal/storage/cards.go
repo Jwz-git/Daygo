@@ -208,7 +208,7 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 
 		// Step 1: the overlap predicate of docs/03 §3.5 over the expanded span.
 		rows, err := tx.QueryContext(ctx, `
-			SELECT id, video_summary_path FROM timeline_cards
+			SELECT id, start_ts, end_ts, video_summary_path FROM timeline_cards
 			WHERE ((start_ts < ? AND end_ts > ?) OR (start_ts >= ? AND start_ts < ?))
 			  AND is_deleted = 0`,
 			effectiveTo.Unix(), effectiveFrom.Unix(), effectiveFrom.Unix(), effectiveTo.Unix())
@@ -219,10 +219,19 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 		var videoPaths []string
 		for rows.Next() {
 			var id int64
+			var startTs, endTs int64
 			var video sql.NullString
-			if err := rows.Scan(&id, &video); err != nil {
+			if err := rows.Scan(&id, &startTs, &endTs, &video); err != nil {
 				_ = rows.Close()
 				return wrap("scan overlapping card", err)
+			}
+			// Deleting an overlap removes the whole row. Refuse a rewrite whose
+			// owned span does not cover that whole row; otherwise a tiny overlap
+			// can silently erase hours outside the regenerated range.
+			if startTs < effectiveFrom.Unix() || endTs > effectiveTo.Unix() {
+				_ = rows.Close()
+				return newError(KindConstraint, fmt.Sprintf(
+					"replace cards in range: card %d spans outside rewrite ownership", id))
 			}
 			victimIDs = append(victimIDs, id)
 			if video.Valid && video.String != "" {
