@@ -251,7 +251,9 @@ timeline 批次驱动，维护任务已在第 3 步前启动。
 ### 2.6.3 后台 Agent 语义
 
 关闭最后一个窗口后进程必须存活，状态栏项保留重新打开窗口的入口。Cmd+Q 或 Dock「退出」
-触发软退出时，激活策略切换为 accessory（不占 Dock），状态栏恢复窗口时切回 regular。
+触发软退出时，激活策略切换为 accessory（不占活动中的 Dock）；状态栏“打开 Daygo”或用户再次
+点击保留在 Dock 的 Daygo 图标时恢复窗口并切回 regular。macOS 的应用激活通知只作为意图事件
+经 `platform.System` 上送，窗口操作仍由 `internal/app` 调用 Wails runtime 完成。
 **Wails 是否能承载这套语义是 G-host 硬门禁**，验证失败时停止大规模 UI 扩张
 并重新评估宿主（[风险 C-1](10-risks.md#c-1宿主无法承载后台-agent)）。
 

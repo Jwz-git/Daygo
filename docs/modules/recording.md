@@ -69,6 +69,10 @@ Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows`
 Wails/app 层管理。Go 平台测试、Windows `CGO_ENABLED=0` 交叉构建和全量 `gate.sh` 通过；原生
 Windows 编译、HEVC 编解码 smoke、真实屏保/显示器通知与应用枚举结果尚未验收，不能据此提升
 Windows 发布状态。
+
+**2026-09-20：macOS Dock 点击重开窗口修复已落盘**——原生 `System` 观察应用重新激活并通过
+平台事件上送，app 层与状态栏“打开 Daygo”共用恢复激活策略及显示窗口的动作；Go 路由测试已覆盖。
+真实 Dock 点击、accessory/regular 切换观感及关窗后长期捕获仍须 G-host 真机验收。
 `internal/recorder` 提供可停止的 Go 状态机：`idle → starting → capturing`，支持 `paused`
 与恢复；Capture 前写入 pending intent，完成后幂等提交 `screenshots`。`Backend` 已接入
 `SetRecording`、`PauseRecording`、`ResumeRecording`，绑定首次调用时读取真实 settings 并装配

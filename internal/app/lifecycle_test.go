@@ -3,10 +3,26 @@ package app
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/fake"
 )
+
+func TestApplicationActivationRoutesToWindowAction(t *testing.T) {
+	sys := fake.NewSystem()
+	b := NewBackend(sys, nil)
+	activated := make(chan struct{}, 1)
+	b.setActivationAction(func() { activated <- struct{}{} })
+	b.startSystemEventPump()
+
+	sys.Emit(platform.EventApplicationActivated)
+	select {
+	case <-activated:
+	case <-time.After(time.Second):
+		t.Fatal("application activation was not routed to the window action")
+	}
+}
 
 func TestQuitAllowedDefaultsFalse(t *testing.T) {
 	b := NewBackend(fake.NewSystem(), nil)

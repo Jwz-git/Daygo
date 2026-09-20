@@ -109,16 +109,17 @@ func (c CaptureErrorCode) Valid() bool {
 type SystemEventKind string
 
 const (
-	EventSleep             SystemEventKind = "sleep"
-	EventWake              SystemEventKind = "wake"
-	EventScreenLocked      SystemEventKind = "screen_locked"
-	EventScreenUnlocked    SystemEventKind = "screen_unlocked"
-	EventScreensaverStart  SystemEventKind = "screensaver_start"
-	EventScreensaverStop   SystemEventKind = "screensaver_stop"
-	EventDisplaysChanged   SystemEventKind = "displays_changed"
-	EventDeepLink          SystemEventKind = "deep_link"
-	EventStatusItemClick   SystemEventKind = "status_item_clicked"
-	EventNotificationClick SystemEventKind = "notification_clicked"
+	EventSleep                SystemEventKind = "sleep"
+	EventWake                 SystemEventKind = "wake"
+	EventScreenLocked         SystemEventKind = "screen_locked"
+	EventScreenUnlocked       SystemEventKind = "screen_unlocked"
+	EventScreensaverStart     SystemEventKind = "screensaver_start"
+	EventScreensaverStop      SystemEventKind = "screensaver_stop"
+	EventDisplaysChanged      SystemEventKind = "displays_changed"
+	EventApplicationActivated SystemEventKind = "application_activated"
+	EventDeepLink             SystemEventKind = "deep_link"
+	EventStatusItemClick      SystemEventKind = "status_item_clicked"
+	EventNotificationClick    SystemEventKind = "notification_clicked"
 )
 
 var pairedEvents = map[SystemEventKind]SystemEventKind{

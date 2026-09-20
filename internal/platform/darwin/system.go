@@ -112,6 +112,8 @@ func systemEventKind(k uint32) platform.SystemEventKind {
 		return platform.EventScreensaverStop
 	case 7:
 		return platform.EventDisplaysChanged
+	case 8:
+		return platform.EventApplicationActivated
 	}
 	return ""
 }
