@@ -33,6 +33,10 @@ type harness struct {
 	failures       []string
 	failedAttempts []int
 	framesDir      string
+	// activeSegment is the path the fake recorder is "writing"; the Config's
+	// ActiveSegment closure returns it, so a test can pin a batch's tail segment
+	// as active and then clear it to model a rollover.
+	activeSegment string
 }
 
 func newHarness(t *testing.T, responses map[string]string) *harness {
@@ -59,6 +63,7 @@ func newHarness(t *testing.T, responses map[string]string) *harness {
 		Categories:       store.Categories(),
 		Providers:        fakeChainSource{provider: h.provider},
 		Media:            dirFrameSource{dir: framesDir},
+		ActiveSegment:    func() string { return h.activeSegment },
 		Now:              func() time.Time { return testNow },
 		TickEvery:        time.Hour, // tests drive tick() directly
 		Workers:          1,
@@ -332,6 +337,50 @@ func TestPipelineMissingFrameFailsInternal(t *testing.T) {
 	}
 	if batches[0].FailureKind != "internal" {
 		t.Fatalf("failure kind = %q, want internal", batches[0].FailureKind)
+	}
+}
+
+// A batch whose frames still live in the segment the recorder is actively
+// writing is deferred, not failed: the container is unfinalized and its frames
+// cannot be decoded yet. It stays pending with no attempt counted, and the next
+// tick processes it once the segment has finalized (active segment cleared).
+func TestPipelineDefersBatchInActiveSegment(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"Editing","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	// 92 frames at 10s seal a 91-frame batch (frames 0..90); the tail stays out.
+	frames := h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+
+	// The recorder is still writing the segment holding the batch's newest frame.
+	h.activeSegment = frames[90].SegmentPath
+
+	h.service.tick(context.Background())
+
+	batches := mustBatches(t, h.store)
+	if len(batches) != 1 || batches[0].Status != storage.BatchPending {
+		t.Fatalf("batches = %+v, want one still pending (deferred)", batches)
+	}
+	if len(h.failures) != 0 {
+		t.Fatalf("deferral recorded as failure: %v", h.failures)
+	}
+	if batches[0].Attempts != 0 {
+		t.Fatalf("deferral counted an attempt: %d", batches[0].Attempts)
+	}
+	if n := h.provider.callCount(string(ai.PurposeTranscribe)); n != 0 {
+		t.Fatalf("deferred batch called the provider %d times, want 0", n)
+	}
+
+	// The segment rolls over and finalizes: the same batch now processes on the
+	// next tick with no manual retry.
+	h.activeSegment = ""
+	h.service.tick(context.Background())
+
+	batches = mustBatches(t, h.store)
+	if len(batches) != 1 || batches[0].Status != storage.BatchSucceeded {
+		t.Fatalf("batches = %+v, want one succeeded after the segment finalized", batches)
 	}
 }
 

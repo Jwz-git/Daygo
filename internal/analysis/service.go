@@ -70,13 +70,20 @@ type Config struct {
 	Providers  ChainSource
 	Media      FrameSource
 	Language   func(ctx context.Context) string
-	Now              func() time.Time
-	TickEvery        time.Duration
-	Workers          int
+	// ActiveSegment reports the recording segment currently being written, or
+	// "" when none is active. A batch whose frames still live in that segment is
+	// deferred rather than processed: its container is unfinalized and its frames
+	// cannot be decoded yet, so processing would fail and burn a retry cooldown
+	// until the segment happens to roll over. Nil means no active-segment
+	// awareness (tests, headless read-only) — every batch runs immediately.
+	ActiveSegment func() string
+	Now           func() time.Time
+	TickEvery     time.Duration
+	Workers       int
 	// BatchPacing is the pause between processing batches when draining
 	// multiple pending or closed batches. 0 means no delay (used in tests).
-	BatchPacing      time.Duration
-	IdleRules        IdleRules
+	BatchPacing time.Duration
+	IdleRules   IdleRules
 	// Location is the zone for every local-time decision the service makes
 	// (idle card clocks, out-of-window prefiltering, day notification). It
 	// must match the storage layer's zone, because ReplaceCardsInRange
@@ -235,6 +242,10 @@ func (s *Service) tick(ctx context.Context) {
 					// next startup to adopt. Not a failure.
 					return
 				}
+				if errors.Is(err, errBatchDeferred) {
+					// Still in the active segment: stays pending for a later tick.
+					continue
+				}
 				if isRateLimitError(err) {
 					s.handleBatchRateLimit(ctx, batch, err)
 					return
@@ -273,6 +284,10 @@ func (s *Service) tick(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
+			if errors.Is(err, errBatchDeferred) {
+				// Still in the active segment: stays pending, drained next tick.
+				continue
+			}
 			if isRateLimitError(err) {
 				s.handleBatchRateLimit(ctx, batch, err)
 				return
@@ -299,6 +314,10 @@ func (s *Service) tick(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
+			if errors.Is(err, errBatchDeferred) {
+				// Still in the active segment: stays pending, drained next tick.
+				return
+			}
 			if isRateLimitError(err) {
 				s.handleBatchRateLimit(ctx, batch, err)
 				return
@@ -313,15 +332,51 @@ func (s *Service) tick(ctx context.Context) {
 	}
 }
 
+// errBatchDeferred signals processBatch declined to run a batch that still
+// references the active recording segment. It is not a failure: the batch stays
+// pending, untouched, for a later tick to retry once the segment finalizes. The
+// scheduler must not fail the batch or count an attempt against it.
+var errBatchDeferred = errors.New("analysis: batch references the active recording segment")
+
+// batchInActiveSegment reports whether any frame in the batch still belongs to
+// the segment the recorder is actively writing. Segments finalize in order and
+// only one is ever active, so this is the tail of a freshly sealed batch — an
+// unfinalized container (no moov atom on macOS) that cannot be decoded yet.
+// A finalized segment never matches, so an old missing or corrupt segment still
+// fails visibly through the normal path rather than deferring forever.
+func (s *Service) batchInActiveSegment(frames []storage.AnalysisFrame) bool {
+	if s.cfg.ActiveSegment == nil || len(frames) == 0 {
+		return false
+	}
+	active := s.cfg.ActiveSegment()
+	if active == "" {
+		return false
+	}
+	for _, f := range frames {
+		if f.SegmentPath == active {
+			return true
+		}
+	}
+	return false
+}
+
 // processBatch runs one batch through the pipeline. A returned error fails
 // the batch; context cancellation returns ctx.Err() with the batch left in
-// processing for the next startup.
+// processing for the next startup; errBatchDeferred leaves the batch pending.
 func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
-	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchProcessing, "", "", s.cfg.Now()); err != nil {
-		return err
-	}
 	frames, err := s.cfg.Store.FramesForBatch(ctx, batch.ID)
 	if err != nil {
+		return err
+	}
+	// Frames still in the active recording segment cannot be decoded yet: the
+	// container has no moov atom until the segment rolls over or is finalized on
+	// pause/stop. Leave the batch pending (no processing status, no attempt
+	// counted) so a later tick retries once it finalizes, instead of failing the
+	// batch on a frameDecode error and waiting out the retry cooldown.
+	if s.batchInActiveSegment(frames) {
+		return errBatchDeferred
+	}
+	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchProcessing, "", "", s.cfg.Now()); err != nil {
 		return err
 	}
 	if len(frames) == 0 {

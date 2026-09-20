@@ -88,6 +88,17 @@ func New(cfg Config) (*Recorder, error) {
 }
 func (r *Recorder) State() State { r.mu.Lock(); defer r.mu.Unlock(); return r.state }
 
+// ActiveSegmentPath reports the segment the recorder is currently writing into,
+// or "" when no segment is active (idle, paused, stopped, or legacy staging
+// mode). A frame in the active segment has no finalized container yet, so it
+// cannot be decoded until the segment rolls over or is finalized on pause/stop;
+// the analysis scheduler reads this to defer a batch that still references it.
+func (r *Recorder) ActiveSegmentPath() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastSegmentPath
+}
+
 // LastFrameAt reports the last frame that was fully written and committed to
 // storage. A defensive copy keeps callers from sharing mutable state with the
 // recorder goroutine.

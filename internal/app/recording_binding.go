@@ -91,6 +91,18 @@ func (b *Backend) recorderState() recorder.State {
 	}
 	return b.recorder.State()
 }
+
+// activeSegmentPath reports the segment the recorder is currently writing, or
+// "" when no recorder exists yet or none is active. The analysis scheduler reads
+// it to defer a batch whose frames still live in that unfinalized segment.
+func (b *Backend) activeSegmentPath() string {
+	b.recorderMu.Lock()
+	defer b.recorderMu.Unlock()
+	if b.recorder == nil {
+		return ""
+	}
+	return b.recorder.ActiveSegmentPath()
+}
 func (b *Backend) GetRecordingDirectory() (string, error) {
 	if b.storage == nil {
 		return "", apperr.E(apperr.DatabaseError, "recording directory unavailable", nil)
