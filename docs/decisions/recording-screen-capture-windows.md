@@ -108,12 +108,22 @@ native\windows\build.ps1 -RunSmoke  # 额外链接并运行原生 smoke
 |---|---|
 | 工具链 | 外层 cgo ABI：MinGW-w64 C++17；WGC/应用 ABI helper：VS 2022 MSVC C++20 + Windows SDK 26100 |
 | 产物 | `build/native/windows/amd64/libdaygo_capture.a` + `daygo_windows_native.dll`（复制到 `build/bin` 与 EXE 同目录） |
-| 链接库 | `d3d11 dxgi dxguid ole32 oleaut32 windowscodecs user32 gdi32 advapi32`，外加 MinGW 运行时 `stdc++ gcc gcc_eh` |
+| 链接库 | `d3d11 dxgi dxguid ole32 oleaut32 windowscodecs user32 gdi32 advapi32`，外加 MinGW 运行时 `stdc++ gcc gcc_eh`；`stdc++` 必须静态链接，理由见下 |
 | Go 侧 | `internal/platform/windows/bridge_windows.go`（`windows && cgo`） |
 | 构建接线 | `cmd/daygo/wails.json` 的 `preBuildHooks["windows/*"]` |
 | 开发入口 | `scripts/dev.ps1`（与 `scripts/dev.sh` 对应的 PowerShell 版本；Go 1.25 自动启用 `GOEXPERIMENT=nodwarf5`） |
 | 生产构建入口 | `scripts/build.ps1`（`npm ci` → 生成绑定 → Wails `windows/amd64` 构建 → 校验 EXE + DLL） |
 | 分发验收入口 | `scripts/package-windows.ps1`（NSIS；先签 EXE/DLL，再封装并签安装器；输出 commit + SHA-256 manifest） |
+
+MinGW 的 C++ 运行时必须**静态链接**。`-lstdc++` 在 MinGW 下解析到 DLL import library，
+默认会让 EXE 在加载期依赖 `libstdc++-6.dll`；而该文件不在任何分发产物里（NSIS 只封装 EXE
+与 `daygo_windows_native.dll`），于是应用只在恰好有 MinGW 运行时在 PATH 上的机器能启动：
+没有时 `STATUS_DLL_NOT_FOUND`（`0xC0000135`），命中了版本不匹配的一份时
+`STATUS_ENTRYPOINT_NOT_FOUND`（`0xC0000139`）。用 `-Wl,-Bstatic -lstdc++ -Wl,-Bdynamic`
+可以把这条依赖从加载期清单里去掉。`internal/platform/windows` 下**每一处**含 `-lstdc++`
+的 `#cgo LDFLAGS` 都要这样写：cgo 把同包所有文件的 LDFLAGS 合并成一条链接命令，漏掉任何
+一处都会把 DLL 依赖带回来。不要用 `-static-libstdc++`——它只作用于编译器驱动隐式添加的
+那份 `-lstdc++`，对显式写出的 `-lstdc++` 无效。
 
 Windows 宿主额外限制 DLL 搜索路径为应用目录与 System32，避免从当前工作目录
 加载同名 `daygo_windows_native.dll`；窗口主题跟随系统，Windows 11 使用 Mica 背景。
@@ -186,6 +196,19 @@ Go 层与 macOS 未改动。
 
 仍未验证：`AcquireNextFrame` 在会话建立之后返回的错误码、多屏/旋转、受保护内容与长时间运行；
 本机是**虚拟/流式显示**环境，DXGI 回退才被触发，不代表普通物理显示器主机也会走到 GDI。
+
+同一轮里另修了 §5 的静态链接问题：此前 `Daygo.exe` 在加载期依赖 `libstdc++-6.dll`
+（`dumpbin -dependents` 是唯一一个非系统 DLL），用一个不含 MinGW 的 PATH 运行即
+`STATUS_DLL_NOT_FOUND`；安装包并不封装这个文件，应用只是「碰巧」在装有 MinGW 的机器上能起来。
+改掉两处 `#cgo LDFLAGS` 后该依赖从清单里消失，同一个最小 PATH 下运行成功。
+`./scripts/gate.sh` 至此在本机**全绿通过**（binding 生成、Go 测试、vet、三平台无 cgo 交叉构建、
+前端单测/typecheck/build、docs 检查）。修复前 gate 停在此处：binding 生成二进制因 PATH 上
+Git for Windows 那份版本不匹配的 `libstdc++-6.dll` 以 `0xC0000139` 启动失败，以及
+`internal/platform/windows` 的 `TestSystemEventKind` 与同文件的
+`TestSystemEventKindIncludesScreensaverAndDisplays` 对 kind 5 的期望自相矛盾。
+
+Windows 侧仍未验证的项目不变，另外新增一项：上述结论都来自**本机**（装有 MinGW-w64 与
+Git for Windows 的开发机），干净 Windows 机器上的安装/启动尚未复测。
 
 2026-09-20（同一台机器）：用户报告录下来的画面是倒着的。根因在 §8 的分段写入路径——
 `sink writer` 的输入类型没有声明行序，Media Foundation 因此按自下而上读走自上而下的采集
