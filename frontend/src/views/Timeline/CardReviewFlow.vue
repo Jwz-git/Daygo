@@ -12,10 +12,12 @@ import { useI18n } from 'vue-i18n'
 import type { CardMediaFrameDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import { getCardMedia } from '@/api/media'
 import { clearCardReview, saveCardReview } from '@/api/review'
+import { appSiteValues } from '@/lib/appSiteIcon'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { useDurationFormat } from '@/lib/duration'
 import { formatClockTime } from '@/lib/timeFormat'
 
+import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import CardVideoPlayer from '@/components/CardVideoPlayer.vue'
 import { safeCategoryColor } from './layout'
 import { type ReviewTotals } from './review'
@@ -64,6 +66,9 @@ const duration = useDurationFormat()
 
 const current = computed(() => queue.value[index.value] ?? null)
 const nextCard = computed(() => queue.value[index.value + 1] ?? null)
+/* Marks for the deck's two visible cards, resolved once each. */
+const currentSites = computed(() => (current.value === null ? [] : cardSites(current.value)))
+const nextSites = computed(() => (nextCard.value === null ? [] : cardSites(nextCard.value)))
 const total = queue.value.length
 const finished = computed(() => total > 0 && index.value >= total)
 
@@ -87,6 +92,15 @@ function getCategoryColor(catName: string | undefined): string {
   if (!catName) return safeCategoryColor(undefined)
   const category = props.day.categories.find((entry) => entry.name === catName)
   return safeCategoryColor(category?.colorHex)
+}
+
+/* App/site candidates for the mark beside the title. The review deck shows the
+   same cards the track and the inspector do, so it carries the same mark:
+   without it the deck is the one place a card loses the "what was on screen"
+   cue. Only local rules run here — the icon resolver's network and
+   installed-app lookups stay in the card component. */
+function cardSites(card: TimelineCardDTO): string[] {
+  return appSiteValues(card.appSites)
 }
 
 function getProgressLabel(cardIndex: number): string {
@@ -443,7 +457,15 @@ function totalsSnapshot(): ReviewTotals {
         </div>
 
         <div class="review__body">
-          <h2 class="review__title">{{ nextCard.title }}</h2>
+          <div class="review__head">
+            <AppSiteIcon
+              v-if="nextSites.length > 0"
+              :sites="nextSites"
+              :accent="getCategoryColor(nextCard.category)"
+              :size="30"
+            />
+            <h2 class="review__title">{{ nextCard.title }}</h2>
+          </div>
           <div class="review__meta">
             <span class="review__category" :style="{ borderColor: getCategoryColor(nextCard.category), color: getCategoryColor(nextCard.category) }">
               <i :style="{ background: getCategoryColor(nextCard.category) }"></i>{{ categoryLabel(nextCard.category, t) }}
@@ -473,7 +495,15 @@ function totalsSnapshot(): ReviewTotals {
         </div>
 
         <div class="review__body">
-          <h2 class="review__title">{{ current.title }}</h2>
+          <div class="review__head">
+            <AppSiteIcon
+              v-if="currentSites.length > 0"
+              :sites="currentSites"
+              :accent="getCategoryColor(current.category)"
+              :size="30"
+            />
+            <h2 class="review__title">{{ current.title }}</h2>
+          </div>
           <div class="review__meta">
             <span class="review__category" :style="{ borderColor: getCategoryColor(current.category), color: getCategoryColor(current.category) }">
               <i :style="{ background: getCategoryColor(current.category) }"></i>{{ categoryLabel(current.category, t) }}
@@ -692,8 +722,18 @@ function totalsSnapshot(): ReviewTotals {
 
 .review__body { padding: 16px 2px 0; }
 
-.review__title {
+/* Mark + title on one line. min-width: 0 lets a long title wrap beside the
+   mark instead of overflowing; the mark itself is flex: none. */
+.review__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   margin: 0 0 12px;
+}
+
+.review__title {
+  min-width: 0;
+  margin: 0;
   color: var(--dg-text-primary);
   font-size: 30px;
   font-weight: 800;
