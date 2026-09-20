@@ -176,6 +176,20 @@ if ($env:OS -ne 'Windows_NT') {
 
 Assert-DaygoTool -Name go -Hint 'Install Go from https://go.dev/dl/ or via winget (winget install GoLang.Go).'
 Assert-DaygoTool -Name npm -Hint 'Install Node.js 20.19+ (or 22.12+) from https://nodejs.org/.'
+
+if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+    $nsisCandidates = @(
+        (Join-Path $env:ProgramFiles 'NSIS\makensis.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\NSIS\makensis.exe')
+    )
+    $makensisPath = $nsisCandidates |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } |
+        Select-Object -First 1
+    if ($makensisPath) {
+        $env:PATH = "$(Split-Path -Parent $makensisPath);$env:PATH"
+    }
+}
 Assert-DaygoTool -Name makensis -Hint 'Install NSIS (winget install NSIS.NSIS) and add it to PATH; wails build -nsis invokes it.'
 
 if ($SignMode -ne 'none') {
