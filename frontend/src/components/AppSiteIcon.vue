@@ -87,6 +87,15 @@ const brandImage = computed(() => BRAND_IMAGES[activeIdentity.value.kind] ?? nul
  * and, when set, takes precedence over the brand mark in the template.
  */
 const faviconSrc = ref<string | null>(null)
+/*
+ * A src that failed to decode. Without this the slot is not merely wrong but
+ * invisible: .is-raw drops the border and background for real brand images, so
+ * a bundled mark missing from the build (or a favicon the host served as
+ * something the webview cannot decode) leaves an empty 18px gap with nothing to
+ * click or read. Remembering the failed src makes the chain keep going instead —
+ * broken favicon → bundled brand mark → drawn mark or monogram.
+ */
+const failedSrc = ref<string | null>(null)
 let resolveSeq = 0
 
 watch(
@@ -94,6 +103,7 @@ watch(
   async (sites) => {
     const seq = ++resolveSeq
     faviconSrc.value = null
+    failedSrc.value = null
 
     if (sites.length === 0) {
       activeSite.value = ''
@@ -175,9 +185,10 @@ watch(
 )
 
 // A resolved favicon (network or installed-app) wins over the brand mark; the
-// bundled brand image renders only when no favicon was resolved.
-const showFavicon = computed(() => faviconSrc.value !== null)
-const showBrandImage = computed(() => !showFavicon.value && brandImage.value !== null)
+// bundled brand image renders only when no favicon was resolved. A src that
+// already failed to decode stays out of both branches.
+const showFavicon = computed(() => faviconSrc.value !== null && faviconSrc.value !== failedSrc.value)
+const showBrandImage = computed(() => !showFavicon.value && brandImage.value !== null && brandImage.value !== failedSrc.value)
 
 const iconStyle = computed<CSSProperties>(() => ({
   width: `${props.size}px`,
@@ -195,9 +206,9 @@ const iconStyle = computed<CSSProperties>(() => ({
     :aria-label="activeIdentity.label"
     :title="activeIdentity.label"
   >
-    <img v-if="showFavicon" class="app-site-icon__favicon" :src="faviconSrc!" alt="" draggable="false">
+    <img v-if="showFavicon" class="app-site-icon__favicon" :src="faviconSrc!" alt="" draggable="false" @error="failedSrc = faviconSrc">
 
-    <img v-else-if="showBrandImage" class="app-site-icon__favicon" :src="brandImage!" alt="" draggable="false">
+    <img v-else-if="showBrandImage" class="app-site-icon__favicon" :src="brandImage!" alt="" draggable="false" @error="failedSrc = brandImage">
 
     <svg v-else-if="activeIdentity.kind === 'daygo'" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="6" y="12" width="2.8" height="6" rx="1.4" opacity=".68" />
