@@ -155,12 +155,12 @@ export default {
       moveDown: '下移',
     },
     secret: {
-      configured: '密钥已保存在钥匙串',
+      configured: '密钥已保存在系统凭据存储',
       missing: '未配置密钥',
       clear: '清除密钥',
-      keychainTitle: '密钥保存在系统钥匙串',
+      keychainTitle: '密钥保存在系统凭据存储',
       keychain:
-        '密钥只写入 macOS 钥匙串，不出现在数据库、日志或界面中。清除后需要重新填写才能调用该供应商。',
+        '密钥只写入系统凭据存储（Windows 凭据管理器、macOS 钥匙串），不出现在数据库、日志或界面中。清除后需要重新填写才能调用该供应商。',
     },
     models: {
       fetch: '获取模型',

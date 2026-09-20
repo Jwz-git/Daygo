@@ -159,12 +159,12 @@ export default {
       moveDown: 'Move down',
     },
     secret: {
-      configured: 'Key stored in the keychain',
+      configured: 'Key stored in the system credential store',
       missing: 'No key',
       clear: 'Clear key',
-      keychainTitle: 'Keys live in the system keychain',
+      keychainTitle: 'Keys live in the system credential store',
       keychain:
-        'Keys are written to the macOS keychain only — never the database, logs, or the UI. After clearing one, the key must be entered again to use the provider.',
+        'Keys are written to the system credential store only (Windows Credential Manager, macOS Keychain) — never the database, logs, or the UI. After clearing one, the key must be entered again to use the provider.',
     },
     models: {
       fetch: 'Fetch models',
