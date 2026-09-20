@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"reflect"
 	"testing"
 	"time"
 
@@ -116,7 +115,8 @@ func seedRepresentativeData(t *testing.T, store *Store) {
 		{
 			Start: "9:00 AM", End: "10:00 AM", Category: "Development",
 			Title: "Implement storage", Summary: "Wrote repositories",
-			Metadata: `{"appSites":{"primary":"code","secondary":"terminal"},"distractions":["news"]}`,
+			Metadata: `{"appSites":{"primary":"code","secondary":"terminal"},` +
+				`"distractions":[{"startTime":"10:05 AM","endTime":"10:07 AM","title":"news"}]}`,
 		},
 	}, 1)
 	if err != nil {
@@ -144,8 +144,10 @@ func TestReadEveryTableOnRepresentativeData(t *testing.T) {
 // DB-5: every timeline_cards.metadata value must decode, and the fields the
 // product reads out of it must survive a round trip. A metadata blob that
 // silently loses appSites would make the timeline's frame view lie about what
-// was on screen. appSites is the docs/05 §5.5.2 primary/secondary object — the
-// shape the binding layer parses, not the model's flat list.
+// was on screen. The seeded blob is the shape the pipeline writes: appSites as
+// the docs/05 §5.5.2 primary/secondary object and distractions as the DTO
+// objects the inspector renders its clock ranges from — not the model's own
+// shapes, which the pipeline maps before storing.
 func TestCardMetadataRoundTrips(t *testing.T) {
 	store := openWriter(t, newDir(t))
 	seedRepresentativeData(t, store)
@@ -171,7 +173,11 @@ func TestCardMetadataRoundTrips(t *testing.T) {
 				Primary   *string `json:"primary"`
 				Secondary *string `json:"secondary"`
 			} `json:"appSites"`
-			Distractions []string `json:"distractions"`
+			Distractions []struct {
+				StartTime string `json:"startTime"`
+				EndTime   string `json:"endTime"`
+				Title     string `json:"title"`
+			} `json:"distractions"`
 		}
 		if err := json.Unmarshal([]byte(card.Metadata), &decoded); err != nil {
 			t.Errorf("card %d metadata does not decode: %v", card.ID, err)
@@ -181,8 +187,9 @@ func TestCardMetadataRoundTrips(t *testing.T) {
 			decoded.AppSites.Secondary == nil || *decoded.AppSites.Secondary != "terminal" {
 			t.Errorf("card %d appSites = %+v", card.ID, decoded.AppSites)
 		}
-		if !reflect.DeepEqual(decoded.Distractions, []string{"news"}) {
-			t.Errorf("card %d distractions = %v", card.ID, decoded.Distractions)
+		if len(decoded.Distractions) != 1 || decoded.Distractions[0].Title != "news" ||
+			decoded.Distractions[0].StartTime != "10:05 AM" || decoded.Distractions[0].EndTime != "10:07 AM" {
+			t.Errorf("card %d distractions = %+v", card.ID, decoded.Distractions)
 		}
 	}
 }

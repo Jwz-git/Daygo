@@ -629,6 +629,39 @@ type appSitesMetadata struct {
 	Secondary *string `json:"secondary"`
 }
 
+// distractionMetadata is the distraction wire shape the binding layer reads out
+// of card metadata (docs/05 §5.5.2). The model names the range start/end, like
+// a card window; metadata names it startTime/endTime, like the DTO. The
+// pipeline owns that rename for the same reason it owns appSites: a consumer
+// that knows the model's field names is a consumer that breaks when they move.
+type distractionMetadata struct {
+	StartTime string `json:"startTime"`
+	EndTime   string `json:"endTime"`
+	Title     string `json:"title"`
+	Summary   string `json:"summary"`
+}
+
+// distractionsFromModel maps the model's distractions onto the metadata
+// contract. Untitled entries are dropped: an interruption the model could not
+// name would render as a bare clock range. The result is never nil, so an empty
+// list stores as [] and consumers doing .length stay safe.
+func distractionsFromModel(values []cardsDistraction) []distractionMetadata {
+	out := make([]distractionMetadata, 0, len(values))
+	for _, value := range values {
+		title := strings.TrimSpace(value.Title)
+		if title == "" {
+			continue
+		}
+		out = append(out, distractionMetadata{
+			StartTime: strings.TrimSpace(value.Start),
+			EndTime:   strings.TrimSpace(value.End),
+			Title:     title,
+			Summary:   strings.TrimSpace(value.Summary),
+		})
+	}
+	return out
+}
+
 func isBrowserName(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "edge", "microsoft edge", "chrome", "google chrome", "safari", "firefox", "arc", "brave", "opera", "vivaldi":
@@ -748,7 +781,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			}
 			metadata, _ := json.Marshal(map[string]any{
 				"appSites":       appSitesFromList(c.AppSites),
-				"distractions":   c.Distractions,
+				"distractions":   distractionsFromModel(c.Distractions),
 				"activityPoints": points,
 			})
 			shell := domain.CardShell{
@@ -840,9 +873,9 @@ func dropPreWindowPoints(metadata string, windowStart time.Time, anchor time.Tim
 	// over the original metadata, so a field the struct cannot decode is a
 	// field the rewrite silently drops.
 	var meta struct {
-		AppSites       *appSitesMetadata   `json:"appSites"`
-		Distractions   []string            `json:"distractions"`
-		ActivityPoints []cardActivityPoint `json:"activityPoints"`
+		AppSites       *appSitesMetadata     `json:"appSites"`
+		Distractions   []distractionMetadata `json:"distractions"`
+		ActivityPoints []cardActivityPoint   `json:"activityPoints"`
 	}
 	if err := json.Unmarshal([]byte(metadata), &meta); err != nil {
 		return metadata

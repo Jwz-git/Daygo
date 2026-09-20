@@ -182,7 +182,7 @@ func (d dirFrameSource) FrameBytes(_ context.Context, segmentPath string, frameI
 func TestPipelineHappyPath(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"Working in an editor","apps":["Code"]}]}`,
-		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"editor","title":"Editing code","summary":"Working in an editor.","detailed_summary":"","appSites":["Code"],"distractions":[],"activityPoints":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"editor","title":"Editing code","summary":"Working in an editor.","detailed_summary":"","appSites":["Code"],"distractions":[{"start":"10:05 AM","end":"10:07 AM","title":"checked a feed","summary":""}],"activityPoints":[]}]}`,
 	})
 
 	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
@@ -216,12 +216,29 @@ func TestPipelineHappyPath(t *testing.T) {
 			Primary   *string `json:"primary"`
 			Secondary *string `json:"secondary"`
 		} `json:"appSites"`
+		Distractions []struct {
+			StartTime string `json:"startTime"`
+			EndTime   string `json:"endTime"`
+			Title     string `json:"title"`
+			Summary   string `json:"summary"`
+		} `json:"distractions"`
 	}
 	if err := json.Unmarshal([]byte(card.Metadata), &meta); err != nil {
 		t.Fatalf("metadata = %q (%v)", card.Metadata, err)
 	}
 	if meta.AppSites == nil || meta.AppSites.Primary == nil || *meta.AppSites.Primary != "Code" {
 		t.Fatalf("appSites = %+v, want primary Code from the model's flat list", meta.AppSites)
+	}
+	// Distractions cross the same boundary: the model names the range start/end
+	// and the consumer reads the docs/05 §5.5.2 object, whose clock fields are
+	// startTime/endTime. A distraction stored in any other shape is a
+	// distraction the inspector cannot place on the day.
+	if len(meta.Distractions) != 1 {
+		t.Fatalf("distractions = %+v, want the model's one entry mapped", meta.Distractions)
+	}
+	mapped := meta.Distractions[0]
+	if mapped.StartTime != "10:05 AM" || mapped.EndTime != "10:07 AM" || mapped.Title != "checked a feed" {
+		t.Fatalf("distraction = %+v, want the model's range under the contract's field names", mapped)
 	}
 
 	if len(h.days) != 1 || h.days[0] != "2026-09-12" {

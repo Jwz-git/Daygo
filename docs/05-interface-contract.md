@@ -532,6 +532,21 @@ type AppSitesDTO struct {
     Secondary *string `json:"secondary"`
 }
 
+// TimelineCardDTO 的三个装饰字段（appSites / distractions / activityPoints）自
+// timeline_cards.metadata 而来，该列的存储形状是**表侧的契约**：模型输出不直接落库，
+// 映射由管线（生产者）负责，消费端不认模型的字段名。
+//
+//   metadata 键       存储形状                                     模型输出（映射前）
+//   appSites          {primary, secondary} 或 null                 扁平字符串数组
+//   distractions      DistractionDTO 对象数组（startTime/endTime/   {start, end, title,
+//                     title/summary；id 缺失时由绑定层生成），       summary} 对象数组
+//                     空列表存 []（不是 null：消费端会读 .length）
+//   activityPoints    {time, description} 对象数组                 同形状
+//
+// 映射前的形状一旦漏进 metadata，绑定层就解不开：parseCardMetadata 逐字段解码，
+// 解不开的字段被丢弃（不会连坐兄弟字段，也不会拿猜测值顶替）。2026-09-16 与
+// 2026-09-20 两次「时间线完全没有图标」都是这条缝上的漂移，见 docs/modules/timeline.md。
+
 type TimelineFailureDTO struct {
     BatchIDs  []int64 `json:"batchIds"`
     StartTs   int64   `json:"startTs"`

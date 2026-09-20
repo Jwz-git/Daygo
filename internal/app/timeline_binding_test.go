@@ -123,7 +123,9 @@ func TestGetTimelineDayCardsAndTotals(t *testing.T) {
 // card; internal/analysis/pipeline_test.go pins the producer to the same
 // shape. appSites crossing this boundary as the model's flat list instead of
 // the docs/05 §5.5.2 object made every card lose appSites, distractions and
-// activityPoints together, because the decoration parse fails as a unit.
+// activityPoints together, because the decoration parse failed as a unit. The
+// per-field decode that replaced it is covered by
+// TestCardMetadataKeepsFieldsBesideAnUndecodableOne.
 func TestCardMetadataWrittenByAnalysisPipelineParses(t *testing.T) {
 	backend, _ := backendWithStore(t)
 	seedTimelineDay(t, backend, []domain.CardShell{
@@ -147,6 +149,74 @@ func TestCardMetadataWrittenByAnalysisPipelineParses(t *testing.T) {
 	}
 	if card.AppSites.Secondary != nil {
 		t.Fatalf("secondary = %v, want null", card.AppSites.Secondary)
+	}
+}
+
+// An undecodable decoration is dropped on its own. The pipeline maps what the
+// model returns onto the metadata contract, so a drift at that seam shows up
+// here as one field the binding layer cannot read — and it must not take its
+// siblings with it. The flat distractions list below is the shape stored before
+// that mapping existed, and a card carrying it is exactly the card that lost
+// appSites, and with it the icon, in the field.
+func TestCardMetadataKeepsFieldsBesideAnUndecodableOne(t *testing.T) {
+	backend, _ := backendWithStore(t)
+	seedTimelineDay(t, backend, []domain.CardShell{
+		{
+			Start: "10:00 AM", End: "10:30 AM", Category: "Coding",
+			Title: "Editing code", Summary: "s",
+			Metadata: `{"appSites":{"primary":"code.visualstudio.com","secondary":"github.com"},` +
+				`"distractions":["7:17 PM opened a notification panel"],` +
+				`"activityPoints":[{"time":"10:05 AM","description":"typed"}]}`,
+		},
+	})
+
+	dto, err := backend.GetTimelineDay("2026-09-12")
+	if err != nil {
+		t.Fatalf("GetTimelineDay: %v", err)
+	}
+	if len(dto.Cards) != 1 {
+		t.Fatalf("cards = %d, want 1", len(dto.Cards))
+	}
+	card := dto.Cards[0]
+	if card.AppSites == nil || card.AppSites.Primary == nil || *card.AppSites.Primary != "code.visualstudio.com" {
+		t.Fatalf("appSites = %+v, want the primary stored beside the flat distractions list", card.AppSites)
+	}
+	if len(card.ActivityPoints) != 1 || card.ActivityPoints[0].Description != "typed" {
+		t.Fatalf("activityPoints = %+v, want the point stored beside the flat distractions list", card.ActivityPoints)
+	}
+	// The undecodable field itself is dropped, never half-filled.
+	if len(card.Distractions) != 0 {
+		t.Fatalf("distractions = %+v, want none: the stored entries are strings", card.Distractions)
+	}
+}
+
+// The distraction objects the pipeline stores carry a clock range and no id of
+// their own; this layer assigns one so the inspector can key its rows
+// (docs/05 §5.5.2: "metadata 中缺失时由 Go 生成，保持稳定").
+func TestCardDistractionsCarryTheStoredClockRange(t *testing.T) {
+	backend, _ := backendWithStore(t)
+	seedTimelineDay(t, backend, []domain.CardShell{
+		{
+			Start: "10:00 AM", End: "10:30 AM", Category: "Coding",
+			Title: "Editing code", Summary: "s",
+			Metadata: `{"appSites":{"primary":"Code"},` +
+				`"distractions":[{"startTime":"10:05 AM","endTime":"10:07 AM","title":"checked a feed","summary":"s"}]}`,
+		},
+	})
+
+	dto, err := backend.GetTimelineDay("2026-09-12")
+	if err != nil {
+		t.Fatalf("GetTimelineDay: %v", err)
+	}
+	if len(dto.Cards) != 1 || len(dto.Cards[0].Distractions) != 1 {
+		t.Fatalf("distractions = %+v, want the stored entry", dto.Cards[0].Distractions)
+	}
+	distraction := dto.Cards[0].Distractions[0]
+	if distraction.ID == "" {
+		t.Fatal("distraction has no id: the inspector keys its rows by it")
+	}
+	if distraction.StartTime != "10:05 AM" || distraction.EndTime != "10:07 AM" || distraction.Title != "checked a feed" {
+		t.Fatalf("distraction = %+v, want the stored clock range and title", distraction)
 	}
 }
 

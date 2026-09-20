@@ -35,7 +35,9 @@ var transcribeOutput = ai.OutputSchema{Name: "daygo_transcribe", Schema: json.Ra
 // cardsOutput is the card-generation contract. start/end are clock strings in
 // the contract format "h:mm AM/PM" — the same shape timeline_cards stores and
 // ResolveClock parses. One card per window (Dayflow model); activityPoints
-// carries the per-observation time points on the card.
+// carries the per-observation time points on the card, and each distraction
+// carries its own clock range so the inspector can place it on the day instead
+// of quoting a sentence with the time buried inside.
 var cardsOutput = ai.OutputSchema{Name: "daygo_cards", Schema: json.RawMessage(`{
 	"type": "object",
 	"properties": {
@@ -52,7 +54,20 @@ var cardsOutput = ai.OutputSchema{Name: "daygo_cards", Schema: json.RawMessage(`
 					"summary": {"type": "string"},
 					"detailed_summary": {"type": "string"},
 					"appSites": {"type": "array", "items": {"type": "string"}},
-					"distractions": {"type": "array", "items": {"type": "string"}},
+					"distractions": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"start":   {"type": "string"},
+								"end":     {"type": "string"},
+								"title":   {"type": "string"},
+								"summary": {"type": "string"}
+							},
+							"required": ["start", "end", "title", "summary"],
+							"additionalProperties": false
+						}
+					},
 					"titleEvidence": {
 						"type": "object",
 						"properties": {
@@ -106,17 +121,28 @@ type transcribeEnvelope struct {
 	} `json:"observations"`
 }
 
+// cardsDistraction is one model-reported interruption inside a card. Its clock
+// range travels in its own fields: the shape this replaced folded the time into
+// a single prose string, which no consumer could place on the day and which the
+// metadata decode could not read at all.
+type cardsDistraction struct {
+	Start   string `json:"start"`
+	End     string `json:"end"`
+	Title   string `json:"title"`
+	Summary string `json:"summary"`
+}
+
 type cardsEnvelope struct {
 	Cards []struct {
-		Start           string   `json:"start"`
-		End             string   `json:"end"`
-		Category        string   `json:"category"`
-		Subcategory     string   `json:"subcategory"`
-		Title           string   `json:"title"`
-		Summary         string   `json:"summary"`
-		DetailedSummary string   `json:"detailed_summary"`
-		AppSites        []string `json:"appSites"`
-		Distractions    []string `json:"distractions"`
+		Start           string             `json:"start"`
+		End             string             `json:"end"`
+		Category        string             `json:"category"`
+		Subcategory     string             `json:"subcategory"`
+		Title           string             `json:"title"`
+		Summary         string             `json:"summary"`
+		DetailedSummary string             `json:"detailed_summary"`
+		AppSites        []string           `json:"appSites"`
+		Distractions    []cardsDistraction `json:"distractions"`
 		TitleEvidence   struct {
 			Activities []struct {
 				Activity string `json:"activity"`

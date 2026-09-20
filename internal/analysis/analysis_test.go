@@ -369,6 +369,35 @@ func TestAppSitesFromListSwapsBrowserAndTarget(t *testing.T) {
 	}
 }
 
+func TestDistractionsFromModelMapsTheClockRangeOntoTheContract(t *testing.T) {
+	// The model says start/end, like a card window; metadata says
+	// startTime/endTime, like the DTO the inspector reads (docs/05 §5.5.2).
+	mapped := distractionsFromModel([]cardsDistraction{
+		{Start: " 10:05 AM ", End: "10:07 AM", Title: " checked a feed ", Summary: ""},
+	})
+	if len(mapped) != 1 {
+		t.Fatalf("mapped = %+v, want one entry", mapped)
+	}
+	want := distractionMetadata{StartTime: "10:05 AM", EndTime: "10:07 AM", Title: "checked a feed"}
+	if mapped[0] != want {
+		t.Fatalf("mapped[0] = %+v, want %+v", mapped[0], want)
+	}
+
+	// An interruption the model could not name would render as a bare clock
+	// range in the inspector, so it is dropped rather than stored empty.
+	untitled := distractionsFromModel([]cardsDistraction{{Start: "10:20 AM", End: "10:21 AM", Title: "  "}})
+	if len(untitled) != 0 {
+		t.Fatalf("untitled = %+v, want the entry dropped", untitled)
+	}
+
+	// An empty list stores as [], never null: the wire contract declares arrays
+	// and consumers call .length on them.
+	empty := distractionsFromModel(nil)
+	if empty == nil || len(empty) != 0 {
+		t.Fatalf("empty = %#v, want a non-nil empty slice", empty)
+	}
+}
+
 func TestEvenlySpacedIndices(t *testing.T) {
 	// 0 or negative counts return nil
 	if indices := evenlySpacedIndices(0, 15); indices != nil {

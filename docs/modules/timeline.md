@@ -99,6 +99,35 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 
 ## 验证记录
 
+2026-09-20（时间线仍完全不显示图标）：09-16 那次只补了 appSites 这一半，本次修掉剩下两处。
+① 模型契约：`distractions` 此前被要求把时间折进一句话（`"7:17 PM opened the notification panel"`），
+生产者也按 `[]string` 原样写库，而 docs/05 §5.5.2、前端 `dto.ts`、详情页与 `stores/daily.ts` 一律读
+`{startTime, endTime, title, summary}` 对象——该字段解不开，详情页的时钟区间与当日分心时长同样无从计算。
+现在 `internal/analysis/schema.go` 把卡片 schema 的 `distractions` 改为 `{start,end,title,summary}`
+对象数组（`cardsDistraction`），提示词明确时间只写在 `start` / `end`，不得折进 `title`；
+`distractionsFromModel` 在生产者侧改名为 metadata 形状（start/end → startTime/endTime），丢弃无标题
+条目（否则详情页只剩一条裸时钟），空列表存 `[]` 而非 `null`（消费端会读 `.length`）；
+`dropPreWindowPoints` 的解码结构同步（该函数回写整个 metadata，字段解不开就静默停止过滤窗口前时间点）。
+② 绑定层：`parseCardMetadata` 三个装饰字段共用一个 `json.Unmarshal`，任一字段类型不符即整体返回空值，
+解不开的 `distractions` 因此**连坐**掉 appSites / activityPoints——这正是 09-16 修复后图标依旧全无的
+直接原因：生产者改对了，库里 09-16 之前写下的扁平 `distractions` 仍在，日轨道与周栅格共读的 `appSites`
+被一并丢弃。现在改为**逐字段解码**：解不开的字段丢弃，不连坐兄弟字段、也不拿猜测值顶替；缺失的
+`DistractionDTO.ID` 由绑定层按列表顺序生成（docs/05 §5.5.2 "metadata 中缺失时由 Go 生成，保持稳定"）。
+证据：把本机真实库复制到 `t.TempDir()` 后直接调用绑定层，修复前 `appSites: nil`，修复后
+`primary="code.visualstudio.com" secondary="github.com"`；同一批里带分心记录的卡片丢图标、不带的那张保留。
+夹具：pipeline happy path 断言存储字节是契约对象形状；新增 analysis
+`TestDistractionsFromModelMapsTheClockRangeOntoTheContract`（改名 / 去空标题 / 空列表非 nil）；
+新增 binding `TestCardMetadataKeepsFieldsBesideAnUndecodableOne`（一条解不开的字段不得带走 appSites，
+即本次回归的守卫）与 `TestCardDistractionsCarryTheStoredClockRange`（时钟区间与自动 id）；DB-5 夹具改为
+同一契约形状并断言对象字段，`TestCardMetadataWrittenByAnalysisPipelineParses` 注释指向逐字段解码。
+`go build ./...`、`go vet`、`go test ./internal/analysis/ ./internal/app/ ./internal/storage/` 通过；
+`./scripts/gate.sh` 除 bootstrap 阶段 `native/windows/build.ps1` 的 DLL 复制（本机 `wails dev` 正占用
+`build/bin/daygo_windows_native.dll`）外逐条手工跑通：Go build / test / vet、三组交叉编译、前端 unit
+（64 项）/ typecheck / production build、`check-docs.py`（49 个 md，0 问题）。契约同步 docs/05 §5.5.2
+（新增 metadata 存储形状与"映射归生产者"一节）。未复核：真实 LLM 是否稳定按新 schema 输出对象；
+历史库里已写入扁平字符串的行**只丢分心记录、图标恢复**，不回填，需重新分析该日才得到对象形状；
+真实 Wails 窗口下的观感待确认。
+
 2026-09-16（分类管理的本地化）：分类管理向导此前直接渲染 `categories` 原文，中文界面下六个默认
 分类的标题与描述是英文——种子文案按设计是给模型匹配的数据，缺的是显示层本地化。现在
 `categoryLabel.ts` 在原有名称表之外增加出厂描述表与 `categoryDetails()`：只对**仍保持种子原文**

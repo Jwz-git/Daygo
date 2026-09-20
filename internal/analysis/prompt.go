@@ -282,6 +282,12 @@ Keep at most 15 lines and 2500 characters total.`
 const distractionsBlock = `DISTRACTIONS:
 A distraction is a brief (<5 min) unrelated interruption inside a card. Checking X for 2 minutes while debugging is a distraction. Spending 15 minutes on X is not a distraction — it's either part of the card's theme or it's a separate card.
 
+Report each distraction as an object with the clock range the day view places it on:
+- start and end: clock strings like "10:21 AM", taken from the observations above. A distraction inside the card's window starts after the card's start and ends before the card's end.
+- title: what the interruption was, short and concrete.
+- summary: one sentence, or "" when the title already says it.
+The time belongs in start and end, never inside the title: write start "7:17 PM" with title "opened the notification panel", not a title of "7:17 PM opened the notification panel".
+
 Don't label related sub-tasks as distractions. Googling an error message or reading documentation while debugging isn't a distraction, it's part of debugging.`
 
 // appSitesBlock ports Dayflow's explicit appSites guidance: identify the main app or website

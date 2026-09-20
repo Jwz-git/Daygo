@@ -23,27 +23,61 @@ const timelineTimeout = 10 * time.Second
 // the payload as data.
 const timelineEventMergeWindow = 200 * time.Millisecond
 
-// cardMetadata is the subset of timeline_cards.metadata the UI renders
-// (appSites, distractions, activityPoints). Parsing is tolerant: a card whose
-// metadata is absent or shaped differently renders without those decorations
-// rather than failing the whole day view.
-type cardMetadata struct {
-	AppSites       *AppSitesDTO       `json:"appSites"`
-	Distractions   []DistractionDTO   `json:"distractions"`
-	ActivityPoints []ActivityPointDTO `json:"activityPoints"`
-}
-
-// parseCardMetadata decodes the opaque metadata JSON, returning zero
-// decorations on any parse failure.
+// parseCardMetadata decodes the subset of timeline_cards.metadata the UI
+// renders (appSites, distractions, activityPoints) out of the opaque JSON
+// column. Parsing is tolerant: a card whose metadata is absent or shaped
+// differently renders without those decorations rather than failing the whole
+// day view.
+//
+// Every decoration decodes on its own. Metadata is model output the pipeline
+// stores as it arrives, so one field can drift away from the shape this layer
+// reads while its siblings stay intact; decoding them together made a single
+// mismatched field take the whole card with it. A live card whose metadata
+// carried a flat `distractions` list (the model's shape) failed the shared
+// decode and lost appSites with it, which emptied the icon slot on every
+// timeline view. A field that does not decode is dropped, never substituted.
 func parseCardMetadata(raw string) (appSites *AppSitesDTO, distractions []DistractionDTO, activityPoints []ActivityPointDTO) {
 	if raw == "" {
 		return nil, nil, nil
 	}
-	var meta cardMetadata
-	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &fields); err != nil {
 		return nil, nil, nil
 	}
-	return meta.AppSites, meta.Distractions, meta.ActivityPoints
+
+	var sites *AppSitesDTO
+	if decodeMetadataField(fields["appSites"], &sites) {
+		appSites = sites
+	}
+	var distractionList []DistractionDTO
+	if decodeMetadataField(fields["distractions"], &distractionList) {
+		// Metadata carries no id of its own — the pipeline stores what the model
+		// reported — so one is assigned here, in list order. docs/05 §5.5.2 asks
+		// for exactly that ("metadata 中缺失时由 Go 生成，保持稳定"): the
+		// inspector keys its rows by this id, and a position in a stored list is
+		// stable for as long as the list is.
+		for i := range distractionList {
+			if distractionList[i].ID == "" {
+				distractionList[i].ID = fmt.Sprintf("d%d", i+1)
+			}
+		}
+		distractions = distractionList
+	}
+	var points []ActivityPointDTO
+	if decodeMetadataField(fields["activityPoints"], &points) {
+		activityPoints = points
+	}
+	return appSites, distractions, activityPoints
+}
+
+// decodeMetadataField reports whether one metadata field decoded into target.
+// Absent fields and fields shaped differently both report false, which leaves
+// the caller's own nil in place instead of a half-filled value.
+func decodeMetadataField(raw json.RawMessage, target any) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	return json.Unmarshal(raw, target) == nil
 }
 
 // categoryByID indexes categories by name for per-card isIdle resolution.
