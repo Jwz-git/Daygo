@@ -53,12 +53,12 @@ function devState(): DevState {
         displayName: '开发供应商',
         protocol: 'openai',
         endpoint: 'https://example.invalid/v1',
-        model: 'dev-model',
+        models: ['dev-model', 'dev-model-pro'],
         maxImages: 0,
         hasSecret: false,
       },
     ],
-    routing: { chain: ['dev-1'] },
+    routing: { chain: [{ providerId: 'dev-1', model: '' }] },
     nextId: 2,
   }
   return dev
@@ -82,12 +82,14 @@ export async function addProvider(input: ProviderInput): Promise<string> {
         displayName: input.displayName,
         protocol: input.protocol,
         endpoint: input.endpoint,
-        model: input.model,
+        models: [...input.models],
         maxImages: input.maxImages,
         hasSecret: input.secret !== '',
       },
     ]
-    if (state.routing.chain.length === 0) state.routing = { chain: [id] }
+    if (state.routing.chain.length === 0) {
+      state.routing = { chain: [{ providerId: id, model: '' }] }
+    }
     return id
   }
   throw new Error(WAILS_UNAVAILABLE)
@@ -104,7 +106,7 @@ export async function updateProvider(id: string, input: ProviderInput): Promise<
             displayName: input.displayName,
             protocol: input.protocol,
             endpoint: input.endpoint,
-            model: input.model,
+            models: [...input.models],
             maxImages: input.maxImages,
             hasSecret: input.secret !== '' ? true : provider.hasSecret,
           }
@@ -120,7 +122,9 @@ export async function deleteProvider(id: string): Promise<void> {
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const state = devState()
     state.providers = state.providers.filter((provider) => provider.id !== id)
-    state.routing = { chain: state.routing.chain.filter((entry) => entry !== id) }
+    state.routing = {
+      chain: state.routing.chain.filter((entry) => entry.providerId !== id),
+    }
     return
   }
   throw new Error(WAILS_UNAVAILABLE)
@@ -129,7 +133,7 @@ export async function deleteProvider(id: string): Promise<void> {
 export async function getProviderRouting(): Promise<ProviderRoutingDTO> {
   if (hasBridge()) return (await GetProviderRouting()) as unknown as ProviderRoutingDTO
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
-    return { chain: [...devState().routing.chain] }
+    return { chain: devState().routing.chain.map((entry) => ({ ...entry })) }
   }
   throw new Error(WAILS_UNAVAILABLE)
 }
@@ -137,7 +141,7 @@ export async function getProviderRouting(): Promise<ProviderRoutingDTO> {
 export async function setProviderRouting(routing: ProviderRoutingDTO): Promise<void> {
   if (hasBridge()) return SetProviderRouting(routing as never)
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
-    devState().routing = { chain: [...routing.chain] }
+    devState().routing = { chain: routing.chain.map((entry) => ({ ...entry })) }
     return
   }
   throw new Error(WAILS_UNAVAILABLE)
@@ -167,9 +171,13 @@ export async function deleteProviderSecret(id: string): Promise<void> {
   throw new Error(WAILS_UNAVAILABLE)
 }
 
-/** Probe a saved provider; its key comes from the keychain, not this call. */
-export async function testProvider(id: string): Promise<ProviderTestResult> {
-  if (hasBridge()) return (await TestProvider(id)) as unknown as ProviderTestResult
+/**
+ * Probe a saved provider; its key comes from the keychain, not this call. An
+ * empty `model` lets the backend fall back to the provider's first configured
+ * model (resolveTestModel); a specific model probes that one.
+ */
+export async function testProvider(id: string, model = ''): Promise<ProviderTestResult> {
+  if (hasBridge()) return (await TestProvider(id, model)) as unknown as ProviderTestResult
   throw new Error(WAILS_UNAVAILABLE)
 }
 

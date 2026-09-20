@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { ProviderDTO, ProviderProtocol } from '@/api/dto'
+import type { ProviderDTO, ProviderProtocol, ProviderTestResult } from '@/api/dto'
 import { testProvider } from '@/api/providers'
 import { useProvidersStore } from '@/stores/providers'
 
@@ -15,48 +15,55 @@ import ProviderRoutingChain from './ProviderRoutingChain.vue'
  * separate components. Editing goes through the form's exposed handle so a
  * card's Edit button can populate the draft.
  */
-const { t } = useI18n()
+const { t, te } = useI18n()
 const store = useProvidersStore()
 
 void store.hydrate()
 
+/** Join a provider id and a model into a per-model test key. */
+const SEP = ''
+
 const form = ref<InstanceType<typeof ProviderForm> | null>(null)
 const pendingRemoveId = ref<string | null>(null)
 
-/** Probe a saved provider with its keychain key. */
-const testingSavedId = ref<string | null>(null)
+/** The (provider, model) currently probing, and the per-model probe results. */
+const testingKey = ref<string | null>(null)
+const testResults = reactive<Record<string, ProviderTestResult>>({})
 
-async function runSavedTest(provider: ProviderDTO): Promise<void> {
-  if (testingSavedId.value !== null) return
-  testingSavedId.value = provider.id
+async function runSavedTest(provider: ProviderDTO, model: string): Promise<void> {
+  if (testingKey.value !== null) return
+  const key = provider.id + SEP + model
+  testingKey.value = key
+  delete testResults[key]
   try {
-    await testProvider(provider.id)
+    testResults[key] = await testProvider(provider.id, model)
   } catch {
-    // Binding errors surface through the section's error copy.
+    // A thrown binding error (not a probe result) leaves the row silent.
   } finally {
-    testingSavedId.value = null
+    testingKey.value = null
   }
+}
+
+function testKey(provider: ProviderDTO, model: string): string {
+  return provider.id + SEP + model
+}
+
+function testFailureText(result: ProviderTestResult): string {
+  const key = `settings.providers.test.error.${result.errorCode}`
+  const known = te(key) ? t(key) : ''
+  return known === '' ? result.message : known
 }
 
 function protocolLabel(protocol: ProviderProtocol): string {
   return t(`settings.providers.protocol.${protocol}`)
 }
 
-function protocolIcon(protocol: ProviderProtocol): string {
-  switch (protocol) {
-    case 'openai': return '◎'
-    case 'openai_responses': return '◉'
-    case 'anthropic': return '◈'
-    default: return '○'
-  }
-}
-
 function isPrimary(provider: ProviderDTO): boolean {
-  return store.routing.chain[0] === provider.id
+  return store.routing.chain[0]?.providerId === provider.id
 }
 
 function isFallback(provider: ProviderDTO): boolean {
-  return store.routing.chain.includes(provider.id) && !isPrimary(provider)
+  return store.routing.chain.some((entry) => entry.providerId === provider.id) && !isPrimary(provider)
 }
 
 async function confirmRemove(id: string): Promise<void> {
@@ -67,20 +74,14 @@ async function confirmRemove(id: string): Promise<void> {
 </script>
 
 <template>
-  <!-- Section Header -->
-  <header class="section-header">
-    <div class="section-header__icon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
-      </svg>
-    </div>
-    <div class="section-header__text">
-      <h1 class="section-header__title">{{ t('settings.nav.providers') }}</h1>
-      <p class="section-header__desc">{{ t('settings.providers.description') }}</p>
-    </div>
+  <!-- Section intro: a shared h2 + hint, matching the other settings groups. -->
+  <header class="providers-head">
+    <h2 class="providers-head__title">{{ t('settings.providers.title') }}</h2>
+    <p class="providers-head__hint">{{ t('settings.providers.description') }}</p>
   </header>
+
+  <!-- Add/edit form (the add button lives here); kept above the list. -->
+  <ProviderForm ref="form" />
 
   <!-- Provider Cards -->
   <section v-if="!store.isEmpty" class="providers-list">
@@ -96,12 +97,7 @@ async function confirmRemove(id: string): Promise<void> {
       >
         <!-- Card Header -->
         <header class="provider-card__header">
-          <div class="provider-card__identity">
-            <span class="provider-card__protocol-icon" :title="protocolLabel(provider.protocol)">
-              {{ protocolIcon(provider.protocol) }}
-            </span>
-            <h2 class="provider-card__name">{{ provider.displayName }}</h2>
-          </div>
+          <h3 class="provider-card__name">{{ provider.displayName }}</h3>
           <div class="provider-card__badges">
             <span v-if="isPrimary(provider)" class="badge badge--primary">
               {{ t('settings.providers.routing.primaryBadge') }}
@@ -117,7 +113,7 @@ async function confirmRemove(id: string): Promise<void> {
         <dl class="provider-card__meta">
           <div class="meta-row">
             <dt class="meta-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
               </svg>
@@ -125,19 +121,55 @@ async function confirmRemove(id: string): Promise<void> {
             </dt>
             <dd class="meta-value meta-value--mono">{{ provider.endpoint }}</dd>
           </div>
-          <div class="meta-row">
+          <div class="meta-row meta-row--models">
             <dt class="meta-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
               </svg>
-              {{ t('settings.providers.form.model') }}
+              {{ t('settings.providers.form.models') }}
             </dt>
-            <dd class="meta-value meta-value--model">{{ provider.model }}</dd>
+            <dd class="meta-value">
+              <ul class="model-list">
+                <li v-for="model in provider.models" :key="model" class="model-list__item">
+                  <span class="model-list__name">{{ model }}</span>
+                  <button
+                    type="button"
+                    class="dg-button dg-button--tiny"
+                    :disabled="!provider.hasSecret || testingKey !== null"
+                    :aria-label="t('settings.providers.test.runModel', { model })"
+                    @click="runSavedTest(provider, model)"
+                  >
+                    <span v-if="testingKey === testKey(provider, model)">
+                      {{ t('settings.providers.test.running') }}
+                    </span>
+                    <span v-else>{{ t('settings.providers.test.run') }}</span>
+                  </button>
+                  <span
+                    v-if="testResults[testKey(provider, model)]?.ok"
+                    class="model-list__result model-list__result--ok"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {{ t('settings.providers.test.passShort', {
+                      latency: testResults[testKey(provider, model)]?.latencyMs ?? 0,
+                    }) }}
+                  </span>
+                  <span
+                    v-else-if="testResults[testKey(provider, model)]"
+                    class="model-list__result model-list__result--err"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {{ testFailureText(testResults[testKey(provider, model)]!) }}
+                  </span>
+                </li>
+              </ul>
+            </dd>
           </div>
           <div v-if="provider.maxImages > 0" class="meta-row">
             <dt class="meta-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
@@ -150,7 +182,7 @@ async function confirmRemove(id: string): Promise<void> {
           </div>
           <div class="meta-row">
             <dt class="meta-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
@@ -158,13 +190,13 @@ async function confirmRemove(id: string): Promise<void> {
             </dt>
             <dd class="meta-value meta-value--key">
               <span v-if="provider.hasSecret" class="key-status key-status--configured">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
                 {{ t('settings.providers.secret.configured') }}
               </span>
               <span v-else class="key-status key-status--missing">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -173,12 +205,6 @@ async function confirmRemove(id: string): Promise<void> {
             </dd>
           </div>
         </dl>
-
-        <!-- Testing Status -->
-        <div v-if="testingSavedId === provider.id" class="provider-card__testing">
-          <div class="testing-spinner" />
-          <span>{{ t('settings.providers.test.running') }}</span>
-        </div>
 
         <!-- Remove Confirmation -->
         <div v-if="pendingRemoveId === provider.id" class="provider-card__confirm">
@@ -198,23 +224,11 @@ async function confirmRemove(id: string): Promise<void> {
         <!-- Card Actions -->
         <footer v-else class="provider-card__actions">
           <button type="button" class="dg-button dg-button--secondary" @click="form?.openEdit(provider)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
             {{ t('common.action.edit') }}
-          </button>
-          <button
-            type="button"
-            class="dg-button dg-button--secondary"
-            :disabled="!provider.hasSecret || testingSavedId !== null"
-            @click="runSavedTest(provider)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-            {{ t('settings.providers.test.run') }}
           </button>
           <button
             v-if="provider.hasSecret"
@@ -222,7 +236,7 @@ async function confirmRemove(id: string): Promise<void> {
             class="dg-button dg-button--ghost"
             @click="store.clearSecret(provider.id)"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
               <line x1="21" y1="12" x2="9" y2="12"/>
@@ -234,7 +248,7 @@ async function confirmRemove(id: string): Promise<void> {
             class="dg-button dg-button--ghost dg-button--danger-ghost"
             @click="pendingRemoveId = provider.id"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
@@ -245,28 +259,25 @@ async function confirmRemove(id: string): Promise<void> {
     </TransitionGroup>
   </section>
 
-  <!-- Empty State -->
+  <!-- Empty State: its own copy, not the section description. -->
   <div v-else class="empty-state">
-    <div class="empty-state__icon">
+    <div class="empty-state__icon" aria-hidden="true">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 2L2 7l10 5 10-5-10-5z"/>
         <path d="M2 17l10 5 10-5"/>
         <path d="M2 12l10 5 10-5"/>
       </svg>
     </div>
-    <h2 class="empty-state__title">{{ t('settings.providers.empty') }}</h2>
-    <p class="empty-state__hint">{{ t('settings.providers.description') }}</p>
+    <h3 class="empty-state__title">{{ t('settings.providers.empty') }}</h3>
+    <p class="empty-state__hint">{{ t('settings.providers.emptyHint') }}</p>
   </div>
-
-  <!-- Add Form -->
-  <ProviderForm ref="form" />
 
   <!-- Routing Chain -->
   <ProviderRoutingChain v-if="!store.isEmpty" />
 
   <!-- Keychain Notice -->
   <section class="keychain-notice">
-    <div class="keychain-notice__icon">
+    <div class="keychain-notice__icon" aria-hidden="true">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
       </svg>
@@ -279,45 +290,23 @@ async function confirmRemove(id: string): Promise<void> {
 </template>
 
 <style scoped>
-/* Section Header */
-.section-header {
+/* Section intro (shared group-head shape) */
+.providers-head {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 20px 18px;
-  border: 1px solid var(--dg-card-border);
-  border-radius: var(--dg-card-radius);
-  background: var(--dg-card-fill);
+  flex-direction: column;
+  gap: 4px;
 }
 
-.section-header__icon {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--dg-control-fill);
-  color: var(--dg-accent);
-}
-
-.section-header__text {
-  flex: 1;
-  min-width: 0;
-}
-
-.section-header__title {
-  margin: 0;
+.providers-head__title {
   color: var(--dg-text-primary);
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 650;
 }
 
-.section-header__desc {
-  margin: 4px 0 0;
+.providers-head__hint {
   color: var(--dg-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
+  max-width: 56ch;
 }
 
 /* Providers List */
@@ -367,26 +356,6 @@ async function confirmRemove(id: string): Promise<void> {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.provider-card__identity {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.provider-card__protocol-icon {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: var(--dg-control-fill);
-  color: var(--dg-accent);
-  font-size: 14px;
 }
 
 .provider-card__name {
@@ -482,9 +451,49 @@ async function confirmRemove(id: string): Promise<void> {
   color: var(--dg-text-secondary);
 }
 
-.meta-value--model {
+.meta-row--models {
+  align-items: start;
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-list__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.model-list__name {
   color: var(--dg-accent-text);
   font-weight: 500;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.dg-button--tiny {
+  flex: none;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.model-list__result {
+  font-size: 11px;
+}
+
+.model-list__result--ok {
+  color: var(--dg-success);
+}
+
+.model-list__result--err {
+  color: var(--dg-danger);
 }
 
 .meta-value--key {
@@ -514,31 +523,6 @@ async function confirmRemove(id: string): Promise<void> {
 .key-status--missing {
   background: color-mix(in srgb, var(--dg-warning) 15%, transparent);
   color: var(--dg-warning);
-}
-
-/* Testing Status */
-.provider-card__testing {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--dg-control-fill);
-  color: var(--dg-accent-text);
-  font-size: 12px;
-}
-
-.testing-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--dg-chip-border);
-  border-top-color: var(--dg-accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 /* Confirm Remove */
@@ -729,10 +713,6 @@ async function confirmRemove(id: string): Promise<void> {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .testing-spinner {
-    animation: none;
-  }
-
   .card-enter-active,
   .card-leave-active {
     transition: none;

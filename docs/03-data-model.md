@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 16`）有十七张表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 17`）有十七张表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -9,7 +9,8 @@
 > 覆盖列（v7）、分析流水线的 `batch_screenshots`、`observations`（v8，含
 > `idx_batch_screenshots_screenshot`）；`analysis_batches.attempts`（v9）、批次软删除列（v10）、
 > `providers.max_images`（v11）、首次启动分类种子（v12）、`daily_standup_entries`（v13）、
-> `card_reviews`（v14）、`pending_captures.frame_index`（v15），以及分段截图大小均摊（v16）。本文其余表
+> `card_reviews`（v14）、`pending_captures.frame_index`（v15）、分段截图大小均摊（v16），
+> 以及 `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -335,11 +336,17 @@ CREATE TABLE providers (
   display_name TEXT NOT NULL,
   protocol     TEXT NOT NULL,      -- openai | openai_responses | anthropic
   endpoint     TEXT NOT NULL,      -- 绝对 http(s) 基地址，不含凭据
-  model        TEXT NOT NULL,
+  models       TEXT NOT NULL DEFAULT '[]',  -- v17：JSON 字符串数组，同一 endpoint/key 下的有序模型列表（至少 1 个，上限 20）
+  max_images   INTEGER NOT NULL DEFAULT 0,   -- v11：单请求图片上限，0 = ai.MaxImages 默认；与模型无关，按 provider 计
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL
 );
 ```
+
+v17 把单列 `model` 重建为 `models`（JSON 字符串数组）：旧 `model` 折为一元数组
+`["<model>"]`，空 `model` 折为 `[]`（建新表→回填→改名，见
+decisions/providers-multi-model.md）。模型无独立身份，只是附在 provider 上的有序串列表，
+不建子表。`max_images` 保持 per-provider（与具体模型无关）。
 
 `app_settings` 的键空间与 `SettingsDTO` 的分组一一对应
 （[05 §5.5.2](05-interface-contract.md#552-dto-目录)）：
@@ -360,15 +367,19 @@ CREATE TABLE providers (
 | `system.testToolsEnabled` | bool | `false` |
 | `telemetry.analyticsOptIn` | bool | `false` |
 | `telemetry.crashReportingOptIn` | bool | `false` |
-| `providers.routing` | `{"chain": ["id", …]}`（有序，`chain[0]` 为主，上限 8） | `{"chain":[]}` |
+| `providers.routing` | `{"chain": [{"providerId","model"}, …]}`（有序，`chain[0]` 为主，按对去重，上限 8；`model` 为空跟随该 provider 的首个模型） | `{"chain":[]}` |
 | `llm.outputLanguage` | string（空串=跟随界面语言） | `""` |
 | `llm.recognitionEnhancementEnabled` | bool | `false` |
 | `chat.memory` | string（全局聊天记忆，自由文本） | `""` |
 | `chat.editMode` | string（`readonly` \| `edits`） | `"readonly"` |
 
-`providers.routing` 的旧存储形状 `{"primary","secondary"}` 在**读取时**折叠为
-`[primary, secondary?]` 链（值级迁移，无需 SQL 迁移）。会话级 provider 选择不在设置里：
-它存在 `chat_conversations.provider_id` 列（decisions/chat-session-model）。
+`providers.routing` 的链条目是**「供应商 + 模型」对** `{providerId, model}`：同一 provider
+（同 endpoint、同 key）的不同模型可分别排进链、独立排序与回退，分析流水线按具体模型走
+（decisions/providers-multi-model.md）。两种旧形状在**读取时**折叠，均无需 SQL 迁移：
+`{"primary","secondary"}` → `[{primary,""}, {secondary,""}?]`；裸字符串数组 `["id", …]` →
+`[{id,""}, …]`。空 `model` 解析为该 provider 的首个模型，与迁移后 `models=[旧model]` 行为等价。
+会话级 provider 选择不在设置里：它存在 `chat_conversations.provider_id` 列
+（decisions/chat-session-model）。
 
 `chat.memory` 是用户自定义的全局聊天指令（类似 CLAUDE.md），非空时注入每个会话的系统
 提示尾部；`chat.editMode` 是 chat 沙箱门禁

@@ -11,7 +11,10 @@ type ProviderDTO struct {
 	DisplayName string `json:"displayName"`
 	Protocol    string `json:"protocol"`
 	Endpoint    string `json:"endpoint"`
-	Model       string `json:"model"`
+	// Models is the ordered list of models configured under this provider's one
+	// endpoint and key (decisions/providers-multi-model). Models[0] is the
+	// default a routing entry with an empty model resolves to.
+	Models []string `json:"models"`
 	// MaxImages caps the image parts of one request to this provider; 0 means
 	// the built-in default. Low-limit gateways need it lowered, and the
 	// recognition enhancement (one frame → five images) may need it raised.
@@ -23,16 +26,25 @@ type ProviderDTO struct {
 // stored in the database: an empty string keeps the existing key (clearing is
 // DeleteProviderSecret), a non-empty one replaces it in the keychain.
 type ProviderInputDTO struct {
-	DisplayName string `json:"displayName"`
-	Protocol    string `json:"protocol"`
-	Endpoint    string `json:"endpoint"`
-	Model       string `json:"model"`
-	MaxImages   int    `json:"maxImages"`
-	Secret      string `json:"secret"`
+	DisplayName string   `json:"displayName"`
+	Protocol    string   `json:"protocol"`
+	Endpoint    string   `json:"endpoint"`
+	Models      []string `json:"models"`
+	MaxImages   int      `json:"maxImages"`
+	Secret      string   `json:"secret"`
+}
+
+// ProviderRoutingEntryDTO is one (provider, model) pair in the chain. Model ""
+// resolves to the provider's first configured model
+// (decisions/providers-multi-model).
+type ProviderRoutingEntryDTO struct {
+	ProviderID string `json:"providerId"`
+	Model      string `json:"model"`
 }
 
 // ProviderRoutingDTO is the ordered routing chain: Chain[0] is the primary,
-// the rest are fallbacks (decisions/providers-fallback-chain).
+// the rest are fallbacks (decisions/providers-fallback-chain). Each entry is a
+// (provider, model) pair, so one provider can appear under several models.
 type ProviderRoutingDTO struct {
-	Chain []string `json:"chain"`
+	Chain []ProviderRoutingEntryDTO `json:"chain"`
 }

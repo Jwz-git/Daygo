@@ -25,7 +25,7 @@ func validProviderInput() ProviderInputDTO {
 		DisplayName: "Fixture Provider",
 		Protocol:    "openai",
 		Endpoint:    "https://api.example.com/v1",
-		Model:       "fixture-model",
+		Models:      []string{"fixture-model"},
 	}
 }
 
@@ -50,12 +50,13 @@ func TestProviderCRUDRoundTrip(t *testing.T) {
 
 	input := validProviderInput()
 	input.DisplayName = "Renamed"
-	input.Model = "other-model"
+	input.Models = []string{"other-model", "second-model"}
 	if err := backend.UpdateProvider(id, input); err != nil {
 		t.Fatalf("UpdateProvider: %v", err)
 	}
 	list, _ = backend.ListProviders()
-	if len(list) != 1 || list[0].DisplayName != "Renamed" || list[0].Model != "other-model" {
+	if len(list) != 1 || list[0].DisplayName != "Renamed" ||
+		len(list[0].Models) != 2 || list[0].Models[0] != "other-model" || list[0].Models[1] != "second-model" {
 		t.Fatalf("update did not apply: %+v", list)
 	}
 
@@ -85,14 +86,14 @@ func TestProviderSecretNeverCrossesTheBoundary(t *testing.T) {
 		t.Fatalf("ListProviders: %v", err)
 	}
 	for _, dto := range list {
-		encoded := dto.DisplayName + dto.Endpoint + dto.Model + dto.Protocol + dto.ID
+		encoded := dto.DisplayName + dto.Endpoint + strings.Join(dto.Models, " ") + dto.Protocol + dto.ID
 		if strings.Contains(encoded, canary) {
 			t.Fatalf("secret leaked into a DTO: %+v", dto)
 		}
 	}
 
 	// Error paths: unknown provider, invalid input with a secret attached.
-	_, err = backend.AddProvider(ProviderInputDTO{DisplayName: "x", Protocol: "bad", Endpoint: "https://e.example.com", Model: "m", Secret: canary})
+	_, err = backend.AddProvider(ProviderInputDTO{DisplayName: "x", Protocol: "bad", Endpoint: "https://e.example.com", Models: []string{"m"}, Secret: canary})
 	if err == nil {
 		t.Fatal("invalid protocol accepted")
 	}
@@ -152,11 +153,12 @@ func TestProviderValidation(t *testing.T) {
 		name  string
 		input ProviderInputDTO
 	}{
-		{"empty name", ProviderInputDTO{Protocol: "openai", Endpoint: "https://e.example.com", Model: "m"}},
-		{"bad protocol", ProviderInputDTO{DisplayName: "x", Protocol: "smtp", Endpoint: "https://e.example.com", Model: "m"}},
-		{"relative endpoint", ProviderInputDTO{DisplayName: "x", Protocol: "openai", Endpoint: "api.example.com/v1", Model: "m"}},
-		{"non-http scheme", ProviderInputDTO{DisplayName: "x", Protocol: "openai", Endpoint: "ftp://e.example.com", Model: "m"}},
-		{"empty model", ProviderInputDTO{DisplayName: "x", Protocol: "openai", Endpoint: "https://e.example.com"}},
+		{"empty name", ProviderInputDTO{Protocol: "openai", Endpoint: "https://e.example.com", Models: []string{"m"}}},
+		{"bad protocol", ProviderInputDTO{DisplayName: "x", Protocol: "smtp", Endpoint: "https://e.example.com", Models: []string{"m"}}},
+		{"relative endpoint", ProviderInputDTO{DisplayName: "x", Protocol: "openai", Endpoint: "api.example.com/v1", Models: []string{"m"}}},
+		{"non-http scheme", ProviderInputDTO{DisplayName: "x", Protocol: "openai", Endpoint: "ftp://e.example.com", Models: []string{"m"}}},
+		{"no models", ProviderInputDTO{DisplayName: "x", Protocol: "openai", Endpoint: "https://e.example.com"}},
+		{"only blank models", ProviderInputDTO{DisplayName: "x", Protocol: "openai", Endpoint: "https://e.example.com", Models: []string{" ", ""}}},
 	}
 	for _, tc := range cases {
 		if _, err := backend.AddProvider(tc.input); err == nil {
@@ -179,14 +181,16 @@ func TestProviderRoutingChain(t *testing.T) {
 		t.Fatalf("AddProvider 2: %v", err)
 	}
 
-	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []string{id1, id2}}); err != nil {
+	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []ProviderRoutingEntryDTO{
+		{ProviderID: id1}, {ProviderID: id2},
+	}}); err != nil {
 		t.Fatalf("SetProviderRouting: %v", err)
 	}
 	routing, err := backend.GetProviderRouting()
 	if err != nil {
 		t.Fatalf("GetProviderRouting: %v", err)
 	}
-	if len(routing.Chain) != 2 || routing.Chain[0] != id1 || routing.Chain[1] != id2 {
+	if len(routing.Chain) != 2 || routing.Chain[0].ProviderID != id1 || routing.Chain[1].ProviderID != id2 {
 		t.Fatalf("routing = %+v", routing)
 	}
 
@@ -196,12 +200,45 @@ func TestProviderRoutingChain(t *testing.T) {
 	}
 
 	// Unknown id rejected.
-	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []string{"no-such-id"}}); err == nil {
+	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []ProviderRoutingEntryDTO{{ProviderID: "no-such-id"}}}); err == nil {
 		t.Fatal("routing accepted an unknown provider id")
 	}
-	// Duplicate rejected.
-	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []string{id1, id1}}); err == nil {
-		t.Fatal("routing accepted a duplicate provider id")
+	// Duplicate (provider, model) pair rejected.
+	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []ProviderRoutingEntryDTO{{ProviderID: id1}, {ProviderID: id1}}}); err == nil {
+		t.Fatal("routing accepted a duplicate provider+model pair")
+	}
+	// A model the provider does not have is rejected.
+	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []ProviderRoutingEntryDTO{{ProviderID: id1, Model: "ghost-model"}}}); err == nil {
+		t.Fatal("routing accepted a model the provider does not have")
+	}
+}
+
+// One provider with several models contributes several distinct chain entries;
+// the same provider under two different models is not a duplicate.
+func TestProviderRoutingMultipleModelsPerProvider(t *testing.T) {
+	backend, _, _ := backendWithStoreAndSecrets(t)
+
+	input := validProviderInput()
+	input.Models = []string{"model-a", "model-b"}
+	id, err := backend.AddProvider(input)
+	if err != nil {
+		t.Fatalf("AddProvider: %v", err)
+	}
+
+	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []ProviderRoutingEntryDTO{
+		{ProviderID: id, Model: "model-a"},
+		{ProviderID: id, Model: "model-b"},
+	}}); err != nil {
+		t.Fatalf("SetProviderRouting with two models of one provider: %v", err)
+	}
+	routing, err := backend.GetProviderRouting()
+	if err != nil {
+		t.Fatalf("GetProviderRouting: %v", err)
+	}
+	if len(routing.Chain) != 2 ||
+		routing.Chain[0] != (ProviderRoutingEntryDTO{ProviderID: id, Model: "model-a"}) ||
+		routing.Chain[1] != (ProviderRoutingEntryDTO{ProviderID: id, Model: "model-b"}) {
+		t.Fatalf("routing = %+v, want the two models as separate entries", routing.Chain)
 	}
 }
 
@@ -214,7 +251,9 @@ func TestDeleteProviderPrunesRouting(t *testing.T) {
 	input.DisplayName = "Second"
 	id2, _ := backend.AddProvider(input)
 
-	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []string{id1, id2}}); err != nil {
+	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []ProviderRoutingEntryDTO{
+		{ProviderID: id1}, {ProviderID: id2},
+	}}); err != nil {
 		t.Fatalf("SetProviderRouting: %v", err)
 	}
 	if err := backend.DeleteProvider(id1); err != nil {
@@ -225,7 +264,7 @@ func TestDeleteProviderPrunesRouting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetProviderRouting: %v", err)
 	}
-	if len(routing.Chain) != 1 || routing.Chain[0] != id2 {
+	if len(routing.Chain) != 1 || routing.Chain[0].ProviderID != id2 {
 		t.Fatalf("routing after delete = %+v, want only id2", routing)
 	}
 }
@@ -251,7 +290,7 @@ func TestProviderWithoutKeyIsRejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddProvider: %v", err)
 	}
-	_, err = backend.TestProvider(id)
+	_, err = backend.TestProvider(id, "")
 	var appErr *apperr.Error
 	if !asAppErr(err, &appErr) || appErr.Code != apperr.InvalidArgument {
 		t.Fatalf("TestProvider without key = %v, want invalid_argument", err)

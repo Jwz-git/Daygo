@@ -165,11 +165,44 @@ type Snapshot struct {
 }
 
 // Routing is the stored form of providers.routing (docs/03 §3.3.5). Chain is
-// ordered: Chain[0] is the primary provider, the rest are fallbacks tried in
+// ordered: Chain[0] is the primary entry, the rest are fallbacks tried in
 // order (decisions/providers-fallback-chain). An empty chain means no provider
 // is configured.
 type Routing struct {
-	Chain []string `json:"chain"`
+	Chain []RoutingEntry `json:"chain"`
+}
+
+// RoutingEntry is one (provider, model) pair in the chain
+// (decisions/providers-multi-model). Model "" resolves to the provider's first
+// configured model, so a chain written before multi-model support — a bare
+// provider id — keeps its exact behaviour after the fold.
+type RoutingEntry struct {
+	ProviderID string `json:"providerId"`
+	Model      string `json:"model"`
+}
+
+// UnmarshalJSON accepts both shapes a stored chain element can take: a bare
+// provider-id string (the pre-multi-model form, and the localStorage legacy
+// migration's output) folds into {ProviderID: s, Model: ""}; an object decodes
+// field by field. One decoder path swallows both, so decodeRouting does not
+// branch on the element shape.
+func (e *RoutingEntry) UnmarshalJSON(data []byte) error {
+	var id string
+	if err := json.Unmarshal(data, &id); err == nil {
+		e.ProviderID = id
+		e.Model = ""
+		return nil
+	}
+	var raw struct {
+		ProviderID string `json:"providerId"`
+		Model      string `json:"model"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	e.ProviderID = raw.ProviderID
+	e.Model = raw.Model
+	return nil
 }
 
 // Load reads every setting and applies defaults and normalization.
@@ -675,42 +708,73 @@ func (s *Settings) SetRouting(ctx context.Context, r Routing) error {
 	return s.repo.Set(ctx, KeyProvidersRouting, string(value))
 }
 
-// normalizeRouting dedupes, drops empty ids, and caps the chain. A nil chain
-// normalizes to an empty slice so the stored form is always a list.
+// normalizeRouting dedupes by (provider, model) pair, drops entries with an
+// empty provider id, and caps the chain. A nil chain normalizes to an empty
+// slice so the stored form is always a list.
 func normalizeRouting(r Routing) Routing {
-	chain := dedupeStrings(r.Chain)
+	chain := dedupeRoutingEntries(r.Chain)
 	if len(chain) > MaxRoutingChain {
 		chain = chain[:MaxRoutingChain]
 	}
 	if chain == nil {
-		chain = []string{}
+		chain = []RoutingEntry{}
 	}
 	return Routing{Chain: chain}
 }
 
+// dedupeRoutingEntries removes entries with an empty provider id and repeated
+// (provider, model) pairs while preserving order, so the stored list is stable
+// and a golden comparison is meaningful. Model is trimmed but kept as-is
+// otherwise: "" (follow the provider's first model) and a named model are
+// distinct entries.
+func dedupeRoutingEntries(entries []RoutingEntry) []RoutingEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	type key struct{ providerID, model string }
+	seen := make(map[key]struct{}, len(entries))
+	out := make([]RoutingEntry, 0, len(entries))
+	for _, entry := range entries {
+		providerID := strings.TrimSpace(entry.ProviderID)
+		if providerID == "" {
+			continue
+		}
+		model := strings.TrimSpace(entry.Model)
+		k := key{providerID, model}
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		out = append(out, RoutingEntry{ProviderID: providerID, Model: model})
+	}
+	return out
+}
+
 func decodeRouting(raw string) Routing {
 	if raw == "" {
-		return Routing{Chain: []string{}}
+		return Routing{Chain: []RoutingEntry{}}
 	}
 	var value Routing
 	if err := json.Unmarshal([]byte(raw), &value); err != nil {
-		return Routing{Chain: []string{}}
+		return Routing{Chain: []RoutingEntry{}}
 	}
 	// A pre-chain build stored {"primary": "...", "secondary": "..."}; both
 	// shapes could not be told apart by field presence alone, so decode the
-	// legacy form explicitly and fold it into a one- or two-entry chain.
+	// legacy form explicitly and fold it into a one- or two-entry chain. A
+	// pre-multi-model chain stored bare id strings; RoutingEntry.UnmarshalJSON
+	// folds those into {id, ""} pairs, so they need no handling here.
 	if value.Chain == nil {
 		var legacy struct {
 			Primary   string `json:"primary"`
 			Secondary string `json:"secondary"`
 		}
 		if err := json.Unmarshal([]byte(raw), &legacy); err == nil && (legacy.Primary != "" || legacy.Secondary != "") {
-			value.Chain = []string{}
+			value.Chain = []RoutingEntry{}
 			if legacy.Primary != "" {
-				value.Chain = append(value.Chain, legacy.Primary)
+				value.Chain = append(value.Chain, RoutingEntry{ProviderID: legacy.Primary})
 			}
 			if legacy.Secondary != "" {
-				value.Chain = append(value.Chain, legacy.Secondary)
+				value.Chain = append(value.Chain, RoutingEntry{ProviderID: legacy.Secondary})
 			}
 		}
 	}

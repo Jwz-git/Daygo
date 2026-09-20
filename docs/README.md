@@ -68,6 +68,7 @@
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
 | [data 损坏恢复](decisions/data-corruption-recovery.md) | 已决定 | 备份识别、恢复流程与只读降级 |
 | [providers 回退链](decisions/providers-fallback-chain.md) | 已决定 | 有序路由、粘性回退与重试语义 |
+| [providers 单供应商多模型](decisions/providers-multi-model.md) | 已决定 | `models` JSON 列、路由「供应商+模型」对、链复合计数键 |
 | [providers 密钥：Keychain / Credential Manager](decisions/providers-secrets-keychain.md) | 已决定 | `security` CLI / Credential Manager 访问、service 命名与只写不读 |
 | [providers 密钥：Linux Secret Service](decisions/providers-secrets-linux.md) | 已落盘，待真机验收 | `secret-tool` 访问 Secret Service 的取舍与边界 |
 | [weekly 周边界：周一起始](decisions/weekly-boundary-monday.md) | 已决定 | 周一 4 点对齐的语义与夹具 |

@@ -59,36 +59,64 @@ func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, erro
 	sink := attemptSink{repo: a.backend.store().LlmCalls()}
 
 	entries := make([]ai.ChainEntry, 0, len(routing.Chain))
-	for _, id := range routing.Chain {
-		row, err := repo.Get(ctx, id)
+	for _, slot := range routing.Chain {
+		row, err := repo.Get(ctx, slot.ProviderID)
 		if err != nil {
 			// A routing slot whose provider vanished between read and here is
 			// skipped; the rest of the chain still serves the batch.
 			continue
 		}
-		secret, err := a.backend.secrets.Get(ctx, id)
+		model := resolveChainModel(row.Models, slot.Model)
+		if model == "" {
+			// A provider with no configured model cannot serve a request.
+			continue
+		}
+		secret, err := a.backend.secrets.Get(ctx, slot.ProviderID)
 		if err != nil && !secrets.IsNotFound(err) {
 			return nil, err
 		}
 		provider, err := factory.NewClient(nil, factory.Config{
 			Protocol: ai.Protocol(row.Protocol),
 			Endpoint: row.Endpoint,
-			Model:    row.Model,
+			Model:    model,
 			Secret:   secret,
 		})
 		if err != nil {
 			continue
 		}
-		provider = ai.WithAttemptObserver(provider, row.ID, ai.Protocol(row.Protocol), row.Model,
+		// The attempt observer records the bare provider id and the resolved
+		// model into llm_calls; the chain counter key is the (provider, model)
+		// pair, so two models under one provider demote independently.
+		provider = ai.WithAttemptObserver(provider, row.ID, ai.Protocol(row.Protocol), model,
 			ai.AttemptObserverFunc(func(_ context.Context, attempt ai.Attempt) {
 				dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				sink.RecordAttempt(dbCtx, attempt)
 			}))
 		provider = ai.WithRetry(provider, ai.DefaultRetryPolicy())
-		entries = append(entries, ai.ChainEntry{ID: row.ID, Provider: provider})
+		entries = append(entries, ai.ChainEntry{ID: chainEntryID(row.ID, model), Provider: provider})
 	}
 	return ai.NewChain(entries, 0), nil
+}
+
+// chainEntryID keys a chain entry by its (provider, model) pair so the failure
+// counters of two models under one provider stay separate. The unit separator
+// cannot occur in a provider id (v4-shaped hex) or a model name.
+func chainEntryID(providerID, model string) string {
+	return providerID + "\x1f" + model
+}
+
+// resolveChainModel picks the model a routing slot runs: the slot's own when
+// set, the provider's first configured model when the slot leaves it empty
+// (decisions/providers-multi-model). Empty out means the provider has no model.
+func resolveChainModel(models []string, slotModel string) string {
+	if slotModel != "" {
+		return slotModel
+	}
+	if len(models) > 0 {
+		return models[0]
+	}
+	return ""
 }
 
 // ImageCap is the per-request image limit the analysis grouping uses: the
@@ -102,8 +130,8 @@ func (a analysisChainSource) ImageCap(ctx context.Context) int {
 		return 0
 	}
 	cap := 0
-	for _, id := range routing.Chain {
-		row, err := repo.Get(ctx, id)
+	for _, slot := range routing.Chain {
+		row, err := repo.Get(ctx, slot.ProviderID)
 		if err != nil {
 			continue
 		}
@@ -137,10 +165,10 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 		media = platformfactory.NewMedia(recordingsRoot)
 	}
 	service, err := analysis.New(analysis.Config{
-		Store:      store.Analysis(),
-		Cards:      store.Cards(),
-		Categories: store.Categories(),
-		Providers:  analysisChainSource{backend: b},
+		Store:       store.Analysis(),
+		Cards:       store.Cards(),
+		Categories:  store.Categories(),
+		Providers:   analysisChainSource{backend: b},
 		Media:       mediaFrameSource{media: media},
 		Language:    analysisLanguage(b),
 		BatchPacing: analysis.DefaultBatchPacing,

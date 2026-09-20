@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -518,6 +519,88 @@ var migrations = []migration{
 			`)
 			if err != nil {
 				return wrap("amortize v16 segment screenshots file_size", err)
+			}
+			return nil
+		},
+	},
+	{
+		version: 17,
+		name:    "providers: single model to models json array",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// A provider gains an ordered list of models under one endpoint/key
+			// (decisions/providers-multi-model): the single `model` column
+			// becomes `models`, a JSON array of model strings. The routing chain
+			// migrates value-level in internal/settings (a bare id folds into a
+			// {providerId, model:""} pair, which resolves to the provider's first
+			// model), so no routing SQL runs here.
+			//
+			// Rebuild rather than ALTER: SQLite cannot drop the old column in
+			// place, and the backfill (wrap the old model in a one-element array)
+			// is done in Go so the JSON is encoded correctly rather than
+			// hand-built with string concatenation.
+			type oldRow struct {
+				id    string
+				model string
+			}
+			rows, err := tx.QueryContext(ctx, `SELECT id, model FROM providers`)
+			if err != nil {
+				return wrap("read v17 providers", err)
+			}
+			var existing []oldRow
+			for rows.Next() {
+				var r oldRow
+				if err := rows.Scan(&r.id, &r.model); err != nil {
+					_ = rows.Close()
+					return wrap("scan v17 provider", err)
+				}
+				existing = append(existing, r)
+			}
+			if err := rows.Err(); err != nil {
+				_ = rows.Close()
+				return wrap("iterate v17 providers", err)
+			}
+			_ = rows.Close()
+
+			for _, stmt := range []string{
+				`CREATE TABLE providers_v17 (
+					id           TEXT PRIMARY KEY,
+					display_name TEXT    NOT NULL,
+					protocol     TEXT    NOT NULL,
+					endpoint     TEXT    NOT NULL,
+					models       TEXT    NOT NULL DEFAULT '[]',
+					max_images   INTEGER NOT NULL DEFAULT 0,
+					created_at   INTEGER NOT NULL,
+					updated_at   INTEGER NOT NULL
+				)`,
+				`INSERT INTO providers_v17 (id, display_name, protocol, endpoint, models, max_images, created_at, updated_at)
+				 SELECT id, display_name, protocol, endpoint, '[]', max_images, created_at, updated_at
+				 FROM providers`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("build v17 providers table", err)
+				}
+			}
+			for _, r := range existing {
+				models := []string{}
+				if r.model != "" {
+					models = []string{r.model}
+				}
+				encoded, err := json.Marshal(models)
+				if err != nil {
+					return wrap("encode v17 provider models", err)
+				}
+				if _, err := tx.ExecContext(ctx,
+					`UPDATE providers_v17 SET models = ? WHERE id = ?`, string(encoded), r.id); err != nil {
+					return wrap("backfill v17 provider models", err)
+				}
+			}
+			for _, stmt := range []string{
+				`DROP TABLE providers`,
+				`ALTER TABLE providers_v17 RENAME TO providers`,
+			} {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("swap v17 providers table", err)
+				}
 			}
 			return nil
 		},

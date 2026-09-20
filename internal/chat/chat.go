@@ -463,7 +463,11 @@ func (s *Service) rebuildChain(entries []ProviderEntry) {
 				}))
 		}
 		provider = ai.WithRetry(provider, ai.DefaultRetryPolicy())
-		chainEntries = append(chainEntries, ai.ChainEntry{ID: entry.ID, Provider: provider})
+		// The counter key is the (provider, model) pair, not the bare provider
+		// id: one provider can appear under several models, and each must demote
+		// on its own failures. The observer above still records the bare id into
+		// llm_calls (decisions/providers-multi-model).
+		chainEntries = append(chainEntries, ai.ChainEntry{ID: entry.ID + "\x1f" + entry.Model, Provider: provider})
 	}
 	s.chain.Rebuild(chainEntries)
 }

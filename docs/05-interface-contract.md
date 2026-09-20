@@ -372,10 +372,10 @@ webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 
 | `UpdateProvider(id string, p ProviderInputDTO) error` | providers | Provider repository / settings-access | 写·幂等 | `settings:changed` | `not_found` `invalid_argument` `native_unavailable` |
 | `DeleteProvider(id string) error` | providers | Provider repository / settings-access；连带剪除路由链、钥匙串条目与会话级 provider 绑定 | 写·幂等 | `settings:changed` | `not_found` |
 | `GetProviderRouting() (ProviderRoutingDTO, error)` | providers | settings-access | 读 | — | — |
-| `SetProviderRouting(r ProviderRoutingDTO) error` | providers | Provider repository（校验 id 存在且不重复） | 写·幂等 | `settings:changed` | `invalid_argument` |
+| `SetProviderRouting(r ProviderRoutingDTO) error` | providers | Provider repository（逐对校验 providerId 存在、model 属于该 provider 或为空，按对去重） | 写·幂等 | `settings:changed` | `invalid_argument` |
 | `SetProviderSecret(id string, secret string) error` | providers | Secrets / Provider repository | 写·幂等 | — | `not_found` `invalid_argument` `native_unavailable` |
 | `DeleteProviderSecret(id string) error` | providers | Secrets（删不存在的条目不是错误） | 写·幂等 | — | `invalid_argument` `native_unavailable` |
-| `TestProvider(id string) (ProviderTestResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`provider_failed`（结果行） |
+| `TestProvider(id string, model string) (ProviderTestResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥或 model 不属于该 provider）`provider_failed`（结果行） |
 | `ListProviderModels(req ProviderModelsRequestDTO) (ProviderModelsResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`native_unavailable` |
 | `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | provider-client | 读·有网络副作用 | — | `invalid_argument` |
 
@@ -383,8 +383,9 @@ webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 
 
 - `TestProviderConnection` 测的是**表单里还没保存的草稿**，密钥随调用传入、只进 Go 内存，
   不落盘、不进日志、不回显。它已经实现，是用户在密钥输入框旁点击“测试”时走的路径。
-- `TestProvider` 测的是**已保存的 provider**，密钥由 Go 从钥匙串取，调用方只给 id。
-  无已存密钥时返回 `invalid_argument`，不发探针。
+- `TestProvider` 测的是**已保存的 provider**，密钥由 Go 从钥匙串取，调用方给 id 与要测的
+  model（空 model 回退到该 provider 的首个模型）。无已存密钥、或 model 不属于该 provider 时
+  返回 `invalid_argument`，不发探针。
 
 两者都只发一次探针（30 秒上限、不重试、不回退），**失败是返回值而不是 error**：
 `ok=false` 加分类后的错误码，让 UI 把结果显示在输入框旁而不是弹窗。探针的通过标准见
@@ -699,27 +700,38 @@ type CategoryDTO struct {
 // 不由 id 隐含。名称、地址、模型全部由用户填写。无 sortOrder：展示顺序按
 // displayName，路由顺序由 ProviderRoutingDTO 表达。
 type ProviderDTO struct {
-    ID          string `json:"id"`
-    DisplayName string `json:"displayName"`
-    Protocol    string `json:"protocol"` // openai | openai_responses | anthropic
-    Endpoint    string `json:"endpoint"` // 绝对 http(s) 基地址，不含凭据
-    Model       string `json:"model"`
-    HasSecret   bool   `json:"hasSecret"` // 只暴露"是否已配置"，永不返回密钥内容
+    ID          string   `json:"id"`
+    DisplayName string   `json:"displayName"`
+    Protocol    string   `json:"protocol"` // openai | openai_responses | anthropic
+    Endpoint    string   `json:"endpoint"` // 绝对 http(s) 基地址，不含凭据
+    Models      []string `json:"models"`   // → providers.models：有序模型列表，至少 1 个
+    MaxImages   int      `json:"maxImages"` // → providers.max_images：单请求图片上限，0 = 默认
+    HasSecret   bool     `json:"hasSecret"` // 只暴露"是否已配置"，永不返回密钥内容
 }
 
 // ProviderInputDTO 是写入形状。Secret 为空串表示"保持不变"，不是"清空"。
+// Models 至少一个非空项，逐个 trim、去重，上限 20（decisions/providers-multi-model）。
 type ProviderInputDTO struct {
-    DisplayName string `json:"displayName"`
-    Protocol    string `json:"protocol"`
-    Endpoint    string `json:"endpoint"`
-    Model       string `json:"model"`
-    Secret      string `json:"secret"`
+    DisplayName string   `json:"displayName"`
+    Protocol    string   `json:"protocol"`
+    Endpoint    string   `json:"endpoint"`
+    Models      []string `json:"models"`
+    MaxImages   int      `json:"maxImages"`
+    Secret      string   `json:"secret"`
 }
 
-// 有序回退链（decisions/providers-fallback-chain）：Chain[0] 是主 provider，
-// 其余按序为备用；上限 8 项，重复与空项在写入时归一化掉。
+// 回退链的一个条目：一个「供应商 + 模型」对（decisions/providers-multi-model）。
+// Model 为空跟随该 provider 的首个模型。
+type ProviderRoutingEntryDTO struct {
+    ProviderID string `json:"providerId"`
+    Model      string `json:"model"`
+}
+
+// 有序回退链（decisions/providers-fallback-chain）：Chain[0] 是主，其余按序为备用；
+// 上限 8 项，按 (providerId, model) 对去重，空 providerId 在写入时归一化掉。同一 provider
+// 的不同模型可作为不同条目分别排入。
 type ProviderRoutingDTO struct {
-    Chain []string `json:"chain"`
+    Chain []ProviderRoutingEntryDTO `json:"chain"`
 }
 
 // ListProviderModels 的入参：ProviderID 非空时走已保存 provider（密钥从钥匙串取），
@@ -1081,22 +1093,23 @@ type ReplaceResult struct {
    本地提取 / 修复 JSON 并验证 schema。兼容端不支持时返回 `unsupported_feature`，
    不得静默降级为无约束文本。协议封闭集为 `openai` / `openai_responses` / `anthropic`，
    由 `internal/ai` 的 `Protocol` 类型与 factory 统一构造。
-3. 路由是**有序链** `ai.Chain`（decisions/providers-fallback-chain）：每个条目预先包
-   `WithRetry`，先按自身策略重试，仍失败才走到链上下一个；环形遍历，一轮最多每条目一次。
-   连续失败 3 次（常量阈值）的条目被降级——后续回合从下一个存活条目开始；任何条目成功即
-   清零计数并把游标指向它。状态仅存内存、按 provider ID 计数，取消不计失败；链内编辑
-   （`Rebuild`）按 ID 保留计数。链为空时返回 `ai.ErrNoProvider`，绑定层映射
-   `provider_not_configured`。
+3. 路由是**有序链** `ai.Chain`（decisions/providers-fallback-chain）：每个条目是一个
+   「供应商 + 模型」对（decisions/providers-multi-model），预先包 `WithRetry`，先按自身策略
+   重试，仍失败才走到链上下一个；环形遍历，一轮最多每条目一次。连续失败 3 次（常量阈值）的
+   条目被降级——后续回合从下一个存活条目开始；任何条目成功即清零计数并把游标指向它。状态仅
+   存内存、按**（provider ID, model）复合键**计数（同一 provider 的两个模型独立降级），取消不
+   计失败；链内编辑（`Rebuild`）按该复合 ID 保留计数。钥匙串与 `llm_calls.provider_id` 仍用裸
+   provider ID。链为空时返回 `ai.ErrNoProvider`，绑定层映射 `provider_not_configured`。
 4. 默认每个 provider 最多 3 次 attempt；500 ms 指数退避、8 秒封顶并带 full jitter，
    `Retry-After` 等待不超过 30 秒。408 / 429 / 5xx、临时网络错误与超时可重试；认证、404、
    无效参数及取消不重试。结构化输出无效的额外重试仍计入该上限。
 5. 每次真实 HTTP attempt 必须记录 `llm_calls` 脱敏元数据：批次 / purpose、序号、provider、
    协议、模型、时间 / 耗时、结果 / 错误、HTTP 状态和可选 usage。禁止保存 endpoint、正文、图片、
    密钥和费用；匿名人工 fixture 才是解析器黄金测试输入。
-6. `TestProvider` 只向指定 provider 发起一次 30 秒内的连接探针，不重试、不 fallback，
-   不发送业务正文。探针包含固定指令文本、内嵌匿名 PNG 和严格 JSON Schema：模型必须
-   回显固定 probe token 并正确识别图片特征才算通过，仅 HTTP 2xx 不构成成功；返回实际
-   模型、延迟与已验证能力（文本 / 图片 / 结构化输出）。探针经 `TestProviderConnection`
+6. `TestProvider` 只向指定 provider 的指定 model（空则回退到首个模型）发起一次 30 秒内的
+   连接探针，不重试、不 fallback，不发送业务正文。探针包含固定指令文本、内嵌匿名 PNG 和严格
+   JSON Schema：模型必须回显固定 probe token 并正确识别图片特征才算通过，仅 HTTP 2xx 不构成
+   成功；返回实际模型、延迟与已验证能力（文本 / 图片 / 结构化输出）。探针经 `TestProviderConnection`
    绑定由用户在密钥输入框旁手动触发：草稿密钥仅为本次调用进入 Go 内存，不落盘、不进
    日志；测试结果是建议性的，不阻塞保存，失败原因按错误分类本地化展示。
    HTTP endpoint 允许使用，仅提示明文传输风险，不强制 HTTPS。

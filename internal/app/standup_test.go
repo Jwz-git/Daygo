@@ -50,12 +50,12 @@ func configureStandupProvider(t *testing.T, backend *Backend, endpoint string) {
 		DisplayName: "Fixture Standup Provider",
 		Protocol:    "openai",
 		Endpoint:    endpoint,
-		Model:       "fixture-model",
+		Models:      []string{"fixture-model"},
 	})
 	if err != nil {
 		t.Fatalf("AddProvider: %v", err)
 	}
-	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []string{id}}); err != nil {
+	if err := backend.SetProviderRouting(ProviderRoutingDTO{Chain: []ProviderRoutingEntryDTO{{ProviderID: id}}}); err != nil {
 		t.Fatalf("SetProviderRouting: %v", err)
 	}
 }

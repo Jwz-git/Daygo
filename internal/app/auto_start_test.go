@@ -92,11 +92,15 @@ func seedRoutingChain(t *testing.T, store *storage.Store, ids ...string) {
 	defer cancel()
 	if err := store.Providers().Add(ctx, storage.Provider{
 		ID: ids[0], DisplayName: "Fixture", Protocol: "openai",
-		Endpoint: "https://example.invalid/v1", Model: "m",
+		Endpoint: "https://example.invalid/v1", Models: []string{"m"},
 	}); err != nil {
 		t.Fatalf("seed provider: %v", err)
 	}
-	if err := settings.New(store.Settings()).SetRouting(ctx, settings.Routing{Chain: ids}); err != nil {
+	chain := make([]settings.RoutingEntry, len(ids))
+	for i, id := range ids {
+		chain[i] = settings.RoutingEntry{ProviderID: id}
+	}
+	if err := settings.New(store.Settings()).SetRouting(ctx, settings.Routing{Chain: chain}); err != nil {
 		t.Fatalf("seed routing: %v", err)
 	}
 }

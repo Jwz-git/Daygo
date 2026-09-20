@@ -44,31 +44,76 @@ func (b *Backend) providerSecrets() error {
 	return nil
 }
 
-// validateProviderInput checks the wire payload. The same rules apply to add
-// and update so the two paths cannot drift apart.
-func validateProviderInput(p ProviderInputDTO) (displayName, protocol, endpoint, model string, maxImages int, err error) {
-	displayName = strings.TrimSpace(p.DisplayName)
+// maxProviderModels bounds the model list one provider may carry. Far beyond
+// any real gateway's catalogue a user would route through; a cap only so a
+// malformed payload cannot store an unbounded list.
+const maxProviderModels = 20
+
+// validatedProviderInput is the normalized form of a create/update payload,
+// shared by add and update so the two paths cannot drift apart.
+type validatedProviderInput struct {
+	displayName string
+	protocol    string
+	endpoint    string
+	models      []string
+	maxImages   int
+}
+
+// validateProviderInput checks the wire payload.
+func validateProviderInput(p ProviderInputDTO) (validatedProviderInput, error) {
+	displayName := strings.TrimSpace(p.DisplayName)
 	if displayName == "" {
-		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument, "display name is required", nil)
+		return validatedProviderInput{}, apperr.E(apperr.InvalidArgument, "display name is required", nil)
 	}
 	proto := daygoai.Protocol(strings.TrimSpace(p.Protocol))
 	if !proto.Valid() {
-		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument, "unknown provider protocol", nil)
+		return validatedProviderInput{}, apperr.E(apperr.InvalidArgument, "unknown provider protocol", nil)
 	}
-	endpoint, err = normalizeTestEndpoint(p.Endpoint)
+	endpoint, err := normalizeTestEndpoint(p.Endpoint)
 	if err != nil {
-		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument, "endpoint must be a full http:// or https:// address", err)
+		return validatedProviderInput{}, apperr.E(apperr.InvalidArgument, "endpoint must be a full http:// or https:// address", err)
 	}
-	model = strings.TrimSpace(p.Model)
-	if model == "" {
-		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument, "model is required", nil)
+	models, err := normalizeModels(p.Models)
+	if err != nil {
+		return validatedProviderInput{}, err
 	}
 	if p.MaxImages < 0 || p.MaxImages > daygoai.MaxImages {
-		return "", "", "", "", 0, apperr.E(apperr.InvalidArgument,
+		return validatedProviderInput{}, apperr.E(apperr.InvalidArgument,
 			fmt.Sprintf("max images must be between 0 and %d (0 = default)", daygoai.MaxImages), nil)
 	}
-	maxImages = p.MaxImages
-	return displayName, string(proto), endpoint, model, maxImages, nil
+	return validatedProviderInput{
+		displayName: displayName,
+		protocol:    string(proto),
+		endpoint:    endpoint,
+		models:      models,
+		maxImages:   p.MaxImages,
+	}, nil
+}
+
+// normalizeModels trims, drops empties, dedupes preserving order, and requires
+// at least one model. A provider with no model cannot be routed to.
+func normalizeModels(raw []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(raw))
+	models := make([]string, 0, len(raw))
+	for _, model := range raw {
+		trimmed := strings.TrimSpace(model)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		models = append(models, trimmed)
+	}
+	if len(models) == 0 {
+		return nil, apperr.E(apperr.InvalidArgument, "at least one model is required", nil)
+	}
+	if len(models) > maxProviderModels {
+		return nil, apperr.E(apperr.InvalidArgument,
+			fmt.Sprintf("a provider may have at most %d models", maxProviderModels), nil)
+	}
+	return models, nil
 }
 
 // newProviderID generates the opaque provider id. crypto/rand keeps it
@@ -103,7 +148,7 @@ func (b *Backend) ListProviders() ([]ProviderDTO, error) {
 			DisplayName: row.DisplayName,
 			Protocol:    row.Protocol,
 			Endpoint:    row.Endpoint,
-			Model:       row.Model,
+			Models:      row.Models,
 			MaxImages:   row.MaxImages,
 		}
 		if b.secrets != nil {
@@ -127,7 +172,7 @@ func (b *Backend) AddProvider(p ProviderInputDTO) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	displayName, protocol, endpoint, model, maxImages, err := validateProviderInput(p)
+	v, err := validateProviderInput(p)
 	if err != nil {
 		return "", err
 	}
@@ -139,8 +184,8 @@ func (b *Backend) AddProvider(p ProviderInputDTO) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
 	defer cancel()
 	if err := repo.Add(ctx, storage.Provider{
-		ID: id, DisplayName: displayName, Protocol: protocol, Endpoint: endpoint,
-		Model: model, MaxImages: maxImages,
+		ID: id, DisplayName: v.displayName, Protocol: v.protocol, Endpoint: v.endpoint,
+		Models: v.models, MaxImages: v.maxImages,
 	}); err != nil {
 		return "", mapStorageError("add provider", err)
 	}
@@ -173,7 +218,7 @@ func (b *Backend) UpdateProvider(id string, p ProviderInputDTO) error {
 	if strings.TrimSpace(id) == "" {
 		return apperr.E(apperr.InvalidArgument, "provider id is required", nil)
 	}
-	displayName, protocol, endpoint, model, maxImages, err := validateProviderInput(p)
+	v, err := validateProviderInput(p)
 	if err != nil {
 		return err
 	}
@@ -181,8 +226,8 @@ func (b *Backend) UpdateProvider(id string, p ProviderInputDTO) error {
 	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
 	defer cancel()
 	if err := repo.Update(ctx, id, storage.Provider{
-		DisplayName: displayName, Protocol: protocol, Endpoint: endpoint,
-		Model: model, MaxImages: maxImages,
+		DisplayName: v.displayName, Protocol: v.protocol, Endpoint: v.endpoint,
+		Models: v.models, MaxImages: v.maxImages,
 	}); err != nil {
 		return mapStorageError("update provider", err)
 	}
@@ -221,9 +266,9 @@ func (b *Backend) DeleteProvider(id string) error {
 	if err != nil {
 		return err
 	}
-	pruned := make([]string, 0, len(routing.Chain))
+	pruned := make([]settings.RoutingEntry, 0, len(routing.Chain))
 	for _, entry := range routing.Chain {
-		if entry != id {
+		if entry.ProviderID != id {
 			pruned = append(pruned, entry)
 		}
 	}
@@ -277,15 +322,16 @@ func (b *Backend) GetProviderRouting() (ProviderRoutingDTO, error) {
 	if err != nil {
 		return ProviderRoutingDTO{}, err
 	}
-	chain := routing.Chain
-	if chain == nil {
-		chain = []string{}
+	chain := make([]ProviderRoutingEntryDTO, 0, len(routing.Chain))
+	for _, entry := range routing.Chain {
+		chain = append(chain, ProviderRoutingEntryDTO{ProviderID: entry.ProviderID, Model: entry.Model})
 	}
 	return ProviderRoutingDTO{Chain: chain}, nil
 }
 
-// SetProviderRouting replaces the routing chain. Every id must exist and
-// appear at most once.
+// SetProviderRouting replaces the routing chain. Every entry's provider must
+// exist, its model must be one the provider has (or "" to follow the first),
+// and each (provider, model) pair may appear at most once.
 func (b *Backend) SetProviderRouting(r ProviderRoutingDTO) error {
 	repo, err := b.providerStore()
 	if err != nil {
@@ -297,26 +343,44 @@ func (b *Backend) SetProviderRouting(r ProviderRoutingDTO) error {
 	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
 	defer cancel()
 
-	known := make(map[string]struct{})
+	models := make(map[string]map[string]struct{})
 	rows, err := repo.List(ctx)
 	if err != nil {
 		return mapStorageError("list providers", err)
 	}
 	for _, row := range rows {
-		known[row.ID] = struct{}{}
-	}
-	seen := make(map[string]struct{}, len(r.Chain))
-	for _, id := range r.Chain {
-		if _, ok := known[id]; !ok {
-			return apperr.E(apperr.InvalidArgument, "routing references an unknown provider", nil)
+		set := make(map[string]struct{}, len(row.Models))
+		for _, model := range row.Models {
+			set[model] = struct{}{}
 		}
-		if _, dup := seen[id]; dup {
-			return apperr.E(apperr.InvalidArgument, "routing contains a provider twice", nil)
-		}
-		seen[id] = struct{}{}
+		models[row.ID] = set
 	}
 
-	if err := b.saveRouting(ctx, r.Chain); err != nil {
+	type pair struct{ providerID, model string }
+	seen := make(map[pair]struct{}, len(r.Chain))
+	chain := make([]settings.RoutingEntry, 0, len(r.Chain))
+	for _, entry := range r.Chain {
+		providerModels, ok := models[entry.ProviderID]
+		if !ok {
+			return apperr.E(apperr.InvalidArgument, "routing references an unknown provider", nil)
+		}
+		model := strings.TrimSpace(entry.Model)
+		// "" follows the provider's first model, so it is always valid; a named
+		// model must be one the provider actually has.
+		if model != "" {
+			if _, ok := providerModels[model]; !ok {
+				return apperr.E(apperr.InvalidArgument, "routing references a model the provider does not have", nil)
+			}
+		}
+		p := pair{entry.ProviderID, model}
+		if _, dup := seen[p]; dup {
+			return apperr.E(apperr.InvalidArgument, "routing contains a provider and model twice", nil)
+		}
+		seen[p] = struct{}{}
+		chain = append(chain, settings.RoutingEntry{ProviderID: entry.ProviderID, Model: model})
+	}
+
+	if err := b.saveRouting(ctx, chain); err != nil {
 		return err
 	}
 	b.emitSettingsChanged([]string{settings.KeyProvidersRouting})
@@ -367,9 +431,10 @@ func (b *Backend) DeleteProviderSecret(id string) error {
 	return nil
 }
 
-// TestProvider runs the connection probe against a saved provider: the secret
-// comes from the keychain by provider id, never from the call.
-func (b *Backend) TestProvider(id string) (ProviderTestResultDTO, error) {
+// TestProvider runs the connection probe against a saved provider and one of
+// its models: the secret comes from the keychain by provider id, never from the
+// call. An empty model tests the provider's first configured model.
+func (b *Backend) TestProvider(id string, model string) (ProviderTestResultDTO, error) {
 	repo, err := b.providerStore()
 	if err != nil {
 		return ProviderTestResultDTO{}, err
@@ -387,6 +452,10 @@ func (b *Backend) TestProvider(id string) (ProviderTestResultDTO, error) {
 	if err != nil {
 		return ProviderTestResultDTO{}, mapStorageError("get provider", err)
 	}
+	tested, err := resolveTestModel(row.Models, model)
+	if err != nil {
+		return ProviderTestResultDTO{}, err
+	}
 	secret, err := b.secrets.Get(ctx, id)
 	if err != nil {
 		if secrets.IsNotFound(err) {
@@ -400,7 +469,7 @@ func (b *Backend) TestProvider(id string) (ProviderTestResultDTO, error) {
 	provider, err := factory.NewClient(&http.Client{}, factory.Config{
 		Protocol: daygoai.Protocol(row.Protocol),
 		Endpoint: row.Endpoint,
-		Model:    row.Model,
+		Model:    tested,
 		Secret:   secret,
 	})
 	if err != nil {
@@ -434,10 +503,30 @@ func (b *Backend) loadRouting(ctx context.Context) (settings.Routing, error) {
 }
 
 // saveRouting writes the chain through the typed settings layer.
-func (b *Backend) saveRouting(ctx context.Context, chain []string) error {
+func (b *Backend) saveRouting(ctx context.Context, chain []settings.RoutingEntry) error {
 	access := settings.New(b.store().Settings())
 	if err := access.SetRouting(ctx, settings.Routing{Chain: chain}); err != nil {
 		return mapStorageError("write provider routing", err)
 	}
 	return nil
+}
+
+// resolveTestModel picks the model a saved-provider probe runs against: the
+// requested one when the provider has it, the first configured model when the
+// request is empty. A provider always has at least one model (validation
+// guarantees it), so an empty list is a defensive error, not a normal state.
+func resolveTestModel(models []string, requested string) (string, error) {
+	requested = strings.TrimSpace(requested)
+	if len(models) == 0 {
+		return "", apperr.E(apperr.InvalidArgument, "provider has no configured model", nil)
+	}
+	if requested == "" {
+		return models[0], nil
+	}
+	for _, model := range models {
+		if model == requested {
+			return requested, nil
+		}
+	}
+	return "", apperr.E(apperr.InvalidArgument, "provider does not have the requested model", nil)
 }

@@ -210,7 +210,7 @@ func TestChatBindingAgentTurnAuditsLlmCalls(t *testing.T) {
 		DisplayName: "Fixture Provider",
 		Protocol:    "openai",
 		Endpoint:    server.URL + "/v1",
-		Model:       "fixture-model",
+		Models:      []string{"fixture-model"},
 		Secret:      "fixture-secret",
 	})
 	if err != nil {

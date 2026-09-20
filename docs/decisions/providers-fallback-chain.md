@@ -9,9 +9,12 @@
 （`chain[0]` 为主，后继为备用，上限 8 项）。`internal/ai` 的 `WithFallback`（单备、一次性
 粘滞 bool）废弃，替换为 `Chain`：
 
-- 每个条目 = `{providerID, Provider}`，`Provider` 已预包 `WithRetry`（每供应商最多 3 次尝试、
-  指数退避，既有策略不变）。
-- 链状态**仅存内存**，按 provider ID 记连续失败数；不持久化，重启清零。
+- 每个条目 = `{ID, Provider}`，`Provider` 已预包 `WithRetry`（每供应商最多 3 次尝试、
+  指数退避，既有策略不变）。自 providers-multi-model 起，链条目是**「供应商 + 模型」对**，
+  条目 `ID` 是复合键 `providerID + "\x1f" + model`（单元分隔符不会出现在 provider id 或模型
+  名里），因此同一 provider 的两个模型是链上两环、**独立计数**。
+- 链状态**仅存内存**，按条目复合 ID 记连续失败数；不持久化，重启清零。钥匙串与
+  `llm_calls.provider_id` 仍用裸 provider ID，只有链计数键复合。
 - 阈值为 Go 常量 `DefaultChainThreshold = 3`（不做设置项，避免调参 UI）。
 
 一次 `Generate` 的语义：
@@ -26,8 +29,8 @@
 6. 不可重试错误（auth、invalid_request）同样计数并前进——密钥失效的供应商正是回退的
    存在意义；真正畸形的请求会在一轮后原样浮出。
 
-链在每次使用前用当前配置 `Rebuild`：按 ID 保留失败计数，被删除的供应商丢弃其计数。
-会话内编辑路由不打断在途回合。
+链在每次使用前用当前配置 `Rebuild`：按复合 ID 保留失败计数，被删除的供应商（及其所有模型
+条目）丢弃其计数。会话内编辑路由不打断在途回合。
 
 ## 2. 候选与取舍
 
@@ -50,9 +53,10 @@
 
 - 阈值内（未达 3 次）的失败在**本回合**仍会触发向下一供应商的尝试——降级影响的是后续
   回合的起始点。回合内即时切换与跨回合粘滞是两层不同的机制，都保留。
-- `llm_calls` 诊断表（逐 attempt 记录）仍未实现，本轮回退行为没有观测表；落表时按
-  provider ID 与 attempt 序号补充，见 09 §9.8 #15。
-- 单供应商（链长 1）退化为「只重试不回退」，行为与旧模型一致。
+- `llm_calls` 诊断表（逐 attempt 记录）按裸 provider ID 与 attempt 序号记录；链计数用复合
+  键（provider + model），两者不冲突：观测按 provider 聚合，降级按 (provider, model) 粒度。
+- 单条目（链长 1）退化为「只重试不回退」，行为与旧模型一致。同一 provider 只排入一个模型时
+  与旧的「一 provider 一条目」等价。
 
 ## 4. 回退
 

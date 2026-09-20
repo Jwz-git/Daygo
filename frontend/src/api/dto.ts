@@ -124,19 +124,30 @@ export interface ProviderDTO {
   displayName: string
   protocol: ProviderProtocol
   endpoint: string
-  model: string
+  /** The ordered models configured under this endpoint/key; at least one. */
+  models: string[]
   /** Image parts per request cap; 0 means the built-in default. */
   maxImages: number
   hasSecret: boolean
 }
 
 /**
+ * One fallback-chain entry: a (provider, model) pair. The same provider can
+ * appear under different models as separate entries with independent ordering.
+ * An empty `model` follows the provider's first configured model.
+ */
+export interface ProviderRoutingEntry {
+  providerId: string
+  model: string
+}
+
+/**
  * ProviderRoutingDTO: the ordered fallback chain. `chain[0]` is the primary;
- * the rest are fallbacks tried in order. The backend dedupes, drops empties,
- * and caps the chain at 8 on write.
+ * the rest are fallbacks tried in order. The backend dedupes by (provider,
+ * model) pair, drops empties, and caps the chain at 8 on write.
  */
 export interface ProviderRoutingDTO {
-  chain: string[]
+  chain: ProviderRoutingEntry[]
 }
 
 /** ProviderInputDTO. `secret` "" means "keep the stored key", never "clear". */
@@ -144,7 +155,8 @@ export interface ProviderInput {
   displayName: string
   protocol: ProviderProtocol
   endpoint: string
-  model: string
+  /** At least one model; trimmed and deduped by the backend, capped at 20. */
+  models: string[]
   maxImages: number
   secret: string
 }

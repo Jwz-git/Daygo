@@ -12,7 +12,7 @@ func newTestProvider(id, name string) Provider {
 		DisplayName: name,
 		Protocol:    "openai",
 		Endpoint:    "https://api.example.com/v1",
-		Model:       "fixture-model",
+		Models:      []string{"fixture-model"},
 	}
 }
 
@@ -38,7 +38,7 @@ func TestProviderRepoCRUD(t *testing.T) {
 	}
 
 	updated := newTestProvider("provider-a", "Fixture A renamed")
-	updated.Model = "other-model"
+	updated.Models = []string{"other-model", "second-model"}
 	if err := repo.Update(ctx, "provider-a", updated); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestProviderRepoCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get after update: %v", err)
 	}
-	if got.DisplayName != "Fixture A renamed" || got.Model != "other-model" {
+	if got.DisplayName != "Fixture A renamed" || len(got.Models) != 2 || got.Models[0] != "other-model" || got.Models[1] != "second-model" {
 		t.Fatalf("update did not apply: %+v", got)
 	}
 	if !got.UpdatedAt.After(got.CreatedAt) && !got.UpdatedAt.Equal(got.CreatedAt) {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -392,8 +393,8 @@ func (p backendProviders) Chain(ctx context.Context) ([]chat.ProviderEntry, erro
 		return nil, err
 	}
 	entries := make([]chat.ProviderEntry, 0, len(routing.Chain))
-	for _, id := range routing.Chain {
-		entry, err := p.entryByID(ctx, repo, id)
+	for _, slot := range routing.Chain {
+		entry, err := p.entryByID(ctx, repo, slot.ProviderID, slot.Model)
 		if err != nil {
 			// A routing slot whose provider vanished between read and here is
 			// skipped, not fatal: the rest of the chain still serves the turn.
@@ -404,14 +405,24 @@ func (p backendProviders) Chain(ctx context.Context) ([]chat.ProviderEntry, erro
 	return entries, nil
 }
 
+// ByID resolves a pinned conversation's provider. The model is left at the
+// provider's first configured one; a conversation-level model override replaces
+// it upstream in chat's resolveConversationProvider.
 func (p backendProviders) ByID(ctx context.Context, id string) (chat.ProviderEntry, error) {
-	return p.entryByID(ctx, p.backend.store().Providers(), id)
+	return p.entryByID(ctx, p.backend.store().Providers(), id, "")
 }
 
-func (p backendProviders) entryByID(ctx context.Context, repo *storage.ProviderRepo, id string) (chat.ProviderEntry, error) {
+// entryByID builds one chain entry. model "" follows the provider's first
+// configured model (decisions/providers-multi-model); the entry's ID is the
+// (provider, model) pair so two models under one provider count failures apart.
+func (p backendProviders) entryByID(ctx context.Context, repo *storage.ProviderRepo, id string, model string) (chat.ProviderEntry, error) {
 	row, err := repo.Get(ctx, id)
 	if err != nil {
 		return chat.ProviderEntry{}, err
+	}
+	resolved := resolveChainModel(row.Models, model)
+	if resolved == "" {
+		return chat.ProviderEntry{}, fmt.Errorf("provider %s has no configured model", id)
 	}
 	secret, err := p.backend.secrets.Get(ctx, id)
 	if err != nil && !secrets.IsNotFound(err) {
@@ -421,7 +432,7 @@ func (p backendProviders) entryByID(ctx context.Context, repo *storage.ProviderR
 		ID:       row.ID,
 		Protocol: row.Protocol,
 		Endpoint: row.Endpoint,
-		Model:    row.Model,
+		Model:    resolved,
 		Secret:   secret,
 	}, nil
 }

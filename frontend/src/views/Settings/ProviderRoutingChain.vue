@@ -2,57 +2,96 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { ProviderDTO } from '@/api/dto'
+import type { ProviderDTO, ProviderRoutingEntry } from '@/api/dto'
 import { useProvidersStore } from '@/stores/providers'
 
-/* The routing chain editor: which provider answers first and who falls back.
-   Entirely store-driven; the section only places it. */
+/* The routing chain editor: which (provider, model) pair answers first and who
+   falls back. One ordered list — position 1 is the primary — with add, reorder
+   and remove. Entirely store-driven; the section only places it. */
 const { t } = useI18n()
 const store = useProvidersStore()
 
-/** Providers not yet in the chain; the "add fallback" dropdown options. */
-const unchained = computed(() =>
-  store.providers.filter((provider) => !store.routing.chain.includes(provider.id)),
-)
+/** Unit separator: cannot occur in a provider id or a model name, so it is a
+    safe join for the add-dropdown option value and the row key. */
+const SEP = ''
 
-/** The chain rows with their provider, resilient to a vanished id. */
-const chainRows = computed(() =>
-  store.routing.chain
-    .map((id) => store.providers.find((provider) => provider.id === id))
-    .filter((provider): provider is ProviderDTO => provider !== undefined),
-)
-
-async function setPrimary(id: string): Promise<void> {
-  const rest = store.routing.chain.filter((entry) => entry !== id)
-  await store.setChain([id, ...rest])
+interface ChainRow {
+  entry: ProviderRoutingEntry
+  provider: ProviderDTO
+  model: string
+  key: string
 }
 
-async function addFallback(id: string): Promise<void> {
-  await store.setChain([...store.routing.chain, id])
+/** An entry's effective model: its own, or the provider's first when empty. */
+function resolveModel(provider: ProviderDTO, model: string): string {
+  return model !== '' ? model : provider.models[0] ?? ''
 }
 
-async function removeEntry(id: string): Promise<void> {
-  await store.setChain(store.routing.chain.filter((entry) => entry !== id))
+/** Chain rows joined to their provider, resilient to a vanished provider id. */
+const chainRows = computed<ChainRow[]>(() =>
+  store.routing.chain.flatMap((entry) => {
+    const provider = store.providers.find((candidate) => candidate.id === entry.providerId)
+    if (provider === undefined) return []
+    return [
+      {
+        entry,
+        provider,
+        model: resolveModel(provider, entry.model),
+        key: entry.providerId + SEP + entry.model,
+      },
+    ]
+  }),
+)
+
+/** The (provider, resolved-model) pairs already in the chain. */
+const chainResolved = computed(
+  () => new Set(chainRows.value.map((row) => row.provider.id + SEP + row.model)),
+)
+
+interface AddOption {
+  label: string
+  value: string
+}
+
+/** Every concrete (provider, model) pair not already represented in the chain. */
+const addOptions = computed<AddOption[]>(() => {
+  const out: AddOption[] = []
+  for (const provider of store.providers) {
+    for (const model of provider.models) {
+      if (chainResolved.value.has(provider.id + SEP + model)) continue
+      out.push({
+        label: `${provider.displayName} · ${model}`,
+        value: provider.id + SEP + model,
+      })
+    }
+  }
+  return out
+})
+
+async function addEntry(value: string): Promise<void> {
+  const [providerId, model] = value.split(SEP)
+  if (providerId === undefined || model === undefined) return
+  await store.setChain([...store.routing.chain, { providerId, model }])
+}
+
+async function removeEntry(index: number): Promise<void> {
+  await store.setChain(store.routing.chain.filter((_, position) => position !== index))
 }
 
 /** Swap two adjacent chain positions. */
 async function moveEntry(index: number, offset: -1 | 1): Promise<void> {
-  const chain = [...store.routing.chain]
+  const chain = store.routing.chain.map((entry) => ({ ...entry }))
   const target = index + offset
   if (target < 0 || target >= chain.length) return
   ;[chain[index], chain[target]] = [chain[target], chain[index]]
   await store.setChain(chain)
 }
 
-function onPrimaryChange(event: Event): void {
-  void setPrimary((event.target as HTMLSelectElement).value)
-}
-
-function onAddFallbackChange(event: Event): void {
+function onAddChange(event: Event): void {
   const target = event.target as HTMLSelectElement | null
   const value = target?.value ?? ''
-  if (value !== '') void addFallback(value)
-  // The select resets to its placeholder once the option list refreshes.
+  if (value !== '') void addEntry(value)
+  // The select snaps back to its placeholder once the option list refreshes.
   if (target !== null) target.value = ''
 }
 </script>
@@ -63,73 +102,62 @@ function onAddFallbackChange(event: Event): void {
     <p class="routing__hint">{{ t('settings.providers.routing.description') }}</p>
 
     <ol v-if="chainRows.length > 0" class="routing__chain">
-      <li v-for="(provider, index) in chainRows" :key="provider.id" class="routing__entry">
+      <li v-for="(row, index) in chainRows" :key="row.key" class="routing__entry">
         <span class="routing__position">{{ index + 1 }}</span>
-        <span class="routing__name">{{ provider.displayName }} · {{ provider.model }}</span>
+        <span class="routing__name">
+          {{ row.provider.displayName }}
+          <span class="routing__model">{{ row.model }}</span>
+        </span>
         <span v-if="index === 0" class="badge badge--accent">
           {{ t('settings.providers.routing.primaryBadge') }}
         </span>
         <span class="routing__move">
           <button
             type="button"
-            class="dg-button"
+            class="dg-button dg-button--icon"
             :disabled="index === 0"
             :aria-label="t('settings.providers.routing.moveUp')"
             @click="moveEntry(index, -1)"
           >
-            ↑
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
           </button>
           <button
             type="button"
-            class="dg-button"
+            class="dg-button dg-button--icon"
             :disabled="index === chainRows.length - 1"
             :aria-label="t('settings.providers.routing.moveDown')"
             @click="moveEntry(index, 1)"
           >
-            ↓
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </button>
           <button
             type="button"
-            class="dg-button"
-            @click="removeEntry(provider.id)"
+            class="dg-button dg-button--icon"
+            :aria-label="t('settings.providers.routing.removeEntry')"
+            @click="removeEntry(index)"
           >
-            {{ t('common.action.delete') }}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
           </button>
         </span>
       </li>
     </ol>
+    <p v-else class="routing__empty">{{ t('settings.providers.routing.none') }}</p>
 
-    <div class="routing__grid">
-      <label class="routing__cell">
-        <span class="dg-field-label">
-          {{ t('settings.providers.routing.primary') }}
-        </span>
-        <select
-          class="dg-input"
-          :value="store.routing.chain[0] ?? ''"
-          @change="onPrimaryChange"
-        >
-          <option v-if="store.routing.chain.length === 0" value="">
-            {{ t('settings.providers.routing.none') }}
-          </option>
-          <option v-for="provider in store.providers" :key="provider.id" :value="provider.id">
-            {{ provider.displayName }} · {{ provider.model }}
-          </option>
-        </select>
-      </label>
-
-      <label v-if="unchained.length > 0" class="routing__cell">
-        <span class="dg-field-label">
-          {{ t('settings.providers.routing.addFallback') }}
-        </span>
-        <select class="dg-input" value="" @change="onAddFallbackChange">
-          <option value="">{{ t('settings.providers.routing.pickFallback') }}</option>
-          <option v-for="provider in unchained" :key="provider.id" :value="provider.id">
-            {{ provider.displayName }} · {{ provider.model }}
-          </option>
-        </select>
-      </label>
-    </div>
+    <label v-if="addOptions.length > 0" class="routing__add">
+      <span class="dg-field-label">{{ t('settings.providers.routing.addEntry') }}</span>
+      <select class="dg-input" value="" @change="onAddChange">
+        <option value="">{{ t('settings.providers.routing.pickEntry') }}</option>
+        <option v-for="option in addOptions" :key="option.value" :value="option.value">
+          {{ option.label }}
+        </option>
+      </select>
+    </label>
   </section>
 </template>
 
@@ -150,12 +178,6 @@ function onAddFallbackChange(event: Event): void {
 .routing__hint {
   color: var(--dg-text-muted);
   font-size: 12px;
-}
-
-.routing__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
 }
 
 .routing__chain {
@@ -195,14 +217,38 @@ function onAddFallbackChange(event: Event): void {
   white-space: nowrap;
 }
 
+.routing__model {
+  color: var(--dg-accent-text);
+  font-weight: 500;
+}
+
 .routing__move {
   display: flex;
   gap: 4px;
 }
 
-.routing__move .dg-button {
-  padding: 3px 8px;
-  font-size: 11px;
+.dg-button--icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  padding: 4px 0;
+}
+
+.dg-button--icon svg {
+  flex: none;
+}
+
+.routing__empty {
+  color: var(--dg-text-muted);
+  font-size: 12px;
+}
+
+.routing__add {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .badge {
@@ -221,11 +267,5 @@ function onAddFallbackChange(event: Event): void {
   border-color: transparent;
   background: var(--dg-control-fill);
   color: var(--dg-accent-text);
-}
-
-@media (max-width: 620px) {
-  .routing__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 </style>

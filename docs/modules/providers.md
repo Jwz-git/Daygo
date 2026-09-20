@@ -2,15 +2,17 @@
 
 ## 用户结果与范围
 
-用户可配置 Provider 的名称、协议、地址、模型与密钥，编排有序回退链（主 + 多备用），
-获取模型列表，测试连接，重启后仍能判断密钥是否已配置。负责 U7、F-S1–4；支持
-openai（Chat Completions）、openai_responses、anthropic 三种协议。
+用户可为一个 Provider 配置名称、协议、地址、**多个模型**与密钥，编排有序回退链
+（条目为「供应商 + 模型」对，主 + 多备用），获取模型列表，逐模型测试连接，重启后仍能
+判断密钥是否已配置。负责 U7、F-S1–4；支持 openai（Chat Completions）、openai_responses、
+anthropic 三种协议。
 本模块交付可供 timeline / daily / chat 消费的客户端，不拥有分批、卡片、摘要内容或批次状态。
 
 公共依据：[05 Provider 绑定](../05-interface-contract.md#provider)、
 [05 服务契约](../05-interface-contract.md#564-ai--analysis)、
 [07 密钥](../07-privacy-security.md#73-密钥)、[04 重试](../04-data-flow.md#433-重试与回退)、
 [decisions/providers-fallback-chain](../decisions/providers-fallback-chain.md)、
+[decisions/providers-multi-model](../decisions/providers-multi-model.md)、
 [decisions/providers-secrets-keychain](../decisions/providers-secrets-keychain.md)。
 
 ## 当前状态与证据
@@ -18,12 +20,18 @@ openai（Chat Completions）、openai_responses、anthropic 三种协议。
 实现进度：部分实现。Go 侧已落地：三协议客户端、重试 / 回退链（`ai.Chain`，循环降级）、
 连接探针、迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 经
 `security` CLI、Windows 经 Credential Manager、Linux 经 Secret Service / `secret-tool`，以及 fake）、
-Provider CRUD / 路由链 / 密钥 / `TestProvider` 绑定
+Provider CRUD / 路由链 / 密钥 / `TestProvider(id, model)` 绑定
 （主要在 `internal/app/providers.go`），以及分置于 `providers_models.go` 和 `provider_probe.go` 的
-模型列表与草稿连接探针。设置层 `providers.routing` 为有序链并兼容旧形状。
-前端 store 已以 Go 绑定为权威来源，写后重拉；旧 localStorage 记录只在后端列表为空时
-做一次性无密钥迁移，成功后删除。`hasSecret` 仅由后端检查钥匙串后返回。
-模型列表查询与每 Provider 图片上限（v11）也已接入。真实网络集成、完整 Wails 重启闭环与升级身份验证未验收。
+模型列表与草稿连接探针。单供应商多模型已落地（v17：`providers.model` → `models` JSON 数组，
+上限 20）：路由链条目改为「供应商 + 模型」对，`ai.Chain` 按 `providerID + "\x1f" + model`
+复合键独立计数，钥匙串与 `llm_calls.provider_id` 仍用裸供应商 ID
+（decisions/providers-multi-model）。设置层 `providers.routing` 为有序对链，兼容旧的裸 id
+数组与 `{primary,secondary}` 形状（读取时折叠）。
+前端 store 已以 Go 绑定为权威来源，写后重拉；表单支持多模型增删与逐模型测试，回退链编辑器
+以单一有序列表编排「供应商 + 模型」对；旧 localStorage 记录只在后端列表为空时做一次性
+无密钥迁移（单模型折为一元列表），成功后删除。`hasSecret` 仅由后端检查钥匙串后返回。
+模型列表查询与每 Provider 图片上限（v11，per-provider、与模型无关）也已接入。真实网络集成、
+完整 Wails 重启闭环与升级身份验证未验收。
 
 ## 能力与跨层职责
 
@@ -144,3 +152,19 @@ ClampMaxImages 边界表、请求级上限 Validate、groupFrames 按上限分�
 `go test ./internal/...`（recorder 既有 7 秒时序失败除外，stash 验证与本改动无关）/
 `go vet` / `CGO_ENABLED=0 go build` / 前端 typecheck / `check-docs.py` 通过。视觉增强
 本身仍未接入生产调用链（`GenerateRecognition` 无调用方），接线时分组已按其上限假设就绪。
+
+2026-09-20（六）：单供应商多模型 + 供应商界面打磨。数据：v17 迁移把 `providers.model`
+重建为 `models` JSON 数组（旧值折为一元数组、空折为 `[]`），夹具 `v16-providers.db` +
+`TestMigrateV16FixtureConvertsModelToModels`（原 v10 夹具测试改断言 `models`）。路由：
+`settings.Routing.Chain` 改为 `[]RoutingEntry{ProviderID, Model}`，`RoutingEntry.UnmarshalJSON`
+折叠裸 id 数组、`decodeRouting` 折叠 `{primary,secondary}`，按对去重。`ai.Chain` 计数键改复合
+`providerID+"\x1f"+model`（`analysis_wiring.go` / `chat.go` / `internal/chat/chat.go` 同步），
+观测与钥匙串仍用裸 provider ID。绑定：`ProviderDTO.Models` / `ProviderInputDTO.Models`、
+新增 `ProviderRoutingEntryDTO`、`TestProvider(id, model)`、`SetProviderRouting` 逐对校验、
+`normalizeModels`（trim / 去重 / 至少 1 / 上限 20）。前端：多模型编辑器（增删 + 拉取填充 +
+逐模型/选定模型测试）、回退链重写为单一有序「供应商 + 模型」列表（移除主/备双下拉、移动键
+换 SVG）、供应商分区打磨（去自定义 h1 用共享 h2、去协议冗余字形、表单并入 dg-card、异步态
+加 `role="status"`/`aria-live` 与装饰 `aria-hidden`、空态独立文案、添加按钮置顶）。chat 侧
+仅随共享链构建更新（模型选择 UI 不在本轮）。门禁：gofmt / `go test ./internal/...` /
+`go vet ./...` / `CGO_ENABLED=0 go build` / `GOOS=linux` 构建 / 前端 typecheck + build 通过。
+真实网络与 Wails 重启闭环仍未验收（模块门禁未过）。

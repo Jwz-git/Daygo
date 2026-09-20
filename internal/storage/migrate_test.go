@@ -700,7 +700,9 @@ func TestMigrateV9FixturePreservesDataAndAddsSoftDelete(t *testing.T) {
 
 // DB-2 for v11: upgrade a database written by a v10-only build and assert
 // max_images arrives as 0 (the built-in default) on the pre-existing
-// providers while their other fields survive untouched.
+// providers. The v10 database predates the whole tail of the chain, so this
+// also exercises v17: the single `model` column becomes a one-element `models`
+// JSON array while the other provider fields survive untouched.
 func TestMigrateV10FixturePreservesDataAndAddsMaxImages(t *testing.T) {
 	fixture := filepath.Join("testdata", "v10-batch-soft-delete.db")
 	if _, err := os.Stat(fixture); err != nil {
@@ -718,20 +720,20 @@ func TestMigrateV10FixturePreservesDataAndAddsMaxImages(t *testing.T) {
 	}
 
 	rows, err := store.db.QueryContext(context.Background(),
-		`SELECT id, display_name, protocol, endpoint, model, max_images FROM providers ORDER BY id`)
+		`SELECT id, display_name, protocol, endpoint, models, max_images FROM providers ORDER BY id`)
 	if err != nil {
 		t.Fatalf("query providers: %v", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	type providerRow struct {
-		id, name, protocol, endpoint, model string
-		maxImages                           int
+		id, name, protocol, endpoint, models string
+		maxImages                            int
 	}
 	var got []providerRow
 	for rows.Next() {
 		var r providerRow
-		if err := rows.Scan(&r.id, &r.name, &r.protocol, &r.endpoint, &r.model, &r.maxImages); err != nil {
+		if err := rows.Scan(&r.id, &r.name, &r.protocol, &r.endpoint, &r.models, &r.maxImages); err != nil {
 			t.Fatalf("scan provider: %v", err)
 		}
 		got = append(got, r)
@@ -742,10 +744,10 @@ func TestMigrateV10FixturePreservesDataAndAddsMaxImages(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("providers = %d, want 2", len(got))
 	}
-	if got[0].id != "fixture-provider-a" || got[0].model != "fixture-model-a" || got[0].maxImages != 0 {
-		t.Fatalf("provider a = %+v, want untouched fields and max_images 0", got[0])
+	if got[0].id != "fixture-provider-a" || got[0].models != `["fixture-model-a"]` || got[0].maxImages != 0 {
+		t.Fatalf("provider a = %+v, want model wrapped as a one-element array and max_images 0", got[0])
 	}
-	if got[1].id != "fixture-provider-b" || got[1].protocol != "anthropic" || got[1].maxImages != 0 {
+	if got[1].id != "fixture-provider-b" || got[1].protocol != "anthropic" || got[1].models != `["fixture-model-b"]` || got[1].maxImages != 0 {
 		t.Fatalf("provider b = %+v, want untouched fields and max_images 0", got[1])
 	}
 }
@@ -1012,5 +1014,75 @@ func TestMigrateV15FixtureAmortizesSegmentScreenshots(t *testing.T) {
 	}
 	if total != 2000 {
 		t.Fatalf("total segment file_size = %d, want 2000", total)
+	}
+}
+
+// DB-2 for v17: upgrade a database written by a v16 build and assert the single
+// `model` column becomes a one-element `models` JSON array, while display_name,
+// protocol, endpoint, and max_images survive the table rebuild untouched. The
+// providers read back through the repository as one-model rows.
+func TestMigrateV16FixtureConvertsModelToModels(t *testing.T) {
+	fixture := filepath.Join("testdata", "v16-providers.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+
+	// The raw column is the JSON array, not the bare model string.
+	rows, err := store.db.QueryContext(context.Background(),
+		`SELECT id, display_name, protocol, endpoint, models, max_images FROM providers ORDER BY id`)
+	if err != nil {
+		t.Fatalf("query providers: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	type providerRow struct {
+		id, name, protocol, endpoint, models string
+		maxImages                            int
+	}
+	var got []providerRow
+	for rows.Next() {
+		var r providerRow
+		if err := rows.Scan(&r.id, &r.name, &r.protocol, &r.endpoint, &r.models, &r.maxImages); err != nil {
+			t.Fatalf("scan provider: %v", err)
+		}
+		got = append(got, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate providers: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("providers = %d, want 2", len(got))
+	}
+	if got[0].id != "fixture-provider-a" || got[0].name != "Fixture A" || got[0].protocol != "openai" ||
+		got[0].models != `["fixture-model-a"]` || got[0].maxImages != 0 {
+		t.Fatalf("provider a = %+v, want model wrapped as [\"fixture-model-a\"] and other fields untouched", got[0])
+	}
+	if got[1].id != "fixture-provider-b" || got[1].name != "Fixture B" || got[1].protocol != "anthropic" ||
+		got[1].models != `["fixture-model-b"]` || got[1].maxImages != 4 {
+		t.Fatalf("provider b = %+v, want model wrapped as [\"fixture-model-b\"] and max_images 4 preserved", got[1])
+	}
+
+	// The upgraded rows read back through the repository as one-model providers.
+	list, err := store.Providers().List(context.Background())
+	if err != nil {
+		t.Fatalf("List providers: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("repository list = %d providers, want 2", len(list))
+	}
+	if len(list[0].Models) != 1 || list[0].Models[0] != "fixture-model-a" {
+		t.Fatalf("provider a models = %v, want [fixture-model-a]", list[0].Models)
+	}
+	if len(list[1].Models) != 1 || list[1].Models[0] != "fixture-model-b" {
+		t.Fatalf("provider b models = %v, want [fixture-model-b]", list[1].Models)
 	}
 }

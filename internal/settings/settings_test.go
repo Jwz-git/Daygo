@@ -94,7 +94,7 @@ func TestLoadDefaultsOnEmptyDatabase(t *testing.T) {
 		TestToolsEnabled:       DefaultTestToolsEnabled,
 		AnalyticsOptIn:         DefaultAnalyticsOptIn,
 		CrashReportingOptIn:    DefaultCrashReportingOptIn,
-		ProvidersRouting:       Routing{Chain: []string{}},
+		ProvidersRouting:       Routing{Chain: []RoutingEntry{}},
 		OutputLanguage:         DefaultOutputLanguage,
 		RecognitionEnhancement: DefaultRecognitionEnhancement,
 		ChatMemory:             DefaultChatMemory,
@@ -474,7 +474,7 @@ func TestRoutingLegacyShapeFoldsIntoChain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	want := []string{"p1", "p2"}
+	want := []RoutingEntry{{ProviderID: "p1"}, {ProviderID: "p2"}}
 	if !reflect.DeepEqual(snapshot.ProvidersRouting.Chain, want) {
 		t.Fatalf("routing chain = %v, want %v", snapshot.ProvidersRouting.Chain, want)
 	}
@@ -489,27 +489,57 @@ func TestRoutingLegacyPrimaryOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	want := []string{"p1"}
+	want := []RoutingEntry{{ProviderID: "p1"}}
 	if !reflect.DeepEqual(snapshot.ProvidersRouting.Chain, want) {
 		t.Fatalf("routing chain = %v, want %v", snapshot.ProvidersRouting.Chain, want)
 	}
 }
 
-// The chain form round-trips through Load and SetRouting, normalized.
+// A pre-multi-model chain stored bare provider-id strings. Each folds into a
+// {providerId, model:""} pair, so a database written before multi-model support
+// keeps its exact routing after the upgrade.
+func TestRoutingLegacyStringChainFoldsIntoPairs(t *testing.T) {
+	repo := newFakeRepo()
+	repo.values[KeyProvidersRouting] = `{"chain":["p1","p2"]}`
+
+	snapshot, err := New(repo).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := []RoutingEntry{{ProviderID: "p1"}, {ProviderID: "p2"}}
+	if !reflect.DeepEqual(snapshot.ProvidersRouting.Chain, want) {
+		t.Fatalf("routing chain = %v, want %v", snapshot.ProvidersRouting.Chain, want)
+	}
+}
+
+// The chain form round-trips through Load and SetRouting, normalized. Two
+// models under one provider are distinct entries; a repeated (provider, model)
+// pair and an empty provider id drop out.
 func TestRoutingChainRoundTrips(t *testing.T) {
 	repo := newFakeRepo()
 	s := New(repo)
 
-	if err := s.SetRouting(context.Background(), Routing{Chain: []string{"p2", "p1", "p2", ""}}); err != nil {
+	in := Routing{Chain: []RoutingEntry{
+		{ProviderID: "p2", Model: "a"},
+		{ProviderID: "p2", Model: "b"},
+		{ProviderID: "p1"},
+		{ProviderID: "p2", Model: "a"},
+		{ProviderID: ""},
+	}}
+	if err := s.SetRouting(context.Background(), in); err != nil {
 		t.Fatalf("SetRouting: %v", err)
 	}
 	snapshot, err := s.Load(context.Background())
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	want := []string{"p2", "p1"}
+	want := []RoutingEntry{
+		{ProviderID: "p2", Model: "a"},
+		{ProviderID: "p2", Model: "b"},
+		{ProviderID: "p1"},
+	}
 	if !reflect.DeepEqual(snapshot.ProvidersRouting.Chain, want) {
-		t.Fatalf("routing chain = %v, want %v (deduped, empties dropped)", snapshot.ProvidersRouting.Chain, want)
+		t.Fatalf("routing chain = %v, want %v (deduped by pair, empties dropped)", snapshot.ProvidersRouting.Chain, want)
 	}
 }
 
@@ -517,9 +547,9 @@ func TestRoutingChainCapsAtEight(t *testing.T) {
 	repo := newFakeRepo()
 	s := New(repo)
 
-	chain := make([]string, 12)
+	chain := make([]RoutingEntry, 12)
 	for i := range chain {
-		chain[i] = fmt.Sprintf("p%d", i)
+		chain[i] = RoutingEntry{ProviderID: fmt.Sprintf("p%d", i)}
 	}
 	if err := s.SetRouting(context.Background(), Routing{Chain: chain}); err != nil {
 		t.Fatalf("SetRouting: %v", err)

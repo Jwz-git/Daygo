@@ -175,9 +175,11 @@ func configuredProvider(ctx context.Context, store *storage.Store) (providerConf
 		byID[row.ID] = row
 	}
 	var selected storage.Provider
-	for _, id := range snapshot.ProvidersRouting.Chain {
-		if row, ok := byID[id]; ok {
+	var selectedModel string
+	for _, slot := range snapshot.ProvidersRouting.Chain {
+		if row, ok := byID[slot.ProviderID]; ok {
 			selected = row
+			selectedModel = slot.Model
 			break
 		}
 	}
@@ -185,9 +187,12 @@ func configuredProvider(ctx context.Context, store *storage.Store) (providerConf
 		selected = rows[0]
 		fmt.Println("Warning: routing chain did not resolve; using the first provider row.")
 	}
+	if selectedModel == "" && len(selected.Models) > 0 {
+		selectedModel = selected.Models[0]
+	}
 	return providerConfig{
 		id: selected.ID, name: selected.DisplayName, protocol: selected.Protocol,
-		endpoint: strings.TrimRight(selected.Endpoint, "/"), model: selected.Model,
+		endpoint: strings.TrimRight(selected.Endpoint, "/"), model: selectedModel,
 	}, nil
 }
 
@@ -270,27 +275,34 @@ func (p probeChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, error) 
 		byID[row.ID] = row
 	}
 	entries := make([]ai.ChainEntry, 0, len(snapshot.ProvidersRouting.Chain))
-	for _, id := range snapshot.ProvidersRouting.Chain {
-		row, ok := byID[id]
+	for _, slot := range snapshot.ProvidersRouting.Chain {
+		row, ok := byID[slot.ProviderID]
 		if !ok {
 			continue
 		}
-		secret, secretErr := secrets.New().Get(ctx, id)
-		if id == p.selectedID && p.selected != "" {
+		model := slot.Model
+		if model == "" && len(row.Models) > 0 {
+			model = row.Models[0]
+		}
+		if model == "" {
+			continue
+		}
+		secret, secretErr := secrets.New().Get(ctx, slot.ProviderID)
+		if slot.ProviderID == p.selectedID && p.selected != "" {
 			secret = p.selected
 			secretErr = nil
 		}
 		if secretErr != nil && !secrets.IsNotFound(secretErr) {
-			return nil, fmt.Errorf("provider %s keychain lookup: %w", id, secretErr)
+			return nil, fmt.Errorf("provider %s keychain lookup: %w", slot.ProviderID, secretErr)
 		}
 		provider, err := factory.NewClient(nil, factory.Config{
 			Protocol: ai.Protocol(row.Protocol), Endpoint: row.Endpoint,
-			Model: row.Model, Secret: secret,
+			Model: model, Secret: secret,
 		})
 		if err != nil {
 			continue
 		}
-		entries = append(entries, ai.ChainEntry{ID: row.ID, Provider: ai.WithRetry(provider, ai.DefaultRetryPolicy())})
+		entries = append(entries, ai.ChainEntry{ID: row.ID + "\x1f" + model, Provider: ai.WithRetry(provider, ai.DefaultRetryPolicy())})
 	}
 	if len(entries) == 0 {
 		return nil, ai.ErrNoProvider

@@ -5,6 +5,7 @@ import {
   type ProviderDTO,
   type ProviderProtocol,
   type ProviderRoutingDTO,
+  type ProviderRoutingEntry,
   PROVIDER_PROTOCOLS,
 } from '@/api/dto'
 import {
@@ -28,18 +29,22 @@ export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
   anthropic: 'https://api.anthropic.com/v1',
 }
 
-export type ProviderField = 'displayName' | 'endpoint' | 'model' | 'maxImages'
+export type ProviderField = 'displayName' | 'endpoint' | 'models' | 'maxImages'
 
 export type ProviderFieldError = 'required' | 'invalidUrl' | 'range'
 
 export type ProviderErrors = Partial<Record<ProviderField, ProviderFieldError>>
+
+/** The most models one provider may carry; mirrors the backend cap. */
+export const MAX_PROVIDER_MODELS = 20
 
 /** What the form hands back. `secret` goes to the keychain, never to a DTO. */
 export interface ProviderDraft {
   displayName: string
   protocol: ProviderProtocol
   endpoint: string
-  model: string
+  /** The working list of model ids; blanks are dropped on save. */
+  models: string[]
   maxImages: number
   secret: string
 }
@@ -49,7 +54,7 @@ export function emptyDraft(): ProviderDraft {
     displayName: '',
     protocol: 'openai',
     endpoint: DEFAULT_ENDPOINTS.openai,
-    model: '',
+    models: [''],
     maxImages: 0,
     secret: '',
   }
@@ -60,10 +65,23 @@ export function draftOf(provider: ProviderDTO): ProviderDraft {
     displayName: provider.displayName,
     protocol: provider.protocol,
     endpoint: provider.endpoint,
-    model: provider.model,
+    models: provider.models.length > 0 ? [...provider.models] : [''],
     maxImages: provider.maxImages,
     secret: '',
   }
+}
+
+/** Trim, drop blanks, and dedupe the draft's model list, order preserved. */
+function normalizeModels(models: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of models) {
+    const model = raw.trim()
+    if (model === '' || seen.has(model)) continue
+    seen.add(model)
+    out.push(model)
+  }
+  return out
 }
 
 /**
@@ -93,7 +111,7 @@ function validate(draft: ProviderDraft): { ok: true } | { ok: false; errors: Pro
   const errors: ProviderErrors = {}
 
   if (draft.displayName.trim() === '') errors.displayName = 'required'
-  if (draft.model.trim() === '') errors.model = 'required'
+  if (normalizeModels(draft.models).length === 0) errors.models = 'required'
 
   if (draft.endpoint.trim() === '') {
     errors.endpoint = 'required'
@@ -109,7 +127,7 @@ function validate(draft: ProviderDraft): { ok: true } | { ok: false; errors: Pro
   return { ok: true }
 }
 
-/** One localStorage row from the pre-binding era. */
+/** One localStorage row from the pre-binding era: one model per provider. */
 interface LegacyProvider {
   id: string
   displayName: string
@@ -184,18 +202,24 @@ export const useProvidersStore = defineStore('providers', () => {
         displayName: legacy.displayName,
         protocol: legacy.protocol,
         endpoint: legacy.endpoint,
-        model: legacy.model,
+        // One legacy model becomes a one-element list; a blank model would be
+        // rejected by the backend, so it seeds an empty list the user fills in.
+        models: legacy.model.trim() === '' ? [] : [legacy.model.trim()],
         maxImages: 0,
         secret: '',
       })
       idMap.set(legacy.id, id)
     }
 
-    const chain: string[] = []
+    // The old {primary, secondary} pair becomes an ordered chain of pairs whose
+    // model is left empty — each entry follows its provider's first model.
+    const chain: ProviderRoutingEntry[] = []
     for (const legacyId of [primary, secondary]) {
       if (legacyId === null || legacyId === '') continue
       const mapped = idMap.get(legacyId)
-      if (mapped !== undefined && !chain.includes(mapped)) chain.push(mapped)
+      if (mapped !== undefined && !chain.some((entry) => entry.providerId === mapped)) {
+        chain.push({ providerId: mapped, model: '' })
+      }
     }
     if (chain.length > 0) await setProviderRouting({ chain })
 
@@ -232,15 +256,16 @@ export const useProvidersStore = defineStore('providers', () => {
       displayName: draft.displayName.trim(),
       protocol: draft.protocol,
       endpoint: normalizeEndpoint(draft.endpoint) ?? draft.endpoint.trim(),
-      model: draft.model.trim(),
+      models: normalizeModels(draft.models),
       maxImages: draft.maxImages,
       secret: draft.secret.trim(),
     })
     await refresh()
 
-    // First provider has nothing to choose between: make it the primary.
+    // First provider has nothing to choose between: make it the primary. An
+    // empty model follows the provider's first configured model.
     if (routing.value.chain.length === 0) {
-      await setProviderRouting({ chain: [id] })
+      await setProviderRouting({ chain: [{ providerId: id, model: '' }] })
       await refresh()
     }
     return null
@@ -256,7 +281,7 @@ export const useProvidersStore = defineStore('providers', () => {
       displayName: draft.displayName.trim(),
       protocol: draft.protocol,
       endpoint: normalizeEndpoint(draft.endpoint) ?? draft.endpoint.trim(),
-      model: draft.model.trim(),
+      models: normalizeModels(draft.models),
       maxImages: draft.maxImages,
       secret: draft.secret.trim(),
     })
@@ -270,7 +295,7 @@ export const useProvidersStore = defineStore('providers', () => {
     await refresh()
   }
 
-  async function setChain(chain: string[]): Promise<void> {
+  async function setChain(chain: ProviderRoutingEntry[]): Promise<void> {
     await setProviderRouting({ chain })
     await refresh()
   }

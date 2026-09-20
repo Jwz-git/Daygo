@@ -60,10 +60,13 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
   const providers = ref<{ id: string; displayName: string; model: string }[]>([])
 
   async function refreshProviders(): Promise<void> {
+    // Chat's model picker still shows one model per provider: its first, which
+    // is the model an unpinned conversation follows (chat multi-model UI is out
+    // of scope here — see decisions/providers-multi-model).
     providers.value = (await listProviders()).map((provider) => ({
       id: provider.id,
       displayName: provider.displayName,
-      model: provider.model,
+      model: provider.models[0] ?? '',
     }))
   }
 

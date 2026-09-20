@@ -104,8 +104,10 @@ export default {
     directoryUnavailable: '暂不可用',
   },
   providers: {
+    title: 'AI 供应商',
     description: '当前仅支持自定义供应商：填写协议、接口地址与模型名即可使用。',
     empty: '尚未添加任何供应商。',
+    emptyHint: '添加一个供应商，填写协议、接口地址与至少一个模型，即可开始分析。',
     add: '添加供应商',
     removeConfirm: '确定删除“{name}”？',
     protocol: {
@@ -121,6 +123,11 @@ export default {
       namePlaceholder: '例如：公司网关',
       endpoint: '接口地址',
       model: '模型',
+      models: '模型',
+      modelsHint: '同一供应商可配置多个模型（最多 20 个），在回退链中可分别排序。',
+      modelAria: '模型 {index}',
+      addModel: '添加模型',
+      removeModel: '移除该模型',
       maxImages: '单请求图片上限',
       maxImagesHint:
         '0 表示默认（20 张）。该服务一次请求最多接受的图片数：网关限制更低时调小；开启视觉增强后每张截图会切成 5 张图输入，可按需调整。',
@@ -137,11 +144,11 @@ export default {
     },
     routing: {
       title: '回退链',
-      description: '按顺序尝试：某项连续失败 3 次后自动切换到下一项，恢复后自动切回；最后一项失败会回到第一项。',
-      primary: '设为主服务',
-      addFallback: '添加备用',
-      pickFallback: '选择供应商',
-      none: '不使用',
+      description: '按顺序尝试：某项连续失败 3 次后自动切换到下一项，恢复后自动切回；最后一项失败会回到第一项。同一供应商的不同模型可分别排入。',
+      none: '回退链为空，请从下方添加「供应商 · 模型」。',
+      addEntry: '添加到回退链',
+      pickEntry: '选择供应商与模型',
+      removeEntry: '移出回退链',
       primaryBadge: '主',
       fallbackBadge: '备',
       moveUp: '上移',
@@ -169,6 +176,10 @@ export default {
     test: {
       run: '测试',
       running: '测试中…',
+      runModel: '测试模型 {model}',
+      passShort: '通过 · {latency} ms',
+      model: '测试模型',
+      modelDefault: '默认（{model}）',
       passed: '通过 · {model} · {latency} ms · 文本/图片/结构化输出',
       error: {
         authentication: '密钥无效或已失效',

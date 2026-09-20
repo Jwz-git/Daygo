@@ -105,9 +105,11 @@ export default {
     writeError: 'Could not save the limit. The database value has been restored.',
   },
   providers: {
+    title: 'AI providers',
     description:
       'Custom providers only for now: a protocol, a base URL and a model id is all it takes.',
     empty: 'No providers yet.',
+    emptyHint: 'Add a provider with a protocol, a base URL and at least one model to start analyzing.',
     add: 'Add provider',
     removeConfirm: 'Delete "{name}"?',
     protocol: {
@@ -123,6 +125,11 @@ export default {
       namePlaceholder: 'e.g. Work gateway',
       endpoint: 'Base URL',
       model: 'Model',
+      models: 'Models',
+      modelsHint: 'One provider can hold several models (up to 20), each orderable in the fallback chain.',
+      modelAria: 'Model {index}',
+      addModel: 'Add model',
+      removeModel: 'Remove this model',
       maxImages: 'Images per request',
       maxImagesHint:
         '0 means the default (20). The most images this service accepts in one request: lower it for gateways with tighter limits. With recognition enhancement on, each screenshot is sent as 5 images, so adjust as needed.',
@@ -141,11 +148,11 @@ export default {
     routing: {
       title: 'Fallback chain',
       description:
-        'Tried in order: after 3 consecutive failures an entry is skipped in favor of the next, and rejoin happens automatically once it succeeds again; the last entry wraps back to the first.',
-      primary: 'Set as primary',
-      addFallback: 'Add fallback',
-      pickFallback: 'Pick a provider',
-      none: 'None',
+        'Tried in order: after 3 consecutive failures an entry is skipped in favor of the next, and rejoin happens automatically once it succeeds again; the last entry wraps back to the first. Different models of one provider can be placed separately.',
+      none: 'The chain is empty — add a provider and model below.',
+      addEntry: 'Add to chain',
+      pickEntry: 'Pick a provider and model',
+      removeEntry: 'Remove from chain',
       primaryBadge: '1st',
       fallbackBadge: 'Fallback',
       moveUp: 'Move up',
@@ -173,6 +180,10 @@ export default {
     test: {
       run: 'Test',
       running: 'Testing…',
+      runModel: 'Test model {model}',
+      passShort: 'Pass · {latency} ms',
+      model: 'Test model',
+      modelDefault: 'Default ({model})',
       passed: 'Pass · {model} · {latency} ms · text/image/structured output',
       error: {
         authentication: 'The key is invalid or expired',

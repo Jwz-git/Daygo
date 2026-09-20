@@ -2,7 +2,6 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import ComboBox from '@/components/ComboBox.vue'
 
 import {
@@ -18,6 +17,7 @@ import {
   DEFAULT_ENDPOINTS,
   draftOf,
   emptyDraft,
+  MAX_PROVIDER_MODELS,
   useProvidersStore,
   type ProviderDraft,
   type ProviderErrors,
@@ -55,6 +55,9 @@ type TestState =
 
 const testState = ref<TestState>({ phase: 'idle' })
 
+/** Which model the draft probe runs against; '' picks the first filled one. */
+const testModel = ref('')
+
 type ModelsState =
   | { phase: 'idle' }
   | { phase: 'fetching' }
@@ -62,12 +65,54 @@ type ModelsState =
 
 const modelsState = ref<ModelsState>({ phase: 'idle' })
 
-/** Dropdown options for the model combobox; free text stays allowed. */
+/** The model a draft probe actually sends: the picked one, else the first. */
+const resolvedTestModel = computed(() => {
+  const picked = testModel.value.trim()
+  if (picked !== '' && filledModels.value.includes(picked)) return picked
+  return filledModels.value[0] ?? ''
+})
+
+/** Dropdown options for each model combobox; free text stays allowed. */
 const modelOptions = computed(() => {
   const state = modelsState.value
   if (state.phase !== 'done' || !state.result.ok) return []
   return state.result.models.map((model) => ({ value: model, label: model }))
 })
+
+/** The models that carry a non-blank id; what the test dropdown offers. */
+const filledModels = computed(() =>
+  draft.models.map((model) => model.trim()).filter((model) => model !== ''),
+)
+
+const canAddModel = computed(() => draft.models.length < MAX_PROVIDER_MODELS)
+
+function addModelRow(): void {
+  if (!canAddModel.value) return
+  draft.models.push('')
+}
+
+function removeModelRow(index: number): void {
+  draft.models.splice(index, 1)
+  // The list never goes empty: a lone blank row keeps one editable field.
+  if (draft.models.length === 0) draft.models.push('')
+  if (testModel.value !== '' && !filledModels.value.includes(testModel.value)) {
+    testModel.value = ''
+  }
+}
+
+function setModel(index: number, value: string): void {
+  draft.models[index] = value
+}
+
+/** Fill any blank rows (then append) with a fetched list, deduped in order. */
+function applyFetchedModels(models: string[]): void {
+  const have = new Set(filledModels.value)
+  const additions = models.filter((model) => model.trim() !== '' && !have.has(model.trim()))
+  if (additions.length === 0) return
+  const kept = draft.models.filter((model) => model.trim() !== '')
+  const merged = [...kept, ...additions].slice(0, MAX_PROVIDER_MODELS)
+  draft.models = merged.length > 0 ? merged : ['']
+}
 
 // A result describes the draft as it was when tested; any later edit makes it
 // stale, so it clears instead of lingering next to a different configuration.
@@ -84,7 +129,7 @@ watch(draft, () => {
 const canTest = computed(
   () =>
     draft.endpoint.trim() !== '' &&
-    draft.model.trim() !== '' &&
+    resolvedTestModel.value !== '' &&
     draft.secret.trim() !== '',
 )
 
@@ -113,7 +158,7 @@ async function runTest(): Promise<void> {
     const result = await testProviderConnection({
       protocol: draft.protocol,
       endpoint: draft.endpoint.trim(),
-      model: draft.model.trim(),
+      model: resolvedTestModel.value,
       secret: draft.secret.trim(),
     })
     testState.value = { phase: 'done', result }
@@ -144,6 +189,7 @@ async function fetchModels(): Promise<void> {
       secret: draft.secret.trim(),
     })
     modelsState.value = { phase: 'done', result }
+    if (result.ok) applyFetchedModels(result.models)
   } catch {
     modelsState.value = {
       phase: 'done',
@@ -174,6 +220,7 @@ function openAdd(): void {
   resetDraft(emptyDraft())
   editingId.value = null
   errors.value = {}
+  testModel.value = ''
   formOpen.value = true
   void nextTick(() => nameInput.value?.focus())
 }
@@ -182,6 +229,7 @@ function openEdit(provider: ProviderDTO): void {
   resetDraft(draftOf(provider))
   editingId.value = provider.id
   errors.value = {}
+  testModel.value = ''
   formOpen.value = true
   void nextTick(() => nameInput.value?.focus())
 }
@@ -191,6 +239,7 @@ function closeForm(): void {
   resetDraft(emptyDraft())
   editingId.value = null
   errors.value = {}
+  testModel.value = ''
   formOpen.value = false
   testState.value = { phase: 'idle' }
   modelsState.value = { phase: 'idle' }
@@ -227,7 +276,7 @@ function onProtocolChange(event: Event): void {
 </script>
 
 <template>
-  <LiquidGlassSurface v-if="formOpen" intensity="air" as="form" class="form" @submit.prevent="submit">
+  <form v-if="formOpen" class="form dg-card" @submit.prevent="submit">
     <h2 class="form__title">
       {{
         editingId === null
@@ -282,16 +331,40 @@ function onProtocolChange(event: Event): void {
         </p>
       </label>
 
-      <label class="form__cell">
-        <span class="dg-field-label">{{ t('settings.providers.form.model') }}</span>
-        <div class="form__key-row">
-          <ComboBox
-            v-model="draft.model"
-            class="form__model-combo"
-            :options="modelOptions"
-            :placeholder="modelPlaceholder"
-            :aria-label="t('settings.providers.form.model')"
-          />
+      <div class="form__cell form__cell--wide">
+        <span class="dg-field-label">{{ t('settings.providers.form.models') }}</span>
+        <ul class="model-list">
+          <li v-for="(model, index) in draft.models" :key="index" class="model-list__row">
+            <ComboBox
+              :model-value="model"
+              class="model-list__combo"
+              :options="modelOptions"
+              :placeholder="modelPlaceholder"
+              :aria-label="t('settings.providers.form.modelAria', { index: index + 1 })"
+              @update:model-value="(value) => setModel(index, value)"
+            />
+            <button
+              type="button"
+              class="dg-button dg-button--icon"
+              :disabled="draft.models.length === 1 && model.trim() === ''"
+              :aria-label="t('settings.providers.form.removeModel')"
+              @click="removeModelRow(index)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          </li>
+        </ul>
+        <div class="model-list__actions">
+          <button
+            type="button"
+            class="dg-button"
+            :disabled="!canAddModel"
+            @click="addModelRow"
+          >
+            {{ t('settings.providers.form.addModel') }}
+          </button>
           <button
             type="button"
             class="dg-button"
@@ -301,17 +374,28 @@ function onProtocolChange(event: Event): void {
             {{ t('settings.providers.models.fetch') }}
           </button>
         </div>
-        <p v-if="errors.model" class="form__error">{{ errorText('model') }}</p>
-        <p v-else-if="modelsState.phase === 'fetching'" class="form__hint">
+        <p v-if="errors.models" class="form__error">{{ errorText('models') }}</p>
+        <p v-else-if="modelsState.phase === 'fetching'" class="form__hint" role="status" aria-live="polite">
           {{ t('settings.providers.models.fetching') }}
         </p>
-        <p v-else-if="modelsState.phase === 'done' && !modelsState.result.ok" class="form__error">
+        <p
+          v-else-if="modelsState.phase === 'done' && !modelsState.result.ok"
+          class="form__error"
+          role="status"
+          aria-live="polite"
+        >
           {{ modelsFailureText(modelsState.result) }}
         </p>
-        <p v-else-if="modelsState.phase === 'done' && modelsState.result.models.length === 0" class="form__hint">
+        <p
+          v-else-if="modelsState.phase === 'done' && modelsState.result.models.length === 0"
+          class="form__hint"
+          role="status"
+          aria-live="polite"
+        >
           {{ t('settings.providers.models.empty') }}
         </p>
-      </label>
+        <p v-else class="form__hint">{{ t('settings.providers.form.modelsHint') }}</p>
+      </div>
 
       <label class="form__cell">
         <span class="dg-field-label">
@@ -354,15 +438,28 @@ function onProtocolChange(event: Event): void {
             {{ t('settings.providers.test.run') }}
           </button>
         </div>
+        <label v-if="filledModels.length > 1" class="form__test-model">
+          <span class="dg-field-label">{{ t('settings.providers.test.model') }}</span>
+          <select v-model="testModel" class="dg-input">
+            <option value="">
+              {{ t('settings.providers.test.modelDefault', { model: filledModels[0] }) }}
+            </option>
+            <option v-for="model in filledModels" :key="model" :value="model">
+              {{ model }}
+            </option>
+          </select>
+        </label>
         <p v-if="editingId !== null" class="form__hint">
           {{ t('settings.providers.form.apiKeyKeepHint') }}
         </p>
-        <p v-if="testState.phase === 'running'" class="form__hint">
+        <p v-if="testState.phase === 'running'" class="form__hint" role="status" aria-live="polite">
           {{ t('settings.providers.test.running') }}
         </p>
         <p
           v-else-if="testState.phase === 'done' && testState.result.ok"
           class="form__test-ok"
+          role="status"
+          aria-live="polite"
         >
           {{
             t('settings.providers.test.passed', {
@@ -374,6 +471,8 @@ function onProtocolChange(event: Event): void {
         <p
           v-else-if="testState.phase === 'done'"
           class="form__error"
+          role="status"
+          aria-live="polite"
         >
           {{ testFailureText(testState.result) }}
         </p>
@@ -388,7 +487,7 @@ function onProtocolChange(event: Event): void {
         {{ t('common.action.save') }}
       </button>
     </div>
-  </LiquidGlassSurface>
+  </form>
 
   <button v-else type="button" class="dg-button dg-button--primary add" @click="openAdd">
     {{ t('settings.providers.add') }}
@@ -443,6 +542,48 @@ function onProtocolChange(event: Event): void {
 .form__key-row .combo {
   flex: 1;
   min-width: 0;
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-list__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-list__combo {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-list__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dg-button--icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+}
+
+.form__test-model {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
 }
 
 .form__test-ok {

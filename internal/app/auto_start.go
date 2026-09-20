@@ -42,7 +42,7 @@ func (b *Backend) maybeAutoStartRecording() {
 	if err != nil || len(routing.Chain) == 0 {
 		return
 	}
-	if _, err := repo.Get(ctx, routing.Chain[0]); err != nil {
+	if _, err := repo.Get(ctx, routing.Chain[0].ProviderID); err != nil {
 		return
 	}
 	if err := b.SetRecording(true); err != nil {

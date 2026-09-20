@@ -76,6 +76,9 @@ func main() {
 	if err := writeV15(outDir); err != nil {
 		log.Fatalf("v15-pending-frame-index.db: %v", err)
 	}
+	if err := writeV16(outDir); err != nil {
+		log.Fatalf("v16-providers.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -846,6 +849,53 @@ func writeV15(outDir string) error {
 		 VALUES (100, 'segments/fixture-segment.mp4', 0, 1789501000, NULL, 1920, 1080, 0, 1000, 0),
 		        (101, 'segments/fixture-segment.mp4', 1, 1789501010, NULL, 1920, 1080, 0, 2000, 0)`,
 		`PRAGMA user_version = 15`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV16 builds a version-16 database from the v15 fixture by applying the
+// v16 screenshot file_size amortization on top, then inserts two anonymous
+// providers that still carry the single `model` column. The v17 migration test
+// upgrades this file and proves each `model` becomes a one-element `models`
+// JSON array while the provider's other fields and max_images survive.
+func writeV16(outDir string) error {
+	v15Path := filepath.Join(outDir, "v15-pending-frame-index.db")
+	v16Path := filepath.Join(outDir, "v16-providers.db")
+	data, err := os.ReadFile(v15Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v16Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v16Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		// v16 amortizes multi-frame segment file_size in place; the fixture's
+		// two segment frames get their cumulative sizes divided per frame.
+		`UPDATE screenshots
+		 SET file_size = MAX(1, (
+			SELECT MAX(s2.file_size) / COUNT(*)
+			FROM screenshots s2
+			WHERE s2.segment_path = screenshots.segment_path AND s2.is_deleted = 0
+		 ))
+		 WHERE segment_path LIKE '%.mp4'`,
+		// Two anonymous providers with the pre-v17 single model column. One
+		// carries a non-zero max_images so the migration test can prove that
+		// column survives the table rebuild.
+		`INSERT INTO providers (id, display_name, protocol, endpoint, model, max_images, created_at, updated_at)
+		 VALUES ('fixture-provider-a', 'Fixture A', 'openai', 'https://example.invalid/v1', 'fixture-model-a', 0, 1700000000, 1700000000),
+		        ('fixture-provider-b', 'Fixture B', 'anthropic', 'https://example.invalid', 'fixture-model-b', 4, 1700000005, 1700000005)`,
+		`PRAGMA user_version = 16`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

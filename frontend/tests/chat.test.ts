@@ -68,7 +68,7 @@ test('submission is locked before binding resolves and failures release it', asy
 
 test('provider writes announced via settings:changed refresh the provider list', async () => {
   let settingsListener: ((keys: readonly string[]) => void) | null = null
-  const providers = [{ id: 'p1', displayName: 'One', model: 'm1' }]
+  const providers = [{ id: 'p1', displayName: 'One', models: ['m1'] }]
   const state = createChatState({
     listChatConversations: async () => [],
     getChatMessages: async () => [],
@@ -77,8 +77,8 @@ test('provider writes announced via settings:changed refresh the provider list',
     onSettingsChanged: (callback) => { settingsListener = callback; return () => {} },
   })
   await state.hydrate()
-  assert.deepEqual(state.providers.value, [providers[0]])
-  providers.push({ id: 'p2', displayName: 'Two', model: 'm2' })
+  assert.deepEqual(state.providers.value, [{ id: 'p1', displayName: 'One', model: 'm1' }])
+  providers.push({ id: 'p2', displayName: 'Two', models: ['m2'] })
   assert.ok(settingsListener !== null)
   settingsListener!(['providers.routing'])
   await new Promise((done) => setTimeout(done, 0))
