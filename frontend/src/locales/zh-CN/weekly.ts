@@ -17,7 +17,7 @@ export default {
   overview: {
     eyebrow: '概览',
     title: '时间与专注',
-    description: '专注时长排除空闲分类；跟踪时长排除系统占位。数值以后端周聚合为准。',
+    description: '专注时长排除分心与空闲分类；跟踪时长排除系统占位。数值以后端周聚合为准。',
     focusAria: '专注占已跟踪时间的 {value}',
   },
   metric: {

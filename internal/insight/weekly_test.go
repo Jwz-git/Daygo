@@ -23,16 +23,17 @@ func TestAggregateWeeklyExclusions(t *testing.T) {
 	got := AggregateWeekly([]storage.CategoryMinutes{
 		{Name: "System", Minutes: 600},
 		{Name: "Idle", IsIdle: true, Minutes: 120},
+		{Name: " Distraction ", Minutes: 50},
 		{Name: "Coding", Minutes: 300},
 		{Name: "Writing", Minutes: 100},
 	})
-	if got.TrackedMinutes != 520 {
-		t.Fatalf("tracked = %v, want 520 (System excluded, Idle included)", got.TrackedMinutes)
+	if got.TrackedMinutes != 570 {
+		t.Fatalf("tracked = %v, want 570 (System excluded; Idle and Distraction included)", got.TrackedMinutes)
 	}
 	if got.FocusMinutes != 400 {
-		t.Fatalf("focus = %v, want 400 (System and Idle excluded)", got.FocusMinutes)
+		t.Fatalf("focus = %v, want 400 (System, Idle and Distraction excluded)", got.FocusMinutes)
 	}
-	wantOrder := []string{"Coding", "Idle", "Writing"}
+	wantOrder := []string{"Coding", "Idle", "Writing", " Distraction "}
 	if len(got.Categories) != len(wantOrder) {
 		t.Fatalf("categories = %+v, want %d rows", got.Categories, len(wantOrder))
 	}
@@ -42,7 +43,7 @@ func TestAggregateWeeklyExclusions(t *testing.T) {
 		}
 	}
 	// Shares are against tracked: Coding 300/520, Idle 120/520, Writing 100/520.
-	wantShares := []float64{300.0 / 520, 120.0 / 520, 100.0 / 520}
+	wantShares := []float64{300.0 / 570, 120.0 / 570, 100.0 / 570, 50.0 / 570}
 	for i, want := range wantShares {
 		if math.Abs(got.Categories[i].Share-want) > 1e-9 {
 			t.Fatalf("share[%d] = %v, want %v", i, got.Categories[i].Share, want)

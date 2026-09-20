@@ -14,7 +14,7 @@ type WeeklyDashboardDTO struct {
 	WeekStartTs    int64              `json:"weekStartTs"`
 	WeekEndTs      int64              `json:"weekEndTs"`
 	TrackedMinutes float64            `json:"trackedMinutes"` // excludes "System"
-	FocusMinutes   float64            `json:"focusMinutes"`   // additionally excludes isIdle categories
+	FocusMinutes   float64            `json:"focusMinutes"`   // additionally excludes idle and Distraction categories
 	Categories     []CategoryTotalDTO `json:"categories"`     // minutes DESC
 	Days           []WeeklyDayDTO     `json:"days"`           // Mon..Sun of this week
 	Insights       WeeklyInsightsDTO  `json:"insights"`

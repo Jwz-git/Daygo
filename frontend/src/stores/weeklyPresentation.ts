@@ -81,6 +81,11 @@ function clampedShare(value: number): number {
   return Math.min(1, finiteNonNegative(value))
 }
 
+function isDistractionCategory(name: string): boolean {
+  const normalized = name.trim().toLowerCase()
+  return normalized === 'distraction' || normalized === 'distractions'
+}
+
 /** Monday=0 .. Sunday=6 for a yyyy-MM-dd string (pure calendar math, no zone). */
 function weekdayIndex(day: string): number {
   const date = new Date(`${day}T12:00:00Z`)
@@ -210,7 +215,7 @@ export function buildWeeklyPresentation(dashboard: WeeklyDashboardDTO): WeeklyPr
         const hourEnd = (hour + 1) * 60
         const overlap = Math.min(segment.endMinute, hourEnd) - at
         if (overlap > 0) {
-          if (segment.isIdle) rhythm[hour].idleMinutes += overlap
+          if (segment.isIdle || isDistractionCategory(segment.category)) rhythm[hour].idleMinutes += overlap
           else rhythm[hour].focusMinutes += overlap
         }
         at = hourEnd

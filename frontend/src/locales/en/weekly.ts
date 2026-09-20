@@ -17,7 +17,7 @@ export default {
   overview: {
     eyebrow: 'Overview',
     title: 'Time and focus',
-    description: 'Focus excludes idle categories; tracked time excludes system placeholders. Values come from the backend weekly aggregate.',
+    description: 'Focus excludes distraction and idle categories; tracked time excludes system placeholders. Values come from the backend weekly aggregate.',
     focusAria: 'Focus accounts for {value} of tracked time',
   },
   metric: {

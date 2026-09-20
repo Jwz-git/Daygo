@@ -15,6 +15,8 @@ func detailFixture(loc *time.Location) []storage.CardSpan {
 		// Monday: 2h Coding (focus) + 1h Idle.
 		{Day: "2026-09-07", StartTs: at(7, 9, 0), EndTs: at(7, 11, 0), Category: "Coding", ColorHex: "#111111"},
 		{Day: "2026-09-07", StartTs: at(7, 13, 0), EndTs: at(7, 14, 0), Category: "Idle", IsIdle: true, ColorHex: "#222222"},
+		// Monday: a non-idle Distraction card is tracked but not focused.
+		{Day: "2026-09-07", StartTs: at(7, 15, 0), EndTs: at(7, 15, 30), Category: "Distraction", ColorHex: "#444444"},
 		// Tuesday: 1.5h Writing crossing the 11:00 hour boundary.
 		{Day: "2026-09-08", StartTs: at(8, 10, 30), EndTs: at(8, 12, 0), Category: "Writing", ColorHex: "#333333"},
 		// System excluded everywhere.
@@ -36,13 +38,13 @@ func TestBuildWeeklyDetailTotals(t *testing.T) {
 	}
 
 	monday := detail.Days[0]
-	if monday.TrackedMinutes != 180 || monday.FocusMinutes != 120 {
-		t.Fatalf("monday tracked/focus = %v/%v, want 180/120", monday.TrackedMinutes, monday.FocusMinutes)
+	if monday.TrackedMinutes != 210 || monday.FocusMinutes != 120 {
+		t.Fatalf("monday tracked/focus = %v/%v, want 210/120", monday.TrackedMinutes, monday.FocusMinutes)
 	}
-	if len(monday.Segments) != 2 {
-		t.Fatalf("monday segments = %+v, want 2 (System absent)", monday.Segments)
+	if len(monday.Segments) != 3 {
+		t.Fatalf("monday segments = %+v, want 3 (System absent)", monday.Segments)
 	}
-	if len(monday.Categories) != 2 || monday.Categories[0].Name != "Coding" {
+	if len(monday.Categories) != 3 || monday.Categories[0].Name != "Coding" {
 		t.Fatalf("monday categories = %+v, want Coding first (minutes DESC)", monday.Categories)
 	}
 	if monday.Categories[0].ColorHex != "#111111" {
@@ -74,7 +76,7 @@ func TestBuildWeeklyDetailInsights(t *testing.T) {
 	if ins.PeakHour != 10 || ins.PeakHourMinutes != 90 {
 		t.Fatalf("peak hour = %d with %v min, want 10 with 90", ins.PeakHour, ins.PeakHourMinutes)
 	}
-	if ins.MostActiveDay != "2026-09-07" || ins.MostActiveDayMinutes != 180 {
+	if ins.MostActiveDay != "2026-09-07" || ins.MostActiveDayMinutes != 210 {
 		t.Fatalf("most active = %q with %v, want Monday 180", ins.MostActiveDay, ins.MostActiveDayMinutes)
 	}
 	if ins.AvgDailyFocusMinutes != 105 {

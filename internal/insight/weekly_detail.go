@@ -48,8 +48,8 @@ type WeeklyDetail struct {
 
 // BuildWeeklyDetail folds the week's card spans into per-day rows (Mon..Sun of
 // the week containing weekStart) plus derived insights. The System category is
-// excluded everywhere, matching AggregateWeekly; idle spans count toward
-// tracked but not focus. Spans whose day falls outside the week are ignored,
+// excluded everywhere, matching AggregateWeekly; idle and Distraction spans
+// count toward tracked but not focus. Spans whose day falls outside the week are ignored,
 // keeping output stable against clock skew at the boundaries.
 func BuildWeeklyDetail(spans []storage.CardSpan, weekStart string, loc *time.Location) WeeklyDetail {
 	start, _, err := timeutil.WeekWindow(weekStart, loc)
@@ -112,7 +112,7 @@ func BuildWeeklyDetail(spans []storage.CardSpan, weekStart string, loc *time.Loc
 			IsIdle:   span.IsIdle,
 		})
 
-		if !span.IsIdle {
+		if isWeeklyFocus(span.Category, span.IsIdle) {
 			accum.focus += minutes
 			focusTotal += minutes
 			addSpanHours(span.StartTs, span.EndTs, loc, &hours)

@@ -3,7 +3,7 @@
 ## 用户结果与范围
 
 用户看到本周跟踪时长、专注时长和分类占比。负责 U5、F-V5；
-合计排除 System，专注排除 isIdle，空周占比为 0。首个有限前端切片只用现有聚合 DTO
+合计排除 System，专注排除 isIdle 与内置 Distraction 分类，空周占比为 0。首个有限前端切片只用现有聚合 DTO
 呈现专注比例和分类分布；树状图、热力图、桑基图及其子模型继续待定。本模块不依赖 daily
 完成，不重新生成时间线。
 
@@ -18,7 +18,7 @@
 - 边界与聚合：`timeutil.WeekStart` / `WeekWindow`（周一 4 点对齐，
   decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`（与
   `TotalMinutesTracked` 同一重叠谓词 + categories join 取 is_idle）、
-  `internal/insight.AggregateWeekly`（tracked 排 System、focus 排 isIdle、share
+  `internal/insight.AggregateWeekly`（tracked 排 System、focus 排 isIdle 与 Distraction、share
   分母 0 为 0、minutes DESC）、`DayContextDTO.weekStart`（前端初始周不自算）。
 - 绑定与前端：`GetWeeklyDashboard`（非周一拒绝，含按日明细 `WeeklyDayDTO` 与洞察
   `WeeklyInsightsDTO`）、页面容器、weekly store、薄 API wrapper、加载 / 不可用 /
@@ -44,7 +44,7 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 
 | 实验 | 输入与操作 | 预期结果 | 失败条件 / 证据 |
 |---|---|---|---|
-| 合计 / 占比 | 空周、只有 System、混合 Idle 与工作分类 | tracked 排除 System、focus 排除 Idle，分母 0 时 share=0 | 除零、System 计入、分类合计不一致失败 |
+| 合计 / 占比 | 空周、只有 System、混合 Idle / Distraction 与工作分类 | tracked 排除 System、focus 排除 Idle 与 Distraction，分母 0 时 share=0 | 除零、System 或分心计入专注、分类合计不一致失败 |
 | 周边界 | 跨周一、午夜到 4 点、DST 与半小时 / 45 分钟时区 | 周窗口无重叠 / 间隙，使用后端 day 语义 | 前端推算日界、跨周重复或遗漏失败 |
 | 分类变化 | 改名、改类、软删卡片，重拉周结果 | 与 cards 当前事实一致，既有排序语义保持 | stale 聚合或重名双计失败 |
 | 真实读取 | 已有真实卡片的一周，对照只读聚合与 UI | DTO、时长和占比一致 | fixture 展示不能记为真实集成通过 |
@@ -91,3 +91,6 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 2026-09-15（周洞察与节奏面板）：`GetWeeklyDashboard` 扩展按日明细（`WeeklyDayDTO`）
 与洞察（`WeeklyInsightsDTO`）聚合，前端新增洞察与节奏面板（commit `50f22d8`）；
 Go 聚合单元与前端 typecheck / build 通过。仍属匿名夹具与单元证据，非真实卡片周验收。
+
+2026-09-20：修复 weekly 将内置 `Distraction` 分类误计为专注的问题；周总计、每日明细、
+洞察与前端节律统一为与 daily 相同的口径（Distraction / Idle 均非专注），并添加聚合夹具。

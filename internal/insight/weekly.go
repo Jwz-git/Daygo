@@ -5,6 +5,7 @@ package insight
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
@@ -18,8 +19,9 @@ type CategoryTotal struct {
 }
 
 // WeeklyTotals is the aggregated weekly dashboard content. TrackedMinutes
-// excludes the System category; FocusMinutes additionally excludes isIdle
-// categories; Shares are 0 when the tracked denominator is 0.
+// excludes the System category; FocusMinutes additionally excludes isIdle and
+// the built-in Distraction category; Shares are 0 when the tracked denominator
+// is 0.
 type WeeklyTotals struct {
 	TrackedMinutes float64
 	FocusMinutes   float64
@@ -38,7 +40,7 @@ func AggregateWeekly(minutes []storage.CategoryMinutes) WeeklyTotals {
 			continue
 		}
 		totals.TrackedMinutes += row.Minutes
-		if !row.IsIdle {
+		if isWeeklyFocus(row.Name, row.IsIdle) {
 			totals.FocusMinutes += row.Minutes
 		}
 		totals.Categories = append(totals.Categories, CategoryTotal{
@@ -59,4 +61,15 @@ func AggregateWeekly(minutes []storage.CategoryMinutes) WeeklyTotals {
 		return totals.Categories[i].Name < totals.Categories[j].Name
 	})
 	return totals
+}
+
+// isWeeklyFocus mirrors the daily presentation's category rule. Distraction
+// is a built-in semantic category, while is_idle is the persisted flag used by
+// Idle and any custom idle category.
+func isWeeklyFocus(category string, isIdle bool) bool {
+	if isIdle {
+		return false
+	}
+	normalized := strings.ToLower(strings.TrimSpace(category))
+	return normalized != "distraction" && normalized != "distractions"
 }
