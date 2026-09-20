@@ -20,6 +20,11 @@ set -euo pipefail
 #   DAYGO_SIGN_IDENTITY="Developer ID Application: ..." \
 #   DAYGO_NOTARY_PROFILE="daygo-notary" \
 #   ./scripts/package-macos.sh 0.1.0
+#
+# Local self-signed identity (stable Screen Recording grant across rebuilds,
+# no Apple account; not for distribution). Create the cert once with
+# scripts/dev-cert-macos.sh, then:
+#   DAYGO_DEV_SIGN_IDENTITY="Daygo Dev" ./scripts/package-macos.sh
 # ─────────────────────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,6 +40,12 @@ MACOS_MIN_VERSION="${DAYGO_MACOS_MIN_VERSION:-14.0}"
 
 SIGN_IDENTITY="${DAYGO_SIGN_IDENTITY:-}"
 NOTARY_PROFILE="${DAYGO_NOTARY_PROFILE:-}"
+# A local self-signed code-signing identity. Unlike Developer ID it needs no
+# Apple account and cannot notarize, but it gives the bundle a stable
+# designated requirement (identifier + certificate, not cdhash), so a Screen
+# Recording grant survives rebuilds. Ignored when DAYGO_SIGN_IDENTITY is set.
+DEV_SIGN_IDENTITY="${DAYGO_DEV_SIGN_IDENTITY:-}"
+BUNDLE_ID="io.github.jwz-git.Daygo"
 
 case "$(uname -m)" in
   arm64)
@@ -111,6 +122,8 @@ printf '  Minimum macOS %s%s%s\n' "$bold" "$MACOS_MIN_VERSION" "$reset"
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
   printf '  Signing       %sDeveloper ID%s\n' "$green" "$reset"
+elif [[ -n "$DEV_SIGN_IDENTITY" ]]; then
+  printf '  Signing       %sSelf-signed (%s)%s\n' "$green" "$DEV_SIGN_IDENTITY" "$reset"
 else
   printf '  Signing       %sAd-hoc / testing%s\n' "$yellow" "$reset"
 fi
@@ -249,6 +262,23 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
     "$APP_PATH"
 
   success "Signed with Developer ID"
+
+elif [[ -n "$DEV_SIGN_IDENTITY" ]]; then
+
+  # Pin --identifier so the designated requirement stays
+  # `identifier "io.github.jwz-git.Daygo" and certificate leaf ...` — stable
+  # across rebuilds. No --timestamp (offline) and no hardened runtime: this is
+  # a local identity, not a distributable one.
+  codesign \
+    --force \
+    --deep \
+    --identifier "$BUNDLE_ID" \
+    --sign "$DEV_SIGN_IDENTITY" \
+    "$APP_PATH"
+
+  success "Signed with self-signed identity ($DEV_SIGN_IDENTITY)"
+
+  warn "Stable TCC identity for local use; not for distribution."
 
 else
 

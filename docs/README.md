@@ -61,6 +61,7 @@
 | [屏幕截屏：单次调用契约与原生 ABI](decisions/recording-screen-capture.md) | 契约已冻结 | 跨平台原始规格、Go `Capture` 契约、C ABI v1 与真机门禁 |
 | [屏幕截屏 v2：macOS 实现与上层调用](decisions/recording-screen-capture-v2.md) | 有限实现 | Swift / cgo 路径、调用不变量、错误处理、调试与 recorder 接入边界 |
 | [屏幕录制授权：弹框 + 跳设置 + 提示重启](decisions/recording-screen-recording-permission.md) | 有限实现 | 启用时请求、preflight/request/跳设置 ABI、前端闸门与重启生效 |
+| [macOS 签名身份：本地自签名稳定证书](decisions/delivery-macos-signing-identity.md) | 有限实现 | TCC 绑定 DR、ad-hoc 授权失效根因、三条签名路径与自签名证书生成 |
 | [跨平台应用身份解析与 ABI](decisions/recording-application-picker.md) | 有限实现 | Wails `.app` / `.exe` picker、独立 Go 端口、ABI 2.1 图标与平台 ID 回查 |
 | [屏幕截屏（Windows）：DXGI 实现与限制](decisions/recording-screen-capture-windows.md) | 有限实机验证；已排期，发布范围待决策 | DXGI 路径、与 macOS 的四条差异、真机 smoke 与未验证矩阵 |
 | [屏幕截屏（Linux）：候选与决策进度](decisions/recording-screen-capture-linux.md) | 已排期，决策进行中 | X11 vs Wayland、离散截图约束、分发形态与 LC 门禁 |
