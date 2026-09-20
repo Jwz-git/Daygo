@@ -30,6 +30,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <cstdio>
 #include <cwctype>
 #include <iterator>
 #include <mutex>
@@ -54,6 +55,17 @@ constexpr size_t kMaximumPathBytes = 32768;
 constexpr size_t kMaximumIdentifierBytes = 4096;
 constexpr size_t kMaximumNameBytes = 4096;
 constexpr size_t kMaximumIconBytes = 256 * 1024;
+
+// Same switch and line shape as the C++17 side's debug_stage, so one
+// DAYGO_CAPTURE_DEBUG run reads as a single trace even though this half of the
+// capture path is a separate MSVC translation unit.
+void debug_stage(const char* stage) {
+  char enabled[2] = {};
+  DWORD n = GetEnvironmentVariableA("DAYGO_CAPTURE_DEBUG", enabled, sizeof(enabled));
+  if (n == 1 && enabled[0] == '1') {
+    std::fprintf(stderr, "[daygo.capture] stage=%s\n", stage);
+  }
+}
 
 template <typename T>
 class Handle {
@@ -892,6 +904,25 @@ __declspec(dllexport) int32_t DG_CAPTURE_CALL dg_windows_wgc_capture_once(
         2, item.Size());
     auto session = pool.CreateCaptureSession(item);
     session.IsCursorCaptureEnabled((request->flags & DG_CAPTURE_SHOWS_CURSOR) != 0);
+    // A live capture session makes Windows draw a colored border around the
+    // captured display. A recorder that opens one session per capture therefore
+    // flashes that border on every interval, so ask for the session to be
+    // borderless. The request is honored only when the user has allowed it
+    // (Settings -> System -> Display -> Graphics -> "Screen capture border",
+    // consent store graphicsCaptureWithoutBorder); an app cannot ask for that
+    // consent itself, because RequestAccessAsync needs the
+    // graphicsCaptureWithoutBorder capability, which only a packaged app can
+    // declare, and this is an NSIS-installed desktop app. Without consent the
+    // OS ignores the request and keeps drawing the border — the capture is
+    // unaffected either way, so a failure here is not an error. Note that the
+    // property reads back false either way, so only the screen shows whether
+    // the border actually went away.
+    if (auto borderless = session.try_as<wgc::IGraphicsCaptureSession3>()) {
+      borderless.IsBorderRequired(false);
+      debug_stage("privacy.borderless.requested");
+    } else {
+      debug_stage("privacy.borderless.unsupported");
+    }
     auto display_session = session.try_as<wgc::IDisplayGraphicsCaptureSession>();
     if (!display_session) {
       session.Close();
