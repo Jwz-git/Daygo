@@ -172,8 +172,8 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	b.WriteString("- activityPoints lists the concrete time points of the window: one entry per ")
 	b.WriteString("observation, time formatted like \"10:21 AM\" and inside the window; when merging, ")
 	b.WriteString("include the merged card's earlier points too, in chronological order.\n")
-	b.WriteString("- appSites: array of strings [primary, secondary] following the APP SITES rules; element 0 is primary canonical domain/app, element 1 is enclosing browser/secondary app. May be empty.\n")
-	b.WriteString("- subcategory, detailed_summary, appSites and distractions may be empty; never omit keys.\n")
+	b.WriteString("- appSites: array of strings [primary, secondary] following the APP SITES rules; element 0 is primary canonical domain/app, element 1 is enclosing browser/secondary app. The observations above already name the apps/sites in brackets — derive appSites from them and ALWAYS fill element 0 whenever any app or site is named. Leave the array empty ONLY when no observation named any app or site at all.\n")
+	b.WriteString("- subcategory, detailed_summary and distractions may be empty; never omit keys.\n")
 	b.WriteString("- Return only a json object matching the requested schema; do not include markdown.\n")
 	if language != "" {
 		fmt.Fprintf(&b, "- Write title, summary, detailed_summary and activityPoint descriptions in %s.\n", language)
@@ -286,8 +286,8 @@ Don't label related sub-tasks as distractions. Googling an error message or read
 
 // appSitesBlock ports Dayflow's explicit appSites guidance: identify the main app or website
 // (canonical domain, lowercase, no protocol) as primary, and enclosing app/browser as secondary.
-const appSitesBlock = `APP SITES — identify the main app or website for each card.
-- Element 0 (primary): the main app or website used in the card (use canonical domain, lowercase, no protocol, e.g. "bilibili.com", "pinterest.com", "github.com").
+const appSitesBlock = `APP SITES — identify the main app or website for each card. This drives the card's icon, so element 0 must almost always be present.
+- Element 0 (primary): the main app or website used in the card (use canonical domain, lowercase, no protocol, e.g. "bilibili.com", "pinterest.com", "github.com"). The observations already list the apps/sites in brackets — take the dominant one from there. If only a generic app name is known (e.g. "code editor", "browser"), use that plain name rather than leaving it blank; never invent a specific product or domain you did not see.
 - Element 1 (secondary): another meaningful app used, or the enclosing app (e.g. browser like "Microsoft Edge", "Google Chrome", "Safari"). Omit if there is no secondary app.
 Be specific: docs.google.com not google.com, mail.google.com not google.com.
 Common mappings:
