@@ -378,27 +378,60 @@ bool capture_gdi_primary(std::vector<uint8_t>* pixels, UINT* width, UINT* height
   return copied == TRUE;
 }
 
-HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixels, UINT* width, UINT* height, int64_t* captured_ns) {
+// Outcome of one DXGI Desktop Duplication attempt. The distinction matters:
+// an unavailable duplication session is a reason to try a different capture
+// strategy, while an exhausted timeout is a real answer the caller asked for.
+enum class DuplicationResult {
+  // A usable desktop image was copied into the caller's buffers.
+  kFrame,
+  // This output cannot provide a duplication session at all.
+  kUnavailable,
+  // The caller's timeout budget elapsed.
+  kTimeout,
+  // AcquireNextFrame failed after the session existed; an error, not a fallback.
+  kFailed,
+};
+
+// capture_duplication establishes a duplication session on the primary output
+// and acquires one desktop frame. Virtual, streamed, and some remoted displays
+// refuse the session outright — DuplicateOutput returns DXGI_ERROR_UNSUPPORTED
+// before the acquire loop is ever reached — which is reported as kUnavailable
+// rather than as a failure so the caller can fall back instead of giving up.
+DuplicationResult capture_duplication(const DecodedRequest& request, std::vector<uint8_t>* raw,
+                                      UINT* width, UINT* height, DXGI_MODE_ROTATION* rotation,
+                                      HRESULT* failure) {
   HMONITOR monitor = primary_monitor();
-  if (!monitor) return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+  if (!monitor) {
+    *failure = HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+    return DuplicationResult::kUnavailable;
+  }
   ComPtr<IDXGIAdapter1> adapter;
   ComPtr<IDXGIOutput1> output;
   HRESULT hr = find_output(monitor, &adapter, &output);
-  if (FAILED(hr)) return hr;
+  if (FAILED(hr)) {
+    *failure = hr;
+    debug_stage("dxgi.output_unavailable");
+    return DuplicationResult::kUnavailable;
+  }
   ComPtr<ID3D11Device> device;
   ComPtr<ID3D11DeviceContext> context;
   D3D_FEATURE_LEVEL level{};
   const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
   hr = D3D11CreateDevice(adapter.get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                          levels, ARRAYSIZE(levels), D3D11_SDK_VERSION, device.put(), &level, context.put());
-  if (FAILED(hr)) return hr;
+  if (FAILED(hr)) {
+    *failure = hr;
+    debug_stage("dxgi.device_unavailable");
+    return DuplicationResult::kUnavailable;
+  }
   ComPtr<IDXGIOutputDuplication> duplication;
   hr = output->DuplicateOutput(device.get(), duplication.put());
-  if (FAILED(hr)) return hr;
+  if (FAILED(hr)) {
+    *failure = hr;
+    debug_stage("dxgi.duplication_unavailable");
+    return DuplicationResult::kUnavailable;
+  }
   const bool debug_enabled = GetEnvironmentVariableA("DAYGO_CAPTURE_DEBUG", nullptr, 0) > 0;
-  std::vector<uint8_t> raw;
-  UINT source_width = 0;
-  UINT source_height = 0;
   DXGI_OUTDUPL_FRAME_INFO frame_info{};
   bool dxgi_all_zero = false;
   bool dxgi_timed_out = false;
@@ -406,7 +439,10 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
   for (;;) {
     ComPtr<IDXGIResource> resource;
     const ULONGLONG elapsed = GetTickCount64() - acquire_started;
-    if (elapsed >= request.timeout_ms) return DXGI_ERROR_WAIT_TIMEOUT;
+    if (elapsed >= request.timeout_ms) {
+      *failure = DXGI_ERROR_WAIT_TIMEOUT;
+      return DuplicationResult::kTimeout;
+    }
     const UINT remaining = request.timeout_ms - static_cast<UINT>(elapsed);
     debug_stage("duplication.acquire.begin");
     hr = duplication->AcquireNextFrame(std::min<UINT>(remaining, 1000), &frame_info, resource.put());
@@ -414,7 +450,11 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
       dxgi_timed_out = true;
       break;
     }
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) {
+      *failure = hr;
+      debug_stage("duplication.acquire.failed");
+      return DuplicationResult::kFailed;
+    }
     if (debug_enabled) {
       char message[256];
       std::snprintf(message, sizeof(message),
@@ -427,12 +467,13 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
     hr = resource->QueryInterface(IID_PPV_ARGS(texture.put()));
     if (FAILED(hr)) {
       duplication->ReleaseFrame();
-      return hr;
+      *failure = hr;
+      return DuplicationResult::kFailed;
     }
     D3D11_TEXTURE2D_DESC desc{};
     texture->GetDesc(&desc);
-    source_width = desc.Width;
-    source_height = desc.Height;
+    *width = desc.Width;
+    *height = desc.Height;
     if (debug_enabled) {
       char message[256];
       std::snprintf(message, sizeof(message),
@@ -451,15 +492,17 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
     if (SUCCEEDED(hr)) context->CopyResource(staging.get(), texture.get());
     if (FAILED(hr)) {
       duplication->ReleaseFrame();
-      return hr;
+      *failure = hr;
+      return DuplicationResult::kFailed;
     }
     D3D11_MAPPED_SUBRESOURCE mapped{};
     hr = context->Map(staging.get(), 0, D3D11_MAP_READ, 0, &mapped);
     if (FAILED(hr)) {
       duplication->ReleaseFrame();
-      return hr;
+      *failure = hr;
+      return DuplicationResult::kFailed;
     }
-    raw.assign(static_cast<size_t>(desc.Width) * desc.Height * 4, 0);
+    raw->assign(static_cast<size_t>(desc.Width) * desc.Height * 4, 0);
     if (debug_enabled) {
       char message[160];
       std::snprintf(message, sizeof(message), "[daygo.capture] mapped row_pitch=%zu depth_pitch=%zu\n",
@@ -468,26 +511,26 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
     }
     for (UINT y = 0; y < desc.Height; ++y) {
       std::copy_n(static_cast<const uint8_t*>(mapped.pData) + static_cast<size_t>(y) * mapped.RowPitch,
-                  static_cast<size_t>(desc.Width) * 4, raw.data() + static_cast<size_t>(y) * desc.Width * 4);
+                  static_cast<size_t>(desc.Width) * 4, raw->data() + static_cast<size_t>(y) * desc.Width * 4);
     }
     context->Unmap(staging.get(), 0);
     duplication->ReleaseFrame();
-    dxgi_all_zero = std::none_of(raw.begin(), raw.end(), [](uint8_t value) { return value != 0; });
+    dxgi_all_zero = std::none_of(raw->begin(), raw->end(), [](uint8_t value) { return value != 0; });
     if (debug_enabled) {
       uint8_t min_value = 255;
       uint8_t max_value = 0;
       uint64_t nonzero = 0;
-      for (uint8_t value : raw) {
+      for (uint8_t value : *raw) {
         min_value = std::min(min_value, value);
         max_value = std::max(max_value, value);
         nonzero += value != 0;
       }
       char message[160];
-      if (raw.size() >= 4) {
+      if (raw->size() >= 4) {
         std::snprintf(message, sizeof(message),
                       "[daygo.capture] pixels=%ux%u min=%u max=%u nonzero=%llu first=%u,%u,%u,%u\n",
                       desc.Width, desc.Height, min_value, max_value,
-                      static_cast<unsigned long long>(nonzero), raw[0], raw[1], raw[2], raw[3]);
+                      static_cast<unsigned long long>(nonzero), (*raw)[0], (*raw)[1], (*raw)[2], (*raw)[3]);
       } else {
         std::snprintf(message, sizeof(message), "[daygo.capture] pixels=%ux%u min=%u max=%u nonzero=%llu\n",
                       desc.Width, desc.Height, min_value, max_value, static_cast<unsigned long long>(nonzero));
@@ -500,17 +543,45 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
   }
   DXGI_OUTPUT_DESC output_desc{};
   output->GetDesc(&output_desc);
-  DXGI_MODE_ROTATION source_rotation = output_desc.Rotation;
-  if (dxgi_all_zero || dxgi_timed_out || raw.empty()) {
-    std::vector<uint8_t> gdi_pixels;
-    UINT gdi_width = 0;
-    UINT gdi_height = 0;
-    if (!capture_gdi_primary(&gdi_pixels, &gdi_width, &gdi_height)) return E_FAIL;
-    raw = std::move(gdi_pixels);
-    source_width = gdi_width;
-    source_height = gdi_height;
-    source_rotation = DXGI_MODE_ROTATION_IDENTITY;
+  *rotation = output_desc.Rotation;
+  if (dxgi_all_zero || dxgi_timed_out || raw->empty()) {
+    *failure = S_OK;
     debug_stage(dxgi_timed_out ? "dxgi.timeout.gdi_fallback" : "dxgi.all_zero.gdi_fallback");
+    return DuplicationResult::kUnavailable;
+  }
+  return DuplicationResult::kFrame;
+}
+
+HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixels, UINT* width, UINT* height, int64_t* captured_ns) {
+  std::vector<uint8_t> raw;
+  UINT source_width = 0;
+  UINT source_height = 0;
+  DXGI_MODE_ROTATION source_rotation = DXGI_MODE_ROTATION_IDENTITY;
+  HRESULT failure = E_FAIL;
+  switch (capture_duplication(request, &raw, &source_width, &source_height, &source_rotation, &failure)) {
+    case DuplicationResult::kFrame:
+      break;
+    case DuplicationResult::kTimeout:
+      return DXGI_ERROR_WAIT_TIMEOUT;
+    case DuplicationResult::kFailed:
+      return failure;
+    case DuplicationResult::kUnavailable: {
+      // GDI composites the same desktop without needing a duplication session,
+      // so capture degrades here instead of failing every frame. Without this a
+      // host whose display refuses duplication loses recording entirely: the
+      // recorder stops permanently after three consecutive capture failures.
+      // Only reached with an empty blocklist — a non-empty one is served by the
+      // WGC privacy helper before this function is called.
+      std::vector<uint8_t> gdi_pixels;
+      UINT gdi_width = 0;
+      UINT gdi_height = 0;
+      if (!capture_gdi_primary(&gdi_pixels, &gdi_width, &gdi_height)) return FAILED(failure) ? failure : E_FAIL;
+      raw = std::move(gdi_pixels);
+      source_width = gdi_width;
+      source_height = gdi_height;
+      source_rotation = DXGI_MODE_ROTATION_IDENTITY;
+      break;
+    }
   }
   std::vector<uint8_t> oriented;
   UINT oriented_width = 0, oriented_height = 0;

@@ -21,6 +21,7 @@
                            ├─ 解析系统主监视器
                            ├─ AcquireNextFrame（使用本次 timeout_ms）
                            ├─ 旋转与等比缩放到 target_height
+                           ├─ 会话建立失败或帧不可用时回退 GDI BitBlt
                            ├─ WIC 编码 JPEG
                            └─ 排他发布结果文件（不覆盖已有路径）
                       └─ 有隐私名单且 build 26100+：MSVC C++/WinRT helper
@@ -44,9 +45,15 @@ Go 侧没有任何 Windows 专用分支：`windows.NewCapture()` 与 `darwin.New
    内继续等待桌面更新；这修复了部分驱动/虚拟显示组合下首次调用看似成功却得到黑帧的问题。
 3. 按 `DXGI_OUTPUT_DESC.Rotation` 做 90/180/270 旋转，再最近邻等比缩放到 `target_height`，
    宽度为 `round(width × targetHeight / height)`，最小为 1。
-4. **DXGI 报告真实桌面更新但仍返回全零帧时才回退到 GDI**：
-   `BitBlt(SRCCOPY | CAPTUREBLT)` 抓主监视器矩形。pointer-only 黑帧不会触发回退；这使 DXGI
-   保持主路径，同时保留驱动/合成器异常时的有限兼容层。
+4. **DXGI 会话建立失败、或报告真实桌面更新但仍返回全零帧时回退到 GDI**：
+   `BitBlt(SRCCOPY | CAPTUREBLT)` 抓主监视器矩形。触发条件分两类：
+   ①`find_output` / `D3D11CreateDevice` / `DuplicateOutput` 无法建立重复会话——虚拟显示器、
+   流式/远程显示器与部分驱动会在这一步直接返回 `DXGI_ERROR_UNSUPPORTED`；②`AcquireNextFrame`
+   在本次 timeout 预算内超时，或拿到的帧全零。pointer-only 黑帧不会触发回退。
+   会话建立之后 `AcquireNextFrame` 返回的错误码仍按错误上报，不属于回退范围，
+   因此该分支只覆盖“这条路径在本机根本用不了”，不掩盖运行中的真实故障。
+   GDI 只出现在空屏蔽名单的路径上：非空名单在进入该分支前已交给 WGC 隐私 helper，
+   因此回退不改变任何隐私语义。
 5. WIC 编码 JPEG，`ImageQuality = jpeg_quality / 100`。
 6. 原子发布：同目录创建 `.<文件名>.daygo-<pid>-<tick>.partial`（`CREATE_NEW`），
    编码后 `FlushFileBuffers`，再用 `MoveFileExW(..., MOVEFILE_WRITE_THROUGH)` 发布。
@@ -71,7 +78,9 @@ Go 侧没有任何 Windows 专用分支：`windows.NewCapture()` 与 `darwin.New
 
 Windows 隐私能力的硬门禁是 build 26100。更旧系统继续按
 [单次调用契约 §7](recording-screen-capture.md#7-windows-约束) 失败关闭；不会降级为只检查前台、
-不会忽略屏蔽名单，也不会用 GDI 生成可能泄漏的图片。
+不会忽略屏蔽名单，也不会用 GDI 生成可能泄漏的图片。这里的“不会用 GDI”指**隐私路径**：
+GDI 兼容层只在屏蔽名单为空时被使用，且不会被用来伪造窗口排除。名单非空时，
+build 26100 以下仍是 `privacy_unsupported` 且不产出图片。
 
 第四行的处置**已决定**（[09 §9.8 #21](../09-roadmap.md#98-待定设计清单)）：ABI 将 `ShowsCursor`
 定为**平台尽力而为**，Windows v1 不合成指针（Desktop Duplication 不含指针），置位记为 no-op 且不报错——
@@ -157,14 +166,36 @@ panic；composition root 增加可选能力守卫后，按 Wails dev 等价 tags
 `CGO_ENABLED=0` Core 交叉构建。PowerShell、makensis、signtool、安装/卸载/升级均未在 Windows
 执行，因此只记为“可进入 WD 验收”，不记为 WD 通过或 Windows 可发布。
 
+2026-09-20（Windows 11 build 26200，RTX 3050 Laptop GPU；主机装有 GameViewer 与 MuMu
+虚拟显示适配器）：用户报告 Windows 安装包安装后「开始录制，过了一会就停了」。在本机复现并
+定位到两条 Windows 原生缺陷，均与本机是否具备代码签名、开发者身份、管理员权限无关：
+
+- `IDXGIOutput1::DuplicateOutput` 在主输出上返回 `DXGI_ERROR_UNSUPPORTED`（`0x887A0004`）。
+  `capture_pixels` 在该步失败时**直接返回**，而既有的 GDI 兼容层只在「DXGI 出了帧但全零」时
+  才生效，于是每一帧都失败；`internal/recorder` 的 `captureFailureLimit = 3` 连续失败后
+  `run()` 返回并停在 `idle`，`idle` 没有自动恢复路径——这就是「录一会就停」。
+  同一台机器上 GDI `BitBlt` 可正常抓到 1536×864 且 100% 非黑的画面，因此 GDI 是一条真实可用的退路。
+- `read_video_frame` 用 NULL 属性仓库建 Source Reader，HEVC 解码器输出 NV12 时
+  `SetCurrentMediaType(RGB32)` 返回 `MF_E_INVALIDMEDIATYPE`，分段因此被判为不可读。
+
+修复后 `native/windows/build.ps1 -RunSmoke` 在本机通过：`stage=dxgi.duplication_unavailable`
+确认走了 §2.4 的 GDI 回退并产出 1280×720 非黑 JPEG 与正确的落盘字节数；WGC 隐私路径
+（`privacy capture ok`）不受影响；`container segment ok: 2 frames` 证明分段写入/探测/解码闭环成立；
+system event smoke 通过。改动只在 `native/windows/Sources/` 与 `native/windows/smoke.cpp`，
+Go 层与 macOS 未改动。
+
+仍未验证：`AcquireNextFrame` 在会话建立之后返回的错误码、多屏/旋转、受保护内容与长时间运行；
+本机是**虚拟/流式显示**环境，DXGI 回退才被触发，不代表普通物理显示器主机也会走到 GDI。
+
 ## 7. 边界与回退
 
 - 不得为了让 Windows 出图而放宽隐私规则：把 `privacy_unsupported` 降级成"只检查前台"
   或"忽略屏蔽名单"都是隐私回归，直接否决。
 - 不得为 Windows 引入第二套 `Capture` 契约、第二个 ABI 或平台专用 DTO。
 - 回退方式：composition root 不注入 `windows.NewCapture()`，并保留
-  `unavailable_windows.go` 的 `unsupported` 路径。移除 DLL 与代理对象即可恢复仅 DXGI 且隐私
-  失败关闭的旧实现。
+  `unavailable_windows.go` 的 `unsupported` 路径。移除 DLL 与代理对象即可恢复隐私失败关闭的
+  旧实现。若要单独回退 §2.4 扩容后的 GDI 回退，把 `capture_duplication` 的
+  `DuplicationResult::kUnavailable` 当作 `kFailed` 直接返回即可，GDI 在调用点被跳过。
 
 ## 8. macOS 能力差集接入（2026-09-20）
 
