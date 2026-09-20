@@ -18,8 +18,8 @@
 
 - 存储：cards / categories / batches / observations repository（`ReplaceCardsInRange`
   单事务改写、时钟串三日锚点派生、尝试上限、软删除）；迁移链含各版旧库夹具。
-- 分析：两阶段流水线（帧分组转录 → 卡片生成 / 融合，Dayflow 式单卡窗口 +
-  `activityPoints`）、分批器、空闲判定、失败分类与自动重排（5 次上限）、
+- 分析：两阶段流水线（帧分组转录 → 卡片生成 / 融合，首批单卡、持续窗口按活动证据重分 +
+  `activityPoints`；短活动不再为凑 10 分钟而吸收无关分钟）、分批器、空闲判定、失败分类与自动重排（5 次上限）、
   请求级超时、时区统一为 store `Location()`、融合分类闸门
   （跨分类的模型融合被夹紧回批次窗口，前卡保留）。
 - 绑定与前端：`GetTimelineDay`（卡片 / 分类 / 合计 / 失败分组一次带回）、卡片写操作
@@ -144,6 +144,14 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 未复核。
 
 2026-09-20：修复批次因末帧仍在活跃录制分段而反复失败（`frameDecode: failed with status -3`，即 `DG_CAPTURE_E_UNSUPPORTED`）的问题。这是 `-7`（残缺分段缺 moov）之外的第二条时序失效：分段冻结（600 帧 / 600 秒 / 尺寸变化）与批次封口（间隔或目标时长）是两条独立边界，因空闲间隔提前封口或跨满 15 分钟的批次，其末帧可能仍落在录制器正在写、尚未收尾的分段里，此刻解码必然失败；批次失败进 `FailureRetryCooldown`（10 分钟）冷却，等分段轮换收尾后自动重试才成功——即用户观察到的"重试几次就好"。区别于 `-3` 之外的活跃分段既不缺 moov 也非损坏，无法用 `Readable`/moov 探测区分，故改用纯 Go 信号：`Recorder.ActiveSegmentPath()` 暴露当前正在写入的分段路径（暂停 / 停止 / 收尾后清空），分析调度器 `Config.ActiveSegment` 读取它；`processBatch` 在置 `processing` 前先判定批次任一帧是否属于活跃分段，若是则返回 `errBatchDeferred`，批次**保持 `pending`、不计尝试、不触发 `batch:failed`**，下一轮分段收尾后自然处理。夹具 `TestPipelineDefersBatchInActiveSegment`（活跃时推迟、清空后成功、零 provider 调用、零尝试计数）；`go test ./internal/analysis/... ./internal/recorder/...`、`go vet`、`CGO_ENABLED=0 go build ./internal/...` 全通；契约同步 docs/04 §4.3.2。真实 macOS 长期录制闭环未复核。
+
+2026-09-20：修复持续窗口把短而明确的不同活动强行合并成混合卡。此前校验器要求每张卡至少
+10 分钟，校正提示甚至要求 1–4 分钟活动整段并入邻卡、5–9 分钟活动从无关邻卡借分钟；当一张
+50 分钟卡追加 13 分钟、且尾段在抖音 / Daygo / Codex 间切换时，60 分钟上限与 10 分钟下限
+共同迫使模型生成一张单分类混合卡，直接污染专注 / 分心统计。现在删除最短时长约束，保留
+60 分钟上限、连续覆盖和无重叠校验；提示词要求保留有证据的短活动边界，只合并同一活动或真正
+偶发的插曲。夹具覆盖 2 / 4 / 4 / 3 分钟连续异类活动可通过验证，并检查首轮与校正提示不再要求
+借用无关分钟。既有混合卡不会自动迁移，需在新构建中重处理其来源批次。
 
 2026-09-18：修复卡片重新生成时下方相邻卡片底色被错误渲染为彩色的问题，并增强录制分段收尾与未完成分段对齐恢复。此前时间线使用像素矩形几何重叠（`boxesOverlap`）来判定卡片是否处于重新生成状态（`regenerating`），导致被 `MIN_CARD_HEIGHT` 撑到 34px 的短卡片或批次在垂直像素上压入下方相邻卡片，使其错误带上 `is-regenerating` 渐变彩底。现增加 `cardIntersectsRanges` 纯函数改由真实时间戳交集（时间重合度大于 0）精确判断卡片是否属于重分析批次，下方相邻卡片保持正常底色不变。同时在 `SegmentWriter.swift` 添加 `atexit` 自动收尾勾子并在 Wails 与系统信号中断时触发 `backend.shutdown()` 保证录制分段写入 moov atom，并在 `Reconcile` 启动时自动检查已提交分段，将缺失 moov atom 的残缺分段置为 `is_deleted = 1`，彻底杜绝 `frameDecode: failed with status -7` 拖垮整个分析批次。夹具：`timelineCoverage.test.ts` 与 `captures_test.go` 分别新增测试；`./scripts/gate.sh` 门禁全通。
 

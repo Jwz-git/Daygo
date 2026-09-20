@@ -349,6 +349,40 @@ func TestCardsPromptExcludesBuiltInCategories(t *testing.T) {
 	}
 }
 
+func TestOngoingCardRulesPreserveShortDistinctActivities(t *testing.T) {
+	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, nil, "", true)
+	for _, want := range []string{
+		"Keep a brief episode as its own card",
+		"never borrow unrelated neighboring minutes",
+		"must be at most 60 minutes",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("ongoing prompt missing %q:\n%s", want, prompt)
+		}
+	}
+	if strings.Contains(prompt, "must be 10-60 minutes") || strings.Contains(prompt, "reach ten") {
+		t.Fatalf("ongoing prompt still forces the old ten-minute floor:\n%s", prompt)
+	}
+
+	correction := cardsCorrectionPrompt(`{"cards":[]}`, []string{"example"}, false, base, base.Add(15*time.Minute))
+	if !strings.Contains(correction, "A short card is valid") ||
+		strings.Contains(correction, "Every card must be 10-60 minutes") {
+		t.Fatalf("correction prompt still forces unrelated short activities together:\n%s", correction)
+	}
+}
+
+func TestValidateCardsAllowsShortDistinctActivities(t *testing.T) {
+	spans := []cardSpan{
+		{Start: base, End: base.Add(2 * time.Minute), Title: "video"},
+		{Start: base.Add(2 * time.Minute), End: base.Add(6 * time.Minute), Title: "Daygo"},
+		{Start: base.Add(6 * time.Minute), End: base.Add(10 * time.Minute), Title: "video"},
+		{Start: base.Add(10 * time.Minute), End: base.Add(13 * time.Minute), Title: "Codex"},
+	}
+	if issues := validateCards(spans, base, base.Add(13*time.Minute), false); len(issues) != 0 {
+		t.Fatalf("short evidence-backed activities rejected: %v", issues)
+	}
+}
+
 func TestAppSitesFromListSwapsBrowserAndTarget(t *testing.T) {
 	// When the model outputs browser first, then website, it should swap so the website is primary.
 	swapped := appSitesFromList([]string{"Microsoft Edge", "pinterest.com"})

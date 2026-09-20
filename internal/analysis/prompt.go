@@ -60,9 +60,10 @@ func transcribePrompt(group []storage.AnalysisFrame, language string) string {
 // cards travel as JSON inside <previous_cards>, observations inside
 // <observations>, and the title/summary/detailed blocks carry Dayflow's
 // selection-evidence guidance. Card granularity follows the Dayflow model:
-// one card per batch window, 10-60 minutes, interruptions under five minutes
-// absorbed, similar activity in adjacent cards merged into one card spanning
-// both windows.
+// one provisional card for a fresh batch, then evidence-based segmentation on
+// later sliding-window passes. Brief but distinct activity may remain its own
+// card so category totals are not corrupted by borrowing unrelated minutes;
+// incidental interruptions can still stay inside their surrounding card.
 func cardsPrompt(batchStart, batchEnd time.Time,
 	existing []domain.TimelineCard, obs []storage.Observation,
 	categories []domain.Category, language string, ongoing bool) string {
@@ -110,9 +111,10 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 		b.WriteString("preserve content only; their boundaries, titles, and categories are provisional. ")
 		b.WriteString("Group time by the person's immediate activity. App switches within one task ")
 		b.WriteString("belong together. Sustained different activities deserve separate cards. Each card ")
-		b.WriteString("must be 10-60 minutes. Absorb interruptions under five minutes; a distinct ")
-		b.WriteString("5-9-minute episode may borrow the minimum neighboring minutes to reach ten if the ")
-		b.WriteString("neighboring cards remain at least ten. Cover all observed time without overlaps and ")
+		b.WriteString("must be at most 60 minutes. Keep a brief episode as its own card when the evidence ")
+		b.WriteString("shows a real change of activity or goal; never borrow unrelated neighboring minutes ")
+		b.WriteString("just to lengthen it. Absorb only incidental interruptions that belong inside the ")
+		b.WriteString("surrounding activity. Cover all observed time without overlaps and ")
 		b.WriteString("preserve real source gaps. A broad project or continuous computer session does not ")
 		b.WriteString("by itself make one activity.\n")
 		b.WriteString("</ongoing_segmentation>\n\n")
@@ -122,7 +124,7 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 		b.WriteString("Nearby history separated by a genuine gap is left untouched. Return exactly ONE ")
 		b.WriteString("new card covering the entire supplied observation span, regardless of internal ")
 		b.WriteString("activity or goal changes. This card is provisional; later sliding-window passes may ")
-		b.WriteString("split it once each resulting activity has at least 10 minutes of supporting evidence.\n\n")
+		b.WriteString("split it once later evidence establishes meaningful activity boundaries.\n\n")
 		b.WriteString("Do not split this batch. Title and categorize its dominant activity, and put ")
 		b.WriteString("shorter or unrelated activity in the summary and detailed summary. This rule ")
 		b.WriteString("overrides all other coherence and splitting guidance for this call.\n\n")
@@ -312,14 +314,9 @@ Common mappings:
 // issues and the duration-merging rules, up to three attempts.
 func cardsCorrectionPrompt(rawJSON string, issues []string, requiresSingleCard bool, rewriteStart, rewriteEnd time.Time) string {
 	modeRequirement := "- This call was an ongoing-segment rewrite. Recheck the entire array, not only the "
-	modeRequirement += "issue named below. Absorb every 1-4-minute card into the longer adjacent episode; a "
-	modeRequirement += "short first card merges into the full following session and a short final card merges "
-	modeRequirement += "backward. For every 5-9-minute card, move only enough neighboring minutes to bring it "
-	modeRequirement += "to 10, even when the borrowed minutes are unrelated, while preserving every neighboring "
-	modeRequirement += "episode that can remain at least 10 minutes. Examples: 4 minutes plus a following "
-	modeRequirement += "33-minute same-session card becomes one 37-minute card; an 8-minute middle card followed "
-	modeRequirement += "by 15 minutes becomes 10 minutes plus 13 minutes; a distinct 6-minute ending after 20 "
-	modeRequirement += "minutes becomes 16 minutes plus 10 minutes. Never return the same invalid short boundary."
+	modeRequirement += "issue named below. Preserve evidence-backed activity boundaries even when an episode is "
+	modeRequirement += "short. Merge only when adjacent evidence represents the same activity or when a momentary "
+	modeRequirement += "interruption is genuinely incidental; never move unrelated minutes across a boundary."
 	if requiresSingleCard {
 		modeRequirement = "- This is a fresh segment. Return exactly ONE card covering the full supplied observation span."
 	}
@@ -332,10 +329,10 @@ func cardsCorrectionPrompt(rawJSON string, issues []string, requiresSingleCard b
 		"- Return the FULL corrected JSON output (not a diff).\n" +
 		"- Preserve exactly the source-supported coverage. Keep genuine source gaps uncovered; never bridge them. Cards may be separated only where the inputs have a real gap. No overlaps.\n" +
 		"- Change the timestamps that caused the validation error; do not return the same invalid boundaries. If the issue says the cards do not cover all supplied observations, find every gap between consecutive cards and close the uncovered boundary by extending an adjacent card. In particular, if one card ends at 5:38 and the next begins at 5:39, make them meet at 5:38 or 5:39 rather than returning that one-minute gap again.\n" +
-		"- Every card must be 10-60 minutes, including the final card. There is no short-final-card exception unless the entire supplied span is under 10 minutes.\n" +
+		"- Every card must be at most 60 minutes. A short card is valid when the observations support a distinct activity.\n" +
 		modeRequirement + "\n" +
-		"- The duration rule overrides semantic purity. When unrelated activities must be merged, title and categorize the dominant activity and move the shorter activity into the summary and detailed summary.\n" +
-		"- After merging, recompute the title and category from the combined duration. Never concatenate an absorbed short activity into the title unless it remains dominant by supported minutes. If nothing dominates, describe the ordinary mixed activity plainly, following the title guidance.\n" +
+		"- Never merge unrelated activities merely to satisfy a duration preference; that would corrupt their categories and time totals.\n" +
+		"- After a justified merge, recompute the title and category from the combined evidence.\n" +
 		"- Output JSON only. No code fences or extra text."
 }
 

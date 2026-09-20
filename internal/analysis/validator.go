@@ -11,13 +11,15 @@ import (
 
 /*
  * Card validation, ported from Dayflow's output validator: the model's cards
- * must cover the rewrite span with non-overlapping 10-60 minute cards. A
+ * must cover the rewrite span with chronological, non-overlapping cards no
+ * longer than 60 minutes. Short cards are valid when source evidence shows a
+ * real activity change; forcing them to borrow unrelated minutes corrupts
+ * category totals. A
  * failed check produces a human-readable issue for the correction prompt, and
  * the generation loop retries (up to three attempts) before giving up.
  */
 
 const (
-	minCardDuration = 10 * time.Minute
 	maxCardDuration = 60 * time.Minute
 	// Clock strings carry minute precision, so boundary checks tolerate a
 	// minute of rounding slack.
@@ -67,18 +69,9 @@ func validateCards(spans []cardSpan, rewriteStart, batchEnd time.Time, requiresS
 		return issues
 	}
 
-	wholeSpan := batchEnd.Sub(rewriteStart)
 	for i, span := range spans {
 		duration := span.End.Sub(span.Start)
 		name := fmt.Sprintf("card %d (%s)", i+1, span.Title)
-		// The 10-minute floor applies whenever the covered span can support
-		// it; a span shorter than ten minutes total is the one exception,
-		// as is single-card mode (fresh segment without adjacent episodes).
-		if !requiresSingleCard && duration < minCardDuration && wholeSpan >= minCardDuration {
-			issues = append(issues, fmt.Sprintf(
-				"%s is %s long; every card must be at least 10 minutes — absorb it into the adjacent episode",
-				name, duration))
-		}
 		if duration > maxCardDuration {
 			issues = append(issues, fmt.Sprintf(
 				"%s is %s long; every card must be at most 60 minutes",
