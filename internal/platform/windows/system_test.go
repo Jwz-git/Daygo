@@ -16,7 +16,10 @@ func TestSystemEventKind(t *testing.T) {
 		2: platform.EventWake,
 		3: platform.EventScreenLocked,
 		4: platform.EventScreenUnlocked,
-		5: "",
+		// A kind outside the defined range still has to fall back to "" rather
+		// than to whatever the native side sent. 5..7 are mapped and are owned
+		// by TestSystemEventKindIncludesScreensaverAndDisplays.
+		99: "",
 	}
 	for input, want := range tests {
 		if got := systemEventKind(input); got != want {
