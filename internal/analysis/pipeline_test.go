@@ -583,6 +583,12 @@ func TestPipelineAllCardsOutsideWindowReportsActionableCorrection(t *testing.T) 
 	if !strings.Contains(correction, "10:00 AM to 10:15 AM") {
 		t.Fatalf("correction prompt = %q, want required rewrite window", correction)
 	}
+	if !strings.Contains(correction, `"title":"Wrong window"`) {
+		t.Fatalf("correction prompt = %q, want previous JSON output", correction)
+	}
+	if strings.Contains(correction, "ongoing conversation") {
+		t.Fatalf("correction prompt claims unavailable conversation state: %q", correction)
+	}
 }
 
 // mustBatches reads all batches through the repository's range query over an
