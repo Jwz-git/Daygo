@@ -232,8 +232,18 @@ std::wstring file_display_name(const std::wstring& path) {
           wchar_t* value = nullptr;
           UINT value_chars = 0;
           if (VerQueryValueW(version.data(), query, reinterpret_cast<void**>(&value),
-                             &value_chars) && value && value_chars > 1) {
-            return std::wstring(value, value_chars - 1);
+                             &value_chars) && value && value_chars > 0) {
+            // VerQueryValue reports puLen in bytes for some resources and in
+            // characters for others — Spotify's version block answers 16 for the
+            // seven-character "Spotify" — so it cannot be trusted as a character
+            // count: subtracting one from a byte count runs the name past its
+            // terminator and into the neighbouring string values. The value is
+            // NUL-terminated, so the name ends at the terminator and puLen only
+            // bounds the read.
+            const size_t limit = value_chars - 1;
+            size_t length = 0;
+            while (length < limit && value[length] != L'\0') ++length;
+            if (length > 0) return std::wstring(value, length);
           }
         }
       }

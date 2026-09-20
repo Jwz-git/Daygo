@@ -40,7 +40,7 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 11 | 读取系统空闲秒数 | 空闲判定 | `System`（内部） | 待定设计 |
 | 12 | 解析调用时的系统主显示器 | 捕获目标 | `Capture.Capture`（内部） | 有限实现，待多屏验收 |
 | 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | 有限实现，待实机矩阵 |
-| 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | macOS 已实现（含 Go cgo smoke）；Windows 明确返回不可用，设置页保留 `.exe` picker 兜底 |
+| 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | 两平台均已实现；Windows 从当前用户/机器、32/64 位 App Paths 与 Uninstall 注册表枚举，去重规则见 [应用身份解析](decisions/recording-application-picker.md) |
 | 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | macOS System ABI 已实现，待实机验证 |
 | 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | macOS System ABI 已实现，待实机验证 |
 | 17 | 开机自启开关 | 设置 | `System.{,Set}LaunchAtLogin` | 待定设计 |
@@ -141,8 +141,8 @@ smoke** 的截图实现，发布范围与其余能力逐项经决策记录推进
 | 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 实现与 ABI 语义之间的已知缺口 |
 | 屏幕录制授权（第 1–3 项） | TCC 查询 / 请求 / 设置入口已实现 | 系统无对应 TCC，查询报告 `granted`、请求为 no-op | macOS 的正式签名升级身份仍属 G-native；Windows 不伪造授权弹框 |
 | 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
-| 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.x（身份 + 名称 + 图标 + 按 Bundle ID 回查） | 有限实现：Explorer `.exe` picker + 同一 ABI；路径哈希 ID、名称、PNG 图标和回查 | Windows 路径不进入 Wails DTO；回查优先内存、运行进程与 App Paths / Uninstall 注册表，不等于 `InstalledApplications` 已实现 |
-| 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | 未实现，显式不可用 | Windows 正式设置页保留 Explorer `.exe` picker，不把空列表伪装成已枚举 |
+| 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.x（身份 + 名称 + 图标 + 按 Bundle ID 回查） | 有限实现：Explorer `.exe` picker + 同一 ABI；路径哈希 ID、名称、PNG 图标和回查 | Windows 路径不进入 Wails DTO；回查优先内存、运行进程与 App Paths / Uninstall 注册表 |
+| 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | `InstalledApplications` 已实现，并在一台 Windows 11 机器核对过枚举结果 | 枚举结果只有本机证据；Windows 设置页网格的视觉与交互未验收，枚举不可用时仍回落到 Explorer `.exe` picker |
 | 系统事件（第 15 / 16 项） | System ABI 已实现（睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保 / 显示器变化） | 睡眠 / 唤醒 / 锁屏 / 解锁 ABI 已实现；显示器可枚举 | Windows 编译与回调夹具已过，睡眠/锁屏恢复延迟及长期事件矩阵仍需实机 |
 | 状态栏（第 19 项） | `SetStatusItem` ABI 已实现并接入 | 通知区图标、菜单、左键重开及 open/toggle/pause/quit 动作已接入 | Windows 回调夹具通过；关窗后持续捕获、Explorer 重启恢复及完整交互 smoke 尚未验收 |
 | 帧解码 / 段探测（第 8、10 项） | 原生段读取（`frameDecode` / `segmentProbe`） | 纯 Go `mediafile` | 两平台都经 `platform.Media` 真实实现；Windows / Linux 走 [`internal/platform/mediafile`](../internal/platform/mediafile/mediafile.go)：JPEG 单帧解码 + 探测，非 JPEG 多帧段报 `Readable=false` |

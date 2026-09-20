@@ -210,6 +210,12 @@ Git for Windows 那份版本不匹配的 `libstdc++-6.dll` 以 `0xC0000139` 启�
 Windows 侧仍未验证的项目不变，另外新增一项：上述结论都来自**本机**（装有 MinGW-w64 与
 Git for Windows 的开发机），干净 Windows 机器上的安装/启动尚未复测。
 
+2026-09-20（同一台机器）：隐私设置页出现两个 Edge 图标，根因在枚举层而非渲染层，已按 §8 的
+规则修复（应用去重与名称读取，见 [应用身份解析](recording-application-picker.md) §1.4 / §1.5）。
+本机复跑枚举：候选路径 196 条 → 86 个条目，`Microsoft Edge` 只剩一条且与运行进程身份一致，
+带非打印字符的名称归零。改动只落在 `internal/platform/windows` 与
+`native/windows/Sources/daygo_windows_native.cpp` 的名称读取，ABI、Go 端口与 macOS 未改动。
+
 2026-09-20（同一台机器）：用户报告录下来的画面是倒着的。根因在 §8 的分段写入路径——
 `sink writer` 的输入类型没有声明行序，Media Foundation 因此按自下而上读走自上而下的采集
 缓冲区，每个分段都被写成上下镜像。修复是在 `build_writer` 的输入类型上声明
@@ -244,6 +250,10 @@ Git for Windows 的开发机），干净 Windows 机器上的安装/启动尚未
   状态事件。
 - 已安装应用从 Windows 注册表的 App Paths / Uninstall（用户/机器、32/64 位视图）枚举，候选
   必须再经过同一 `ApplicationInspector` 生成规范化路径哈希 ID，不能用注册表键名充当隐私身份。
+  一个应用只占一个条目：来源按 App Paths 优先，显示名称、文件名与字节内容都相同的候选视为
+  同一个程序安装两次而合并——Edge 就是这样把 `msedge.exe` 装了两份并分别注册的，只保留
+  `App Paths` 那条（运行进程实际使用的路径）。规则与去重理由见
+  [应用身份解析](recording-application-picker.md) §1.4。
 - Windows 不存在 `NSApplicationActivationPolicy` 的同构 API；通知区生命周期已经由 System
   适配器持有。因此 regular/accessory/prohibited 请求做参数校验和幂等状态记录，窗口可见性仍由
   app/Wails 层处理，不声称它能改变任务栏中任意窗口的样式。

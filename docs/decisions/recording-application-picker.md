@@ -55,6 +55,34 @@ WGC 排除不需要第二套身份协议。
 为 0，调用本身仍成功。图标在离主线程的私有 bitmap 上绘制，不使用 `DispatchQueue.main.sync`
 ——Go 宿主的主线程不跑 AppKit run loop，同步派发会死锁。
 
+### 1.4 Windows 枚举去重
+
+一个应用在列表里只占一个条目。ID 是**规范化路径的哈希**，所以同一个程序在磁盘上存在两份时
+天然产生两个 ID、两块牌子；其中只有进程实际运行的那条路径能被截图端匹配，另一块牌子点了也不
+产生任何屏蔽效果。枚举因此按下面的规则收敛：
+
+1. **来源有优先级**：`App Paths` 在 `Uninstall` 之前。前者是 shell 启动程序所用的注册，
+   后者只是展示提示（`DisplayIcon`），厂商常把它钉在带版本号的目录上。
+2. **先到者胜**：同一 ID 重复出现只保留一次；被判定为「同一个程序」的候选整条丢弃。
+3. **判定「同一个程序」需要三个条件同时成立**：显示名称相同、**文件名相同**、字节内容相同。
+   - 要求字节相同，是为了把 Edge（`Application\msedge.exe` 与 `Application\<version>\msedge.exe`
+     是同一份二进制安装两次）与 Edge Stable / Edge Beta 区分开——后者文件名与显示名称都一样，
+     必须保持可分别屏蔽。
+   - 要求文件名相同，是为了把 Edge 与 Python 的启动器区分开：`idle3.11.exe` 与
+     `pythonw3.11.exe` 字节相同（同一镜像），但对使用者是两个应用，不能合并。
+   - 显示名称与文件大小作为前置条件，使绝大多数候选连读取都不需要。
+4. **读不出来的候选不占位**：解析失败的路径不会把该程序标为已列出，后面的同名路径仍会尝试。
+
+判定不写入设置、不入库，只影响这一次枚举的输出；重新枚举即可回到未收敛的原始集合。
+
+### 1.5 名称读取
+
+名称取自可执行文件的版本资源（`FileDescription`，缺失时回退 `ProductName`，再回退文件名）。
+`VerQueryValue` 的 `puLen` **不是可靠的字数**：同一台机器上 Spotify 对 7 字符的 `"Spotify"`
+返回 16（字节），Edge 对 14 字符的 `"Microsoft Edge"` 返回 15（字符）。把它当作字数减一会让名称
+读过头、越过终止符进入相邻的字符串值，列表里就会出现 `Spotify\x008\x16\x01File` 这类名字。
+值本身以 NUL 结尾，名称必须读到终止符为止，`puLen` 只用来限定读取范围。
+
 ## 2. 为什么不校验代码签名
 
 代码签名完整性与截图过滤身份是两个问题。`SecStaticCodeCheckValidity` 会验证 bundle 的 sealed
@@ -149,9 +177,31 @@ prebuilt archive 会被 Go 侧握手明确拒绝，而不是静默返回缺图�
   两张图均为 1280×720 非黑画面；原生 smoke、Go adapter/app 测试、前端 typecheck/build 通过。
 - 尚未覆盖便携应用重启后且未运行时的名称/图标回查、全部 WC 竞态和 24 小时资源矩阵。
 
-仍未验收：picker 原生面板的视觉与交互、沙盒 / 发行身份、缺失 Bundle ID 的应用、helper / XPC
-子进程、多 Space、多显示器与快速前台切换；图标分辨率与暗色模式观感未做视觉验收。选择一个主
-`.app` 不保证其 helper 使用相同 ID；MC 隐私矩阵通过前不得宣称应用已被完整屏蔽。
+2026-09-20（Windows 11 build 26200，RTX 3050 Laptop GPU）：用户报告隐私设置页出现**两个 Edge
+图标**。定位到枚举层而不是渲染层：
+
+- `App Paths\msedge.exe` 指向 `Edge\Application\msedge.exe`，`Uninstall\Microsoft Edge` 的
+  `DisplayIcon` 指向 `Edge\Application\151.0.4129.86\msedge.exe`。两者是**两个不同的文件**
+  （`fsutil file queryfileid` 给出不同的文件 ID），但内容哈希完全相同。路径不同 → ID 不同 →
+  两块牌子，名称与图标都一样。
+- 运行中的 `msedge.exe` 报的是 `Edge\Application\msedge.exe`，因此版本号目录那条是**死条目**：
+  屏蔽它不会生效，且 Edge 升级后该 ID 会变成查不到的孤儿。
+
+按 §1.4 实现去重后在同一台机器复跑枚举：候选路径 196 条 → 86 个条目（去重前 87），
+`Microsoft Edge` 只剩一条且 ID 与运行进程算出的身份一致；同机的四个 Python 启动器
+（`idle3.11.exe` / `pip3.11.exe` / `python3.11.exe` / `pythonw3.11.exe`，其中两对字节相同）
+全部保留为独立条目，没有被误合并。
+
+同一轮修掉 §1.5 的名称读取缺陷：修复前该机 87 个条目里有 3 个名称带出相邻字符串值
+（如 `Spotify\x008\x16\x01File`、`Windows Software Development Kit - Windows 10.0.22621.3233\x00
+\x00@ \x00FileVersion…`），修复后带非打印字符的条目为 0。`go test ./internal/platform/windows/`
+的枚举单测与 `./scripts/gate.sh` 通过。
+
+仍未验收：Windows 设置页应用网格的视觉与交互、图标批量解析在真实列表下的表现、
+以及除本机以外的枚举结果。macOS 侧仍未验收 picker 原生面板的视觉与交互、沙盒 / 发行身份、
+缺失 Bundle ID 的应用、helper / XPC 子进程、多 Space、多显示器与快速前台切换；图标分辨率与
+暗色模式观感未做视觉验收。选择一个主 `.app` 不保证其 helper 使用相同 ID；MC 隐私矩阵通过前
+不得宣称应用已被完整屏蔽。
 
 ## 6. 回退
 
