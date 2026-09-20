@@ -187,14 +187,18 @@ func Run() error {
 			}
 			backend.setStatusUpdater(updateStatus)
 			updateStatus(backend.recorderState())
+			openWindow := func() {
+				if err := backend.exitBackground(ctx); err != nil {
+					log.Printf("restore dock icon on reopen unavailable: %v", err)
+				}
+				runtime.WindowShow(ctx)
+				runtime.Show(ctx)
+			}
+			backend.setActivationAction(openWindow)
 			backend.setStatusAction(func(action string) {
 				switch action {
 				case "open":
-					if err := backend.exitBackground(ctx); err != nil {
-						log.Printf("restore dock icon on reopen unavailable: %v", err)
-					}
-					runtime.WindowShow(ctx)
-					runtime.Show(ctx)
+					openWindow()
 				case "open_recordings":
 					if backend.system == nil {
 						return

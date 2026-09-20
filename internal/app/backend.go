@@ -69,6 +69,8 @@ type Backend struct {
 	systemEventBuffer    []platform.SystemEvent
 	statusActionMu       sync.RWMutex
 	statusAction         func(string)
+	activationActionMu   sync.RWMutex
+	activationAction     func()
 	// allowQuit gates the Wails OnBeforeClose hook. It stays false so Cmd+Q,
 	// the Dock "Quit" item and closing the window are downgraded to a
 	// background soft-quit; only the status-bar Quit sets it (requestQuit)
@@ -259,6 +261,14 @@ func (b *Backend) startSystemEventPump() {
 					handler(*event.Data.StatusItemID)
 				}
 			}
+			if event.Kind == platform.EventApplicationActivated {
+				b.activationActionMu.RLock()
+				handler := b.activationAction
+				b.activationActionMu.RUnlock()
+				if handler != nil {
+					handler()
+				}
+			}
 		}
 	}(b.system.Events())
 }
@@ -280,6 +290,12 @@ func (b *Backend) setStatusAction(handler func(string)) {
 	b.statusActionMu.Lock()
 	b.statusAction = handler
 	b.statusActionMu.Unlock()
+}
+
+func (b *Backend) setActivationAction(handler func()) {
+	b.activationActionMu.Lock()
+	b.activationAction = handler
+	b.activationActionMu.Unlock()
 }
 
 // requestQuit marks the next quit attempt as a real termination. The status-bar

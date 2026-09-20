@@ -49,8 +49,11 @@ Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
 - `Backend.allowQuit`（`atomic.Bool`，默认 false）+ `requestQuit()` / `quitAllowed()`。
 - `OnBeforeClose`：`quitAllowed()` 为真则返回 false 放行；否则 `runtime.WindowHide` +
   `enterBackground`（切 accessory）后返回 true 阻止。
-- 状态栏动作：`"quit"` 先 `requestQuit()` 再 `runtime.Quit`；`"open"` 先 `exitBackground`
-  （切回 regular）再 `runtime.WindowShow` + `runtime.Show`。
+- 状态栏 `"open"` 与 macOS 应用重新激活（包括用户点击保留在 Dock 的 Daygo 图标）共用
+  `openWindow`：先 `exitBackground`（切回 regular），再 `runtime.WindowShow` + `runtime.Show`；
+  `"quit"` 先 `requestQuit()` 再 `runtime.Quit`。Wails v2.15.0 没有 reopen 回调，因此原生
+  `System` 观察 `NSApplication.didBecomeActiveNotification`，经 `System.Events` 把激活意图交给
+  app 层；平台层本身不操作 Wails 窗口。
 - `enterBackground` / `exitBackground` 只走 `platform.System.SetActivationPolicy`，不碰系统 API；
   `system == nil`（headless）时是 no-op。
 
@@ -66,7 +69,8 @@ Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
 
 - 纯 Go 拦截与激活策略切换有单元测试（`internal/app/lifecycle_test.go` 用 fake System 断言
   软退出切 accessory、恢复切 regular）。
-- **真机观感未验收**：Dock 图标消失/恢复、菜单栏项在 accessory 下可用、关窗后长期后台存活与继续
+- **真机观感未验收**：Dock 点击恢复窗口的实现已有 Go 路由测试，但
+  `didBecomeActiveNotification` 的触发观感、Dock 图标消失/恢复、菜单栏项在 accessory 下可用、关窗后长期后台存活与继续
   离散捕获，均属 G-host 硬门禁范围，需真实 macOS 观察（见
   [架构 §2.6.3](../02-architecture.md#263-后台-agent-语义)、[风险 C-1](../10-risks.md#c-1宿主无法承载后台-agent)）。
 - 系统关机（`willPowerOff`）目前不特殊处理：`applicationShouldTerminate` 返回 Cancel 后由系统

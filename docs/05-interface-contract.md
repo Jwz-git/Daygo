@@ -1201,7 +1201,7 @@ type System interface {
     CancelNotifications(ctx context.Context, ids []string) error
 
     // Events 复用一条通道：睡眠、唤醒、锁定、解锁、屏保、显示器变化、
-    // 深链、状态项点击、通知点击。
+    // 应用激活、深链、状态项点击、通知点击。
     Events() <-chan SystemEvent
 }
 

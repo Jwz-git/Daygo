@@ -44,6 +44,7 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
     add(NSWorkspace.willSleepNotification, workspace)
     add(NSWorkspace.didWakeNotification, workspace)
     add(NSApplication.didChangeScreenParametersNotification, NotificationCenter.default)
+    add(NSApplication.didBecomeActiveNotification, NotificationCenter.default)
     for (name, value) in [("com.apple.screenIsLocked", UInt32(DG_SYSTEM_SCREEN_LOCKED)), ("com.apple.screenIsUnlocked", UInt32(DG_SYSTEM_SCREEN_UNLOCKED)), ("com.apple.screensaver.didstart", UInt32(DG_SYSTEM_SCREENSAVER_START)), ("com.apple.screensaver.didstop", UInt32(DG_SYSTEM_SCREENSAVER_STOP))] {
         let token = distributed.addObserver(forName: Notification.Name(name), object: nil, queue: nil) { _ in emit(value) }
         state.lock.lock(); state.observers.append(token); state.lock.unlock()
@@ -63,6 +64,7 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
 private func kind(for name: Notification.Name) -> UInt32 {
     if name == NSWorkspace.willSleepNotification { return UInt32(DG_SYSTEM_SLEEP) }
     if name == NSWorkspace.didWakeNotification { return UInt32(DG_SYSTEM_WAKE) }
+    if name == NSApplication.didBecomeActiveNotification { return UInt32(DG_SYSTEM_APPLICATION_ACTIVATED) }
     return UInt32(DG_SYSTEM_DISPLAYS_CHANGED)
 }
 
