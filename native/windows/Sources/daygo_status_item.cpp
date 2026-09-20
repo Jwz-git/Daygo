@@ -21,12 +21,19 @@ constexpr UINT kStatusIconID = 1;
 
 struct StatusSnapshot {
   bool visible = false;
-  bool pause_enabled = false;
+  bool pause_durations_enabled = false;
+  bool primary_action_enabled = false;
   std::wstring title;
   std::wstring tooltip;
   std::wstring open_label;
-  std::wstring pause_label;
+  std::wstring recordings_label;
   std::wstring quit_label;
+  std::wstring pause_menu_label;
+  std::wstring pause_15_label;
+  std::wstring pause_30_label;
+  std::wstring pause_60_label;
+  std::wstring pause_indefinite_label;
+  std::wstring primary_action_label;
   dg_status_item_action_callback_v1 callback = nullptr;
   void* user_data = nullptr;
 };
@@ -191,15 +198,38 @@ void show_context_menu(HWND window, WPARAM wparam) {
   }
   insert_menu_item(menu, 0, kDaygoStatusCommandOpen,
                    g_status.snapshot.open_label, true);
-  insert_menu_item(menu, 1, kDaygoStatusCommandTogglePause,
-                   g_status.snapshot.pause_label,
-                   g_status.snapshot.pause_enabled);
+  if (g_status.snapshot.pause_durations_enabled) {
+    HMENU pause_menu = CreatePopupMenu();
+    if (pause_menu != nullptr) {
+      insert_menu_item(pause_menu, 0, kDaygoStatusCommandPause15,
+                       g_status.snapshot.pause_15_label, true);
+      insert_menu_item(pause_menu, 1, kDaygoStatusCommandPause30,
+                       g_status.snapshot.pause_30_label, true);
+      insert_menu_item(pause_menu, 2, kDaygoStatusCommandPause60,
+                       g_status.snapshot.pause_60_label, true);
+      insert_menu_item(pause_menu, 3, kDaygoStatusCommandPauseIndefinite,
+                       g_status.snapshot.pause_indefinite_label, true);
+      MENUITEMINFOW pause_item{};
+      pause_item.cbSize = sizeof(pause_item);
+      pause_item.fMask = MIIM_STRING | MIIM_SUBMENU;
+      pause_item.hSubMenu = pause_menu;
+      pause_item.dwTypeData =
+          const_cast<wchar_t*>(g_status.snapshot.pause_menu_label.c_str());
+      InsertMenuItemW(menu, 1, TRUE, &pause_item);
+    }
+  } else {
+    insert_menu_item(menu, 1, kDaygoStatusCommandTogglePause,
+                     g_status.snapshot.primary_action_label,
+                     g_status.snapshot.primary_action_enabled);
+  }
+  insert_menu_item(menu, 2, kDaygoStatusCommandOpenRecordings,
+                   g_status.snapshot.recordings_label, true);
   MENUITEMINFOW separator{};
   separator.cbSize = sizeof(separator);
   separator.fMask = MIIM_FTYPE;
   separator.fType = MFT_SEPARATOR;
-  InsertMenuItemW(menu, 2, TRUE, &separator);
-  insert_menu_item(menu, 3, kDaygoStatusCommandQuit,
+  InsertMenuItemW(menu, 3, TRUE, &separator);
+  insert_menu_item(menu, 4, kDaygoStatusCommandQuit,
                    g_status.snapshot.quit_label, true);
 
   POINT point{GET_X_LPARAM(wparam), GET_Y_LPARAM(wparam)};
@@ -255,8 +285,37 @@ bool daygo_status_item_handle_message(HWND window, UINT message, WPARAM wparam,
         *result = 0;
         return true;
       case kDaygoStatusCommandTogglePause:
-        if (g_status.snapshot.pause_enabled) {
+        if (g_status.snapshot.primary_action_enabled &&
+            !g_status.snapshot.pause_durations_enabled) {
           emit_action(DG_STATUS_ITEM_TOGGLE_PAUSE);
+        }
+        *result = 0;
+        return true;
+      case kDaygoStatusCommandOpenRecordings:
+        emit_action(DG_STATUS_ITEM_OPEN_RECORDINGS);
+        *result = 0;
+        return true;
+      case kDaygoStatusCommandPauseIndefinite:
+        if (g_status.snapshot.pause_durations_enabled) {
+          emit_action(DG_STATUS_ITEM_PAUSE_INDEFINITE);
+        }
+        *result = 0;
+        return true;
+      case kDaygoStatusCommandPause15:
+        if (g_status.snapshot.pause_durations_enabled) {
+          emit_action(DG_STATUS_ITEM_PAUSE_15);
+        }
+        *result = 0;
+        return true;
+      case kDaygoStatusCommandPause30:
+        if (g_status.snapshot.pause_durations_enabled) {
+          emit_action(DG_STATUS_ITEM_PAUSE_30);
+        }
+        *result = 0;
+        return true;
+      case kDaygoStatusCommandPause60:
+        if (g_status.snapshot.pause_durations_enabled) {
+          emit_action(DG_STATUS_ITEM_PAUSE_60);
         }
         *result = 0;
         return true;
@@ -294,14 +353,23 @@ extern "C" int32_t dg_status_item_set(
   }
   StatusSnapshot snapshot;
   snapshot.visible = state->visible != 0;
-  snapshot.pause_enabled = state->pause_enabled != 0;
+  snapshot.pause_durations_enabled = state->pause_durations_enabled != 0;
+  snapshot.primary_action_enabled = state->primary_action_enabled != 0;
   snapshot.callback = callback;
   snapshot.user_data = user_data;
   if (!utf8_to_wide(state->title, &snapshot.title) ||
       !utf8_to_wide(state->tooltip, &snapshot.tooltip) ||
       !utf8_to_wide(state->open_label, &snapshot.open_label) ||
-      !utf8_to_wide(state->pause_label, &snapshot.pause_label) ||
-      !utf8_to_wide(state->quit_label, &snapshot.quit_label)) {
+      !utf8_to_wide(state->recordings_label, &snapshot.recordings_label) ||
+      !utf8_to_wide(state->quit_label, &snapshot.quit_label) ||
+      !utf8_to_wide(state->pause_menu_label, &snapshot.pause_menu_label) ||
+      !utf8_to_wide(state->pause_15_label, &snapshot.pause_15_label) ||
+      !utf8_to_wide(state->pause_30_label, &snapshot.pause_30_label) ||
+      !utf8_to_wide(state->pause_60_label, &snapshot.pause_60_label) ||
+      !utf8_to_wide(state->pause_indefinite_label,
+                    &snapshot.pause_indefinite_label) ||
+      !utf8_to_wide(state->primary_action_label,
+                    &snapshot.primary_action_label)) {
     return -3;
   }
   const HWND window = daygo_windows_system_window();

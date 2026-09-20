@@ -12,6 +12,11 @@ constexpr UINT kDaygoStatusCallbackMessage = WM_APP + 4;
 constexpr UINT kDaygoStatusCommandOpen = 1001;
 constexpr UINT kDaygoStatusCommandTogglePause = 1002;
 constexpr UINT kDaygoStatusCommandQuit = 1003;
+constexpr UINT kDaygoStatusCommandOpenRecordings = 1004;
+constexpr UINT kDaygoStatusCommandPauseIndefinite = 1006;
+constexpr UINT kDaygoStatusCommandPause15 = 1007;
+constexpr UINT kDaygoStatusCommandPause30 = 1008;
+constexpr UINT kDaygoStatusCommandPause60 = 1009;
 
 HWND daygo_windows_system_window();
 

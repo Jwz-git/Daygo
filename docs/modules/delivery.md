@@ -106,8 +106,9 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 带 BOM 的 UTF-8，避免 Windows PowerShell 5.1 按本地代码页误解脚本中的 Unicode 输出字符，
 并在后续 ASCII 字符串处误报 `MissingArgument`；同时在 `PATH` 未因 winget 安装而刷新的终端中，
 自动探测 NSIS 的 machine / 32-bit machine / per-user 标准安装目录。已用 5.1 parser 验证脚本无
-语法错误，并验证已安装的 `makensis.exe` 可被发现；尚未执行构建、NSIS 封装、签名、安装或升级，
-因此不提升 WD 状态。
+语法错误，并验证已安装的 `makensis.exe` 可被发现。Windows 入口也会在 Wails 绑定生成前重建
+原生静态库，避免旧 archive 缺少新增 ABI 符号而让绑定生成在链接阶段失败；尚未完成 NSIS 封装、
+签名、安装或升级，因此不提升 WD 状态。
 
 2026-09-14（Windows 11 amd64）：通知区适配器把 `NOTIFYICON_VERSION_4` 的
 `NIN_SELECT`（并兼容传统 `WM_LBUTTONUP`）映射到既有 open 动作，普通左键单击不再要求先打开

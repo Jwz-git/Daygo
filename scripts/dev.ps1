@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'windows-common.ps1')
 
+Initialize-DaygoWindowsNative
 Initialize-DaygoFrontend -DependencyMode install
 
 Push-Location (Join-Path $DaygoRootDir 'cmd\daygo')

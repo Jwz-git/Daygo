@@ -42,10 +42,10 @@ invocation. After the 2026-09-14 cleanup:
   also recreates the generated `build/bin/Daygo.app`; Wails otherwise updates
   the bundle contents in place and macOS may continue displaying a cached
   icon after `build/appicon.png` changes.
-- **`scripts/windows-common.ps1`** is dot-sourced by the two Windows entry
-  points and owns their shared tool checks, frontend bootstrap and Go 1.25
-  debug-linker workaround. `dev.ps1` uses `npm install`; `build.ps1` uses the
-  lockfile-strict `npm ci` production path.
+- **`scripts/windows-common.ps1`** is dot-sourced by the Windows entry points
+  and owns their shared tool checks, native-before-bindings bootstrap, frontend
+  bootstrap and Go 1.25 debug-linker workaround. `dev.ps1` uses `npm install`;
+  `build.ps1` and the packager use the lockfile-strict `npm ci` production path.
 - **`scripts/dev-linux.sh`** and **`scripts/build-linux.sh`** are both thin
   wrappers — the only difference between them is whether `run_wails` is
   called with `dev` or `build`, and whether `npm install` (dev) or

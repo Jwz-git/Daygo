@@ -38,6 +38,19 @@ function Assert-DaygoTool {
     }
 }
 
+function Initialize-DaygoWindowsNative {
+    param([switch]$RunSmoke)
+
+    $arguments = @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+        (Join-Path $DaygoRootDir 'native\windows\build.ps1')
+    )
+    if ($RunSmoke) {
+        $arguments += '-RunSmoke'
+    }
+    Invoke-DaygoNative powershell $arguments
+}
+
 function Test-DaygoFrontendBundle {
     $entry = Join-Path $DaygoFrontendDist 'index.html'
     if (-not (Test-Path -LiteralPath $entry -PathType Leaf)) {

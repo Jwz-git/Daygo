@@ -46,8 +46,20 @@ int main() {
     return 1;
   }
 
-  dg_status_item_state_v1 status{1, 0, "Starting", "Daygo", "Open Daygo",
-                                 "Pause Recording", "Quit Daygo"};
+  dg_status_item_state_v1 status{};
+  status.visible = 1;
+  status.primary_action_enabled = 0;
+  status.title = "Starting";
+  status.tooltip = "Daygo";
+  status.open_label = "Open Daygo";
+  status.recordings_label = "Open Recordings";
+  status.quit_label = "Quit Daygo";
+  status.pause_menu_label = "Pause Recording";
+  status.pause_15_label = "15 minutes";
+  status.pause_30_label = "30 minutes";
+  status.pause_60_label = "60 minutes";
+  status.pause_indefinite_label = "Until resumed";
+  status.primary_action_label = "Start Recording";
   if (const int32_t result = dg_status_item_set(
           DG_STATUS_ITEM_ABI_MAJOR, &status, on_action, nullptr);
       result != 0) {
@@ -76,7 +88,7 @@ int main() {
     dg_system_stop();
     return 1;
   }
-  status.pause_enabled = 1;
+  status.primary_action_enabled = 1;
   status.title = "Recording";
   if (dg_status_item_set(DG_STATUS_ITEM_ABI_MAJOR, &status, on_action, nullptr) != 0) {
     std::fprintf(stderr, "status item ABI update failed\n");

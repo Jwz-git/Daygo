@@ -7,23 +7,19 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'windows-common.ps1')
 
-Initialize-DaygoFrontend -DependencyMode ci -ForceBuild
-
-if ($RunSmoke) {
-    Write-Host 'Building and running Windows native smoke tests...'
-    Invoke-DaygoNative powershell @(
-        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-        (Join-Path $DaygoRootDir 'native\windows\build.ps1'), '-RunSmoke'
-    )
+$binDir = Join-Path $DaygoRootDir 'build\bin'
+if (Test-Path -LiteralPath $binDir) {
+    Remove-Item -LiteralPath $binDir -Recurse -Force
 }
+Initialize-DaygoWindowsNative -RunSmoke:$RunSmoke
+Initialize-DaygoFrontend -DependencyMode ci -ForceBuild
 
 Push-Location (Join-Path $DaygoRootDir 'cmd\daygo')
 try {
     Write-Host 'Building Daygo for windows/amd64...'
     Invoke-DaygoNative go @(
         'run', $DaygoWailsPackage, 'build',
-        '-platform', 'windows/amd64',
-        '-clean'
+        '-platform', 'windows/amd64'
     )
 }
 finally {

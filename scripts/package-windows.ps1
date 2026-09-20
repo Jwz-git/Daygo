@@ -201,33 +201,9 @@ if ($SignMode -ne 'none') {
 
 Write-Success 'Build environment ready'
 
-# ─────────────────────────────────────────────────────────────
-# Bootstrap
-# ─────────────────────────────────────────────────────────────
-
-Write-Step 'Preparing frontend'
-
-Initialize-DaygoFrontend -DependencyMode ci -ForceBuild
-
-Write-Success 'Frontend and Wails bindings ready'
-
-# ─────────────────────────────────────────────────────────────
-# Native capture smoke (optional)
-# ─────────────────────────────────────────────────────────────
-
-if ($RunSmoke) {
-    Write-Step 'Running native capture smoke'
-    Invoke-DaygoNative powershell @(
-        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-        (Join-Path $DaygoRootDir 'native\windows\build.ps1'), '-RunSmoke'
-    )
-    Write-Success 'Native smoke passed'
-}
-
-# ─────────────────────────────────────────────────────────────
-# Cleanup
-# ─────────────────────────────────────────────────────────────
-
+# Clean before compiling native components. Wails runs its Windows pre-build
+# hook before packaging; cleaning afterward would remove the helper DLL that
+# the tracked NSIS template installs alongside Daygo.exe.
 Write-Step 'Cleaning old builds'
 
 if (Test-Path -LiteralPath $BinDir) {
@@ -239,6 +215,22 @@ if (Test-Path -LiteralPath $DistDir) {
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 
 Write-Success 'Workspace cleaned'
+
+# ─────────────────────────────────────────────────────────────
+# Bootstrap
+# ─────────────────────────────────────────────────────────────
+
+Write-Step 'Building Windows native components'
+
+Initialize-DaygoWindowsNative -RunSmoke:$RunSmoke
+
+Write-Success 'Windows native components ready'
+
+Write-Step 'Preparing frontend'
+
+Initialize-DaygoFrontend -DependencyMode ci -ForceBuild
+
+Write-Success 'Frontend and Wails bindings ready'
 
 # ─────────────────────────────────────────────────────────────
 # Build + installer templates
@@ -272,8 +264,7 @@ try {
             'run', $DaygoWailsPackage, 'build',
             '-platform', "windows/$Arch",
             '-nsis',
-            '-installscope', $InstallScope,
-            '-clean'
+            '-installscope', $InstallScope
         )
     }
     finally {

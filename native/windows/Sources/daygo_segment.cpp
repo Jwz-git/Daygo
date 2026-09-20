@@ -8,6 +8,8 @@
 #include <mfidl.h>
 #include <mfreadwrite.h>
 #include <codecapi.h>
+#include <icodecapi.h>
+#include <mferror.h>
 #include <wincodec.h>
 #include <wrl/client.h>
 
@@ -130,7 +132,7 @@ HRESULT start_writer(const std::wstring& root, uint32_t width, uint32_t height) 
   if (SUCCEEDED(hr)) hr = g_writer->SetInputMediaType(g_stream, input.Get(), nullptr);
   if (SUCCEEDED(hr)) {
     ComPtr<ICodecAPI> codec;
-    if (SUCCEEDED(g_writer->GetServiceForStream(g_stream, GUID_NULL, IID_PPV_ARGS(&codec)))) {
+    if (SUCCEEDED(g_writer->GetServiceForStream(g_stream, GUID{}, IID_PPV_ARGS(&codec)))) {
       VARIANT value{};
       value.vt = VT_UI4;
       value.ulVal = 30;
