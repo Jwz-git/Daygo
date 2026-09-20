@@ -185,14 +185,21 @@ Windows 上运行**；因此该平台的长期并发稳定性仍是残余风险
 从一开始就用虚拟滚动 + `loading="lazy"`。帧条用批量 `DecodeFrames`。`internal/media` 用
 有界 LRU。以"一天 200 张卡片"为基准验证 60 fps。
 
-### M-3：打包与公证
+### M-3：打包、签名与安装内容漂移
 
 若适配层是独立可执行文件，需要正确的嵌套代码签名、匹配的 hardened runtime 设置和谨慎的
 entitlement 继承。配置错误会被 Gatekeeper 拒绝，而且**只在最终用户机器上复现**。
 
+Windows 有另一种同类失效：Wails 默认 NSIS 模板只封装 EXE，若漏装
+`daygo_windows_native.dll`，构建机上的裸 EXE 可运行而安装后的应用能力缺失；若先封装后签 EXE，
+安装器外层即使已签，内层仍可能未签。两者都不能靠“makensis 返回 0”发现。
+
 **缓解。** delivery 在原生形态决定前以桩适配层验证完整签名与公证可行性，不等完整更新功能。
 实际产物操作需具备相应身份、设备和用户发布授权；缺失记阻塞。目标 CI 中跑
 `spctl -a -vvv` 和 `codesign --verify --deep --strict`。在从未运行过开发构建的机器上测试。
+Windows 固定使用仓库内 NSIS 模板，先签 EXE/DLL、再封装、最后签安装器；构建目录、安装器与
+安装目录三处都运行 `signtool verify /pa`，并核对 `windows-package.json` 的 commit 与 SHA-256。
+完整步骤见 [WD 矩阵](08-testing-strategy.md#864-wd真实-windows-分发矩阵)。
 
 ### M-4：时区与 DST 偏差
 

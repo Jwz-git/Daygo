@@ -18,13 +18,13 @@
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定）、按日明细、洞察与节奏面板（`WeeklyInsightsDTO` / `WeeklyDayDTO`）、开发专用匿名样例 | Go 单元（周边界夹具与属性测试、聚合排除规则、非周一拒绝）、前端类型 / 构建通过；真实卡片周独立验收与跨周长期观察未运行 |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）；清理已支持按 segment_path 整段清理，但 DB-9 / IT-12 真实宿主长期观察仍未验收 |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者未验收 |
-| [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：三平台开发入口，Linux / Windows 生产构建入口；Windows 构建校验 EXE 与原生 helper DLL | Windows 脚本需在真实 Windows 上运行；签名、安装、升级、Updater 与发布身份未验收 |
+| [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：三平台开发入口，Linux / Windows 生产构建入口；Windows 构建校验 EXE 与原生 helper DLL，NSIS 模板封装两者并支持内外层签名与验收清单 | Windows 打包脚本需在真实 Windows 上运行；签名、安装、升级、Updater 与发布身份未验收 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 未开始：仅 05 §5.9 契约与执行册（2026-09-12 建立，设计准备） | 未运行；MCP 传输决策见 §9.8 #22 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：多会话纯对话、会话级 Provider / 模型、11 个封闭工具的 agent 循环、只读 / 只读实例双门禁、调用预算 / 取消、`llm_calls` 审计元数据和工具消息 UI | Go 回合、参数校验、门禁、预算、取消及前端回归测试通过；search / status、独立审计日志、诊断计数与真实 Provider Wails 闭环未完成 |
 
 ### 当前代码证据
 
-**最近无头门禁：2026-09-15，commit `c9b0e07`，macOS / arm64 · go1.25.6 · Node 25.2.1。**
+**最近有记录的完整无头门禁：2026-09-17，HEVC 分段切片落盘时的工作树，macOS / arm64。**
 `./scripts/gate.sh` 全绿（`CGO_ENABLED=0 go build ./...`、`CGO_ENABLED=0 go test ./internal/...`、
 `go vet ./...`、`gofmt -l .` 无输出、前端 `typecheck` 与 `build`）；
 `GOOS=linux CGO_ENABLED=0 go build ./internal/...` 与 `GOOS=windows CGO_ENABLED=0 go build ./internal/...`
@@ -39,13 +39,13 @@ Capture / System 仍返回 `unsupported`；原生形态与发布包已排期，�
 
 已落盘并有自动化覆盖：
 
-- [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v16，从 `app_settings`
+- [storage](../internal/storage/)：连接与 PRAGMA 回读、迁移链（当前 v17，从 `app_settings`
   逐版增加 cards、recording、providers / chat、daily、analysis、分类种子、日报表、审查流、pending frame_index 与分段均摊）、
   POSIX `flock` / Windows `LockFileEx` 实例锁与只读降级、可观测读写封装、`app_settings` repository、
   cards / categories repository（`ReplaceCardsInRange` 单事务改写与时钟串派生）、
   `Checkpoint` / `Backup`（`VACUUM INTO`，保留 7 份）/ `RestoreFromBackup` / `IntegrityCheck`、
   `Stats`。匿名夹具在 [`testdata/`](../internal/storage/testdata/)。
-- [settings](../internal/settings/settings.go)：19 个键的类型化访问、默认值、规范化与夹取、
+- [settings](../internal/settings/settings.go)：类型化设置访问、默认值、规范化与夹取、
   `Patch` 的 nil 语义。
 - [ai](../internal/ai/)：三种协议客户端（`openai` / `openai_responses` / `anthropic`）、
   统一 `Generate`、重试与粘性回退、脱敏 attempt 观测、JSON 提取与 schema 校验、
@@ -72,8 +72,9 @@ Capture / System 仍返回 `unsupported`；原生形态与发布包已排期，�
   数据库存储路径在 Windows 上也保持规范化的 `staging/...`。Windows 隐私选择与排除已有限接入；完整竞态、受保护内容与长期矩阵仍未完成。
   见 [决策记录](decisions/recording-screen-capture-windows.md)。
 
-尚未实现或未完成：完整常驻宿主生命周期、正式分段与 Media、帧资源处理器、
-timeline 搜索、daily 的 LLM 生成调度与通知、delivery 发布链、agent 的 CLI / socket / MCP。
+尚未实现或未完成：完整常驻宿主生命周期与 G-host、timeline 搜索、daily 的自动生成调度与通知、
+delivery 发布链、agent 的 CLI / socket / MCP，以及真实 Provider 与 7 / 14 天长期闭环证据。
+HEVC 分段、`platform.Media`、帧资源处理器和按段清理已经落盘，但仍需真机长期验证。
 前端已有单元测试运行器和大部分生成绑定消费，但
 [`api/dto.ts`](../frontend/src/api/dto.ts) 仍保留手写子集，尚未完成单一类型来源收口。
 更早期的编译 / 链接探针（[验证门禁](decisions/recording-screen-capture.md#8-验证门禁)）
@@ -155,7 +156,7 @@ UI、平台探针、解析器和聚合逻辑均可使用契约输入独立推进
 | G-data 真实数据接入 | 将未验证链路用于真实记录或宣称数据安全 | 匿名夹具、受控集成实验、其他独立能力 | 隐私双保护、唯一 writer / capture owner、连接层只读、pending 对账、幂等提交与媒体恢复；对应 DB / IT / MC 测试 |
 | G-core 可移植核心 | 合入破坏纯 Go 或 Linux 核心门禁的变更 | 隔离实验、定位失败及重新决策 | 08 §8.8 的构建、测试、契约门禁；SQLite 实验失败不得自动切换为 cgo 驱动 |
 | G-loop 用户闭环 | 标记录制到自动时间线闭环验收完成 | 单模块验收、故障修复、其他模块开发 | 真实配置 provider，连续 7 天自用，无未解释捕获缺口，失败可见且可操作 |
-| G-stability 长期稳定性 | 宣称长时间 / 边界稳定性完成 | 模块交付、累计观察和修复 | 08 §8.6.4 的 14 天窗口、跨一次 DST、跨周一分别记录；7 天不能代替这些证据 |
+| G-stability 长期稳定性 | 宣称长时间 / 边界稳定性完成 | 模块交付、累计观察和修复 | 08 §8.6.5 的 14 天窗口、跨一次 DST、跨周一分别记录；7 天不能代替这些证据 |
 
 门禁失败记录到对应能力：负责人、失败输入、观察、影响消费者、下一项验证。
 G-host 是统一限制 UI 扩张的例外，其余失败只限制相关能力，不重建全项目串行等待。
@@ -234,7 +235,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 15 | llm_calls 与卡片留存上限 | data / 产品 | 相关留存策略实现前；07 §7.6 |
 | 16 | 已实现的 Chat 是否进入 v1.1 | delivery / 范围 | v1 明确不交付；v1 发布后评估后续范围，实现与未验收项见 [modules/chat](modules/chat.md) |
 | 17 | apiRevision 的生产检查 | preferences / 工程 | 前后端版本不一致处理接入前；05 §5.10 |
-| 18 | Windows 发布范围 | delivery / 范围，recording 提供证据 | **已排期，发布门槛未清空**。DXGI 单次真实像素 smoke 与 `LockFileEx` 实例锁已验证（[决策记录](decisions/recording-screen-capture-windows.md)）。进入发布前仍需：[08 §8.6.3](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 其余 WC 全部通过（尤其隐私能力）、捕获指示、长期资源与分发身份结论 |
+| 18 | Windows 发布范围 | delivery / 范围，recording 提供证据 | **已排期，发布门槛未清空**。DXGI/WGC 单次真实像素 smoke、通知区/系统事件实现、`LockFileEx` 实例锁及 NSIS 验收入口已落盘（[决策记录](decisions/recording-screen-capture-windows.md)）。进入发布前仍需：[WC](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 其余项、[WD](08-testing-strategy.md#864-wd真实-windows-分发矩阵)、DB-8、捕获指示、长期资源与真实分发身份全部通过 |
 | 19 | 每日摘要 / 日记 summary 的生成触发、刷新与失败交互 | daily / 产品 + 工程 | 生成切片实现前；若新增绑定先补 05 与双侧契约，不假定现有查询方法就是生成入口 |
 | 20 | 多显示器是否恢复"跟随光标的活跃显示器" | recording / 产品 + 工程 | 多显示器支持进入范围前；当前冻结为系统主显示器（[04 §4.1.2](04-data-flow.md#412-只截一块显示器系统主显示器)），改动会给端口加字段和跨调用状态 |
 | 21 | Windows 截图是否合成鼠标指针 | recording / 工程 | **已决定**：ABI 将 `ShowsCursor` 定为平台尽力而为；Windows v1 不合成指针（Desktop Duplication 不含指针），置位记为 no-op 且文档化，指针合成留作后续可选增强。见 [Windows 决策记录 §3](decisions/recording-screen-capture-windows.md#3-与-macos-的差异四条不能忽略) |

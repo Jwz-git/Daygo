@@ -18,7 +18,12 @@ Windows 发布也保持待决。CLI / agent socket / MCP 已移交
 
 实现进度：部分实现。已有 [Wails 配置](../../cmd/daygo/wails.json)、macOS / Linux 开发构建链，
 以及 Windows 的 `scripts/dev.ps1` / `scripts/build.ps1` 入口；Windows 构建会校验 EXE 与必需的
-`daygo_windows_native.dll` 同时产出。
+`daygo_windows_native.dll` 同时产出。打包入口方面，`scripts/package-macos.sh` 产出签名 DMG，
+`scripts/package-windows.ps1` 走 `wails build -nsis` 产出 NSIS 安装程序并可选 `signtool` 签名。
+Windows 流程先签 EXE 与原生 DLL，再用仓库内 NSIS 模板重新封装最终字节并签安装器；模板显式安装
+`daygo_windows_native.dll`，同时输出带源码 commit、文件大小与 SHA-256 的验收清单。
+`package-windows.ps1` **仍未在真实 Windows 上运行**：`-nsis`、makensis 与 signtool
+均为 Windows 原生工具，安装程序内容、签名、静默安装 / 卸载与干净机启动仍需实机验证。
 签名、公证、Gatekeeper、Updater fake / 原生、安装升级与首次引导均未验收。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 
@@ -70,6 +75,27 @@ Windows 与后续 Chat / CLI 范围仍单独决定，保留捕获候选研究。
 回退：停止未验收的更新入口，按已验证更新恢复方案返回可运行构建；
 schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进制或删除数据库。
 任何回退保留 pending 截图、已发布媒体与用户配置。
+
+### Windows 打包验收单
+
+以下各项必须记录 Windows build、CPU、commit、证书主体（不记录私钥信息）和产物清单 SHA-256；
+任一项未执行都只能记为“入口已实现”，不能记为 Windows delivery 通过：
+
+1. 在干净检出上运行 `scripts/package-windows.ps1 -Version <x.y.z> -RunSmoke`；确认
+   `dist/Daygo-<x.y.z>-amd64-installer.exe` 与 `dist/windows-package.json` 一致。
+2. 有签名材料时，对构建目录的 `Daygo.exe`、`daygo_windows_native.dll` 和最终安装器分别运行
+   `signtool verify /pa`；随后安装并对安装目录中的 EXE / DLL 再次验证，证明 NSIS 内层确实是
+   已签字节。无签名材料只能验收 unsigned 本地测试路径。
+3. 在未安装 Daygo 的 Windows 11 amd64 干净用户上分别验证交互安装与 `/S` 静默安装；启动后确认
+   DLL 可加载、通知区可重开窗口、录制可提交一帧。机器级与用户级安装范围若都准备提供，分别运行。
+4. 退出 Daygo 后运行卸载（含 `/S`），确认二进制、快捷方式和卸载注册表项移除；应用支持目录、
+   SQLite 和 Credential Manager 密钥必须保留，除非另有经过确认的数据删除入口。
+5. 用前一版本写入匿名卡片、设置与测试凭据，再安装新版本；确认 schema 迁移、数据读回、密钥读取、
+   捕获所有者锁和回退路径。升级中断必须能恢复，不得用删除数据库作为恢复办法。
+
+此清单即 [08 §8.6.4 WD](../08-testing-strategy.md#864-wd真实-windows-分发矩阵) 的人工执行细化，
+只覆盖 delivery 产物。Windows 发布还必须同时通过 recording 的 WC-1–8、DB-8 长时并发、
+真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
 

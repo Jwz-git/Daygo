@@ -72,6 +72,19 @@ LLM 发送路径不受影响：仍按 `recording-image-storage.md` §1.5，先�
 C 在此之前继续用 `mediafile`（JPEG 直读）作为过渡实现，切片 C 落地后
 `mediafile` 保留为非 darwin 平台的兜底实现。
 
+### Windows 对齐
+
+Windows 采用同一 MP4/HEVC、600 帧或 600 秒滚动、1 fps presentation time 和
+`(segment_path, frame_index)` 契约，编码/解码使用系统 Media Foundation。Windows Capture
+先复用已经验收的 DXGI/WGC 单帧隐私路径取得像素，再交给 Sink Writer；中间 JPEG 是调用期间的
+临时文件，成功或失败均删除，不进入数据库，也不作为持久 staging。前台命中屏蔽名单时写入
+脱敏占位帧并保持 `blocked` outcome。
+
+该实现不引入 ffmpeg 或新的媒体格式。`platform.Media` 在 Windows 通过 Source Reader 精确读取
+目标帧并经 WIC 返回 JPEG，保留历史单 JPEG 文件兼容。源码已通过 Go 无 cgo 交叉构建和公共门禁；
+Media Foundation 编译、硬件 HEVC 可用性、逐帧随机读取、滚动和资源释放仍必须在 Windows 主机
+运行 `native/windows/build.ps1 -RunSmoke` 及新增分段 smoke 后，才能记为真实通过。
+
 ## 6. 验证记录
 
 2026-09-17：切片 A–D 落地并通过门禁与真机 smoke：
@@ -80,4 +93,3 @@ C 在此之前继续用 `mediafile`（JPEG 直读）作为过渡实现，切片 
 - **切片 C 媒体读**：`internal/platform/darwin` 实现 `platform.Media`；`internal/platform/factory` 提供平台工厂；`internal/app` 的 `/media/frame` 资源处理器与 `internal/analysis` 流水线中的 `mediaFrameSource` 全面接入 `platform.Media` 解码。
 - **切片 D 清理与对账**：`internal/storage/cleanup.go` 改写为按 `segment_path` 整段软删除并物理删除段文件，且安全保护未收尾 pending 段与活跃分析批次租用的分段；`Reconcile` 增加 `hasMoovAtom` 检测未最终化的破损 MP4 并自动放弃；全套存储/清理/崩溃夹具测试全部通过。
 - **构建与门禁**：`CGO_ENABLED=0 go test ./internal/...`、`CGO_ENABLED=0 go build ./...`、`./scripts/gate.sh` 全绿（前端单元测试 50 通过、typecheck 通过、build 通过、check-docs 0 处问题）。
-

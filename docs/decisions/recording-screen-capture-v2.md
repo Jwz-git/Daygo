@@ -61,7 +61,8 @@
 - 睡眠、唤醒、锁屏、解锁、屏保、窗口关闭和进程退出编排。
 
 当前应用已在 macOS composition root 装配真实 `darwin.Capture`，但仅由临时 `CaptureTest` 联调绑定调用；
-recorder 消费者、数据库 pending 恢复和后台生命周期仍未实现。生产代码不能直接从 Vue 或正式
+本文写作时 recorder 消费者、数据库 pending 恢复和后台生命周期尚未实现；当前 recorder 与
+pending 对账已经落盘，后台宿主仍未通过 G-host。生产代码不能直接从 Vue 或正式
 Wails binding 调用原生包；调用方向必须保持：
 
 ```text

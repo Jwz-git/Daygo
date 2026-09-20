@@ -7,7 +7,7 @@
 > **当前代码事实。** `internal/platform` 已切换为单次 `Capture` 契约，fake 与契约测试已同步；
 > `native/darwin` 已实现 Swift `SCScreenshotManager.captureImage`、隐私过滤、JPEG 原子落盘和
 > C ABI，`internal/platform/darwin` 已完成 cgo 包装；真实 macOS 调用已生成并解码 1280×720 JPEG。
-> recorder、storage pending 恢复、应用装配及隐私双保护实机矩阵尚未实现或验收。
+> recorder、storage pending 恢复和应用装配已经落盘；隐私双保护实机矩阵、G-host 与长期观察尚未验收。
 >
 > 当前 macOS 实现、调试方式和上层调用示例见
 > [屏幕截屏 v2：macOS 实现与上层调用](recording-screen-capture-v2.md)。
@@ -420,8 +420,8 @@ internal/platform/darwin/
 > `native/windows` 用 DXGI Desktop Duplication 实现了同一个 `dg_capture_once`。
 > 实现细节、与 macOS 的差异和仍然缺的东西见
 > [Windows 截图实现与限制](recording-screen-capture-windows.md)。
-> **结论未变**：没有画面排除原语，因此屏蔽名单非空时一律返回 `privacy_unsupported`，
-> 且在 WC 矩阵通过前不进发布构建。
+> **2026-09-13 补充：** build 26100+ 已用 WGC `SetWindowExclusionList` 落地画面排除；更旧系统
+> 仍返回 `privacy_unsupported`。一次后台窗口排除 smoke 不等于 WC 完成，WC 通过前仍不进发布。
 
 Windows 仍只做候选实验：
 
@@ -432,9 +432,11 @@ Windows 仍只做候选实验：
 - DLL 只导出本头文件中的两个符号；不导出 STL、COM、WinRT、HRESULT 或 D3D handle；
 - DLL 搜索必须使用绝对路径和安全搜索 flag，不能从工作目录隐式加载。
 
-Windows 没有与 ScreenCaptureKit `excludingApplications` 等价的公开能力。只要请求包含屏蔽 ID，
-实现不能完整保证画面排除时就返回 `DG_CAPTURE_E_PRIVACY_UNSUPPORTED`，不得静默降低为只检查
-前台应用。该问题验证前 Windows 捕获不能进入发布构建。
+Windows 没有与 ScreenCaptureKit `excludingApplications` 相同的 API，但 build 26100+ 可用 WGC
+`SetWindowExclusionList` 提供满足当前契约的窗口排除：请求包含屏蔽 ID 时改走 WGC，前台命中先
+返回 `blocked`，后台排除必须等待对应 configuration iteration；捕获前后目标 HWND 集合变化则
+丢弃本帧。旧 build 或任何不能完整保证排除的情况返回 `DG_CAPTURE_E_PRIVACY_UNSUPPORTED`，不得
+静默降低为只检查前台应用。完整 WC 验证前 Windows 捕获不能进入发布构建。
 
 ## 8. 验证门禁
 

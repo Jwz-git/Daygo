@@ -2,11 +2,11 @@
 
 > **状态：设计中，部分落盘。** 本目录描述的是目标行为与接口。
 >
-> **已落盘**（最近核对 commit `c9b0e07`）：桌面外壳与主要页面、SQLite v13 迁移链、
+> **已落盘**（文档最近核对 commit `6bb4847`）：桌面外壳与主要页面、SQLite v17 迁移链、
 > 跨平台实例锁、设置 / 备份 / 诊断 / 清理、三协议 AI 客户端、Provider 持久化与 macOS Keychain、
-> Go recorder 与截图提交 / 恢复、两阶段分析流水线、时间线卡片 / 分类、daily / weekly 存储与聚合、
+> Go recorder、HEVC 分段与截图提交 / 恢复、两阶段分析流水线、时间线卡片 / 分类、daily / weekly 存储与聚合、
 > 以及应用内 Chat 的封闭工具循环。这些代码的真实闭环验收程度各不相同。
-> **未实现或未完成**：G-host 与完整权限 / 隐私实机矩阵、正式分段与 Media、
+> **未实现或未完成**：完整权限 / 隐私实机矩阵、Windows WC/WD/DB-8、
 > 时间线帧条 / 搜索、daily 自动生成与通知、delivery 发布链、agent CLI / socket / MCP、
 > 真实 Provider 端到端与 7 / 14 天长期证据。
 >
@@ -63,9 +63,10 @@
 | [屏幕录制授权：弹框 + 跳设置 + 提示重启](decisions/recording-screen-recording-permission.md) | 有限实现 | 启用时请求、preflight/request/跳设置 ABI、前端闸门与重启生效 |
 | [macOS 签名身份：本地自签名稳定证书](decisions/delivery-macos-signing-identity.md) | 有限实现 | TCC 绑定 DR、ad-hoc 授权失效根因、三条签名路径与自签名证书生成 |
 | [跨平台应用身份解析与 ABI](decisions/recording-application-picker.md) | 有限实现 | Wails `.app` / `.exe` picker、独立 Go 端口、ABI 2.1 图标与平台 ID 回查 |
-| [屏幕截屏（Windows）：DXGI 实现与限制](decisions/recording-screen-capture-windows.md) | 有限实机验证；已排期，发布范围待决策 | DXGI 路径、与 macOS 的四条差异、真机 smoke 与未验证矩阵 |
+| [屏幕截屏（Windows）：DXGI/WGC 实现与限制](decisions/recording-screen-capture-windows.md) | 有限实机验证；发布门禁未清空 | DXGI/WGC、应用身份、系统事件/通知区、构建分发边界与未验证矩阵 |
 | [屏幕截屏（Linux）：候选与决策进度](decisions/recording-screen-capture-linux.md) | 已排期，决策进行中 | X11 vs Wayland、离散截图约束、分发形态与 LC 门禁 |
-| [图片存储流水线](decisions/recording-image-storage.md) | 架构方向已决定，未实现 | staging JPEG、不可变分段、整段清理与 LLM 内存图片发送 |
+| [图片存储流水线](decisions/recording-image-storage.md) | 公共边界保留；staging 方案已被取代 | 像素 / SQLite 边界、整段清理与 LLM 内存图片发送；现行实现见下一项 |
+| [HEVC 帧分段](decisions/recording-frame-segments-hevc.md) | 已决定并有限实现 | macOS 直接追加、帧解码、v15/v16 迁移、按段清理与未验收门禁 |
 | [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
 | [data 损坏恢复](decisions/data-corruption-recovery.md) | 已决定 | 备份识别、恢复流程与只读降级 |

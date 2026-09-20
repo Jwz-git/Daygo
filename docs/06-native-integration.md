@@ -6,7 +6,7 @@
 >
 > 在决策落盘前，**不得**按某一种候选方案大规模实现，也不得删除其它候选路径。
 >
-> 22 项能力中只有少数落地真实实现（单次截图分 macOS 与 Windows 两套，帧解码 / 探测与
+> 22 项能力中已有一部分落地真实实现（单次截图分 macOS 与 Windows 两套，帧解码 / 探测与
 > Secrets 亦已实现），其余仍为待定设计；逐项状态见 [§6.7](#67-平台实现状态)。
 
 ## 6.1 为什么单独隔离这一层
@@ -40,12 +40,12 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 11 | 读取系统空闲秒数 | 空闲判定 | `System`（内部） | 待定设计 |
 | 12 | 解析调用时的系统主显示器 | 捕获目标 | `Capture.Capture`（内部） | 有限实现，待多屏验收 |
 | 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | 有限实现，待实机矩阵 |
-| 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | macOS 已实现（含 Go cgo smoke）；Windows 待定 |
+| 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | macOS 已实现（含 Go cgo smoke）；Windows 明确返回不可用，设置页保留 `.exe` picker 兜底 |
 | 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | macOS System ABI 已实现，待实机验证 |
 | 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | macOS System ABI 已实现，待实机验证 |
 | 17 | 开机自启开关 | 设置 | `System.{,Set}LaunchAtLogin` | 待定设计 |
 | 18 | 激活策略切换（是否占 Dock） | 后台 Agent 语义 | `System.SetActivationPolicy` | 待定设计 |
-| 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | macOS ABI 已实现，有限接入；正式形态与长驻验收仍待定 |
+| 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | macOS 与 Windows ABI 均已实现并接入；两平台的完整宿主/长驻矩阵分别验收 |
 | 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | 待定设计 |
 | 21 | 系统钥匙串读写删 | provider 密钥 | `Secrets` | macOS / Windows 已实现；Linux Secret Service 已落盘，待真机验收 |
 | 22 | 自动更新 | 版本分发 | `Updater` | 待定设计 |
@@ -88,7 +88,7 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 3 | 唤醒后立即查询显示器列表可能得到过期结果 | 唤醒恢复延迟 5 秒，解锁 0.5 秒（[04 §4.1.5](04-data-flow.md#415-睡眠--唤醒--锁屏)） |
 | 4 | 单帧解码的跨界开销会被缩略图条放大数百倍 | 必须提供 `DecodeFrames` 批量接口，并在 `internal/media` 做有界 LRU |
 | 5 | 编码器可能静默卡死：接受帧但不产出数据 | 需要写入方状态检查，并把失败上报给 Go，而不是只打日志 |
-| 6 | 若适配层是独立进程，签名与公证涉及嵌套代码签名 | 配置错误只在最终用户机器上复现，必须在原生形态决定前由 delivery 以有限探针验证完整签名 / 公证可行性（[风险 M-3](10-risks.md#m-3打包与公证)） |
+| 6 | 若适配层是独立进程，签名与公证涉及嵌套代码签名 | 配置错误只在最终用户机器上复现，必须在原生形态决定前由 delivery 以有限探针验证完整签名 / 公证可行性（[风险 M-3](10-risks.md#m-3打包签名与安装内容漂移)） |
 
 ## 6.5 fake 适配层
 
@@ -139,12 +139,12 @@ smoke** 的截图实现，发布范围与其余能力逐项经决策记录推进
 | 单次截图（第 5 / 7 / 12 项） | 有限实现，已跑通真机 smoke | 有限实现，真机非黑 JPEG smoke 通过 | macOS 用 ScreenCaptureKit，Windows 优先 DXGI Desktop Duplication；GDI 只在有效桌面更新仍为全零时回退 |
 | 隐私屏蔽（第 6 / 13 项） | 前台兜底 + 画面排除，两层齐备 | build 26100+：前台兜底 + WGC `SetWindowExclusionList`；更旧系统失败关闭 | Windows 11 24H2（26100）是明确最低门禁；名单非空时改走 WGC，并等待对应 configuration iteration 后才接收帧 |
 | 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 实现与 ABI 语义之间的已知缺口 |
-| 屏幕录制授权（第 1–3 项） | 端口已定义，适配层未实现 | 系统无对应授权 | macOS 未接入前，绑定返回 `native_unavailable` |
+| 屏幕录制授权（第 1–3 项） | TCC 查询 / 请求 / 设置入口已实现 | 系统无对应 TCC，查询报告 `granted`、请求为 no-op | macOS 的正式签名升级身份仍属 G-native；Windows 不伪造授权弹框 |
 | 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
 | 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.x（身份 + 名称 + 图标 + 按 Bundle ID 回查） | 有限实现：Explorer `.exe` picker + 同一 ABI；路径哈希 ID、名称、PNG 图标和回查 | Windows 路径不进入 Wails DTO；回查优先内存、运行进程与 App Paths / Uninstall 注册表，不等于 `InstalledApplications` 已实现 |
-| 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | 待定 | 供隐私页应用网格；Windows 侧待定 |
-| 系统事件（第 15 / 16 项） | System ABI 已实现（睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保 / 显示器变化） | 待定 | 待实机矩阵验证 |
-| 状态栏（第 19 项） | `SetStatusItem` ABI 已实现，有限接入（重开窗口已验证） | 无适配器时调用已守卫 | 正式形态与长驻验收仍待定 |
+| 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | 未实现，显式不可用 | Windows 正式设置页保留 Explorer `.exe` picker，不把空列表伪装成已枚举 |
+| 系统事件（第 15 / 16 项） | System ABI 已实现（睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保 / 显示器变化） | 睡眠 / 唤醒 / 锁屏 / 解锁 ABI 已实现；显示器可枚举 | Windows 编译与回调夹具已过，睡眠/锁屏恢复延迟及长期事件矩阵仍需实机 |
+| 状态栏（第 19 项） | `SetStatusItem` ABI 已实现并接入 | 通知区图标、菜单、左键重开及 open/toggle/pause/quit 动作已接入 | Windows 回调夹具通过；关窗后持续捕获、Explorer 重启恢复及完整交互 smoke 尚未验收 |
 | 帧解码 / 段探测（第 8、10 项） | 原生段读取（`frameDecode` / `segmentProbe`） | 纯 Go `mediafile` | 两平台都经 `platform.Media` 真实实现；Windows / Linux 走 [`internal/platform/mediafile`](../internal/platform/mediafile/mediafile.go)：JPEG 单帧解码 + 探测，非 JPEG 多帧段报 `Readable=false` |
 | 视频编码（第 9 项） | 未实现 | 未实现 | 两平台 `EncodeVideo` 均返回错误，待 M2 编码决策 |
 | 自动更新（第 22 项） | 待定设计 | 待定设计 | `Updater` 端口已冻结，但无任何 `factory.NewUpdater` 构造器，全平台未接线 |
@@ -158,6 +158,10 @@ smoke** 的截图实现，发布范围与其余能力逐项经决策记录推进
 [`native/include/daygo_capture.h`](../native/include/daygo_capture.h) 和
 [`native/include/daygo_application.h`](../native/include/daygo_application.h) 两份独立 ABI；
 Swift 编译通过 `daygo_native.h` 同时导入，截图请求布局未改变。
+
+Windows 的开发构建允许缺少 SDK 26100 时跳过可选 WGC helper，非空隐私名单随即失败关闭；
+发行打包则要求 `build/bin/daygo_windows_native.dll` 必须存在，否则 `package-windows.ps1` 直接失败。
+NSIS 使用仓库内模板同时封装 EXE 与该 DLL，不能退回 Wails 默认的“只装 EXE”模板。
 
 实现细节与限制：[macOS 截图 v2](decisions/recording-screen-capture-v2.md)、
 [macOS 应用选择与身份 ABI](decisions/recording-application-picker.md)、

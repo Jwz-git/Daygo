@@ -138,7 +138,7 @@ Daygo/
 │   │   ├── mediafile/               ★ Media 实现：从录制目录读单帧 JPEG
 │   │   ├── factory/                 ★ 按平台组装适配器
 │   │   ├── darwin/                  ★ cgo → ScreenCaptureKit（+ System / 状态栏 ABI）
-│   │   └── windows/                 ★ cgo → DXGI / WGC（已排期；有限真机 smoke，发布经决策记录）
+│   │   └── windows/                 ★ cgo → DXGI / WGC、应用身份、系统事件与通知区（有限真机 smoke）
 │   ├── timeutil/                    ★ 凌晨 4 点逻辑日、时钟串派生、周边界（周一 4 点对齐）
 │   ├── domain/                      ★ 共享类型（cards），无行为
 │   ├── analysis/                    ★ 两阶段分析流水线：分批、提示词、schema、空闲判定、重处理
@@ -155,7 +155,7 @@ Daygo/
 │   ├── darwin/Sources/ + build.sh   Swift + ScreenCaptureKit（+ 状态栏 / 应用枚举）
 │   └── windows/Sources/ + build.ps1 C++ + DXGI / WGC，另有 smoke.cpp
 │
-├── scripts/                         ★ 构建与门禁脚本（清单见 scripts/README.md）
+├── scripts/                         ★ 构建与门禁脚本；含 Windows NSIS 模板与验收入口（清单见 scripts/README.md）
 ├── frontend/                        ★ Vue 3 + TypeScript（内部结构见 05 §5.5.5）
 ├── build/                           Wails 构建资源；bin/ 与 native/ 产物不入库
 └── docs/                            本目录

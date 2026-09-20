@@ -52,7 +52,7 @@ retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共�
 | 输入能力 / 契约 | 负责模块 | 可独立推进 / fake 可证明什么 | 真实接入前置条件 |
 |------|------|------|------|
 | provider-client（`internal/ai` 统一 Generate、重试 / 回退、结构化输出） | providers | 回合状态机用脚本化 fake provider 做匿名夹具单测 | 已达成（协议客户端）；chat 是否复用 `providers.routing` 是候选 |
-| cards / time / insight 读查询 | timeline | 工具读面在匿名卡片库上的查询契约测试 | cards repository 存储层已达成；insight 聚合未实现 |
+| cards / time / insight 读查询 | timeline / daily / weekly | 工具读面在匿名卡片库上的查询契约测试 | cards 与 daily / weekly insight 聚合已落盘；真实 Provider 闭环未验收 |
 | 日记 / 目标 repository | daily | `goal_set` 等写工具的夹具库协议测试 | daily 表与 repository 落盘 |
 | 写入服务路径 | timeline / daily | 同源断言：绑定层与 chat 工具执行同一实现，副作用、事件、审计一致 | **已达成**（`internal/app/writes.go` 共享函数，绑定转发，测试断言同库同终态同事件） |
 | settings-access（`chat.editMode` 门禁） | preferences | 门禁拒绝路径的协议测试（服务端独立校验） | **已达成**（键已落盘，门禁每回合重读、fail closed） |

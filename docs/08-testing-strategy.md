@@ -235,7 +235,7 @@ MC-6–MC-8 是 [07 §7.2](07-privacy-security.md#72-捕获侧的两层保护) �
 
 ### 8.6.3 WC：真实 Windows 捕获矩阵
 
-Windows 适配器已落盘并完成 **WC-1 的有限真机 smoke；已排期，发布范围待决策**
+Windows 适配器已落盘并完成 **WC-1 的有限真机 smoke；发布目标已排期，但发布门禁未清空**
 （[决策记录](decisions/recording-screen-capture-windows.md)，[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
 这只证明当前机器上 DXGI 能生成可解码非黑 JPEG；WC 其余项仍是进入任何真实使用前的最小证据集。
 
@@ -261,7 +261,21 @@ WC-1 通过一次原生 smoke 与一次 Go cgo smoke。首次 `AcquireNextFrame`
 WC-3 与 WC-4 一起决定一个产品事实：**build 26100 以下的 Windows 配置了屏蔽应用就拿不到画面**
 （失败关闭）。完整 WC 矩阵验收前，Windows 不进入发布构建。
 
-### 8.6.4 长时间断言
+### 8.6.4 WD：真实 Windows 分发矩阵
+
+WD 与 WC 独立：WC 证明捕获安全，WD 证明最终安装产物没有漏文件、错签或破坏数据。打包入口
+`scripts/package-windows.ps1` 已实现，但尚未在真实 Windows 上执行，因此下表当前均未通过：
+
+| ID | 场景 | 必须观察到的结果 |
+|----|------|------------------|
+| WD-1 | SDK 26100、VS 2022、MinGW、NSIS 的干净检出打包 | 产出安装器和 `windows-package.json`；manifest 的 commit、大小、SHA-256 与产物一致 |
+| WD-2 | Authenticode 构建 | 构建目录 EXE/DLL、安装器及安装后的 EXE/DLL 均通过 `signtool verify /pa`；证明内层是签名后的最终字节 |
+| WD-3 | machine / user 交互安装 | 安装范围、快捷方式、卸载注册表项正确；启动时 DLL 可加载，通知区可重开，正式 recorder 提交一帧 |
+| WD-4 | `/S` 静默安装与卸载 | exit code 可判定；二进制、快捷方式和卸载项移除，用户数据库、录制与 Credential Manager 密钥保留 |
+| WD-5 | 从前一版本覆盖升级 | schema、匿名数据、设置、凭据与捕获锁语义保留；中断后可恢复，不靠删除数据库 |
+| WD-6 | 缺 SDK 26100 / DLL 或产物被篡改 | 打包或哈希/签名检查失败，绝不生成看似成功但隐私能力缺失或启动即缺 DLL 的发布候选 |
+
+### 8.6.5 长时间断言
 
 录制到时间线的真实闭环先做连续 7 天自用（G-loop）：无未解释缺口、失败可见可操作。
 下表是独立的 G-stability 证据，14 天、跨一次真实 DST、跨周一分别记录；7 天不能把它们标为通过。

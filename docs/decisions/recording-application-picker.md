@@ -73,8 +73,9 @@ ScreenCaptureKit 接口的身份边界，但保留自身既有的两次前台检
 Wails；ABI 使用 caller-owned buffer，不跨语言分配返回字符串，也不保留路径或指针。
 
 Dayflow 的“已安装应用搜索网格 + 已屏蔽列表”仍比文件面板更适合作为最终的“添加应用”交互；但
-`System.InstalledApplications` 尚未实现（darwin 适配器返回空列表），因此当前正式设置界面复用
-已验证的 picker 交互，并把已配置 ID 的展示身份交给 `DescribeApplications`。
+`System.InstalledApplications` 已在 darwin 适配器落盘并有 Go cgo smoke；正式设置界面仍保留
+picker 作为明确选择路径，并把已配置 ID 的展示身份交给 `DescribeApplications`。Windows 尚未
+实现全量枚举，因此继续使用 `.exe` picker 兜底。
 
 ## 3. 当前调用路径
 

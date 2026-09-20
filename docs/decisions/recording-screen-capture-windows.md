@@ -104,9 +104,16 @@ native\windows\build.ps1 -RunSmoke  # 额外链接并运行原生 smoke
 | 构建接线 | `cmd/daygo/wails.json` 的 `preBuildHooks["windows/*"]` |
 | 开发入口 | `scripts/dev.ps1`（与 `scripts/dev.sh` 对应的 PowerShell 版本；Go 1.25 自动启用 `GOEXPERIMENT=nodwarf5`） |
 | 生产构建入口 | `scripts/build.ps1`（`npm ci` → 生成绑定 → Wails `windows/amd64` 构建 → 校验 EXE + DLL） |
+| 分发验收入口 | `scripts/package-windows.ps1`（NSIS；先签 EXE/DLL，再封装并签安装器；输出 commit + SHA-256 manifest） |
 
 Windows 宿主额外限制 DLL 搜索路径为应用目录与 System32，避免从当前工作目录
 加载同名 `daygo_windows_native.dll`；窗口主题跟随系统，Windows 11 使用 Mica 背景。
+
+Wails v2.15 默认 NSIS 模板只封装 EXE，会让已构建成功的应用在安装后因缺少
+`daygo_windows_native.dll` 而失去 WGC、应用身份及部分系统能力。Daygo 因此维护
+`scripts/windows-installer/project.nsi`，明确把 EXE 与 DLL 放在同一安装目录。打包脚本的第一遍
+NSIS 只用于物化 Wails 生成的 include 与 WebView2 bootstrap；签完 EXE/DLL 后必须再运行 makensis，
+最后才签安装器。任何省略第二遍封装的流程都不能作为发布候选。
 
 `native/windows/smoke.cpp` 直接链接静态库跑 DXGI 与 WGC 两条截图路径，并用 WIC 解码校验
 存在非黑像素；单独的 Edge 基线 / 排除集成图用于验证目标窗口确实不在结果中。
@@ -145,6 +152,11 @@ panic；composition root 增加可选能力守卫后，按 Wails dev 等价 tags
 - `native/windows/build.ps1 -RunSmoke`、Windows platform/app 测试、`go vet`、前端
   typecheck/build 通过。完整 WC 竞态、受保护内容、HDR/旋转及长期资源仍未验收。
 
+2026-09-20（macOS 开发主机，仅无头可验证部分）：Windows NSIS 打包入口、内层 EXE/DLL 签名后
+再封装流程、版本格式校验和 SHA-256 验收清单已落盘；`./scripts/gate.sh` 通过，含 Windows
+`CGO_ENABLED=0` Core 交叉构建。PowerShell、makensis、signtool、安装/卸载/升级均未在 Windows
+执行，因此只记为“可进入 WD 验收”，不记为 WD 通过或 Windows 可发布。
+
 ## 7. 边界与回退
 
 - 不得为了让 Windows 出图而放宽隐私规则：把 `privacy_unsupported` 降级成"只检查前台"
@@ -153,3 +165,20 @@ panic；composition root 增加可选能力守卫后，按 Wails dev 等价 tags
 - 回退方式：composition root 不注入 `windows.NewCapture()`，并保留
   `unavailable_windows.go` 的 `unsupported` 路径。移除 DLL 与代理对象即可恢复仅 DXGI 且隐私
   失败关闭的旧实现。
+
+## 8. macOS 能力差集接入（2026-09-20）
+
+- Windows Capture 已接 `SegmentCloser`，非空 `SegmentDirectory` 走 Media Foundation HEVC/MP4
+  分段；读取走 Source Reader + WIC，历史 JPEG 仍可读。格式和滚动语义以
+  [HEVC 分段决策](recording-frame-segments-hevc.md)为准。
+- System 事件新增屏保开始/结束与显示器变化。屏保状态通过
+  `SPI_GETSCREENSAVERRUNNING` 定时观察状态转换，显示器变化使用 `WM_DISPLAYCHANGE`；不生成重复
+  状态事件。
+- 已安装应用从 Windows 注册表的 App Paths / Uninstall（用户/机器、32/64 位视图）枚举，候选
+  必须再经过同一 `ApplicationInspector` 生成规范化路径哈希 ID，不能用注册表键名充当隐私身份。
+- Windows 不存在 `NSApplicationActivationPolicy` 的同构 API；通知区生命周期已经由 System
+  适配器持有。因此 regular/accessory/prohibited 请求做参数校验和幂等状态记录，窗口可见性仍由
+  app/Wails 层处理，不声称它能改变任务栏中任意窗口的样式。
+
+上述项目当前只有 macOS 主机上的源码检查、Go 测试和 Windows 无 cgo 交叉构建证据；必须补真实
+Windows 原生构建及交互 smoke，才能从“已接线”提升为“已验证”。

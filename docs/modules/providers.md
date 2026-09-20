@@ -56,9 +56,8 @@ llm.outputLanguage、llm.recognitionEnhancementEnabled 的字段规则和设置�
 识别增强（`ai.GenerateRecognition`，由 `llm.recognitionEnhancementEnabled` 控制，默认关）：
 开启时识别用途的每张图片在内存中切成 2×2 四张重叠分片（每片约半幅加交叉覆盖），四片
 之后附上未改动的原图一起发送，分片仅存在于单次请求生命周期、返回后清零，不落盘不入库；
-关闭时请求原样透传。生产识别
-调用方（timeline 分析流水线）尚未调用 `GenerateRecognition`；该开关已持久化并由设置页读写，
-分析分组已按回退链中最小图片上限限制请求规模。
+关闭时请求原样透传。timeline 转录阶段已通过 `GenerateRecognition` 接入该开关；卡片生成仍走
+普通文本请求。分析分组同时按回退链中最小图片上限限制请求规模。
 
 ## 实验与失败条件
 

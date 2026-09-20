@@ -18,24 +18,24 @@ flowchart TD
     C -->|否| Z2["停止捕获，标记未授权，通知 UI"]
     C -->|是| D["读取系统空闲秒数"]
     D --> E{"前台应用在屏蔽名单？"}
-    E -->|是| F["生成脱敏占位帧"]
-    E -->|否| G["截取系统主显示器"]
-    F --> I
-    G --> I{"再次确认状态 == capturing"}
+    E -->|是| F["生成脱敏占位像素"]
+    E -->|否| G["截取系统主显示器像素"]
+    F --> H["直接追加到当前 HEVC 分段"]
+    G --> H
+    H --> I{"再次确认状态 == capturing"}
     I -->|否| Z3["丢弃：捕获过程中已停止"]
-    I -->|是| J["校验并登记 staging JPEG 元数据"]
-    J --> K{"分段窗口需要冻结？"}
+    I -->|是| J["校验并登记 (segment_path, frame_index)"]
+    J --> K{"分段需要收尾？"}
     K -->|否| Z4["等待下一次离散捕获"]
-    K -->|"尺寸变化 / 达到帧数上限 / 达到时长上限"| L["Media 批量构建并原子发布不可变分段"]
-    L --> M["单事务提交 segment + screenshots，清除 pending"]
-    M --> N["删除已提交的 staging JPEG"]
+    K -->|"尺寸变化 / 600 帧 / 600 秒 / 暂停或退出"| L["收尾活跃分段并写入 moov"]
+    L --> M["均摊分段大小；帧保持 screenshots 可寻址"]
 ```
 
-**这张图部分落地。** 定时器、四状态机（`idle` / `starting` / `capturing` / `paused`）、
-staging JPEG 登记与 pending 对账、`screenshots` 提交已在 `internal/recorder` 落盘
-（当前每帧为独立 JPEG，尚非正式分段媒体）。**分段合成（K→L→M→N 的冻结与原子发布）尚未
-实现**，容器与编码格式仍是[待定设计](09-roadmap.md#98-待定设计清单)。已经决定的 staging、
-结构化提交、恢复和整段清理边界见[图片存储决策](decisions/recording-image-storage.md)；
+**这张图的 macOS 有限实现已落地。** 定时器、四状态机（`idle` / `starting` / `capturing` / `paused`）、
+pending 对账、`screenshots` 提交、HEVC 直接追加、分段收尾、Media 解码与整段清理已经接线。
+容器与参数由 [HEVC 分段决策](decisions/recording-frame-segments-hevc.md) 冻结；旧 JPEG 行只作为
+兼容读路径保留。崩溃时未收尾段可能不可读，对账会放弃相应 pending，而不会把残段伪装成成功。
+结构化提交、恢复和清理边界见[图片存储决策](decisions/recording-image-storage.md)；
 任何数据库事务都不得跨越捕获、编码或文件删除等慢 I/O。
 
 ### 4.1.1 参数
@@ -53,6 +53,10 @@ staging JPEG 登记与 pending 对账、`screenshots` 提交已在 `internal/rec
 **每次只捕获一个显示器**，v1 取调用时的系统主显示器（macOS 为 `CGMainDisplayID()`，
 Windows 为 `MONITORINFOF_PRIMARY`）。调用方不传显示器 ID，适配层也不跨调用缓存：
 用户在系统设置里换了主显示器，下一次捕获自然跟随。
+
+Windows 的非空屏蔽名单是同一调用契约内的能力分支，不是另一条数据流：build 26100+ 由 WGC
+排除目标窗口并等待配置 iteration，旧 build 返回 `privacy_unsupported` 且不产生文件。空名单仍以
+DXGI 为主路径。无论哪条原生路径，Go 侧都只接收一个 `CaptureResult`，pending/提交/分析流程不分叉。
 
 这样做的理由是**保持截图原语无状态**。跟随光标需要显示器枚举、边缘滞后和跨调用的“当前
 显示器”，而那正是 [单次调用契约](decisions/recording-screen-capture.md#1-决定) 要从原生层

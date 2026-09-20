@@ -1298,11 +1298,12 @@ type DisplayCapture interface {
 |---|---|---|---|
 | `internal/platform/fake` | 四套全跑 | 任意平台，`CGO_ENABLED=0` | 通过 |
 | `internal/platform/darwin` | `Suite`（需真机与授权）、`SuitePermission` / `SuitePrivacy` 需真机构造条件 | macOS + cgo | **未接入套件**；只做过一次人工 smoke，见 [截图 v2 §11](decisions/recording-screen-capture-v2.md) |
-| `internal/platform/windows` | 同上 | Windows + cgo | **未接入套件**；原生 smoke 与 Go cgo smoke 已验证真实非黑 JPEG，完整 WC 矩阵仍未运行，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
+| `internal/platform/windows` | 同上 | Windows + cgo | **Capture 契约套件仍未完整接入**；原生 / Go cgo 非黑 JPEG、一次 WGC 后台排除、应用身份、锁与部分系统回调已有实机或夹具证据，完整 WC/WD 矩阵仍未运行，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
 
 **只有 fake 通过、真实适配层没跑同一套测试的接口，不算已验证。** 真机独有的场景
 （多屏、旋转、快速切换前台、24 小时资源）由 [08 §8.6.2 MC](08-testing-strategy.md#862-mc真实-macos-捕获矩阵)
-与 [§8.6.3 WC](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 覆盖，契约套件不替代它们。
+与 [§8.6.3 WC](08-testing-strategy.md#863-wc真实-windows-捕获矩阵) 覆盖；最终安装产物另由
+[§8.6.4 WD](08-testing-strategy.md#864-wd真实-windows-分发矩阵) 验证。契约套件不替代它们。
 
 `internal/platform/fake` 随能力交付：`Capture` 与 `System` 的 fake 在
 `internal/platform/fake`，Secrets 的 fake 在 `internal/platform/secrets/fake.go`，

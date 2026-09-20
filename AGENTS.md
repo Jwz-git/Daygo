@@ -18,8 +18,9 @@ delivery / chat）均已**部分实现**，但**没有任何模块完成真实�
 也不要把规划中的目录、接口、命令或行为描述成现状。
 
 **macOS 是当前主线开发平台，Windows 与 Linux 是已排期的一等发布目标**，不再是「仅实验 / someday」。
-但「已排期」不等于「已就绪」：Windows 截图目前只完成单机有限 smoke，隐私双保护、长期稳定性与发布
-身份仍未验收；Linux 的 Capture / System 仍是 `unsupported` 桩。具体原生选型与发布范围逐项经
+但「已排期」不等于「已就绪」：Windows 已有 DXGI/WGC 截图、应用身份、系统事件、通知区、
+Credential Manager、`LockFileEx` 与 NSIS 验收入口，但只完成单机有限 smoke；完整 WC/WD、DB-8、
+隐私双保护、长期稳定性与发布身份仍未验收。Linux 的 Capture / System 仍是 `unsupported` 桩。具体原生选型与发布范围逐项经
 `docs/decisions/` 决策记录确定，真机能力仍须过 G-host / G-native 验收门禁——未验收前不得宣称
 「已支持」（`docs/decisions/recording-screen-capture-windows.md`、
 `docs/decisions/recording-screen-capture-linux.md`）。
@@ -158,6 +159,10 @@ native/darwin/build.sh        # → build/native/darwin/universal/libdaygo_captu
 powershell -NoProfile -ExecutionPolicy Bypass -File native\windows\build.ps1
                               # → build/native/windows/amd64/libdaygo_capture.a
 ```
+
+Windows 发布候选必须在 Windows 主机用 `scripts/package-windows.ps1 -Version <x.y.z> -RunSmoke`
+生成；该入口要求 EXE 与 `daygo_windows_native.dll` 同时存在，签名配置存在时先签二者、再封装并
+签 NSIS，最后输出 SHA-256 验收清单。入口存在不等于 WD、签名身份、安装或升级已验收。
 
 只有走 cgo 的适配器需要它们；`cmd/daygo/wails.json` 的 `preBuildHooks` 会在对应平台的
 Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 `go run -a`，否则 Go 缓存可能

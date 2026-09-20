@@ -1,8 +1,8 @@
 # recording 图片存储流水线：staging、分段、清理与发送
 
-> **状态：架构方向已决定，尚未实现。** 本文固定“像素不进 SQLite、
-> 批量构建不可变分段、整段清理、解码后以内存 image parts 发送”的边界。分段容器与编码参数
-> **已冻结**：采纳 Dayflow 式 HEVC 帧段（捕获时直接追加、免 JPEG staging），见
+> **状态：边界已决定，原先的 staging 构建方案已被后续决策取代。** 本文仍固定“像素不进 SQLite、
+> 整段清理、解码后以内存 image parts 发送”的边界。分段容器与编码参数
+> **已冻结并有限实现**：采纳 Dayflow 式 HEVC 帧段（捕获时直接追加、免 JPEG staging），见
 > [recording-frame-segments-hevc.md](recording-frame-segments-hevc.md)（其 §3 否决了本文的
 > staging 构建 variant；其余边界不变。 站点图标的
 > favicon 回退另见 [timeline-favicon-fetch.md](timeline-favicon-fetch.md)。
@@ -10,12 +10,11 @@
 
 1. **图片像素不写入 SQLite BLOB。** SQLite 保存结构化事实、相对路径、帧序号和生命周期状态；
    像素保存在 `recordings/` 下的文件中。
-2. `Capture.Capture` 当前原子输出的 JPEG 是短生命周期 staging 文件，不是永久逐帧图库。
-3. 先积累一个分段窗口的 staging JPEG，再由 Media 一次性构建同目录 partial segment，flush 后
-   无覆盖原子发布。只有完整 segment 才进入 `screenshots` 可读索引。
+2. macOS `Capture.Capture` 当前直接把像素追加到活跃 HEVC/MP4 分段并返回帧序号；旧 JPEG 仅走兼容读取。
+3. 活跃分段在尺寸变化、600 帧、600 秒、暂停或退出时收尾；未收尾段可能不可读，不得冒充完整媒体。
 4. 清理只删除已关闭的完整 segment；绝不删除 staging、正在构建、活跃或被 pending/processing
    分析批次租用的 segment。
-5. 发给 LLM 时不上传 segment，也不制作 zip：analysis 先选定最多 20 个帧引用，批量调用
+5. 发给 LLM 时不上传 segment，也不制作 zip：analysis 先采样帧引用，批量调用
    `Media.DecodeFrames` 得到有界内存图片，再交给 provider client 编码为对应协议的 image parts。
 
 ## 2. 为什么不把图片存进 SQLite
@@ -49,10 +48,11 @@
 固定 root，并确认解析后的绝对路径仍在 root 内。数据库内容、原生返回值和文件名都不能绕过
 这项校验。
 
-## 4. 推荐状态模型
+## 4. 状态模型与当前取舍
 
-现有目标 `screenshots` 表只表示**已提交且可读**的帧。为支持崩溃恢复，recording 后续迁移应
-增加两类内部状态；下列是语义草图，不是已冻结 SQL：
+`screenshots` 表表示已提交帧，`pending_captures` 保存追加意图及 `frame_index`。当前实现没有
+`recording_segments` 表，段生命周期由路径、pending、截图行与分析租用关系共同表达；这是当前
+实现事实，不应把下面的历史草图当成现行 schema：
 
 ```text
 pending_captures
@@ -74,7 +74,9 @@ recording_segments
 `screenshots` 继续用 `(segment_path, frame_index)` 唯一寻址。是否增加显式 segment 外键，以及
 pending 表的准确名称和列，由 recording 的迁移夹具决定；不要在没有恢复测试时先冻结 schema。
 
-## 5. 一次捕获到完整分段
+## 5. 历史 staging 方案（已被 HEVC 直接追加取代）
+
+以下 1–11 是 2026-09-16 决策前的候选流程，仅保留为被否决方案的设计依据，**不是当前实现**。
 
 ```text
 1. Go 生成 capture_id 与 staging 相对路径
@@ -97,7 +99,7 @@ segment 的帧全部可见，要么一帧都不可见。
 而 SQL 未提交、SQL 已保留 frame index 而编码器未 flush、崩溃后 active segment 完全不可读。
 默认 10 秒间隔下，一个 600 秒段约 60 张 JPEG，这个权衡优先恢复确定性。
 
-## 6. 启动对账
+## 6. 历史 staging 启动对账（非现行流程）
 
 | 数据库 / 文件状态 | 动作 |
 |---|---|
@@ -113,7 +115,8 @@ segment 的帧全部可见，要么一帧都不可见。
 
 ## 7. 清理流程
 
-清理按 `recording_segments` 而不是单个 screenshot 工作：
+当前实现没有 `recording_segments` 表，而是按 `screenshots.segment_path` 聚合整段；下列状态名
+是早期显式分段表方案。现行实现必须保持同一结果：只删除完整、非活跃、未被分析租用的整段。
 
 1. 计算所有 `closed` segment 的 `total_bytes`，而不是对目录做不受控扫描；
 2. 排除当前 building segment，以及被 `analysis_batches.status IN ('pending','processing')` 引用的段；
@@ -130,7 +133,7 @@ segment 的帧全部可见，要么一帧都不可见。
 ```text
 BatchRepository 选出一批 screenshot IDs
   → ScreenshotRepository 返回按 captured_at 排序的 FrameRef
-  → analysis 先采样到最多 20 帧并确定 max pixel size
+  → analysis 按当前规则等距采样到最多 15 帧并确定 max pixel size
   → Media.DecodeFrames 批量解码 JPEG/PNG/WebP bytes
   → 校验单张 ≤ 5 MiB、合计 ≤ 20 MiB
   → 构造 internal/ai.Request 的有序 text/image parts
@@ -141,10 +144,10 @@ BatchRepository 选出一批 screenshot IDs
 不创建持久 zip、不复制到数据库、不把本地路径交给 provider，也不记录请求正文或图片。采样应在
 解码前完成，避免先解码数百张再丢弃；同一 batch 内可用有界内存缓存，但它不是持久事实来源。
 
-## 9. 实现前必须补齐的接口
+## 9. 已取代的 SegmentBuilder 接口草图
 
-当前 `platform.Media` 只有 decode、timelapse encode 与 probe，没有“由 staging JPEG 构建一个
-recording segment”的写入能力。实现前应在消费者侧定义最小接口，例如：
+当前实现采用捕获时直接追加，因此不再需要“由 staging JPEG 构建 recording segment”的接口。
+下列草图仅记录被否决方案曾需要的边界，不应加入现行 `platform.Media`：
 
 ```go
 type SegmentBuilder interface {
@@ -164,5 +167,5 @@ type SegmentBuilder interface {
 - segment 构建提交为全有或全无，`(segment_path, frame_index)` 无重复；
 - 清理不删除 building、pending 或分析租用中的 segment，崩溃后可继续；
 - 录制占用最终收敛到上限，时间线文字仍保留；
-- LLM 输入满足 20 张 / 单张 5 MiB / 合计 20 MiB，图片和路径不进入日志、审计表或备份；
+- LLM 输入满足采样与 Provider 图片上限、单张 5 MiB / 原始合计 20 MiB，图片和路径不进入日志、审计表或备份；
 - Windows 与 macOS 使用同一 repository/recorder 测试，只替换 Capture/Media 适配实现。

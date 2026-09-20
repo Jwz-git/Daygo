@@ -58,7 +58,17 @@ Go 侧通过 darwin `platform.Media` 驱动，`/media/frame` 资源处理器与 
 Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows` + `native/windows`），
 已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke；发布范围经决策记录推进（§9.8 #18），
 完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
-无法打开数据库。以上不改变本模块的验收口径。
+无法打开数据库。Windows System 也已接入睡眠/唤醒/锁屏/解锁、显示器枚举和通知区动作；这些
+只有编译、回调夹具与有限启动证据，尚不能替代关窗持续捕获、真实系统事件和 24 小时资源矩阵。
+以上不改变本模块的验收口径。
+
+2026-09-20：Windows 平台差集实现已接线：Media Foundation HEVC/MP4 分段写入、Source Reader
+按帧读取和 legacy JPEG 回退；`System` 增加屏保状态转换与 `WM_DISPLAYCHANGE`；隐私应用列表从
+当前用户/机器、32/64 位 App Paths 与 Uninstall 注册表枚举，并统一经过现有 EXE 身份解析；
+`SetActivationPolicy` 按 Windows 无进程级 Dock 策略的事实实现为幂等等价语义，窗口显示仍由
+Wails/app 层管理。Go 平台测试、Windows `CGO_ENABLED=0` 交叉构建和全量 `gate.sh` 通过；原生
+Windows 编译、HEVC 编解码 smoke、真实屏保/显示器通知与应用枚举结果尚未验收，不能据此提升
+Windows 发布状态。
 `internal/recorder` 提供可停止的 Go 状态机：`idle → starting → capturing`，支持 `paused`
 与恢复；Capture 前写入 pending intent，完成后幂等提交 `screenshots`。`Backend` 已接入
 `SetRecording`、`PauseRecording`、`ResumeRecording`，绑定首次调用时读取真实 settings 并装配
@@ -175,13 +185,14 @@ darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子�
 `privacy_unsupported` 且不生成文件；该旧行为已被下方 2026-09-13 WGC 证据替代。仅 WC-1 有限通过；
 目标冲突、多屏切换/旋转、受保护内容、光标与 24 小时资源矩阵未运行。
 
-2026-09-12（Windows 11 amd64）：最新 macOS 状态栏接线曾在 Wails `OnStartup` 无条件调用
-Windows 上不存在的 `System` 适配器并触发 nil panic。现将状态栏保持为可选平台能力；Windows
-跳过该调用，录制 core 与截图端口不伪造状态栏支持。Wails dev 真实启动后，从 Windows 测试页
+2026-09-12（Windows 11 amd64，当时状态）：最新 macOS 状态栏接线曾在 Wails `OnStartup` 无条件调用
+当时 Windows 上不存在的 `System` 适配器并触发 nil panic。该提交先把 System 保持为可选能力；
+后续已补 Windows System/通知区适配器（见 [delivery 验证记录](delivery.md#验证记录)），不能再据此描述当前平台无状态栏。
+Wails dev 真实启动后，从 Windows 测试页
 以 1 秒间隔运行共享 recorder 6 秒，观察到 `idle → capturing → idle` 和 6 次提交；正式录制目录
 生成 6 张连续的 1920×1080 JPEG，视觉检查为真实非黑桌面，SQLite `screenshots` 查询得到对应
 6 行、文件大小一致且路径统一为 `staging/...`。该测试同时发现并修复 Windows 上误用
-`filepath.Join` 生成反斜杠数据库路径的问题。隐私应用、睡眠 / 锁屏事件、状态栏及长期矩阵仍未验收。
+`filepath.Join` 生成反斜杠数据库路径的问题。隐私应用、睡眠 / 锁屏事件、通知区宿主及长期矩阵仍未验收。
 
 2026-09-11：临时 `CaptureTest` binding 使用真实 macOS `darwin.Capture` 完成 one-shot smoke，生成并
 检查 JPEG 文件存在、非空且返回文件大小一致；fake binding 行为测试、Go 全量测试、前端 typecheck/build
@@ -209,5 +220,5 @@ Edge 实测基线图含 Edge，排除图露出其下方窗口且两图均为非�
 2026-09-15：Windows 开发构建在未安装 SDK 26100 的 `windows.ui.interop.h` 时跳过可选的
 C++/WinRT 隐私排除 helper，并清除旧 helper DLL；基础 DXGI 截图、应用壳与其他 MinGW ABI
 继续构建，使 Wails dev 可启动。此降级不伪造隐私能力：非空屏蔽名单仍返回
-`privacy_unsupported`。需要验证完整 Windows 隐私链路时以 `build.ps1 -RequirePrivacyAdapter`
+`privacy_unsupported`。需要验证完整 Windows 隐私链路时以 `native/windows/build.ps1 -RequirePrivacyAdapter`
 维持 26100 硬门禁。

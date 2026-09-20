@@ -47,9 +47,11 @@ flowchart LR
 显式呈现"此处内容已屏蔽"而不是显示空白。
 
 **平台无法提供第 1 层时必须失败关闭。** 适配层返回 `privacy_unsupported`，上层不截图、
-不落盘，也**不得**降级成“只做第 2 层”。这条已经有实际后果：Windows 没有与
-`SCContentFilter(excludingApplications:)` 等价的公开能力，因此只要屏蔽名单非空，
-Windows 适配器就返回 `privacy_unsupported`（[决策记录](decisions/recording-screen-capture-windows.md)）。
+不落盘，也**不得**降级成“只做第 2 层”。Windows 的边界按系统 build 明确分叉：build 26100+
+在非空屏蔽名单下改走 WGC `SetWindowExclusionList`，等待配置 iteration 生效后才接受帧；更旧系统
+没有满足本契约的画面级排除能力，必须返回 `privacy_unsupported`。前台命中名单仍先返回
+`blocked` 且不调用截图。当前实现已有一次后台窗口排除 smoke，但 WC-2–4 完整竞态矩阵尚未通过，
+所以不能把“实现存在”写成“隐私双保护已验收”（[决策记录](decisions/recording-screen-capture-windows.md)）。
 “让 Windows 也能出图”不是放宽这条规则的理由。
 
 ## 7.3 密钥
