@@ -22,3 +22,12 @@ func systemStop()     {}
 func setActivationPolicy(platform.ActivationPolicy) error {
 	return errors.New("activation policy ABI unavailable without cgo")
 }
+func queryScreenRecordingPermission() (platform.PermissionState, error) {
+	return platform.PermissionNotDetermined, errors.New("screen recording permission ABI unavailable without cgo")
+}
+func requestScreenRecordingPermission() error {
+	return errors.New("screen recording permission ABI unavailable without cgo")
+}
+func openSystemSettings(platform.SettingsPane) error {
+	return errors.New("open system settings ABI unavailable without cgo")
+}

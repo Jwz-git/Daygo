@@ -9,6 +9,11 @@ import {
   setRecording,
   type RecordingState,
 } from '@/api/recording'
+import {
+  getPermissionState,
+  openSystemSettings,
+  requestScreenRecordingPermission,
+} from '@/api/system'
 
 export type RecordingLifecycle = 'idle' | 'starting' | 'capturing' | 'paused'
 export type RecordingAction = 'start' | 'pause' | 'resume' | 'stop'
@@ -26,9 +31,55 @@ export const useRecordingStore = defineStore('recording', () => {
   const error = ref<string | null>(null)
   const lifecycle = computed(() => lifecycleOf(snapshot.value?.state))
   const canControl = computed(() => snapshot.value?.isCaptureOwner === true)
+  // Set when a start was blocked because screen recording is not authorized.
+  // The UI shows the grant-and-restart guidance while this is true.
+  const permissionRequired = ref(false)
 
   let stopEvents: (() => void) | null = null
   let requestVersion = 0
+
+  /*
+   * Gate a start on screen-recording authorization. Granted lets the start
+   * through. Not granted fires the system prompt (a first-use dialog, or a
+   * no-op once denied) and raises permissionRequired so the UI can point the
+   * user at System Settings — the grant only applies after a relaunch, so
+   * there is no in-session success to wait for. A platform without the query
+   * (Windows, or a plain browser) is not gated: the backend already reports
+   * whether it can control capture.
+   */
+  async function ensureScreenRecordingPermission(): Promise<boolean> {
+    let granted: boolean
+    try {
+      const state = await getPermissionState()
+      granted = state.screenRecording === 'granted'
+    } catch {
+      return true
+    }
+    if (granted) {
+      permissionRequired.value = false
+      return true
+    }
+    try {
+      await requestScreenRecordingPermission()
+    } catch {
+      // The prompt could not be shown; the guidance dialog still explains the
+      // manual path through System Settings.
+    }
+    permissionRequired.value = true
+    return false
+  }
+
+  async function openScreenRecordingSettings(): Promise<void> {
+    try {
+      await openSystemSettings('screen_recording')
+    } catch {
+      // Best effort: outside a Wails host there is no System Settings to open.
+    }
+  }
+
+  function dismissPermissionPrompt(): void {
+    permissionRequired.value = false
+  }
 
   async function refresh(): Promise<void> {
     const version = ++requestVersion
@@ -59,6 +110,7 @@ export const useRecordingStore = defineStore('recording', () => {
 
   async function perform(action: RecordingAction): Promise<void> {
     if (pendingAction.value !== null || !canControl.value) return
+    if (action === 'start' && !(await ensureScreenRecordingPermission())) return
     pendingAction.value = action
     error.value = null
     try {
@@ -83,9 +135,12 @@ export const useRecordingStore = defineStore('recording', () => {
     pendingAction,
     error,
     canControl,
+    permissionRequired,
     refresh,
     startListening,
     stopListening,
     perform,
+    openScreenRecordingSettings,
+    dismissPermissionPrompt,
   }
 })

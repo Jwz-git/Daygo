@@ -11,6 +11,15 @@ export default {
     pause: '暂停',
     resume: '继续',
   },
+  permission: {
+    title: '需要屏幕录制权限',
+    body: 'Daygo 需要屏幕录制权限才能截取画面。请在系统设置中授权后重启 Daygo。',
+    step1: '在弹出的系统提示或下方设置中，允许 Daygo 录制屏幕',
+    step2: '在「屏幕录制」列表里打开 Daygo 的开关',
+    step3: '完全退出并重新打开 Daygo，权限才会生效',
+    openSettings: '打开系统设置',
+    dismiss: '稍后再说',
+  },
   menuBar: {
     open: '打开 Daygo',
     recordings: '打开录制文件夹',

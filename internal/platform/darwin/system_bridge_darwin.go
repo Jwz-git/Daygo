@@ -33,6 +33,44 @@ func systemStart() error {
 }
 func systemStop() { C.dg_system_stop() }
 
+func queryScreenRecordingPermission() (platform.PermissionState, error) {
+	switch code := C.dg_screen_recording_permission_query(); code {
+	case C.DG_PERMISSION_GRANTED:
+		return platform.PermissionGranted, nil
+	case C.DG_PERMISSION_DENIED:
+		return platform.PermissionDenied, nil
+	case C.DG_PERMISSION_NOT_DETERMINED:
+		return platform.PermissionNotDetermined, nil
+	default:
+		return "", fmt.Errorf("screen recording permission query failed: %d", int32(code))
+	}
+}
+
+func requestScreenRecordingPermission() error {
+	if code := C.dg_screen_recording_permission_request(); code != 0 {
+		return fmt.Errorf("screen recording permission request failed: %d", int32(code))
+	}
+	return nil
+}
+
+func openSystemSettings(pane platform.SettingsPane) error {
+	var native C.uint32_t
+	switch pane {
+	case platform.PaneScreenRecording:
+		native = C.uint32_t(C.DG_SETTINGS_PANE_SCREEN_RECORDING)
+	case platform.PaneNotifications:
+		native = C.uint32_t(C.DG_SETTINGS_PANE_NOTIFICATIONS)
+	case platform.PaneLoginItems:
+		native = C.uint32_t(C.DG_SETTINGS_PANE_LOGIN_ITEMS)
+	default:
+		return fmt.Errorf("open system settings: unknown pane %q", pane)
+	}
+	if code := C.dg_open_system_settings(native); code != 0 {
+		return fmt.Errorf("open system settings ABI failed: %d", int32(code))
+	}
+	return nil
+}
+
 func setActivationPolicy(p platform.ActivationPolicy) error {
 	var policy C.uint32_t
 	switch p {

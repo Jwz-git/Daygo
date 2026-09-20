@@ -87,6 +87,47 @@ func dg_activation_policy_set(_ policy: UInt32) -> Int32 {
     return 0
 }
 
+@_cdecl("dg_screen_recording_permission_query")
+func dg_screen_recording_permission_query() -> Int32 {
+    // Preflight reflects only kTCCServiceScreenCapture and never prompts. A
+    // false result may be a fresh not-determined state or a prior denial;
+    // macOS gives no way to tell them apart here, so both map to
+    // NOT_DETERMINED and the request path handles either.
+    return CGPreflightScreenCaptureAccess()
+        ? Int32(DG_PERMISSION_GRANTED)
+        : Int32(DG_PERMISSION_NOT_DETERMINED)
+}
+
+@_cdecl("dg_screen_recording_permission_request")
+func dg_screen_recording_permission_request() -> Int32 {
+    // CGRequestScreenCaptureAccess blocks until the user answers the first-use
+    // prompt and is a no-op once the choice is recorded. Run it off-thread and
+    // return at once: a granted permission only applies after relaunch, so
+    // there is nothing to observe by waiting.
+    DispatchQueue.global(qos: .userInitiated).async {
+        _ = CGRequestScreenCaptureAccess()
+    }
+    return 0
+}
+
+@_cdecl("dg_open_system_settings")
+func dg_open_system_settings(_ pane: UInt32) -> Int32 {
+    let urlString: String
+    switch pane {
+    case UInt32(DG_SETTINGS_PANE_SCREEN_RECORDING):
+        urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    case UInt32(DG_SETTINGS_PANE_NOTIFICATIONS):
+        urlString = "x-apple.systempreferences:com.apple.preference.notifications"
+    case UInt32(DG_SETTINGS_PANE_LOGIN_ITEMS):
+        urlString = "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"
+    default:
+        return -1
+    }
+    guard let url = URL(string: urlString) else { return -1 }
+    activationRunOnMain { NSWorkspace.shared.open(url) }
+    return 0
+}
+
 @_cdecl("dg_system_stop")
 func dg_system_stop() {
     let workspace = NSWorkspace.shared.notificationCenter

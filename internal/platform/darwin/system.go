@@ -116,14 +116,18 @@ func systemEventKind(k uint32) platform.SystemEventKind {
 	return ""
 }
 func (s *System) ScreenRecordingPermission(context.Context) (platform.PermissionState, error) {
-	return platform.PermissionNotDetermined, nil
+	return queryScreenRecordingPermission()
 }
 func (s *System) NotificationsPermission(context.Context) (platform.PermissionState, error) {
 	return platform.PermissionNotDetermined, nil
 }
-func (s *System) RequestScreenRecordingPermission(context.Context) error          { return nil }
-func (s *System) OpenSystemSettings(context.Context, platform.SettingsPane) error { return nil }
-func (s *System) Displays(context.Context) ([]platform.Display, error)            { return nil, nil }
+func (s *System) RequestScreenRecordingPermission(context.Context) error {
+	return requestScreenRecordingPermission()
+}
+func (s *System) OpenSystemSettings(_ context.Context, pane platform.SettingsPane) error {
+	return openSystemSettings(pane)
+}
+func (s *System) Displays(context.Context) ([]platform.Display, error) { return nil, nil }
 func (s *System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, nil
 }
