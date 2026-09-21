@@ -152,8 +152,8 @@ npm --prefix frontend run build
 ### 原生静态库
 
 ```bash
-# macOS：Swift → arm64
-native/darwin/build.sh        # → build/native/darwin/arm64/libdaygo_capture.a
+# macOS：Swift → arm64 + x86_64 → lipo
+native/darwin/build.sh        # → build/native/darwin/universal/libdaygo_capture.a
 
 # Windows（PowerShell，需要 MinGW-w64 的 g++ / ar）
 powershell -NoProfile -ExecutionPolicy Bypass -File native\windows\build.ps1

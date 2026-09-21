@@ -7,32 +7,39 @@ OUT_DIR="$ROOT_DIR/build/native/darwin"
 HEADER="$ROOT_DIR/native/include/daygo_native.h"
 SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
 SOURCES=("$ROOT_DIR"/native/darwin/Sources/*.swift)
-ARCHIVE="$OUT_DIR/arm64/libdaygo_capture.a"
+ARCHIVES=()
+UNIVERSAL_ARCHIVE="$OUT_DIR/universal/libdaygo_capture.a"
 
-mkdir -p "$OUT_DIR/arm64"
 
-xcrun swiftc \
-  -swift-version 6 \
-  -parse-as-library \
-  -O \
-  -whole-module-optimization \
-  -target "arm64-apple-macos14.0" \
-  -sdk "$SDK_PATH" \
-  -module-name DaygoCapture \
-  -module-cache-path "$OUT_DIR/arm64/module-cache" \
-  -import-objc-header "$HEADER" \
-  -emit-library \
-  -static \
-  -framework CoreGraphics \
-  -framework Foundation \
-  -framework AppKit \
-  -framework ImageIO \
-  -framework ScreenCaptureKit \
-  -framework UniformTypeIdentifiers \
-  -framework AVFoundation \
-  -framework CoreMedia \
-  -framework VideoToolbox \
-  "${SOURCES[@]}" \
-  -o "$ARCHIVE"
+mkdir -p "$OUT_DIR/arm64" "$OUT_DIR/x86_64" "$OUT_DIR/universal"
 
-xcrun lipo -info "$ARCHIVE"
+for arch in arm64 x86_64; do
+  archive="$OUT_DIR/$arch/libdaygo_capture.a"
+  xcrun swiftc \
+    -swift-version 6 \
+    -parse-as-library \
+    -O \
+    -whole-module-optimization \
+    -target "$arch-apple-macos14.0" \
+    -sdk "$SDK_PATH" \
+    -module-name DaygoCapture \
+    -module-cache-path "$OUT_DIR/$arch/module-cache" \
+    -import-objc-header "$HEADER" \
+    -emit-library \
+    -static \
+    -framework CoreGraphics \
+    -framework Foundation \
+    -framework AppKit \
+    -framework ImageIO \
+    -framework ScreenCaptureKit \
+    -framework UniformTypeIdentifiers \
+    -framework AVFoundation \
+    -framework CoreMedia \
+    -framework VideoToolbox \
+    "${SOURCES[@]}" \
+    -o "$archive"
+  ARCHIVES+=("$archive")
+done
+
+xcrun lipo -create "${ARCHIVES[@]}" -output "$UNIVERSAL_ARCHIVE"
+xcrun lipo -info "$UNIVERSAL_ARCHIVE"
