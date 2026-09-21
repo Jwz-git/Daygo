@@ -3,7 +3,8 @@
 ## 用户结果与范围
 
 用户看到由捕获自动产生的按逻辑日活动卡片，可展开帧条、搜索、改标题 / 分类、软删除，
-重试失败批次、按卡片所属批次重处理，并对卡片记录专注 / 中性 / 分心判断。失败可见，空闲批次不调用 LLM。
+重试失败批次、重新生成单张卡片，对卡片记录专注 / 中性 / 分心判断，并对其摘要投拇指评分。
+失败可见，空闲批次不调用 LLM。
 负责 U1/2/3、F-A1–6、F-V1–3、F-S7；包括分类管理、媒体资源及既有 timelapse 需求。
 不包含每日 / 每周页面、Chat；卡片审阅判断属于 timeline，其他尚无交互与绑定的目标数据只跟踪设计，
 不自动扩展范围。
@@ -28,11 +29,14 @@
   融合卡片继承被吸收前卡的 `appSites`（模型未点名应用时回填，避免图标消失）。
 - 绑定与前端：`GetTimelineDay`（卡片 / 分类 / 合计 / 失败分组一次带回）、卡片写操作
   （改分类 / 标题 / 摘要 / 软删除）、`RetryBatches` / `DeleteBatches` / `ReprocessDay` /
-  `ReprocessCard`（后者按卡片来源批次重排，同批次卡片会共同重建）、分类整体覆盖
+  `ReprocessCard`（后者同步重写该卡片**自己的时间窗**，复用窗内已存 observations、
+  不重新转录取图，两侧相邻卡不动，详见 [04 §4.3.5](../04-data-flow.md#435-单卡重写)）、分类整体覆盖
   （重命名同事务改写卡片）、分类管理向导（未改动的默认分类按界面语言显示，编辑并保存即
   改写为本地文案）、失败 / 处理中状态、当前日 15 秒实时跟随与 4 点边界自动
   重拉、帧回放（`GetCardMedia` + `/media/frame`）、周视图（hover 展开、日历选择）、
-  卡片审查流；审阅判断已持久化，支持在详情页读取 / 修改并刷新当日统计。Windows 时区回退
+  卡片审查流；审阅判断已持久化（`card_reviews`），支持在详情页读取 / 修改并刷新当日统计；
+  摘要拇指评分已持久化（`card_ratings`），详情页可投上 / 下并再次点击撤销，两者都不改写卡片，
+  因此都不发 `timeline:updated`。Windows 时区回退
   （`ZoneName` 注册表回退）已补齐，只影响新读取的页面。
 - 开发便利：Vite 开发服务在绑定缺失时提供匿名只读样例（`frontend/dev-fixtures/`），
   页面明确标记"仅开发"；production bundle 不含其 payload。
@@ -59,7 +63,8 @@
 输出 time 与 cards，可分别供 daily / weekly 验收，不等时间线页面全部完善。
 internal/analysis 拥有调度、媒体准备、批次路由粘性与范围串行化；internal/ai 拥有统一文本 /
 图片 / JSON Schema 调用、协议、重试、提示词与解析，且不读取分段路径；internal/insight 只读
-聚合；卡片、批次、observations、分类、llm_calls 和 review ratings 的 schema / repository
+聚合；卡片、批次、observations、分类、llm_calls 和审阅 / 评分（`card_reviews`、
+`card_ratings`）的 schema / repository
 统一落 internal/storage。llm_calls 只记录 attempt 元数据，不保存模型正文。本模块完善
 internal/timeutil。
 internal/app 负责绑定与数字 ID 资源入口，平台 Media 读像素；媒体缓存有界。
@@ -102,6 +107,65 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 事务改写失败不提交，不以删除卡片重建的方式回退。schema 回退遵循 data 的备份恢复策略。
 
 ## 验证记录
+
+2026-09-21（详情页摘要拇指评分）：详情页的「为此摘要评分」自 `ba5d127` 起是一对写死的 `disabled`
+拇指按钮，tooltip 为「评分绑定尚未交付」——没有 store、没有绑定、没有表，功能从未实现。现已补齐：
+迁移 v18 新建 `card_ratings`（`card_id` 主键 + `rating CHECK IN ('up','down')`），repository 走
+`ReviewRepo` 的 `SetRating` / `ClearRating` / `Rating`（重评覆盖、再次点击删除行、软删除卡片经 join
+退出读取），绑定层 `SaveCardRating` / `ClearCardRating` / `GetCardRating` 与判定同构（写入锁、
+`invalid_argument`、闭集取值拒绝）。评分只评价摘要文本，不改写摘要或分类，因此**不发**
+`timeline:updated`——docs/05 同步修正：判定行原先记为发该事件，实际实现从来不发，前端靠详情页向父级
+发内部事件重拉当日统计。前端 `api/review.ts` 三个 wrapper 接上详情页拇指行，激活态沿用本面板既有的
+好 / 坏配色（上 teal、下 danger），只读实例禁用并显示只读提示；`ratingUnavailable` 文案随之从
+「绑定尚未交付」改为只读说明。
+夹具：storage `ratings_test.go`（未评分读空 / 覆盖不堆叠 / 重复清除是 no-op / 未知值拒绝且不落行 /
+CHECK 兜底 / 未知卡片与软删除卡片拒绝）；DB-2 新增 `v17-provider-models.db`（`gen.go` 新增
+`writeV17`，重新生成后已有夹具零改动）与 `TestMigrateV17FixtureCreatesRatingTable`（升级后 v13 卡片、
+v14 判定、v17 provider models 全部完好，新表为空且可写入）；binding `review_binding_test.go`
+（往返 / 翻转 / 清除 / 坏输入 / 只读实例拒写但可读）。命令：`go test ./internal/app/ ./internal/storage/`、
+`go vet`、`CGO_ENABLED=0 go build ./...`、`npm --prefix frontend run typecheck` 与 `test:unit`
+（69 项，含 i18n 键静态校验）全部通过。未复核：真实 Wails 窗口下的观感与真实库上的读写；评分目前只有
+详情页一个消费方，没有聚合展示、也不回灌提示词，若日后要做摘要质量统计需另补契约与 DTO。
+
+2026-09-21（单卡重新生成只重写该卡自己的时间窗）：用户报告「一张卡片上限是 60min，超过 60min 会
+另起一张卡片，我想重新生成这两个卡片中的任何一个，两个都会重新生成」。根因确认：`ReplaceCardsInRange`
+给同一批写入的每张卡盖上同一个 `batch_id`（`internal/storage/cards.go`），而 60 分钟上限拆出的两张卡
+正是同批产物；旧 `ReprocessCard` 只按 `batch_id` 重排（`ReprocessBatches`），重跑范围是
+`[ownedFrom, batch.End]` 且可被融合闸门向左外扩，因此两张卡（有时更多）一起被重建——代码里根本
+不存在"只重生成一张卡"的路径。修法（方案 A）：`analysis.RegenerateCard` 走独立的**范围重写**路径，
+取该卡 `[start, end)` 内已存的 `observations` 作为证据重跑一次 LLM（不重新转录、不重新取图），
+窗口由卡片自身时钟串解析得到（锚点取卡片中点，保证窗口与存储范围逐秒一致），提示词新增
+`cardModeScoped` / `<scoped_rewrite>` 段落并把融合段与输出规则改成"只重写当前窗口、两侧外边界不动"，
+校正提示同样声明两个外边界固定；写入前 `pinScopedBoundaries` 再把首卡 start / 末卡 end 夹紧回原边界，
+因此相邻卡片永远不需要被吸收或让位。窗口内仍允许拆成多张卡（受 15 分钟下限约束）。模型三次仍越界
+即返回错误且**不落任何改动**；该窗仍有批次 `pending` / `processing` 时 `conflict` 不写入；窗口内无
+observations（如 `Idle` 快速路径写的卡）时 `invalid_argument`；模型未点名应用时最长输出卡继承原卡
+`appSites`，避免重新生成后图标消失。绑定层 `ReprocessCard` 由"入队后立即返回"改为**同步长任务**
+（超时 5 分钟），错误经 `mapCardRegenerationError` 按哨兵错误映射，不做字符串匹配。
+夹具：`internal/analysis/regenerate_test.go` 10 项——核心用例断言同批兄弟卡的 id / 跨度 / 标题逐项
+不变、新卡行 id 与旧卡不同、日失效通知发出、提示词确实带 scoped 段落；越界用例断言外边界被夹紧
+（把 `pinScopedBoundaries` 临时改成空实现，该用例以
+`card 2 spans outside rewrite ownership: constraint` 失败，随后还原，证明它测的是真行为）；
+另有拆分窗口、无证据、窗口在分析中、无来源批次等分支。`internal/app/timeline_reprocess_test.go`
+3 项覆盖无批次 / 无流水线 / 未知 id 的绑定层错误码。前端：store 新增 `pendingCardID`（在绑定调用
+内部置位，因为不产生 `batch:progress`、`processingRanges` 无法体现），日轨道经 `TimelineTrack`
+新增的 `regeneratingCardID` prop 并入 `regeneratingCardIDs`，周视图经 `buildWeekColumns` 的同名
+入参并入 `WeekCard.regenerating`（周布局原本只认 `processingRanges`，同步调用下同样看不见），
+zh-CN / en 的 `cardConfirm` / `cardRunning` 文案同步为"只重新生成这张卡片自己的时段"。
+`./scripts/gate.sh` 全通（Go 全包测试、`go vet`、`CGO_ENABLED=0 go build`、`vue-tsc`、69 项前端
+单测、production build、`check-docs` 0 问题）；新增周列夹具
+「the in-flight card id marks exactly that card in the week column」。
+浏览器验证（vite 独立预览 + 注入绑定桩：读取走 dev 夹具，`ReprocessCard` 挂起 2.5 s 且**不写回
+任何数据**，并把当天全部 69 张卡的 `batchId` 统一改成 42——即"同批多卡"的原始故障场景）：
+日轨道点「重新生成」后确认框文案为新的 scoped 版本，进行中恰好 1 张卡带 `is-regenerating` 与
+`aria-busy="true"`、按钮文案为「正在重新生成…」，其余 68 张（**含所有同批兄弟卡**）保持原样；
+调用落定后无卡片残留该状态。周视图同样为每列 69 张卡中恰好 1 张（注入的 id 在每个周列都出现，
+因为 dev 夹具对 7 个查询键返回同一天数据），落定后归零。
+契约同步 docs/05 §5.5.1（同步语义、错误码、依赖面）、docs/04 §4.3.5（新增单卡重写小节）、
+docs/modules/timeline.md 范围句。**未验证**：真实 macOS + 真实 provider 下按卡片重新生成的端到端
+观感（同批两张卡是否确实互不影响）未在真实库上跑过；重新生成后旧卡的 `timeline_review_ratings`
+判定不迁移（旧卡软删除，判定随之失联）——这是既有行为，未在本切片处理。回退：整体 revert 该提交即可，
+存储层既有"部分重叠但超出改写所有权即回滚"的约束仍作为第二道防线。
 
 2026-09-21（卡片加回 15 分钟下限：一张卡默认 15 分钟，不足则融合）：用户定下规则「一个最小卡片
 应该是 15min，只有当不足 15min，且它后面 3 分钟内无可生成卡片时，忽略这个限制」，并明确

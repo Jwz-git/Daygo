@@ -5,8 +5,8 @@ import { useI18n } from 'vue-i18n'
 import type { CardMediaFrameDTO, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import { getCardMedia } from '@/api/media'
-import { clearCardReview, getCardVerdict, saveCardReview } from '@/api/review'
-import type { ReviewVerdict } from './review'
+import { clearCardRating, clearCardReview, getCardRating, getCardVerdict, saveCardRating, saveCardReview } from '@/api/review'
+import type { ReviewVerdict, SummaryRating } from './review'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import CardVideoPlayer from '@/components/CardVideoPlayer.vue'
 import { appSiteValues } from '@/lib/appSiteIcon'
@@ -147,6 +147,68 @@ async function setVerdict(next: ReviewVerdict): Promise<void> {
     verdictFailed.value = true
   } finally {
     verdictSaving.value = false
+  }
+}
+
+/*
+ * The card's summary rating: thumbs up/down on the AI-written summary text.
+ * Read back per card like the verdict, and tapping the active thumb again
+ * clears it (撤销). Ratings are feedback only — saving never rewrites the
+ * summary, so nothing outside this pane needs re-fetching.
+ */
+const RATINGS: readonly SummaryRating[] = ['up', 'down']
+const RATING_GLYPHS: Record<SummaryRating, string> = {
+  up: 'M5 7.5V13m0-5.5L7.8 3c.9 0 1.5.7 1.4 1.6L9 7h3.4c.9 0 1.5.8 1.3 1.6l-.9 3.6c-.1.5-.6.9-1.2.9H5M5 7.5H2.5V13H5',
+  down: 'M5 8.5V3m0 5.5L7.8 13c.9 0 1.5-.7 1.4-1.6L9 9h3.4c.9 0 1.5-.8 1.3-1.6l-.9-3.6C12.7 3.9 12.2 3.5 11.6 3.5H5M5 8.5H2.5V3H5',
+}
+const RATING_COLORS: Record<SummaryRating, string> = {
+  // The pane's existing good/bad language: teal for "this was right", danger
+  // for "this was wrong". A thumbs-down is negative feedback, not an error.
+  up: '#35c3a2',
+  down: 'var(--dg-danger)',
+}
+const rating = ref<SummaryRating | null>(null)
+const ratingSaving = ref(false)
+const ratingFailed = ref(false)
+const ratingEditable = computed(() => props.canWrite && props.pendingAction === null)
+
+function ratingLabel(option: SummaryRating): string {
+  return option === 'up' ? t('timeline.inspector.ratingUp') : t('timeline.inspector.ratingDown')
+}
+
+watch(
+  () => props.card.id,
+  async (cardID) => {
+    rating.value = null
+    ratingFailed.value = false
+    try {
+      const current = await getCardRating(cardID)
+      if (props.card.id === cardID) rating.value = current
+    } catch {
+      // No rating shown; the thumbs still let the user set one.
+    }
+  },
+  { immediate: true },
+)
+
+async function setRating(next: SummaryRating): Promise<void> {
+  if (!ratingEditable.value || ratingSaving.value) return
+  const clearing = rating.value === next
+  ratingSaving.value = true
+  ratingFailed.value = false
+  const cardID = props.card.id
+  try {
+    if (clearing) {
+      await clearCardRating(cardID)
+      if (props.card.id === cardID) rating.value = null
+    } else {
+      await saveCardRating(cardID, next)
+      if (props.card.id === cardID) rating.value = next
+    }
+  } catch {
+    ratingFailed.value = true
+  } finally {
+    ratingSaving.value = false
   }
 }
 
@@ -472,17 +534,33 @@ watch(
     <p v-else class="verdict__hint">{{ t('timeline.inspector.verdictHint') }}</p>
   </section>
 
-  <!-- Summary rating: the binding is not delivered yet, so the controls stay
-       visibly present but disabled instead of pretending to save. -->
-  <div class="rating-row">
-    <span>{{ t('timeline.inspector.rating') }}</span>
-    <button type="button" class="rating-row__thumb" disabled :title="t('timeline.inspector.ratingUnavailable')">
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 7.5V13m0-5.5L7.8 3c.9 0 1.5.7 1.4 1.6L9 7h3.4c.9 0 1.5.8 1.3 1.6l-.9 3.6c-.1.5-.6.9-1.2.9H5M5 7.5H2.5V13H5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-    </button>
-    <button type="button" class="rating-row__thumb" disabled :title="t('timeline.inspector.ratingUnavailable')">
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8.5V3m0 5.5L7.8 13c.9 0 1.5-.7 1.4-1.6L9 9h3.4c.9 0 1.5-.8 1.3-1.6l-.9-3.6C12.7 3.9 12.2 3.5 11.6 3.5H5M5 8.5H2.5V3H5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-    </button>
-  </div>
+  <!-- Summary rating: thumbs up/down on the AI-written summary text. Feedback
+       only — a rating never rewrites the summary. Tapping the active thumb
+       again clears it, mirroring 撤销 in the verdict row above. -->
+  <section class="rating">
+    <div class="rating-row">
+      <span>{{ t('timeline.inspector.rating') }}</span>
+      <button
+        v-for="option in RATINGS"
+        :key="option"
+        type="button"
+        class="rating-row__thumb"
+        :class="{ 'is-active': rating === option }"
+        :style="{ '--rating': RATING_COLORS[option] }"
+        :disabled="!ratingEditable || ratingSaving"
+        :aria-pressed="rating === option"
+        :aria-label="ratingLabel(option)"
+        :title="ratingLabel(option)"
+        @click="setRating(option)"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path :d="RATING_GLYPHS[option]" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+        </svg>
+      </button>
+    </div>
+    <p v-if="ratingFailed" class="inspector__error" role="alert">{{ t('timeline.inspector.ratingSaveFailed') }}</p>
+    <p v-else-if="!props.canWrite" class="rating__hint">{{ t('timeline.inspector.ratingUnavailable') }}</p>
+  </section>
 
   <p v-if="props.actionFailed" class="inspector__error" role="alert">
     {{ t('timeline.inspector.actionFailed') }}
@@ -798,12 +876,15 @@ watch(
 
 .reprocess-icon { width: 14px; height: 14px; flex-shrink: 0; }
 
+.rating {
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--dg-timeline-grid);
+}
+
 .rating-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 0 4px;
-  border-top: 1px solid var(--dg-timeline-grid);
   color: var(--dg-text-secondary);
   font-size: 12px;
 }
@@ -822,6 +903,15 @@ watch(
 
 .rating-row__thumb svg { width: 14px; height: 14px; }
 .rating-row__thumb:disabled { opacity: 0.5; cursor: default; }
+.rating-row__thumb:hover:not(:disabled) { border-color: color-mix(in srgb, var(--rating) 55%, var(--dg-timeline-grid)); }
+.rating-row__thumb.is-active {
+  border-color: var(--rating);
+  background: color-mix(in srgb, var(--rating) 16%, transparent);
+  color: var(--rating);
+}
+.rating-row__thumb:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+
+.rating__hint { margin: 8px 0 0; color: var(--dg-text-muted); font-size: 10px; line-height: 1.5; }
 
 @media (prefers-reduced-motion: reduce) {
   .field-pencil { transition: none; }

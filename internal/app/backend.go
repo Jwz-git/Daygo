@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Jwz-git/Daygo/internal/analysis"
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/chat"
 	"github.com/Jwz-git/Daygo/internal/favicon"
@@ -133,6 +134,14 @@ type Backend struct {
 	chat   *chat.Service
 	chatMu sync.Mutex
 
+	// analysis is the running analysis pipeline, attached once at startup. The
+	// single-card regeneration runs through it rather than through a requeued
+	// batch, so the binding needs the same service the scheduler owns. It stays
+	// nil in headless construction and on a read-only instance, where no
+	// pipeline runs (analysis_wiring.go).
+	analysisMu sync.RWMutex
+	analysis   *analysis.Service
+
 	// timelineEvents tracks pending merged timeline:updated emits, one timer
 	// per day within the 200 ms merge window (docs/05 §5.5.3).
 	timelineEvents   map[string]*time.Timer
@@ -182,6 +191,23 @@ func (b *Backend) setSecrets(s platform.Secrets) {
 // native_unavailable.
 func (b *Backend) setUpdater(u platform.Updater) {
 	b.updater = u
+}
+
+// setAnalysis installs the running analysis pipeline so the single-card
+// regeneration binding can reach it. Unexported like the other adapters: it is
+// composition, not a binding.
+func (b *Backend) setAnalysis(s *analysis.Service) {
+	b.analysisMu.Lock()
+	defer b.analysisMu.Unlock()
+	b.analysis = s
+}
+
+// analysisService returns the running pipeline, or nil when none started — a
+// read-only instance, a failed startup, or a headless test.
+func (b *Backend) analysisService() *analysis.Service {
+	b.analysisMu.RLock()
+	defer b.analysisMu.RUnlock()
+	return b.analysis
 }
 
 // emitSettingsChanged publishes the keys a settings write committed.

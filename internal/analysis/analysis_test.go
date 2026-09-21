@@ -337,7 +337,7 @@ func TestCardsPromptExcludesBuiltInCategories(t *testing.T) {
 		{ID: "2", Name: "Idle", IsSystem: true, IsIdle: true},
 		{ID: "3", Name: "Coding", Details: "writing code"},
 	}
-	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, categories, "", true)
+	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, categories, "", cardModeOngoing)
 
 	if !strings.Contains(prompt, "\n  Coding — writing code\n") {
 		t.Fatalf("prompt missing user category:\n%s", prompt)
@@ -355,7 +355,7 @@ func TestCardsPromptExcludesBuiltInCategories(t *testing.T) {
 // and only the window's last card may be shorter, because the supplied evidence
 // stops there. Both prompts flip together with the validator.
 func TestOngoingCardRulesEnforceTheFifteenMinuteFloor(t *testing.T) {
-	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, nil, "", true)
+	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, nil, "", cardModeOngoing)
 	for _, want := range []string{
 		"must be 15 to 60 minutes",
 		"fold it into the neighboring activity",
@@ -371,7 +371,7 @@ func TestOngoingCardRulesEnforceTheFifteenMinuteFloor(t *testing.T) {
 		t.Fatalf("ongoing prompt still carries the withdrawn no-minimum rule:\n%s", prompt)
 	}
 
-	correction := cardsCorrectionPrompt(`{"cards":[]}`, []string{"example"}, false, base, base.Add(15*time.Minute))
+	correction := cardsCorrectionPrompt(`{"cards":[]}`, []string{"example"}, cardModeOngoing, base, base.Add(15*time.Minute))
 	if !strings.Contains(correction, "Every card must be 15 to 60 minutes") ||
 		!strings.Contains(correction, "except the last one must be 15 minutes or longer") {
 		t.Fatalf("correction prompt missing the floor:\n%s", correction)

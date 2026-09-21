@@ -354,3 +354,21 @@ test('cards a running batch owns show as regenerating even before its window', (
   )
   assert.deepEqual(column.cards.map((c) => [c.id, c.regenerating]), [[1, true], [2, true], [3, false]])
 })
+
+/*
+ * A per-card regeneration rewrites the card's own window synchronously: no
+ * batch ever goes pending, so processingRanges cannot carry it and only the
+ * in-flight card id marks the card the user just pressed.
+ */
+test('the in-flight card id marks exactly that card in the week column', () => {
+  const format = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit' })
+  const [column] = buildWeekColumns(
+    [weekDay([weekCard(1, 600, 630), weekCard(2, 630, 660)], [])],
+    null,
+    format,
+    2,
+  )
+
+  assert.deepEqual(column.cards.map((c) => [c.id, c.regenerating]), [[1, false], [2, true]])
+  assert.equal(column.processing.length, 0)
+})

@@ -201,6 +201,7 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 	if err != nil {
 		return nil, err
 	}
+	b.setAnalysis(service)
 	go service.Run(ctx)
 	return service, nil
 }

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/domain"
-	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
@@ -38,8 +37,8 @@ type cardSpan struct {
 	Title string
 }
 
-func resolveCardSpans(shells []domain.CardShell, batch storage.Batch, loc *time.Location) []cardSpan {
-	anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
+func resolveCardSpans(shells []domain.CardShell, windowStart, windowEnd time.Time, loc *time.Location) []cardSpan {
+	anchor := windowStart.Add(windowEnd.Sub(windowStart) / 2)
 	spans := make([]cardSpan, 0, len(shells))
 	for _, shell := range shells {
 		start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
@@ -129,5 +128,31 @@ func validateCards(spans []cardSpan, rewriteStart, batchEnd time.Time, requiresS
 		}
 	}
 
+	return issues
+}
+
+/*
+ * validateScopedCards is validateCards plus the rule that makes a single-card
+ * rewrite safe: neither outer boundary may move. validateCards only asks the
+ * cards to *reach* the window's ends — a card that runs past the end still
+ * passes there, and the rewrite would then overlap the neighbour the user did
+ * not ask to touch (storage refuses a rewrite that cannot own a whole victim
+ * card, so the whole regeneration would fail instead of the card's own).
+ */
+func validateScopedCards(spans []cardSpan, windowStart, windowEnd time.Time) []string {
+	issues := validateCards(spans, windowStart, windowEnd, false)
+	if len(spans) == 0 {
+		return issues
+	}
+	if spans[0].Start.Before(windowStart.Add(-boundarySlack)) {
+		issues = append(issues, fmt.Sprintf(
+			"the cards start at %s, before the window start at %s; the card before this window is not part of this rewrite",
+			spans[0].Start.Format("3:04 PM"), windowStart.Format("3:04 PM")))
+	}
+	if last := spans[len(spans)-1]; last.End.After(windowEnd.Add(boundarySlack)) {
+		issues = append(issues, fmt.Sprintf(
+			"the cards end at %s, past the window end at %s; the card after this window is not part of this rewrite",
+			last.End.Format("3:04 PM"), windowEnd.Format("3:04 PM")))
+	}
 	return issues
 }

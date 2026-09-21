@@ -79,6 +79,9 @@ func main() {
 	if err := writeV16(outDir); err != nil {
 		log.Fatalf("v16-providers.db: %v", err)
 	}
+	if err := writeV17(outDir); err != nil {
+		log.Fatalf("v17-provider-models.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -896,6 +899,57 @@ func writeV16(outDir string) error {
 		 VALUES ('fixture-provider-a', 'Fixture A', 'openai', 'https://example.invalid/v1', 'fixture-model-a', 0, 1700000000, 1700000000),
 		        ('fixture-provider-b', 'Fixture B', 'anthropic', 'https://example.invalid', 'fixture-model-b', 4, 1700000005, 1700000005)`,
 		`PRAGMA user_version = 16`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV17 builds a version-17 database from the v16 fixture by applying the
+// v17 providers rebuild on top: the single `model` column becomes `models`, a
+// JSON array. The v18 migration test upgrades this file and proves the ratings
+// table arrives without disturbing the v17 provider rows, the v14 verdict or
+// the v13 card.
+func writeV17(outDir string) error {
+	v16Path := filepath.Join(outDir, "v16-providers.db")
+	v17Path := filepath.Join(outDir, "v17-provider-models.db")
+	data, err := os.ReadFile(v16Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v17Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v17Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`CREATE TABLE providers_v17 (
+			id           TEXT PRIMARY KEY,
+			display_name TEXT    NOT NULL,
+			protocol     TEXT    NOT NULL,
+			endpoint     TEXT    NOT NULL,
+			models       TEXT    NOT NULL DEFAULT '[]',
+			max_images   INTEGER NOT NULL DEFAULT 0,
+			created_at   INTEGER NOT NULL,
+			updated_at   INTEGER NOT NULL
+		)`,
+		`INSERT INTO providers_v17 (id, display_name, protocol, endpoint, models, max_images, created_at, updated_at)
+		 SELECT id, display_name, protocol, endpoint, '[]', max_images, created_at, updated_at
+		 FROM providers`,
+		// The two fixture models, wrapped in a one-element array exactly as the
+		// v17 migration does.
+		`UPDATE providers_v17 SET models = '["fixture-model-a"]' WHERE id = 'fixture-provider-a'`,
+		`UPDATE providers_v17 SET models = '["fixture-model-b"]' WHERE id = 'fixture-provider-b'`,
+		`DROP TABLE providers`,
+		`ALTER TABLE providers_v17 RENAME TO providers`,
+		`PRAGMA user_version = 17`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

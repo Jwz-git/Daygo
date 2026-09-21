@@ -283,13 +283,28 @@ CREATE TABLE day_goal_categories (
   PRIMARY KEY (day, category_id, role)
 );
 
-CREATE TABLE timeline_review_ratings (
-  id        INTEGER PRIMARY KEY,
-  start_ts  INTEGER NOT NULL,
-  end_ts    INTEGER NOT NULL,
-  rating    INTEGER NOT NULL,
-  note      TEXT,
-  created_at INTEGER NOT NULL
+-- card_reviews（v14 已落盘）。卡片审阅流的判定：每卡一行，重判覆盖，撤销删除行。
+-- day 与 minutes 在判定时从卡片快照，卡片之后被编辑也不会改变当日统计；
+-- verdict 只进统计，从不改写卡片自己的分类。软删除的卡片经 join 退出统计。
+CREATE TABLE card_reviews (
+  card_id    INTEGER PRIMARY KEY REFERENCES timeline_cards(id) ON DELETE CASCADE,
+  day        TEXT    NOT NULL,
+  verdict    TEXT    NOT NULL CHECK (verdict IN ('distraction', 'neutral', 'focus')),
+  minutes    INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_card_reviews_day ON card_reviews (day);
+
+-- card_ratings（v18 已落盘）。详情页对卡片 AI 摘要的拇指评分：每卡一行，重评覆盖，
+-- 再次点击已激活的拇指删除行。只评价摘要文本，不改写摘要或卡片分类。
+-- 独立成表而非并入 card_reviews：那里的 verdict 是 NOT NULL，只评分未判定的行无处存。
+CREATE TABLE card_ratings (
+  card_id    INTEGER PRIMARY KEY REFERENCES timeline_cards(id) ON DELETE CASCADE,
+  rating     TEXT    NOT NULL CHECK (rating IN ('up', 'down')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 ```
 

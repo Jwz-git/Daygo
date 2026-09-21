@@ -31,6 +31,13 @@ const props = defineProps<{
   processingRanges: RangeDTO[]
   selectedCardID: number | null
   selectedFailureTs: number | null
+  /**
+   * The card a per-card regeneration is rewriting right now. The rewrite runs
+   * inside the binding call, so no batch goes pending and processingRanges
+   * cannot show it: without this the card the user just asked to regenerate
+   * would sit still until the result lands.
+   */
+  regeneratingCardID: number | null
   /** Placeholder state at the current time: off, live capture, or paused hold. */
   generating: 'off' | 'capturing' | 'paused'
 }>()
@@ -148,6 +155,9 @@ const regeneratingCardIDs = computed(() => {
     if (isRegenerating(card, props.processingRanges)) {
       ids.add(card.id)
     }
+  }
+  if (props.regeneratingCardID !== null) {
+    ids.add(props.regeneratingCardID)
   }
   return ids
 })

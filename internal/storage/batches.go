@@ -406,14 +406,18 @@ func (r *AnalysisRepo) ReprocessDay(ctx context.Context, from, to time.Time, now
 	return out, nil
 }
 
-// ReprocessBatches requeues the named terminal batches for re-analysis — the
-// explicit user path to regenerate one card (the batch that produced it) from
-// the timeline. Same rules as ReprocessDay, scoped to ids instead of a day
-// window: succeeded, failed and failed_empty batches go back to pending with
-// the failure info cleared and the attempt counter reset; dismissed, skipped
-// and in-flight (pending / processing) batches are left as they are. Returns
-// the batches actually requeued so the caller can emit invalidation for their
-// days; an id that names no reprocessable batch is silently skipped.
+// ReprocessBatches requeues the named terminal batches for re-analysis. Same
+// rules as ReprocessDay, scoped to ids instead of a day window: succeeded,
+// failed and failed_empty batches go back to pending with the failure info
+// cleared and the attempt counter reset; dismissed, skipped and in-flight
+// (pending / processing) batches are left as they are. Returns the batches
+// actually requeued so the caller can emit invalidation for their days; an id
+// that names no reprocessable batch is silently skipped.
+//
+// No production caller today: the timeline's per-card regenerate rewrites the
+// card's own window instead of requeueing its batch (analysis.RegenerateCard).
+// Day-level reprocessing uses ReprocessDay. The pipeline fixtures still drive
+// the sliding-window reprocess path through this method.
 func (r *AnalysisRepo) ReprocessBatches(ctx context.Context, ids []int64, now time.Time) ([]Batch, error) {
 	if r == nil || r.store == nil {
 		return nil, fmt.Errorf("analysis: store unavailable")

@@ -52,6 +52,7 @@ const {
   dayNavigationAvailable,
   usingDevelopmentFixture,
   pendingAction,
+  pendingCardID,
   actionError,
   actionAvailability,
 } = storeToRefs(timeline)
@@ -109,7 +110,7 @@ async function loadWeek(options: { silent?: boolean } = {}): Promise<void> {
 
 const weekColumns = computed(() => {
   const format = new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit' })
-  return buildWeekColumns(weekDays.value, categoryFilter.value, format)
+  return buildWeekColumns(weekDays.value, categoryFilter.value, format, pendingCardID.value)
 })
 
 const weekTitle = computed(() => {
@@ -273,8 +274,8 @@ async function deleteWeekCard(cardID: number): Promise<void> {
 
 async function reprocessWeekCard(cardID: number): Promise<void> {
   const ok = await timeline.reprocessCard(cardID)
-  // Reflect the batch's regenerating state in the week columns; the finished
-  // cards arrive on the next timeline:updated after the LLM run.
+  // The rewrite is synchronous, so the new cards are already stored once this
+  // resolves; re-pull the week to draw them where the old ones were.
   if (ok) await loadWeek({ silent: true })
 }
 
@@ -592,6 +593,7 @@ onBeforeUnmount(() => {
               :processing-ranges="day.processingRanges"
               :selected-card-i-d="selectedCardID"
               :selected-failure-ts="selectedFailureTs"
+              :regenerating-card-i-d="pendingCardID"
               :generating="generating"
               @select="timeline.selectCard"
               @select-failure="timeline.selectFailure"

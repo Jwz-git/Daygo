@@ -714,6 +714,45 @@ func appSitesFromList(values []string) *appSitesMetadata {
 	return sites
 }
 
+// shellsFromModel maps the model's cards onto storable shells: a category
+// outside the known list falls back to System (counted, never auto-created),
+// activity points without a description are dropped, and the metadata is
+// rebuilt in the stored shape. Both the batch pipeline and the single-card
+// rewrite map through here, so a card means the same thing whichever path
+// produced it.
+func shellsFromModel(cards []modelCard, known map[string]bool) []domain.CardShell {
+	shells := make([]domain.CardShell, 0, len(cards))
+	for _, c := range cards {
+		category := c.Category
+		if !known[category] {
+			category = "System"
+		}
+		points := make([]cardActivityPoint, 0, len(c.ActivityPoints))
+		for _, p := range c.ActivityPoints {
+			if p.Description == "" {
+				continue
+			}
+			points = append(points, cardActivityPoint{Time: p.Time, Description: p.Description})
+		}
+		metadata, _ := json.Marshal(map[string]any{
+			"appSites":       appSitesFromList(c.AppSites),
+			"distractions":   distractionsFromModel(c.Distractions),
+			"activityPoints": points,
+		})
+		shells = append(shells, domain.CardShell{
+			Start:           c.Start,
+			End:             c.End,
+			Category:        category,
+			Subcategory:     c.Subcategory,
+			Title:           c.Title,
+			Summary:         boundSummary(c.Summary),
+			DetailedSummary: boundDetailedSummary(c.DetailedSummary),
+			Metadata:        string(metadata),
+		})
+	}
+	return shells
+}
+
 // generateCards runs the card stage: prompt with sliding-window context,
 // parse, then validate every category against the known list — an unknown
 // category maps to System and is counted, never auto-created (docs/04 §4.3.4).
@@ -737,6 +776,10 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 	}
 
 	requiresSingleCard := !ongoing
+	mode := cardModeFresh
+	if ongoing {
+		mode = cardModeOngoing
+	}
 	ownedFrom := rewriteStart
 	var lastRaw json.RawMessage
 	var issues []string
@@ -745,14 +788,14 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		if attempt == 1 {
 			request = ai.Request{
 				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsPrompt(batch.Start, batch.End, existing, obs, categories, s.cfg.Language(ctx), ongoing))},
+				Parts:           []ai.Part{ai.TextPart(cardsPrompt(batch.Start, batch.End, existing, obs, categories, s.cfg.Language(ctx), mode))},
 				Output:          &cardsOutput,
 				MaxOutputTokens: 4096,
 			}
 		} else {
 			request = ai.Request{
 				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, requiresSingleCard, ownedFrom, batch.End))},
+				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, mode, ownedFrom, batch.End))},
 				Output:          &cardsOutput,
 				MaxOutputTokens: 4096,
 			}
@@ -773,33 +816,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 
 		var shells []domain.CardShell
 		var rejectedIssues []string
-		for cardIndex, c := range envelope.Cards {
-			category := c.Category
-			if !known[category] {
-				category = "System"
-			}
-			points := make([]cardActivityPoint, 0, len(c.ActivityPoints))
-			for _, p := range c.ActivityPoints {
-				if p.Description == "" {
-					continue
-				}
-				points = append(points, cardActivityPoint{Time: p.Time, Description: p.Description})
-			}
-			metadata, _ := json.Marshal(map[string]any{
-				"appSites":       appSitesFromList(c.AppSites),
-				"distractions":   distractionsFromModel(c.Distractions),
-				"activityPoints": points,
-			})
-			shell := domain.CardShell{
-				Start:           c.Start,
-				End:             c.End,
-				Category:        category,
-				Subcategory:     c.Subcategory,
-				Title:           c.Title,
-				Summary:         boundSummary(c.Summary),
-				DetailedSummary: boundDetailedSummary(c.DetailedSummary),
-				Metadata:        string(metadata),
-			}
+		for cardIndex, shell := range shellsFromModel(envelope.Cards, known) {
 			// A shell the model resolved entirely outside the rewrite span is
 			// a context-merge hallucination; drop it rather than let the
 			// rewrite duplicate it outside the range we own.
@@ -819,7 +836,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			s.inheritMergedAppSites(&shells[i], ownedFrom, batch, existing)
 		}
 
-		spans := resolveCardSpans(shells, batch, s.loc())
+		spans := resolveCardSpans(shells, ownedFrom, batch.End, s.loc())
 		issues = validateCards(spans, ownedFrom, batch.End, requiresSingleCard)
 		// If the provider returned cards but every one was rejected before
 		// validation, "no cards returned" is false and unactionable. Preserve
@@ -837,6 +854,258 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		}
 	}
 	return nil, ownedFrom, fmt.Errorf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; "))
+}
+
+// Failures of the single-card rewrite, kept distinguishable so the binding
+// layer can map them to user-facing error codes without matching on message
+// text (docs/05 §5.6.2).
+var (
+	// ErrNoSourceBatch: the card carries no batch provenance, so a rewrite has
+	// nothing to attribute its rows to.
+	ErrNoSourceBatch = errors.New("analysis: card has no source batch")
+	// ErrWindowInAnalysis: a batch over the same window is pending or
+	// processing and would overwrite this regeneration when it lands.
+	ErrWindowInAnalysis = errors.New("analysis: card window is still being analyzed")
+	// ErrNoCardEvidence: the window has no stored observations to rewrite from.
+	ErrNoCardEvidence = errors.New("analysis: card window has no stored observations")
+	// ErrCardsInvalid: the model's cards never covered the window within the
+	// correction attempts. Nothing was written.
+	ErrCardsInvalid = errors.New("analysis: card output failed validation")
+)
+
+/*
+ * RegenerateCard rewrites exactly one card's own span from the evidence already
+ * stored for those minutes. It is deliberately not the batch pipeline: every
+ * card a batch writes carries that batch's id, so requeueing the batch
+ * regenerates the card's siblings too — the two 60-minute cards a long activity
+ * was split into share one batch — and the sliding window's merge rule can
+ * extend the rewrite back over the preceding card. Here the window is the
+ * card's own stored span, both outer boundaries are fixed, and the neighbours
+ * on either side are context rather than output.
+ *
+ * The evidence is the observations already stored for the window, not a fresh
+ * transcription: the point is a second take on the same screenshots, and the
+ * batch's own transcription is what the model already saw. A rewrite that names
+ * no app inherits the replaced card's appSites, so regenerating never costs the
+ * card its icon.
+ */
+func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) error {
+	if card.BatchID == nil {
+		return ErrNoSourceBatch
+	}
+	windowStart, windowEnd, err := s.cardWindow(card)
+	if err != nil {
+		return err
+	}
+	// A live batch over the same window will rewrite these cards when it lands,
+	// which would silently discard this regeneration's result.
+	live, err := s.cfg.Store.ProcessingBatchesInRange(ctx, windowStart, windowEnd)
+	if err != nil {
+		return err
+	}
+	if len(live) > 0 {
+		return fmt.Errorf("%w: card window %s-%s is being analyzed by batch %d",
+			ErrWindowInAnalysis, formatFrameClock(windowStart), formatFrameClock(windowEnd), live[0].ID)
+	}
+
+	// The same lock the batch pipeline holds across read→generate→rewrite: a
+	// regeneration interleaving a neighbouring batch's rewrite of the same
+	// minutes would clobber one of the two (docs/04 §4.3.2).
+	s.cardsMu.Lock()
+	defer s.cardsMu.Unlock()
+
+	observations, err := s.cfg.Store.ObservationsInRange(ctx, windowStart, windowEnd)
+	if err != nil {
+		return err
+	}
+	if len(observations) == 0 {
+		return fmt.Errorf("%w: card window %s-%s has no stored observations",
+			ErrNoCardEvidence, formatFrameClock(windowStart), formatFrameClock(windowEnd))
+	}
+	categories, err := s.cfg.Categories.List(ctx)
+	if err != nil {
+		return err
+	}
+	// Context: the cards ending at or before this window, plus the card being
+	// replaced — its apps and time points are evidence the model may keep when
+	// the new take does not replace them.
+	existing, err := s.cfg.Cards.CardsInRange(ctx, windowStart.Add(-CardLookback), windowStart)
+	if err != nil {
+		return err
+	}
+	existing = append(existing, card)
+
+	chain, err := s.cfg.Providers.AnalysisChain(ctx)
+	if err != nil {
+		return err
+	}
+	shells, err := s.generateScopedCards(ctx, chain, card, windowStart, windowEnd, existing, observations, categories)
+	if err != nil {
+		return err
+	}
+	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, windowStart, windowEnd, shells, *card.BatchID); err != nil {
+		return err
+	}
+	s.notifyDays(windowStart, windowEnd)
+	return nil
+}
+
+// cardWindow resolves a card's stored clock strings back to the instants the
+// rewrite owns. The stored strings — not a reformat of start_ts/end_ts — are
+// the authority: ReplaceCardsInRange resolves the same strings through the same
+// function, so "the window" means one range in both directions.
+func (s *Service) cardWindow(card domain.TimelineCard) (time.Time, time.Time, error) {
+	loc := s.loc()
+	anchor := time.Unix((card.StartTs+card.EndTs)/2, 0)
+	start, err := timeutil.ResolveClock(card.Start, anchor, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("card %d start %q: %w", card.ID, card.Start, err)
+	}
+	end, err := timeutil.ResolveClock(card.End, anchor, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("card %d end %q: %w", card.ID, card.End, err)
+	}
+	if !end.After(start) {
+		return time.Time{}, time.Time{}, fmt.Errorf("card %d has an empty window %s-%s", card.ID, card.Start, card.End)
+	}
+	return start, end, nil
+}
+
+// generateScopedCards runs the card stage for one fixed window: the mode that
+// neither extends over the preceding card nor demands a single card, with the
+// same three-attempt correction loop as the batch pipeline.
+func (s *Service) generateScopedCards(ctx context.Context, chain *ai.Chain, card domain.TimelineCard,
+	windowStart, windowEnd time.Time, existing []domain.TimelineCard,
+	obs []storage.Observation, categories []domain.Category) ([]domain.CardShell, error) {
+
+	known := make(map[string]bool, len(categories))
+	for _, c := range categories {
+		if c.IsSystem {
+			continue
+		}
+		known[c.Name] = true
+	}
+
+	var lastRaw json.RawMessage
+	var issues []string
+	for attempt := 1; attempt <= 3; attempt++ {
+		var request ai.Request
+		if attempt == 1 {
+			request = ai.Request{
+				Purpose:         ai.PurposeCards,
+				Parts:           []ai.Part{ai.TextPart(cardsPrompt(windowStart, windowEnd, existing, obs, categories, s.cfg.Language(ctx), cardModeScoped))},
+				Output:          &cardsOutput,
+				MaxOutputTokens: 4096,
+			}
+		} else {
+			request = ai.Request{
+				Purpose:         ai.PurposeCards,
+				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, cardModeScoped, windowStart, windowEnd))},
+				Output:          &cardsOutput,
+				MaxOutputTokens: 4096,
+			}
+		}
+		result, err := chain.Generate(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+		raw, err := ai.ParseStructuredOutput(result.Text, cardsOutput)
+		if err != nil {
+			return nil, err
+		}
+		lastRaw = raw
+		var envelope cardsEnvelope
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			return nil, fmt.Errorf("decode cards: %w", err)
+		}
+
+		var shells []domain.CardShell
+		var rejectedIssues []string
+		for cardIndex, shell := range shellsFromModel(envelope.Cards, known) {
+			if issue := s.shellSpanIssue(shell, windowStart, windowEnd); issue == "" {
+				shells = append(shells, shell)
+			} else {
+				rejectedIssues = append(rejectedIssues, fmt.Sprintf("card %d (%s) %s", cardIndex+1, shell.Title, issue))
+			}
+		}
+
+		spans := resolveCardSpans(shells, windowStart, windowEnd, s.loc())
+		issues = validateScopedCards(spans, windowStart, windowEnd)
+		if len(shells) == 0 && len(rejectedIssues) > 0 {
+			issues = rejectedIssues
+		}
+		if len(issues) == 0 {
+			pinScopedBoundaries(shells, card)
+			s.inheritScopedAppSites(shells, card, windowStart, windowEnd)
+			return shells, nil
+		}
+	}
+	return nil, fmt.Errorf("%w: card %d failed validation after 3 attempts: %s",
+		ErrCardsInvalid, card.ID, strings.Join(issues, "; "))
+}
+
+// pinScopedBoundaries snaps the accepted cards onto the window the rewrite
+// owns. Validation tolerates a minute of clock rounding; storage does not — it
+// expands the deletion range to whatever the cards resolve to, so a card ending
+// a minute past the window would make the rewrite overlap the neighbour it must
+// not touch (and the whole transaction would roll back). Writing the card's own
+// stored strings back makes the written range identical to the range read.
+func pinScopedBoundaries(shells []domain.CardShell, card domain.TimelineCard) {
+	if len(shells) == 0 {
+		return
+	}
+	shells[0].Start = card.Start
+	shells[len(shells)-1].End = card.End
+}
+
+// inheritScopedAppSites gives the replaced card's appSites to the output card
+// that covers most of the window when the model named no app at all. The icon
+// came from these same minutes, so a regeneration that drops it would be a
+// downgrade; a model that named an app keeps its choice.
+func (s *Service) inheritScopedAppSites(shells []domain.CardShell, card domain.TimelineCard,
+	windowStart, windowEnd time.Time) {
+
+	inherited := appSitesOfMetadata(card.Metadata)
+	if inherited == nil || inherited.Primary == nil || *inherited.Primary == "" {
+		return
+	}
+	longest, longestSpan := -1, time.Duration(0)
+	loc := s.loc()
+	anchor := windowStart.Add(windowEnd.Sub(windowStart) / 2)
+	for i, shell := range shells {
+		start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
+		if err != nil {
+			continue
+		}
+		end, err := timeutil.ResolveClock(shell.End, anchor, loc)
+		if err != nil || !end.After(start) {
+			continue
+		}
+		if span := end.Sub(start); span > longestSpan {
+			longest, longestSpan = i, span
+		}
+	}
+	if longest < 0 {
+		return
+	}
+
+	var meta struct {
+		AppSites       *appSitesMetadata     `json:"appSites"`
+		Distractions   []distractionMetadata `json:"distractions"`
+		ActivityPoints []cardActivityPoint   `json:"activityPoints"`
+	}
+	if err := json.Unmarshal([]byte(shells[longest].Metadata), &meta); err != nil {
+		return
+	}
+	if meta.AppSites != nil && meta.AppSites.Primary != nil && *meta.AppSites.Primary != "" {
+		return
+	}
+	meta.AppSites = inherited
+	out, err := json.Marshal(meta)
+	if err != nil {
+		return
+	}
+	shells[longest].Metadata = string(out)
 }
 
 // shellSpanIssue explains why a model-returned shell cannot be owned by this

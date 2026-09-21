@@ -82,7 +82,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
-| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日或按卡片来源批次重处理；审阅判断持久化在 `timeline_review_ratings` 并可按卡片读回 / 按日聚合；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；用户保存不触碰 AI summary 列 |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
@@ -283,26 +283,37 @@ export function toApiError(e: unknown): ApiError {
 | `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
 | `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
-| `ReprocessCard(cardID int64) error` | timeline | cards / 批次 / 写入锁 | 写·非幂等（来源终态批次重置回 pending） | `timeline:updated` | `invalid_argument` `conflict` `not_found` |
-| `GetCardVerdict(cardID int64) (string, error)` | timeline | review ratings | 读 | — | `invalid_argument` `database_error` |
-| `SaveCardReview(cardID int64, verdict string) error` | timeline | review ratings / 写入锁 | 写·幂等 | `timeline:updated` | `invalid_argument` `not_capture_owner` |
-| `ClearCardReview(cardID int64) error` | timeline | review ratings / 写入锁 | 写·幂等 | `timeline:updated` | `invalid_argument` `not_capture_owner` |
-| `GetReviewTotals(day string) (ReviewTotalsDTO, error)` | timeline | time / review ratings | 读 | — | `invalid_argument` `database_error` |
+| `ReprocessCard(cardID int64) error` | timeline | observations / cards / 写入锁 | 写·非幂等（重写该卡片自己的时间窗） | `timeline:updated` | `invalid_argument` `conflict` `provider_failed` `provider_not_configured` `not_found` |
+| `GetCardVerdict(cardID int64) (string, error)` | timeline | card_reviews | 读 | — | `invalid_argument` `database_error` |
+| `SaveCardReview(cardID int64, verdict string) error` | timeline | card_reviews / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` |
+| `ClearCardReview(cardID int64) error` | timeline | card_reviews / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` |
+| `GetReviewTotals(day string) (ReviewTotalsDTO, error)` | timeline | time / card_reviews | 读 | — | `invalid_argument` `database_error` |
+| `GetCardRating(cardID int64) (string, error)` | timeline | card_ratings | 读 | — | `invalid_argument` `database_error` |
+| `SaveCardRating(cardID int64, rating string) error` | timeline | card_ratings / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` `not_found` |
+| `ClearCardRating(cardID int64) error` | timeline | card_ratings / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` |
 | `ClearHistoryData() error`（测试专用） | timeline | storage / 写入锁 / 录制空闲 | 写·非幂等 | `timeline:updated` `journal:updated` `goal:updated` | `not_capture_owner` `conflict` `database_error` |
 
 - `UpdateCardCategory` 的 `category` 必须是现有**用户**分类**名称**；不存在或为内置
   分类（`System` / `Idle`，由流水线赋值）时返回 `invalid_argument`，**不得**自动创建
   分类。
 - `DeleteCard` 是软删除并返回可清理的 timelapse 路径给内部维护；对前端只是 `error`。
-- `RetryBatches` / `ReprocessDay` / `ReprocessCard` 立即返回，进度通过 `batch:progress` 推送；
-  `ReprocessCard` 的粒度是卡片来源批次，因此同批次窗口内的卡片会一起重建。
+- `RetryBatches` / `ReprocessDay` 立即返回，进度通过 `batch:progress` 推送：
   `RetryBatches` 重置 `attempts` 并清空失败信息后回到 `pending`；调用方传入的
   id 里只要有一个不是失败终态的批次，整个调用返回 `invalid_argument` 且不落任何改动。
+- `ReprocessCard` **同步**执行且**只重写这张卡片自己的时间窗**（[04 §4.3.5](04-data-flow.md#435-单卡重写)）：
+  它复用该窗内已存的 observations 重跑一次 LLM，在 `[card.start, card.end)` 内重建卡片，
+  两侧相邻卡片不受影响，也不产生 `batch:progress`。调用方必须按长任务设置超时
+  （绑定层 5 分钟）。卡片没有来源批次、或该窗内没有 observations 时返回 `invalid_argument`；
+  该窗仍有批次在 `pending` / `processing` 时返回 `conflict`；模型三次都给不出合法输出、
+  或 provider 调用失败时返回 `provider_failed` 且**不写入任何改动**。
 - `DeleteBatches` 软删除失败批次（`is_deleted = 1`）：行与 `batch_screenshots`
   成员保留，帧不会重新进入未分批集合被再次分析。对时间线表现为失败面板条目消失。
 - `ClearHistoryData` 一键清空录制与分析历史（帧 / 批次 / 观测 / 卡片 / 日记 / 目标 /
   聊天 + recordings 文件），**保留** `app_settings`、`providers`、`categories` 等配置；
   仅限开发测试场景，录制运行中返回 `conflict`。
+- 审阅判定与摘要评分**不发** `timeline:updated`：两者都不改写任何卡片、分类或帧，
+  时间线数据未失效。前端局部更新自己的状态即可（审阅判定另需重拉当日统计，
+  由详情页向父级发内部事件完成，见 [modules/timeline](modules/timeline.md)）。
 
 #### 帧与媒体
 

@@ -3,11 +3,14 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/Jwz-git/Daygo/internal/ai"
+	"github.com/Jwz-git/Daygo/internal/analysis"
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/domain"
 	"github.com/Jwz-git/Daygo/internal/recorder"
@@ -16,6 +19,12 @@ import (
 )
 
 const timelineTimeout = 10 * time.Second
+
+// cardRegenerationTimeout bounds the synchronous single-card rewrite, which
+// spends one model call on top of its storage reads. It is far longer than the
+// storage timeout because the model round trip is the bulk of it; the ai layer
+// still applies its own per-request timeout inside this one.
+const cardRegenerationTimeout = 5 * time.Minute
 
 // timelineEventMergeWindow is the docs/05 §5.5.3 rule: timeline:updated is an
 // invalidation event, so multiple writes to the same day within this window
@@ -522,14 +531,17 @@ func (b *Backend) ReprocessDay(day string) error {
 	return nil
 }
 
-// ReprocessCard requeues the batch that produced one card, so the user can
-// regenerate a single card from its detail pane instead of the whole day.
-// Analysis works per batch, not per card: reprocessing rebuilds every card in
-// that batch's window (ReplaceCardsInRange), which is the same granularity the
-// timeline's regenerating state already shows. A card with no originating
-// batch (a System fallback, or one already reprocessing) cannot be
-// regenerated. It returns immediately; progress arrives as batch:progress /
-// timeline:updated events.
+// ReprocessCard regenerates one card: the card's own window is re-analyzed
+// from the evidence already stored for it and rewritten in place, leaving the
+// cards on either side — including the siblings the same batch produced —
+// untouched (analysis.Service.RegenerateCard). It is not the batch requeue it
+// replaced: a batch writes every card of its rewrite span with one batch id, so
+// requeueing it regenerated the card's siblings too, and the sliding window's
+// merge rule could extend the rewrite back over the preceding card.
+//
+// The call is synchronous — the user asked for this one card, and its result or
+// its failure is the answer. Progress reaches the UI through the same
+// timeline:updated invalidation every other card write uses.
 func (b *Backend) ReprocessCard(cardID int64) error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
@@ -544,21 +556,25 @@ func (b *Backend) ReprocessCard(cardID int64) error {
 		}
 		return apperr.E(apperr.DatabaseError, "reprocess card requires a database", nil)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	pipeline := b.analysisService()
+	ctx, cancel := context.WithTimeout(context.Background(), cardRegenerationTimeout)
 	defer cancel()
 	card, err := store.Cards().CardByID(ctx, cardID)
 	if err != nil {
 		return mapStorageError("reprocess card", err)
 	}
+	// A card without batch provenance (a System fallback) is unregenerable
+	// whatever else is available, so it is answered before the pipeline check.
 	if card.BatchID == nil {
 		return apperr.E(apperr.InvalidArgument, "card has no batch to regenerate", nil)
 	}
-	requeued, err := store.Analysis().ReprocessBatches(ctx, []int64{*card.BatchID}, b.clock.Now())
-	if err != nil {
-		return mapStorageError("reprocess card", err)
+	if pipeline == nil {
+		// No pipeline started: a read-only instance or a failed startup. There
+		// is no path that could rewrite the card.
+		return apperr.E(apperr.Internal, "reprocess card requires the analysis pipeline", nil)
 	}
-	if len(requeued) > 0 {
-		b.emitTimelineInvalidation(card.Day)
+	if err := pipeline.RegenerateCard(ctx, card); err != nil {
+		return mapCardRegenerationError(err)
 	}
 	return nil
 }
@@ -587,6 +603,33 @@ func (b *Backend) DeleteBatches(batchIDs []int64) error {
 		b.emitTimelineInvalidation(timeutil.LogicalDay(batch.Start, b.clock.Now().Location()))
 	}
 	return nil
+}
+
+// mapCardRegenerationError turns a failed single-card rewrite into a binding
+// error. The analysis layer's own messages are fixed sanitized strings and
+// never carry provider bodies or paths, so they pass through; the sentinel
+// errors pick the code, never a match on message text (docs/05 §5.6.2).
+func mapCardRegenerationError(err error) error {
+	switch {
+	case errors.Is(err, analysis.ErrNoSourceBatch):
+		return apperr.E(apperr.InvalidArgument, "card has no batch to regenerate", err)
+	case errors.Is(err, analysis.ErrNoCardEvidence):
+		return apperr.E(apperr.InvalidArgument, "reprocess card: "+err.Error(), err)
+	case errors.Is(err, analysis.ErrWindowInAnalysis):
+		return apperr.E(apperr.Conflict, "reprocess card: "+err.Error(), err)
+	case errors.Is(err, analysis.ErrCardsInvalid):
+		return apperr.E(apperr.ProviderFailed, "reprocess card: "+err.Error(), err)
+	case errors.Is(err, ai.ErrNoProvider):
+		return apperr.E(apperr.ProviderNotConfigured, "reprocess card: no provider is configured", err)
+	}
+	var aiErr *ai.Error
+	if errors.As(err, &aiErr) {
+		return apperr.E(apperr.ProviderFailed, "reprocess card: "+err.Error(), err)
+	}
+	if _, ok := storage.KindOf(err); ok {
+		return mapStorageError("reprocess card", err)
+	}
+	return apperr.E(apperr.Internal, "reprocess card: "+err.Error(), err)
 }
 
 // ClearHistoryData is the test-only one-click reset: it wipes recorded and

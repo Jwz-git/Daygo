@@ -93,6 +93,7 @@ export function buildWeekColumns(
   days: readonly (TimelineDayDTO | null)[],
   filterCategory: string | null,
   format: Intl.DateTimeFormat,
+  regeneratingCardID: number | null = null,
 ): WeekColumn[] {
   const colorOf = new Map<string, string>()
   for (const day of days) {
@@ -141,7 +142,8 @@ export function buildWeekColumns(
         clampLines: weekCardClampLines(box.height),
         site: preferredAppSite(box.card.appSites ?? null),
         sites: appSiteValues(box.card.appSites ?? null),
-        regenerating: isRegenerating(box.card, day.processingRanges),
+        regenerating:
+          box.card.id === regeneratingCardID || isRegenerating(box.card, day.processingRanges),
       })),
       // A window belongs to the card that already covers it: the block is the
       // stand-in for a gap, so it yields wherever a card exists.
