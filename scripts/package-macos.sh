@@ -238,7 +238,7 @@ PLIST="$APP_PATH/Contents/Info.plist"
 for key in SUFeedURL SUPublicEDKey SUEnableSystemProfiling; do
   /usr/libexec/PlistBuddy -c "Delete :$key" "$PLIST" >/dev/null 2>&1 || true
 done
-/usr/libexec/PlistBuddy -c "Add :SUFeedURL string https://github.com/Jwz-git/Daygo/releases/download/updates/appcast.xml" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :SUFeedURL string https://github.com/Jwz-git/Daygo/releases/latest/download/appcast.xml" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string 06+8of/d5uuNRZP3K7PPYQ8yCYG9BFdjwJ9P2PMj7Po=" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :SUEnableSystemProfiling bool false" "$PLIST"
 

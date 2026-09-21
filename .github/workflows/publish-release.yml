@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   prepare:
+    if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.check.outputs.version }}
@@ -29,7 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          test -n "$version" || { echo 'Release version is empty.' >&2; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected a vX.Y.Z release tag.' >&2; exit 1; }
 
           mac_asset="Daygo-${version}-arm64.dmg"
           win_asset="Daygo-${version}-amd64-installer.exe"
@@ -132,3 +133,57 @@ jobs:
           $asset = Join-Path 'dist' "Daygo-$env:VERSION-amd64-installer.exe"
           if (-not (Test-Path $asset -PathType Leaf)) { throw "Windows installer not found: $asset" }
           gh release upload $env:RELEASE_TAG $asset --clobber
+
+  appcast:
+    needs: [prepare, macos, windows]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+    runs-on: macos-15
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Download both release installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$RELEASE_TAG" --repo "$REPOSITORY" --dir dist \
+            --pattern "Daygo-${VERSION}-arm64.dmg" \
+            --pattern "Daygo-${VERSION}-amd64-installer.exe"
+          test -s "dist/Daygo-${VERSION}-arm64.dmg"
+          test -s "dist/Daygo-${VERSION}-amd64-installer.exe"
+
+      - name: Sign installers and generate appcast
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SPARKLE_ED25519_PRIVATE_KEY" || { echo 'Sparkle signing key is missing.' >&2; exit 1; }
+          sparkle_dir="$(./scripts/bootstrap-updaters.sh)"
+          signer="$sparkle_dir/bin/sign_update"
+          mac="dist/Daygo-${VERSION}-arm64.dmg"
+          windows="dist/Daygo-${VERSION}-amd64-installer.exe"
+          mac_signature="$(printf '%s' "$SPARKLE_ED25519_PRIVATE_KEY" | "$signer" --ed-key-file - -p "$mac")"
+          windows_signature="$(printf '%s' "$SPARKLE_ED25519_PRIVATE_KEY" | "$signer" --ed-key-file - -p "$windows")"
+          test -n "$mac_signature" && test -n "$windows_signature"
+          python3 scripts/generate-appcast.py --version "$VERSION" \
+            --mac "$mac" --mac-signature "$mac_signature" \
+            --windows "$windows" --windows-signature "$windows_signature" \
+            --output dist/appcast.xml
+          python3 -c 'import xml.etree.ElementTree as ET; ET.parse("dist/appcast.xml")'
+
+      - name: Upload appcast to the same release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: gh release upload "$RELEASE_TAG" dist/appcast.xml --clobber

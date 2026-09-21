@@ -18,7 +18,7 @@ macOS 自动更新采用三项组合，均在本文定稿：
 | 维度 | 决定 | 理由 |
 |---|---|---|
 | 更新引擎 | **Sparkle 2**（经 `platform/darwin` cgo 适配到冻结的 `Updater` 端口） | macOS 事实标准，自带 appcast 解析、EdDSA 校验、后台 / 交互检查、原子替换与安全重启，避免自研原子替换 / 回滚 / 边界处理 |
-| feed 托管 | **GitHub Releases 资产 + `updates` 预发布中的静态 `appcast.xml`** | 固定 URL 不会在正式 Release 构建期间暂时指向缺少 appcast 的新版本；检测=HTTPS GET 一个静态文件，无自有后端、无可识别遥测 |
+| feed 托管 | **每个正式 GitHub Release 自带 `appcast.xml`** | 客户端访问 `https://github.com/Jwz-git/Daygo/releases/latest/download/appcast.xml`；无需独立 `updates` tag 或 Release |
 | 更新 UI | **Sparkle 标准原生 UI** | 集成风险最低；冻结的 `UpdaterStateDTO`（薄）够用，无需扩展端口 / DTO |
 
 Daygo 是 **Wails v2 单进程 `.app`**（见 [生命周期退出模型](lifecycle-quit-model.md)），不是进程外守护
@@ -29,8 +29,11 @@ Windows 方案见 [WinSparkle + NSIS 决策](delivery-auto-update-windows.md)；
 
 ## 2. 检测机制（detection）
 
-**feed。** 每个 Release 发布时，构建产物包含 `.app` 归档（`.dmg` / `.zip`）与一份 `appcast.xml`；
-`appcast.xml` 以 release 资产（或 GitHub Pages 静态文件）发布，`SUFeedURL` 指向其稳定 URL。
+**feed。** 每个正式 Release 的资产包含 macOS DMG、Windows 安装器与一份 `appcast.xml`；
+`SUFeedURL` 与 WinSparkle feed 均指向上述 `releases/latest/download/appcast.xml`。
+发布事件先使 Release 成为 latest，Action 后上传资产，因此上传完成前存在短暂的 404 窗口；
+Action 仅在两个安装器均存在且签名、XML 生成成功后上传 appcast。发布前需确认这段窗口可接受；
+消除窗口须另行设计分阶段发布流程。
 appcast 每个 `<item>` 携带版本、最低系统版本、归档 URL、长度与 **EdDSA (ed25519) 签名**
 （`sparkle:edSignature`）。
 

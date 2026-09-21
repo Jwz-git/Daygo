@@ -122,5 +122,7 @@ here — the project's own build/test runners are the right home for it.
   `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` — Developer ID signing and notarization.
 - `WINDOWS_CERTIFICATE_PFX_BASE64`, `WINDOWS_CERT_PASSWORD` — Authenticode signing.
 
-The workflow fails closed when a signing identity is absent. It uploads platform assets to the formal Release and
-atomically replaces `appcast.xml` in the machine-managed `updates` prerelease only after both platform jobs succeed.
+The workflow skips prereleases. For a formal `vX.Y.Z` Release it uploads both platform assets, then signs their
+final bytes with Sparkle Ed25519 and uploads `appcast.xml` to that same Release. A missing signing key or installer
+leaves the appcast absent. The `releases/latest` URL can return 404 between publishing the Release and this final
+upload. Eliminating that interval requires a separate staged publication flow.

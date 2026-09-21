@@ -29,6 +29,9 @@ Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
 [Windows 决策](../decisions/delivery-auto-update-windows.md)接线：fake 契约、绑定、事件泵、设置 UI、
 Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow
 均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
+正式 Release 的更新 feed 已改为同一 Release 的 `appcast.xml`，客户端使用
+`releases/latest/download/appcast.xml`；发布 workflow 仅在两个安装器存在并完成 Ed25519 签名后上传。
+发布到 appcast 上传之间可能短暂返回 404，尚无真实发布验收证据。
 签名 workflow、真实安装升级、Gatekeeper / Authenticode 与首次引导仍未验收。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 **2026-09-21：更新弹窗中属于我们的那句文案接入 i18n**（“只有持有捕获所有权的 Daygo 实例
