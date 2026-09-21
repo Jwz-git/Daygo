@@ -436,14 +436,16 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	// boundary, the card's earlier prefix silently disappears.
 	rewriteStart, ongoing := cardRewriteStart(existing, batch.Start)
 
-	shells, _, err := s.generateCards(ctx, chain, batch, existing, observations, categories, rewriteStart, ongoing)
+	shells, ownedFrom, err := s.generateCards(ctx, chain, batch, existing, observations, categories, rewriteStart, ongoing)
 	if err != nil {
 		return err
 	}
 	// The rewrite replaces everything from the span's start (the merged
 	// predecessor's start in ongoing mode) through the window end; cards
-	// before the span survive beside the rewrite.
-	result, err := s.cfg.Cards.ReplaceCardsInRange(ctx, rewriteStart, batch.End, shells, batch.ID)
+	// before the span survive beside the rewrite. ownedFrom is that start after
+	// the merge gate: a merge the gate refused starts the span at the window
+	// instead, and the cross-category predecessor keeps its own card.
+	result, err := s.cfg.Cards.ReplaceCardsInRange(ctx, ownedFrom, batch.End, shells, batch.ID)
 	if err != nil {
 		return err
 	}
@@ -735,6 +737,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 	}
 
 	requiresSingleCard := !ongoing
+	ownedFrom := rewriteStart
 	var lastRaw json.RawMessage
 	var issues []string
 	for attempt := 1; attempt <= 3; attempt++ {
@@ -749,7 +752,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		} else {
 			request = ai.Request{
 				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, requiresSingleCard, rewriteStart, batch.End))},
+				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, requiresSingleCard, ownedFrom, batch.End))},
 				Output:          &cardsOutput,
 				MaxOutputTokens: 4096,
 			}
@@ -807,8 +810,17 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			}
 		}
 
+		// The gate owns the left edge from here on: a shell that claimed time
+		// before the batch window keeps only the part the gate allowed, and
+		// validation checks the same start the rewrite will replace from.
+		ownedFrom = s.mergeOwnershipStart(shells, batch, existing)
+		for i := range shells {
+			shells[i] = s.clampToMergeFloor(shells[i], ownedFrom, batch)
+			s.inheritMergedAppSites(&shells[i], ownedFrom, batch, existing)
+		}
+
 		spans := resolveCardSpans(shells, batch, s.loc())
-		issues = validateCards(spans, rewriteStart, batch.End, requiresSingleCard)
+		issues = validateCards(spans, ownedFrom, batch.End, requiresSingleCard)
 		// If the provider returned cards but every one was rejected before
 		// validation, "no cards returned" is false and unactionable. Preserve
 		// the rejected clocks and required span for the correction pass.
@@ -816,15 +828,15 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			issues = rejectedIssues
 		}
 		if len(issues) == 0 {
-			return shells, rewriteStart, nil
+			return shells, ownedFrom, nil
 		}
-		// Pre-window activity points from a rejected merge claim are dropped
-		// so the predecessor's points never duplicate inside the rewrite.
+		// Activity points from before the owned span are dropped so a refused
+		// merge's points never duplicate inside the rewrite.
 		for i := range shells {
-			shells[i].Metadata = dropPreWindowPoints(shells[i].Metadata, rewriteStart, batch.Start.Add(batch.End.Sub(batch.Start)/2), s.loc())
+			shells[i].Metadata = dropPreWindowPoints(shells[i].Metadata, ownedFrom, batch.Start.Add(batch.End.Sub(batch.Start)/2), s.loc())
 		}
 	}
-	return nil, rewriteStart, fmt.Errorf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; "))
+	return nil, ownedFrom, fmt.Errorf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; "))
 }
 
 // shellSpanIssue explains why a model-returned shell cannot be owned by this
@@ -851,17 +863,104 @@ func (s *Service) shellSpanIssue(shell domain.CardShell, spanStart, spanEnd time
 	return ""
 }
 
-// enforceMergeGate is the deterministic backstop behind the prompt's merge
-// rule. A shell whose resolved start precedes the batch window declares a
-// merge into earlier cards; that merge is honored only when every predecessor
-// card it would absorb shares the shell's category. System predecessors are
-// exempt (their category is unknown by construction), and with no absorbable
-// mismatching predecessor the claim is left as the model made it. On
-// rejection the shell start is clamped to the window start and activityPoints
-// from before the window are dropped, so the predecessor survives beside a
-// card that covers only this batch.
-func (s *Service) enforceMergeGate(shell *domain.CardShell, batch storage.Batch,
-	existing []domain.TimelineCard) {
+// mergeOwnershipStart returns the earliest timestamp this batch's rewrite may
+// own — the deterministic gate behind the prompt's merge rule (docs/04 §4.3.4).
+//
+// A shell claiming a start before the batch window is absorbing the cards it
+// continues. Same-category predecessors may be absorbed; System predecessors
+// are exempt, since their category is a fallback rather than a claim about the
+// activity. A predecessor of any other category is not: absorbing it would put
+// its minutes inside a card of a different category and corrupt the daily and
+// weekly category totals, so the whole extension is refused and the rewrite
+// starts at the window instead, leaving that predecessor's card in place.
+//
+// A card straddling the batch start is always owned, whatever its category:
+// the batch's evidence overlaps it, and replacing only its overlap would delete
+// its prefix (docs/03 §3.5).
+func (s *Service) mergeOwnershipStart(shells []domain.CardShell, batch storage.Batch,
+	existing []domain.TimelineCard) time.Time {
+
+	straddling, found := time.Time{}, false
+	for _, card := range existing {
+		if card.StartTs < batch.Start.Unix() && card.EndTs > batch.Start.Unix() {
+			if start := time.Unix(card.StartTs, 0); !found || start.Before(straddling) {
+				straddling, found = start, true
+			}
+		}
+	}
+	if found {
+		return straddling
+	}
+
+	claimed := make(map[string]bool, len(shells))
+	earliest, any := earliestShellStart(shells, batch, s.loc())
+	if !any {
+		return batch.Start
+	}
+	anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
+	for _, shell := range shells {
+		if start, err := timeutil.ResolveClock(shell.Start, anchor, s.loc()); err == nil && start.Before(batch.Start) {
+			claimed[shell.Category] = true
+		}
+	}
+
+	// Close the absorbed set under overlap: a card pulled in by the claim can
+	// itself start inside an earlier one, and the rewrite has to own every card
+	// it deletes whole (docs/03 §3.5).
+	floor := earliest
+	for changed := true; changed; {
+		changed = false
+		for _, card := range existing {
+			if card.StartTs >= batch.Start.Unix() || card.EndTs <= floor.Unix() {
+				continue
+			}
+			if card.Category != "System" && !claimed[card.Category] {
+				return batch.Start
+			}
+			if start := time.Unix(card.StartTs, 0); start.Before(floor) {
+				floor, changed = start, true
+			}
+		}
+	}
+	return floor
+}
+
+// clampToMergeFloor pins a shell that claimed time the gate did not grant to
+// the rewrite's owned start, dropping the points that came with the refused
+// claim. Validation and storage use the same start, so a clamped card is
+// accepted on the first attempt instead of being corrected into the refused
+// merge again.
+func (s *Service) clampToMergeFloor(shell domain.CardShell, floor time.Time,
+	batch storage.Batch) domain.CardShell {
+
+	loc := s.loc()
+	anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
+	start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
+	if err != nil || !start.Before(floor) {
+		return shell
+	}
+	// Clocks carry minutes while a batch start carries the first frame's
+	// seconds. Rounding the owned start down would put the card back inside the
+	// predecessor the gate just refused, and the rewrite would then delete a
+	// card it does not own; round up instead.
+	hour, minutes, _ := floor.Clock()
+	year, month, day := floor.Date()
+	minute := time.Date(year, month, day, hour, minutes, 0, 0, loc)
+	if minute.Before(floor) {
+		minute = minute.Add(time.Minute)
+	}
+	shell.Start = timeutil.FormatClock(minute, loc)
+	shell.Metadata = dropPreWindowPoints(shell.Metadata, floor, anchor, loc)
+	return shell
+}
+
+// inheritMergedAppSites gives an absorbed predecessor's icon back to the card
+// that swallowed it. The merged card's appSites come from the model's output
+// for the combined span alone, so a merge that names no app leaves the card
+// with no icon at all — and the predecessor that used to carry one is gone.
+// Only an empty list is filled; a model that named an app keeps its choice.
+func (s *Service) inheritMergedAppSites(shell *domain.CardShell, floor time.Time,
+	batch storage.Batch, existing []domain.TimelineCard) {
 
 	loc := s.loc()
 	anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
@@ -869,16 +968,48 @@ func (s *Service) enforceMergeGate(shell *domain.CardShell, batch storage.Batch,
 	if err != nil || !start.Before(batch.Start) {
 		return
 	}
-	for _, card := range existing {
-		if card.Category == "System" || card.Category == shell.Category {
+	var meta struct {
+		AppSites       *appSitesMetadata     `json:"appSites"`
+		Distractions   []distractionMetadata `json:"distractions"`
+		ActivityPoints []cardActivityPoint   `json:"activityPoints"`
+	}
+	if err := json.Unmarshal([]byte(shell.Metadata), &meta); err != nil {
+		return
+	}
+	if meta.AppSites != nil && meta.AppSites.Primary != nil && *meta.AppSites.Primary != "" {
+		return
+	}
+	inherited := s.absorbedAppSites(floor, batch, existing)
+	if inherited == nil {
+		return
+	}
+	meta.AppSites = inherited
+	out, err := json.Marshal(meta)
+	if err != nil {
+		return
+	}
+	shell.Metadata = string(out)
+}
+
+// absorbedAppSites returns the appSites of the predecessor nearest the window
+// among the cards this rewrite absorbs, or nil when none of them named an app.
+func (s *Service) absorbedAppSites(floor time.Time, batch storage.Batch,
+	existing []domain.TimelineCard) *appSitesMetadata {
+
+	var nearest *domain.TimelineCard
+	for i := range existing {
+		card := &existing[i]
+		if card.EndTs > batch.Start.Unix() || card.EndTs <= floor.Unix() {
 			continue
 		}
-		if card.StartTs < batch.Start.Unix() && card.EndTs > start.Unix() {
-			shell.Start = timeutil.FormatClock(batch.Start, loc)
-			shell.Metadata = dropPreWindowPoints(shell.Metadata, batch.Start, anchor, loc)
-			return
+		if nearest == nil || card.EndTs > nearest.EndTs {
+			nearest = card
 		}
 	}
+	if nearest == nil {
+		return nil
+	}
+	return appSitesOfMetadata(nearest.Metadata)
 }
 
 // dropPreWindowPoints removes a rejected merge's absorbed activity points:
@@ -999,27 +1130,6 @@ func earliestShellStart(shells []domain.CardShell, batch storage.Batch, loc *tim
 		}
 	}
 	return earliest, found
-}
-
-// shellOverlapsWindow pre-resolves the shell's clocks and keeps only cards
-// overlapping the batch window. Shells whose clocks do not resolve at all are
-// kept — ReplaceCardsInRange reports them as SkippedCards, which fails the
-// batch loudly instead of silently here.
-func (s *Service) shellOverlapsWindow(shell domain.CardShell, batch storage.Batch) bool {
-	loc := s.loc()
-	anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
-	start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
-	if err != nil {
-		return true
-	}
-	end, err := timeutil.ResolveClock(shell.End, anchor, loc)
-	if err != nil {
-		return true
-	}
-	if end.Before(start) {
-		end = end.AddDate(0, 0, 1)
-	}
-	return start.Unix() < batch.End.Unix() && end.Unix() > batch.Start.Unix()
 }
 
 // groupFrames slices time-ordered frames into consecutive groups of at most

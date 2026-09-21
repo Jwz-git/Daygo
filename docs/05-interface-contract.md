@@ -557,9 +557,13 @@ type TimelineFailureDTO struct {
     Retryable bool    `json:"retryable"` // 仅描述是否会自动重试；RetryBatches 不受它约束
 }
 
+// RangeDTO 是日轨道上的一个窗口，以及拥有它的批次。卡片属于"它的批次改写的那段"，
+// 而不是"与窗口相交"：持续窗口会把批次改写范围向前扩到它继续的那张卡，因此将被重写的
+// 卡片可能整段落在窗口之前。前端据此判定 is-regenerating，别只按时间戳交集。
 type RangeDTO struct {
-    StartTs int64 `json:"startTs"`
-    EndTs   int64 `json:"endTs"`
+    StartTs  int64   `json:"startTs"`
+    EndTs    int64   `json:"endTs"`
+    BatchIDs []int64 `json:"batchIds"` // 拥有该窗口的批次；卡片 batchId 命中即为重写对象
 }
 
 // ---------- 帧 ----------

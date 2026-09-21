@@ -74,9 +74,14 @@ type TimelineFailureDTO struct {
 	Retryable bool    `json:"retryable"`
 }
 
+// RangeDTO is one window on the day track, with the batches that own it. A card
+// belongs to the window its batch covers, which is not the same as overlapping
+// it: an ongoing rewrite extends a batch's span back over the card it continues,
+// so a card the rerun will replace can sit entirely before the window.
 type RangeDTO struct {
-	StartTs int64 `json:"startTs"`
-	EndTs   int64 `json:"endTs"`
+	StartTs  int64   `json:"startTs"`
+	EndTs    int64   `json:"endTs"`
+	BatchIDs []int64 `json:"batchIds"`
 }
 
 type CategoryDTO struct {

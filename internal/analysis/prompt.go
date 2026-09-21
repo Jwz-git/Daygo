@@ -73,12 +73,26 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	if len(existing) == 0 {
 		b.WriteString("[]\n")
 	}
+	// Each earlier card travels with the app and the time points it already
+	// stores. A merge is asked to carry the earlier points forward, and the
+	// absorbed card's appSites are the only place the icon of the card that
+	// replaces it can come from — the model cannot re-derive them from this
+	// batch's observations, which cover only the current window.
 	for _, c := range existing {
-		fmt.Fprintf(&b, "  {\"start\": %q, \"end\": %q, \"category\": %q, \"title\": %q, \"summary\": %q}\n",
-			c.Start, c.End, c.Category, c.Title, c.Summary)
-		if c.DetailedSummary != "" {
-			fmt.Fprintf(&b, "  {\"detailedSummary\": %q}\n", c.DetailedSummary)
+		raw, err := json.Marshal(previousCard{
+			Start:           c.Start,
+			End:             c.End,
+			Category:        c.Category,
+			Title:           c.Title,
+			Summary:         c.Summary,
+			DetailedSummary: c.DetailedSummary,
+			AppSites:        appSitesOfMetadata(c.Metadata),
+			ActivityPoints:  activityPointsOfMetadata(c.Metadata),
+		})
+		if err != nil {
+			continue
 		}
+		fmt.Fprintf(&b, "  %s\n", raw)
 	}
 	b.WriteString("</previous_cards>\n\n")
 
@@ -135,11 +149,14 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	b.WriteString("information from previous cards where new observations do not replace it, and ")
 	b.WriteString("recompute titles from each final interval. When the current window continues the ")
 	b.WriteString("directly preceding card's activity, merging means one card whose start is the ")
-	b.WriteString("preceding card's start, whose activityPoints include all earlier points, and ")
-	b.WriteString("whose title and summaries describe the whole combined activity. Repeated ")
+	b.WriteString("preceding card's start, whose activityPoints include all earlier points, whose ")
+	b.WriteString("appSites keep the app the combined activity is mostly spent in, and whose title ")
+	b.WriteString("and summaries describe the whole combined activity. Repeated ")
 	b.WriteString("debugging, implementation, review, and testing of the same feature are one ")
 	b.WriteString("activity. Do not merge merely because the category is the same, and do not merge ")
-	b.WriteString("across a meaningful idle gap or a clear change of goal.\n\n")
+	b.WriteString("across a meaningful idle gap or a clear change of goal. A card carries only one ")
+	b.WriteString("category: when the preceding card's category differs from the activity in this ")
+	b.WriteString("window, do not merge — the earlier card keeps its own category and totals.\n\n")
 
 	// Built-in categories never enter the model-facing list: System is the
 	// unknown-category fallback target, Idle is reserved for the hardware
@@ -164,8 +181,13 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	b.WriteString(appSitesBlock + "\n\n")
 
 	b.WriteString("\nOutput rules:\n")
-	b.WriteString("- Emit exactly one card per call; it covers the current window or, when merging, ")
-	b.WriteString("the union of the window and the merged nearby card.\n")
+	if ongoing {
+		b.WriteString("- Return the cards that cover the whole rewrite span: one per distinct activity the ")
+		b.WriteString("evidence shows, and a single card when it shows one continuous activity. A card ")
+		b.WriteString("continuing a previous card starts where that card starts.\n")
+	} else {
+		b.WriteString("- Emit exactly one card; it covers the whole supplied observation span.\n")
+	}
 	b.WriteString("- start and end are clock strings like \"10:21 AM\" or \"3:05 PM\". Without a merge, ")
 	b.WriteString("start is the window start and end is the window end; with a merge, use the merged ")
 	b.WriteString("card's start and this window's end.\n")
@@ -348,14 +370,35 @@ func formatFrameClock(t time.Time) string {
 	return t.Format("3:04 PM")
 }
 
-// indentLines pads every line of a multi-line string so a merged card's
-// detailed_summary stays aligned inside the "Nearby existing cards" block.
-func indentLines(text, padding string) string {
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		lines[i] = padding + line
+// previousCard is how one earlier card travels inside <previous_cards>.
+type previousCard struct {
+	Start           string              `json:"start"`
+	End             string              `json:"end"`
+	Category        string              `json:"category"`
+	Title           string              `json:"title"`
+	Summary         string              `json:"summary"`
+	DetailedSummary string              `json:"detailedSummary,omitempty"`
+	AppSites        *appSitesMetadata   `json:"appSites,omitempty"`
+	ActivityPoints  []cardActivityPoint `json:"activityPoints,omitempty"`
+}
+
+// appSitesOfMetadata returns the appSites a stored card already carries, or nil
+// when it never named an app. The prompt offers them as context so a merge can
+// keep the icon instead of leaving the replacement card with none.
+func appSitesOfMetadata(raw string) *appSitesMetadata {
+	if raw == "" {
+		return nil
 	}
-	return strings.Join(lines, "\n")
+	var meta struct {
+		AppSites *appSitesMetadata `json:"appSites"`
+	}
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return nil
+	}
+	if meta.AppSites == nil || meta.AppSites.Primary == nil || *meta.AppSites.Primary == "" {
+		return nil
+	}
+	return meta.AppSites
 }
 
 // appsOfMetadata extracts the apps list the transcription stage stored in an

@@ -469,6 +469,10 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 融合本身受确定性闸门约束（[04 §4.3.4](04-data-flow.md#434-提示词与输出解析)）：
 只有当将被吸收的前卡分类全部与输出卡一致时，融合才把改写范围扩展到前卡 start；
 分类不一致时前卡不属于融合对象，改写范围保持批次窗口，输出卡 start 被夹紧回窗口起点。
+**横跨批次起点的那张前卡例外**：批次的证据本身就与它重叠，只替换交集会删掉它的前缀，
+因此它的 start 无条件成为 `rewriteStart`。闸门算出的 `ownedFrom` 同时是校正提示、
+`validateCards` 与 `ReplaceCardsInRange` 的左边界——三者不一致会让被拒的融合在三次校正后
+仍以整批失败告终。
 
 **解析失败不得静默丢弃。** `ReplaceCardsInRange` 返回 `ReplaceResult.SkippedCards`，
 调用方必须消费并计入诊断指标（[05 §5.5.2](05-interface-contract.md#552-dto-目录) 的

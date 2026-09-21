@@ -15,8 +15,8 @@ import TimelineActivityCard from './TimelineActivityCard.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
 import {
   MIN_CARD_HEIGHT,
-  cardIntersectsRanges,
   coveredBy,
+  isRegenerating,
   layoutTimelineCards,
   positionRange,
   safeCategoryColor,
@@ -136,7 +136,7 @@ const visibleProcessing = computed(() => uncoveredBy(processingBoxes.value, plac
 const regeneratingCardIDs = computed(() => {
   const ids = new Set<number>()
   for (const card of props.cards) {
-    if (cardIntersectsRanges(card, props.processingRanges)) {
+    if (isRegenerating(card, props.processingRanges)) {
       ids.add(card.id)
     }
   }

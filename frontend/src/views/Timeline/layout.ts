@@ -157,3 +157,22 @@ export function cardIntersectsRanges(
     (range) => Math.min(card.endTs, range.endTs) > Math.max(card.startTs, range.startTs),
   )
 }
+
+/**
+ * True when a running batch will replace this card. A batch rewrites the cards
+ * it produced, and its rewrite spans further back than its window: an ongoing
+ * pass starts at the card it continues, so a card it owns can sit entirely
+ * before the window and would otherwise show no sign of being regenerated while
+ * its neighbour below does. Intersection still counts — a neighbouring batch
+ * that reaches into this card replaces it too.
+ */
+export function isRegenerating(
+  card: { batchId?: number | null; startTs: number; endTs: number },
+  ranges: readonly { startTs: number; endTs: number; batchIds?: readonly number[] }[],
+): boolean {
+  return ranges.some(
+    (range) =>
+      (card.batchId !== null && card.batchId !== undefined && (range.batchIds ?? []).includes(card.batchId)) ||
+      Math.min(card.endTs, range.endTs) > Math.max(card.startTs, range.startTs),
+  )
+}

@@ -230,8 +230,9 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 	}
 	for _, batch := range processingBatches {
 		dto.ProcessingRanges = append(dto.ProcessingRanges, RangeDTO{
-			StartTs: batch.Start.Unix(),
-			EndTs:   batch.End.Unix(),
+			StartTs:  batch.Start.Unix(),
+			EndTs:    batch.End.Unix(),
+			BatchIDs: []int64{batch.ID},
 		})
 	}
 	for _, card := range cards {

@@ -21,7 +21,8 @@
 - 分析：两阶段流水线（帧分组转录 → 卡片生成 / 融合，首批单卡、持续窗口按活动证据重分 +
   `activityPoints`；短活动不再为凑 10 分钟而吸收无关分钟）、分批器、空闲判定、失败分类与自动重排（5 次上限）、
   请求级超时、时区统一为 store `Location()`、融合分类闸门
-  （跨分类的模型融合被夹紧回批次窗口，前卡保留）。
+  （跨分类的模型融合被夹紧回批次窗口，前卡保留；横跨批次起点的前卡无条件拥有）、
+  融合卡片继承被吸收前卡的 `appSites`（模型未点名应用时回填，避免图标消失）。
 - 绑定与前端：`GetTimelineDay`（卡片 / 分类 / 合计 / 失败分组一次带回）、卡片写操作
   （改分类 / 标题 / 摘要 / 软删除）、`RetryBatches` / `DeleteBatches` / `ReprocessDay` /
   `ReprocessCard`（后者按卡片来源批次重排，同批次卡片会共同重建）、分类整体覆盖
@@ -98,6 +99,40 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 事务改写失败不提交，不以删除卡片重建的方式回退。schema 回退遵循 data 的备份恢复策略。
 
 ## 验证记录
+
+2026-09-21（融合三修：闸门成为死代码、图标在融合后消失、重分析高亮落在下面的卡片）：
+① **融合分类闸门此前没有任何调用点**。`85fbc3a`（09-15）把闸门接进流水线，`d7511e2`（09-17，
+提交信息 "the category-mismatch merge clamp is removed"）删掉调用、把夹具翻成
+「持续改写直接吞掉前卡」，**同一提交没有改文档**——docs/03 §3.5、docs/04 §4.3.4 与本执行册
+一直声称"闸门在 Go 侧强制执行"。本次按用户决定恢复语义（只拦跨分类吞并）：持续窗口向外扩展
+前，被吸收的前卡必须与输出卡同分类，`System` 前卡豁免；任一前卡分类不同则整段扩展被拒，
+改写范围回到批次窗口、输出卡 start 夹紧回窗口起点、窗口前 `activityPoints` 丢弃、前卡保留。
+**横跨批次起点的那张前卡不设闸门**——批次的证据与它重叠，只替换交集会删掉它的前缀
+（`8e468a4` 的既有约束）。实现上闸门算出的 `ownedFrom` 必须同时是校正提示、校验与
+`ReplaceCardsInRange` 的左边界：只夹紧卡片而校验仍要求覆盖到被拒前卡的 start，会让被拒的
+融合在三次校正后整批失败。夹紧按分钟向上取整，因为向下取整会把卡片起点拖回被拒前卡内部，
+触发存储的"改写所有权"约束回滚。夹具：新增「同分类四卡融合成立」「混入异类卡后整段拒绝」
+「跨分类前卡保留 + 夹紧」「夹紧按分钟向上取整」四例，原
+`TestPipelineOngoingRewriteReplacesPredecessor` 期望显式反转并改名
+`TestPipelineMergeGateRefusesCrossCategoryPredecessor`（**期望值变更是这次决定的一部分**）。
+② **融合后图标消失**：合并卡的 `appSites` 只来自模型对合并整段的新输出，被吸收的前卡随即
+软删除，模型未点名应用时卡片就没有图标了。现在 `<previous_cards>` 一并带上每张卡的
+`appSites` 与 `activityPoints`（此前只给 start/end/category/title/summary，却要求模型
+"include the merged card's earlier points"——它从未拿到过那些点）；模型仍未点名时由流水线
+回填最近一张被吸收前卡的 `appSites`。夹具 `TestPipelineMergedCardInheritsPredecessorAppSites`。
+③ **重分析高亮落在下面的卡片**：`processingRanges` 只有批次窗口，前端按"时间戳与窗口相交"
+判定 `regenerating`（`09-18` 的记录修的是像素盒判定，未覆盖这一层）。持续窗口的改写范围会
+向前扩到被继续的那张卡，**该批次产出的卡片可以整段落在窗口之前**——`ReplaceCardsInRange`
+给每张新卡都写它的 `batch_id`，所以这些卡确在重写中却不高亮，高亮落到它下面那张。
+`RangeDTO` 增加 `batchIds`，前端新增 `isRegenerating`（`batchId` 命中 **或** 时间戳相交），
+日轨道与周栅格共用。夹具：`timelineCoverage.test.ts` 新增「批次拥有的卡片在窗口之前也显示
+重生成」（含周列），既有「下方相邻卡片不变成重生成」不回归。
+④ 顺带删掉 `d7511e2` 留下的死代码：`enforceMergeGate`、`shellOverlapsWindow`、`indentLines`；
+`earliestShellStart`、`activityPointsOfMetadata` 转为实际使用。
+验证：`go test ./...`、`go vet ./...`、`CGO_ENABLED=0 go build ./...`、前端 typecheck /
+unit（65 项）/ production build 全通过。**未验证**：真实 LLM 在恢复后的提示词与闸门下的
+融合质量、真实数据上的图标恢复（历史卡片需重处理来源批次才会重新融合），以及 Wails 窗口中的
+观感。契约同步 docs/03 §3.5、docs/04 §4.3.4、docs/05 §5.5.2（`RangeDTO`）。
 
 2026-09-20（时间线仍完全不显示图标）：09-16 那次只补了 appSites 这一半，本次修掉剩下两处。
 ① 模型契约：`distractions` 此前被要求把时间折进一句话（`"7:17 PM opened the notification panel"`），

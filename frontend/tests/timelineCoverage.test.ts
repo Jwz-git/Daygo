@@ -6,6 +6,7 @@ import {
   boxesOverlap,
   cardIntersectsRanges,
   coveredBy,
+  isRegenerating,
   layoutTimelineCards,
   MIN_CARD_HEIGHT,
   positionRange,
@@ -144,10 +145,10 @@ test('an empty day has nothing to cover', () => {
 const WEEK_DAY_START = 1_700_000_000
 const WEEK_DAY_SPAN = 24 * 60 * 60
 
-function weekCard(id: number, startMinutes: number, endMinutes: number): TimelineCardDTO {
+function weekCard(id: number, startMinutes: number, endMinutes: number, batchId: number | null = null): TimelineCardDTO {
   return {
     id,
-    batchId: null,
+    batchId,
     day: '2026-09-16',
     start: '10:00 AM',
     end: '10:15 AM',
@@ -170,7 +171,7 @@ function weekCard(id: number, startMinutes: number, endMinutes: number): Timelin
 
 function weekDay(
   cards: TimelineCardDTO[],
-  processingRanges: Array<{ startTs: number; endTs: number }>,
+  processingRanges: Array<{ startTs: number; endTs: number; batchIds?: number[] }>,
 ): TimelineDayDTO {
   return {
     day: '2026-09-16',
@@ -181,7 +182,7 @@ function weekDay(
     trackedMinutes: 0,
     idleMinutes: 0,
     failures: [],
-    processingRanges,
+    processingRanges: processingRanges.map((range) => ({ batchIds: [], ...range })),
     generatedAtTs: WEEK_DAY_START,
   }
 }
@@ -230,4 +231,31 @@ test('an adjacent card below a regenerating card does not become regenerating', 
     format,
   )
   assert.deepEqual(column.cards.map((c) => [c.id, c.regenerating]), [[1, true], [2, false]])
+})
+
+/*
+ * Reprocessing a card whose batch merged backwards: the batch's window is the
+ * later part, while the cards it produced (and will replace) reach further back.
+ * Keying the state to the window alone left the card the user had open showing
+ * nothing while the card below it showed the regenerating tint.
+ */
+test('cards a running batch owns show as regenerating even before its window', () => {
+  const batch = { startTs: DAY_START + 616 * 60, endTs: DAY_START + 631 * 60, batchIds: [7] }
+  const owned = { id: 1, batchId: 7, startTs: DAY_START + 600 * 60, endTs: DAY_START + 616 * 60 }
+  const windowCard = { id: 2, batchId: 7, startTs: DAY_START + 616 * 60, endTs: DAY_START + 631 * 60 }
+  const other = { id: 3, batchId: 9, startTs: DAY_START + 631 * 60, endTs: DAY_START + 646 * 60 }
+
+  // The merged card only touches the window; the batch owns it all the same.
+  assert.equal(cardIntersectsRanges(owned, [batch]), false)
+  assert.equal(isRegenerating(owned, [batch]), true)
+  assert.equal(isRegenerating(windowCard, [batch]), true)
+  assert.equal(isRegenerating(other, [batch]), false)
+
+  const format = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit' })
+  const [column] = buildWeekColumns(
+    [weekDay([weekCard(1, 600, 616, 7), weekCard(2, 616, 631, 7), weekCard(3, 631, 646, 9)], [batch])],
+    null,
+    format,
+  )
+  assert.deepEqual(column.cards.map((c) => [c.id, c.regenerating]), [[1, true], [2, true], [3, false]])
 })

@@ -287,9 +287,16 @@ export interface TimelineFailureDTO {
   retryable: boolean
 }
 
+/**
+ * One window on the day track plus the batches that own it. A card belongs to
+ * the window its batch covers, which is not the same as overlapping it: an
+ * ongoing rewrite extends a batch's span back over the card it continues, so a
+ * card the rerun will replace can sit entirely before the window.
+ */
 export interface RangeDTO {
   startTs: number
   endTs: number
+  batchIds: number[]
 }
 
 export interface TimelineDayDTO {
