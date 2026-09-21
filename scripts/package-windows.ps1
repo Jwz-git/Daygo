@@ -301,6 +301,7 @@ if (-not (Test-Path -LiteralPath $UpdaterDll -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) {
     Stop-WithError "NSIS installer was not generated: $Installer"
 }
+Assert-DaygoPortableExecutable -Path $Exe
 
 Write-Success 'Executable, capture DLL, updater DLL and installer present'
 

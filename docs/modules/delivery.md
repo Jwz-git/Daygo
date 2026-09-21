@@ -25,6 +25,10 @@ Windows 流程先签 EXE 与原生 DLL，再用仓库内 NSIS 模板重新封装
 `package-windows.ps1` 已在真实 Windows 上产出 v0.1.0 amd64 NSIS 安装包，并与 macOS arm64 DMG
 一同发布到 GitHub Releases。该事实只证明发布资产存在，不自动证明其签名、安装、卸载或升级行为；
 安装程序内容、签名、静默安装 / 卸载与干净机启动仍需按验收矩阵补充可复现证据。
+2026-09-21 本机已安装的 Windows EXE 导入 `libwinpthread-1.dll` 并请求 `clock_gettime64`，
+启动时出现入口点缺失；同一工作区当前 `build/bin/Daygo.exe` 的 PE 导入表不含该依赖。
+Windows 开发构建和打包入口现用 `objdump -p` 拒绝导入未随包提供的 MinGW 运行时 DLL，
+但这只验证构建产物的直接导入，仍需重新构建并在干净机器安装启动来验收修复。
 Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
 [Windows 决策](../decisions/delivery-auto-update-windows.md)接线：fake 契约、绑定、事件泵、设置 UI、
 Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow

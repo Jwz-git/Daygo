@@ -15,7 +15,7 @@ script owns a responsibility and which one a new contributor should reach for.
 | `bootstrap-frontend.sh` | Standalone: placeholder dist → bindings → real bundle. Sourced: exports `require_tool`, `webkit_tag`, `run_wails`, `daygo_bootstrap` for the other scripts. | All `dev*` / `build-*` scripts, `gate.sh`, `package-macos.sh` |
 | `dev.sh` | macOS `wails dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline, and recreates the generated `.app` so Dock does not retain a stale application icon. | Local development on macOS |
 | `dev.ps1` | Windows `wails dev` entry; applies the Go 1.25 cgo debug workaround only when needed. | Local development on Windows |
-| `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1`, `package-windows.ps1` |
+| `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap, PE import guard against unbundled MinGW runtimes, and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1`, `package-windows.ps1` |
 | `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
 | `dev-linux.sh` | Linux `wails dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
 | `build-linux.sh` | Linux `wails build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |

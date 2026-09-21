@@ -38,6 +38,21 @@ function Assert-DaygoTool {
     }
 }
 
+function Assert-DaygoPortableExecutable {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    Assert-DaygoTool -Name objdump -Hint 'Install MinGW-w64 binutils alongside g++.'
+    $imports = & objdump -p $Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to inspect PE imports: $Path"
+    }
+    $runtime = @($imports | Select-String -Pattern '^\s*DLL Name:\s*(libstdc\+\+-6|libgcc_s_[^\s]+|libwinpthread-1)\.dll\s*$' -CaseSensitive:$false)
+    if ($runtime.Count -gt 0) {
+        $names = @($runtime | ForEach-Object { $_.Matches[0].Groups[1].Value + '.dll' }) -join ', '
+        throw "Unbundled MinGW runtime dependency in ${Path}: $names"
+    }
+}
+
 function Initialize-DaygoWindowsNative {
     param([switch]$RunSmoke)
 
