@@ -81,6 +81,12 @@ type Backend struct {
 	statusUpdaterMu sync.RWMutex
 	statusUpdater   func(recorder.State)
 	statusLabels    statusItemLabelStore
+	// backgrounded is true between a soft-quit and the next restore: the window
+	// is ordered out and the activation policy is accessory. It is the single
+	// condition an activation uses to decide whether the window needs bringing
+	// back (restoreOnActivation).
+	backgroundMu sync.Mutex
+	backgrounded bool
 	// windowCtx is the Wails runtime context handed over in OnStartup; it
 	// scopes WindowSetBackgroundColour calls (window_background.go). It is
 	// nil in headless construction, where those calls become no-ops.
@@ -357,8 +363,16 @@ func (b *Backend) quitAllowed() bool { return b.allowQuit.Load() }
 // enterBackground drops the app to accessory (no Dock icon) for a soft-quit.
 // The status item stays as the only way back. It is a no-op without a platform
 // System (headless construction).
+//
+// The policy is pushed only on the transition, and the flag is set even when
+// that push fails: the caller has already ordered the window out by then, so an
+// activation must still be able to bring it back.
 func (b *Backend) enterBackground(ctx context.Context) error {
-	if b.system == nil {
+	b.backgroundMu.Lock()
+	entered := b.backgrounded
+	b.backgrounded = true
+	b.backgroundMu.Unlock()
+	if entered || b.system == nil {
 		return nil
 	}
 	return b.system.SetActivationPolicy(ctx, platform.ActivationAccessory)
@@ -366,11 +380,46 @@ func (b *Backend) enterBackground(ctx context.Context) error {
 
 // exitBackground restores the regular (Dock-visible) policy when the user
 // reopens the window from the status item.
+//
+// The app launches regular (Wails sets NSApplicationActivationPolicyRegular in
+// applicationWillFinishLaunching), so an app that never left the foreground is
+// already there: pushing regular again would re-order its windows while the
+// system is still activating it, which is what made a Mission Control
+// activation show the window for a frame and then lose it.
 func (b *Backend) exitBackground(ctx context.Context) error {
-	if b.system == nil {
+	b.backgroundMu.Lock()
+	entered := b.backgrounded
+	b.backgrounded = false
+	b.backgroundMu.Unlock()
+	if !entered || b.system == nil {
 		return nil
 	}
 	return b.system.SetActivationPolicy(ctx, platform.ActivationRegular)
+}
+
+// restoreOnActivation runs show only when a soft-quit left the app in the
+// background with its window ordered out — the one state a system activation
+// has to undo.
+//
+// Every other activation is the system bringing the app forward on its own (Dock
+// icon, Cmd-Tab, Mission Control), and macOS has already restored the window:
+// window-close hides the app via [NSApp hide], which unhides its windows for
+// free. Re-showing the window there fights that transition rather than helping
+// it. Skipping it also breaks the loop where showWindow's own
+// activateIgnoringOtherApps calls re-post didBecomeActive.
+func (b *Backend) restoreOnActivation(show func()) {
+	if show == nil || !b.needsWindowRestore() {
+		return
+	}
+	show()
+}
+
+// needsWindowRestore reports whether a soft-quit is still in effect, i.e. the
+// window was ordered out and the Dock icon dropped.
+func (b *Backend) needsWindowRestore() bool {
+	b.backgroundMu.Lock()
+	defer b.backgroundMu.Unlock()
+	return b.backgrounded
 }
 
 // Unexported on purpose: while it was exported, Wails bound it and pulled

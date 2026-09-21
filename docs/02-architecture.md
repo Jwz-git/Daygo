@@ -254,6 +254,10 @@ timeline 批次驱动，维护任务已在第 3 步前启动。
 触发软退出时，激活策略切换为 accessory（不占活动中的 Dock）；状态栏“打开 Daygo”或用户再次
 点击保留在 Dock 的 Daygo 图标时恢复窗口并切回 regular。macOS 的应用激活通知只作为意图事件
 经 `platform.System` 上送，窗口操作仍由 `internal/app` 调用 Wails runtime 完成。
+**激活通知是泛化信号**（Dock、Cmd+Tab、调度中心、以及 `runtime.Show` 自身的
+`activateIgnoringOtherApps` 都会触发），因此只有软退出留下的后台状态才需要恢复窗口；应用已在前台
+时系统已经带回了窗口，再主动重开会在激活过渡中把窗口挤掉。判据与承载细节见
+[生命周期退出模型](decisions/lifecycle-quit-model.md)。
 **Wails 是否能承载这套语义是 G-host 硬门禁**，验证失败时停止大规模 UI 扩张
 并重新评估宿主（[风险 C-1](10-risks.md#c-1宿主无法承载后台-agent)）。
 

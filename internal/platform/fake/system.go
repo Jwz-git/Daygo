@@ -14,6 +14,7 @@ type System struct {
 	statusItem       platform.StatusItemState
 	activationPolicy platform.ActivationPolicy
 	activationSet    bool
+	activationCalls  int
 	revealedPaths    []string
 }
 
@@ -52,6 +53,7 @@ func (s *System) SetActivationPolicy(_ context.Context, p platform.ActivationPol
 	s.mu.Lock()
 	s.activationPolicy = p
 	s.activationSet = true
+	s.activationCalls++
 	s.mu.Unlock()
 	return nil
 }
@@ -62,6 +64,15 @@ func (s *System) ActivationPolicy() (platform.ActivationPolicy, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.activationPolicy, s.activationSet
+}
+
+// ActivationPolicyCalls counts SetActivationPolicy calls. Tests use it to prove
+// a transition was skipped rather than merely ending in the same policy, which
+// ActivationPolicy alone cannot distinguish.
+func (s *System) ActivationPolicyCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.activationCalls
 }
 func (s *System) SetStatusItem(_ context.Context, state platform.StatusItemState) error {
 	s.mu.Lock()
