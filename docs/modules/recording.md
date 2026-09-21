@@ -73,6 +73,18 @@ Windows 发布状态。
 **2026-09-20：macOS Dock 点击重开窗口修复已落盘**——原生 `System` 观察应用重新激活并通过
 平台事件上送，app 层与状态栏“打开 Daygo”共用恢复激活策略及显示窗口的动作；Go 路由测试已覆盖。
 真实 Dock 点击、accessory/regular 切换观感及关窗后长期捕获仍须 G-host 真机验收。
+
+**2026-09-21：原生界面文案接入 i18n**——此前 `PickApplication` 的 Windows 面板标题 /
+`.exe` 过滤器名是硬编码英文，与状态栏文案走的两条通道不同。新增绑定
+`SetNativeUiLabels(NativeUiLabelsDTO)`（[05 §5.5.1](../05-interface-contract.md#551-绑定方法目录)）：
+前端在加载与语言切换时下发面板标题、过滤器名与更新弹窗拒绝安装的说明，后端按表面路由，
+适配器仍不持有 locale。`PickApplication` 改为在调起面板时读取当前 bundle（
+`applicationPickerOptions(goos, labels)` 是纯函数，macOS / Windows 两个分支都有单测）；三个
+字段在后端各有 zh-CN 默认值，避免下发前渲染出无标题的原生面板。已验收部分：Go 单测
+（存储、转发、默认值、两个平台分支）、契约清单、前端 typecheck 与 65 项前端单测、
+`CGO_ENABLED=0` 构建。**未验收**：Windows 上原生面板标题与过滤器名的实际渲染、
+macOS 面板仍按决策不下发标题。系统授权框、钥匙串与 WinSparkle 的文案不由本应用提供，
+不在本通道内（见 [delivery](delivery.md)）。
 `internal/recorder` 提供可停止的 Go 状态机：`idle → starting → capturing`，支持 `paused`
 与恢复；Capture 前写入 pending intent，完成后幂等提交 `screenshots`。`Backend` 已接入
 `SetRecording`、`PauseRecording`、`ResumeRecording`，绑定首次调用时读取真实 settings 并装配

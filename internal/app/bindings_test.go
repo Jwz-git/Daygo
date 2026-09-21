@@ -65,6 +65,7 @@ var contractBindings = []string{
 	"SetAutomaticUpdateChecks",
 	"SetChatConversationModel",
 	"SetChatConversationProvider",
+	"SetNativeUiLabels",
 	"SetProviderRouting",
 	"SetProviderSecret",
 	"SetRecording",

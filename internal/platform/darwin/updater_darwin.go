@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
@@ -34,6 +35,7 @@ var activeUpdaterMu sync.RWMutex
 
 var _ platform.Updater = (*Updater)(nil)
 var _ platform.UpdateInstallCoordinator = (*Updater)(nil)
+var _ platform.UpdateCopySink = (*Updater)(nil)
 
 func NewUpdater() (*Updater, error) {
 	u := &Updater{events: make(chan platform.UpdaterEvent, 8)}
@@ -94,6 +96,18 @@ func (u *Updater) SetInstallCallbacks(can func() bool, prepare func() error, _ f
 	u.prepare = prepare
 	u.mu.Unlock()
 	u.startOnce.Do(func() { C.dg_updater_activate() })
+}
+
+// SetInstallRefusedMessage implements platform.UpdateCopySink. The copy is
+// localized by the frontend and pushed through the app layer; an empty message
+// keeps the adapter's previous copy (docs/05 §5.5.1).
+func (u *Updater) SetInstallRefusedMessage(message string) {
+	if message == "" {
+		return
+	}
+	c := C.CString(message)
+	defer C.free(unsafe.Pointer(c))
+	C.dg_updater_set_install_refused_message(c)
 }
 func (u *Updater) Close() error {
 	u.closeOnce.Do(func() {

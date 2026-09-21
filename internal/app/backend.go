@@ -81,6 +81,9 @@ type Backend struct {
 	statusUpdaterMu sync.RWMutex
 	statusUpdater   func(recorder.State)
 	statusLabels    statusItemLabelStore
+	// nativeLabels carries the localized copy for the other native surfaces
+	// (application picker, update refusal); see native_ui.go.
+	nativeLabels nativeUiLabelStore
 	// backgrounded is true between a soft-quit and the next restore: the window
 	// is ordered out and the activation policy is accessory. It is the single
 	// condition an activation uses to decide whether the window needs bringing
@@ -218,6 +221,9 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 	// Seed the menu bar before the frontend pushes a localized bundle: the
 	// status item is created during OnStartup, ahead of the first webview paint.
 	b.statusLabels.set(defaultStatusItemLabels())
+	// The other native surfaces get the same treatment; the update copy in
+	// particular must exist before any install can be attempted.
+	b.nativeLabels.set(defaultNativeUiLabels())
 	return b
 }
 
@@ -591,6 +597,10 @@ func (b *Backend) shutdown() {
 }
 
 func (b *Backend) configureUpdateInstall(requestShutdown func()) {
+	// The refusal copy has to exist before the first install can be attempted,
+	// which can be earlier than the frontend's label push. The sink is a
+	// separate capability from install coordination, so it is pushed first.
+	b.pushUpdateCopy()
 	coordinator, ok := b.updater.(platform.UpdateInstallCoordinator)
 	if !ok {
 		return

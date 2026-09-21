@@ -92,3 +92,14 @@ type Updater interface {
 type UpdateInstallCoordinator interface {
 	SetInstallCallbacks(canInstall func() bool, prepare func() error, requestShutdown func())
 }
+
+// UpdateCopySink receives the localized copy a platform updater shows in its
+// own dialogs. The adapter holds no locale: the frontend pushes the translated
+// bundle (docs/05 §5.5.1) and the app layer forwards it. Adapters whose update
+// UI is entirely rendered by the system do not implement it.
+type UpdateCopySink interface {
+	// SetInstallRefusedMessage sets the copy shown when an install is refused
+	// because this instance cannot own it. An empty message keeps the previous
+	// copy rather than blanking the dialog.
+	SetInstallRefusedMessage(message string)
+}

@@ -13,7 +13,10 @@
 呈灰色不可选，因此当前不向面板下发文件 filter；用户仍选择 `.app`，Go 与原生 inspector
 负责权威校验，任何非应用输入失败关闭。Wails 返回的路径只在一次绑定调用中使用，不持久化、
 不返回前端、不写日志。Windows 调起 Explorer common-item dialog，并用 `*.exe` filter 帮助选择；
-原生 inspector 仍会二次校验绝对路径、文件类型和存在性。
+原生 inspector 仍会二次校验绝对路径、文件类型和存在性。面板文案（标题与过滤器名）是界面文案
+而非身份，由前端经 `SetNativeUiLabels` 下发，随应用内语言变化
+（[05 §5.5.1](../05-interface-contract.md#551-绑定方法目录)）；macOS 面板不下发标题也不下发
+filter，理由同上。
 
 Go 通过 `platform.ApplicationInspector.InspectApplication` 调用
 [`daygo_application.h`](../../native/include/daygo_application.h) ABI。原生实现使用

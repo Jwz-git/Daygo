@@ -86,7 +86,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；用户保存不触碰 AI summary 列 |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
-| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
+| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder`、`PollSystemEvents` | 直接调用平台 `Capture` 或排空系统事件广播缓冲；均不接 recorder / storage / config。`PollSystemEvents` 是共享广播缓冲的排空口（recorder 与测试页都要观察全部原生事件，直接消费会互相抢），**会消费缓冲**，正式产品页面不得调用 |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
@@ -332,6 +332,7 @@ export function toApiError(e: unknown): ApiError {
 | `PauseRecording(minutes int) error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | `invalid_argument` `not_capture_owner` |
 | `ResumeRecording() error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | 同上 |
 | `SetStatusItemLabels(labels StatusItemLabelsDTO) error` | recording | 平台状态栏 | 写·幂等 | — | — |
+| `SetNativeUiLabels(labels NativeUiLabelsDTO) error` | recording / delivery | 原生应用选择面板、平台更新弹窗 | 写·幂等 | — | — |
 
 `PauseRecording` 的 `minutes` 取值 `15` `30` `60`，`0` 表示无限期暂停，其余值返回
 `invalid_argument`。取正值时 recorder 在时长结束后自动恢复（守卫同系统事件恢复：其间的
@@ -345,6 +346,30 @@ webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 
 表面（录制中显示暂停时长子菜单，其余状态显示单一主操作），再转发给平台适配层。原生适配层
 因此既不持有产品状态也不持有 locale。适配层不可用（如只读第二实例或非 macOS 平台）时下发
 只更新缓存的 bundle，重绘为空操作。
+
+`SetNativeUiLabels` 是**其余原生界面**的同一条通道：处理状态栏之外、同样在 webview 之外渲染
+的文案。
+
+```go
+type NativeUiLabelsDTO struct {                                     // §5.5.1
+    ApplicationPickerTitle  string `json:"applicationPickerTitle"`  // 原生应用选择面板标题
+    ApplicationPickerFilter string `json:"applicationPickerFilter"` // 面板的可执行文件过滤器名称
+    UpdateOwnerRequired     string `json:"updateOwnerRequired"`     // 更新弹窗：本实例不是捕获所有者，拒绝安装
+}
+```
+
+- `PickApplication` 在调起面板时读取前两个字段；面板不渲染标题的平台（macOS）不下发标题，
+  过滤器只是可用性提示，权威校验始终在 `ApplicationInspector`。
+- `updateOwnerRequired` 转发给实现 `platform.UpdateCopySink` 的更新适配器（§5.7）；由平台
+  自行渲染安装提示的适配器不实现该端口，下发被跳过。
+
+与状态栏文案一样：后端只存 bundle 并按表面路由，不持有 locale，也不做翻译。每个字段在后端
+都有一份 zh-CN 默认值——这些表面除下发外没有第二个文案来源，空值会渲染出无标题或无说明的
+原生对话框。默认值在 `newBackend` 里随状态栏文案一起种下，`configureUpdateInstall` 另在
+安装回调接入时补推一次更新文案：拒绝安装可能早于前端的首次下发。下游对空值的处理不同：
+面板标题为空即不渲染标题，而更新文案为空时适配器**保留上一份**而不是清空 Sparkle 的错误
+说明。**平台完全自行渲染的文案（系统授权框、钥匙串授权、WinSparkle 的安装提示）不在本通道
+内，也不做应用内语言适配**——它们的语言只由系统决定。
 
 #### 设置与分类
 
@@ -426,6 +451,10 @@ webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 
 
 `OpenSystemSettings` 的 `pane` 是封闭枚举：`screen_recording` `notifications` `login_items`。
 **不接受任意 URL**，避免绑定层变成通用的系统跳转能力。
+
+更新弹窗中**属于我们的**那句文案（本实例不是捕获所有者，因此拒绝安装）由前端经
+`SetNativeUiLabels` 下发（§5.5.1），适配器经 `UpdateCopySink` 接收；Sparkle 与 WinSparkle
+自己的对话框文案不由本应用提供，跟随系统语言。
 
 ### 5.5.2 DTO 目录
 
@@ -1222,6 +1251,14 @@ type Updater interface {
     State(ctx context.Context) (UpdaterState, error)
     SetAutomaticChecks(ctx context.Context, enabled bool) error
     Events() <-chan UpdaterEvent
+}
+
+// UpdateCopySink 是可选端口：接收应用下发到更新弹窗的本地化文案。适配器不持有
+// locale；文案由前端经 §5.5.1 的 SetNativeUiLabels 下发。弹窗完全由系统渲染的
+// 适配器不实现它。
+type UpdateCopySink interface {
+    // 因本实例无法拥有该安装而拒绝时的说明；空串保留上一份文案。
+    SetInstallRefusedMessage(message string)
 }
 ```
 

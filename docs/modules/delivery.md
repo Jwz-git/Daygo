@@ -31,6 +31,13 @@ Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / reco
 均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
 签名 workflow、真实安装升级、Gatekeeper / Authenticode 与首次引导仍未验收。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
+**2026-09-21：更新弹窗中属于我们的那句文案接入 i18n**（“只有持有捕获所有权的 Daygo 实例
+才能安装更新”，此前是 `updater_bridge.m` 里的硬编码英文）。它随
+[05 §5.5.1](../05-interface-contract.md#551-绑定方法目录) 的 `SetNativeUiLabels` 下发，
+darwin 适配器经 `platform.UpdateCopySink` 接收并推给 Sparkle 的 delegate；`daygo_updater`
+构建（含 Sparkle 链接）的 `go test` 通过，但**真实拒绝路径的弹窗文案未在 Sparkle UI 上
+视觉验收**。Sparkle / WinSparkle 自有对话框的文案由框架的 lproj 提供，按系统语言渲染，
+不随应用内语言设置变化；本通道不覆盖它们。
 
 ## 能力与跨层职责
 

@@ -181,7 +181,7 @@ func Run() error {
 			})
 			emitter.SetContext(ctx)
 			backend.setWindowContext(ctx)
-			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx})
+			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx, labels: backend.nativeLabels.get})
 			updateStatus := func(state recorder.State) {
 				// Status-item setup is an optional platform capability and must not
 				// make the desktop shell's startup depend on native tray availability.
