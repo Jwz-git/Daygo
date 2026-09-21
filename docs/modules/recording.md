@@ -85,6 +85,11 @@ Windows 发布状态。
 `CGO_ENABLED=0` 构建。**未验收**：Windows 上原生面板标题与过滤器名的实际渲染、
 macOS 面板仍按决策不下发标题。系统授权框、钥匙串与 WinSparkle 的文案不由本应用提供，
 不在本通道内（见 [delivery](delivery.md)）。
+**2026-09-21：Windows 连续失败诊断补齐**——recorder 仍在连续 3 次捕获/提交失败后进入
+`idle`，但会保留最后一次失败供 `GetRecordingState.reason` 查询；成功捕获、重新启动或用户主动
+停止时清除。原因只包含 Capture 稳定错误码及原生数值码、storage 错误类别，或通用文件/未知类别，
+不包含错误文本、路径或屏幕内容。Windows Recorder 测试页显示该代码。该改动证明失败原因可见，
+并不证明当前 Windows 真机停止录制的实际根因；仍需对应故障时的代码和 WC-8 长时间观察。
 `internal/recorder` 提供可停止的 Go 状态机：`idle → starting → capturing`，支持 `paused`
 与恢复；Capture 前写入 pending intent，完成后幂等提交 `screenshots`。`Backend` 已接入
 `SetRecording`、`PauseRecording`、`ResumeRecording`，绑定首次调用时读取真实 settings 并装配

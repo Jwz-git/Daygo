@@ -37,6 +37,7 @@ export default {
   stopRecorder: '停止',
   windowsRecorderStatus: '完整链路状态',
   lifecycleState: '生命周期',
+  failureReason: '最近一次录制失败代码',
   permissionState: '截图许可语义',
   capturesObserved: '本轮已提交帧数',
   lastFrameAt: '最后提交时间',

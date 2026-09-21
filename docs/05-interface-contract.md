@@ -630,7 +630,7 @@ type FrameRefDTO struct {
 
 type RecordingStateDTO struct {
     State           string  `json:"state"`         // idle|starting|capturing|paused
-    Reason          *string `json:"reason"`        // "system sleep"、"screen locked"…
+    Reason          *string `json:"reason"`        // 系统暂停原因或脱敏录制失败代码，如 capture_timeout:0x887a0027
     UserPaused      bool    `json:"userPaused"`    // 用户主动暂停，区别于系统事件暂停
     PauseEndsAtTs   *int64  `json:"pauseEndsAtTs"` // 定时暂停到期时刻；无限期为 null
     Permission      string  `json:"permission"`    // granted|denied|not_determined

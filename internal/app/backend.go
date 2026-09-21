@@ -553,7 +553,14 @@ func (b *Backend) GetRecordingState() (RecordingStateDTO, error) {
 			lastFrameAtTs = &value
 		}
 	}
-	return RecordingStateDTO{State: state, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
+	var reason *string
+	if activeRecorder != nil {
+		if lastError := activeRecorder.LastError(); lastError != nil {
+			value := recordingFailureReason(lastError)
+			reason = &value
+		}
+	}
+	return RecordingStateDTO{State: state, Reason: reason, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
 }
 
 // recordingPermission is GetRecordingState's single query: system unavailability

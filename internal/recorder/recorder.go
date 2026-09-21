@@ -65,6 +65,7 @@ type Recorder struct {
 	done             chan struct{}
 	settingsChanged  chan struct{}
 	lastFrameAt      *time.Time
+	lastError        error
 	systemBlockers   map[platform.SystemEventKind]struct{}
 	resumeGeneration uint64
 	lastSegmentPath  string
@@ -111,6 +112,11 @@ func (r *Recorder) LastFrameAt() *time.Time {
 	value := *r.lastFrameAt
 	return &value
 }
+func (r *Recorder) LastError() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastError
+}
 func (r *Recorder) Start(ctx context.Context) error {
 	r.mu.Lock()
 	if r.state != StateIdle {
@@ -121,6 +127,7 @@ func (r *Recorder) Start(ctx context.Context) error {
 	r.done = make(chan struct{})
 	r.state = StateStarting
 	r.userPaused = false
+	r.lastError = nil
 	r.resumeGeneration++
 	r.mu.Unlock()
 	r.emit(StateStarting, nil)
@@ -134,6 +141,7 @@ func (r *Recorder) Stop() error {
 	}
 	cancel := r.cancel
 	done := r.done
+	r.lastError = nil
 	r.mu.Unlock()
 	cancel()
 	<-done
@@ -410,7 +418,13 @@ const captureFailureLimit = 3
 // ticker-driven attempt (the ticker itself stays on its interval).
 const captureRetryDelay = 2 * time.Second
 
-func (r *Recorder) fail(err error) { r.emit(r.State(), err) }
+func (r *Recorder) fail(err error) {
+	r.mu.Lock()
+	r.lastError = err
+	state := r.state
+	r.mu.Unlock()
+	r.emit(state, err)
+}
 func (r *Recorder) capture(ctx context.Context) error {
 	now := r.cfg.Clock.Now()
 	current := r.captureSettings()
@@ -477,6 +491,7 @@ func (r *Recorder) capture(ctx context.Context) error {
 
 		r.mu.Lock()
 		r.lastFrameAt = &now
+		r.lastError = nil
 		state := r.state
 		r.mu.Unlock()
 		r.emit(state, nil)
@@ -545,6 +560,7 @@ func (r *Recorder) captureLegacy(ctx context.Context, now time.Time, current set
 	}
 	r.mu.Lock()
 	r.lastFrameAt = &now
+	r.lastError = nil
 	state := r.state
 	r.mu.Unlock()
 	// The externally visible recording snapshot changed even though the
