@@ -24,6 +24,7 @@ jobs:
       version: ${{ steps.check.outputs.version }}
       build_macos: ${{ steps.check.outputs.build_macos }}
       build_windows: ${{ steps.check.outputs.build_windows }}
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
     steps:
       - name: Check existing release assets
         id: check
@@ -38,6 +39,8 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected a vX.Y.Z release tag.' >&2; exit 1; }
           release_draft="$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json isDraft --jq '.isDraft')"
           test "$release_draft" = 'false' || { echo 'Release must be published.' >&2; exit 1; }
+          is_prerelease="$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json isPrerelease --jq '.isPrerelease')"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
 
           mac_asset="Daygo-${version}-arm64.dmg"
           win_asset="Daygo-${version}-amd64-installer.exe"
@@ -143,7 +146,7 @@ jobs:
 
   appcast:
     needs: [prepare, macos, windows]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.is_prerelease == 'false' && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
     runs-on: macos-15
     environment: release
     steps:

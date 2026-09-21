@@ -33,7 +33,8 @@ Windows 方案见 [WinSparkle + NSIS 决策](delivery-auto-update-windows.md)；
 `SUFeedURL` 与 WinSparkle feed 均指向上述 `releases/latest/download/appcast.xml`。
 发布事件先使 Release 成为 latest，Action 后上传资产，因此上传完成前存在短暂的 404 窗口；
 Action 仅在两个安装器均存在且签名、XML 生成成功后上传 appcast。发布前需确认这段窗口可接受；
-预发布可先构建并附上 appcast，资产齐全后再转为正式版；预发布期间不会成为 `releases/latest`。
+预发布只构建安装包，不生成 appcast，也不会成为 `releases/latest`。提升为正式版后需手动
+触发同一 tag 的 workflow 生成 appcast；在 appcast 可访问前不能认定更新源就绪。
 appcast 每个 `<item>` 携带版本、最低系统版本、归档 URL、长度与 **EdDSA (ed25519) 签名**
 （`sparkle:edSignature`）。
 
