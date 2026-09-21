@@ -5,7 +5,7 @@ package windows
 /*
 #cgo CFLAGS: -DDAYGO_APPLICATION_STATIC -I${SRCDIR}/../../../native/include
 #cgo LDFLAGS: ${SRCDIR}/../../../build/native/windows/amd64/libdaygo_capture.a
-#cgo LDFLAGS: -luser32 -Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -lgcc -lgcc_eh
+#cgo LDFLAGS: -luser32 -Wl,-Bstatic -lstdc++ -lwinpthread -Wl,-Bdynamic -lgcc -lgcc_eh
 #include <stdlib.h>
 #include "daygo_application.h"
 */
