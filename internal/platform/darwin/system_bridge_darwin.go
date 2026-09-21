@@ -4,7 +4,7 @@ package darwin
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../../native/include
-#cgo LDFLAGS: -L${SRCDIR}/../../../build/native/darwin/universal -ldaygo_capture -framework Foundation -framework AppKit
+#cgo LDFLAGS: -L${SRCDIR}/../../../build/native/darwin/arm64 -ldaygo_capture -framework Foundation -framework AppKit
 #include <stdlib.h>
 #include "daygo_system.h"
 #include "daygo_status_item.h"

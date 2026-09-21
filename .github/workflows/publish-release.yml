@@ -31,7 +31,7 @@ jobs:
           version="${RELEASE_TAG#v}"
           test -n "$version" || { echo 'Release version is empty.' >&2; exit 1; }
 
-          mac_asset="Daygo-${version}-universal.dmg"
+          mac_asset="Daygo-${version}-arm64.dmg"
           win_asset="Daygo-${version}-amd64-installer.exe"
           assets="$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json assets --jq '.assets[].name')"
 
@@ -77,7 +77,7 @@ jobs:
 
       - name: Package macOS installer
         env:
-          DAYGO_ARCH: universal
+          DAYGO_ARCH: arm64
           VERSION: ${{ needs.prepare.outputs.version }}
         run: ./scripts/package-macos.sh "$VERSION"
 
@@ -87,7 +87,7 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          asset="dist/Daygo-${VERSION}-universal.dmg"
+          asset="dist/Daygo-${VERSION}-arm64.dmg"
           test -f "$asset" || { echo "macOS installer not found: $asset" >&2; exit 1; }
           gh release upload "$RELEASE_TAG" "$asset" --clobber
 

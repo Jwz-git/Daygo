@@ -314,7 +314,7 @@ identifier。这样不依赖 AppKit MainActor，CLI smoke 和 Wails 宿主都能
 ```text
 internal/platform/darwin/bridge_darwin.go
   ├─ include native/include/daygo_capture.h
-  ├─ link build/native/darwin/universal/libdaygo_capture.a
+  ├─ link build/native/darwin/arm64/libdaygo_capture.a
   └─ link CoreGraphics / Foundation / ImageIO / ScreenCaptureKit /
      Security / UniformTypeIdentifiers / Swift runtime
 ```
@@ -325,10 +325,10 @@ internal/platform/darwin/bridge_darwin.go
 native/darwin/build.sh
 ```
 
-脚本分别编译 arm64、x86_64，然后用 `lipo` 生成：
+脚本仅编译 arm64，生成：
 
 ```text
-build/native/darwin/universal/libdaygo_capture.a
+build/native/darwin/arm64/libdaygo_capture.a
 ```
 
 Wails 构建通过 `cmd/daygo/wails.json` 的 Darwin `preBuildHooks` 调用该脚本。直接运行 Go smoke 时

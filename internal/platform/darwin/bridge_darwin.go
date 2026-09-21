@@ -4,7 +4,7 @@ package darwin
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../../native/include
-#cgo LDFLAGS: ${SRCDIR}/../../../build/native/darwin/universal/libdaygo_capture.a
+#cgo LDFLAGS: ${SRCDIR}/../../../build/native/darwin/arm64/libdaygo_capture.a
 #cgo LDFLAGS: -framework CoreGraphics -framework Foundation -framework ImageIO
 #cgo LDFLAGS: -framework ScreenCaptureKit -framework UniformTypeIdentifiers
 #cgo LDFLAGS: -framework AVFoundation -framework CoreMedia -framework VideoToolbox

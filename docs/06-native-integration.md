@@ -152,7 +152,7 @@ smoke** 的截图实现，发布范围与其余能力逐项经决策记录推进
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
 `native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是
-`build/native/darwin/universal/libdaygo_capture.a` 与
+`build/native/darwin/arm64/libdaygo_capture.a` 与
 `build/native/windows/amd64/libdaygo_capture.a`；Windows 26100 隐私路径另生成并随 EXE 放置
 `daygo_windows_native.dll`。截图与应用身份分别使用
 [`native/include/daygo_capture.h`](../native/include/daygo_capture.h) 和

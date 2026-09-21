@@ -9,9 +9,6 @@ set -euo pipefail
 #   ./scripts/package-macos.sh
 #   ./scripts/package-macos.sh 0.1.0
 #
-# Universal:
-#   DAYGO_ARCH=universal ./scripts/package-macos.sh 0.1.0
-#
 # Developer ID signing:
 #   DAYGO_SIGN_IDENTITY="Developer ID Application: ..." \
 #   ./scripts/package-macos.sh 0.1.0
@@ -47,20 +44,8 @@ NOTARY_PROFILE="${DAYGO_NOTARY_PROFILE:-}"
 DEV_SIGN_IDENTITY="${DAYGO_DEV_SIGN_IDENTITY:-}"
 BUNDLE_ID="io.github.jwz-git.Daygo"
 
-case "$(uname -m)" in
-  arm64)
-    DEFAULT_ARCH="arm64"
-    ;;
-  x86_64)
-    DEFAULT_ARCH="amd64"
-    ;;
-  *)
-    printf 'error: unsupported architecture: %s\n' "$(uname -m)" >&2
-    exit 1
-    ;;
-esac
-
-ARCH="${DAYGO_ARCH:-$DEFAULT_ARCH}"
+ARCH="${DAYGO_ARCH:-arm64}"
+[[ "$ARCH" == "arm64" ]] || { printf 'error: macOS packaging supports arm64 only\n' >&2; exit 1; }
 
 APP_PATH="$ROOT_DIR/build/bin/$APP_NAME.app"
 EXECUTABLE="$APP_PATH/Contents/MacOS/$APP_NAME"

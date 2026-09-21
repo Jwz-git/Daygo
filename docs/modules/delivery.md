@@ -111,6 +111,12 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
+2026-09-21（macOS arm64 本机）：macOS 构建链与 Release workflow 已改为仅 arm64。
+`native/darwin/build.sh` 编译成功，`lipo -info` 确认静态库仅含 arm64；
+`./scripts/gate.sh` 全部通过，含 Wails `darwin/arm64` 编译、Go、前端与文档检查。
+新 Release workflow 预期产出 `Daygo-<version>-arm64.dmg`，尚未触发打包。
+此记录不改变既有 Release 资产，也不构成签名、公证或升级验收。
+
 更新适配器源码、设置 UI、签名 appcast 生成器和 Release workflow 已做本地静态 / 契约验证；
 签名、公证、干净机器、真实升级与崩溃上报实验仍未运行。
 记录 commit、构建身份、设备、步骤及匿名结果；证书、密钥、用户数据不入库。
