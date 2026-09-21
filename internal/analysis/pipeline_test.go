@@ -797,8 +797,10 @@ func TestPipelineReprocessPreservesStraddlingCardPrefix(t *testing.T) {
 		t.Fatalf("reprocess batch: %v", err)
 	}
 
-	// The rerun may split the merged span into short evidence-backed cards,
-	// but it must cover from 10:00 rather than dropping 10:00–10:16.
+	// The rerun may split the merged span again, but it must cover from 10:00
+	// rather than dropping 10:00–10:16. The 10-minute tail is legal: the card
+	// carrying the rewrite's end is the one card the 15-minute floor exempts
+	// (2026-09-21).
 	h.provider.mu.Lock()
 	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:20 AM","category":"Coding","subcategory":"","title":"before","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},{"start":"10:20 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"after","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
 	h.provider.mu.Unlock()
@@ -1088,6 +1090,73 @@ func TestPipelineMergeGateRefusesMixedCategoryChain(t *testing.T) {
 	if cards[3].StartTs != base2.Unix() || cards[3].Category != "Coding" {
 		t.Fatalf("clamped = %s – %s %s, want the rewrite starting at the window %s",
 			cards[3].Start, cards[3].End, cards[3].Category, base2.Format("3:04 PM"))
+	}
+}
+
+// A window sealed below the 15-minute floor is still no licence to swallow a
+// cross-category predecessor: the card carrying the window's end is the one the
+// floor exempts, so the gate stays shut and the predecessor keeps its span and
+// category (2026-09-21 decision — the floor outranks the cross-category refusal
+// for merges inside the rewrite span, not beyond its left edge).
+func TestPipelineMergeGateStaysShutWhenTheWindowIsBelowTheFloor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"9:30 AM","end":"9:45 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (9:30–9:45): one Coding card, the predecessor under test.
+	first := time.Date(2026, 9, 12, 9, 30, 0, 0, time.Local)
+	h.commitFrames(t, first, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	// Batch 2 (10:00–10:10) is sealed by a gap rather than the target duration,
+	// so its window is shorter than the floor.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"9:30 AM","end":"10:10 AM","category":"Communication","subcategory":"","title":"merged","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[{"time":"9:30 AM","description":"first"},{"time":"10:05 AM","description":"second"}]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, second, 61, 10*time.Second, func(int) *int { return intPtr(5) })
+	// The trailing frames only exist to seal the short run; their own span is
+	// below the target, so no third batch is created.
+	h.commitFrames(t, time.Date(2026, 9, 12, 10, 30, 0, 0, time.Local), 3, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v, want the clamped rewrite to validate on its first attempt", h.failures)
+	}
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the predecessor preserved beside the clamped card", cards)
+	}
+	predecessor, clamped := cards[0], cards[1]
+	if predecessor.Category != "Coding" || predecessor.Start != "9:30 AM" || predecessor.End != "9:45 AM" {
+		t.Fatalf("predecessor = %s – %s %s, want the untouched Coding card",
+			predecessor.Start, predecessor.End, predecessor.Category)
+	}
+	// The clamped card is 10 minutes long and carries the rewrite's end: the
+	// floor exempts it, which is why the refusal costs the model nothing.
+	if clamped.Category != "Communication" || clamped.StartTs != second.Unix() || clamped.End != "10:10 AM" {
+		t.Fatalf("clamped = %s – %s %s, want the Communication rewrite starting at the window %s",
+			clamped.Start, clamped.End, clamped.Category, second.Format("3:04 PM"))
+	}
+	if end := time.Unix(clamped.EndTs, 0); end.Sub(time.Unix(clamped.StartTs, 0)) >= minCardDuration {
+		t.Fatalf("clamped duration = %s, want the below-floor window this fixture is about",
+			end.Sub(time.Unix(clamped.StartTs, 0)))
+	}
+	var meta struct {
+		ActivityPoints []cardActivityPoint `json:"activityPoints"`
+	}
+	if err := json.Unmarshal([]byte(clamped.Metadata), &meta); err != nil {
+		t.Fatalf("decode clamped card metadata: %v", err)
+	}
+	if len(meta.ActivityPoints) != 1 || meta.ActivityPoints[0].Time != "10:05 AM" {
+		t.Fatalf("activityPoints = %+v, want only the in-window 10:05 AM point", meta.ActivityPoints)
 	}
 }
 

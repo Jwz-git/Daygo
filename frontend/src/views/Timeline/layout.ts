@@ -1,9 +1,37 @@
 // 2.6px per minute: one 15-minute card (the default batch window) gets 39px
 // of vertical space — a single-line card with real breathing room between
-// neighbours. Shorter cards fall back to MIN_CARD_HEIGHT and lane-pack.
-export const MIN_CARD_HEIGHT = 34
+// neighbours.
 export const PIXELS_PER_MINUTE = 2.6
 export const MIN_TRACK_HEIGHT = 960
+
+/*
+ * The day track mirrors the reference canvas timeline (legacy/Dayflow
+ * CanvasTimelineDataView): a card is exactly as tall as its own minutes, minus
+ * a 2px gap split between its top and bottom, and never shorter than 10px so a
+ * two-minute activity still paints a clickable bar. Cards are NOT split into
+ * side-by-side lanes — an overlap in the data is trimmed away in time instead
+ * (see resolveDisplaySpans), so every row stays full width.
+ */
+export const MIN_CARD_HEIGHT = 10
+export const CARD_GAP = 2
+
+/*
+ * Text rules, also from the reference: below ten minutes a row is a bare bar
+ * (the title would have to shrink past legibility to fit), and below thirteen
+ * minutes it keeps a tight, vertically centred line instead of the roomy one.
+ */
+export const CARD_TEXT_MINUTES = 10
+export const CARD_COMPACT_MINUTES = 13
+
+/** True when a row is tall enough to carry its title, icon and time label. */
+export function cardShowsText(minutes: number): boolean {
+  return minutes >= CARD_TEXT_MINUTES
+}
+
+/** True when a row takes the tight, centred single-line layout. */
+export function cardIsCompact(minutes: number): boolean {
+  return minutes < CARD_COMPACT_MINUTES
+}
 
 export interface PositionedRange {
   top: number
@@ -18,8 +46,14 @@ export interface TimelineLayoutInput {
 
 export interface PositionedCard extends PositionedRange {
   id: number
-  laneIndex: number
-  laneCount: number
+  /** Minutes actually drawn, after any overlap trim; drives the text rules. */
+  minutes: number
+}
+
+export interface DisplaySpan {
+  id: number
+  startTs: number
+  endTs: number
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -50,10 +84,88 @@ export function positionRange(
   }
 }
 
+/** The card's own box: its minutes of track, inset by the gap, floored at 10px. */
+export function cardBox(
+  startTs: number,
+  endTs: number,
+  dayStartTs: number,
+  dayEndTs: number,
+  height: number,
+): PositionedRange {
+  const slot = positionRange(startTs, endTs, dayStartTs, dayEndTs, height, 0)
+  return {
+    top: slot.top + CARD_GAP / 2,
+    height: Math.max(MIN_CARD_HEIGHT, slot.height - CARD_GAP),
+  }
+}
+
+/*
+ * Overlapping cards are an upstream data bug, not a layout style. The reference
+ * resolves them by trimming the longer card back to the shorter one's edge —
+ * display only, stored data untouched — so the row stays full width instead of
+ * splitting into side-by-side lanes. A card trimmed down to nothing disappears;
+ * a duplicated card (identical span) leaves one row.
+ */
+export function resolveDisplaySpans(cards: readonly TimelineLayoutInput[]): DisplaySpan[] {
+  const spans: DisplaySpan[] = cards
+    .map((card) => ({ id: card.id, startTs: card.startTs, endTs: card.endTs }))
+    .sort((left, right) => left.startTs - right.startTs || left.endTs - right.endTs)
+
+  const maxPasses = 8
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let changed = false
+    // Every trim is followed by a fresh scan: a shortened card can overlap
+    // something the current walk has already passed.
+    scan: for (let i = 0; i < spans.length; i++) {
+      for (let j = i + 1; j < spans.length; j++) {
+        if (spans[j].startTs >= spans[i].endTs) break
+        const first = spans[i]
+        const second = spans[j]
+        if (Math.min(first.endTs, second.endTs) <= Math.max(first.startTs, second.startTs)) {
+          continue
+        }
+
+        // The shorter card wins the shared minutes; ties keep the earlier one.
+        const firstMinutes = first.endTs - first.startTs
+        const secondMinutes = second.endTs - second.startTs
+        const smallIndex = firstMinutes <= secondMinutes ? i : j
+        const largeIndex = smallIndex === i ? j : i
+        const smaller = spans[smallIndex]
+        const larger = spans[largeIndex]
+
+        if (larger.startTs < smaller.startTs && smaller.endTs < larger.endTs) {
+          // The shorter card sits inside the longer one: cut it out of the
+          // longer card's larger side.
+          if (larger.endTs - smaller.endTs >= smaller.startTs - larger.startTs) {
+            larger.startTs = smaller.endTs
+          } else {
+            larger.endTs = smaller.startTs
+          }
+        } else if (smaller.startTs <= larger.startTs && larger.startTs < smaller.endTs) {
+          larger.startTs = smaller.endTs
+        } else if (smaller.startTs < larger.endTs && larger.endTs <= smaller.endTs) {
+          larger.endTs = smaller.startTs
+        }
+
+        if (larger.endTs <= larger.startTs) {
+          spans.splice(largeIndex, 1)
+        } else {
+          // Trimming a start can move the card past its successor.
+          spans.sort((left, right) => left.startTs - right.startTs || left.endTs - right.endTs)
+        }
+        changed = true
+        continue scan
+      }
+    }
+    if (!changed) break
+  }
+
+  return spans
+}
+
 /**
- * Put display boxes that overlap because of the minimum hit target into lanes.
- * Their vertical position remains tied to the backend timestamps; only the
- * horizontal space is shared, so a four-minute card cannot cover its neighbour.
+ * Position every card of the day as one full-width row: no lanes, height tied
+ * to the card's own minutes, and the top edge on its own timestamp.
  */
 export function layoutTimelineCards(
   cards: readonly TimelineLayoutInput[],
@@ -61,50 +173,11 @@ export function layoutTimelineCards(
   dayEndTs: number,
   height: number,
 ): PositionedCard[] {
-  const placed = cards
-    .map((card) => ({
-      id: card.id,
-      ...positionRange(card.startTs, card.endTs, dayStartTs, dayEndTs, height, MIN_CARD_HEIGHT),
-      laneIndex: 0,
-      laneCount: 1,
-    }))
-    .sort((left, right) => left.top - right.top || left.id - right.id)
-
-  let cluster: PositionedCard[] = []
-  let clusterBottom = -Infinity
-
-  const finishCluster = () => {
-    if (cluster.length === 0) return
-    const laneBottoms: number[] = []
-
-    for (const card of cluster) {
-      let laneIndex = laneBottoms.findIndex((bottom) => bottom <= card.top)
-      if (laneIndex === -1) {
-        laneIndex = laneBottoms.length
-        laneBottoms.push(card.top + card.height)
-      } else {
-        laneBottoms[laneIndex] = card.top + card.height
-      }
-      card.laneIndex = laneIndex
-    }
-
-    const laneCount = Math.max(1, laneBottoms.length)
-    for (const card of cluster) card.laneCount = laneCount
-    cluster = []
-    clusterBottom = -Infinity
-  }
-
-  for (const card of placed) {
-    // Sub-pixel arithmetic: a 15-minute card at 2.6px/min can land
-    // 0.0000001px into its predecessor's slot; that rounding noise must not
-    // trigger lane packing.
-    if (cluster.length > 0 && card.top >= clusterBottom - 0.5) finishCluster()
-    cluster.push(card)
-    clusterBottom = Math.max(clusterBottom, card.top + card.height)
-  }
-  finishCluster()
-
-  return placed
+  return resolveDisplaySpans(cards).map((span) => ({
+    id: span.id,
+    minutes: (span.endTs - span.startTs) / 60,
+    ...cardBox(span.startTs, span.endTs, dayStartTs, dayEndTs, height),
+  }))
 }
 
 // Neutral grey for a category whose colour is missing or malformed (e.g. a
@@ -146,8 +219,9 @@ export function uncoveredBy<T extends PositionedRange>(
 
 /**
  * True when a card's actual time span intersects a processing range by at least 1 second.
- * Using temporal intersection instead of rendered pixel boxes prevents MIN_CARD_HEIGHT /
- * PROCESSING_MIN_HEIGHT padding from bleeding into and coloring adjacent cards below/above.
+ * Using temporal intersection instead of rendered pixel boxes keeps the minimum
+ * heights (a card's floor, a block's PROCESSING_MIN_HEIGHT) from bleeding into
+ * and colouring adjacent cards above or below.
  */
 export function cardIntersectsRanges(
   card: { startTs: number; endTs: number },

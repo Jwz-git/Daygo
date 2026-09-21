@@ -14,7 +14,6 @@ import { safeTimeZone } from '@/lib/timeZone'
 import TimelineActivityCard from './TimelineActivityCard.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
 import {
-  MIN_CARD_HEIGHT,
   coveredBy,
   isRegenerating,
   layoutTimelineCards,
@@ -98,8 +97,18 @@ const placedCards = computed(() =>
   ),
 )
 
-const cardPlacement = computed(
-  () => new Map(placedCards.value.map((card) => [card.id, card])),
+const cardByID = computed(() => new Map(props.cards.map((card) => [card.id, card])))
+
+/*
+ * Rows come from the layout, not from the card list: an overlap the day could
+ * not draw leaves a card out entirely, and re-adding it here would put the
+ * colliding row back on the track.
+ */
+const cardPlacements = computed(() =>
+  placedCards.value.flatMap((placed) => {
+    const card = cardByID.value.get(placed.id)
+    return card === undefined ? [] : [{ card, ...placed }]
+  }),
 )
 
 function placed(startTs: number, endTs: number, minimumHeight = 2) {
@@ -229,16 +238,15 @@ onBeforeUnmount(() => {
         </button>
 
         <TimelineActivityCard
-          v-for="card in props.cards"
-          :key="card.id"
-          :card="card"
-          :color="categoryColors.get(card.category) ?? safeCategoryColor(undefined)"
-          :selected="card.id === props.selectedCardID"
-          :regenerating="regeneratingCardIDs.has(card.id)"
-          :top="cardPlacement.get(card.id)?.top ?? placed(card.startTs, card.endTs, MIN_CARD_HEIGHT).top"
-          :height="cardPlacement.get(card.id)?.height ?? placed(card.startTs, card.endTs, MIN_CARD_HEIGHT).height"
-          :lane-index="cardPlacement.get(card.id)?.laneIndex ?? 0"
-          :lane-count="cardPlacement.get(card.id)?.laneCount ?? 1"
+          v-for="entry in cardPlacements"
+          :key="entry.card.id"
+          :card="entry.card"
+          :color="categoryColors.get(entry.card.category) ?? safeCategoryColor(undefined)"
+          :selected="entry.card.id === props.selectedCardID"
+          :regenerating="regeneratingCardIDs.has(entry.card.id)"
+          :top="entry.top"
+          :height="entry.height"
+          :minutes="entry.minutes"
           @select="emit('select', $event)"
         />
 

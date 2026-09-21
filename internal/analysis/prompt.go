@@ -125,9 +125,12 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 		b.WriteString("preserve content only; their boundaries, titles, and categories are provisional. ")
 		b.WriteString("Group time by the person's immediate activity. App switches within one task ")
 		b.WriteString("belong together. Sustained different activities deserve separate cards. Each card ")
-		b.WriteString("must be at most 60 minutes. Keep a brief episode as its own card when the evidence ")
-		b.WriteString("shows a real change of activity or goal; never borrow unrelated neighboring minutes ")
-		b.WriteString("just to lengthen it. Absorb only incidental interruptions that belong inside the ")
+		b.WriteString("must be 15 to 60 minutes. A would-be card shorter than 15 minutes is not a card: ")
+		b.WriteString("fold it into the neighboring activity, even across a category boundary, so the ")
+		b.WriteString("combined card reaches 15 minutes and takes the category of whichever activity ")
+		b.WriteString("occupies most of it. Only the last card of the window may fall short of 15 ")
+		b.WriteString("minutes, because the evidence ends there and a later pass owns whatever follows. ")
+		b.WriteString("Absorb only incidental interruptions that belong inside the ")
 		b.WriteString("surrounding activity. Cover all observed time without overlaps and ")
 		b.WriteString("preserve real source gaps. A broad project or continuous computer session does not ")
 		b.WriteString("by itself make one activity.\n")
@@ -156,7 +159,10 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	b.WriteString("activity. Do not merge merely because the category is the same, and do not merge ")
 	b.WriteString("across a meaningful idle gap or a clear change of goal. A card carries only one ")
 	b.WriteString("category: when the preceding card's category differs from the activity in this ")
-	b.WriteString("window, do not merge — the earlier card keeps its own category and totals.\n\n")
+	b.WriteString("window, do not merge — the earlier card keeps its own category and totals. The ")
+	b.WriteString("15-minute floor is the one exception: when the activity in this window is itself ")
+	b.WriteString("shorter than 15 minutes, merge anyway and let the combined card take the category ")
+	b.WriteString("of whichever activity occupies most of it.\n\n")
 
 	// Built-in categories never enter the model-facing list: System is the
 	// unknown-category fallback target, Idle is reserved for the hardware
@@ -188,6 +194,7 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	} else {
 		b.WriteString("- Emit exactly one card; it covers the whole supplied observation span.\n")
 	}
+	b.WriteString("- Every card lasts 15 to 60 minutes. Only the last card of the span may be shorter, because the evidence ends there.\n")
 	b.WriteString("- start and end are clock strings like \"10:21 AM\" or \"3:05 PM\". Without a merge, ")
 	b.WriteString("start is the window start and end is the window end; with a merge, use the merged ")
 	b.WriteString("card's start and this window's end.\n")
@@ -336,9 +343,10 @@ Common mappings:
 // issues and the duration-merging rules, up to three attempts.
 func cardsCorrectionPrompt(rawJSON string, issues []string, requiresSingleCard bool, rewriteStart, rewriteEnd time.Time) string {
 	modeRequirement := "- This call was an ongoing-segment rewrite. Recheck the entire array, not only the "
-	modeRequirement += "issue named below. Preserve evidence-backed activity boundaries even when an episode is "
-	modeRequirement += "short. Merge only when adjacent evidence represents the same activity or when a momentary "
-	modeRequirement += "interruption is genuinely incidental; never move unrelated minutes across a boundary."
+	modeRequirement += "issue named below. Every card except the last one must be 15 minutes or longer: when the "
+	modeRequirement += "evidence would produce a shorter card, merge it into the neighboring activity and recompute "
+	modeRequirement += "that card's category from the combined activity. Merge otherwise only when adjacent evidence "
+	modeRequirement += "represents the same activity or when a momentary interruption is genuinely incidental."
 	if requiresSingleCard {
 		modeRequirement = "- This is a fresh segment. Return exactly ONE card covering the full supplied observation span."
 	}
@@ -351,10 +359,9 @@ func cardsCorrectionPrompt(rawJSON string, issues []string, requiresSingleCard b
 		"- Return the FULL corrected JSON output (not a diff).\n" +
 		"- Preserve exactly the source-supported coverage. Keep genuine source gaps uncovered; never bridge them. Cards may be separated only where the inputs have a real gap. No overlaps.\n" +
 		"- Change the timestamps that caused the validation error; do not return the same invalid boundaries. If the issue says the cards do not cover all supplied observations, find every gap between consecutive cards and close the uncovered boundary by extending an adjacent card. In particular, if one card ends at 5:38 and the next begins at 5:39, make them meet at 5:38 or 5:39 rather than returning that one-minute gap again.\n" +
-		"- Every card must be at most 60 minutes. A short card is valid when the observations support a distinct activity.\n" +
+		"- Every card must be 15 to 60 minutes. The 15-minute floor is the only reason to merge activities that are not the same task, and only the last card of the window may be shorter.\n" +
 		modeRequirement + "\n" +
-		"- Never merge unrelated activities merely to satisfy a duration preference; that would corrupt their categories and time totals.\n" +
-		"- After a justified merge, recompute the title and category from the combined evidence.\n" +
+		"- After a merge, recompute the title, category and summaries from the combined evidence; the combined card takes the category of the activity occupying most of it.\n" +
 		"- Output JSON only. No code fences or extra text."
 }
 

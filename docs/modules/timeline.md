@@ -19,9 +19,12 @@
 - 存储：cards / categories / batches / observations repository（`ReplaceCardsInRange`
   单事务改写、时钟串三日锚点派生、尝试上限、软删除）；迁移链含各版旧库夹具。
 - 分析：两阶段流水线（帧分组转录 → 卡片生成 / 融合，首批单卡、持续窗口按活动证据重分 +
-  `activityPoints`；短活动不再为凑 10 分钟而吸收无关分钟）、分批器、空闲判定、失败分类与自动重排（5 次上限）、
+  `activityPoints`；每张卡 15–60 分钟，只有承载体改写窗口末端的那张卡可以更短，不足下限的
+  片段并入邻卡且**跨分类也并**，合并卡取占多数时间的活动分类）、分批器、空闲判定、
+  失败分类与自动重排（5 次上限）、
   请求级超时、时区统一为 store `Location()`、融合分类闸门
-  （跨分类的模型融合被夹紧回批次窗口，前卡保留；横跨批次起点的前卡无条件拥有）、
+  （跨分类的模型融合被夹紧回批次窗口，前卡保留；横跨批次起点的前卡无条件拥有；
+  该闸门不受 15 分钟下限放松）、
   融合卡片继承被吸收前卡的 `appSites`（模型未点名应用时回填，避免图标消失）。
 - 绑定与前端：`GetTimelineDay`（卡片 / 分类 / 合计 / 失败分组一次带回）、卡片写操作
   （改分类 / 标题 / 摘要 / 软删除）、`RetryBatches` / `DeleteBatches` / `ReprocessDay` /
@@ -99,6 +102,64 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 事务改写失败不提交，不以删除卡片重建的方式回退。schema 回退遵循 data 的备份恢复策略。
 
 ## 验证记录
+
+2026-09-21（卡片加回 15 分钟下限：一张卡默认 15 分钟，不足则融合）：用户定下规则「一个最小卡片
+应该是 15min，只有当不足 15min，且它后面 3 分钟内无可生成卡片时，忽略这个限制」，并明确
+约束落在**卡片校验（提示词 + `validateCards`）**而不是分批（`MinAnalysisDuration` 仍是 5 分钟），
+以及下限与跨分类互斥时**下限优先**。实现：`validator.go` 新增 `minCardDuration = 15 * time.Minute`，
+`duration < minCardDuration && i < len(spans)-1` 记一条 issue——**只有承载体改写窗口末端的那张卡
+豁免**，因为窗口外那段证据不在本次改写范围内，由下一轮滑窗拥有；`len(spans) == 1` 的首批单卡
+以及单卡声明被闸门夹紧回窗口的结果都落在豁免位。提示词同步：持续模式的时长句改为 15–60 分钟并说明「不足
+15 分钟的片段并入邻卡、跨分类也并、合并卡取占多数时间的活动分类」，共享融合段落的「分类不同
+不合并」加了同一条例外，校正提示的「A short card is valid…」与「Never merge unrelated activities
+merely to satisfy a duration preference…」两条**显式撤销**（后者的存在本就与下限互斥），
+`modeRequirement` 从「短片段也要保留边界」改为「除最后一张外每张不少于 15 分钟，不够就并入邻卡
+并重算分类」。夹具两处期望显式反转并改名：`TestOngoingCardRulesPreserveShortDistinctActivities`
+→ `TestOngoingCardRulesEnforceTheFifteenMinuteFloor`（原断言「Keep a brief episode as its own card」
+「never borrow unrelated neighboring minutes」现断言反向），`TestValidateCardsAllowsShortDistinctActivities`
+→ `TestValidateCardsRejectsShortCardsExceptTheLastOne`（原 2/4/4/3 四张短卡被判合法，现断言前三张
+各一条 issue、末张合法），并补三例：50+13 的末卡豁免、60+5（证明下限与 60 分钟上限可同时满足）、
+首批单卡 6 分钟仍合法。**未动摇的决定**：融合闸门不放宽——夹紧回窗口的结果覆盖到窗口末端，
+末卡本就豁免（多卡声明时夹紧出的短首卡仍需模型在校正轮里回一次头，见下方风险），所以下限
+从不强制吸收窗口左边界外的跨分类前卡；用户选的是「合并的分钟来自不同分类时照并」，那发生在
+窗口内部。夹具 `TestPipelineMergeGateStaysShutWhenTheWindowIsBelowTheFloor`
+（空隙封口的 10 分钟窗口 + 跨分类融合声明：前卡原样保留、夹紧卡 10 分钟在豁免位、批次一次通过、
+窗口前 `activityPoints` 丢弃）。验证：`go test ./...`、`go vet ./internal/...`、
+`CGO_ENABLED=0 go build ./...` 全通过。**未验证 / 风险**：真实 LLM 在「不足 15 分钟就并入邻卡」下
+的融合质量，以及闸门拒绝 + 多卡输出时校正循环能否在 3 次内收敛（此前的夹紧结果因没有下限而
+总是合法，现在夹紧出的短首卡需要模型回一次头）；历史卡片不会自动迁移，需重处理来源批次才
+按新规则重分。契约同步 docs/04 §4.3.1、§4.3.4。
+
+2026-09-21（日轨道改为参考实现的单列布局：连续短活动曾被挤成三栏截断卡片）：
+用户报告截图里 9:39 之后的三张连续短活动并排成三列、标题只剩省略号，"应该一行卡片"。
+像素复原该截图（三张卡起始相隔 26px / 36px，日轨道 2.6px/分钟 ⇒ 5 分钟与 7 分钟；三张
+绘制盒各 34px 高、宽各占 1/3）确认成因：`layout.ts` 的 `MIN_CARD_HEIGHT = 34` 相当于
+13 分钟，5–7 分钟的真实高度只有 13–18px，被撑到 34px 后绘制盒互相压叠，
+`layoutTimelineCards` 按"绘制盒碰撞"聚簇并把它们分到三条 lane，`is-collided` 随之隐藏时间、
+宽度变成 `(100% - 12px)/3 - 4px`。数据本身没有问题（首尾相接、互不重叠；中段是异分类的
+短视频，按 §3.5 的融合闸门本就不该被吞并），是布局把"最小点击高度"当成了真实碰撞。
+按用户要求改为对照 `legacy/Dayflow` 的实现（`CanvasTimelineDataView` 的高度与间距、
+`TimelineActivityLoader.resolveDisplaySegments` 的重叠处理、`CanvasTimelineTypes` 的
+阈值）：① 卡片高度 = 自身分钟 × 2.6 − 2px，下限 10px，上下各 1px 间隙，**取消 lane 分栏**；
+② 真实重叠（上游数据缺陷）改为**在时间上裁剪较长的一张**（短卡胜出，仅显示层，不动存储），
+裁到没有剩余时间的卡不再出现，完全重合的重复卡只剩一行；③ 文本按参考实现的门槛：不足
+10 分钟只画色轨与空白条，13 分钟以下用紧贴的单行居中布局（`cardShowsText` /
+`cardIsCompact` 两个纯函数，便于夹具固定该规则）。
+夹具期望显式反转两处：原「the minimum hit height, not just the timestamps, decides coverage」
+断言 4 分钟卡被撑高后会吞掉下一个窗口的生成中区块，现改为「a short card stays inside its own
+minutes」断言相反（卡片不再越界，区块保留）；原「a card packed into a second lane still covers
+its own window」改为「cards that overlap in time are trimmed, never split into lanes」并断言
+裁剪结果。新增「consecutive short activities each get their own full-width row」（5/7/5 分钟、
+真实日轨道尺度：三行各自满宽、高度 11 / 16.2 / 11px、互不重叠）、
+「a row carries text only from ten minutes up」、「an overlap trims the longer card and drops one
+that has no time left」（嵌套、先起短卡、完全重合、邻接四种）。验证：`npm run test:unit`（68 项）、
+`typecheck`、production build、`./scripts/gate.sh` 全通过；独立 Vite + 注入夹具在浏览器中
+复现截图场景并测量（六行 `leftFraction` 0.005 / `widthFraction` 0.972，5/7/5 分钟三行高度
+11 / 16.2 / 11px 且无标题、10 分钟行有标题且为 compact、20 / 30 分钟行为常规布局），浅色与
+深色截图均复核；重叠场景（重复行 / 嵌套短卡 / 同起点的长短卡）渲染无重叠、无控制台报错
+（仅开发夹具缺 favicon 的 404）。**未完成 / 未验证**：周栅格仍用 34px 最小高度且未接这套裁剪
+（参考实现里周日两视图共用 `resolveDisplaySegments`，Daygo 尚未对齐）；真实 Wails 窗口与真实
+库上的观感；对既有卡片无数据影响（纯显示层，不重写存储）。
 
 2026-09-21（融合三修：闸门成为死代码、图标在融合后消失、重分析高亮落在下面的卡片）：
 ① **融合分类闸门此前没有任何调用点**。`85fbc3a`（09-15）把闸门接进流水线，`d7511e2`（09-17，

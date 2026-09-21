@@ -11,15 +11,21 @@ import (
 
 /*
  * Card validation, ported from Dayflow's output validator: the model's cards
- * must cover the rewrite span with chronological, non-overlapping cards no
- * longer than 60 minutes. Short cards are valid when source evidence shows a
- * real activity change; forcing them to borrow unrelated minutes corrupts
- * category totals. A
+ * must cover the rewrite span with chronological, non-overlapping cards between
+ * 15 and 60 minutes long (2026-09-21 decision). The floor is what keeps a
+ * window from being diced into five-minute cards: a short activity is merged
+ * into its neighbour instead of ending a card early, and reaching the floor
+ * outranks keeping it separate — across a category boundary too, whenever the
+ * minutes it needs belong to a differently categorized neighbour (docs/04
+ * §4.3.1). The card carrying the rewrite's end is exempt: the supplied evidence
+ * stops there, and the next sliding-window pass owns whatever follows it. A
  * failed check produces a human-readable issue for the correction prompt, and
  * the generation loop retries (up to three attempts) before giving up.
  */
 
 const (
+	// minCardDuration applies to every card except the last one of the rewrite.
+	minCardDuration = 15 * time.Minute
 	maxCardDuration = 60 * time.Minute
 	// Clock strings carry minute precision, so boundary checks tolerate a
 	// minute of rounding slack.
@@ -75,6 +81,11 @@ func validateCards(spans []cardSpan, rewriteStart, batchEnd time.Time, requiresS
 		if duration > maxCardDuration {
 			issues = append(issues, fmt.Sprintf(
 				"%s is %s long; every card must be at most 60 minutes",
+				name, duration))
+		}
+		if duration < minCardDuration && i < len(spans)-1 {
+			issues = append(issues, fmt.Sprintf(
+				"%s is only %s long; merge it into a neighboring card to reach 15 minutes. Only the last card of the window may be shorter",
 				name, duration))
 		}
 	}
