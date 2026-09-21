@@ -13,7 +13,7 @@ if [[ ! -f "$ARCHIVE" ]] || ! printf '%s  %s\n' "$SPARKLE_SHA256" "$ARCHIVE" | s
   curl -fL --retry 3 -C - \
     "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz" \
     -o "$ARCHIVE"
-  printf '%s  %s\n' "$SPARKLE_SHA256" "$ARCHIVE" | shasum -a 256 -c -
+  printf '%s  %s\n' "$SPARKLE_SHA256" "$ARCHIVE" | shasum -a 256 -c - >&2
 fi
 if [[ ! -d "$DEST/Sparkle.framework" ]]; then
   mkdir -p "$DEST"

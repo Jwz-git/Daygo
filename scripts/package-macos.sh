@@ -157,9 +157,10 @@ success "Build environment ready"
 
 step "Preparing frontend"
 
+npm --prefix "$ROOT_DIR/frontend" ci
 daygo_bootstrap
 
-success "Frontend and Wails bindings ready"
+success "Frontend dependencies, bundle and Wails bindings ready"
 
 # ─────────────────────────────────────────────────────────────
 # Cleanup

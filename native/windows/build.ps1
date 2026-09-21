@@ -31,6 +31,25 @@ $DepsDir = Join-Path $RootDir 'build\deps'
 $WinSparkleArchive = Join-Path $DepsDir "WinSparkle-$WinSparkleVersion.zip"
 $WinSparkleDir = Join-Path $DepsDir "WinSparkle-$WinSparkleVersion"
 
+function Get-DaygoSHA256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $bytes = $sha256.ComputeHash($stream)
+            return -join ($bytes | ForEach-Object { $_.ToString('x2') })
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 if (-not (Get-Command g++ -ErrorAction SilentlyContinue)) {
     throw 'MinGW-w64 g++ is required but was not found in PATH.'
 }
@@ -43,12 +62,12 @@ New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
 New-Item -ItemType Directory -Path $DepsDir -Force | Out-Null
 
 if (-not (Test-Path -LiteralPath $WinSparkleArchive -PathType Leaf) -or
-    (Get-FileHash -LiteralPath $WinSparkleArchive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $WinSparkleSHA256) {
+    (Get-DaygoSHA256 -Path $WinSparkleArchive) -ne $WinSparkleSHA256) {
     Invoke-WebRequest -UseBasicParsing `
         -Uri "https://github.com/vslavik/winsparkle/releases/download/v$WinSparkleVersion/WinSparkle-$WinSparkleVersion.zip" `
         -OutFile $WinSparkleArchive
 }
-if ((Get-FileHash -LiteralPath $WinSparkleArchive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $WinSparkleSHA256) {
+if ((Get-DaygoSHA256 -Path $WinSparkleArchive) -ne $WinSparkleSHA256) {
     throw 'WinSparkle archive checksum mismatch.'
 }
 if (-not (Test-Path -LiteralPath $WinSparkleDir -PathType Container)) {
