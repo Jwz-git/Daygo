@@ -4,7 +4,7 @@ package darwin
 
 /*
 #cgo CFLAGS: -F${SRCDIR}/../../../build/deps/Sparkle-2.10.0
-#cgo LDFLAGS: -F${SRCDIR}/../../../build/deps/Sparkle-2.10.0 -framework Sparkle -framework Foundation -framework AppKit
+#cgo LDFLAGS: -F${SRCDIR}/../../../build/deps/Sparkle-2.10.0 -Wl,-rpath,${SRCDIR}/../../../build/deps/Sparkle-2.10.0 -framework Sparkle -framework Foundation -framework AppKit
 #include <stdlib.h>
 #include "updater_bridge.h"
 */
