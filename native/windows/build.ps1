@@ -25,6 +25,11 @@ $NativeDLL = Join-Path $OutDir 'daygo_windows_native.dll'
 $NativeObject = Join-Path $OutDir 'daygo_windows_native.obj'
 $NativeImportLibrary = Join-Path $OutDir 'daygo_windows_native.lib'
 $BinDir = Join-Path $RootDir 'build\bin'
+$WinSparkleVersion = '0.9.4'
+$WinSparkleSHA256 = '6037df37fc263bd1650a1c4949681a9d40ffe991d01f35892a406cb5d103c976'
+$DepsDir = Join-Path $RootDir 'build\deps'
+$WinSparkleArchive = Join-Path $DepsDir "WinSparkle-$WinSparkleVersion.zip"
+$WinSparkleDir = Join-Path $DepsDir "WinSparkle-$WinSparkleVersion"
 
 if (-not (Get-Command g++ -ErrorAction SilentlyContinue)) {
     throw 'MinGW-w64 g++ is required but was not found in PATH.'
@@ -35,6 +40,26 @@ if (-not (Get-Command ar -ErrorAction SilentlyContinue)) {
 
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
+New-Item -ItemType Directory -Path $DepsDir -Force | Out-Null
+
+if (-not (Test-Path -LiteralPath $WinSparkleArchive -PathType Leaf) -or
+    (Get-FileHash -LiteralPath $WinSparkleArchive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $WinSparkleSHA256) {
+    Invoke-WebRequest -UseBasicParsing `
+        -Uri "https://github.com/vslavik/winsparkle/releases/download/v$WinSparkleVersion/WinSparkle-$WinSparkleVersion.zip" `
+        -OutFile $WinSparkleArchive
+}
+if ((Get-FileHash -LiteralPath $WinSparkleArchive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $WinSparkleSHA256) {
+    throw 'WinSparkle archive checksum mismatch.'
+}
+if (-not (Test-Path -LiteralPath $WinSparkleDir -PathType Container)) {
+    Expand-Archive -LiteralPath $WinSparkleArchive -DestinationPath $WinSparkleDir -Force
+}
+$WinSparkleDLL = Get-ChildItem -LiteralPath $WinSparkleDir -Filter 'WinSparkle.dll' -File -Recurse |
+    Where-Object { $_.FullName -match '(x64|amd64)' } | Select-Object -First 1
+if (-not $WinSparkleDLL) {
+    throw 'WinSparkle x64 DLL was not found in the verified archive.'
+}
+Copy-Item -LiteralPath $WinSparkleDLL.FullName -Destination (Join-Path $BinDir 'WinSparkle.dll') -Force
 
 # Windows.Graphics.Capture's window-exclusion interface requires the 26100 SDK.
 # Keep that privacy adapter optional so contributors with an older SDK can still

@@ -18,7 +18,7 @@
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定）、按日明细、洞察与节奏面板（`WeeklyInsightsDTO` / `WeeklyDayDTO`）、开发专用匿名样例 | Go 单元（周边界夹具与属性测试、聚合排除规则、非周一拒绝）、前端类型 / 构建通过；真实卡片周独立验收与跨周长期观察未运行 |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）；清理已支持按 segment_path 整段清理，但 DB-9 / IT-12 真实宿主长期观察仍未验收 |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者未验收 |
-| [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：三平台开发入口；v0.1.0 已发布 macOS arm64 DMG 与 Windows amd64 NSIS 安装包；Windows 构建校验 EXE 与原生 helper DLL，NSIS 模板封装两者并支持内外层签名与验收清单 | 发布产物存在；签名、公证、干净机安装、升级、Updater、完整 WD 与发布身份仍未验收，不能据此标记 delivery 完成 |
+| [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：Sparkle / WinSparkle 两端适配器、共用 Ed25519 appcast、设置 UI、owner / 分段收尾门禁、固定依赖校验与 Release workflow 已落盘；v0.1.0 旧产物不含该链路 | Go / 前端 / appcast 夹具通过；真实签名 workflow、macOS 公证、Windows Authenticode、干净机和旧版 → 新版升级均未运行，不能标记 delivery 完成 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 未开始：仅 05 §5.9 契约与执行册（2026-09-12 建立，设计准备） | 未运行；MCP 传输决策见 §9.8 #22 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：多会话纯对话、会话级 Provider / 模型、11 个封闭工具的 agent 循环、只读 / 只读实例双门禁、调用预算 / 取消、`llm_calls` 审计元数据和工具消息 UI | Go 回合、参数校验、门禁、预算、取消及前端回归测试通过；search / status、独立审计日志、诊断计数与真实 Provider Wails 闭环未完成 |
 
@@ -226,7 +226,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 6 | 适配协议（若进程外） | recording / 工程 | 两侧实现前；05 §5.8 |
 | 7 | 分段容器与编码格式 | recording / 工程 | **已决定**：Dayflow 式 HEVC 帧段（捕获时直接追加，免 JPEG staging），见 [decisions/recording-frame-segments-hevc.md](decisions/recording-frame-segments-hevc.md)；按其 §5 切片实现，真实段落地前 G-host 门禁照旧 |
 | 8 | 帧解码与视频合成 | recording / 工程协调，timeline 消费 | 分别在 media-read / EncodeVideo 实现前；06 §6.2 |
-| 9 | 自动更新链路 | delivery / 工程 | 宿主形态确定前验证可行性，Updater 实现前定方案 |
+| 9 | 自动更新链路 | delivery / 工程 | **两端方案与实现已落盘**：macOS Sparkle 2、Windows WinSparkle + NSIS，见 [macOS 决策](decisions/delivery-auto-update.md)与 [Windows 决策](decisions/delivery-auto-update-windows.md)；共用 Ed25519 appcast、设置 UI、安装收尾和 Release workflow；真实升级仍待 G-native / WD 验收 |
 | 10 | 数据库备份保留份数 | data / 工程 | **已决定：7 份**，见 [decisions/data-backup-retention.md](decisions/data-backup-retention.md) |
 | 11 | 解析失败的提示与处置体验 | timeline / 产品 | 时间线失败交互实现前；禁止静默丢弃已是硬约束 |
 | 12 | 统一重试后的用户可观察行为 | timeline / 产品，providers 协作 | 重试入口与策略接入前 |

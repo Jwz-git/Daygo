@@ -1,0 +1,142 @@
+name: Build signed release updates
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-14
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Validate release signing secrets
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          test -n "$CERTIFICATE" && test -n "$CERT_PASSWORD" && test -n "$NOTARY_KEY" && test -n "$NOTARY_KEY_ID" && test -n "$NOTARY_ISSUER" || {
+            echo 'Missing macOS Developer ID or App Store Connect notarization secrets.' >&2
+            exit 1
+          }
+      - name: Install tools and signing identity
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          brew install create-dmg
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+          security create-keychain -p ci daygo-ci.keychain
+          security default-keychain -s daygo-ci.keychain
+          security unlock-keychain -p ci daygo-ci.keychain
+          security set-keychain-settings -lut 21600 daygo-ci.keychain
+          printf '%s' "$CERTIFICATE" | base64 --decode > certificate.p12
+          security import certificate.p12 -k daygo-ci.keychain -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci daygo-ci.keychain
+          identity=$(security find-identity -v -p codesigning daygo-ci.keychain | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -1)
+          test -n "$identity" || { echo 'Developer ID Application identity not found in supplied certificate.' >&2; exit 1; }
+          printf 'DAYGO_SIGN_IDENTITY=%s\n' "$identity" >> "$GITHUB_ENV"
+          printf '%s' "$NOTARY_KEY" | base64 --decode > AuthKey.p8
+          xcrun notarytool store-credentials daygo-ci --key AuthKey.p8 --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER"
+      - name: Package signed and notarized macOS update
+        env:
+          DAYGO_ARCH: universal
+          DAYGO_NOTARY_PROFILE: daygo-ci
+        run: ./scripts/package-macos.sh "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-update
+          path: dist/Daygo-*-universal.dmg
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2025
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Validate Windows signing secrets
+        shell: pwsh
+        env:
+          CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          if (-not $env:CERTIFICATE -or -not $env:CERT_PASSWORD) { throw 'Missing Windows Authenticode certificate secrets.' }
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\daygo.pfx", [Convert]::FromBase64String($env:CERTIFICATE))
+      - name: Install build tools
+        shell: pwsh
+        run: |
+          choco install mingw nsis -y --no-progress
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+      - name: Package signed Windows update
+        shell: pwsh
+        env:
+          DAYGO_WIN_CERT_FILE: ${{ runner.temp }}\daygo.pfx
+          DAYGO_WIN_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: .\scripts\package-windows.ps1 -Version ($env:GITHUB_REF_NAME -replace '^v','') -RunSmoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-update
+          path: dist/Daygo-*-amd64-installer.exe
+          if-no-files-found: error
+
+  publish-appcast:
+    needs: [macos, windows]
+    runs-on: macos-14
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-update'
+          merge-multiple: true
+          path: release-assets
+      - name: Install verified Sparkle signing tools
+        run: ./scripts/bootstrap-updaters.sh
+      - name: Sign assets and create appcast
+        env:
+          PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -n "$PRIVATE_KEY" || { echo 'Missing SPARKLE_ED25519_PRIVATE_KEY.' >&2; exit 1; }
+          version="${GITHUB_REF_NAME#v}"
+          sparkle_dir="build/deps/Sparkle-2.10.0"
+          mac_asset=$(find release-assets -name 'Daygo-*-universal.dmg' -type f -print -quit)
+          windows_asset=$(find release-assets -name 'Daygo-*-amd64-installer.exe' -type f -print -quit)
+          test -n "$mac_asset" && test -n "$windows_asset"
+          mac_signature=$(printf '%s' "$PRIVATE_KEY" | "$sparkle_dir/bin/sign_update" --ed-key-file - -p "$mac_asset")
+          windows_signature=$(printf '%s' "$PRIVATE_KEY" | "$sparkle_dir/bin/sign_update" --ed-key-file - -p "$windows_asset")
+          ./scripts/generate-appcast.py --version "$version" --mac "$mac_asset" --mac-signature "$mac_signature" --windows "$windows_asset" --windows-signature "$windows_signature" --output release-assets/appcast.xml
+          gh release upload "$GITHUB_REF_NAME" "$mac_asset" "$windows_asset" --clobber
+          gh release view updates >/dev/null 2>&1 || gh release create updates --title 'Daygo update feed' --notes 'Machine-managed stable update feed. Do not delete.' --prerelease
+          gh release upload updates release-assets/appcast.xml --clobber

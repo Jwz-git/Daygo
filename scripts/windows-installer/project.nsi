@@ -57,6 +57,7 @@ Section
   SetOutPath $INSTDIR
   !insertmacro wails.files
   File "/oname=daygo_windows_native.dll" "..\..\bin\daygo_windows_native.dll"
+  File "/oname=WinSparkle.dll" "..\..\bin\WinSparkle.dll"
 
   CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
   CreateShortcut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

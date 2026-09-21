@@ -422,6 +422,7 @@ webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 
 | `OpenSystemSettings(pane string) error` | recording | System 面板入口 | 写·系统交互 | — | `invalid_argument` `native_unavailable` |
 | `GetUpdaterState() (UpdaterStateDTO, error)` | delivery | Updater | 读 | — | `native_unavailable` |
 | `CheckForUpdates(interactive bool) error` | delivery | Updater / G-native | 写 | `update:available` | `native_unavailable` |
+| `SetAutomaticUpdateChecks(enabled bool) error` | delivery | Updater / G-native | 写·幂等 | — | `native_unavailable` |
 
 `OpenSystemSettings` 的 `pane` 是封闭枚举：`screen_recording` `notifications` `login_items`。
 **不接受任意 URL**，避免绑定层变成通用的系统跳转能力。

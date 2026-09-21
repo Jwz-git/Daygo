@@ -131,6 +131,12 @@ func Run() error {
 			log.Printf("analysis pipeline unavailable: %v", err)
 		}
 	}
+	// Start the updater only after storage ownership is known. Sparkle and
+	// WinSparkle may schedule a check immediately; an early update must not see
+	// the default non-owner state or race database/recorder composition.
+	backend.setUpdater(factory.NewUpdater())
+	backend.startUpdaterEventPump(ctx)
+
 	appOpts := &options.App{
 		Title:             "Daygo",
 		Width:             1180,
@@ -169,6 +175,10 @@ func Run() error {
 		// installed here rather than at construction because runtime events
 		// require a live context.
 		OnStartup: func(ctx context.Context) {
+			backend.configureUpdateInstall(func() {
+				backend.requestQuit()
+				runtime.Quit(ctx)
+			})
 			emitter.SetContext(ctx)
 			backend.setWindowContext(ctx)
 			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx})

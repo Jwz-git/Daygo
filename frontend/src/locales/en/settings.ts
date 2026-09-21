@@ -53,6 +53,19 @@ export default {
     testToolsHint: 'Shows a test page in the sidebar that gathers test-only features such as the capture test and the data reset.',
     writeError: 'Saving failed; the value was restored from the database.',
   },
+  update: {
+    title: 'Software updates',
+    hint: 'Checks for and installs releases from the signed official update feed.',
+    automatic: 'Automatically check for updates',
+    automaticHint: 'The platform update engine checks periodically; no screen or model data is sent.',
+    check: 'Check for updates',
+    checking: 'Checking…',
+    lastChecked: 'Last checked: {value}',
+    never: 'Never',
+    available: 'Version {version} is available. Follow the system update window to install it.',
+    unavailable: 'Secure updates are not configured in this build.',
+    failed: 'The update operation failed. Try again later.',
+  },
   appearance: {
     theme: 'Theme',
     themeDescription:

@@ -73,6 +73,7 @@ if ($CertFile) {
 $BinDir = Join-Path $DaygoRootDir 'build\bin'
 $Exe = Join-Path $BinDir "$AppName.exe"
 $Dll = Join-Path $BinDir 'daygo_windows_native.dll'
+$UpdaterDll = Join-Path $BinDir 'WinSparkle.dll'
 # wails build -nsis emits "<name>-<arch>-installer.exe" into build/bin.
 $Installer = Join-Path $BinDir "$AppName-$Arch-installer.exe"
 
@@ -294,11 +295,14 @@ if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $Dll -PathType Leaf)) {
     Stop-WithError "Required capture helper is missing: $Dll"
 }
+if (-not (Test-Path -LiteralPath $UpdaterDll -PathType Leaf)) {
+    Stop-WithError "Required WinSparkle updater is missing: $UpdaterDll"
+}
 if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) {
     Stop-WithError "NSIS installer was not generated: $Installer"
 }
 
-Write-Success 'Executable, capture DLL and installer present'
+Write-Success 'Executable, capture DLL, updater DLL and installer present'
 
 # ─────────────────────────────────────────────────────────────
 # Signing
@@ -309,8 +313,10 @@ if ($SignMode -ne 'none') {
 
     Invoke-DaygoSigntool -Path $Exe
     Invoke-DaygoSigntool -Path $Dll
+    Invoke-DaygoSigntool -Path $UpdaterDll
     Invoke-DaygoNative signtool @('verify', '/pa', $Exe)
     Invoke-DaygoNative signtool @('verify', '/pa', $Dll)
+    Invoke-DaygoNative signtool @('verify', '/pa', $UpdaterDll)
     Write-Success 'Application signatures applied and verified'
 } else {
     Write-Step 'Skipping signing'

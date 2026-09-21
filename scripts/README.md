@@ -21,6 +21,8 @@ script owns a responsibility and which one a new contributor should reach for.
 | `build-linux.sh` | Linux `wails build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
 | `package-macos.sh` | macOS packager: bootstrap → `wails build` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Ad-hoc signs by default; Developer ID + notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. | macOS release packaging |
 | `package-windows.ps1` | Windows packager: bootstrap → Wails/NSIS materialisation → sign EXE + native DLL → repackage those final bytes → sign installer → emit SHA-256 acceptance manifest. The tracked `windows-installer/project.nsi` is required because stock Wails only installs the EXE. Supports `-InstallScope machine|user`; unsigned by default. Certificate file via `DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD`, or installed cert via `DAYGO_WIN_CERT_THUMBPRINT`. Windows-only; host run still required (see delivery module). | Windows release packaging |
+| `bootstrap-updaters.sh` | Downloads Sparkle 2.10.0 into ignored `build/deps`, verifies the pinned SHA-256, and exposes the framework plus signing tools. | macOS release build / appcast job |
+| `generate-appcast.py` | Builds the two-platform RSS appcast from already Ed25519-signed macOS and Windows assets. It never receives the private key. | protected GitHub `release` environment |
 | `windows-installer/project.nsi` | Wails-compatible NSIS project that installs `Daygo.exe` and the required `daygo_windows_native.dll` together. Copied into ignored `build/windows/installer/` at package time. | `package-windows.ps1` |
 | `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + `check-docs.py`. Skipped only when `python3` is missing (Python is for docs only). | CI runner, also local pre-commit |
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
@@ -85,9 +87,8 @@ interactive and silent install/uninstall, upgrade, and clean-machine startup.
   `package-windows.ps1` is PowerShell, because the signing and installer tools
   are host-native.
   Anything that does none of these is misfiled.
-- `*.sh` is bash, `*.ps1` is PowerShell, `*.py` is Python. The single
-  `.py` script (`check-docs.py`) is the only Python in the repo and is
-  intentionally stdlib-only so it runs anywhere.
+- `*.sh` is bash, `*.ps1` is PowerShell, `*.py` is Python. Python scripts are
+  intentionally stdlib-only so they run anywhere.
 
 ## Conventions
 
@@ -110,3 +111,16 @@ interactive and silent install/uninstall, upgrade, and clean-machine startup.
 
 Anything that fits in `go run ./cmd/foo` or `npm run foo` does not belong
 here — the project's own build/test runners are the right home for it.
+
+## Protected release environment
+
+`.github/workflows/publish-release.yml` runs only after a GitHub Release is published and uses the protected
+`release` environment. Configure these environment secrets before the first formal release:
+
+- `SPARKLE_ED25519_PRIVATE_KEY` — already generated; also retained in the local macOS keychain.
+- `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERT_PASSWORD`, `APPLE_API_KEY_P8_BASE64`,
+  `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` — Developer ID signing and notarization.
+- `WINDOWS_CERTIFICATE_PFX_BASE64`, `WINDOWS_CERT_PASSWORD` — Authenticode signing.
+
+The workflow fails closed when a signing identity is absent. It uploads platform assets to the formal Release and
+atomically replaces `appcast.xml` in the machine-managed `updates` prerelease only after both platform jobs succeed.

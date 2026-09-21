@@ -11,6 +11,7 @@ import AppearanceSection from './AppearanceSection.vue'
 import PrivacySection from './PrivacySection.vue'
 import ProvidersSection from './ProvidersSection.vue'
 import StorageSection from './StorageSection.vue'
+import UpdateSection from './UpdateSection.vue'
 import { SETTINGS_SECTIONS, settingsSectionFromQuery, type SettingsSection } from './navigation'
 
 const { t } = useI18n()
@@ -125,6 +126,7 @@ watch(active, () => void nextTick(measurePill))
             <div class="pane" :key="active">
               <template v-if="active === 'general'">
                 <AppearanceSection />
+                <UpdateSection />
               </template>
               <template v-else-if="active === 'recording'">
                 <PrivacySection />

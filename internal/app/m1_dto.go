@@ -56,3 +56,14 @@ type PermissionDTO struct {
 	Notifications   string `json:"notifications"`
 	CanRequest      bool   `json:"canRequest"`
 }
+
+// UpdaterStateDTO is the update status the frontend reads (docs/05 §5.5.2).
+// Download progress and "ready to relaunch" stay out of this shape: the Sparkle
+// standard UI carries them, so the frozen port and this DTO need no richer
+// fields (docs/decisions/delivery-auto-update.md §5).
+type UpdaterStateDTO struct {
+	Automatic        bool    `json:"automatic"`
+	Checking         bool    `json:"checking"`
+	AvailableVersion *string `json:"availableVersion"`
+	LastCheckedAtTs  *int64  `json:"lastCheckedAtTs"`
+}

@@ -25,7 +25,11 @@ Windows 流程先签 EXE 与原生 DLL，再用仓库内 NSIS 模板重新封装
 `package-windows.ps1` 已在真实 Windows 上产出 v0.1.0 amd64 NSIS 安装包，并与 macOS arm64 DMG
 一同发布到 GitHub Releases。该事实只证明发布资产存在，不自动证明其签名、安装、卸载或升级行为；
 安装程序内容、签名、静默安装 / 卸载与干净机启动仍需按验收矩阵补充可复现证据。
-签名、公证、Gatekeeper、Updater fake / 原生、安装升级与首次引导均未验收。
+Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
+[Windows 决策](../decisions/delivery-auto-update-windows.md)接线：fake 契约、绑定、事件泵、设置 UI、
+Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow
+均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
+签名 workflow、真实安装升级、Gatekeeper / Authenticode 与首次引导仍未验收。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 
 ## 能力与跨层职责
@@ -71,8 +75,8 @@ data 负责遥测设置和载荷边界，delivery 接入 opt-in 崩溃报告及�
 数据和身份保留，用户可关闭遥测。原生可行性探针通过仅解锁相应实现，不等于可发布。
 签名身份 / 设备 / 发布授权缺失只阻塞相关实验或分发，其他模块可按契约继续开发。
 
-待决：更新方式由 delivery 工程在原生形态决定前验证可行性、在 Updater 实现前定稿；
-Windows 与后续 Chat / CLI 范围仍单独决定，保留捕获候选研究。
+待决：macOS Sparkle 与 Windows WinSparkle + NSIS 均已定稿并实现；真机可行性、签名身份与真实升级
+仍受 G-native / WD 约束未验收。Linux 引擎另行决策。后续 Chat / CLI 范围仍单独决定。
 回退：停止未验收的更新入口，按已验证更新恢复方案返回可运行构建；
 schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进制或删除数据库。
 任何回退保留 pending 截图、已发布媒体与用户配置。
@@ -100,8 +104,16 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
-签名、公证、干净机器、升级、Updater 与崩溃上报实验均未运行。
+更新适配器源码、设置 UI、签名 appcast 生成器和 Release workflow 已做本地静态 / 契约验证；
+签名、公证、干净机器、真实升级与崩溃上报实验仍未运行。
 记录 commit、构建身份、设备、步骤及匿名结果；证书、密钥、用户数据不入库。
+
+2026-09-21（macOS arm64 本机）：`./scripts/gate.sh` 全部通过；带 `daygo_updater` tag 的 Wails
+应用完成编译，并用 `otool` 确认 Sparkle 依赖与 `@executable_path/../Frameworks` rpath；Windows
+更新适配器完成 amd64 交叉编译。另用 Sparkle 官方 `sign_update` 对匿名 macOS / Windows 夹具
+签名，并验证生成 appcast 同时包含两个平台项目。上述结果只验证源码、链接布局、签名格式与
+发布编排；尚未使用 Developer ID / Authenticode 正式证书，也未执行 macOS / Windows 真机升级，
+因此不提升 G-native 或 WD 状态。
 
 2026-09-20：GitHub Release `v0.1.0` 已发布为预发布版本，包含
 `Daygo-0.1.0-arm64.dmg` 与 `Daygo-0.1.0-amd64.exe`。此记录证明两个资产可从公开 Release 获取；

@@ -62,6 +62,7 @@ type Backend struct {
 	applicationInspector platform.ApplicationInspector
 	applicationPicker    applicationPicker
 	secrets              platform.Secrets
+	updater              platform.Updater
 	storage              *storage.Store
 	recorder             *recorder.Recorder
 	recorderMu           sync.Mutex
@@ -164,6 +165,14 @@ func (b *Backend) setApplicationPicker(picker applicationPicker) {
 // for the same reason as setCapture: the adapter is not a binding surface.
 func (b *Backend) setSecrets(s platform.Secrets) {
 	b.secrets = s
+}
+
+// setUpdater installs the platform update adapter. It stays unexported for the
+// same reason as setCapture: the adapter is an implementation detail. It may be
+// nil while no adapter is wired (docs/06 §6.7); the update bindings then return
+// native_unavailable.
+func (b *Backend) setUpdater(u platform.Updater) {
+	b.updater = u
 }
 
 // emitSettingsChanged publishes the keys a settings write committed.
@@ -272,6 +281,45 @@ func (b *Backend) startSystemEventPump() {
 		}
 	}(b.system.Events())
 }
+
+// startUpdaterEventPump owns the single Updater event subscription and fans a
+// discovered update out as the update:available state broadcast (docs/05
+// §5.5.3). It is a no-op without an updater (headless or unwired builds).
+func (b *Backend) startUpdaterEventPump(ctx context.Context) {
+	if b == nil || b.updater == nil {
+		return
+	}
+	go func(events <-chan platform.UpdaterEvent) {
+		for {
+			var event platform.UpdaterEvent
+			var ok bool
+			select {
+			case <-ctx.Done():
+				return
+			case event, ok = <-events:
+				if !ok {
+					return
+				}
+			}
+			if event.Err != nil {
+				continue
+			}
+			state := event.State
+			if state.AvailableVersion == nil {
+				continue
+			}
+			payload := UpdaterStateDTO{Automatic: state.Automatic, Checking: state.Checking}
+			version := *state.AvailableVersion
+			payload.AvailableVersion = &version
+			if state.LastCheckedAt != nil {
+				ts := state.LastCheckedAt.Unix()
+				payload.LastCheckedAtTs = &ts
+			}
+			b.emitter.Emit(EventUpdateAvailable, payload)
+		}
+	}(b.updater.Events())
+}
+
 func (b *Backend) setStatusUpdater(updater func(recorder.State)) {
 	b.statusUpdaterMu.Lock()
 	b.statusUpdater = updater
@@ -488,4 +536,30 @@ func (b *Backend) shutdown() {
 	if r != nil {
 		_ = r.Stop()
 	}
+	if closer, ok := b.updater.(interface{ Close() error }); ok {
+		_ = closer.Close()
+	}
+}
+
+func (b *Backend) configureUpdateInstall(requestShutdown func()) {
+	coordinator, ok := b.updater.(platform.UpdateInstallCoordinator)
+	if !ok {
+		return
+	}
+	coordinator.SetInstallCallbacks(
+		func() bool {
+			canWrite, isCaptureOwner := b.instanceOwnership()
+			return canWrite && isCaptureOwner
+		},
+		func() error {
+			b.recorderMu.Lock()
+			r := b.recorder
+			b.recorderMu.Unlock()
+			if r == nil {
+				return nil
+			}
+			return r.Stop()
+		},
+		requestShutdown,
+	)
 }

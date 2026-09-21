@@ -147,7 +147,7 @@ smoke** 的截图实现，发布范围与其余能力逐项经决策记录推进
 | 状态栏（第 19 项） | `SetStatusItem` ABI 已实现并接入 | 通知区图标、菜单、左键重开及 open/toggle/pause/quit 动作已接入 | Windows 回调夹具通过；关窗后持续捕获、Explorer 重启恢复及完整交互 smoke 尚未验收 |
 | 帧解码 / 段探测（第 8、10 项） | 原生段读取（`frameDecode` / `segmentProbe`） | 纯 Go `mediafile` | 两平台都经 `platform.Media` 真实实现；Windows / Linux 走 [`internal/platform/mediafile`](../internal/platform/mediafile/mediafile.go)：JPEG 单帧解码 + 探测，非 JPEG 多帧段报 `Readable=false` |
 | 视频编码（第 9 项） | 未实现 | 未实现 | 两平台 `EncodeVideo` 均返回错误，待 M2 编码决策 |
-| 自动更新（第 22 项） | 待定设计 | 待定设计 | `Updater` 端口已冻结，但无任何 `factory.NewUpdater` 构造器，全平台未接线 |
+| 自动更新（第 22 项） | Sparkle 2.10.0 适配器（仅发行 tag 构建） | WinSparkle 0.9.4 动态适配器 | 两端共用签名 appcast、设置 UI、安装前 owner 门禁与 recorder 收尾；依赖版本 / SHA 固定，发布 workflow 已落盘；源码与 fake 契约通过，真实签名构建和旧版 → 新版升级尚未验收 |
 | 其余各项（第 4、11、17、18、20 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用

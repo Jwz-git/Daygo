@@ -85,3 +85,10 @@ type Updater interface {
 	SetAutomaticChecks(ctx context.Context, enabled bool) error
 	Events() <-chan UpdaterEvent
 }
+
+// UpdateInstallCoordinator lets the app preserve recorder and lock invariants
+// while a platform updater owns download, verification and replacement.
+// Callbacks may arrive from a native worker thread and must be thread-safe.
+type UpdateInstallCoordinator interface {
+	SetInstallCallbacks(canInstall func() bool, prepare func() error, requestShutdown func())
+}

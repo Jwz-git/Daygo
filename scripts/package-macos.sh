@@ -181,13 +181,16 @@ success "Workspace cleaned"
 
 step "Building Daygo"
 
+SPARKLE_DIR="$($SCRIPT_DIR/bootstrap-updaters.sh)"
+
 export MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN_VERSION"
 
 export CGO_CFLAGS="${CGO_CFLAGS:-} -mmacosx-version-min=$MACOS_MIN_VERSION"
-export CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=$MACOS_MIN_VERSION"
+export CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=$MACOS_MIN_VERSION -Wl,-rpath,@executable_path/../Frameworks"
 
 run_wails build \
   -clean \
+  -tags daygo_updater \
   -platform "darwin/$ARCH"
 
 success "Wails build completed"
@@ -211,6 +214,9 @@ fi
 
 chmod +x "$EXECUTABLE"
 
+mkdir -p "$APP_PATH/Contents/Frameworks"
+cp -R "$SPARKLE_DIR/Sparkle.framework" "$APP_PATH/Contents/Frameworks/"
+
 success "Executable exists"
 
 printf '\n%sBinary:%s\n' "$dim" "$reset"
@@ -227,6 +233,13 @@ PLIST="$APP_PATH/Contents/Info.plist"
 /usr/libexec/PlistBuddy \
   -c "Set :LSMinimumSystemVersion $MACOS_MIN_VERSION" \
   "$PLIST"
+
+for key in SUFeedURL SUPublicEDKey SUEnableSystemProfiling; do
+  /usr/libexec/PlistBuddy -c "Delete :$key" "$PLIST" >/dev/null 2>&1 || true
+done
+/usr/libexec/PlistBuddy -c "Add :SUFeedURL string https://github.com/Jwz-git/Daygo/releases/download/updates/appcast.xml" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string 06+8of/d5uuNRZP3K7PPYQ8yCYG9BFdjwJ9P2PMj7Po=" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :SUEnableSystemProfiling bool false" "$PLIST"
 
 if [[ "$VERSION" != "dev" ]]; then
   /usr/libexec/PlistBuddy \
