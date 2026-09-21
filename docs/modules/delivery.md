@@ -32,6 +32,9 @@ Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / reco
 正式 Release 的更新 feed 已改为同一 Release 的 `appcast.xml`，客户端使用
 `releases/latest/download/appcast.xml`；发布 workflow 仅在两个安装器存在并完成 Ed25519 签名后上传。
 发布到 appcast 上传之间可能短暂返回 404，尚无真实发布验收证据。
+预发布也会构建并附上同版 appcast，但不会成为 `releases/latest`；资产齐全后才能转为正式版。
+已增加按现有已发布 Release tag 手动触发的入口，供发布事件遗漏或旧工作流跳过后恢复；入口会重新核验
+Release 当前状态，仍需在真实 Actions 运行中验收。
 签名 workflow、真实安装升级、Gatekeeper / Authenticode 与首次引导仍未验收。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 **2026-09-21：更新弹窗中属于我们的那句文案接入 i18n**（“只有持有捕获所有权的 Daygo 实例

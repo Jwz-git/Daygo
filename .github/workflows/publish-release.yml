@@ -3,17 +3,22 @@ name: Build release installers
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published Release tag (vX.Y.Z)
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event.release.tag_name }}
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: true
 
 jobs:
   prepare:
-    if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.check.outputs.version }}
@@ -24,13 +29,15 @@ jobs:
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
           REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected a vX.Y.Z release tag.' >&2; exit 1; }
+          release_draft="$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json isDraft --jq '.isDraft')"
+          test "$release_draft" = 'false' || { echo 'Release must be published.' >&2; exit 1; }
 
           mac_asset="Daygo-${version}-arm64.dmg"
           win_asset="Daygo-${version}-amd64-installer.exe"
@@ -59,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - uses: actions/setup-go@v5
         with:
@@ -85,7 +92,7 @@ jobs:
       - name: Upload macOS installer to release assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           asset="dist/Daygo-${VERSION}-arm64.dmg"
@@ -99,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - uses: actions/setup-go@v5
         with:
@@ -127,7 +134,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           $asset = Join-Path 'dist' "Daygo-$env:VERSION-amd64-installer.exe"
@@ -142,12 +149,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: Download both release installers
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
           REPOSITORY: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
         shell: bash
@@ -184,6 +191,6 @@ jobs:
       - name: Upload appcast to the same release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         shell: bash
         run: gh release upload "$RELEASE_TAG" dist/appcast.xml --clobber
