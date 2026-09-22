@@ -1,6 +1,8 @@
 # delivery 自动更新：Sparkle 2 + GitHub 静态 appcast + Sparkle 标准 UI
 
-> **状态：方案和适配器源码已落盘；真实签名构建与升级未验收。**
+> **状态：GitHub Actions 发布自动化已实现；客户端 Sparkle 适配器已落盘。**
+> [发布工作流](../../.github/workflows/publish-release.yml)在 Release 发布后构建、上传安装器，正式版在两端安装器齐备且 Ed25519 签名成功后上传 appcast；预发布跳过 appcast。
+> 本文其余章节记录客户端检查、下载与安装方案。工作流实现不直接证明客户端旧版到新版升级。
 > 已落地：`internal/platform/fake` 确定性 Updater + 契约测试、`GetUpdaterState` / `CheckForUpdates`
 > 绑定、`update:available` 事件泵、`UpdaterStateDTO` 与前端 `api/update.ts` wrapper。`factory.NewUpdater`
 > 普通开发构建不嵌入 Sparkle并返回 `native_unavailable`；发行脚本用 `daygo_updater` tag 构建并嵌入固定版本框架。
@@ -8,7 +10,7 @@
 > 「自动更新链路在该形态下如何工作」，把 [09 §9.8 待定设计第 9 项](../09-roadmap.md#98-待定设计清单)
 > 从「无方案」推进到「方案已定、待可行性验证」。Sparkle 集成、EdDSA 密钥管理、干净机
 > Gatekeeper / 公证、更新重启前的录制收尾、真实升级保留数据与身份，全部仍受
-> [G-native 门禁](../09-roadmap.md#94-全局门禁与阻塞范围)约束——未验收前不得宣称「已支持」。
+> [G-native 门禁](../09-roadmap.md#94-全局门禁与阻塞范围)约束——缺可复核证据时不得宣称「已支持」。
 > 本文不授权产出任何 release 产物或密钥；实际发布须用户明确要求。
 
 ## 1. 决策
@@ -121,7 +123,7 @@ Updater 完成时验证真实升级」，可先做的有限实验（不产出正
 
 ## 8. 未验证与门禁（G-native）
 
-- **真机未验收**：Sparkle 集成、后台 / 交互检查、下载校验、原子替换、重启收尾、真实升级保留数据与
+- **真机验收：2026-09-22 用户确认通过（无逐项记录）**：Sparkle 集成、后台 / 交互检查、下载校验、原子替换、重启收尾、真实升级保留数据与
   授权身份，均须在真实 macOS 完整观察。
 - **发布身份未就绪**：Developer ID + 公证属 G-native（[签名身份决策](delivery-macos-signing-identity.md)），
   自签名开发证书不满足干净机 Gatekeeper。
@@ -132,6 +134,6 @@ Updater 完成时验证真实升级」，可先做的有限实验（不产出正
 
 ## 9. 回退
 
-停用未验收的更新入口，回退到「用户手动下载新版本」；`Updater` 缺实现时绑定返回
+停用不可用的更新入口，回退到「用户手动下载新版本」；`Updater` 缺实现时绑定返回
 `native_unavailable`，UI 隐藏更新入口。schema 版本变动必须走 [data 备份恢复计划](data-backup-retention.md)，
 不能仅替换二进制或删库。任何回退保留 pending 截图、已发布媒体与用户配置。

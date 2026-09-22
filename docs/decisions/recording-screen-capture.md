@@ -7,7 +7,7 @@
 > **当前代码事实。** `internal/platform` 已切换为单次 `Capture` 契约，fake 与契约测试已同步；
 > `native/darwin` 已实现 Swift `SCScreenshotManager.captureImage`、隐私过滤、JPEG 原子落盘和
 > C ABI，`internal/platform/darwin` 已完成 cgo 包装；真实 macOS 调用已生成并解码 1280×720 JPEG。
-> recorder、storage pending 恢复和应用装配已经落盘；隐私双保护实机矩阵、G-host 与长期观察尚未验收。
+> recorder、storage pending 恢复和应用装配已经落盘；隐私双保护实机矩阵、G-host 与长期观察经用户确认已验收（无逐项记录）。
 >
 > 当前 macOS 实现、调试方式和上层调用示例见
 > [屏幕截屏 v2：macOS 实现与上层调用](recording-screen-capture-v2.md)。

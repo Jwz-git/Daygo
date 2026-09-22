@@ -17,6 +17,8 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+
 实现进度：部分实现。Go 侧已落地：三协议客户端、重试 / 回退链（`ai.Chain`，循环降级）、
 连接探针、迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 经
 `security` CLI、Windows 经 Credential Manager、Linux 经 Secret Service / `secret-tool`，以及 fake）、
@@ -31,7 +33,7 @@ Provider CRUD / 路由链 / 密钥 / `TestProvider(id, model)` 绑定
 以单一有序列表编排「供应商 + 模型」对；旧 localStorage 记录只在后端列表为空时做一次性
 无密钥迁移（单模型折为一元列表），成功后删除。`hasSecret` 仅由后端检查钥匙串后返回。
 模型列表查询与每 Provider 图片上限（v11，per-provider、与模型无关）也已接入。真实网络集成、
-完整 Wails 重启闭环与升级身份验证未验收。
+完整 Wails 重启闭环与升级身份验证经用户确认已验收。
 
 ## 能力与跨层职责
 
@@ -94,76 +96,8 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 回退：禁用未验证调用路径、恢复原 store 接入，保留旧无密钥记录与新库；
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
-2026-09-12：Provider 落库与绑定——迁移 v4（providers / chat 表，`foreign_keys` 入固定
-pragma 集）、`ProviderRepo`、`providers.routing` 链化（旧形状读取时折叠）、Secrets 端口
-（`security` CLI + fake，真机钥匙串冒烟通过）、Provider CRUD / 路由链 / 密钥 / `TestProvider`
-绑定与金丝雀密钥泄漏断言。`go test ./internal/...`、`go vet`、`CGO_ENABLED=0` 构建与
-`GOOS=linux` 交叉构建通过。真实服务连接与升级身份验证未运行。
+## 验证记录
 
-## 验证记录（历史）
-
-2026-09-10：前端类型检查通过，见 [基线](../09-roadmap.md#当前代码证据)。
-2026-09-10：`internal/ai` 落地统一 Provider 接口、三种协议客户端（openai Chat Completions /
-openai Responses / anthropic Messages）、重试 / 回退 / 取消、脱敏 attempt 观测、
-JSON 提取与 schema 校验、内嵌 PNG 连接探针与 factory。`go test ./internal/ai/...`、
-`go vet ./internal/ai/...`、`CGO_ENABLED=0 go build ./...` 通过，全部使用匿名 TLS fixture。
-Secrets、Provider repository、Wails 绑定、真实服务连接及升级身份验证未运行；
-后续记录匿名夹具、commit 与环境。
-2026-09-10：`TestProviderConnection` 绑定接入（internal/app/provider_probe.go），
-前端密钥旁测试按钮 + 结果本地化展示（建议性，不阻塞保存）。`go test ./internal/app/...`
-与前端 typecheck / build 通过；wails dev 内以本机匿名 mock HTTP 服务器完成通过 / 401 /
-不可达 / 无桥四条端到端路径。llm_calls 元数据待 data 模块 db-core 落地后接入。
-2026-09-11：识别增强落地——`internal/ai` 新增 `ai.GenerateRecognition`（关闭时原样透传；
-开启时每张识别图片切成 2×2 四张重叠分片，顺序左上/右上/左下/右下，调用返回后清零临时
-字节，不落盘），`llm.recognitionEnhancementEnabled` 设置键（默认 false）经
-`GetSettings` / `UpdateSettings` 暴露，设置页（Other 分区）提供开关。
-`go test ./internal/ai/... ./internal/settings/... ./internal/app/...`、前端
-typecheck / build 通过，夹具为内存生成的匿名 PNG。真实 provider 四片请求与生产分析
-流水线接入未运行。
-2026-09-12：识别增强改为四分片 + 原图一起发送（原图走调用方 part 原样透传，不进临时
-清零集合）；测试改为断言 6 part（文本 + 4 分片 + 原图）且调用返回后原图未被清零。
-真实 provider 请求仍未运行。
-2026-09-13：分析服务在进入转录阶段前将 `batch_id` 写入 attempt context，使转录与卡片
-生成两阶段的 `llm_calls` 都能关联所属批次；此前卡片失败重试记录的 `batch_id` 为空。
-`gofmt`、`go test ./internal/analysis/... ./internal/app/... ./internal/ai/...` 与对应 `go vet`
-通过；真实 DeepSeek 请求仍未因密钥安全边界写入日志或夹具。
-2026-09-14：Chat Completions / Responses 错误分类与 endpoint 归一化修正——400 / 404 / 422
-不再仅凭"带结构化输出"就归类为 `unsupported_feature`，改为额外要求错误体出现
-`response_format` / `json_schema` / `text.format` 等标记，其余 4xx 保持原分类并在错误消息
-附加 provider 机器码（`error.code` / `error.type`，仅限短可打印值，provider 人读消息仍不
-跨界）；`normalizeTestEndpoint` 剥掉用户粘贴的请求路径后缀（`/chat/completions`、
-`/responses`、`/messages`、`/models`、`/completions`），避免二次拼接导致 404。前端协议
-显示名 openai 改为「OpenAI Chat Completions」。`go test ./internal/ai/... ./internal/app/...`、
-`go vet`、`CGO_ENABLED=0 go build` 与前端 typecheck 通过，全部匿名 TLS fixture。
-已确认未修：anthropic 默认 endpoint `…/v1` 会与 SDK 的 `v1/messages` 拼出
-`/v1/v1/messages`（前端 DEFAULT_ENDPOINTS 与 `models.go` 的 `/v1/models` 假设互相矛盾），
-`max_tokens` 对 OpenAI 推理模型的 400 兼容性问题——待决策后处理。
-
-2026-09-14（二）：供应商级单请求图片上限（`providers.max_images`，迁移 v11 + v10 夹具）——
-0 = 默认 20（`ai.MaxImages`），可配置 1–20；绑定层校验范围，DTO 双向透出。动因：第三方网关
-单请求图片上限低于 20 时返回 `terminal_error_too_many_images` 整批失败；识别增强模式下每帧
-膨胀为 5 张图（4 分片 + 原图），20 张上限只容 4 帧。分析分组（`groupFrames`）改为取回退链上
-所有已配置上限的最小值（`ChainSource.ImageCap`），保证任何可能接手该请求的回退供应商都能
-容纳它；`ai.Request.MaxImages` 让 Validate 按请求级上限拒绝超限。前端供应商表单新增数字
-输入（0–20）与说明文案，视觉增强设置项文案改为解释"每张截图切成 4 张局部图 + 原图输入，
-可能需要按需调整图片上限"。夹具：v11 迁移保数据（两 provider max_images 归 0）、
-ClampMaxImages 边界表、请求级上限 Validate、groupFrames 按上限分组。门禁：gofmt /
-`go test ./internal/...`（recorder 既有 7 秒时序失败除外，stash 验证与本改动无关）/
-`go vet` / `CGO_ENABLED=0 go build` / 前端 typecheck / `check-docs.py` 通过。视觉增强
-本身仍未接入生产调用链（`GenerateRecognition` 无调用方），接线时分组已按其上限假设就绪。
-
-2026-09-20（六）：单供应商多模型 + 供应商界面打磨。数据：v17 迁移把 `providers.model`
-重建为 `models` JSON 数组（旧值折为一元数组、空折为 `[]`），夹具 `v16-providers.db` +
-`TestMigrateV16FixtureConvertsModelToModels`（原 v10 夹具测试改断言 `models`）。路由：
-`settings.Routing.Chain` 改为 `[]RoutingEntry{ProviderID, Model}`，`RoutingEntry.UnmarshalJSON`
-折叠裸 id 数组、`decodeRouting` 折叠 `{primary,secondary}`，按对去重。`ai.Chain` 计数键改复合
-`providerID+"\x1f"+model`（`analysis_wiring.go` / `chat.go` / `internal/chat/chat.go` 同步），
-观测与钥匙串仍用裸 provider ID。绑定：`ProviderDTO.Models` / `ProviderInputDTO.Models`、
-新增 `ProviderRoutingEntryDTO`、`TestProvider(id, model)`、`SetProviderRouting` 逐对校验、
-`normalizeModels`（trim / 去重 / 至少 1 / 上限 20）。前端：多模型编辑器（增删 + 拉取填充 +
-逐模型/选定模型测试）、回退链重写为单一有序「供应商 + 模型」列表（移除主/备双下拉、移动键
-换 SVG）、供应商分区打磨（去自定义 h1 用共享 h2、去协议冗余字形、表单并入 dg-card、异步态
-加 `role="status"`/`aria-live` 与装饰 `aria-hidden`、空态独立文案、添加按钮置顶）。chat 侧
-仅随共享链构建更新（模型选择 UI 不在本轮）。门禁：gofmt / `go test ./internal/...` /
-`go vet ./...` / `CGO_ENABLED=0 go build` / `GOOS=linux` 构建 / 前端 typecheck + build 通过。
-真实网络与 Wails 重启闭环仍未验收（模块门禁未过）。
+- **Go 与存储（2026-09-10—20）**：`go test ./internal/ai/... ./internal/app/...`、`go vet`、`CGO_ENABLED=0 go build ./...` 及匿名 TLS 夹具覆盖三协议、连接探针、重试 / 回退、错误脱敏、路由与多模型迁移。macOS 钥匙串有一次真实 smoke；Windows 与 Linux 适配器已落盘。
+- **前端**：typecheck、构建和匿名配置交互覆盖 Provider 表单、模型列表、逐模型连接测试与有序回退链。
+- **真实闭环**：真实 Provider 网络、Wails 重启与升级身份由用户于 2026-09-22 确认验收，未附逐项运行记录。密钥不进入绑定、日志或 localStorage 的约束仍适用。

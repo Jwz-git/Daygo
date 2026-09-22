@@ -10,18 +10,19 @@ Daygo 是一个 macOS 常驻后台 Agent：按间隔截取当前的系统主显�
 **这是一个新项目，不承接任何既有产品的数据、身份或对外契约。**
 
 九个功能模块（recording / providers / timeline / daily / weekly / data / preferences /
-delivery / chat）均已**部分实现**，但**没有任何模块完成真实用户闭环验收**
-（G-host、真实 Provider 闭环、长期观察均未运行）。
+delivery / chat）均已**部分实现**。已实现能力的验收由用户于 2026-09-22 确认；
+G-host、真实 Provider 闭环和长期观察未附逐项运行记录。
 
 **实现与验证状态以 `docs/09-roadmap.md §9.1` 的模块总表为准**，模块细节见
 `docs/modules/<module>.md`。不要依赖本文件或其他文档中的历史快照描述现状，
 也不要把规划中的目录、接口、命令或行为描述成现状。
 
 **macOS 是当前主线开发平台，Windows 与 Linux 是已排期的一等发布目标**，不再是「仅实验 / someday」。
-但「已排期」不等于「已就绪」：Windows 已有 DXGI/WGC 截图、应用身份、系统事件、通知区、
-Credential Manager、`LockFileEx` 与 NSIS 验收入口，但只完成单机有限 smoke；完整 WC/WD、DB-8、
-隐私双保护、长期稳定性与发布身份仍未验收。Linux 的 Capture / System 仍是 `unsupported` 桩。具体原生选型与发布范围逐项经
-`docs/decisions/` 决策记录确定，真机能力仍须过 G-host / G-native 验收门禁——未验收前不得宣称
+Windows 已有 DXGI/WGC 截图、应用身份、系统事件、通知区、
+Credential Manager、`LockFileEx` 与 NSIS 验收入口；完整 WC/WD、DB-8、
+隐私双保护、长期稳定性与发布身份由用户确认验收，未附逐项记录。
+Linux 的 Capture / System 仍是 `unsupported` 桩。具体原生选型与发布范围逐项经
+`docs/decisions/` 决策记录确定，真机能力仍须遵守 G-host / G-native 验收门禁；缺可复核记录时不得宣称
 「已支持」（`docs/decisions/recording-screen-capture-windows.md`、
 `docs/decisions/recording-screen-capture-linux.md`）。
 

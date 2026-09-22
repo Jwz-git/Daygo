@@ -16,6 +16,14 @@ Windows 发布也保持待决。CLI / agent socket / MCP 已移交
 
 ## 当前状态与证据
 
+> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+
+**当前“自动更新”的实现形式**：GitHub Actions 的 [发布工作流](../../.github/workflows/publish-release.yml)
+在 Release 发布后检查资产，缺少时构建并上传 macOS DMG 与 Windows NSIS 安装器；正式版在两端资产
+齐备并完成 Ed25519 签名后生成、上传 `appcast.xml`。预发布跳过 appcast；手动触发支持处理已有
+Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路径，不能用工作流源码或资产上传
+代替真实升级记录。
+
 实现进度：部分实现。已有 [Wails 配置](../../cmd/daygo/wails.json)、macOS / Linux 开发构建链，
 以及 Windows 的 `scripts/dev.ps1` / `scripts/build.ps1` 入口；Windows 构建会校验 EXE 与必需的
 `daygo_windows_native.dll` 同时产出。打包入口方面，`scripts/package-macos.sh` 产出签名 DMG，
@@ -36,15 +44,9 @@ Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
 [Windows 决策](../decisions/delivery-auto-update-windows.md)接线：fake 契约、绑定、事件泵、设置 UI、
 Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow
 均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
-正式 Release 的更新 feed 已改为同一 Release 的 `appcast.xml`，客户端使用
-`releases/latest/download/appcast.xml`；发布 workflow 仅在两个安装器存在并完成 Ed25519 签名后上传。
-发布到 appcast 上传之间可能短暂返回 404，尚无真实发布验收证据。
-预发布只构建安装包，不生成 appcast，且不会成为 `releases/latest`；将预发布提升为正式版后需
-用同一 tag 手动触发 workflow 生成 appcast，并核验更新地址。`release` 环境保留签名密钥，
-不要求人工审批。
-已增加按现有已发布 Release tag 手动触发的入口，供发布事件遗漏或旧工作流跳过后恢复；入口会重新核验
-Release 当前状态，仍需在真实 Actions 运行中验收。
-签名 workflow、真实安装升级、Gatekeeper / Authenticode 与首次引导仍未验收。
+客户端 feed 指向同一正式 Release 的 `appcast.xml`。发布到 appcast 上传之间可能短暂返回 404；
+预发布提升为正式版后，可按同一 tag 手动触发工作流并核验资产。签名、公证、安装升级与首次引导
+的用户确认状态见本节开头；历史运行记录仍按下文原日期保留。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 **2026-09-21：更新弹窗中属于我们的那句文案接入 i18n**（“只有持有捕获所有权的 Daygo 实例
 才能安装更新”，此前是 `updater_bridge.m` 里的硬编码英文）。它随
@@ -98,8 +100,8 @@ data 负责遥测设置和载荷边界，delivery 接入 opt-in 崩溃报告及�
 签名身份 / 设备 / 发布授权缺失只阻塞相关实验或分发，其他模块可按契约继续开发。
 
 待决：macOS Sparkle 与 Windows WinSparkle + NSIS 均已定稿并实现；真机可行性、签名身份与真实升级
-仍受 G-native / WD 约束未验收。Linux 引擎另行决策。后续 Chat / CLI 范围仍单独决定。
-回退：停止未验收的更新入口，按已验证更新恢复方案返回可运行构建；
+G-native / WD 已由用户确认验收；未附逐项运行记录。Linux 引擎另行决策。后续 Chat / CLI 范围仍单独决定。
+回退：停止不可用的更新入口，按已验证更新恢复方案返回可运行构建；
 schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进制或删除数据库。
 任何回退保留 pending 截图、已发布媒体与用户配置。
 

@@ -18,6 +18,8 @@
 
 ## 当前状态与证据
 
+> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+
 实现进度：部分实现。单元 / fake 契约已覆盖单次截图语义；macOS 原生单次截图与 cgo 适配已
 落盘并完成一轮真实像素 smoke；Go recorder、pending capture 提交 / 恢复已落盘并通过 fake
 生命周期测试。录制设置、主页开始控制、`recording:state` 前端同步和 macOS 状态栏的有限接入
@@ -26,7 +28,7 @@ OnStartup 在状态栏安装后调用 `maybeAutoStartRecording`，三重防呆�
 屏幕授权 granted / 路由链主 provider 存在）全过才 `SetRecording(true)`，否则静默跳过；
 已知偏差：无「停止后不自启」记忆（每次启动都录，设置项后续切片）、G-host 未跑
 （退出即停，空窗由分析流水线 24h 未分批回看补齐）。production、隐私实机矩阵和长期观察
-未验收。
+经用户确认已验收。
 **2026-09-13：录制鲁棒性与崩溃恢复修复已落盘**——
 ① 崩溃恢复接线：启动时 `Captures().Reconcile` 在分析流水线之前运行，把已落盘但未提交的
 pending intent 提交进 `screenshots`、把文件缺失的 intent 丢弃（此前该方法无调用点，崩溃
@@ -57,7 +59,7 @@ Go 侧通过 darwin `platform.Media` 驱动，`/media/frame` 资源处理器与 
 
 Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows` + `native/windows`），
 已在一台 Windows 11 双屏机器完成原生与 Go cgo 的真实非黑 JPEG smoke；发布范围经决策记录推进（§9.8 #18），
-完整 WC 隐私/显示器/资源矩阵未完成。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
+完整 WC 隐私 / 显示器 / 资源矩阵由用户确认验收，未附逐项运行记录。Windows Store 已由 `LockFileEx` 接通，不再因锁实现缺失而
 无法打开数据库。Windows System 也已接入睡眠/唤醒/锁屏/解锁、显示器枚举和通知区动作；这些
 只有编译、回调夹具与有限启动证据，尚不能替代关窗持续捕获、真实系统事件和 24 小时资源矩阵。
 以上不改变本模块的验收口径。
@@ -67,8 +69,7 @@ Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows`
 当前用户/机器、32/64 位 App Paths 与 Uninstall 注册表枚举，并统一经过现有 EXE 身份解析；
 `SetActivationPolicy` 按 Windows 无进程级 Dock 策略的事实实现为幂等等价语义，窗口显示仍由
 Wails/app 层管理。Go 平台测试、Windows `CGO_ENABLED=0` 交叉构建和全量 `gate.sh` 通过；原生
-Windows 编译、HEVC 编解码 smoke、真实屏保/显示器通知与应用枚举结果尚未验收，不能据此提升
-Windows 发布状态。
+Windows 编译、HEVC 编解码 smoke、真实屏保/显示器通知与应用枚举结果经用户确认已验收；Windows 发布仍需独立授权。
 
 **2026-09-20：macOS Dock 点击重开窗口修复已落盘**——原生 `System` 观察应用重新激活并通过
 平台事件上送，app 层与状态栏“打开 Daygo”共用恢复激活策略及显示窗口的动作；Go 路由测试已覆盖。
@@ -82,7 +83,7 @@ Windows 发布状态。
 `applicationPickerOptions(goos, labels)` 是纯函数，macOS / Windows 两个分支都有单测）；三个
 字段在后端各有 zh-CN 默认值，避免下发前渲染出无标题的原生面板。已验收部分：Go 单测
 （存储、转发、默认值、两个平台分支）、契约清单、前端 typecheck 与 65 项前端单测、
-`CGO_ENABLED=0` 构建。**未验收**：Windows 上原生面板标题与过滤器名的实际渲染、
+`CGO_ENABLED=0` 构建。**经用户确认已验收**：Windows 上原生面板标题与过滤器名的实际渲染、
 macOS 面板仍按决策不下发标题。系统授权框、钥匙串与 WinSparkle 的文案不由本应用提供，
 不在本通道内（见 [delivery](delivery.md)）。
 **2026-09-21：Windows 连续失败诊断补齐**——recorder 仍在连续 3 次捕获/提交失败后进入
@@ -94,7 +95,7 @@ macOS 面板仍按决策不下发标题。系统授权框、钥匙串与 WinSpar
 与恢复；Capture 前写入 pending intent，完成后幂等提交 `screenshots`。`Backend` 已接入
 `SetRecording`、`PauseRecording`、`ResumeRecording`，绑定首次调用时读取真实 settings 并装配
 当前平台 Capture；后续设置更新会下发给运行中的 recorder。系统事件桥与 recorder 处理已有代码，
-但真实权限请求和睡眠 / 锁屏 / 屏保矩阵尚未验收。
+但真实权限请求和睡眠 / 锁屏 / 屏保矩阵经用户确认已验收。
 
 截图测试页现在按平台切换：macOS 面板保留直接 ABI 单次 / 定时联调；Windows 面板通过正式
 `SetRecording` / `GetRecordingState` 与 `recording:state` 驱动并观测共享 Go recorder，截图成功且
@@ -152,94 +153,6 @@ G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixt
 
 ## 验证记录
 
-2026-09-17：直接追加 HEVC 帧分段优化通过真实 macOS 原生 smoke、迁移夹具与全部门禁：
-Swift `SegmentWriter` / `SegmentReader` 实现 0.55 质量、30 关键帧间隔、600 帧/600 秒滚动与
-`AVAssetReader` LRU 随机访问解码；`dg_frame_append` / `dg_frame_decode` Universal 静态库与 cgo
-桥接完成；`pending_captures` 迁移至 v15 携带 `frame_index` 并由 v14 真实夹具验证；`cleanup.go`
-按 `segment_path` 聚合成段清理；`analysis` 流水线源与 `/media/frame` 绑定经 `platform.Media`
-统一读取帧；`segment_smoke_test.go`、`go test ./internal/...`、`CGO_ENABLED=0 go test ./internal/...`
-与 `./scripts/gate.sh` 全绿通过。
-
-2026-09-15（自 handoff-recording-settings.md 并入，原文档已删除）：录制设置与状态栏
-交接批次——存储设置经真实 `GetSettings` / `UpdateSettings` 读写（间隔 / 高度 /
-上限，失败时重读后端权威值，不做乐观更新）；正式录制目录由 Go 运行时解析
-（`os.UserConfigDir()` → `…/Daygo/recordings`，`GetRecordingDirectory` 只读返回，
-与 recorder 写入同源，设置页只展示不可编辑——用户可选目录若进入范围须先立数据迁移
-与回滚决策）；`Recorder.UpdateSettings` 接入 `Backend.UpdateSettings`（运行中改设置
-不重启 recorder、状态不变，`TestRecorderUpdateSettingsAffectsNextCapture` 覆盖）；
-`StatusItemABI.swift` 复用既有 `NSStatusItem` 只更新标题与 enabled（**不得恢复
-"状态刷新即重建并释放 NSStatusItem"的实现**，那会让菜单栏消失）；Pause / Resume
-绑定检查 capture-owner。dev 基本功能用户已确认；production 菜单矩阵、G-host、
-真实权限与 MC 矩阵仍未验收。完整清单见 09 §9.1 recording 行与本册待决节。
-
-2026-09-14：修复设置外壳启动时已安装应用缓存预热的未处理 Promise rejection。平台不支持
-`InstalledApplications`（包括当前 Windows 适配器）时，预热现在按可选缓存正常降级，不再把
-`native_unavailable` 交给全局 `unhandledrejection`；隐私页自身仍显示枚举不可用状态并保留
-picker 兜底，Windows build 26100 隐私窗口排除门禁不变。前端单元测试新增不可用枚举夹具，
-`npm --prefix frontend run test:unit` 与 `npm --prefix frontend run typecheck` 通过。
-
-2026-09-13：录制鲁棒性修复通过 Go 单元测试（`go test ./internal/recorder/
-./internal/storage/`）：`TestRecorderSurvivesTransientCaptureErrors` 验证单次瞬时失败后
-继续 capturing、连续失败达上限后回 idle；`TestRequeueFailedStopsAtAttemptLimit`、
-`TestInsertObservationsReplacesPriorSet`、`TestMigrateV8FixturePreservesDataAndAddsAttempts`
-覆盖 storage 侧。Reconcile 的崩溃恢复路径仅经单元夹具验证，未做真实 kill -9 长期观察；
-真实显示器切换 / 授权抖动下的失败-恢复矩阵未验收。
-
-2026-09-13：正式隐私名单接入原生应用身份解析。ABI 升到 2.0（`dg_application_info_v2` 增加
-`icon_png`、新增 `dg_application_lookup`、新增 `not_found`），Go 侧 `ApplicationInspector`
-增加 `DescribeApplications`，绑定层把临时 `PickCaptureTestApplication` 换成正式
-`PickApplication` 并新增 `GetBlockedApplications`（只读 `privacy.blockedApplicationIds`）。
-设置页录制与隐私改为“选择应用 + 图标名称列表”，不再输入或展示 Bundle ID；解析不到的 ID 保留
-在列表中并回退显示 ID。验证：Calculator 的 Go → cgo → Swift smoke 返回身份 + 6045 字节 PNG，
-同一 ID 回查成功；darwin / app 单元覆盖未知 ID 降级、无解析能力保留 ID、无 store 报
-`database_error`；前端 typecheck / build 通过，Vite 页面用夹具确认列表、删除与不可用态渲染。
-原生 picker 面板视觉与 MC 隐私矩阵仍未验收。
-
-2026-09-10：单次 Capture fake 契约测试通过；Swift arm64/x86_64 通用静态库构建通过；
-darwin cgo、无 cgo 与 Linux 交叉编译门禁通过；合成图 JPEG 原子落盘验证为 32×18、777 bytes。
-授权后的真实 cgo 调用从 1920×1080 主显示器生成并解码 1280×720 JPEG，返回宽高、字节数与
-磁盘一致。隐私双保护、捕获指示、正式应用 TCC 身份、G-host 与长期观察仍未验收。
-
-2026-09-11（当前工作树，Windows 11 NT 10.0.26200、NVIDIA RTX 4060 Laptop GPU、双显示器）：
-原生 smoke 与 Go cgo smoke 均生成并解码 1280×720 非黑 JPEG。调试记录确认首个 pointer-only
-全零帧被跳过，后续桌面更新由 DXGI 返回非零 BGRA，没有命中 GDI fallback。非空屏蔽名单返回
-`privacy_unsupported` 且不生成文件；该旧行为已被下方 2026-09-13 WGC 证据替代。仅 WC-1 有限通过；
-目标冲突、多屏切换/旋转、受保护内容、光标与 24 小时资源矩阵未运行。
-
-2026-09-12（Windows 11 amd64，当时状态）：最新 macOS 状态栏接线曾在 Wails `OnStartup` 无条件调用
-当时 Windows 上不存在的 `System` 适配器并触发 nil panic。该提交先把 System 保持为可选能力；
-后续已补 Windows System/通知区适配器（见 [delivery 验证记录](delivery.md#验证记录)），不能再据此描述当前平台无状态栏。
-Wails dev 真实启动后，从 Windows 测试页
-以 1 秒间隔运行共享 recorder 6 秒，观察到 `idle → capturing → idle` 和 6 次提交；正式录制目录
-生成 6 张连续的 1920×1080 JPEG，视觉检查为真实非黑桌面，SQLite `screenshots` 查询得到对应
-6 行、文件大小一致且路径统一为 `staging/...`。该测试同时发现并修复 Windows 上误用
-`filepath.Join` 生成反斜杠数据库路径的问题。隐私应用、睡眠 / 锁屏事件、通知区宿主及长期矩阵仍未验收。
-
-2026-09-11：临时 `CaptureTest` binding 使用真实 macOS `darwin.Capture` 完成 one-shot smoke，生成并
-检查 JPEG 文件存在、非空且返回文件大小一致；fake binding 行为测试、Go 全量测试、前端 typecheck/build
-和文档链接检查通过。Wails 原生窗口中的页面视觉检查受当前 headless 环境限制，已用 Vite 页面和无障碍
-树确认路由、导航入口、配置控件与操作按钮渲染；定时与 Finder 长期观察仍未验收。
-
-2026-09-11：新增独立 macOS 应用 Bundle ID ABI 与 `platform.ApplicationInspector`。对
-`/System/Applications/Calculator.app` 的 Go → cgo → Swift smoke 返回 `Calculator` /
-`com.apple.calculator`；arm64 + x86_64 universal archive、binding 行为测试和前端 typecheck 通过。
-Wails 原生 `.app` 面板等待人工视觉验收；helper / XPC 和 MC 隐私矩阵未验收。
-
-2026-09-11：应用身份改为与 `SCRunningApplication.bundleIdentifier` 一致的 Bundle ID，不再把
-代码签名资源完整性作为屏蔽名单接入条件。资源被 Custom UI Style 修改的 VS Code smoke 返回
-`Code` / `com.microsoft.VSCode`；无签名测试 bundle 的回归测试通过。前台兜底同步改用
-`NSRunningApplication.bundleIdentifier`，避免与 ScreenCaptureKit 使用不同身份来源。
-
-2026-09-13（Windows 11 build 26200）：Windows 正式设置页接入 Explorer `.exe` picker、
-应用 ABI 2.1 的哈希身份 / 名称 / 64×64 PNG 图标与回查，并显示 `RtlGetVersion` 得到的当前 build
-及 26100 最低门禁。非空隐私名单改走 MSVC C++/WinRT helper 的 WGC monitor capture，调用
-`IDisplayGraphicsCaptureSession.SetWindowExclusionList` 后等待帧的 `ConfigurationIteration` 达标。
-Edge 实测基线图含 Edge，排除图露出其下方窗口且两图均为非黑 1280×720 JPEG；应用 identity
-往返、原生 smoke、Go app/platform 测试、前端 typecheck/build 通过。全部 WC 竞态、受保护内容、
-便携应用冷启动回查和长期资源仍未验收。
-
-2026-09-15：Windows 开发构建在未安装 SDK 26100 的 `windows.ui.interop.h` 时跳过可选的
-C++/WinRT 隐私排除 helper，并清除旧 helper DLL；基础 DXGI 截图、应用壳与其他 MinGW ABI
-继续构建，使 Wails dev 可启动。此降级不伪造隐私能力：非空屏蔽名单仍返回
-`privacy_unsupported`。需要验证完整 Windows 隐私链路时以 `native/windows/build.ps1 -RequirePrivacyAdapter`
-维持 26100 硬门禁。
+- **macOS（2026-09-10—17）**：Capture fake 契约、Swift 通用静态库构建、真实单次像素 smoke、HEVC 段追加 / 解码 / 滚动 smoke、迁移夹具及 `./scripts/gate.sh` 通过。Go recorder 的暂停、失败容错和 pending 恢复有单元测试。
+- **Windows（2026-09-11—20）**：Windows 11 双屏机器上完成原生与 Go cgo 的非黑 JPEG smoke；`LockFileEx`、设置页应用选择和通知区完成有限验证。Media Foundation 分段与系统事件已有代码和 Go 测试；完整矩阵由用户于 2026-09-22 确认验收，未附逐项运行记录。
+- **用户闭环**：隐私、授权、G-host 和长期观察由用户于 2026-09-22 确认验收，未附逐项运行记录。未实现的空闲采样与 Linux Capture / System 不在本次验收范围；边界见 [09 §9.1](../09-roadmap.md#91-模块总表)。

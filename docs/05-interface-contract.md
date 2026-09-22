@@ -92,7 +92,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
-上表只说明绑定与本地实现已存在，不代表 G-host、真实 Provider、签名后密钥身份或长期门禁已验收。
+上表只说明绑定与本地实现已存在。G-host、真实 Provider、签名后密钥身份与长期门禁由用户于 2026-09-22 确认验收；逐项运行记录尚未附入仓库，见 [09 §9.1](09-roadmap.md#91-模块总表)。
 fake 的覆盖以 §5.7.4 为准。
 
 > **绑定对象上的导出方法就是前端 API。** Wails 绑定会导出绑定对象的**每一个**导出方法，
@@ -1366,7 +1366,7 @@ type DisplayCapture interface {
 |---|---|---|---|
 | `internal/platform/fake` | 四套全跑 | 任意平台，`CGO_ENABLED=0` | 通过 |
 | `internal/platform/darwin` | `Suite`（需真机与授权）、`SuitePermission` / `SuitePrivacy` 需真机构造条件 | macOS + cgo | **未接入套件**；只做过一次人工 smoke，见 [截图 v2 §11](decisions/recording-screen-capture-v2.md) |
-| `internal/platform/windows` | 同上 | Windows + cgo | **Capture 契约套件仍未完整接入**；原生 / Go cgo 非黑 JPEG、一次 WGC 后台排除、应用身份、锁与部分系统回调已有实机或夹具证据，完整 WC/WD 矩阵仍未运行，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
+| `internal/platform/windows` | 同上 | Windows + cgo | **Capture 契约套件仍未完整接入**；原生 / Go cgo 非黑 JPEG、一次 WGC 后台排除、应用身份、锁与部分系统回调已有实机或夹具证据；完整 WC/WD 矩阵由用户确认验收，未附逐项运行记录，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
 
 **只有 fake 通过、真实适配层没跑同一套测试的接口，不算已验证。** 真机独有的场景
 （多屏、旋转、快速切换前台、24 小时资源）由 [08 §8.6.2 MC](08-testing-strategy.md#862-mc真实-macos-捕获矩阵)

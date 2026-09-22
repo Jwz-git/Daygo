@@ -20,7 +20,7 @@
 - `Media` 在 Linux 是**真实实现**（[`internal/platform/mediafile`](../../internal/platform/mediafile/mediafile.go)，
   纯 Go JPEG 单帧解码 / 探测）；`EncodeVideo` 待 M2 编码决策。
 - `Secrets` 已决定用 freedesktop Secret Service / `secret-tool`
-  （[Linux 密钥决策](providers-secrets-linux.md)），真实桌面钥环未验收。
+  （[Linux 密钥决策](providers-secrets-linux.md)），真实桌面钥环经用户确认已验收（无逐项记录）。
 - 实例锁走 `lock_unix.go` 的 `flock`，时区走 `zone_notwindows.go`——与 macOS 共用非 Windows 路径。
 - `native/` 下**没有 Linux 适配器**；`preBuildHooks` 只在 darwin / windows 触发。
 

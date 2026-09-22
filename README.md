@@ -19,7 +19,7 @@ Daygo 是一款本地优先、注重隐私的个人工作记录应用。它在�
 | macOS | macOS 14+，Apple Silicon（arm64） | [`Daygo-0.1.0-arm64.dmg`](https://github.com/Jwz-git/Daygo/releases/download/v0.1.0/Daygo-0.1.0-arm64.dmg) |
 | Windows | Windows 11，x64（amd64） | [`Daygo-0.1.0-amd64.exe`](https://github.com/Jwz-git/Daygo/releases/download/v0.1.0/Daygo-0.1.0-amd64.exe) |
 
-这是早期预发布版本。签名、公证、自动更新、完整安装升级矩阵和长期稳定性验证仍在完善；系统
+这是早期预发布版本。GitHub Actions 已实现发布后自动构建安装包；签名、公证、应用内自动更新、完整安装升级矩阵和长期稳定性验证仍在完善；系统
 可能显示未知开发者或安全提示。请只从本仓库的 Releases 页面下载安装包，并在试用前保留重要
 数据的独立备份。其他架构和 Linux 暂无可下载版本。
 
@@ -104,3 +104,11 @@ macOS / Windows native adapters
 
 进一步阅读：[设计文档](docs/README.md) · [测试策略](docs/08-testing-strategy.md) ·
 [贡献约束](AGENTS.md)
+
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。
+
+## 致谢
+
+产品创意受 [Dayflow](https://github.com/JerryZLiu/Dayflow) 等项目启发。

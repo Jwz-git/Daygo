@@ -12,6 +12,8 @@
 
 ## 当前状态与证据
 
+> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+
 实现进度：部分实现。已落盘可接入的 [每日页面](../../frontend/src/views/Daily/DailyView.vue)、
 [集中式 store](../../frontend/src/stores/daily.ts) 与薄
 [API wrapper](../../frontend/src/api/daily.ts)：按后端 `dayStartTs/dayEndTs` 和卡片时间戳呈现
@@ -79,35 +81,8 @@ repository 位于 internal/storage。notifications 设置、日记 / 目标表�
 G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。
 
 回退：停止生成任务并取消本模块计划的通知，保留日记 / 目标与旧摘要；
-禁用未验收的入口，不删除用户输入或改动 recording 的录制意愿。
+禁用不可用的入口，不删除用户输入或改动 recording 的录制意愿。
 
 ## 验证记录
 
-2026-09-11 前端切片验证（Asia/Shanghai，6 张匿名卡片 + 1 份匿名日报）：
-
-- `npm --prefix frontend run typecheck` 与 `npm --prefix frontend run build` 通过；
-- 浏览器人工检查浅 / 深主题、700px 窄窗口、中英文界面与复制反馈通过；时间网格在窄窗口
-  保持独立横向滚动；
-- 生产 bundle 检查不含匿名日报文本、`/__daygo_dev__/daily` 或 `dev-fixture`；
-- 这些证据只覆盖前端呈现和开发夹具隔离。真实 Wails 绑定、数据库往返、生成、通知、
-  macOS WebView 长期表现及完整用户闭环未验收。
-
-后续每次验证继续记录 commit、时区、匿名卡片、预期 / 实际结果及限制。
-
-2026-09-11：Daily 开始消费与 Timeline 相同的路由日期键；显式历史日期经后端
-`GetDayContext` 返回同名 `standupDay`，避免历史工作流误读当天日报。空参数在凌晨 4 点前仍
-保持“当前逻辑日 + 当前日历日”的既定双日期语义。真实 `GetTimelineDay` / `GetDailyRecap`
-当时尚未实现；该项只打通日期选择与查询参数，不代表 Daily 数据闭环。
-
-2026-09-12（日记绑定与编辑 UI）：`go test ./internal/app/`、前端 typecheck /
-build、Vite 浏览器 smoke 通过。journal 往返（summary 保留断言）、非法 status →
-`invalid_argument`、只读实例 → `not_capture_owner`、事件 payload 均有 Go 断言；浏览器
-预览验证面板降级态（无桥 unavailable）、中英文、420px 窄宽无横向溢出。
-`wails dev` 真机保存 → 重启读回未运行。
-
-**2026-09-15**：当日目标编辑从 daily 页面移除，仅在 timeline 检查器默认面板保留
-（共享 `GoalEditor`）；迁移 v5 / `storage.GoalRepo` / `GetDayGoal` / `SaveDayGoal` /
-`goal:updated` 事件与 i18n 文案（`daily.goal.*`）保留以继续驱动 timeline 那一份。
-
-2026-09-12（全局界面重构，Vite 预览）：深色中文匿名日报检查通过；操作界面改用系统字体，
-日记编辑与摘要正文保留文楷阅读字体。真实 Wails 保存与浅色 / 英文矩阵仍未重跑。
+2026-09-11—12：Go 绑定测试、前端 typecheck / build 与 Vite 匿名卡片预览覆盖日记编辑、日报展示、目标和日期路由。真实 Wails 保存、重启读回及长期表现由用户于 2026-09-22 确认验收，未附逐项运行记录。

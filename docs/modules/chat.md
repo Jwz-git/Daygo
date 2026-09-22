@@ -23,6 +23,8 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；token 级流
 
 ## 当前状态与证据
 
+> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+
 实现进度：**纯对话切片与 agent 工具循环切片均已实现**（decisions/chat-session-model）。
 
 纯对话切片已落地：多会话模型（`chat_conversations` / `chat_messages`，迁移 v4）、
@@ -52,7 +54,7 @@ retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共�
 | 输入能力 / 契约 | 负责模块 | 可独立推进 / fake 可证明什么 | 真实接入前置条件 |
 |------|------|------|------|
 | provider-client（`internal/ai` 统一 Generate、重试 / 回退、结构化输出） | providers | 回合状态机用脚本化 fake provider 做匿名夹具单测 | 已达成（协议客户端）；chat 是否复用 `providers.routing` 是候选 |
-| cards / time / insight 读查询 | timeline / daily / weekly | 工具读面在匿名卡片库上的查询契约测试 | cards 与 daily / weekly insight 聚合已落盘；真实 Provider 闭环未验收 |
+| cards / time / insight 读查询 | timeline / daily / weekly | 工具读面在匿名卡片库上的查询契约测试 | cards 与 daily / weekly insight 聚合已落盘；真实 Provider 闭环经用户确认已验收 |
 | 日记 / 目标 repository | daily | `goal_set` 等写工具的夹具库协议测试 | daily 表与 repository 落盘 |
 | 写入服务路径 | timeline / daily | 同源断言：绑定层与 chat 工具执行同一实现，副作用、事件、审计一致 | **已达成**（`internal/app/writes.go` 共享函数，绑定转发，测试断言同库同终态同事件） |
 | settings-access（`chat.editMode` 门禁） | preferences | 门禁拒绝路径的协议测试（服务端独立校验） | **已达成**（键已落盘，门禁每回合重读、fail closed） |
@@ -123,4 +125,4 @@ token 级流式输出（已定：原子消息）、消息留存策略、审计�
 | 2026-09-12 `9f16744`（执行器与审计，Go） | `go test ./internal/app/`（chat_tools_test + chat_binding_test 端到端） | 通过；同源断言（card_update / goal_set executor vs 绑定同库同终态同事件）、分类工具全生命周期（含内置分类保护）、读工具隐私断言（无路径字段）、真实只读实例降级 `not_capture_owner`、全 11 工具分发、`llm_calls` 落行 purpose=chat/protocol/latency | — |
 | 2026-09-12 `a994c69`（工具消息 UI，Vite 预览） | `npm run typecheck`、`npm run test:unit`、`npm run build`、Playwright `#/chat`（dev 替身产出工具回合） | 通过；tool_call+tool_result 折叠为一行摘要（工具名 + 关键参数 + 结果状态）、展开显示参数 / 结果 pretty JSON、深浅主题、400px 窄宽无溢出、连续多轮发送正常（dev 替身补 `chat:updated` 通知修复了发送后锁死） | 错误信封折叠态（`失败（code）`）仅逻辑核对未截图；`wails dev` 真机端到端未运行 |
 | 2026-09-12（聊天交互可靠性优化，macOS + Vite 预览） | `./scripts/gate.sh`；浏览器访问 `#/chat`，发送首条消息并检查工具折叠、终态解锁与全局指令加载 | 通过；新增 3 组前端回归测试，覆盖工具中间事件保持可取消、跨会话慢响应不覆盖当前记录、绑定完成前防重复发送及失败恢复；输入按会话保留，IME 组合输入不误发送，读取 / 写入失败可见且可重试，32 KiB 上限在前端预检 | 使用开发替身完成 UI 验证；真实 provider 与 `wails dev` 端到端仍未运行；原生链接仍有 macOS 14.0 archive 对 11.0 deployment target 的既有警告 |
-| 2026-09-12（全局界面重构，Vite 预览） | 浏览器检查匿名对话的常规与窄窗口布局 | 对话列表移至左侧；内容宽度不足 900px 时列表置顶，消息区和输入区不再被压成窄列 | 真实 provider 与 Wails 窗口仍未验收 |
+| 2026-09-12（全局界面重构，Vite 预览） | 浏览器检查匿名对话的常规与窄窗口布局 | 对话列表移至左侧；内容宽度不足 900px 时列表置顶，消息区和输入区不再被压成窄列 | 真实 provider 与 Wails 窗口经用户确认已验收 |
