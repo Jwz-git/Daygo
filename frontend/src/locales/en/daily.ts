@@ -58,7 +58,7 @@ export default {
   },
   journal: {
     title: 'Journal',
-    description: 'What you meant to do and what actually happened. The AI summary appears below once generated, read-only.',
+    description: 'What you meant to do and what actually happened.',
     intentions: 'Intentions',
     intentionsPlaceholder: 'What is the plan for today?',
     notes: 'Notes',
@@ -69,9 +69,6 @@ export default {
     reflectionsPlaceholder: 'Anything to reflect on?',
     plannedLabel: 'Plan',
     loggedLabel: 'Notes & reflection',
-    summary: 'AI summary',
-    readonly: 'Read-only',
-    summaryPending: 'The AI summary will appear here once generated. Read-only.',
     save: 'Save journal',
     saving: 'Saving…',
     unavailableTitle: 'Journal is not connected yet',

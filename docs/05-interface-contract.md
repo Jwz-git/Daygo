@@ -83,7 +83,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 |---|---|---|
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
 | timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
-| daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；用户保存不触碰 AI summary 列 |
+| daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
@@ -448,6 +448,23 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 
 `GetDailyRecap` 的参数是**日历日**而不是逻辑日（见 §5.3.2）。这是唯一的例外，字段名
 `standupDay` 就是提醒。
+
+**日报补生成触发（后台）。** 除上表由用户主动调用的 `GenerateDailyRecap` 外，读写实例
+在启动时以及此后每小时后台扫描一次，从最早一条活动卡片所在日历日起、直到今天，逐日检查
+`daily_standup_entries`。语义约束：
+
+- **仅读写实例执行**：补生成的写入需要写入锁与捕获所有者锁，只读第二实例不做任何事。
+- **已结束完整日**（< 今天）：只对没有站会行的日生成，生成后**绝不覆盖**；生成前再查一次
+  存在性，避免与手动保存竞态覆盖已存内容。
+- **今天**：仍在累积活动，因此按刷新周期（缺失或 `generated_at` 早于 4 小时）(重)生成，
+  允许覆盖旧值。用户手动"重新生成"会更新 `generated_at`，从而重置该 4 小时窗口。
+- **空活动日跳过**：当日无用户活动卡片（排除 System / Idle）时不写行、不调用 provider（今天同理）。
+- **无 provider 时静默等待**：`provider_not_configured` 中止本轮，等下一轮；连续失败达阈值也中止本轮。
+- **刷新语义**：每(重)生成一天发一次 `recap:updated` 失效事件；前端仍只从 `GetDailyRecap` 渲染，
+  当前打开的日被更新时靠该事件重拉（§5.5.5），补生成本身不推送日报内容。
+
+该触发是后台行为，不新增绑定方法：它复用 `GenerateDailyRecap` 的生成与写入路径，
+错误码集合一致。
 
 #### 权限、系统与更新
 
@@ -863,8 +880,7 @@ type JournalDayDTO struct {
     Notes       *string `json:"notes"`
     Goals       *string `json:"goals"`
     Reflections *string `json:"reflections"`
-    Summary     *string `json:"summary"` // AI 生成，前端只读
-    Status      string  `json:"status"`  // draft|intentions_set|complete
+    Status      string  `json:"status"` // draft|intentions_set|complete
     UpdatedAtTs *int64  `json:"updatedAtTs"`
 }
 
@@ -965,7 +981,7 @@ type UpdaterStateDTO struct {
 | `timeline:updated` | 失效 | `{day: string}` | 卡片写入、删除、重处理完成 |
 | `journal:updated` | 失效 | `{day: string}` | 日记保存或 AI 摘要生成 |
 | `goal:updated` | 失效 | `{day: string}` | 目标保存或外部写入 |
-| `recap:updated` | 失效 | `{standupDay: string}` | 日报生成或保存成功 |
+| `recap:updated` | 失效 | `{standupDay: string}` | 日报生成或保存成功（含后台补生成，见 §5.5.1 补生成触发） |
 | `settings:changed` | 失效 | `{keys: string[]}` | 设置、分类或 provider 写入成功后 |
 | `chat:updated` | 失效 | `{conversationId: string}` | chat 会话或消息落库（新建 / 删除 / 回合内每条消息 / 回合结束） |
 | `recording:state` | 状态 | `RecordingStateDTO` | 状态机转换、权限变化、暂停到期 |

@@ -18,8 +18,7 @@ type JournalDayDTO struct {
 	Notes       *string `json:"notes"`
 	Goals       *string `json:"goals"`
 	Reflections *string `json:"reflections"`
-	Summary     *string `json:"summary"` // AI generated, read-only for users
-	Status      string  `json:"status"`  // draft | intentions_set | complete
+	Status      string  `json:"status"` // draft | intentions_set | complete
 	UpdatedAtTs *int64  `json:"updatedAtTs"`
 }
 
@@ -92,14 +91,12 @@ func (b *Backend) GetJournalDay(day string) (JournalDayDTO, error) {
 		Notes:       entry.Notes,
 		Goals:       entry.Goals,
 		Reflections: entry.Reflections,
-		Summary:     entry.Summary,
 		Status:      entry.Status,
 		UpdatedAtTs: &updatedAt,
 	}, nil
 }
 
-// SaveJournalDay upserts the user-editable fields. Summary is ignored: it is
-// AI-generated and user-read-only, so a client cannot clobber it.
+// SaveJournalDay upserts the user-editable fields of one day's journal entry.
 func (b *Backend) SaveJournalDay(entry JournalDayDTO) error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err

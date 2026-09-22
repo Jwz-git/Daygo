@@ -130,6 +130,11 @@ func Run() error {
 			// still renders stored cards, and diagnostics reports the gap.
 			log.Printf("analysis pipeline unavailable: %v", err)
 		}
+
+		// Backfill standups for calendar days that completed while the agent
+		// was not running, then re-scan on a ticker for newly completed days.
+		// Owned by ctx like the analysis pipeline, so shutdown stops it.
+		go backend.runStandupBackfill(ctx)
 	}
 	// Start the updater only after storage ownership is known. Sparkle and
 	// WinSparkle may schedule a check immediately; an early update must not see

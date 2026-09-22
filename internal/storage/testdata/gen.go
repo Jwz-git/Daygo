@@ -82,6 +82,9 @@ func main() {
 	if err := writeV17(outDir); err != nil {
 		log.Fatalf("v17-provider-models.db: %v", err)
 	}
+	if err := writeV18(outDir); err != nil {
+		log.Fatalf("v18-card-ratings.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -950,6 +953,48 @@ func writeV17(outDir string) error {
 		`DROP TABLE providers`,
 		`ALTER TABLE providers_v17 RENAME TO providers`,
 		`PRAGMA user_version = 17`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV18 builds a version-18 database from the v17 fixture by applying the
+// v18 card_ratings table on top, plus a journal_entries row carrying a summary
+// value. The v19 migration test upgrades this file and proves the summary
+// column is dropped while the row's other fields survive untouched.
+func writeV18(outDir string) error {
+	v17Path := filepath.Join(outDir, "v17-provider-models.db")
+	v18Path := filepath.Join(outDir, "v18-card-ratings.db")
+	data, err := os.ReadFile(v17Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v18Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v18Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`CREATE TABLE card_ratings (
+			card_id    INTEGER PRIMARY KEY REFERENCES timeline_cards(id) ON DELETE CASCADE,
+			rating     TEXT    NOT NULL CHECK (rating IN ('up', 'down')),
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		`INSERT INTO card_ratings (card_id, rating, created_at, updated_at) VALUES (1, 'up', 1789510000, 1789510000)`,
+		// A journal row with a summary the v19 migration must drop while keeping
+		// every other field.
+		`INSERT INTO journal_entries (day, intentions, notes, goals, reflections, summary, status, updated_at)
+		 VALUES ('2026-09-16', 'fixture intentions', 'fixture notes', NULL, NULL, 'fixture ai summary', 'intentions_set', 1789510000)`,
+		`PRAGMA user_version = 18`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

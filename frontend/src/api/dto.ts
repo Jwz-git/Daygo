@@ -329,8 +329,6 @@ export interface JournalDayDTO {
   notes: string | null
   goals: string | null
   reflections: string | null
-  /** AI generated, read-only for users. */
-  summary: string | null
   /** draft | intentions_set | complete; empty means no entry exists yet. */
   status: string
   updatedAtTs: number | null

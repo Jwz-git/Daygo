@@ -14,14 +14,13 @@ const (
 )
 
 // JournalEntry is one row of journal_entries. The text fields are nil when the
-// column is NULL; Summary is AI-generated and read-only for users.
+// column is NULL.
 type JournalEntry struct {
 	Day         string // logical day yyyy-MM-dd
 	Intentions  *string
 	Notes       *string
 	Goals       *string
 	Reflections *string
-	Summary     *string
 	Status      string
 	UpdatedAt   time.Time
 }
@@ -47,10 +46,10 @@ func (r *JournalRepo) Get(ctx context.Context, day string) (JournalEntry, bool, 
 	found := false
 	err := r.store.Read(ctx, "journal get", func(ctx context.Context, tx *sql.Tx) error {
 		row := tx.QueryRowContext(ctx,
-			`SELECT day, intentions, notes, goals, reflections, summary, status, updated_at
+			`SELECT day, intentions, notes, goals, reflections, status, updated_at
 			 FROM journal_entries WHERE day = ?`, day)
 		if err := row.Scan(&entry.Day, &entry.Intentions, &entry.Notes, &entry.Goals,
-			&entry.Reflections, &entry.Summary, &entry.Status, &updatedAt); err != nil {
+			&entry.Reflections, &entry.Status, &updatedAt); err != nil {
 			if err == sql.ErrNoRows {
 				return nil
 			}
@@ -67,15 +66,12 @@ func (r *JournalRepo) Get(ctx context.Context, day string) (JournalEntry, bool, 
 }
 
 // Upsert inserts or replaces the user-editable fields of one day's entry.
-// Summary is intentionally not written: it is AI-generated and user-read-only,
-// so a user save must never clobber it. The summary generation slice will add
-// its own write path.
 func (r *JournalRepo) Upsert(ctx context.Context, entry JournalEntry) error {
 	at := r.store.now().Unix()
 	return r.store.Write(ctx, "journal upsert", func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `
-			INSERT INTO journal_entries (day, intentions, notes, goals, reflections, summary, status, updated_at)
-			VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+			INSERT INTO journal_entries (day, intentions, notes, goals, reflections, status, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(day) DO UPDATE SET
 				intentions = excluded.intentions,
 				notes      = excluded.notes,

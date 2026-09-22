@@ -253,15 +253,14 @@ CREATE TABLE daily_standup_entries (
   generated_at     INTEGER NOT NULL
 );
 
--- journal_entries（v5 已落盘）。summary 由 AI 生成、用户只读：repository 的
--- 用户写入路径不触碰该列。
+-- journal_entries（v5 落盘；v19 移除 summary 列）。日报站会即当日的 AI 摘要，
+-- 日记不再单独保存 AI summary。
 CREATE TABLE journal_entries (
   day          TEXT PRIMARY KEY,   -- 逻辑日
   intentions   TEXT,
   notes        TEXT,
   goals        TEXT,
   reflections  TEXT,
-  summary      TEXT,               -- AI 生成，用户只读
   status       TEXT NOT NULL,      -- draft | intentions_set | complete
   updated_at   INTEGER NOT NULL
 );

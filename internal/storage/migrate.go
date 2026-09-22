@@ -627,6 +627,37 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 19,
+		name:    "daily: drop journal_entries.summary",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// The daily standup recap is the day's AI summary; a separate
+			// journal-level summary was never generated and is being removed.
+			// Rebuild the table without the column (the SQLite table-rebuild
+			// pattern used by v15/v17) so the drop works on every SQLite build.
+			stmts := []string{
+				`CREATE TABLE journal_entries_v19 (
+					day         TEXT PRIMARY KEY,
+					intentions  TEXT,
+					notes       TEXT,
+					goals       TEXT,
+					reflections TEXT,
+					status      TEXT    NOT NULL,
+					updated_at  INTEGER NOT NULL
+				)`,
+				`INSERT INTO journal_entries_v19 (day, intentions, notes, goals, reflections, status, updated_at)
+				 SELECT day, intentions, notes, goals, reflections, status, updated_at FROM journal_entries`,
+				`DROP TABLE journal_entries`,
+				`ALTER TABLE journal_entries_v19 RENAME TO journal_entries`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("drop v19 journal summary", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like

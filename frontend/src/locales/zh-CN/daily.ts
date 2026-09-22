@@ -58,7 +58,7 @@ export default {
   },
   journal: {
     title: '日记',
-    description: '当天想做什么、实际发生了什么。AI 摘要生成后会出现在下方，只读。',
+    description: '当天想做什么、实际发生了什么。',
     intentions: '意图',
     intentionsPlaceholder: '今天打算怎么过？',
     notes: '记录',
@@ -69,9 +69,6 @@ export default {
     reflectionsPlaceholder: '有什么想复盘的？',
     plannedLabel: '计划',
     loggedLabel: '记录与复盘',
-    summary: 'AI 摘要',
-    readonly: '只读',
-    summaryPending: 'AI 摘要会在生成后出现在这里，只读。',
     save: '保存日记',
     saving: '保存中…',
     unavailableTitle: '日记能力尚未接入',

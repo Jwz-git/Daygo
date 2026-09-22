@@ -56,7 +56,6 @@ function submit(): void {
     notes: toValue(draft.value.notes),
     goals: toValue(draft.value.goals),
     reflections: toValue(draft.value.reflections),
-    summary: null,
     status: status.value,
     updatedAtTs: null,
   })
@@ -113,16 +112,6 @@ function submit(): void {
             <textarea v-model="draft.reflections" class="dg-reading" rows="2" :placeholder="t('daily.journal.reflectionsPlaceholder')" />
           </label>
         </div>
-      </div>
-
-      <div class="journal-summary dg-card" :class="{ 'journal-summary--pending': !journal?.summary }">
-        <div class="journal-summary__head">
-          <span class="journal-summary__badge">AI</span>
-          <h3>{{ t('daily.journal.summary') }}</h3>
-          <span class="journal-summary__readonly">{{ t('daily.journal.readonly') }}</span>
-        </div>
-        <p v-if="journal?.summary" class="dg-reading journal-summary__body">{{ journal.summary }}</p>
-        <p v-else class="journal-summary__pending">{{ t('daily.journal.summaryPending') }}</p>
       </div>
     </template>
   </section>
@@ -224,54 +213,6 @@ function submit(): void {
   border-color: var(--dg-accent, var(--dg-focus-ring));
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
-
-/* AI summary: an accent-tinted, read-only slab. Shows the generated text or a
-   quiet placeholder describing where it will land. */
-.journal-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  padding: 15px 17px 16px;
-  border-left: 2px solid var(--dg-accent);
-}
-
-.journal-summary--pending { border-left-color: var(--dg-timeline-grid); }
-
-.journal-summary__head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.journal-summary__badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  border-radius: 5px;
-  background: var(--dg-control-fill);
-  color: var(--dg-accent-text);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.journal-summary__head h3 {
-  flex: 1;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.journal-summary__readonly {
-  color: var(--dg-text-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-.journal-summary__body { color: var(--dg-text-primary); font-size: 12px; line-height: 1.65; }
-
-.journal-summary__pending { color: var(--dg-text-tertiary); font-size: 12px; line-height: 1.55; }
 
 @media (max-width: 760px) {
   .journal-grid { grid-template-columns: minmax(0, 1fr); }

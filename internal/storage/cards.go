@@ -397,6 +397,24 @@ func (r *CardRepo) CardDaysByCategory(ctx context.Context, names []string) ([]st
 	return days, nil
 }
 
+// EarliestCardStart returns the earliest start_ts across live cards. found is
+// false when no live card exists — an empty database, not an error. The
+// standup backfill uses it to bound how far back to look for missing recaps.
+func (r *CardRepo) EarliestCardStart(ctx context.Context) (time.Time, bool, error) {
+	var earliest sql.NullInt64
+	err := r.store.Read(ctx, "earliest card start", func(ctx context.Context, tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx,
+			"SELECT MIN(start_ts) FROM timeline_cards WHERE is_deleted = 0").Scan(&earliest)
+	})
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	if !earliest.Valid {
+		return time.Time{}, false, nil
+	}
+	return time.Unix(earliest.Int64, 0), true, nil
+}
+
 // updateCardColumn is the shared single-column update: write, then translate
 // zero affected rows into not_found so the binding layer maps it to 404 rather
 // than reporting success over nothing.

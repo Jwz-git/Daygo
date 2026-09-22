@@ -38,7 +38,23 @@
 只读实例 → `not_capture_owner`。前端「重新生成」按钮接通（生成中禁用、失败提示、
 事件后重拉）。Go 侧有 httptest 全链路断言；真实 provider 与 `wails dev` 真机往返未验证。
 
-文本生成自动触发（录制后自动生成）、通知仍未实现。
+**2026-09-22（后台补生成）**：读写实例启动时 + 此后每小时后台扫描，从最早活动卡片日历日到
+今天逐日检查 `daily_standup_entries`：已结束完整日缺失即生成且绝不覆盖；今天在缺失或
+`generated_at` 早于 4 小时时(重)生成。契约见 `docs/05-interface-contract.md §5.5.1`
+「日报补生成触发」。存储新增 `CardRepo.EarliestCardStart` 与 `StandupRepo.ExistingDays`；
+`GenerateDailyRecap` 拆出 `dayActivityCards` / `generateRecapFromCards`（接收 ctx，供补生成
+复用）；runner 在 `internal/app/standup_backfill.go`，经 app.go RW-only 启动块
+`go runStandupBackfill(ctx)` 接入。空活动日跳过、无 provider 静默等待、连续失败中止本轮。
+Go 侧 httptest 全链路 + 存储夹具断言（补历史、空活动跳过、不覆盖已存、今天生成 / 刷新 /
+新鲜跳过、只读实例空操作、取消即停）；真实 provider 与隔夜真机往返未验证。
+
+**2026-09-22（移除日记 AI 摘要）**：日记的 AI summary 从未生成，且概念上就是站会日报，故全栈移除：
+迁移 v19 重建 `journal_entries`（去掉 summary 列，夹具 `v18-card-ratings.db` + DB-2 验证保数据、
+去列）、`storage.JournalEntry` 与 `app.JournalDayDTO` 去掉 Summary 字段、前端 DailyJournalPanel
+删除「AI 摘要」块与 i18n。
+
+文本生成录制后即时触发、通知仍未实现（补生成已覆盖"隔日自动出日报"与"当天每 4 小时刷新"，
+录制后的即时触发仍缺）。
 
 ## 能力与跨层职责
 

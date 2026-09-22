@@ -1147,3 +1147,60 @@ func TestMigrateV17FixtureCreatesRatingTable(t *testing.T) {
 		t.Fatalf("rating = %q, want %q", got, RatingUp)
 	}
 }
+
+func TestMigrateV18FixtureDropsJournalSummary(t *testing.T) {
+	fixture := filepath.Join("testdata", "v18-card-ratings.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+	ctx := context.Background()
+
+	// The summary column is gone.
+	rows, err := store.db.QueryContext(ctx, "PRAGMA table_info(journal_entries)")
+	if err != nil {
+		t.Fatalf("table_info: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notNull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dflt, &pk); err != nil {
+			t.Fatal(err)
+		}
+		if name == "summary" {
+			t.Fatal("journal_entries still has a summary column after v19")
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	// The row's other fields survived the table rebuild.
+	entry, ok, err := store.Journal().Get(ctx, "2026-09-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("journal row lost in the v19 rebuild")
+	}
+	if entry.Intentions == nil || *entry.Intentions != "fixture intentions" {
+		t.Fatalf("intentions = %v after upgrade, want preserved", entry.Intentions)
+	}
+	if entry.Notes == nil || *entry.Notes != "fixture notes" {
+		t.Fatalf("notes = %v after upgrade, want preserved", entry.Notes)
+	}
+	if entry.Status != JournalStatusIntentionsSet {
+		t.Fatalf("status = %q after upgrade, want %q", entry.Status, JournalStatusIntentionsSet)
+	}
+}
