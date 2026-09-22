@@ -136,8 +136,10 @@ func (s *System) FrontmostApplication(context.Context) (platform.AppInfo, error)
 func (s *System) InstalledApplications(ctx context.Context, language string) ([]platform.AppInfo, error) {
 	return listApplications(ctx, language)
 }
-func (s *System) LaunchAtLogin(context.Context) (bool, error)  { return false, nil }
-func (s *System) SetLaunchAtLogin(context.Context, bool) error { return nil }
+func (s *System) LaunchAtLogin(context.Context) (bool, error) { return queryLaunchAtLogin() }
+func (s *System) SetLaunchAtLogin(_ context.Context, enabled bool) error {
+	return setLaunchAtLogin(enabled)
+}
 func (s *System) SetActivationPolicy(_ context.Context, p platform.ActivationPolicy) error {
 	return setActivationPolicy(p)
 }

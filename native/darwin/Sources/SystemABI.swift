@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import CoreGraphics
+import ServiceManagement
 
 private final class SystemState: @unchecked Sendable {
     let lock = NSLock()
@@ -128,6 +129,42 @@ func dg_open_system_settings(_ pane: UInt32) -> Int32 {
     guard let url = URL(string: urlString) else { return -1 }
     activationRunOnMain { NSWorkspace.shared.open(url) }
     return 0
+}
+
+@_cdecl("dg_launch_at_login_query")
+func dg_launch_at_login_query() -> Int32 {
+    // SMAppService.mainApp registers the app itself as a login item with no
+    // helper or plist. status never prompts, so it is safe to read on load.
+    guard #available(macOS 13, *) else { return Int32(DG_LAUNCH_AT_LOGIN_UNSUPPORTED) }
+    switch SMAppService.mainApp.status {
+    case .enabled:
+        return Int32(DG_LAUNCH_AT_LOGIN_ENABLED)
+    case .requiresApproval:
+        return Int32(DG_LAUNCH_AT_LOGIN_REQUIRES_APPROVAL)
+    case .notFound:
+        return Int32(DG_LAUNCH_AT_LOGIN_NOT_FOUND)
+    case .notRegistered:
+        return Int32(DG_LAUNCH_AT_LOGIN_NOT_REGISTERED)
+    @unknown default:
+        return Int32(DG_LAUNCH_AT_LOGIN_NOT_REGISTERED)
+    }
+}
+
+@_cdecl("dg_launch_at_login_set")
+func dg_launch_at_login_set(_ enabled: UInt32) -> Int32 {
+    guard #available(macOS 13, *) else { return -1 }
+    do {
+        if enabled != 0 {
+            try SMAppService.mainApp.register()
+        } else {
+            try SMAppService.mainApp.unregister()
+        }
+        return 0
+    } catch {
+        // Unsigned/ad-hoc bundles fail here with "Operation not permitted"; the
+        // Go layer logs it without failing the settings write.
+        return -1
+    }
 }
 
 @_cdecl("dg_system_stop")

@@ -12,6 +12,7 @@
 [06](../06-native-integration.md)、[截图 v2 实现与调用](../decisions/recording-screen-capture-v2.md)、
 [Windows 截图实现与限制](../decisions/recording-screen-capture-windows.md)、
 [图片存储流水线](../decisions/recording-image-storage.md)、
+[开机自启方案](../decisions/recording-launch-at-login.md)、
 [07 §7.2](../07-privacy-security.md#72-捕获侧的两层保护)。
 实机矩阵：[08 §8.6.2 MC](../08-testing-strategy.md#862-mc真实-macos-捕获矩阵)、
 [§8.6.3 WC](../08-testing-strategy.md#863-wc真实-windows-捕获矩阵)。

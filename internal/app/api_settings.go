@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"log"
+	"slices"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
@@ -77,6 +79,7 @@ func (b *Backend) UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error) {
 	if len(changed) > 0 {
 		b.emitSettingsChanged(changed)
 	}
+	b.applyLaunchAtLogin(ctx, changed, snapshot.LaunchAtLogin)
 	b.recorderMu.Lock()
 	activeRecorder := b.recorder
 	b.recorderMu.Unlock()
@@ -84,6 +87,22 @@ func (b *Backend) UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error) {
 		activeRecorder.UpdateSettings(snapshot)
 	}
 	return settingsToDTO(snapshot), nil
+}
+
+// applyLaunchAtLogin pushes a changed launch-at-login preference to the OS. The
+// database value is the source of truth for user intent; the OS registration is
+// applied best-effort after the write commits, mirroring how the dock-icon and
+// status-item effects are lifecycle-driven rather than allowed to fail the save
+// (a failed OS call would otherwise revert a toggle the user already persisted).
+// Failure is logged, not thrown: on an unsigned dev build SMAppService reports
+// "Operation not permitted", which must not make every settings write error out.
+func (b *Backend) applyLaunchAtLogin(ctx context.Context, changed []string, enabled bool) {
+	if b.system == nil || !slices.Contains(changed, settings.KeySystemLaunchAtLogin) {
+		return
+	}
+	if err := b.system.SetLaunchAtLogin(ctx, enabled); err != nil {
+		log.Printf("apply launch-at-login: %v", err)
+	}
 }
 
 // settingsToDTO maps the settings snapshot onto the wire shape.

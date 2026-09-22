@@ -15,13 +15,17 @@ type fixedClock struct{ now time.Time }
 func (c fixedClock) Now() time.Time { return c.now }
 
 type systemStub struct {
-	permission    platform.PermissionState
-	notifications platform.PermissionState
-	permissionErr error
-	requestErr    error
-	openErr       error
-	requested     bool
-	opened        platform.SettingsPane
+	permission        platform.PermissionState
+	notifications     platform.PermissionState
+	permissionErr     error
+	requestErr        error
+	openErr           error
+	requested         bool
+	opened            platform.SettingsPane
+	launchAtLogin     bool
+	launchAtLoginSet  bool
+	launchAtLoginErr  error
+	launchAtLoginCall int
 }
 
 func (s *systemStub) ScreenRecordingPermission(context.Context) (platform.PermissionState, error) {
@@ -45,8 +49,16 @@ func (*systemStub) FrontmostApplication(context.Context) (platform.AppInfo, erro
 func (*systemStub) InstalledApplications(context.Context, string) ([]platform.AppInfo, error) {
 	return nil, nil
 }
-func (*systemStub) LaunchAtLogin(context.Context) (bool, error)                          { return false, nil }
-func (*systemStub) SetLaunchAtLogin(context.Context, bool) error                         { return nil }
+func (s *systemStub) LaunchAtLogin(context.Context) (bool, error) { return s.launchAtLogin, nil }
+func (s *systemStub) SetLaunchAtLogin(_ context.Context, enabled bool) error {
+	s.launchAtLoginCall++
+	if s.launchAtLoginErr != nil {
+		return s.launchAtLoginErr
+	}
+	s.launchAtLogin = enabled
+	s.launchAtLoginSet = true
+	return nil
+}
 func (*systemStub) SetActivationPolicy(context.Context, platform.ActivationPolicy) error { return nil }
 func (*systemStub) SetStatusItem(context.Context, platform.StatusItemState) error        { return nil }
 func (*systemStub) RevealPath(context.Context, string) error                             { return nil }

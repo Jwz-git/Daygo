@@ -49,6 +49,8 @@ export default {
       'Allow the in-app chat assistant to modify cards, categories and goals (limited to the six sandboxed operations). Off by default; independent of the external channel above.',
   },
   general: {
+    launchAtLogin: 'Launch at login',
+    launchAtLoginHint: 'Start Daygo automatically when you log in so it keeps recording in the background. Requires a properly signed app; it may not take effect on development builds.',
     testTools: 'Test tools',
     testToolsHint: 'Shows a test page in the sidebar that gathers test-only features such as the capture test and the data reset.',
     writeError: 'Saving failed; the value was restored from the database.',

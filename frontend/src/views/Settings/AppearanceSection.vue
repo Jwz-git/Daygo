@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { AppTheme } from '@/api/dto'
@@ -10,11 +10,22 @@ import { useTestToolsStore } from '@/stores/testTools'
 import RecognitionSection from './RecognitionSection.vue'
 import SettingRow from './SettingRow.vue'
 import SwitchControl from './SwitchControl.vue'
+import { useSettingsSection } from './useSettingsSection'
 
 const { t } = useI18n()
 const appearance = useAppearanceStore()
 const testTools = useTestToolsStore()
 const testToolsFailed = ref(false)
+
+const { state: systemState, settings: systemSettings, load: loadSystem, persist: persistSystem, writeFailed: systemWriteFailed } =
+  useSettingsSection()
+const launchAtLogin = computed(() => systemSettings.value?.system.launchAtLogin ?? false)
+
+onMounted(() => void loadSystem())
+
+function onToggleLaunchAtLogin(next: boolean): void {
+  void persistSystem({ launchAtLogin: next })
+}
 
 function onToggleTestTools(next: boolean): void {
   testToolsFailed.value = false
@@ -85,6 +96,19 @@ function onLanguageChange(event: Event): void {
       </option>
     </select>
   </SettingRow>
+
+  <SettingRow
+    :title="t('settings.general.launchAtLogin')"
+    :hint="t('settings.general.launchAtLoginHint')"
+  >
+    <SwitchControl
+      :checked="launchAtLogin"
+      :disabled="systemState !== 'ready'"
+      :label="t('settings.general.launchAtLogin')"
+      @toggle="onToggleLaunchAtLogin"
+    />
+  </SettingRow>
+  <p v-if="systemWriteFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
 
   <SettingRow :title="t('settings.general.testTools')" :hint="t('settings.general.testToolsHint')">
     <SwitchControl
