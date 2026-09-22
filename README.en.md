@@ -13,12 +13,12 @@ when their windows close.
 
 ## Download
 
-Get the installer for your platform from the [v0.1.0 release](https://github.com/Jwz-git/Daygo/releases/tag/v0.1.0):
+Get the latest installer for your platform from the [Releases page](https://github.com/Jwz-git/Daygo/releases):
 
 | Platform | System and architecture | Installer |
 |---|---|---|
-| macOS | macOS 14+, Apple Silicon (arm64) | [`Daygo-0.1.0-arm64.dmg`](https://github.com/Jwz-git/Daygo/releases/download/v0.1.0/Daygo-0.1.0-arm64.dmg) |
-| Windows | Windows 11, x64 (amd64) | [`Daygo-0.1.0-amd64.exe`](https://github.com/Jwz-git/Daygo/releases/download/v0.1.0/Daygo-0.1.0-amd64.exe) |
+| macOS | macOS 14+, Apple Silicon (arm64) | `Daygo-<version>-arm64.dmg` |
+| Windows | Windows 11, x64 (amd64) | `Daygo-<version>-amd64.exe` |
 
 This is an early pre-release. GitHub Actions builds installers after a Release is published. Signing, notarization, in-app automatic updates, the complete install/upgrade matrix,
 and long-running stability tests are still in progress, so your operating system may show an unknown-developer
