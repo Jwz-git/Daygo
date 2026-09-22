@@ -1,6 +1,6 @@
 # recording 屏幕截屏（Linux）：候选、约束与决策进度
 
-> **状态：已排期，决策进行中（尚未落定单一方案）。** Linux 从「仅可移植 / CI 目标」升级为
+> **状态：首版会话范围已定为 Ubuntu on Xorg；捕获实现与发布验收仍在决策中。** Linux 从「仅可移植 / CI 目标」升级为
 > 一等发布目标（[09 §9.8 #24](../09-roadmap.md#98-待定设计清单)），本文收拢 Linux 屏幕捕获与
 > 适配器形态的候选、硬约束与验证门槛。**在本文把某条路径标为「已决定」之前，不得按单一候选
 > 大规模实现，也不得删除其它候选路径**（AGENTS.md 待定设计纪律）。
@@ -42,18 +42,18 @@
 | 维度 | X11 | Wayland |
 |---|---|---|
 | 单帧抓取 | `XGetImage` / `XShmGetImage` 直接读根窗口或主输出，天然离散、无持久指示器 | 合成器不允许任意进程读帧；标准路径是 `xdg-desktop-portal` |
-| Portal 路径 | 不需要 | `org.freedesktop.portal.ScreenCast`（PipeWire 流）**面向连续流**且通常带共享指示器——与 §2.1 直接冲突；`org.freedesktop.portal.Screenshot` 是交互式单次截图，不适合静默周期捕获 |
+| Portal 路径 | 不需要 | `org.freedesktop.portal.ScreenCast`（PipeWire 流）**面向连续流**且通常带共享指示器——与 §2.1 直接冲突；`org.freedesktop.portal.Screenshot` 可请求单次截图；是否能在用户一次授权后静默周期调用，取决于 Portal / 桌面实现，须用 LC-b 实测 |
 | 授权模型 | 无系统授权（与 Windows 类似） | Portal 每会话询问 / 可能带持久指示器 |
 | 隐私画面级屏蔽 | 无原生「排除指定应用」能力，须评估失败关闭语义 | Portal 无等价「排除应用」原语 |
 | 现状占比 | 仍广泛存在，尤其旧发行版与部分 DE | 新发行版默认（GNOME / KDE Wayland 会话） |
 
 **核心矛盾：** Daygo 的「静默、离散、无常亮指示器」产品约束在 X11 上自然成立，在 Wayland 上
-与 Portal 的流式 / 指示器模型**根本冲突**。这不是实现细节，是产品与平台能力的冲突，必须在本文
-显式决策，而不是在实现里悄悄放宽 §2.1。
+与 ScreenCast 的流式 / 指示器模型冲突；Screenshot Portal 是否能满足周期调用仍未验证。
+这是产品与平台能力的取舍，必须在本文显式决策，而不是在实现里悄悄放宽 §2.1。
 
 **待验证实验（LC 前置，尚未运行）：**
 - LC-a：X11 下 `XShmGetImage` 周期抓主输出的资源占用与多屏 / 缩放 / 旋转正确性；
-- LC-b：Wayland 下是否存在任何合规且**不常亮指示器**的周期截图路径（含各 DE 差异），若无则
+- LC-b：Wayland 下 Screenshot Portal 是否可在一次授权后无重复弹窗、无常亮指示器地周期截图（含各 DE 差异），若无则
   明确「Wayland 会话下捕获失败关闭」的产品结论；
 - LC-c：X11 隐私屏蔽的失败关闭语义（无法可靠排除应用时返回何种 `CaptureErrorCode`）。
 
@@ -74,7 +74,7 @@
 
 ## 4. 推荐方向（待实验确认，非最终结论）
 
-1. **优先落地 X11 离散抓取**作为第一条可发布路径（`XShmGetImage`），因为它天然满足 §2.1；
+1. **首版范围已选 Ubuntu on Xorg**（用户于 2026-09-22 确认）；优先验证 X11 离散抓取（`XShmGetImage`），因为它天然满足 §2.1；
    Wayland 作为**独立后续决策**，在 LC-b 给出「有无合规无指示器路径」结论前，Wayland 会话
    按失败关闭处理，不降级到带常亮指示器的流式捕获。
 2. **分发先做 AppImage 的有限探针**（无自更新），验证纯 Go Core + GTK 壳的启动与钥环行为，
@@ -98,3 +98,20 @@
 - 回退：composition root 不注入 Linux `Capture` / `System`，保留 `factory/*_unavailable.go` 的
   `unsupported` 路径即回到当前「可移植核心 + 桌面壳」状态。
 - 不为让 Linux 出图而放宽 §2 任一约束；任何降低隐私或引入常亮录制指示器的路径直接否决。
+
+## 7. Ubuntu 24.04 前置实验记录（2026-09-22）
+
+- 当前主机是 Ubuntu 24.04 / Wayland；`pkg-config` 检查 X11、Xext、GTK3、WebKit2GTK 4.1 均可解析。
+- 只读 D-Bus introspection 表明本会话提供 `org.freedesktop.portal.Screenshot` v2 与 `ScreenCast` v5。接口存在**不证明**周期截图能免重复授权，也不证明画面级隐私排除或无常亮指示器。未调用截图方法，未读取或保存用户屏幕。
+- [`native/linux/probe/x11_capture.c`](../../native/linux/probe/x11_capture.c) 是 LC-a 的有限 `XShmGetImage` 探针：用 XRandR 选主输出，只输出主输出几何、缓冲区字节数和调用耗时，不保存像素。它明确拒绝 Wayland / XWayland 会话。此主机用 `-Wall -Wextra -Werror` 编译通过，Wayland 下以退出码 2 拒绝运行；**未获得 Xorg 真实像素或多屏证据**。
+
+在真实 Ubuntu on Xorg 会话从仓库根目录运行：
+
+```bash
+cc -O2 -Wall -Wextra -Werror -o /tmp/daygo-x11-probe native/linux/probe/x11_capture.c $(pkg-config --cflags --libs x11 xext xrandr)
+/tmp/daygo-x11-probe
+```
+
+这个探针仅检查 XShm 基本可用性和一次调用耗时。主显示器选取、像素有效性、隐私双保护、周期资源占用、锁屏行为与产品适配器形态仍待 LC-a / LC-c 和 LC 真机矩阵。
+
+上游接口依据：[Screenshot Portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Screenshot.html) 与 [ScreenCast Portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.ScreenCast.html)。

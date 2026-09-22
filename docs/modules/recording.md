@@ -65,6 +65,8 @@ Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows`
 只有编译、回调夹具与有限启动证据，尚不能替代关窗持续捕获、真实系统事件和 24 小时资源矩阵。
 以上不改变本模块的验收口径。
 
+2026-09-22：Ubuntu 24.04 / Wayland 上完成 X11 单次截图探针的编译和会话类型失败关闭验证，未读取真实屏幕；Xorg 实测、Wayland Screenshot Portal 的授权行为、隐私双保护和 Linux System / 托盘均未验收。详见 [Linux 截图决策 §7](../decisions/recording-screen-capture-linux.md#7-ubuntu-2404-前置实验记录2026-09-22)。
+
 2026-09-20：Windows 平台差集实现已接线：Media Foundation HEVC/MP4 分段写入、Source Reader
 按帧读取和 legacy JPEG 回退；`System` 增加屏保状态转换与 `WM_DISPLAYCHANGE`；隐私应用列表从
 当前用户/机器、32/64 位 App Paths 与 Uninstall 注册表枚举，并统一经过现有 EXE 身份解析；

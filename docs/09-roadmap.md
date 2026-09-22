@@ -37,8 +37,8 @@ Linux Wails 桌面壳（v2 + GTK3 + WebKit2GTK）已具备初级适配：mac / L
 `options_<goos>.go`（`options_darwin.go` / `options_linux.go` 及对应 `_other.go`），
 Go Core 在 Linux 下与 macOS 等价可用；`scripts/dev-linux.sh` 与 `scripts/build-linux.sh`
 按 `pkg-config` 自动选择 `webkit2_41` / `webkit2_40` build tag。Linux Secrets 已按
-[Secret Service 决策](decisions/providers-secrets-linux.md) 通过 `secret-tool` 接入，；真实桌面钥环经用户确认已验收；
-Capture / System 仍返回 `unsupported`；原生形态与发布包已排期，按 §9.8 逐项落决策记录推进。
+[Secret Service 决策](decisions/providers-secrets-linux.md) 通过 `secret-tool` 接入；真实桌面钥环经用户确认已验收；
+Capture / System 仍返回 `unsupported`；2026-09-22 在 Ubuntu 24.04 / Wayland 上只完成 X11 探针编译与 Wayland 失败关闭检查，未做真实截图，见 [Linux 截图决策 §7](decisions/recording-screen-capture-linux.md#7-ubuntu-2404-前置实验记录2026-09-22)。原生形态与发布包已排期，按 §9.8 逐项落决策记录推进。
 
 已落盘并有自动化覆盖：
 
