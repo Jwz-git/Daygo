@@ -534,34 +534,6 @@ watch(
     <p v-else class="verdict__hint">{{ t('timeline.inspector.verdictHint') }}</p>
   </section>
 
-  <!-- Summary rating: thumbs up/down on the AI-written summary text. Feedback
-       only — a rating never rewrites the summary. Tapping the active thumb
-       again clears it, mirroring 撤销 in the verdict row above. -->
-  <section class="rating">
-    <div class="rating-row">
-      <span>{{ t('timeline.inspector.rating') }}</span>
-      <button
-        v-for="option in RATINGS"
-        :key="option"
-        type="button"
-        class="rating-row__thumb"
-        :class="{ 'is-active': rating === option }"
-        :style="{ '--rating': RATING_COLORS[option] }"
-        :disabled="!ratingEditable || ratingSaving"
-        :aria-pressed="rating === option"
-        :aria-label="ratingLabel(option)"
-        :title="ratingLabel(option)"
-        @click="setRating(option)"
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path :d="RATING_GLYPHS[option]" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
-        </svg>
-      </button>
-    </div>
-    <p v-if="ratingFailed" class="inspector__error" role="alert">{{ t('timeline.inspector.ratingSaveFailed') }}</p>
-    <p v-else-if="!props.canWrite" class="rating__hint">{{ t('timeline.inspector.ratingUnavailable') }}</p>
-  </section>
-
   <p v-if="props.actionFailed" class="inspector__error" role="alert">
     {{ t('timeline.inspector.actionFailed') }}
   </p>
@@ -631,6 +603,35 @@ watch(
       {{ t('timeline.inspector.actionsUnavailable') }}
     </span>
   </div>
+
+  <!-- Summary rating: thumbs up/down on the AI-written summary text. Feedback
+       only — a rating never rewrites the summary. Tapping the active thumb
+       again clears it, mirroring 撤销 in the verdict row above. Sits at the
+       pane's bottom, below the action row. -->
+  <section class="rating">
+    <div class="rating-row">
+      <span>{{ t('timeline.inspector.rating') }}</span>
+      <button
+        v-for="option in RATINGS"
+        :key="option"
+        type="button"
+        class="rating-row__thumb"
+        :class="{ 'is-active': rating === option }"
+        :style="{ '--rating': RATING_COLORS[option] }"
+        :disabled="!ratingEditable || ratingSaving"
+        :aria-pressed="rating === option"
+        :aria-label="ratingLabel(option)"
+        :title="ratingLabel(option)"
+        @click="setRating(option)"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path :d="RATING_GLYPHS[option]" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+        </svg>
+      </button>
+    </div>
+    <p v-if="ratingFailed" class="inspector__error" role="alert">{{ t('timeline.inspector.ratingSaveFailed') }}</p>
+    <p v-else-if="!props.canWrite" class="rating__hint">{{ t('timeline.inspector.ratingUnavailable') }}</p>
+  </section>
 </template>
 
 <style scoped>

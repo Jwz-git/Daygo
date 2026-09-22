@@ -221,6 +221,15 @@ function cardStyle(): CSSProperties {
 
 .activity-card.is-detailed { align-items: flex-start; }
 
+/* A tall card has the room to wrap its title onto a second line instead of
+   truncating it to one; shorter cards keep the single-line, ellipsised layout. */
+.activity-card.is-detailed .activity-card__title {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 @media (max-width: 720px) {
   .activity-card__time { display: none; }
 }
