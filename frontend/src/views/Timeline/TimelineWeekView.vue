@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { WeekColumn } from './weekLayout'
+import { currentWeekDayKey, type WeekColumn } from './weekLayout'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
 
@@ -68,16 +68,10 @@ const headerOf = (day: string): { weekday: string; number: string } | null => {
   return { weekday, number }
 }
 
-const todayKey = computed(() => {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${day}`
-})
-
 /* Live now-marker position inside today's column. */
 const nowTs = ref(Math.floor(Date.now() / 1000))
 let nowTimer: number | null = null
+const todayKey = computed(() => currentWeekDayKey(props.columns, nowTs.value))
 
 const generatingMark = computed(() => {
   // 'off' is the idle lifecycle, not an empty value: testing truthiness here

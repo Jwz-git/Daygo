@@ -21,6 +21,8 @@ type Updater struct {
 	dll         *xwindows.LazyDLL
 	automatic   bool
 	checking    bool
+	available   *string
+	closed      bool
 	lastChecked *time.Time
 	events      chan platform.UpdaterEvent
 
@@ -80,7 +82,7 @@ func (u *Updater) installCallbacks() {
 		return 0
 	}
 	found := func() uintptr {
-		done()
+		u.reportFound()
 		return 0
 	}
 	canShutdown := func() uintptr {
@@ -111,6 +113,33 @@ func (u *Updater) installCallbacks() {
 	u.dll.NewProc("win_sparkle_set_shutdown_request_callback").Call(u.callbackAddrs[3])
 }
 
+// WinSparkle's did-find callback has no version argument. An empty, non-nil
+// AvailableVersion records the known update without inventing a version string.
+func (u *Updater) reportFound() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.closed {
+		return
+	}
+	u.checking = false
+	unknownVersion := ""
+	u.available = &unknownVersion
+	state := platform.UpdaterState{Automatic: u.automatic, AvailableVersion: u.available}
+	if u.lastChecked != nil {
+		at := *u.lastChecked
+		state.LastCheckedAt = &at
+	}
+	select {
+	case u.events <- platform.UpdaterEvent{State: state}:
+	default:
+		select {
+		case <-u.events:
+		default:
+		}
+		u.events <- platform.UpdaterEvent{State: state}
+	}
+}
+
 func (u *Updater) SetInstallCallbacks(canInstall func() bool, prepare func() error, requestShutdown func()) {
 	u.mu.Lock()
 	u.canInstall = canInstall
@@ -133,6 +162,7 @@ func (u *Updater) CheckForUpdates(ctx context.Context, interactive bool) error {
 	now := time.Now()
 	u.mu.Lock()
 	u.checking = true
+	u.available = nil
 	u.lastChecked = &now
 	u.mu.Unlock()
 	if interactive {
@@ -149,7 +179,7 @@ func (u *Updater) State(ctx context.Context) (platform.UpdaterState, error) {
 	}
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	state := platform.UpdaterState{Automatic: u.automatic, Checking: u.checking}
+	state := platform.UpdaterState{Automatic: u.automatic, Checking: u.checking, AvailableVersion: u.available}
 	if u.lastChecked != nil {
 		at := *u.lastChecked
 		state.LastCheckedAt = &at
@@ -177,7 +207,10 @@ func (u *Updater) Events() <-chan platform.UpdaterEvent { return u.events }
 func (u *Updater) Close() error {
 	u.closeOnce.Do(func() {
 		u.cleanup.Call()
+		u.mu.Lock()
+		u.closed = true
 		close(u.events)
+		u.mu.Unlock()
 	})
 	return nil
 }

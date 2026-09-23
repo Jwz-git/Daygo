@@ -211,8 +211,9 @@ export function buildWeeklyPresentation(dashboard: WeeklyDashboardDTO): WeeklyPr
     for (const segment of day.segments) {
       let at = segment.startMinute
       while (at < segment.endMinute) {
-        const hour = Math.min(23, Math.floor(at / 60))
-        const hourEnd = (hour + 1) * 60
+        const absoluteHour = Math.floor(at / 60)
+        const hour = absoluteHour % 24
+        const hourEnd = (absoluteHour + 1) * 60
         const overlap = Math.min(segment.endMinute, hourEnd) - at
         if (overlap > 0) {
           if (segment.isIdle || isDistractionCategory(segment.category)) rhythm[hour].idleMinutes += overlap

@@ -128,6 +128,8 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
+2026-09-23：Windows WinSparkle 发现更新回调记录“版本未知”的可用状态并发送事件；Windows 测试源码通过 `GOOS=windows CGO_ENABLED=0 go test ./internal/platform/windows -run '^$' -exec true` 交叉编译。尚未在 Windows 真机触发回调；WinSparkle 回调不提供版本字符串，界面使用无版本号的本地化文案。
+
 更新适配器源码、设置 UI、签名 appcast 生成器和 Release workflow 已做本地静态 / 契约验证；
 签名、公证、干净机器、真实升级与崩溃上报实验仍未运行。
 记录 commit、构建身份、设备、步骤及匿名结果；证书、密钥、用户数据不入库。

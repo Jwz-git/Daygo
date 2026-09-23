@@ -65,6 +65,7 @@ export default {
     lastChecked: '上次检查：{value}',
     never: '从未',
     available: '发现新版本 {version}，请按系统更新窗口完成安装。',
+    availableUnknownVersion: '发现新版本，请按系统更新窗口完成安装。',
     unavailable: '此构建未配置安全更新服务。',
     failed: '更新操作失败，请稍后重试。',
   },

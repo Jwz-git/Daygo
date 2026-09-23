@@ -65,6 +65,7 @@ export default {
     lastChecked: 'Last checked: {value}',
     never: 'Never',
     available: 'Version {version} is available. Follow the system update window to install it.',
+    availableUnknownVersion: 'An update is available. Follow the system update window to install it.',
     unavailable: 'Secure updates are not configured in this build.',
     failed: 'The update operation failed. Try again later.',
   },

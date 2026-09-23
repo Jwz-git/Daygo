@@ -96,8 +96,10 @@ onBeforeUnmount(() => {
           {{ checking || state?.checking ? t('settings.update.checking') : t('settings.update.check') }}
         </button>
       </SettingRow>
-      <p v-if="state?.availableVersion" class="notice" role="status">
-        {{ t('settings.update.available', { version: state.availableVersion }) }}
+      <p v-if="state?.availableVersion !== undefined && state?.availableVersion !== null" class="notice" role="status">
+        {{ state.availableVersion === ''
+          ? t('settings.update.availableUnknownVersion')
+          : t('settings.update.available', { version: state.availableVersion }) }}
       </p>
     </template>
     <p v-else class="muted">{{ t('settings.update.unavailable') }}</p>

@@ -65,6 +65,14 @@ export interface WeekColumn {
   hasData: boolean
 }
 
+/** The backend window determines which logical day contains the current instant. */
+export function currentWeekDayKey(
+  columns: ReadonlyArray<Pick<WeekColumn, 'day' | 'windowStartTs' | 'windowEndTs'>>,
+  nowTs: number,
+): string {
+  return columns.find((column) => nowTs >= column.windowStartTs && nowTs < column.windowEndTs)?.day ?? ''
+}
+
 function columnHeight(day: TimelineDayDTO): number {
   const minutes = (day.dayEndTs - day.dayStartTs) / 60
   return Math.max(MIN_WEEK_TRACK_HEIGHT, minutes * WEEK_PIXELS_PER_MINUTE)

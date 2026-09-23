@@ -27,11 +27,12 @@
 
 ### 当前代码证据
 
-**最近有记录的完整无头门禁：2026-09-17，HEVC 分段切片落盘时的工作树，macOS / arm64。**
+**最近有记录的完整无头门禁：2026-09-23，审查问题修复后的未提交工作树，macOS / arm64。**
 `./scripts/gate.sh` 全绿（`CGO_ENABLED=0 go build ./...`、`CGO_ENABLED=0 go test ./internal/...`、
 `go vet ./...`、`gofmt -l .` 无输出、前端 `typecheck` 与 `build`）；
 `GOOS=linux CGO_ENABLED=0 go build ./internal/...` 与 `GOOS=windows CGO_ENABLED=0 go build ./internal/...`
-通过。**这只是本机无头基线**，不是 Linux 实机 CI、原生集成或长时间证据。
+通过；前端 78 项单测通过。Windows Updater 测试源码交叉编译通过，但未在 Windows 真机运行。
+**这只是本机无头基线**，不是 Linux 实机 CI、原生集成或长时间证据。
 
 Linux Wails 桌面壳（v2 + GTK3 + WebKit2GTK）已具备初级适配：mac / Linux 窗口选项拆到
 `options_<goos>.go`（`options_darwin.go` / `options_linux.go` 及对应 `_other.go`），
