@@ -32,6 +32,7 @@
   （`ZoneName` 注册表回退）已补齐，只影响新读取的页面。
 - 开发便利：Vite 开发服务在绑定缺失时提供匿名只读样例（`frontend/dev-fixtures/`），
   页面明确标记"仅开发"；production bundle 不含其 payload。
+- 页头保留录制暂停 / 恢复按钮与本地化时区，不显示“已跟踪 N 分钟”及其分隔圆点。
 
 **已知偏差（provisional）**：帧读取经 app 层 `stagingFrameSource` 而非 `platform.Media`
 （#7/#8 未定）；卡片阶段互斥是全局而非按重叠范围。

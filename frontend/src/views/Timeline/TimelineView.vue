@@ -512,10 +512,8 @@ onBeforeUnmount(() => {
           <span>{{ recording.lifecycle === 'paused' ? t('recording.action.resume') : t('recording.action.pause') }}</span>
         </button>
         <DevelopmentBadge v-if="usingDevelopmentFixture">{{ t('timeline.developmentFixture') }}</DevelopmentBadge>
-        <div v-if="day" class="day-meta">
-          <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>
-          <i aria-hidden="true"></i>
-          <span v-if="localizedTimeZone">{{ localizedTimeZone }}</span>
+        <div v-if="day && localizedTimeZone" class="day-meta">
+          <span>{{ localizedTimeZone }}</span>
         </div>
       </template>
     </PageHeader>
@@ -731,13 +729,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-
-.day-meta i {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: currentColor;
-}
 
 .filter-bar {
   display: flex;
