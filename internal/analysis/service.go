@@ -1541,6 +1541,14 @@ func isRateLimitError(err error) bool {
 
 // failBatch records the failure with a user-facing kind and notifies.
 func (s *Service) failBatch(ctx context.Context, batch storage.Batch, err error) {
+	// A batch reaching any terminal failure never calls recordBatchSuccess, so
+	// drop its rate-limit tally here; otherwise a batch that was rate-limited
+	// and then failed (exhausted or for another reason) leaks its entry for the
+	// process lifetime, since batch IDs only ever grow.
+	s.queueMu.Lock()
+	delete(s.rateLimitCount, batch.ID)
+	s.queueMu.Unlock()
+
 	kind := failureKind(err)
 	note := "analysis failed"
 	if msg := err.Error(); msg != "" {

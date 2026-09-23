@@ -720,6 +720,37 @@ func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
 	}
 }
 
+// TestFailBatchClearsRateLimitTally guards the slow leak where a batch that was
+// rate-limited and then failed kept its rateLimitCount entry forever (batch IDs
+// only grow, so the map never shrank on a long-running agent).
+func TestFailBatchClearsRateLimitTally(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t, map[string]string{})
+	frames := h.commitFrames(t, testNow, 3, 10*time.Second, func(int) *int { return nil })
+	batch, err := h.store.Analysis().CreateBatch(ctx, frames, storage.BatchPending, testNow)
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+
+	// A transient rate limit seeds a per-batch tally.
+	h.service.handleBatchRateLimit(ctx, batch, errors.New("rate limited"))
+	if got := h.rateLimitEntries(); got != 1 {
+		t.Fatalf("after rate limit: rateLimitCount entries = %d, want 1", got)
+	}
+
+	// The batch then reaches a terminal failure; its tally must not survive.
+	h.service.failBatch(ctx, batch, errors.New("boom"))
+	if got := h.rateLimitEntries(); got != 0 {
+		t.Fatalf("after failBatch: rateLimitCount entries = %d, want 0 (leak)", got)
+	}
+}
+
+func (h *harness) rateLimitEntries() int {
+	h.service.queueMu.Lock()
+	defer h.service.queueMu.Unlock()
+	return len(h.service.rateLimitCount)
+}
+
 func mustPending(t *testing.T, store *storage.Store) []storage.Batch {
 	t.Helper()
 	batches, err := store.Analysis().PendingBatches(context.Background())
