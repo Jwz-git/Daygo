@@ -108,7 +108,7 @@ function safeColor(value: string): string {
 
 function validCards(day: TimelineDayDTO): TimelineCardDTO[] {
   return day.cards
-    .filter((card) => card.endTs > card.startTs)
+    .filter((card) => card.endTs > card.startTs && card.endTs - card.startTs <= 4 * 3600)
     .filter((card) => card.endTs > day.dayStartTs && card.startTs < day.dayEndTs)
     .sort((left, right) => left.startTs - right.startTs || left.endTs - right.endTs)
 }

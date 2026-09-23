@@ -108,6 +108,7 @@ export function cardBox(
  */
 export function resolveDisplaySpans(cards: readonly TimelineLayoutInput[]): DisplaySpan[] {
   const spans: DisplaySpan[] = cards
+    .filter((card) => card.endTs > card.startTs && card.endTs - card.startTs <= 4 * 3600)
     .map((card) => ({ id: card.id, startTs: card.startTs, endTs: card.endTs }))
     .sort((left, right) => left.startTs - right.startTs || left.endTs - right.endTs)
 
