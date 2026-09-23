@@ -195,12 +195,10 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 				result.SkippedCards = append(result.SkippedCards, shell)
 				continue
 			}
-			if endTs.Before(startTs) {
-				candidate := endTs.AddDate(0, 0, 1)
-				if candidate.Sub(startTs) <= 4*time.Hour {
-					endTs = candidate
-				}
-			}
+			// Genuine cross-midnight cards already resolve onto adjacent days via
+			// the three-day anchor selection (docs/03 §3.5), so end is after start.
+			// A still-inverted end is degenerate model output (e.g. 4:30pm~4:29pm);
+			// rolling it a full day would persist a ~24h card, so skip and report it.
 			if !endTs.After(startTs) || endTs.Sub(startTs) > 4*time.Hour {
 				result.SkippedCards = append(result.SkippedCards, shell)
 				continue

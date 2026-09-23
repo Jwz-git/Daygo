@@ -96,7 +96,8 @@ func TestReplaceCardsInRangeInsertsAndDerivesTimestamps(t *testing.T) {
 }
 
 // 03 §3.5 rule 1 + 2: near-midnight clock strings resolve onto the nearest of
-// three day candidates, and end < start crosses midnight.
+// three day candidates, so a genuine cross-midnight card lands start on the
+// previous day and end on the current one — end stays after start, no roll.
 func TestReplaceCardsInRangeNearMidnightAndCrossesMidnight(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
 	seedBatch(t, store, 1)
@@ -169,6 +170,43 @@ func TestReplaceCardsInRangeSkipsUnparseableButCommitsRest(t *testing.T) {
 	}
 	if len(cards) != 1 || cards[0].Title != "good-card" {
 		t.Fatalf("cards = %+v, want only good-card", cards)
+	}
+}
+
+// 03 §3.5 rule 2: a parseable-but-inverted card (end at or before start after
+// anchor resolution) is degenerate, not cross-midnight. It must be skipped —
+// never rolled a full day into a ~24h card — while its siblings still commit.
+func TestReplaceCardsInRangeSkipsInvertedCard(t *testing.T) {
+	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
+	ctx := context.Background()
+	loc := store.location()
+
+	before := SkippedCards()
+	from, to := window(loc, 16, 0, 17, 0)
+	res, err := store.Cards().ReplaceCardsInRange(ctx, from, to, []domain.CardShell{
+		shell("4:00 PM", "4:30 PM", "Coding", "good-card"),
+		shell("4:30 PM", "4:29 PM", "Coding", "inverted-card"),
+	}, 1)
+	if err != nil {
+		t.Fatalf("ReplaceCardsInRange: %v", err)
+	}
+	if len(res.InsertedIDs) != 1 {
+		t.Fatalf("inserted = %d, want 1 (inverted card must not persist)", len(res.InsertedIDs))
+	}
+	if len(res.SkippedCards) != 1 || res.SkippedCards[0].Title != "inverted-card" {
+		t.Fatalf("skipped = %+v, want inverted-card", res.SkippedCards)
+	}
+	if got := SkippedCards() - before; got != 1 {
+		t.Fatalf("SkippedCards counter delta = %d, want 1 (must feed diagnostics)", got)
+	}
+
+	cards, err := store.Cards().CardsForDay(ctx, "2026-09-12")
+	if err != nil {
+		t.Fatalf("CardsForDay: %v", err)
+	}
+	if len(cards) != 1 || cards[0].Title != "good-card" {
+		t.Fatalf("cards = %+v, want only good-card (no ~24h monster)", cards)
 	}
 }
 

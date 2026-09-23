@@ -37,26 +37,39 @@ type cardSpan struct {
 	Title string
 }
 
-func resolveCardSpans(shells []domain.CardShell, windowStart, windowEnd time.Time, loc *time.Location) []cardSpan {
+// resolveCardSpans derives each shell's clock strings into an ordered span and
+// returns one human-readable issue per shell that cannot become a valid span
+// (unparseable clock, or an end at or before its start). Surfacing these as
+// issues — rather than silently dropping them — lets the correction loop retry
+// and keeps a degenerate card (e.g. 4:30pm~4:29pm) from reaching storage, where
+// it would otherwise persist as a ~24h cross-midnight span (docs/03 §3.5).
+func resolveCardSpans(shells []domain.CardShell, windowStart, windowEnd time.Time, loc *time.Location) ([]cardSpan, []string) {
 	anchor := windowStart.Add(windowEnd.Sub(windowStart) / 2)
 	spans := make([]cardSpan, 0, len(shells))
-	for _, shell := range shells {
+	var issues []string
+	for i, shell := range shells {
+		name := fmt.Sprintf("card %d (%s)", i+1, shell.Title)
 		start, err := timeutil.ResolveClock(shell.Start, anchor, loc)
 		if err != nil {
+			issues = append(issues, fmt.Sprintf("%s has an unparseable start time %q", name, shell.Start))
 			continue
 		}
 		end, err := timeutil.ResolveClock(shell.End, anchor, loc)
 		if err != nil {
+			issues = append(issues, fmt.Sprintf("%s has an unparseable end time %q", name, shell.End))
 			continue
 		}
+		// Cross-midnight clock strings resolve onto the next day already; anything
+		// still inverted is unorderable noise the model must correct.
 		if !end.After(start) {
-			// Cross-midnight clock strings resolve to the next day already;
-			// anything still inverted is unorderable noise.
+			issues = append(issues, fmt.Sprintf(
+				"%s ends at %s, at or before its start %s; a card must end after it starts",
+				name, end.Format("3:04 PM"), start.Format("3:04 PM")))
 			continue
 		}
 		spans = append(spans, cardSpan{Start: start, End: end, Title: shell.Title})
 	}
-	return spans
+	return spans, issues
 }
 
 // validateCards checks the resolved spans against the Dayflow rules and

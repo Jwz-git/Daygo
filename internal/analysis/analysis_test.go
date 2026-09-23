@@ -382,6 +382,29 @@ func TestOngoingCardRulesEnforceTheFifteenMinuteFloor(t *testing.T) {
 	}
 }
 
+func TestResolveCardSpansSurfacesDegenerateShells(t *testing.T) {
+	loc := time.Local
+	window := base.Add(time.Hour)
+	shells := []domain.CardShell{
+		{Start: "10:00 AM", End: "10:30 AM", Title: "good"},
+		{Start: "10:30 AM", End: "10:29 AM", Title: "inverted"},
+		{Start: "half past", End: "10:45 AM", Title: "unparseable"},
+	}
+	spans, issues := resolveCardSpans(shells, base, window, loc)
+	if len(spans) != 1 || spans[0].Title != "good" {
+		t.Fatalf("spans = %+v, want only the good card", spans)
+	}
+	if len(issues) != 2 {
+		t.Fatalf("issues = %v, want one for the inverted card and one for the unparseable card", issues)
+	}
+	if !strings.Contains(issues[0], "card 2 (inverted)") || !strings.Contains(issues[0], "must end after it starts") {
+		t.Fatalf("issue[0] = %q, want the inverted-card violation", issues[0])
+	}
+	if !strings.Contains(issues[1], "card 3 (unparseable)") || !strings.Contains(issues[1], "unparseable start") {
+		t.Fatalf("issue[1] = %q, want the unparseable-start violation", issues[1])
+	}
+}
+
 func TestValidateCardsRejectsShortCardsExceptTheLastOne(t *testing.T) {
 	spans := []cardSpan{
 		{Start: base, End: base.Add(2 * time.Minute), Title: "video"},

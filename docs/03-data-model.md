@@ -453,15 +453,19 @@ resolveClock(h, m):
 
 startTs = resolveClock(startHour, startMinute)
 endTs   = resolveClock(endHour,   endMinute)
-if endTs < startTs: endTs += 24h                // 跨午夜
+if endTs <= startTs: skip card                  // 退化输出，见要点 2
 day     = 由 startTs 按凌晨 4 点边界得出
 ```
 
 四个各自独立的要点，缺一不可：
 
 1. **在前后共三天中选最近的候选。** 临近午夜时把 `"11:50 PM"` 直接解析到 anchor 当日
-   是错的；±1 天候选修正这一点。
-2. **`end < start` 表示跨午夜**，加一天。
+   是错的；±1 天候选修正这一点。真正的跨午夜卡（如 `"11:50 PM"`~`"12:10 AM"`）经此选择
+   后 start 落在前一天、end 落在当日，`endTs` 自然晚于 `startTs`，无需再加一天。
+2. **解析后 `end <= start` 属退化输出，不是跨午夜。** 三天候选已把合法跨午夜分到相邻两天；
+   仍然反转（如 `4:30pm`~`4:29pm`）只可能是模型错误。此时**不得**给 `endTs` 加一天——那会
+   持久化一张约 24h 的怪卡。校验层（`resolveCardSpans`）将其作为校正提示反馈给模型重试，
+   存储层（`ReplaceCardsInRange`）把它计入 `SkippedCards`，一律不落库。
 3. **`day` 用凌晨 4 点边界算**，不是日历日期。
 4. 全过程依赖宿主时区，必须在 DST 切换和非整点偏移时区中验证——这是基于属性的测试的
    首要候选（[08 §8.3](08-testing-strategy.md#83-行为测试)）。

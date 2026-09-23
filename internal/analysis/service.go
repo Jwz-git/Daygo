@@ -847,8 +847,8 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		}
 		shells = validShells
 
-		spans := resolveCardSpans(shells, ownedFrom, batch.End, s.loc())
-		issues = validateCards(spans, ownedFrom, batch.End, requiresSingleCard)
+		spans, spanIssues := resolveCardSpans(shells, ownedFrom, batch.End, s.loc())
+		issues = append(spanIssues, validateCards(spans, ownedFrom, batch.End, requiresSingleCard)...)
 		// If the provider returned cards but every one was rejected before
 		// validation, "no cards returned" is false and unactionable. Preserve
 		// the rejected clocks and required span for the correction pass.
@@ -1048,8 +1048,8 @@ func (s *Service) generateScopedCards(ctx context.Context, chain *ai.Chain, card
 			}
 		}
 
-		spans := resolveCardSpans(shells, windowStart, windowEnd, s.loc())
-		issues = validateScopedCards(spans, windowStart, windowEnd)
+		spans, spanIssues := resolveCardSpans(shells, windowStart, windowEnd, s.loc())
+		issues = append(spanIssues, validateScopedCards(spans, windowStart, windowEnd)...)
 		if len(shells) == 0 && len(rejectedIssues) > 0 {
 			issues = rejectedIssues
 		}
