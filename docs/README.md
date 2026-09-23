@@ -65,6 +65,7 @@
 | [providers 密钥：Linux Secret Service](decisions/providers-secrets-linux.md) | 已落盘，用户确认真机验收 | `secret-tool` 访问 Secret Service 的取舍与边界 |
 | [weekly 周边界：周一起始](decisions/weekly-boundary-monday.md) | 已决定 | 周一 4 点对齐的语义与夹具 |
 | [chat 会话模型](decisions/chat-session-model.md) | 已决定 | 多会话、原子消息、会话级 provider 选择 |
+| [agent MCP 传输：stdio 子进程](decisions/agent-mcp-transport.md) | 方案（切片 1 落盘，基础实现进行中） | stdio `daygo mcp` 子进程、读走只读 DB / 写走 `agent.sock`、审计来源标记与回退 |
 
 `scripts/check-docs.py` 会检查本目录里所有链接和小节锚点是否存在、有没有“谁都没链接到”
 的孤立文档；它由 `scripts/gate.sh` 调用。它只能证明文档内部自洽，**不能证明文档与代码一致**

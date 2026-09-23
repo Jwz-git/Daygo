@@ -244,7 +244,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 19 | 每日摘要 / 日记 summary 的生成触发、刷新与失败交互 | daily / 产品 + 工程 | 生成切片实现前；若新增绑定先补 05 与双侧契约，不假定现有查询方法就是生成入口 |
 | 20 | 多显示器是否恢复"跟随光标的活跃显示器" | recording / 产品 + 工程 | 多显示器支持进入范围前；当前冻结为系统主显示器（[04 §4.1.2](04-data-flow.md#412-只截一块显示器系统主显示器)），改动会给端口加字段和跨调用状态 |
 | 21 | Windows 截图是否合成鼠标指针 | recording / 工程 | **已决定**：ABI 将 `ShowsCursor` 定为平台尽力而为；Windows v1 不合成指针（Desktop Duplication 不含指针），置位记为 no-op 且文档化，指针合成留作后续可选增强。见 [Windows 决策记录 §3](decisions/recording-screen-capture-windows.md#3-与-macos-的差异四条不能忽略) |
-| 22 | MCP 传输与进程模型（stdio 子进程 vs 宿主内 HTTP；工具粒度与审计来源标记随之一并定） | agent / 工程，delivery 协作 | MCP 实现前，agent 执行册切片 1 前必须落决策；已定约束与候选见 [05 §5.9.3](05-interface-contract.md#593-mcp-服务器设计准备未实现)，决策落 `decisions/agent-mcp-transport.md` |
+| 22 | MCP 传输与进程模型（stdio 子进程 vs 宿主内 HTTP；工具粒度与审计来源标记随之一并定） | agent / 工程，delivery 协作 | **传输已决定**：stdio 子进程（`daygo mcp`），读走只读 DB、写走 `agent.sock`；工具粒度=逐命令映射（读=timeline/card/daily/weekly/categories，写=六操作），来源标记随之落（`source` 字段，默认 `agent.sock`，MCP 标 `mcp`）。见 [决策记录](decisions/agent-mcp-transport.md) 与 [05 §5.9.3](05-interface-contract.md#593-mcp-服务器设计准备未实现)。基础实现（CLI 读 / bridge 写通道 / `daygo mcp` 骨架）已落；真实客户端多日闭环属 G 级未验收 |
 | 23 | Chat 会话模型、流式输出、消息留存与 provider 路由 | chat / 产品 + 工程 | **会话模型、流式、provider 路由已决定**：多会话、原子消息、会话级 provider 选择（必选，新会话默认路由链首位，不回退），见 [decisions/chat-session-model.md](decisions/chat-session-model.md)；消息留存与审计来源标记仍待定，与 #15 / #22 一并定 |
 | 24 | Linux 适配器形态 | recording / 工程，delivery 协作 | **已排期**。Linux 桌面壳与构建入口已有初级适配；Secrets 已决定使用 Secret Service / `secret-tool`，见 [Secret Service 决策](decisions/providers-secrets-linux.md)。Capture / System / 状态栏与发布包形态见 [Linux 截图决策](decisions/recording-screen-capture-linux.md)（X11 vs Wayland、Portal 接口及 deb / rpm / AppImage 取舍，逐项决策中）|
 
