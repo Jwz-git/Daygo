@@ -519,3 +519,39 @@ func TestReplaceCardsInRangeConcurrentOverlapStaysConsistent(t *testing.T) {
 		t.Fatalf("cards = %d, want exactly 2 after %d overlapping rewrites", len(cards), workers)
 	}
 }
+
+func TestReplaceCardsInRangeRejectsInvertedCard(t *testing.T) {
+	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
+	ctx := context.Background()
+	loc := store.Location()
+
+	from, to := window(loc, 15, 25, 15, 40)
+	res, err := store.Cards().ReplaceCardsInRange(ctx, from, to, []domain.CardShell{
+		shell("3:26 PM", "3:25 PM", "Coding", "inverted-hallucination"),
+		shell("3:26 PM", "3:40 PM", "Coding", "valid-card"),
+	}, 1)
+	if err != nil {
+		t.Fatalf("ReplaceCardsInRange: %v", err)
+	}
+	if len(res.InsertedIDs) != 1 {
+		t.Fatalf("inserted = %d, want 1", len(res.InsertedIDs))
+	}
+	if len(res.SkippedCards) != 1 {
+		t.Fatalf("skipped = %d, want 1", len(res.SkippedCards))
+	}
+	if res.SkippedCards[0].Title != "inverted-hallucination" {
+		t.Fatalf("skipped card = %s, want inverted-hallucination", res.SkippedCards[0].Title)
+	}
+
+	cards, err := store.Cards().CardsForDay(ctx, "2026-09-12")
+	if err != nil {
+		t.Fatalf("CardsForDay: %v", err)
+	}
+	if len(cards) != 1 || cards[0].Title != "valid-card" {
+		t.Fatalf("cards = %+v, want only valid-card", cards)
+	}
+	if cards[0].EndTs <= cards[0].StartTs || cards[0].EndTs-cards[0].StartTs > 4*3600 {
+		t.Fatalf("card duration invalid: %d to %d", cards[0].StartTs, cards[0].EndTs)
+	}
+}

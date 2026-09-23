@@ -45,7 +45,7 @@ func (r *CardRepo) CardsForDay(ctx context.Context, day string) ([]domain.Timeli
 	var out []domain.TimelineCard
 	err := r.store.Read(ctx, "cards for day "+day, func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
-			"SELECT "+cardColumns+" FROM timeline_cards WHERE day = ? AND is_deleted = 0 ORDER BY start_ts",
+			"SELECT "+cardColumns+" FROM timeline_cards WHERE day = ? AND is_deleted = 0 AND end_ts > start_ts AND (end_ts - start_ts) <= 14400 ORDER BY start_ts",
 			day)
 		if err != nil {
 			return err
@@ -76,6 +76,8 @@ func (r *CardRepo) CardsInRange(ctx context.Context, from, to time.Time) ([]doma
 			`SELECT `+cardColumns+` FROM timeline_cards
 			 WHERE ((start_ts < ? AND end_ts > ?) OR (start_ts >= ? AND start_ts < ?))
 			   AND is_deleted = 0
+			   AND end_ts > start_ts
+			   AND (end_ts - start_ts) <= 14400
 			 ORDER BY start_ts`,
 			to.Unix(), from.Unix(), from.Unix(), to.Unix())
 		if err != nil {
@@ -189,7 +191,14 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 				continue
 			}
 			if endTs.Before(startTs) {
-				endTs = endTs.AddDate(0, 0, 1)
+				candidate := endTs.AddDate(0, 0, 1)
+				if candidate.Sub(startTs) <= 4*time.Hour {
+					endTs = candidate
+				}
+			}
+			if !endTs.After(startTs) || endTs.Sub(startTs) > 4*time.Hour {
+				result.SkippedCards = append(result.SkippedCards, shell)
+				continue
 			}
 			if startTs.Before(effectiveFrom) {
 				effectiveFrom = startTs

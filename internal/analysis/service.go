@@ -831,10 +831,21 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		// before the batch window keeps only the part the gate allowed, and
 		// validation checks the same start the rewrite will replace from.
 		ownedFrom = s.mergeOwnershipStart(shells, batch, existing)
+		anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
+		var validShells []domain.CardShell
 		for i := range shells {
-			shells[i] = s.clampToMergeFloor(shells[i], ownedFrom, batch)
-			s.inheritMergedAppSites(&shells[i], ownedFrom, batch, existing)
+			clamped := s.clampToMergeFloor(shells[i], ownedFrom, batch)
+			start, errS := timeutil.ResolveClock(clamped.Start, anchor, s.loc())
+			end, errE := timeutil.ResolveClock(clamped.End, anchor, s.loc())
+			if errS == nil && errE == nil && !end.After(start) {
+				// Clamping moved start past end because the shell was a refused
+				// predecessor that ended before or at floor. Drop it.
+				continue
+			}
+			s.inheritMergedAppSites(&clamped, ownedFrom, batch, existing)
+			validShells = append(validShells, clamped)
 		}
+		shells = validShells
 
 		spans := resolveCardSpans(shells, ownedFrom, batch.End, s.loc())
 		issues = validateCards(spans, ownedFrom, batch.End, requiresSingleCard)
@@ -845,9 +856,17 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			issues = rejectedIssues
 		}
 		if len(issues) == 0 {
-			return shells, ownedFrom, nil
+			var resultShells []domain.CardShell
+			spanAnchor := ownedFrom.Add(batch.End.Sub(ownedFrom) / 2)
+			for _, shell := range shells {
+				start, errS := timeutil.ResolveClock(shell.Start, spanAnchor, s.loc())
+				end, errE := timeutil.ResolveClock(shell.End, spanAnchor, s.loc())
+				if errS == nil && errE == nil && end.After(start) {
+					resultShells = append(resultShells, shell)
+				}
+			}
+			return resultShells, ownedFrom, nil
 		}
-		// Activity points from before the owned span are dropped so a refused
 		// merge's points never duplicate inside the rewrite.
 		for i := range shells {
 			shells[i].Metadata = dropPreWindowPoints(shells[i].Metadata, ownedFrom, batch.Start.Add(batch.End.Sub(batch.Start)/2), s.loc())
@@ -1035,6 +1054,16 @@ func (s *Service) generateScopedCards(ctx context.Context, chain *ai.Chain, card
 			issues = rejectedIssues
 		}
 		if len(issues) == 0 {
+			var resultShells []domain.CardShell
+			spanAnchor := windowStart.Add(windowEnd.Sub(windowStart) / 2)
+			for _, shell := range shells {
+				start, errS := timeutil.ResolveClock(shell.Start, spanAnchor, s.loc())
+				end, errE := timeutil.ResolveClock(shell.End, spanAnchor, s.loc())
+				if errS == nil && errE == nil && end.After(start) {
+					resultShells = append(resultShells, shell)
+				}
+			}
+			shells = resultShells
 			pinScopedBoundaries(shells, card)
 			s.inheritScopedAppSites(shells, card, windowStart, windowEnd)
 			return shells, nil
@@ -1124,6 +1153,10 @@ func (s *Service) shellSpanIssue(shell domain.CardShell, spanStart, spanEnd time
 	if err != nil {
 		return fmt.Sprintf("has unparseable end time %q; use h:mm AM/PM inside %s-%s",
 			shell.End, formatFrameClock(spanStart), formatFrameClock(spanEnd))
+	}
+	if !end.After(start) {
+		return fmt.Sprintf("ends at %s before or at start at %s; cards must be chronological",
+			shell.End, shell.Start)
 	}
 	if !start.Before(spanEnd) || !end.After(spanStart) {
 		return fmt.Sprintf("spans %s-%s outside required rewrite window %s-%s; move it into that window",

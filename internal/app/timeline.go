@@ -245,6 +245,9 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 		})
 	}
 	for _, card := range cards {
+		if card.EndTs <= card.StartTs || card.EndTs-card.StartTs > 4*3600 {
+			continue
+		}
 		dto.Cards = append(dto.Cards, sharedCardDTO(card, flags))
 		if card.Category == "System" {
 			continue

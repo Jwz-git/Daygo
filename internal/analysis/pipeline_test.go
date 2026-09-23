@@ -964,6 +964,55 @@ func TestPipelineMergeGateRefusesCrossCategoryPredecessor(t *testing.T) {
 	}
 }
 
+func TestPipelineMergeGateDropsRefusedPredecessorEndingBeforeFloor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (10:00–10:15): one Coding card.
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 || cards[0].Category != "Coding" {
+		t.Fatalf("seed card = %+v, want one Coding card", cards)
+	}
+
+	// Batch 2 (10:16–10:30): the model returns TWO cards:
+	// 1. A hallucinated repetition of predecessor (10:00 AM - 10:15 AM)
+	// 2. The real card for this window (10:16 AM - 10:30 AM)
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[
+		{"start":"10:00 AM","end":"10:15 AM","category":"Communication","subcategory":"","title":"hallucinated-predecessor","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},
+		{"start":"10:16 AM","end":"10:30 AM","category":"Communication","subcategory":"","title":"current-card","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}
+	]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ = h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v (len %d), want exactly 2 (predecessor and current-card, dropped hallucination)", cards, len(cards))
+	}
+	if cards[0].Title != "first" || cards[1].Title != "current-card" {
+		t.Fatalf("cards = %+v, want first and current-card", cards)
+	}
+	for _, c := range cards {
+		if c.EndTs <= c.StartTs || c.EndTs-c.StartTs > 4*3600 {
+			t.Fatalf("card duration invalid: %+v", c)
+		}
+	}
+}
+
 // seedCardBefore parks one card in the lookback window of the batch under test.
 // Fixtures build multi-card history this way rather than through extra batches:
 // the merge gate is about what the rewrite finds on the ground, and driving four
