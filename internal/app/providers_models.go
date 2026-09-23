@@ -63,7 +63,14 @@ func (b *Backend) ListProviderModels(req ProviderModelsRequestDTO) (ProviderMode
 		secret = stored
 	} else {
 		protocol = daygoai.Protocol(strings.TrimSpace(req.Protocol))
-		endpoint = strings.TrimSpace(req.Endpoint)
+		// Strip a pasted request-path suffix exactly as the sibling
+		// TestProviderConnection probe does; otherwise the same draft input that
+		// passes the probe would double the path here and 404.
+		normalized, err := normalizeTestEndpoint(req.Endpoint)
+		if err != nil {
+			return ProviderModelsResultDTO{}, apperr.E(apperr.InvalidArgument, "endpoint must be a full http:// or https:// address", err)
+		}
+		endpoint = normalized
 		secret = strings.TrimSpace(req.Secret)
 	}
 

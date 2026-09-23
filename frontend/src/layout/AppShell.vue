@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { i18n } from '@/i18n'
-import { prefetchInstalledApplications } from '@/api/application'
 import { usePointerHighlight } from '@/lib/pointerHighlight'
 import { useRefractionFilter } from '@/lib/refractionFilter'
 import { useRecordingStore } from '@/stores/recording'
@@ -15,10 +13,6 @@ useRefractionFilter('subtle')
 
 onMounted(() => {
   recording.startListening()
-  // Warm the privacy grid's enumeration and icon caches while the user does
-  // something else, so opening 设置 → 隐私 renders instantly. Idle-ish timing
-  // keeps it out of the startup critical path.
-  window.setTimeout(() => prefetchInstalledApplications(i18n.global.locale.value), 1500)
   // Mark the shell root as a tracking surface so the pointer-following
   // specular highlight reads across the panel. Children inherit it; the
   // highlight mask stays under each child's bounds automatically.

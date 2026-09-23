@@ -58,8 +58,16 @@ func TestIsPublicIP(t *testing.T) {
 		{"172.16.0.1", false},
 		{"169.254.0.1", false}, // link-local
 		{"0.0.0.0", false},     // unspecified
-		{"::1", false},         // loopback v6
-		{"fe80::1", false},     // link-local v6
+		{"0.1.2.3", false},     // "this network" 0.0.0.0/8
+		{"100.64.0.1", false},  // carrier-grade NAT
+		{"100.127.255.1", false},
+		{"198.18.0.5", false}, // benchmarking
+		{"192.0.0.1", false},  // IETF protocol assignments
+		{"240.0.0.1", false},  // reserved / class E
+		{"255.255.255.255", false},
+		{"100.128.0.1", true}, // just past the CGNAT block, public again
+		{"::1", false},        // loopback v6
+		{"fe80::1", false},    // link-local v6
 		{"2606:4700:4700::1111", true},
 	}
 	for _, tc := range cases {

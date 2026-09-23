@@ -297,7 +297,18 @@ func Run() error {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
+		// A terminal Ctrl-C or launchd SIGTERM is a real quit, not a soft
+		// background hide: mark it allowed so OnBeforeClose lets it through, then
+		// ask Wails to quit — OnShutdown runs backend.shutdown(). Before startup
+		// hands over the runtime context there is no event loop to quit, so stop
+		// work directly and exit.
+		backend.requestQuit()
+		if ctx := backend.windowContext(); ctx != nil {
+			runtime.Quit(ctx)
+			return
+		}
 		backend.shutdown()
+		os.Exit(0)
 	}()
 
 	err = wails.Run(appOpts)

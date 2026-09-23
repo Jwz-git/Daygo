@@ -120,12 +120,39 @@ func (d *guardedDialer) DialContext(ctx context.Context, network, address string
 	return d.base.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), port))
 }
 
+// reservedIPv4Blocks are special-use ranges the stdlib net.IP predicates do
+// not classify as private/loopback/link-local. Left unblocked they defeat the
+// SSRF guard: an untrusted name resolving into one of them would still be
+// dialed. Sources: RFC 5735 / 6598 / 6890.
+var reservedIPv4Blocks = []net.IPNet{
+	mustCIDR("0.0.0.0/8"),     // "this network" — 0.0.0.0 reaches localhost on Linux
+	mustCIDR("100.64.0.0/10"), // carrier-grade NAT (RFC 6598)
+	mustCIDR("192.0.0.0/24"),  // IETF protocol assignments (RFC 6890)
+	mustCIDR("198.18.0.0/15"), // benchmarking (RFC 2544)
+	mustCIDR("240.0.0.0/4"),   // reserved / class E, incl. 255.255.255.255
+}
+
+func mustCIDR(s string) net.IPNet {
+	_, block, err := net.ParseCIDR(s)
+	if err != nil {
+		panic("favicon: bad reserved CIDR " + s + ": " + err.Error())
+	}
+	return *block
+}
+
 // isPublicIP reports whether ip is a routable public address.
 func isPublicIP(ip net.IP) bool {
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
 		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
 		ip.IsMulticast() || ip.IsInterfaceLocalMulticast() {
 		return false
+	}
+	if v4 := ip.To4(); v4 != nil {
+		for i := range reservedIPv4Blocks {
+			if reservedIPv4Blocks[i].Contains(v4) {
+				return false
+			}
+		}
 	}
 	return true
 }

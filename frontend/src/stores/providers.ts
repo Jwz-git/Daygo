@@ -26,7 +26,7 @@ import { readRecord, removeKey } from '@/storage/local'
 export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
   openai: 'https://api.openai.com/v1',
   openai_responses: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com/v1',
+  anthropic: 'https://api.anthropic.com',
 }
 
 export type ProviderField = 'displayName' | 'endpoint' | 'models' | 'maxImages'

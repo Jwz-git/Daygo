@@ -14,11 +14,15 @@
  * screen content. Go enforces the same boundary and validates the host.
  */
 
+import { LruCache } from './lruCache'
+
 const FETCH_TIMEOUT_MS = 8000
 const NEGATIVE_TTL_MS = 10 * 60 * 1000
 
-const cache = new Map<string, string | null>()
-const negativeUntil = new Map<string, number>()
+// Bounded so a long session that surfaces many distinct hosts can not grow the
+// webview heap without limit; an evicted host simply re-resolves on next view.
+const cache = new LruCache<string, string | null>(256)
+const negativeUntil = new LruCache<string, number>(256)
 const inflight = new Map<string, Promise<string | null>>()
 
 /** Extract the bare host from a raw site string ("edge.com/x" → "edge.com", "pinterest" → "pinterest.com"). */

@@ -8,6 +8,7 @@ import {
 
 import { getApplicationNamesDevelopmentFixture } from '@/api/developmentFixtures'
 import { WAILS_UNAVAILABLE, getSettings } from '@/api/settings'
+import { LruCache } from '@/lib/lruCache'
 
 /**
  * ApplicationDTO mirrors docs/05 §5.5.2: the display identity of one
@@ -65,25 +66,29 @@ export async function getBlockedApplications(): Promise<ApplicationDTO[]> {
 }
 
 /*
- * One-entry enumeration cache keyed by the requested language, plus a
- * persistent icon memo. The privacy grid enumerates on mount and re-enumerates
- * when the UI language changes; without the cache every visit pays the
- * filesystem walk and every icon batch again. The cache is filled by
- * prefetchInstalledApplications at shell startup, so opening the settings page
- * renders from memory.
+ * One-entry enumeration cache keyed by the requested language, plus a bounded
+ * icon memo. The privacy grid enumerates on mount and re-enumerates when the UI
+ * language changes; the memo saves the per-icon binding round trip within a
+ * session. It is bounded so a long-running session with many distinct apps can
+ * not grow the webview heap without limit; evicted icons simply refetch.
  */
 let installedCache: { language: string; apps: ApplicationDTO[] } | null = null
-const identityCache = new Map<string, ApplicationDTO>()
+const identityCache = new LruCache<string, ApplicationDTO>(512)
 
+/**
+ * On-demand cache warming, exposed as an opt-in helper. It is intentionally
+ * NOT invoked at startup: warming every installed app's icon holds a base64
+ * payload in the webview heap for the whole session even when the privacy grid
+ * is never opened. A surface that wants an instant grid can call this itself.
+ */
 export function prefetchInstalledApplications(language: string): void {
   void warmInstalledApplicationCache(language)
 }
 
 /**
- * Best-effort cache warming used by the shell's fire-and-forget prefetch.
- * Unsupported platforms legitimately reject application enumeration; that
- * must not escape as an unhandled promise rejection during application
- * startup. The privacy page performs its own guarded load and keeps the
+ * Best-effort cache warming. Unsupported platforms legitimately reject
+ * application enumeration; that must not escape as an unhandled promise
+ * rejection. The privacy page performs its own guarded load and keeps the
  * native picker available when enumeration is unsupported.
  */
 export async function warmInstalledApplicationCache(language: string): Promise<void> {
@@ -97,12 +102,12 @@ export async function warmInstalledApplicationCache(language: string): Promise<v
         const resolved = await describeApplications(batch.map((application) => application.id))
         for (const application of resolved) identityCache.set(application.id, application)
       } catch {
-        // Icons are display data; a failed prefetch batch simply refetches later.
+        // Icons are display data; a failed batch simply refetches later.
       }
     }
   } catch {
-    // Cache warming is optional. In particular, Windows versions without the
-    // enumeration capability return native_unavailable here by design.
+    // Cache warming is optional. Windows versions without the enumeration
+    // capability return native_unavailable here by design.
   }
 }
 
@@ -111,11 +116,11 @@ export async function warmInstalledApplicationCache(language: string): Promise<v
  * in the requested language (the frontend's active UI locale), so the grid
  * reads 备忘录 or Notes depending on what the user chose.
  *
- * Results are cached per language and warmed by prefetchInstalledApplications
- * at startup. Icons are deliberately not part of the listing: resolving every
- * icon up front is a heavy payload, and describeApplications supplies them
- * from its cache per batch. Platforms without the enumeration capability
- * reject the call — the caller keeps the native picker as the add path there.
+ * Results are cached per language. Icons are deliberately not part of the
+ * listing: resolving every icon up front is a heavy payload, and
+ * describeApplications supplies them from its cache per batch. Platforms
+ * without the enumeration capability reject the call — the caller keeps the
+ * native picker as the add path there.
  */
 export async function listInstalledApplications(language: string): Promise<ApplicationDTO[]> {
   if (installedCache?.language === language) return installedCache.apps
