@@ -162,6 +162,10 @@ G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixt
 
 ## 验证记录
 
+- **macOS 分段追加（2026-09-23）**：取消后的截图任务在写段前再次检查取消；每帧像素缓冲在
+  `autoreleasepool` 内释放；段收尾等待限制为 10 秒并记录超时诊断。`native/darwin/build.sh`
+  构建 arm64 / x86_64 通用静态库，`go test -a ./internal/platform/darwin -run TestNativeSegment -count=1`
+  的追加、解码、滚动和重复读取 smoke 通过。尚未注入 HEVC 收尾卡死，也未完成 24–48 小时 RSS 对照。
 - **macOS（2026-09-10—17）**：Capture fake 契约、Swift 通用静态库构建、真实单次像素 smoke、HEVC 段追加 / 解码 / 滚动 smoke、迁移夹具及 `./scripts/gate.sh` 通过。Go recorder 的暂停、失败容错和 pending 恢复有单元测试。
 - **Windows（2026-09-11—20）**：Windows 11 双屏机器上完成原生与 Go cgo 的非黑 JPEG smoke；`LockFileEx`、设置页应用选择和通知区完成有限验证。Media Foundation 分段与系统事件已有代码和 Go 测试；完整矩阵由用户于 2026-09-22 确认验收，未附逐项运行记录。
 - **用户闭环**：隐私、授权、G-host 和长期观察由用户于 2026-09-22 确认验收，未附逐项运行记录。未实现的空闲采样与 Linux Capture / System 不在本次验收范围；边界见 [09 §9.1](../09-roadmap.md#91-模块总表)。
