@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1319,6 +1320,61 @@ func TestPipelineIdleMergeAbsorbsPrecedingIdleCard(t *testing.T) {
 	// second batch's end truncated to the minute.
 	if want := second.End.Truncate(time.Minute).Unix(); merged.EndTs != want {
 		t.Fatalf("merged idle card end_ts = %d, want %d (the second batch's end)", merged.EndTs, want)
+	}
+}
+
+// A prior non-Idle card whose stored end clock overhangs the idle window (the
+// LLM clock-overshoot / ongoing-card case) must not fail the idle batch:
+// commitIdleCard clips the overhang to the window edge and keeps the card
+// beside the Idle card, instead of hitting the ownership constraint that
+// rejects a card starting before the rewrite's owned span.
+func TestPipelineIdleAbsorbsOverhangingPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{})
+	h.provider.err = ai.NewError(ai.ErrorInvalidRequest, "idle path must not call the provider", 0, nil)
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	cardStart := base.Add(-10 * time.Minute)
+	cardEnd := base.Add(2 * time.Minute) // overhangs where the idle batch begins
+	if err := h.store.Write(context.Background(), "seed overhang card", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO timeline_cards (batch_id, day, start, end, start_ts, end_ts, category, title, summary, created_at, updated_at)
+			VALUES (NULL, '2026-09-12', ?, ?, ?, ?, 'Coding', 'coding', 's', 0, 0)`,
+			timeutil.FormatClock(cardStart, time.Local), timeutil.FormatClock(cardEnd, time.Local),
+			cardStart.Unix(), cardEnd.Unix())
+		return err
+	}); err != nil {
+		t.Fatalf("seed overhang card: %v", err)
+	}
+
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(600) })
+	h.service.tick(context.Background())
+
+	batches := mustBatches(t, h.store)
+	if len(batches) != 1 || batches[0].Status != storage.BatchSucceeded {
+		t.Fatalf("batches = %+v, want one succeeded idle batch (the overhang must not fail it)", batches)
+	}
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the clipped Coding card and the Idle card", cards)
+	}
+	byCat := map[string]domain.TimelineCard{}
+	for _, c := range cards {
+		byCat[c.Category] = c
+	}
+	coding, hasCoding := byCat["Coding"]
+	idle, hasIdle := byCat["Idle"]
+	if !hasCoding || !hasIdle {
+		t.Fatalf("cards = %+v, want one Coding and one Idle", cards)
+	}
+	// The Coding card keeps its own start and is clipped to the idle window
+	// start; its category — and thus the daily/weekly totals — is preserved
+	// rather than relabeled Idle.
+	if coding.StartTs != cardStart.Unix() {
+		t.Fatalf("coding start_ts = %d, want %d (start preserved)", coding.StartTs, cardStart.Unix())
+	}
+	if coding.EndTs > idle.StartTs {
+		t.Fatalf("coding end_ts %d overlaps idle start %d; the overhang was not clipped", coding.EndTs, idle.StartTs)
 	}
 }
 

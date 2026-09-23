@@ -62,7 +62,14 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 		return result, err
 	}
 	if usage <= limitBytes {
-		return result, nil
+		// Under the byte limit there is nothing to delete for space, but crash
+		// leftovers still need reclaiming: CaptureRepo.Reconcile abandons a
+		// pending intent by deleting its row while its file stays on disk, and a
+		// phase-2 os.Remove can fail transiently. Those files are referenced by
+		// no row, so only this sweep frees them — and the over-limit path below,
+		// which is the only other caller, may never run while usage stays low.
+		err = s.sweepOrphanFiles(ctx, root)
+		return result, err
 	}
 
 	candidates, err := s.cleanupCandidates(ctx)
@@ -83,8 +90,12 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 	result.SkippedRented = len(candidates) - len(selected)
 	if len(selected) == 0 {
 		// Everything old enough to delete is rented or active: converge as far
-		// as the boundary allows and report rather than force.
-		result.SkippedRented, err = s.remainingOverLimit(ctx)
+		// as the boundary allows and report rather than force. Still sweep the
+		// orphan leftovers, which are independent of what is rented.
+		if result.SkippedRented, err = s.remainingOverLimit(ctx); err != nil {
+			return result, err
+		}
+		err = s.sweepOrphanFiles(ctx, root)
 		return result, err
 	}
 

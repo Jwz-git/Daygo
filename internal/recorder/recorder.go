@@ -137,11 +137,16 @@ func (r *Recorder) Start(ctx context.Context) error {
 func (r *Recorder) Stop() error {
 	r.mu.Lock()
 	if r.state == StateIdle {
+		r.mu.Unlock()
 		return nil
 	}
 	cancel := r.cancel
 	done := r.done
 	r.lastError = nil
+	// Bump the resume generation so any pending user-pause or system-event
+	// timer no-ops when it fires: the state guard alone loses the race where
+	// the timer wins the lock before run()'s deferred teardown sets StateIdle.
+	r.resumeGeneration++
 	r.mu.Unlock()
 	cancel()
 	<-done
@@ -249,7 +254,12 @@ func (r *Recorder) HandleSystemEvent(event platform.SystemEvent) {
 	case platform.EventSleep, platform.EventScreenLocked, platform.EventScreensaverStart:
 		r.mu.Lock()
 		r.systemBlockers[event.Kind] = struct{}{}
-		r.resumeGeneration++
+		// A blocker does NOT bump resumeGeneration: it is not a resume decision,
+		// only a hold. A stale system-event resume timer already no-ops here via
+		// its len(systemBlockers) != 0 guard, and bumping would instead orphan a
+		// pending timed user-pause timer — its resumeAfterUserPause would then
+		// find a stale generation, never clear userPaused, and the wake branch
+		// below would refuse to re-arm, freezing a timed pause forever.
 		if r.state == StateCapturing {
 			r.state = StatePaused
 			r.mu.Unlock()
@@ -343,32 +353,9 @@ func (r *Recorder) run(ctx context.Context) {
 	defer ticker.Stop()
 	if !blocked {
 		if err := r.capture(ctx); err != nil && ctx.Err() == nil {
-			// The initial capture gets the same tolerance as the loop: emit
-			// and continue rather than aborting a resident recorder.
 			r.fail(err)
-			consecutiveFailures := 1
-			for consecutiveFailures < captureFailureLimit {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(captureRetryDelay):
-				}
-				if err := r.capture(ctx); err != nil {
-					if ctx.Err() != nil {
-						return
-					}
-					r.fail(err)
-					consecutiveFailures++
-					continue
-				}
-				break
-			}
-			if consecutiveFailures >= captureFailureLimit {
-				return
-			}
 		}
 	}
-	consecutiveFailures := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -387,14 +374,9 @@ func (r *Recorder) run(ctx context.Context) {
 				if ctx.Err() != nil {
 					return
 				}
-				// One failed frame is not a reason to stop a resident
-				// recorder: emit the error and keep the loop alive. Only
-				// captureFailureLimit consecutive failures give up.
+				// Keep the resident recorder alive through sustained errors. An
+				// error event and LastError expose the failure until a frame lands.
 				r.fail(err)
-				consecutiveFailures++
-				if consecutiveFailures >= captureFailureLimit {
-					return
-				}
 				select {
 				case <-ctx.Done():
 					return
@@ -402,17 +384,9 @@ func (r *Recorder) run(ctx context.Context) {
 				}
 				continue
 			}
-			consecutiveFailures = 0
 		}
 	}
 }
-
-// captureFailureLimit is how many consecutive single-capture failures the
-// loop tolerates before giving up. A display switch, a transient permission
-// hiccup, or a failed placeholder write fails one frame; stopping the whole
-// recorder on the first of those would silently end recording for a resident
-// agent. Three in a row with no success between them means something real.
-const captureFailureLimit = 3
 
 // captureRetryDelay is the pause after a failed capture before the next
 // ticker-driven attempt (the ticker itself stays on its interval).

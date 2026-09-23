@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/Jwz-git/Daygo/internal/domain"
 )
@@ -147,15 +148,48 @@ func (r *CategoryRepo) Save(ctx context.Context, cats []domain.Category) error {
 				return err
 			}
 		}
-		for oldName, newName := range renames {
-			if _, err := tx.ExecContext(ctx, `
-				UPDATE timeline_cards SET category = ?, updated_at = ? WHERE category = ?`,
-				newName, at, oldName); err != nil {
-				return wrap("rewrite cards for rename "+oldName+" -> "+newName, err)
-			}
+		if err := rewriteCardsForRenames(ctx, tx, renames, at); err != nil {
+			return err
 		}
 		return nil
 	})
+}
+
+// rewriteCardsForRenames applies every category rename to timeline_cards in a
+// single statement. A CASE keyed on the current category evaluates against each
+// row's stored value exactly once, so a swap (A->B, B->A) or a chain (A->B,
+// B->C) maps each card by its original category instead of by whatever an
+// earlier UPDATE in a randomized map-iteration order had already rewritten it
+// to. Applying the renames one UPDATE at a time would let A->B run first, turn
+// original-A cards into B, and then let B->C sweep both the original-B cards and
+// the just-renamed original-A cards into C.
+func rewriteCardsForRenames(ctx context.Context, tx *sql.Tx, renames map[string]string, at int64) error {
+	if len(renames) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString("UPDATE timeline_cards SET category = CASE category")
+	args := make([]any, 0, len(renames)*2+1+len(renames))
+	oldNames := make([]any, 0, len(renames))
+	for oldName, newName := range renames {
+		b.WriteString(" WHEN ? THEN ?")
+		args = append(args, oldName, newName)
+		oldNames = append(oldNames, oldName)
+	}
+	b.WriteString(" ELSE category END, updated_at = ? WHERE category IN (")
+	args = append(args, at)
+	for i := range oldNames {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString("?")
+	}
+	b.WriteString(")")
+	args = append(args, oldNames...)
+	if _, err := tx.ExecContext(ctx, b.String(), args...); err != nil {
+		return wrap("rewrite cards for renames", err)
+	}
+	return nil
 }
 
 // checkCategoryNames rejects duplicate names across the merged set. The

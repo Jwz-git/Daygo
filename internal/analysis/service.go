@@ -494,33 +494,89 @@ func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (tim
 
 // commitIdleCard writes the Idle card directly, merging with a directly
 // preceding Idle card when close enough (docs/04 §4.4).
+//
+// A prior card's stored clock can overhang the idle window — the LLM's end
+// clock overshoots its last frame, or an ongoing card extends past the frame
+// partition. Absorbing that overhang into the Idle card would relabel real
+// activity as Idle and corrupt the daily/weekly category totals, and leaving
+// the rewrite start at the window edge makes ReplaceCardsInRange reject the
+// whole rewrite (the card starts before the owned span), which would fail the
+// idle batch on every retry. So the outside portion of a non-Idle overhang is
+// re-asserted beside the Idle card, and an Idle overhang is merged into it —
+// mirroring how the LLM path owns a straddling predecessor via
+// cardRewriteStart/mergeOwnershipStart.
 func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error {
-	replaceFrom := batch.Start
-	shell := domain.CardShell{
-		Start:    timeutil.FormatClock(batch.Start, s.loc()),
-		End:      timeutil.FormatClock(batch.End, s.loc()),
+	loc := s.loc()
+	wsUnix, weUnix := batch.Start.Unix(), batch.End.Unix()
+	idle := domain.CardShell{
+		Start:    timeutil.FormatClock(batch.Start, loc),
+		End:      timeutil.FormatClock(batch.End, loc),
 		Category: "Idle",
 		Title:    "Idle",
 		Summary:  "No user activity detected during this period.",
 	}
-	// Merge with a preceding Idle card within AdjacentIdleMergeGap. A read
-	// failure propagates: silently opening a new card next to a mergeable
-	// one would split the idle span on a transient storage error.
-	preceding, err := s.cfg.Cards.CardsInRange(ctx,
-		batch.Start.Add(-s.cfg.IdleRules.AdjacentIdleMergeGap-time.Minute), batch.Start)
+
+	// A read failure propagates: silently opening a new card next to a mergeable
+	// one, or missing an overhanging predecessor, would split the idle span or
+	// fail the rewrite on a transient storage error.
+	existing, err := s.cfg.Cards.CardsInRange(ctx, batch.Start.Add(-CardLookback), batch.End)
 	if err != nil {
 		return err
 	}
-	for _, card := range slices.Backward(preceding) {
-		if card.Category == "Idle" && card.EndTs <= batch.Start.Unix() &&
-			batch.Start.Unix()-card.EndTs <= int64(s.cfg.IdleRules.AdjacentIdleMergeGap.Seconds()) {
-			replaceFrom = time.Unix(card.StartTs, 0)
-			shell.Start = card.Start
+
+	replaceFrom := batch.Start
+	extendLeft := func(startTs int64, startClock string) {
+		if st := time.Unix(startTs, 0); st.Before(replaceFrom) {
+			replaceFrom = st
+			idle.Start = startClock
+		}
+	}
+
+	// Merge a preceding Idle card that ends at or before the window within the
+	// adjacency gap: the idle span is continuous, so it becomes one card.
+	gap := int64(s.cfg.IdleRules.AdjacentIdleMergeGap.Seconds())
+	for _, card := range slices.Backward(existing) {
+		if card.Category == "Idle" && card.EndTs <= wsUnix && wsUnix-card.EndTs <= gap {
+			extendLeft(card.StartTs, card.Start)
 			break
 		}
 	}
-	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End,
-		[]domain.CardShell{shell}, batch.ID); err != nil {
+
+	// Re-assert the outside portion of any card whose clock overhangs the idle
+	// window. A card entirely inside the window is absorbed by ReplaceCardsInRange
+	// as usual; only the parts before batch.Start or after batch.End must be kept.
+	clip := func(card domain.TimelineCard, start, end string) domain.CardShell {
+		return domain.CardShell{
+			Start: start, End: end,
+			Category: card.Category, Subcategory: card.Subcategory,
+			Title: card.Title, Summary: card.Summary,
+			DetailedSummary:  card.DetailedSummary,
+			VideoSummaryPath: card.VideoSummaryPath, Metadata: card.Metadata,
+		}
+	}
+	var preserved []domain.CardShell
+	for _, card := range existing {
+		if card.StartTs >= weUnix || card.EndTs <= wsUnix {
+			continue // no overlap with the idle window
+		}
+		if card.StartTs < wsUnix { // overhangs the left edge
+			if card.Category == "Idle" {
+				extendLeft(card.StartTs, card.Start)
+			} else {
+				preserved = append(preserved, clip(card, card.Start, timeutil.FormatClock(batch.Start, loc)))
+			}
+		}
+		if card.EndTs > weUnix { // overhangs the right edge
+			if card.Category == "Idle" {
+				idle.End = card.End
+			} else {
+				preserved = append(preserved, clip(card, timeutil.FormatClock(batch.End, loc), card.End))
+			}
+		}
+	}
+
+	shells := append(preserved, idle)
+	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End, shells, batch.ID); err != nil {
 		return err
 	}
 	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchSucceeded, "", "", s.cfg.Now()); err != nil {
@@ -916,8 +972,20 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 	if err != nil {
 		return err
 	}
+
+	// The same lock the batch pipeline holds across read→generate→rewrite: a
+	// regeneration interleaving a neighbouring batch's rewrite of the same
+	// minutes would clobber one of the two (docs/04 §4.3.2).
+	s.cardsMu.Lock()
+	defer s.cardsMu.Unlock()
+
 	// A live batch over the same window will rewrite these cards when it lands,
-	// which would silently discard this regeneration's result.
+	// which would silently discard this regeneration's result. The check runs
+	// UNDER cardsMu: a batch that transitions to pending/processing between an
+	// unlocked check and acquiring the lock would not be seen, then rewrite the
+	// window after this call released the lock and clobber the regeneration.
+	// Holding the lock while we check and rewrite also blocks that batch's own
+	// rewrite until this one completes.
 	live, err := s.cfg.Store.ProcessingBatchesInRange(ctx, windowStart, windowEnd)
 	if err != nil {
 		return err
@@ -926,12 +994,6 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 		return fmt.Errorf("%w: card window %s-%s is being analyzed by batch %d",
 			ErrWindowInAnalysis, formatFrameClock(windowStart), formatFrameClock(windowEnd), live[0].ID)
 	}
-
-	// The same lock the batch pipeline holds across read→generate→rewrite: a
-	// regeneration interleaving a neighbouring batch's rewrite of the same
-	// minutes would clobber one of the two (docs/04 §4.3.2).
-	s.cardsMu.Lock()
-	defer s.cardsMu.Unlock()
 
 	observations, err := s.cfg.Store.ObservationsInRange(ctx, windowStart, windowEnd)
 	if err != nil {

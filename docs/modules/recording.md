@@ -95,8 +95,8 @@ Windows 编译、HEVC 编解码 smoke、真实屏保/显示器通知与应用枚
 `CGO_ENABLED=0` 构建。**经用户确认已验收**：Windows 上原生面板标题与过滤器名的实际渲染、
 macOS 面板仍按决策不下发标题。系统授权框、钥匙串与 WinSparkle 的文案不由本应用提供，
 不在本通道内（见 [delivery](delivery.md)）。
-**2026-09-21：Windows 连续失败诊断补齐**——recorder 仍在连续 3 次捕获/提交失败后进入
-`idle`，但会保留最后一次失败供 `GetRecordingState.reason` 查询；成功捕获、重新启动或用户主动
+**2026-09-23：连续失败后保持重试**——recorder 遇连续捕获/提交失败仍保持 `capturing` 并按间隔重试，
+保留最后一次失败供 `GetRecordingState.reason` 查询；成功捕获、重新启动或用户主动
 停止时清除。原因只包含 Capture 稳定错误码及原生数值码、storage 错误类别，或通用文件/未知类别，
 不包含错误文本、路径或屏幕内容。Windows Recorder 测试页显示该代码。该改动证明失败原因可见，
 并不证明当前 Windows 真机停止录制的实际根因；仍需对应故障时的代码和 WC-8 长时间观察。
@@ -162,6 +162,7 @@ G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixt
 
 ## 验证记录
 
+- **状态机回归（2026-09-23）**：连续 4 次捕获失败后自动恢复、睡眠期间定时暂停、停止时恢复定时器竞态的 Go 夹具通过；`./scripts/gate.sh` 通过。尚未在真实 Windows 捕获故障上复现与复核。
 - **macOS 分段追加（2026-09-23）**：取消后的截图任务在写段前再次检查取消；每帧像素缓冲在
   `autoreleasepool` 内释放；段收尾等待限制为 10 秒并记录超时诊断。`native/darwin/build.sh`
   构建 arm64 / x86_64 通用静态库，`go test -a ./internal/platform/darwin -run TestNativeSegment -count=1`

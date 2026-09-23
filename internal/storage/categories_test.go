@@ -183,3 +183,127 @@ func TestCategorySaveRenamesRewriteCardsInSameTransaction(t *testing.T) {
 		t.Fatalf("card category = %q after rename, want Engineering", cardCategory)
 	}
 }
+
+// TestCategorySaveChainRenameDoesNotCascade guards the failure mode where
+// applying renames one UPDATE at a time in randomized map order lets an A->B
+// rename run before a B->C rename, sweeping the original-A cards into C. Each
+// card must follow only its own original category's rename.
+func TestCategorySaveChainRenameDoesNotCascade(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+
+	if err := store.Categories().Save(ctx, []domain.Category{
+		{Name: "A", ColorHex: "#111111"},
+		{Name: "B", ColorHex: "#222222"},
+	}); err != nil {
+		t.Fatalf("seed Save: %v", err)
+	}
+	byName := map[string]domain.Category{}
+	cats, err := store.Categories().List(ctx)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	for _, c := range cats {
+		byName[c.Name] = c
+	}
+
+	seedCard := func(title, category string) {
+		if err := store.Write(ctx, "seed card", func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+				INSERT INTO timeline_cards (batch_id, day, start, end, start_ts, end_ts, category, title, summary, created_at, updated_at)
+				VALUES (NULL, '2026-09-11', '10:00 AM', '10:30 AM', 1000, 1800, ?, ?, 's', 0, 0)`,
+				category, title)
+			return err
+		}); err != nil {
+			t.Fatalf("seed card %s: %v", title, err)
+		}
+	}
+	seedCard("origA", "A")
+	seedCard("origB", "B")
+
+	// Chain rename in one Save: A->B and B->C. origA cards must become B and
+	// origB cards must become C; neither may cascade into the other.
+	if err := store.Categories().Save(ctx, []domain.Category{
+		{ID: byName["A"].ID, Name: "B", ColorHex: "#111111"},
+		{ID: byName["B"].ID, Name: "C", ColorHex: "#222222"},
+	}); err != nil {
+		t.Fatalf("chain rename Save: %v", err)
+	}
+
+	category := func(title string) string {
+		var got string
+		if err := store.Read(ctx, "read card", func(ctx context.Context, tx *sql.Tx) error {
+			return tx.QueryRowContext(ctx,
+				"SELECT category FROM timeline_cards WHERE title = ?", title).Scan(&got)
+		}); err != nil {
+			t.Fatalf("read card %s: %v", title, err)
+		}
+		return got
+	}
+	if got := category("origA"); got != "B" {
+		t.Fatalf("origA card category = %q after chain rename, want B", got)
+	}
+	if got := category("origB"); got != "C" {
+		t.Fatalf("origB card category = %q after chain rename, want C", got)
+	}
+}
+
+// TestCategorySaveSwapRenameKeepsCardsDistinct guards the swap failure mode
+// (A<->B) where sequential UPDATEs would collapse both groups into one name.
+func TestCategorySaveSwapRenameKeepsCardsDistinct(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+
+	if err := store.Categories().Save(ctx, []domain.Category{
+		{Name: "A", ColorHex: "#111111"},
+		{Name: "B", ColorHex: "#222222"},
+	}); err != nil {
+		t.Fatalf("seed Save: %v", err)
+	}
+	byName := map[string]domain.Category{}
+	cats, err := store.Categories().List(ctx)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	for _, c := range cats {
+		byName[c.Name] = c
+	}
+
+	seedCard := func(title, category string) {
+		if err := store.Write(ctx, "seed card", func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+				INSERT INTO timeline_cards (batch_id, day, start, end, start_ts, end_ts, category, title, summary, created_at, updated_at)
+				VALUES (NULL, '2026-09-11', '10:00 AM', '10:30 AM', 1000, 1800, ?, ?, 's', 0, 0)`,
+				category, title)
+			return err
+		}); err != nil {
+			t.Fatalf("seed card %s: %v", title, err)
+		}
+	}
+	seedCard("origA", "A")
+	seedCard("origB", "B")
+
+	if err := store.Categories().Save(ctx, []domain.Category{
+		{ID: byName["A"].ID, Name: "B", ColorHex: "#111111"},
+		{ID: byName["B"].ID, Name: "A", ColorHex: "#222222"},
+	}); err != nil {
+		t.Fatalf("swap rename Save: %v", err)
+	}
+
+	category := func(title string) string {
+		var got string
+		if err := store.Read(ctx, "read card", func(ctx context.Context, tx *sql.Tx) error {
+			return tx.QueryRowContext(ctx,
+				"SELECT category FROM timeline_cards WHERE title = ?", title).Scan(&got)
+		}); err != nil {
+			t.Fatalf("read card %s: %v", title, err)
+		}
+		return got
+	}
+	if got := category("origA"); got != "B" {
+		t.Fatalf("origA card category = %q after swap, want B", got)
+	}
+	if got := category("origB"); got != "A" {
+		t.Fatalf("origB card category = %q after swap, want A", got)
+	}
+}

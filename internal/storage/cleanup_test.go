@@ -228,6 +228,38 @@ func TestCleanupSweepsOrphansFromCrashedPhase(t *testing.T) {
 	}
 }
 
+// The sweep must run even when usage is UNDER the byte limit. Reconcile-abandon
+// and a failed phase-2 removal leave orphan files while usage stays low, and if
+// the sweep only ran on the over-limit path those files would never be
+// reclaimed.
+func TestCleanupSweepsOrphansWhenUnderLimit(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	root, _ := seedCleanupWorld(t, store)
+	ctx := context.Background()
+
+	// An old orphan file that no row references, created by e.g. Abandon.
+	oldRel := "staging/abandoned-orphan.jpg"
+	writeFileAt(t, filepath.Join(root, filepath.FromSlash(oldRel)), 10,
+		time.Now().Add(-2*time.Hour))
+
+	// Usage is 10000 bytes; the limit is far above it, so the over-limit
+	// deletion path never runs — only the unconditional sweep can reclaim.
+	result, err := store.CleanupRecordings(ctx, root, 1<<30)
+	if err != nil {
+		t.Fatalf("CleanupRecordings: %v", err)
+	}
+	if result.Deleted != 0 {
+		t.Fatalf("deleted %d frames while under the limit", result.Deleted)
+	}
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(oldRel))); !os.IsNotExist(err) {
+		t.Error("orphan file survived the sweep under the limit")
+	}
+	// Live frames are untouched: the sweep only removes unreferenced files.
+	if got := liveFrameCount(t, store); got != 10 {
+		t.Fatalf("live rows = %d after under-limit cleanup, want 10", got)
+	}
+}
+
 // A read-only instance never deletes anything: it holds no write lock, so
 // another process may be mid-capture.
 func TestCleanupRefusedOnReadOnlyInstance(t *testing.T) {

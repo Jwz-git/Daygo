@@ -133,6 +133,8 @@ opt-in 和隐私载荷符合 07；已完成 db-core 可提前被接入。
 
 ## 验证记录
 
+- **2026-09-23 回归修复**：匿名夹具覆盖并发读后写事务、分类交换/链式改名、未超限孤儿文件清理与 URI 特殊字符路径；`./scripts/gate.sh` 通过。真实数据库和长时争用未在本次重跑。
+
 | 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
 |---|---|---|---|
 | 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/storage/`、`-race`、`go build ./...`、`go vet ./...`、`gofmt -l .` | 全部通过；DB-1/2/4/6/7/8(smoke)/IT-13 在已实现范围通过 | 非 Linux 实机；`internal/app` 需 `frontend/dist` 才能编译 |
