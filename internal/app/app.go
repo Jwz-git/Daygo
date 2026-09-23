@@ -146,14 +146,14 @@ func Run() error {
 		Title:             "Daygo",
 		Width:             1180,
 		Height:            760,
+		Frameless:         platformFrameless(),
 		HideWindowOnClose: true,
 		MinWidth:          880,
 		MinHeight:         600,
 		/*
-		 * Not frameless: a frameless NSWindow drops the standard window frame,
-		 * and with it both the traffic-light controls and the native rounded
-		 * window corners. Hiding the titlebar instead (mac.TitleBarHiddenInset)
-		 * keeps content edge-to-edge while leaving those two to the OS.
+		 * Only Windows uses a frameless window with the Vue title bar.
+		 * macOS keeps its native frame and uses mac.TitleBarHidden() to
+		 * preserve traffic lights and rounded corners.
 		 */
 		CSSDragProperty: "--wails-draggable",
 		CSSDragValue:    "drag",

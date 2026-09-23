@@ -90,6 +90,12 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 
 ## 验证记录
 
+2026-09-23：补回 Windows 专用 `Frameless` 宿主配置，避免原生黑色标题栏与 Vue 顶栏同时显示。
+保留系统缩放边框、阴影及圆角，macOS / Linux 窗口策略不变。新增平台窗口配置回归测试；
+`CGO_ENABLED=0 go test ./internal/app`、`go vet ./internal/app`、Windows `go build ./...`、
+Linux / macOS `go build ./internal/app` 和 `python scripts/check-docs.py` 通过。
+真实窗口视觉、拖动、缩放和 DPI 仍需重启新版应用后验收。
+
 2026-09-10—12：前端 typecheck、unit、build 与 Vite 预览覆盖设置分区、深链、外观 / 语言、录制上限和诊断展示。真实 Wails 写入、重启及浅色 / 英文矩阵由用户于 2026-09-22 确认验收，未附逐项运行记录。
 
 | 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
