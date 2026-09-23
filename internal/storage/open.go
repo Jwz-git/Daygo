@@ -140,6 +140,35 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	return store, nil
 }
 
+// OpenReadOnly opens the business database read-only at an explicit file path,
+// without taking either instance lock. It is the connection the external
+// read interfaces use (docs/05 §5.9.1): the daygo CLI and the daygo mcp
+// subprocess run as separate processes that must never write or migrate, even
+// when no writer daemon is running and the write lock would be free.
+//
+// Unlike Open it does not derive the path from a directory: the caller passes
+// the file directly so DAYGO_DB can point anywhere. mode=ro means SQLite will
+// not create a missing file, so a clear not-found is reported up front rather
+// than as a driver error on the first query. loc is the host zone repositories
+// derive day boundaries and clock strings against; nil means time.Local.
+func OpenReadOnly(ctx context.Context, path string, loc *time.Location, observer Observer) (*Store, error) {
+	if path == "" {
+		return nil, errors.New("storage: OpenReadOnly: path is required")
+	}
+	if observer == nil {
+		observer = NopObserver{}
+	}
+	if _, err := os.Stat(path); err != nil {
+		return nil, wrap("open read-only database", err)
+	}
+	store := &Store{path: path, observer: observer, loc: loc, mode: ModeReadOnly}
+	if err := store.connect(ctx); err != nil {
+		_ = store.Close()
+		return nil, err
+	}
+	return store, nil
+}
+
 // connect opens the SQL driver, configures the pragmas, verifies them and, for
 // the writer, brings the schema up to date.
 //
