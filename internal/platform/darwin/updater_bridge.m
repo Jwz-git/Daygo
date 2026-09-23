@@ -8,6 +8,11 @@ extern void dgGoUpdaterFound(char *version);
 extern int32_t dgGoUpdaterCanInstall(void);
 extern int32_t dgGoUpdaterPrepare(void);
 
+/* Localized by the frontend and pushed through Go (docs/05 §5.5.1): no copy of
+   our own lives here, and when the push has not happened yet Sparkle falls back
+   to its own localized error text instead of an English-only sentence. */
+static NSString *installRefusedMessage;
+
 @interface DGDaygoUpdaterDelegate : NSObject <SPUUpdaterDelegate>
 @end
 
@@ -22,9 +27,13 @@ extern int32_t dgGoUpdaterPrepare(void);
         error:(NSError * __autoreleasing *)error {
     if (dgGoUpdaterCanInstall() != 0) return YES;
     if (error != NULL) {
+        NSMutableDictionary *info = [NSMutableDictionary dictionary];
+        if (installRefusedMessage.length > 0) {
+            info[NSLocalizedDescriptionKey] = installRefusedMessage;
+        }
         *error = [NSError errorWithDomain:@"io.github.jwz-git.Daygo.updater"
                                      code:1
-                                 userInfo:@{NSLocalizedDescriptionKey: @"Only the active Daygo capture owner can install updates."}];
+                                 userInfo:info];
     }
     return NO;
 }
@@ -61,3 +70,13 @@ int32_t dg_updater_automatic(void) { __block BOOL value; on_main_sync(^{ value =
 void dg_updater_set_automatic(int32_t enabled) { on_main_sync(^{ controller.updater.automaticallyChecksForUpdates = enabled != 0; }); }
 int32_t dg_updater_checking(void) { __block BOOL value; on_main_sync(^{ value = controller.updater.sessionInProgress; }); return value ? 1 : 0; }
 int64_t dg_updater_last_checked(void) { __block NSDate *date; on_main_sync(^{ date = controller.updater.lastUpdateCheckDate; }); return date == nil ? 0 : (int64_t)date.timeIntervalSince1970; }
+
+void dg_updater_set_install_refused_message(const char *message) {
+    if (message == NULL) return;
+    NSString *copy = [NSString stringWithUTF8String:message];
+    /* An empty or undecodable push keeps the previous copy rather than blanking
+       the dialog. The assignment runs on the main thread, which is also where
+       the delegate reads it. */
+    if (copy.length == 0) return;
+    on_main_sync(^{ installRefusedMessage = copy; });
+}

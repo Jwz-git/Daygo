@@ -371,6 +371,67 @@ func TestRecognitionEnhancementRoundTrip(t *testing.T) {
 	}
 }
 
+// Toggling launch-at-login persists the value and forwards it to the platform,
+// so the OS login item follows the setting rather than only the database.
+func TestUpdateSettingsForwardsLaunchAtLogin(t *testing.T) {
+	store := openTestStore(t, t.TempDir(), false)
+	system := &systemStub{}
+	backend := newBackend(fixedClock{}, system, store, false, false)
+	backend.setEventEmitter(&recordingEmitter{})
+
+	dto, err := backend.UpdateSettings(SettingsPatchDTO{LaunchAtLogin: ptrBool(true)})
+	if err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	if !dto.System.LaunchAtLogin {
+		t.Fatal("launchAtLogin = false in the returned snapshot, want true")
+	}
+	if !system.launchAtLoginSet || !system.launchAtLogin {
+		t.Fatalf("system.SetLaunchAtLogin not called with true (set=%v value=%v)", system.launchAtLoginSet, system.launchAtLogin)
+	}
+	if system.launchAtLoginCall != 1 {
+		t.Fatalf("SetLaunchAtLogin called %d times, want 1", system.launchAtLoginCall)
+	}
+}
+
+// A patch that leaves launch-at-login alone must not touch the OS login item:
+// re-registering on every unrelated settings write would re-trigger the system
+// "login item added" notification.
+func TestUpdateSettingsSkipsLaunchAtLoginWhenUnchanged(t *testing.T) {
+	store := openTestStore(t, t.TempDir(), false)
+	system := &systemStub{}
+	backend := newBackend(fixedClock{}, system, store, false, false)
+	backend.setEventEmitter(&recordingEmitter{})
+
+	if _, err := backend.UpdateSettings(SettingsPatchDTO{Theme: ptrString("dark")}); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	if system.launchAtLoginCall != 0 {
+		t.Fatalf("SetLaunchAtLogin called %d times for an unrelated patch, want 0", system.launchAtLoginCall)
+	}
+}
+
+// The database write is the source of truth: a failing OS call (e.g. an
+// unsigned dev build) is logged, not surfaced, so the settings write still
+// succeeds and the persisted value stands.
+func TestUpdateSettingsLaunchAtLoginOSFailureDoesNotFailWrite(t *testing.T) {
+	store := openTestStore(t, t.TempDir(), false)
+	system := &systemStub{launchAtLoginErr: errors.New("Operation not permitted")}
+	backend := newBackend(fixedClock{}, system, store, false, false)
+	backend.setEventEmitter(&recordingEmitter{})
+
+	dto, err := backend.UpdateSettings(SettingsPatchDTO{LaunchAtLogin: ptrBool(true)})
+	if err != nil {
+		t.Fatalf("UpdateSettings failed on an OS error, want it swallowed: %v", err)
+	}
+	if !dto.System.LaunchAtLogin {
+		t.Fatal("launchAtLogin was not persisted despite the OS call failing")
+	}
+	if system.launchAtLoginCall != 1 {
+		t.Fatalf("SetLaunchAtLogin called %d times, want 1", system.launchAtLoginCall)
+	}
+}
+
 func ptrInt(value int) *int      { return &value }
 func ptrString(v string) *string { return &v }
 func ptrBool(v bool) *bool       { return &v }

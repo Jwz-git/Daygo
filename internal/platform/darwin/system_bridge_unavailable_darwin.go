@@ -31,3 +31,9 @@ func requestScreenRecordingPermission() error {
 func openSystemSettings(platform.SettingsPane) error {
 	return errors.New("open system settings ABI unavailable without cgo")
 }
+func queryLaunchAtLogin() (bool, error) {
+	return false, errors.New("launch-at-login ABI unavailable without cgo")
+}
+func setLaunchAtLogin(bool) error {
+	return errors.New("launch-at-login ABI unavailable without cgo")
+}

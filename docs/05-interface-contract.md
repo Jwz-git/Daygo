@@ -82,17 +82,17 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
-| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日或按卡片来源批次重处理；审阅判断持久化在 `timeline_review_ratings` 并可按卡片读回 / 按日聚合；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
-| daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；用户保存不触碰 AI summary 列 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
+| daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
-| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
+| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder`、`PollSystemEvents` | 直接调用平台 `Capture` 或排空系统事件广播缓冲；均不接 recorder / storage / config。`PollSystemEvents` 是共享广播缓冲的排空口（recorder 与测试页都要观察全部原生事件，直接消费会互相抢），**会消费缓冲**，正式产品页面不得调用 |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
-上表只说明绑定与本地实现已存在，不代表 G-host、真实 Provider、签名后密钥身份或长期门禁已验收。
+上表只说明绑定与本地实现已存在。G-host、真实 Provider、签名后密钥身份与长期门禁由用户于 2026-09-22 确认验收；逐项运行记录尚未附入仓库，见 [09 §9.1](09-roadmap.md#91-模块总表)。
 fake 的覆盖以 §5.7.4 为准。
 
 > **绑定对象上的导出方法就是前端 API。** Wails 绑定会导出绑定对象的**每一个**导出方法，
@@ -283,26 +283,37 @@ export function toApiError(e: unknown): ApiError {
 | `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
 | `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
-| `ReprocessCard(cardID int64) error` | timeline | cards / 批次 / 写入锁 | 写·非幂等（来源终态批次重置回 pending） | `timeline:updated` | `invalid_argument` `conflict` `not_found` |
-| `GetCardVerdict(cardID int64) (string, error)` | timeline | review ratings | 读 | — | `invalid_argument` `database_error` |
-| `SaveCardReview(cardID int64, verdict string) error` | timeline | review ratings / 写入锁 | 写·幂等 | `timeline:updated` | `invalid_argument` `not_capture_owner` |
-| `ClearCardReview(cardID int64) error` | timeline | review ratings / 写入锁 | 写·幂等 | `timeline:updated` | `invalid_argument` `not_capture_owner` |
-| `GetReviewTotals(day string) (ReviewTotalsDTO, error)` | timeline | time / review ratings | 读 | — | `invalid_argument` `database_error` |
+| `ReprocessCard(cardID int64) error` | timeline | observations / cards / 写入锁 | 写·非幂等（重写该卡片自己的时间窗） | `timeline:updated` | `invalid_argument` `conflict` `provider_failed` `provider_not_configured` `not_found` |
+| `GetCardVerdict(cardID int64) (string, error)` | timeline | card_reviews | 读 | — | `invalid_argument` `database_error` |
+| `SaveCardReview(cardID int64, verdict string) error` | timeline | card_reviews / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` |
+| `ClearCardReview(cardID int64) error` | timeline | card_reviews / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` |
+| `GetReviewTotals(day string) (ReviewTotalsDTO, error)` | timeline | time / card_reviews | 读 | — | `invalid_argument` `database_error` |
+| `GetCardRating(cardID int64) (string, error)` | timeline | card_ratings | 读 | — | `invalid_argument` `database_error` |
+| `SaveCardRating(cardID int64, rating string) error` | timeline | card_ratings / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` `not_found` |
+| `ClearCardRating(cardID int64) error` | timeline | card_ratings / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` |
 | `ClearHistoryData() error`（测试专用） | timeline | storage / 写入锁 / 录制空闲 | 写·非幂等 | `timeline:updated` `journal:updated` `goal:updated` | `not_capture_owner` `conflict` `database_error` |
 
 - `UpdateCardCategory` 的 `category` 必须是现有**用户**分类**名称**；不存在或为内置
   分类（`System` / `Idle`，由流水线赋值）时返回 `invalid_argument`，**不得**自动创建
   分类。
 - `DeleteCard` 是软删除并返回可清理的 timelapse 路径给内部维护；对前端只是 `error`。
-- `RetryBatches` / `ReprocessDay` / `ReprocessCard` 立即返回，进度通过 `batch:progress` 推送；
-  `ReprocessCard` 的粒度是卡片来源批次，因此同批次窗口内的卡片会一起重建。
+- `RetryBatches` / `ReprocessDay` 立即返回，进度通过 `batch:progress` 推送：
   `RetryBatches` 重置 `attempts` 并清空失败信息后回到 `pending`；调用方传入的
   id 里只要有一个不是失败终态的批次，整个调用返回 `invalid_argument` 且不落任何改动。
+- `ReprocessCard` **同步**执行且**只重写这张卡片自己的时间窗**（[04 §4.3.5](04-data-flow.md#435-单卡重写)）：
+  它复用该窗内已存的 observations 重跑一次 LLM，在 `[card.start, card.end)` 内重建卡片，
+  两侧相邻卡片不受影响，也不产生 `batch:progress`。调用方必须按长任务设置超时
+  （绑定层 5 分钟）。卡片没有来源批次、或该窗内没有 observations 时返回 `invalid_argument`；
+  该窗仍有批次在 `pending` / `processing` 时返回 `conflict`；模型三次都给不出合法输出、
+  或 provider 调用失败时返回 `provider_failed` 且**不写入任何改动**。
 - `DeleteBatches` 软删除失败批次（`is_deleted = 1`）：行与 `batch_screenshots`
   成员保留，帧不会重新进入未分批集合被再次分析。对时间线表现为失败面板条目消失。
 - `ClearHistoryData` 一键清空录制与分析历史（帧 / 批次 / 观测 / 卡片 / 日记 / 目标 /
   聊天 + recordings 文件），**保留** `app_settings`、`providers`、`categories` 等配置；
   仅限开发测试场景，录制运行中返回 `conflict`。
+- 审阅判定与摘要评分**不发** `timeline:updated`：两者都不改写任何卡片、分类或帧，
+  时间线数据未失效。前端局部更新自己的状态即可（审阅判定另需重拉当日统计，
+  由详情页向父级发内部事件完成，见 [modules/timeline](modules/timeline.md)）。
 
 #### 帧与媒体
 
@@ -332,6 +343,7 @@ export function toApiError(e: unknown): ApiError {
 | `PauseRecording(minutes int) error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | `invalid_argument` `not_capture_owner` |
 | `ResumeRecording() error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | 同上 |
 | `SetStatusItemLabels(labels StatusItemLabelsDTO) error` | recording | 平台状态栏 | 写·幂等 | — | — |
+| `SetNativeUiLabels(labels NativeUiLabelsDTO) error` | recording / delivery | 原生应用选择面板、平台更新弹窗 | 写·幂等 | — | — |
 
 `PauseRecording` 的 `minutes` 取值 `15` `30` `60`，`0` 表示无限期暂停，其余值返回
 `invalid_argument`。取正值时 recorder 在时长结束后自动恢复（守卫同系统事件恢复：其间的
@@ -345,6 +357,30 @@ webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 
 表面（录制中显示暂停时长子菜单，其余状态显示单一主操作），再转发给平台适配层。原生适配层
 因此既不持有产品状态也不持有 locale。适配层不可用（如只读第二实例或非 macOS 平台）时下发
 只更新缓存的 bundle，重绘为空操作。
+
+`SetNativeUiLabels` 是**其余原生界面**的同一条通道：处理状态栏之外、同样在 webview 之外渲染
+的文案。
+
+```go
+type NativeUiLabelsDTO struct {                                     // §5.5.1
+    ApplicationPickerTitle  string `json:"applicationPickerTitle"`  // 原生应用选择面板标题
+    ApplicationPickerFilter string `json:"applicationPickerFilter"` // 面板的可执行文件过滤器名称
+    UpdateOwnerRequired     string `json:"updateOwnerRequired"`     // 更新弹窗：本实例不是捕获所有者，拒绝安装
+}
+```
+
+- `PickApplication` 在调起面板时读取前两个字段；面板不渲染标题的平台（macOS）不下发标题，
+  过滤器只是可用性提示，权威校验始终在 `ApplicationInspector`。
+- `updateOwnerRequired` 转发给实现 `platform.UpdateCopySink` 的更新适配器（§5.7）；由平台
+  自行渲染安装提示的适配器不实现该端口，下发被跳过。
+
+与状态栏文案一样：后端只存 bundle 并按表面路由，不持有 locale，也不做翻译。每个字段在后端
+都有一份 zh-CN 默认值——这些表面除下发外没有第二个文案来源，空值会渲染出无标题或无说明的
+原生对话框。默认值在 `newBackend` 里随状态栏文案一起种下，`configureUpdateInstall` 另在
+安装回调接入时补推一次更新文案：拒绝安装可能早于前端的首次下发。下游对空值的处理不同：
+面板标题为空即不渲染标题，而更新文案为空时适配器**保留上一份**而不是清空 Sparkle 的错误
+说明。**平台完全自行渲染的文案（系统授权框、钥匙串授权、WinSparkle 的安装提示）不在本通道
+内，也不做应用内语言适配**——它们的语言只由系统决定。
 
 #### 设置与分类
 
@@ -413,6 +449,23 @@ webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 
 `GetDailyRecap` 的参数是**日历日**而不是逻辑日（见 §5.3.2）。这是唯一的例外，字段名
 `standupDay` 就是提醒。
 
+**日报补生成触发（后台）。** 除上表由用户主动调用的 `GenerateDailyRecap` 外，读写实例
+在启动时以及此后每小时后台扫描一次，从最早一条活动卡片所在日历日起、直到今天，逐日检查
+`daily_standup_entries`。语义约束：
+
+- **仅读写实例执行**：补生成的写入需要写入锁与捕获所有者锁，只读第二实例不做任何事。
+- **已结束完整日**（< 今天）：只对没有站会行的日生成，生成后**绝不覆盖**；生成前再查一次
+  存在性，避免与手动保存竞态覆盖已存内容。
+- **今天**：仍在累积活动，因此按刷新周期（缺失或 `generated_at` 早于 4 小时）(重)生成，
+  允许覆盖旧值。用户手动"重新生成"会更新 `generated_at`，从而重置该 4 小时窗口。
+- **空活动日跳过**：当日无用户活动卡片（排除 System / Idle）时不写行、不调用 provider（今天同理）。
+- **无 provider 时静默等待**：`provider_not_configured` 中止本轮，等下一轮；连续失败达阈值也中止本轮。
+- **刷新语义**：每(重)生成一天发一次 `recap:updated` 失效事件；前端仍只从 `GetDailyRecap` 渲染，
+  当前打开的日被更新时靠该事件重拉（§5.5.5），补生成本身不推送日报内容。
+
+该触发是后台行为，不新增绑定方法：它复用 `GenerateDailyRecap` 的生成与写入路径，
+错误码集合一致。
+
 #### 权限、系统与更新
 
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
@@ -426,6 +479,10 @@ webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 
 
 `OpenSystemSettings` 的 `pane` 是封闭枚举：`screen_recording` `notifications` `login_items`。
 **不接受任意 URL**，避免绑定层变成通用的系统跳转能力。
+
+更新弹窗中**属于我们的**那句文案（本实例不是捕获所有者，因此拒绝安装）由前端经
+`SetNativeUiLabels` 下发（§5.5.1），适配器经 `UpdateCopySink` 接收；Sparkle 与 WinSparkle
+自己的对话框文案不由本应用提供，跟随系统语言。
 
 ### 5.5.2 DTO 目录
 
@@ -501,11 +558,11 @@ type TimelineDayDTO struct {
 type TimelineCardDTO struct {
     ID                    int64            `json:"id"`              // → timeline_cards.id
     BatchID               *int64           `json:"batchId"`         // → batch_id
-    Day                   string           `json:"day"`             // → day
+    Day                   string           `json:"day"`             // 卡片归属日；跨 4 点的次日时间片仍保留原归属日
     Start                 string           `json:"start"`           // → start，时钟串
     End                   string           `json:"end"`             // → end
-    StartTs               int64            `json:"startTs"`         // → start_ts
-    EndTs                 int64            `json:"endTs"`           // → end_ts
+    StartTs               int64            `json:"startTs"`         // GetTimelineDay 裁剪到所请求日窗口
+    EndTs                 int64            `json:"endTs"`           // 原始时间戳仍在数据库中
     Category              string           `json:"category"`        // → category（名称字符串）
     Subcategory           string           `json:"subcategory"`     // → subcategory
     Title                 string           `json:"title"`           // → title
@@ -516,7 +573,7 @@ type TimelineCardDTO struct {
     AppSites              *AppSitesDTO     `json:"appSites"`          // → metadata.appSites
     Distractions          []DistractionDTO `json:"distractions"`      // → metadata.distractions
     IsIdle                bool             `json:"isIdle"`            // 分类 isIdle 或 metadata.idle
-    DurationMinutes       int              `json:"durationMinutes"`   // 派生：max(0,(endTs-startTs)/60)
+    DurationMinutes       float64          `json:"durationMinutes"`   // 当前日可见时间片的分钟数
 }
 
 type DistractionDTO struct {
@@ -557,9 +614,13 @@ type TimelineFailureDTO struct {
     Retryable bool    `json:"retryable"` // 仅描述是否会自动重试；RetryBatches 不受它约束
 }
 
+// RangeDTO 是日轨道上的一个窗口，以及拥有它的批次。卡片属于"它的批次改写的那段"，
+// 而不是"与窗口相交"：持续窗口会把批次改写范围向前扩到它继续的那张卡，因此将被重写的
+// 卡片可能整段落在窗口之前。前端据此判定 is-regenerating，别只按时间戳交集。
 type RangeDTO struct {
-    StartTs int64 `json:"startTs"`
-    EndTs   int64 `json:"endTs"`
+    StartTs  int64   `json:"startTs"`
+    EndTs    int64   `json:"endTs"`
+    BatchIDs []int64 `json:"batchIds"` // 拥有该窗口的批次；卡片 batchId 命中即为重写对象
 }
 
 // ---------- 帧 ----------
@@ -586,7 +647,7 @@ type FrameRefDTO struct {
 
 type RecordingStateDTO struct {
     State           string  `json:"state"`         // idle|starting|capturing|paused
-    Reason          *string `json:"reason"`        // "system sleep"、"screen locked"…
+    Reason          *string `json:"reason"`        // 系统暂停原因或脱敏录制失败代码，如 capture_timeout:0x887a0027
     UserPaused      bool    `json:"userPaused"`    // 用户主动暂停，区别于系统事件暂停
     PauseEndsAtTs   *int64  `json:"pauseEndsAtTs"` // 定时暂停到期时刻；无限期为 null
     Permission      string  `json:"permission"`    // granted|denied|not_determined
@@ -819,8 +880,7 @@ type JournalDayDTO struct {
     Notes       *string `json:"notes"`
     Goals       *string `json:"goals"`
     Reflections *string `json:"reflections"`
-    Summary     *string `json:"summary"` // AI 生成，前端只读
-    Status      string  `json:"status"`  // draft|intentions_set|complete
+    Status      string  `json:"status"` // draft|intentions_set|complete
     UpdatedAtTs *int64  `json:"updatedAtTs"`
 }
 
@@ -861,7 +921,7 @@ type CategoryTotalDTO struct {
     ColorHex string  `json:"colorHex"` // categories 表颜色；无分类行时为 ""
 }
 
-// 一天的时段不裁剪到日窗口（与 CategoryMinutesInRange 同一重叠谓词）；
+// 一天的时段裁剪到日窗口；跨 4 点卡片在相邻两日各占自己的时间片，周总量也只计窗口交集；
 // segments 含 Idle，System 全部排除。时段数量上限由批次生成节奏天然约束。
 type WeeklyDayDTO struct {
     Day            string             `json:"day"` // 逻辑日 yyyy-MM-dd
@@ -921,7 +981,7 @@ type UpdaterStateDTO struct {
 | `timeline:updated` | 失效 | `{day: string}` | 卡片写入、删除、重处理完成 |
 | `journal:updated` | 失效 | `{day: string}` | 日记保存或 AI 摘要生成 |
 | `goal:updated` | 失效 | `{day: string}` | 目标保存或外部写入 |
-| `recap:updated` | 失效 | `{standupDay: string}` | 日报生成或保存成功 |
+| `recap:updated` | 失效 | `{standupDay: string}` | 日报生成或保存成功（含后台补生成，见 §5.5.1 补生成触发） |
 | `settings:changed` | 失效 | `{keys: string[]}` | 设置、分类或 provider 写入成功后 |
 | `chat:updated` | 失效 | `{conversationId: string}` | chat 会话或消息落库（新建 / 删除 / 回合内每条消息 / 回合结束） |
 | `recording:state` | 状态 | `RecordingStateDTO` | 状态机转换、权限变化、暂停到期 |
@@ -1219,6 +1279,14 @@ type Updater interface {
     SetAutomaticChecks(ctx context.Context, enabled bool) error
     Events() <-chan UpdaterEvent
 }
+
+// UpdateCopySink 是可选端口：接收应用下发到更新弹窗的本地化文案。适配器不持有
+// locale；文案由前端经 §5.5.1 的 SetNativeUiLabels 下发。弹窗完全由系统渲染的
+// 适配器不实现它。
+type UpdateCopySink interface {
+    // 因本实例无法拥有该安装而拒绝时的说明；空串保留上一份文案。
+    SetInstallRefusedMessage(message string)
+}
 ```
 
 ### 5.7.1 调用语义
@@ -1314,7 +1382,7 @@ type DisplayCapture interface {
 |---|---|---|---|
 | `internal/platform/fake` | 四套全跑 | 任意平台，`CGO_ENABLED=0` | 通过 |
 | `internal/platform/darwin` | `Suite`（需真机与授权）、`SuitePermission` / `SuitePrivacy` 需真机构造条件 | macOS + cgo | **未接入套件**；只做过一次人工 smoke，见 [截图 v2 §11](decisions/recording-screen-capture-v2.md) |
-| `internal/platform/windows` | 同上 | Windows + cgo | **Capture 契约套件仍未完整接入**；原生 / Go cgo 非黑 JPEG、一次 WGC 后台排除、应用身份、锁与部分系统回调已有实机或夹具证据，完整 WC/WD 矩阵仍未运行，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
+| `internal/platform/windows` | 同上 | Windows + cgo | **Capture 契约套件仍未完整接入**；原生 / Go cgo 非黑 JPEG、一次 WGC 后台排除、应用身份、锁与部分系统回调已有实机或夹具证据；完整 WC/WD 矩阵由用户确认验收，未附逐项运行记录，见 [Windows 决策记录](decisions/recording-screen-capture-windows.md) |
 
 **只有 fake 通过、真实适配层没跑同一套测试的接口，不算已验证。** 真机独有的场景
 （多屏、旋转、快速切换前台、24 小时资源）由 [08 §8.6.2 MC](08-testing-strategy.md#862-mc真实-macos-捕获矩阵)
@@ -1381,8 +1449,8 @@ JSON 输出（`--json`）规则：
 3. 时间格式 `yyyy-MM-dd'T'HH:mm:ssZZZZZ`。
 4. 空值省略规则必须明确写死并测试（哪些字段为空时不输出）。
 5. 错误输出到 **stderr**，形状 `{"schema_version":1,"error":{"code":...,"message":...}}`。
-6. `timeline` 按 `start_ts` 落在逻辑日窗口内选择；`daily` 按**日历日**查询；
-   合计一律排除 `category = 'System'`。
+6. `timeline` 按卡片与逻辑日窗口相交选择，并将输出时间戳及分钟数裁剪到该窗口；
+   `daily` 按**日历日**查询；合计一律排除 `category = 'System'`。
 
 ### 5.9.2 Agent bridge（写入通道）
 

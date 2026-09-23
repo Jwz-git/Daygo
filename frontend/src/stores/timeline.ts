@@ -55,6 +55,7 @@ export const useTimelineStore = defineStore('timeline', () => {
   const categoryFilter = ref<string | null>(null)
   const usingDevelopmentFixture = ref(false)
   const pendingAction = ref<TimelineAction | null>(null)
+  const pendingCardID = ref<number | null>(null)
   const actionError = ref<unknown>(null)
   const actionBindings = getTimelineActionAvailability()
   let requestVersion = 0
@@ -236,7 +237,13 @@ export const useTimelineStore = defineStore('timeline', () => {
   }
 
   function reprocessCard(cardID: number): Promise<boolean> {
-    return runAction('reprocess-card', () => reprocessCardApi(cardID))
+    // The rewrite happens inside this call, so the card has to show its
+    // regenerating state from here: no batch goes pending, and processingRanges
+    // can therefore never report it.
+    pendingCardID.value = cardID
+    return runAction('reprocess-card', () => reprocessCardApi(cardID)).finally(() => {
+      pendingCardID.value = null
+    })
   }
 
   function startEvents(): void {
@@ -263,6 +270,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     categoryFilter,
     usingDevelopmentFixture,
     pendingAction,
+    pendingCardID,
     actionError,
     actionAvailability,
     cards,

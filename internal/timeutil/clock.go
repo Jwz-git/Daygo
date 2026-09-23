@@ -15,9 +15,8 @@ import (
 //
 // The three-day candidate set is what keeps "11:50 PM" correct for a window
 // that straddles midnight: parsing it onto the anchor's own date alone would
-// be off by a day. Whether the resolved end precedes the resolved start —
-// meaning the activity crossed midnight — is the caller's rule, not this
-// function's.
+// be off by a day. A valid cross-midnight card resolves its end onto the next
+// day; a caller must reject a span that remains inverted after resolution.
 //
 // Accepted forms are the contract format "h:mm a" ("10:21 AM", case-insensitive,
 // optional periods) plus bare 24-hour "H:mm" ("22:05") so a provider that

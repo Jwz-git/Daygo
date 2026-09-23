@@ -337,7 +337,7 @@ func TestCardsPromptExcludesBuiltInCategories(t *testing.T) {
 		{ID: "2", Name: "Idle", IsSystem: true, IsIdle: true},
 		{ID: "3", Name: "Coding", Details: "writing code"},
 	}
-	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, categories, "", true)
+	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, categories, "", cardModeOngoing)
 
 	if !strings.Contains(prompt, "\n  Coding — writing code\n") {
 		t.Fatalf("prompt missing user category:\n%s", prompt)
@@ -349,37 +349,104 @@ func TestCardsPromptExcludesBuiltInCategories(t *testing.T) {
 	}
 }
 
-func TestOngoingCardRulesPreserveShortDistinctActivities(t *testing.T) {
-	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, nil, "", true)
+// The 15-minute floor (2026-09-21) replaced the 09-20 rule that a short
+// evidence-backed episode stands alone as its own card. A card under the floor
+// is now merged into a neighbor — across a category boundary when necessary —
+// and only the window's last card may be shorter, because the supplied evidence
+// stops there. Both prompts flip together with the validator.
+func TestOngoingCardRulesEnforceTheFifteenMinuteFloor(t *testing.T) {
+	prompt := cardsPrompt(base, base.Add(15*time.Minute), nil, nil, nil, "", cardModeOngoing)
 	for _, want := range []string{
-		"Keep a brief episode as its own card",
-		"never borrow unrelated neighboring minutes",
-		"must be at most 60 minutes",
+		"must be 15 to 60 minutes",
+		"fold it into the neighboring activity",
+		"Only the last card of the window may fall short of 15",
+		"takes the category of whichever activity",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("ongoing prompt missing %q:\n%s", want, prompt)
 		}
 	}
-	if strings.Contains(prompt, "must be 10-60 minutes") || strings.Contains(prompt, "reach ten") {
-		t.Fatalf("ongoing prompt still forces the old ten-minute floor:\n%s", prompt)
+	if strings.Contains(prompt, "Keep a brief episode as its own card") ||
+		strings.Contains(prompt, "never borrow unrelated neighboring minutes") {
+		t.Fatalf("ongoing prompt still carries the withdrawn no-minimum rule:\n%s", prompt)
 	}
 
-	correction := cardsCorrectionPrompt(`{"cards":[]}`, []string{"example"}, false, base, base.Add(15*time.Minute))
-	if !strings.Contains(correction, "A short card is valid") ||
-		strings.Contains(correction, "Every card must be 10-60 minutes") {
-		t.Fatalf("correction prompt still forces unrelated short activities together:\n%s", correction)
+	correction := cardsCorrectionPrompt(`{"cards":[]}`, []string{"example"}, cardModeOngoing, base, base.Add(15*time.Minute))
+	if !strings.Contains(correction, "Every card must be 15 to 60 minutes") ||
+		!strings.Contains(correction, "except the last one must be 15 minutes or longer") {
+		t.Fatalf("correction prompt missing the floor:\n%s", correction)
+	}
+	if strings.Contains(correction, "A short card is valid") ||
+		strings.Contains(correction, "merely to satisfy a duration preference") {
+		t.Fatalf("correction prompt still refuses the floor's merge:\n%s", correction)
 	}
 }
 
-func TestValidateCardsAllowsShortDistinctActivities(t *testing.T) {
+func TestResolveCardSpansSurfacesDegenerateShells(t *testing.T) {
+	loc := time.Local
+	window := base.Add(time.Hour)
+	shells := []domain.CardShell{
+		{Start: "10:00 AM", End: "10:30 AM", Title: "good"},
+		{Start: "10:30 AM", End: "10:29 AM", Title: "inverted"},
+		{Start: "half past", End: "10:45 AM", Title: "unparseable"},
+	}
+	spans, issues := resolveCardSpans(shells, base, window, loc)
+	if len(spans) != 1 || spans[0].Title != "good" {
+		t.Fatalf("spans = %+v, want only the good card", spans)
+	}
+	if len(issues) != 2 {
+		t.Fatalf("issues = %v, want one for the inverted card and one for the unparseable card", issues)
+	}
+	if !strings.Contains(issues[0], "card 2 (inverted)") || !strings.Contains(issues[0], "must end after it starts") {
+		t.Fatalf("issue[0] = %q, want the inverted-card violation", issues[0])
+	}
+	if !strings.Contains(issues[1], "card 3 (unparseable)") || !strings.Contains(issues[1], "unparseable start") {
+		t.Fatalf("issue[1] = %q, want the unparseable-start violation", issues[1])
+	}
+}
+
+func TestValidateCardsRejectsShortCardsExceptTheLastOne(t *testing.T) {
 	spans := []cardSpan{
 		{Start: base, End: base.Add(2 * time.Minute), Title: "video"},
 		{Start: base.Add(2 * time.Minute), End: base.Add(6 * time.Minute), Title: "Daygo"},
 		{Start: base.Add(6 * time.Minute), End: base.Add(10 * time.Minute), Title: "video"},
 		{Start: base.Add(10 * time.Minute), End: base.Add(13 * time.Minute), Title: "Codex"},
 	}
-	if issues := validateCards(spans, base, base.Add(13*time.Minute), false); len(issues) != 0 {
-		t.Fatalf("short evidence-backed activities rejected: %v", issues)
+	issues := validateCards(spans, base, base.Add(13*time.Minute), false)
+	if len(issues) != 3 {
+		t.Fatalf("issues = %v, want one per card under the floor that has a successor", issues)
+	}
+	for i, want := range []string{"card 1 (video)", "card 2 (Daygo)", "card 3 (video)"} {
+		if !strings.Contains(issues[i], want) || !strings.Contains(issues[i], "merge it into a neighboring card") {
+			t.Fatalf("issue %d = %q, want the floor violation for %q", i, issues[i], want)
+		}
+	}
+
+	// The card carrying the window's end is exempt: no evidence inside the
+	// rewrite follows it, and the next sliding-window pass owns what does.
+	tail := []cardSpan{
+		{Start: base, End: base.Add(50 * time.Minute), Title: "long"},
+		{Start: base.Add(50 * time.Minute), End: base.Add(63 * time.Minute), Title: "tail"},
+	}
+	if issues := validateCards(tail, base, base.Add(63*time.Minute), false); len(issues) != 0 {
+		t.Fatalf("last card under the floor rejected: %v", issues)
+	}
+
+	// The floor and the 60-minute cap hold together: covering a 65-minute span
+	// with two compliant cards leaves the tail short by construction.
+	capped := []cardSpan{
+		{Start: base, End: base.Add(60 * time.Minute), Title: "head"},
+		{Start: base.Add(60 * time.Minute), End: base.Add(65 * time.Minute), Title: "tail"},
+	}
+	if issues := validateCards(capped, base, base.Add(65*time.Minute), false); len(issues) != 0 {
+		t.Fatalf("60+5 split rejected: %v", issues)
+	}
+
+	// A fresh segment's single card is the last card by definition, so a batch
+	// sealed below the floor still produces its one card.
+	fresh := []cardSpan{{Start: base, End: base.Add(6 * time.Minute), Title: "short batch"}}
+	if issues := validateCards(fresh, base, base.Add(6*time.Minute), true); len(issues) != 0 {
+		t.Fatalf("short fresh batch rejected: %v", issues)
 	}
 }
 

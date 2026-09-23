@@ -16,6 +16,14 @@ Windows 发布也保持待决。CLI / agent socket / MCP 已移交
 
 ## 当前状态与证据
 
+> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+
+**当前“自动更新”的实现形式**：GitHub Actions 的 [发布工作流](../../.github/workflows/publish-release.yml)
+在 Release 发布后检查资产，缺少时构建并上传 macOS DMG 与 Windows NSIS 安装器；正式版在两端资产
+齐备并完成 Ed25519 签名后生成、上传 `appcast.xml`。预发布跳过 appcast；手动触发支持处理已有
+Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路径，不能用工作流源码或资产上传
+代替真实升级记录。
+
 实现进度：部分实现。已有 [Wails 配置](../../cmd/daygo/wails.json)、macOS / Linux 开发构建链，
 以及 Windows 的 `scripts/dev.ps1` / `scripts/build.ps1` 入口；Windows 构建会校验 EXE 与必需的
 `daygo_windows_native.dll` 同时产出。打包入口方面，`scripts/package-macos.sh` 产出签名 DMG，
@@ -25,12 +33,28 @@ Windows 流程先签 EXE 与原生 DLL，再用仓库内 NSIS 模板重新封装
 `package-windows.ps1` 已在真实 Windows 上产出 v0.1.0 amd64 NSIS 安装包，并与 macOS arm64 DMG
 一同发布到 GitHub Releases。该事实只证明发布资产存在，不自动证明其签名、安装、卸载或升级行为；
 安装程序内容、签名、静默安装 / 卸载与干净机启动仍需按验收矩阵补充可复现证据。
+2026-09-21 本机已安装的 Windows EXE 导入 `libwinpthread-1.dll` 并请求 `clock_gettime64`，
+启动时出现入口点缺失；同一工作区当前 `build/bin/Daygo.exe` 的 PE 导入表不含该依赖。
+Windows 开发构建和打包入口现用 `objdump -p` 拒绝导入未随包提供的 MinGW 运行时 DLL，
+但这只验证构建产物的直接导入，仍需重新构建并在干净机器安装启动来验收修复。
+2026-09-21 GitHub Actions 的 MinGW 构建被该检查拦下：EXE 仍导入 `libwinpthread-1.dll`。
+Windows cgo 链接现将 `libwinpthread` 与 `libstdc++` 一起静态链接；本机强制重新链接的
+`Daygo.exe` 导入表不含这三个被检查的 MinGW 运行时。CI 打包与干净机器启动仍待复验。
 Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
 [Windows 决策](../decisions/delivery-auto-update-windows.md)接线：fake 契约、绑定、事件泵、设置 UI、
 Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow
 均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
-签名 workflow、真实安装升级、Gatekeeper / Authenticode 与首次引导仍未验收。
+客户端 feed 指向同一正式 Release 的 `appcast.xml`。发布到 appcast 上传之间可能短暂返回 404；
+预发布提升为正式版后，可按同一 tag 手动触发工作流并核验资产。签名、公证、安装升级与首次引导
+的用户确认状态见本节开头；历史运行记录仍按下文原日期保留。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
+**2026-09-21：更新弹窗中属于我们的那句文案接入 i18n**（“只有持有捕获所有权的 Daygo 实例
+才能安装更新”，此前是 `updater_bridge.m` 里的硬编码英文）。它随
+[05 §5.5.1](../05-interface-contract.md#551-绑定方法目录) 的 `SetNativeUiLabels` 下发，
+darwin 适配器经 `platform.UpdateCopySink` 接收并推给 Sparkle 的 delegate；`daygo_updater`
+构建（含 Sparkle 链接）的 `go test` 通过，但**真实拒绝路径的弹窗文案未在 Sparkle UI 上
+视觉验收**。Sparkle / WinSparkle 自有对话框的文案由框架的 lproj 提供，按系统语言渲染，
+不随应用内语言设置变化；本通道不覆盖它们。
 
 ## 能力与跨层职责
 
@@ -76,8 +100,8 @@ data 负责遥测设置和载荷边界，delivery 接入 opt-in 崩溃报告及�
 签名身份 / 设备 / 发布授权缺失只阻塞相关实验或分发，其他模块可按契约继续开发。
 
 待决：macOS Sparkle 与 Windows WinSparkle + NSIS 均已定稿并实现；真机可行性、签名身份与真实升级
-仍受 G-native / WD 约束未验收。Linux 引擎另行决策。后续 Chat / CLI 范围仍单独决定。
-回退：停止未验收的更新入口，按已验证更新恢复方案返回可运行构建；
+G-native / WD 已由用户确认验收；未附逐项运行记录。Linux 引擎另行决策。后续 Chat / CLI 范围仍单独决定。
+回退：停止不可用的更新入口，按已验证更新恢复方案返回可运行构建；
 schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进制或删除数据库。
 任何回退保留 pending 截图、已发布媒体与用户配置。
 

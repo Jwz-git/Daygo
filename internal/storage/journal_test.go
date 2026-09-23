@@ -2,11 +2,10 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 )
 
-func TestJournalUpsertRoundTripPreservesSummary(t *testing.T) {
+func TestJournalUpsertRoundTripClearsOmittedFields(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
 	ctx := context.Background()
 
@@ -20,7 +19,7 @@ func TestJournalUpsertRoundTripPreservesSummary(t *testing.T) {
 		t.Fatal("empty database reported a journal entry")
 	}
 	if entry.Day != "" || entry.Intentions != nil || entry.Notes != nil ||
-		entry.Goals != nil || entry.Reflections != nil || entry.Summary != nil || entry.Status != "" {
+		entry.Goals != nil || entry.Reflections != nil || entry.Status != "" {
 		t.Fatalf("zero entry = %+v, want empty fields", entry)
 	}
 
@@ -31,18 +30,7 @@ func TestJournalUpsertRoundTripPreservesSummary(t *testing.T) {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	// Simulate the (future) AI summary write directly; user saves must never
-	// clobber it.
-	summary := "AI generated summary"
-	err = store.Write(ctx, "seed journal summary", func(ctx context.Context, tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx,
-			`UPDATE journal_entries SET summary = ? WHERE day = ?`, summary, "2026-09-12")
-		return err
-	})
-	if err != nil {
-		t.Fatalf("seed summary: %v", err)
-	}
-
+	// A second save omitting intentions/goals clears them to NULL.
 	if err := store.Journal().Upsert(ctx, JournalEntry{
 		Day: "2026-09-12", Status: JournalStatusComplete,
 	}); err != nil {
@@ -61,8 +49,5 @@ func TestJournalUpsertRoundTripPreservesSummary(t *testing.T) {
 	}
 	if got.Status != JournalStatusComplete {
 		t.Fatalf("status = %q, want complete", got.Status)
-	}
-	if got.Summary == nil || *got.Summary != summary {
-		t.Fatalf("summary = %v after user save, want the AI value preserved", got.Summary)
 	}
 }

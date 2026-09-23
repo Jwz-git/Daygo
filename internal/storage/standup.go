@@ -71,6 +71,32 @@ func (r *StandupRepo) Get(ctx context.Context, standupDay string) (DailyStandupE
 	return entry, true, nil
 }
 
+// ExistingDays returns the set of calendar days that already have a standup
+// entry. The backfill sweep uses it to skip generated days in one query rather
+// than probing Get per candidate day.
+func (r *StandupRepo) ExistingDays(ctx context.Context) (map[string]bool, error) {
+	days := make(map[string]bool)
+	err := r.store.Read(ctx, "standup existing days", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `SELECT standup_day FROM daily_standup_entries`)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var day string
+			if err := rows.Scan(&day); err != nil {
+				return err
+			}
+			days[day] = true
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return days, nil
+}
+
 // Upsert inserts or replaces one day's standup entry.
 func (r *StandupRepo) Upsert(ctx context.Context, entry DailyStandupEntry) error {
 	highlightsJSON, err := json.Marshal(entry.Highlights)

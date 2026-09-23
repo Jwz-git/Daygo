@@ -56,6 +56,8 @@ export interface StorageSettingsDTO {
 }
 /** Settings exposes the system settings consumed by current sections. */
 export interface SystemSettingsDTO {
+  /** Start Daygo automatically when the user logs in (SMAppService on macOS). */
+  launchAtLogin: boolean
   agentEditsEnabled: boolean
   /** Reveals the sidebar test page with the test-only features. */
   testToolsEnabled: boolean
@@ -89,6 +91,7 @@ export interface SettingsPatch {
   language?: LanguagePreference
   outputLanguage?: string
   recognitionEnhancementEnabled?: boolean
+  launchAtLogin?: boolean
   agentEditsEnabled?: boolean
   testToolsEnabled?: boolean
   chatMemory?: string
@@ -287,9 +290,16 @@ export interface TimelineFailureDTO {
   retryable: boolean
 }
 
+/**
+ * One window on the day track plus the batches that own it. A card belongs to
+ * the window its batch covers, which is not the same as overlapping it: an
+ * ongoing rewrite extends a batch's span back over the card it continues, so a
+ * card the rerun will replace can sit entirely before the window.
+ */
 export interface RangeDTO {
   startTs: number
   endTs: number
+  batchIds: number[]
 }
 
 export interface TimelineDayDTO {
@@ -322,8 +332,6 @@ export interface JournalDayDTO {
   notes: string | null
   goals: string | null
   reflections: string | null
-  /** AI generated, read-only for users. */
-  summary: string | null
   /** draft | intentions_set | complete; empty means no entry exists yet. */
   status: string
   updatedAtTs: number | null

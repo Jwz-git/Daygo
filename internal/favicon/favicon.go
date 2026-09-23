@@ -45,6 +45,16 @@ const (
 	// negativeTTL suppresses re-fetching a host that just failed, so a dead
 	// host is not hammered on every card render.
 	negativeTTL = 10 * time.Minute
+	// memoryCacheCap bounds the in-process hot cache of resolved icons. The
+	// disk cache is the source of truth, so evicting an entry only costs a
+	// later disk read — this cap is what stops a resident agent from retaining
+	// one icon (up to maxIconBytes) per distinct host seen over its whole
+	// uptime, which is the leak this package used to have.
+	memoryCacheCap = 512
+	// negativeCacheCap bounds the negative cache the same way. Its entries are
+	// only timestamps, but an always-on agent would still accumulate one per
+	// host that ever failed without a cap.
+	negativeCacheCap = 512
 )
 
 // Result is a resolved favicon: raw image bytes and the sniffed content type.
@@ -60,8 +70,8 @@ type Resolver struct {
 	group    singleflight.Group
 
 	mu       sync.Mutex
-	memory   map[string]Result    // host -> cached icon (session hot cache)
-	negative map[string]time.Time // host -> earliest retry time
+	memory   *lruCache[Result]    // host -> cached icon (bounded session hot cache)
+	negative *lruCache[time.Time] // host -> earliest retry time (bounded)
 }
 
 // New builds a Resolver caching to dir (created on first successful write).
@@ -83,8 +93,8 @@ func New(cacheDir string) *Resolver {
 	return &Resolver{
 		client:   &http.Client{Transport: transport, Timeout: fetchTimeout},
 		cacheDir: cacheDir,
-		memory:   make(map[string]Result),
-		negative: make(map[string]time.Time),
+		memory:   newLRUCache[Result](memoryCacheCap),
+		negative: newLRUCache[time.Time](negativeCacheCap),
 	}
 }
 
@@ -147,13 +157,17 @@ func (r *Resolver) Resolve(ctx context.Context, host string) (Result, error) {
 func (r *Resolver) lookup(host string) (Result, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if hit, ok := r.memory[host]; ok {
+	if hit, ok := r.memory.get(host); ok {
 		return hit, true
 	}
-	if until, ok := r.negative[host]; ok && time.Now().Before(until) {
-		// Represented as a hot "empty" result so callers skip the network
-		// without a disk hit; Resolve treats empty data as not-found below.
-		return Result{}, false
+	if until, ok := r.negative.get(host); ok {
+		if time.Now().Before(until) {
+			// Represented as a hot "empty" result so callers skip the network
+			// without a disk hit; Resolve treats empty data as not-found below.
+			return Result{}, false
+		}
+		// Expired: drop it so the cache does not retain dead hosts forever.
+		r.negative.delete(host)
 	}
 	return Result{}, false
 }
@@ -161,22 +175,29 @@ func (r *Resolver) lookup(host string) (Result, bool) {
 func (r *Resolver) storeMemory(host string, result Result) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.memory[host] = result
-	delete(r.negative, host)
+	r.memory.put(host, result)
+	r.negative.delete(host)
 }
 
 func (r *Resolver) storeNegative(host string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.negative[host] = time.Now().Add(negativeTTL)
+	r.negative.put(host, time.Now().Add(negativeTTL))
 }
 
 // negativeActive reports whether host is inside its negative-cache window.
 func (r *Resolver) negativeActive(host string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	until, ok := r.negative[host]
-	return ok && time.Now().Before(until)
+	until, ok := r.negative.get(host)
+	if !ok {
+		return false
+	}
+	if time.Now().Before(until) {
+		return true
+	}
+	r.negative.delete(host)
+	return false
 }
 
 // fetch races several favicon sources; the first decodable image wins and the

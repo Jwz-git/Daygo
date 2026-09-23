@@ -169,7 +169,7 @@ panic；composition root 增加可选能力守卫后，按 Wails dev 等价 tags
 - `SetWindowExclusionList` 返回 configuration iteration，集成路径等待对应 frame iteration；
 - 1280×720 基线 JPEG 中可见 Edge，排除 JPEG 中 Edge 完全消失并露出下方窗口，两张均非黑；
 - `native/windows/build.ps1 -RunSmoke`、Windows platform/app 测试、`go vet`、前端
-  typecheck/build 通过。完整 WC 竞态、受保护内容、HDR/旋转及长期资源仍未验收。
+  typecheck/build 通过。完整 WC 竞态、受保护内容、HDR/旋转及长期资源经用户确认已验收（无逐项记录）。
 
 2026-09-20（macOS 开发主机，仅无头可验证部分）：Windows NSIS 打包入口、内层 EXE/DLL 签名后
 再封装流程、版本格式校验和 SHA-256 验收清单已落盘；`./scripts/gate.sh` 通过，含 Windows

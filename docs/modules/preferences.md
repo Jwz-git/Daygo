@@ -13,6 +13,8 @@
 
 ## 当前状态与证据
 
+> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+
 实现进度：**部分实现**。settings-access、前端外壳、主题 / 语言设置和设置页面已落盘；外观设置已优先通过 `GetSettings` / `UpdateSettings` 接管，浏览器预览仍保留安全的 localStorage 回退。
 
 已交付：
@@ -88,12 +90,8 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 
 ## 验证记录
 
+2026-09-10—12：前端 typecheck、unit、build 与 Vite 预览覆盖设置分区、深链、外观 / 语言、录制上限和诊断展示。真实 Wails 写入、重启及浅色 / 英文矩阵由用户于 2026-09-22 确认验收，未附逐项运行记录。
+
 | 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
 |---|---|---|---|
-| 2026-09-10 | `npm --prefix frontend run typecheck` | 通过，见 [基线](../09-roadmap.md#当前代码证据) | — |
-| 2026-09-12 / 当前工作树 / macOS arm64 | `npm --prefix frontend run typecheck`、`npm --prefix frontend run test:unit`、`npm --prefix frontend run build`；浏览器预览设置页 | 通过；设置页可读取诊断、展示未接入数据源、选择录制上限，输出语言可编辑 / 重置，主题语言在有 Wails 桥时走后端 | Wails 真实重启交互、真实存储压力和 recorder 清理未验收 |
-| 2026-09-12 / 当前工作树 / macOS arm64 | 前端 typecheck、unit、build；Vite 匿名时间线视觉与 AX 树 | 通过；全局录制状态、上下导航分组、时间线样板在深色中文界面可见，截图测试不再占主导航 | 浏览器无 Wails 桥，录制控制真机操作和浅色 / 英文矩阵待验收 |
-| 2026-09-12 / 当前工作树 / macOS arm64 | Vite `#/settings?section=ai` 深链、深色中文视觉与 AX 树 | 通过；设置按通用、录制、AI、存储和 Agent 五个任务分区，刷新保持 AI 分区 | 浅色 / 英文和 Wails 真实设置写入待验收 |
 | 2026-09-14 / 当前工作树 / Windows 11 amd64 | `CGO_ENABLED=0 go test ./...`、`go vet ./...`、`CGO_ENABLED=0 go build ./...`、`npm --prefix frontend ci`、前端 typecheck / 31 项 unit / build、`git diff --check` | 通过；Windows frameless 配置、平台解析和自绘标题栏均可编译，浏览器生产 bundle 生成成功 | 真实 Wails 窗口的拖动、缩放、DPI 和关闭隐藏仍需人工验收 |
-
-前端仍未完成全量绑定生成类型替换、真实重启交互和 localStorage 迁移的独立实机实验。

@@ -7,7 +7,7 @@ import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import { appSiteValues, preferredAppSite } from '@/lib/appSiteIcon'
 import { categoryLabel } from '@/lib/categoryLabel'
 
-import { MIN_CARD_HEIGHT } from './layout'
+import { cardIsCompact, cardShowsText, MIN_CARD_HEIGHT } from './layout'
 
 const props = defineProps<{
   card: TimelineCardDTO
@@ -17,25 +17,25 @@ const props = defineProps<{
   regenerating: boolean
   top: number
   height: number
-  laneIndex: number
-  laneCount: number
+  /** Minutes this row covers, after any overlap trim. */
+  minutes: number
 }>()
 
 const emit = defineEmits<{ select: [id: number] }>()
 const candidateSites = computed(() => appSiteValues(props.card.appSites))
 const { t } = useI18n()
 
-// Visual gap between consecutive cards: the slot owns `height`, the card
-// renders slightly inset inside it, so neighbours never touch.
-const CARD_GAP = 3
+// Mirrors the reference timeline: a row of a few minutes cannot hold a title
+// without shrinking it past legibility, so it stays a bare bar; a slightly
+// longer one keeps a tight, vertically centred line.
+const showsText = computed(() => cardShowsText(props.minutes))
+const compact = computed(() => cardIsCompact(props.minutes))
 
 function cardStyle(): CSSProperties {
   return {
-    top: `${props.top + CARD_GAP / 2}px`,
-    height: `${Math.max(MIN_CARD_HEIGHT, props.height - CARD_GAP)}px`,
+    top: `${props.top}px`,
+    height: `${Math.max(MIN_CARD_HEIGHT, props.height)}px`,
     '--timeline-category': props.color,
-    '--timeline-lane-index': props.laneIndex,
-    '--timeline-lane-count': props.laneCount,
   }
 }
 </script>
@@ -47,7 +47,7 @@ function cardStyle(): CSSProperties {
     :class="{
       'is-selected': props.selected,
       'is-detailed': props.height >= 96,
-      'is-collided': props.laneCount > 1,
+      'is-compact': compact,
       'is-regenerating': props.regenerating,
     }"
     :style="cardStyle()"
@@ -57,19 +57,21 @@ function cardStyle(): CSSProperties {
     @click="emit('select', props.card.id)"
   >
     <span class="activity-card__rail" aria-hidden="true"></span>
-    <span class="activity-card__icon-slot" aria-hidden="true">
-      <AppSiteIcon
-        v-if="candidateSites.length > 0"
-        class="activity-card__icon"
-        :sites="candidateSites"
-        :accent="props.color"
-        :size="18"
-      />
-    </span>
-    <span class="activity-card__copy">
-      <span class="activity-card__title">{{ props.card.title }}</span>
-    </span>
-    <span class="activity-card__time">{{ props.card.start }} – {{ props.card.end }}</span>
+    <template v-if="showsText">
+      <span class="activity-card__icon-slot" aria-hidden="true">
+        <AppSiteIcon
+          v-if="candidateSites.length > 0"
+          class="activity-card__icon"
+          :sites="candidateSites"
+          :accent="props.color"
+          :size="18"
+        />
+      </span>
+      <span class="activity-card__copy">
+        <span class="activity-card__title">{{ props.card.title }}</span>
+      </span>
+      <span class="activity-card__time">{{ props.card.start }} – {{ props.card.end }}</span>
+    </template>
   </button>
 </template>
 
@@ -77,13 +79,12 @@ function cardStyle(): CSSProperties {
 .activity-card {
   position: absolute;
   z-index: 3;
-  left: calc(2px + (100% - 12px) * var(--timeline-lane-index) / var(--timeline-lane-count));
-  width: calc((100% - 12px) / var(--timeline-lane-count) - 4px);
+  right: 14px;
+  left: 2px;
   display: flex;
   /* Icon and text hang from the card top, not centered. */
   align-items: flex-start;
   gap: 9px;
-  min-height: 34px;
   padding: 5px 12px 5px 14px;
   overflow: hidden;
   border: 1px solid var(--dg-timeline-card-border);
@@ -95,6 +96,19 @@ function cardStyle(): CSSProperties {
     background var(--dg-motion-base) ease-in-out,
     box-shadow var(--dg-motion-base) ease-in-out,
     transform 720ms var(--dg-ease-glide);
+}
+
+/* A row too short for the roomy layout: no vertical padding, text centred on
+   the bar. The height itself always comes from the card's own minutes. */
+.activity-card.is-compact {
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.activity-card.is-compact .activity-card__rail {
+  top: 2px;
+  bottom: 2px;
 }
 
 .activity-card__icon-slot {
@@ -207,9 +221,14 @@ function cardStyle(): CSSProperties {
 
 .activity-card.is-detailed { align-items: flex-start; }
 
-.activity-card.is-collided .activity-card__time { display: none; }
-
-.activity-card.is-collided .activity-card__summary { -webkit-line-clamp: 1; }
+/* A tall card has the room to wrap its title onto a second line instead of
+   truncating it to one; shorter cards keep the single-line, ellipsised layout. */
+.activity-card.is-detailed .activity-card__title {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 
 @media (max-width: 720px) {
   .activity-card__time { display: none; }

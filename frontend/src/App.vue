@@ -3,6 +3,7 @@ import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView } from 'vue-router'
 
+import { setNativeUiLabels } from '@/api/native'
 import { setStatusItemLabels } from '@/api/recording'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import FatalErrorOverlay from '@/components/FatalErrorOverlay.vue'
@@ -13,10 +14,11 @@ import { useTestToolsStore } from '@/stores/testTools'
 const testTools = useTestToolsStore()
 void testTools.initialize()
 
-// The native menu-bar item renders outside the webview, so vue-i18n cannot
-// reach it. Push the translated bundle to the backend on load and whenever the
-// locale changes, so the status item follows the app's language. The shell
-// never unmounts, so the watcher needs no teardown.
+// Native surfaces (the menu-bar item, the application picker, the updater's
+// install refusal) render outside the webview, so vue-i18n cannot reach them.
+// Push the translated bundles to the backend on load and whenever the locale
+// changes, so they follow the app's language. The shell never unmounts, so the
+// watcher needs no teardown.
 const { t, locale } = useI18n()
 watch(
   locale,
@@ -36,6 +38,11 @@ watch(
       titleRecording: t('recording.menuBar.titleRecording'),
       titlePaused: t('recording.menuBar.titlePaused'),
       titleIdle: t('recording.menuBar.titleIdle'),
+    })
+    void setNativeUiLabels({
+      applicationPickerTitle: t('native.applicationPicker.title'),
+      applicationPickerFilter: t('native.applicationPicker.filterExecutable'),
+      updateOwnerRequired: t('native.updater.ownerRequired'),
     })
   },
   { immediate: true },

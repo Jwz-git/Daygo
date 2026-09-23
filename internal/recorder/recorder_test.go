@@ -255,12 +255,18 @@ func TestRecorderSurvivesTransientCaptureErrors(t *testing.T) {
 	if r.State() != StateCapturing {
 		t.Fatalf("state after one transient failure = %q, want capturing", r.State())
 	}
+	if got := r.LastError(); got != nil {
+		t.Fatalf("last error after recovery = %v, want nil", got)
+	}
 
 	// Beyond the limit the loop gives up: state returns to idle.
 	capture.mu.Lock()
 	capture.failuresLeft = captureFailureLimit + 5
 	capture.mu.Unlock()
 	waitStateIdle(t, r)
+	if got := r.LastError(); got == nil || got.Error() != "transient capture failure" {
+		t.Fatalf("last error after failure limit = %v", got)
+	}
 }
 
 // waitForCommits blocks until the store has at least n commits.

@@ -1,6 +1,7 @@
 # Windows 自动更新：WinSparkle 0.9.4 + NSIS
 
-> 状态：方案与实现已落盘，尚未在 Windows 真机完成旧版到新版升级验收。
+> 状态：GitHub Actions 已实现 Windows 安装器自动构建与上传；WinSparkle 客户端适配器已落盘。
+> 发布工作流与客户端旧版到新版升级是两项独立验收，后者未附逐项运行记录。
 
 ## 决策
 

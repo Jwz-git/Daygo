@@ -34,6 +34,7 @@ if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) {
     throw "Windows build completed without the required capture helper: $dll"
 }
+Assert-DaygoPortableExecutable -Path $exe
 
 Write-Host "Built $exe"
 Write-Host "Bundled $dll"

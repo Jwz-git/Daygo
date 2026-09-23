@@ -4,7 +4,7 @@ package darwin
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../../native/include
-#cgo LDFLAGS: -L${SRCDIR}/../../../build/native/darwin/universal -ldaygo_capture -framework Foundation -framework AppKit
+#cgo LDFLAGS: -L${SRCDIR}/../../../build/native/darwin/universal -ldaygo_capture -framework Foundation -framework AppKit -framework ServiceManagement
 #include <stdlib.h>
 #include "daygo_system.h"
 #include "daygo_status_item.h"
@@ -67,6 +67,28 @@ func openSystemSettings(pane platform.SettingsPane) error {
 	}
 	if code := C.dg_open_system_settings(native); code != 0 {
 		return fmt.Errorf("open system settings ABI failed: %d", int32(code))
+	}
+	return nil
+}
+
+func queryLaunchAtLogin() (bool, error) {
+	switch code := C.dg_launch_at_login_query(); code {
+	case C.DG_LAUNCH_AT_LOGIN_ENABLED:
+		return true, nil
+	case C.DG_LAUNCH_AT_LOGIN_REQUIRES_APPROVAL, C.DG_LAUNCH_AT_LOGIN_NOT_REGISTERED, C.DG_LAUNCH_AT_LOGIN_NOT_FOUND, C.DG_LAUNCH_AT_LOGIN_UNSUPPORTED:
+		return false, nil
+	default:
+		return false, fmt.Errorf("launch-at-login query failed: %d", int32(code))
+	}
+}
+
+func setLaunchAtLogin(enabled bool) error {
+	var flag C.uint32_t
+	if enabled {
+		flag = 1
+	}
+	if code := C.dg_launch_at_login_set(flag); code != 0 {
+		return fmt.Errorf("launch-at-login set failed: %d", int32(code))
 	}
 	return nil
 }

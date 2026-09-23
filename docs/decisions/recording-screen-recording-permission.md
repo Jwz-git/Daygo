@@ -1,7 +1,7 @@
 # recording 屏幕录制授权：启用时弹框 + 跳设置 + 提示重启
 
 > **状态：已落盘的原生授权切片（查询 / 请求 / 跳设置），前端在点录制时闸门化。真机 TCC 身份、
-> 授权后重启生效与长期观察仍受 G-host / G-native 门禁约束，未验收前不得宣称「已支持」。**
+> 授权后重启生效与长期观察仍受 G-host / G-native 门禁约束，缺可复核证据时不得宣称「已支持」。**
 > 本文记录 Daygo 采用哪种屏幕录制授权流程、依赖哪些 macOS API 承载，以及代码已经做了什么。
 > 权限状态与 pane 枚举以 [平台端口 `enums.go`](../../internal/platform/enums.go) 与
 > [C ABI `daygo_system.h`](../../native/include/daygo_system.h) 为准。
@@ -71,7 +71,7 @@ Go 绑定（[`system_bindings.go`](../../internal/app/system_bindings.go)、
 - **ad-hoc 签名下授权不跨重构保持**：TCC 把授权绑定到 App 的 designated requirement，ad-hoc 签名的
   DR 是 cdhash，每次构建都变，旧授权被孤立。这是与本流程正交的独立问题，见
   [macOS 签名身份决策](delivery-macos-signing-identity.md)。**未用稳定签名前，本流程每次重构后都需重新授权。**
-- **真机未验收**：系统弹框实际弹出、跳设置面板准确、授权后重启生效、已拒绝路径的引导有效性，
+- **真机验收：2026-09-22 用户确认通过（无逐项记录）**：系统弹框实际弹出、跳设置面板准确、授权后重启生效、已拒绝路径的引导有效性，
   均须在真实 macOS 上观察，属 G-host 范围。
 - `DENIED` 状态在 macOS 上永不返回（preflight 无法区分），保留在 ABI 中供未来能区分的调用方使用。
 - 通知权限（`NotificationsPermission`）仍是 `not_determined` 空桩，不在本切片范围。

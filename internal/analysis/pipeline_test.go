@@ -15,6 +15,7 @@ import (
 	"github.com/Jwz-git/Daygo/internal/ai"
 	"github.com/Jwz-git/Daygo/internal/domain"
 	"github.com/Jwz-git/Daygo/internal/storage"
+	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
 // A tiny valid JPEG (1x1 pixel) for the frame source.
@@ -719,6 +720,37 @@ func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
 	}
 }
 
+// TestFailBatchClearsRateLimitTally guards the slow leak where a batch that was
+// rate-limited and then failed kept its rateLimitCount entry forever (batch IDs
+// only grow, so the map never shrank on a long-running agent).
+func TestFailBatchClearsRateLimitTally(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t, map[string]string{})
+	frames := h.commitFrames(t, testNow, 3, 10*time.Second, func(int) *int { return nil })
+	batch, err := h.store.Analysis().CreateBatch(ctx, frames, storage.BatchPending, testNow)
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+
+	// A transient rate limit seeds a per-batch tally.
+	h.service.handleBatchRateLimit(ctx, batch, errors.New("rate limited"))
+	if got := h.rateLimitEntries(); got != 1 {
+		t.Fatalf("after rate limit: rateLimitCount entries = %d, want 1", got)
+	}
+
+	// The batch then reaches a terminal failure; its tally must not survive.
+	h.service.failBatch(ctx, batch, errors.New("boom"))
+	if got := h.rateLimitEntries(); got != 0 {
+		t.Fatalf("after failBatch: rateLimitCount entries = %d, want 0 (leak)", got)
+	}
+}
+
+func (h *harness) rateLimitEntries() int {
+	h.service.queueMu.Lock()
+	defer h.service.queueMu.Unlock()
+	return len(h.service.rateLimitCount)
+}
+
 func mustPending(t *testing.T, store *storage.Store) []storage.Batch {
 	t.Helper()
 	batches, err := store.Analysis().PendingBatches(context.Background())
@@ -796,8 +828,10 @@ func TestPipelineReprocessPreservesStraddlingCardPrefix(t *testing.T) {
 		t.Fatalf("reprocess batch: %v", err)
 	}
 
-	// The rerun may split the merged span into short evidence-backed cards,
-	// but it must cover from 10:00 rather than dropping 10:00–10:16.
+	// The rerun may split the merged span again, but it must cover from 10:00
+	// rather than dropping 10:00–10:16. The 10-minute tail is legal: the card
+	// carrying the rewrite's end is the one card the 15-minute floor exempts
+	// (2026-09-21).
 	h.provider.mu.Lock()
 	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:20 AM","category":"Coding","subcategory":"","title":"before","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},{"start":"10:20 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"after","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
 	h.provider.mu.Unlock()
@@ -852,12 +886,56 @@ func TestPipelineMergeCardAbsorbsSystemPredecessor(t *testing.T) {
 	}
 }
 
+// The clamp writes a clock string, which carries minutes: an owned start with
+// seconds must round up, or the card lands back inside the predecessor the gate
+// refused and the rewrite hits the storage ownership constraint. A start that is
+// already on the minute must stay put — rounding it up would open a fake gap.
+func TestPipelineMergeClampRoundsUpToTheMinute(t *testing.T) {
+	h := newHarness(t, map[string]string{})
+	batch := storage.Batch{
+		Start: time.Date(2026, 9, 12, 10, 15, 10, 0, time.Local),
+		End:   time.Date(2026, 9, 12, 10, 30, 0, 0, time.Local),
+	}
+
+	clamped := h.service.clampToMergeFloor(domain.CardShell{Start: "9:30 AM", End: "10:30 AM"}, batch.Start, batch)
+	if clamped.Start != "10:16 AM" {
+		t.Fatalf("clamped start = %q, want 10:16 AM (up from 10:15:10)", clamped.Start)
+	}
+
+	aligned := storage.Batch{
+		Start: time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local),
+		End:   time.Date(2026, 9, 12, 10, 31, 0, 0, time.Local),
+	}
+	clamped = h.service.clampToMergeFloor(domain.CardShell{Start: "9:30 AM", End: "10:31 AM"}, aligned.Start, aligned)
+	if clamped.Start != "10:16 AM" {
+		t.Fatalf("clamped start = %q, want the owned start 10:16 AM unchanged", clamped.Start)
+	}
+
+	// A claim the gate granted is not touched: at the owned start, and later.
+	kept := h.service.clampToMergeFloor(domain.CardShell{Start: "10:16 AM", End: "10:31 AM"}, aligned.Start, aligned)
+	if kept.Start != "10:16 AM" {
+		t.Fatalf("clamped start = %q, want the granted claim 10:16 AM untouched", kept.Start)
+	}
+	kept = h.service.clampToMergeFloor(domain.CardShell{Start: "10:20 AM", End: "10:31 AM"}, aligned.Start, aligned)
+	if kept.Start != "10:20 AM" {
+		t.Fatalf("clamped start = %q, want the in-window claim 10:20 AM untouched", kept.Start)
+	}
+
+	// A merge the gate granted owns the predecessor's start; the claim sits on
+	// the floor and must survive as written.
+	granted := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	kept = h.service.clampToMergeFloor(domain.CardShell{Start: "10:00 AM", End: "10:31 AM"}, granted, aligned)
+	if kept.Start != "10:00 AM" {
+		t.Fatalf("clamped start = %q, want the merged span start 10:00 AM untouched", kept.Start)
+	}
+}
+
 // The merge gate: a shell claiming a merge into a predecessor card of a
-// different category is replaced outright: the ongoing rewrite absorbs the
-// predecessor and the dominant category wins (dayflow semantics). The predecessor
-// survives beside a card covering only the current window, and the absorbed
-// activityPoints from before the window are dropped.
-func TestPipelineOngoingRewriteReplacesPredecessor(t *testing.T) {
+// different category is refused. Absorbing it would file the predecessor's
+// minutes under the new card's category and corrupt the day's category totals,
+// so the predecessor survives and the rewrite starts at the batch window
+// instead, with the claimed pre-window activityPoints dropped.
+func TestPipelineMergeGateRefusesCrossCategoryPredecessor(t *testing.T) {
 	h := newHarness(t, map[string]string{
 		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
 		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
@@ -891,26 +969,318 @@ func TestPipelineOngoingRewriteReplacesPredecessor(t *testing.T) {
 	h.service.tick(context.Background())
 
 	cards, _ = h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
-	// Dayflow semantics: an ongoing rewrite replaces the predecessor outright —
-	// the duration rule overrides the category mismatch, and the merged card
-	// takes the combined span with the dominant category.
-	if len(cards) != 1 {
-		t.Fatalf("cards = %+v, want exactly the rewritten card", cards)
+	// The gate refuses the cross-category swallow: the Coding predecessor keeps
+	// its span and category, and the Communication card covers only the window.
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the predecessor preserved beside the clamped card", cards)
 	}
-	merged := cards[0]
-	if merged.Category != "Communication" || merged.Start != "10:00 AM" || merged.End != "10:30 AM" {
-		t.Fatalf("merged = %s – %s %s, want the Communication 10:00 – 10:30 rewrite",
-			merged.Start, merged.End, merged.Category)
+	predecessor, clamped := cards[0], cards[1]
+	if predecessor.Category != "Coding" || predecessor.Start != "10:00 AM" || predecessor.End != "10:15 AM" {
+		t.Fatalf("predecessor = %s – %s %s, want the untouched Coding card",
+			predecessor.Start, predecessor.End, predecessor.Category)
+	}
+	if clamped.Category != "Communication" || clamped.StartTs != base2.Unix() || clamped.End != "10:30 AM" {
+		t.Fatalf("clamped = %s – %s %s, want the Communication rewrite starting at the window %s",
+			clamped.Start, clamped.End, clamped.Category, base2.Format("3:04 PM"))
 	}
 	var meta struct {
 		ActivityPoints []cardActivityPoint `json:"activityPoints"`
 	}
-	if err := json.Unmarshal([]byte(merged.Metadata), &meta); err != nil {
-		t.Fatalf("decode merged card metadata: %v", err)
+	if err := json.Unmarshal([]byte(clamped.Metadata), &meta); err != nil {
+		t.Fatalf("decode clamped card metadata: %v", err)
 	}
-	// The rewrite carries the predecessor's in-span point too.
-	if len(meta.ActivityPoints) != 2 || meta.ActivityPoints[0].Time != "10:00 AM" {
-		t.Fatalf("activityPoints = %+v, want both merged points", meta.ActivityPoints)
+	// The refused claim's pre-window point is gone; the predecessor keeps it.
+	if len(meta.ActivityPoints) != 1 || meta.ActivityPoints[0].Time != "10:20 AM" {
+		t.Fatalf("activityPoints = %+v, want only the in-window 10:20 AM point", meta.ActivityPoints)
+	}
+}
+
+func TestPipelineMergeGateDropsRefusedPredecessorEndingBeforeFloor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (10:00–10:15): one Coding card.
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 || cards[0].Category != "Coding" {
+		t.Fatalf("seed card = %+v, want one Coding card", cards)
+	}
+
+	// Batch 2 (10:16–10:30): the model returns TWO cards:
+	// 1. A hallucinated repetition of predecessor (10:00 AM - 10:15 AM)
+	// 2. The real card for this window (10:16 AM - 10:30 AM)
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[
+		{"start":"10:00 AM","end":"10:15 AM","category":"Communication","subcategory":"","title":"hallucinated-predecessor","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},
+		{"start":"10:16 AM","end":"10:30 AM","category":"Communication","subcategory":"","title":"current-card","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}
+	]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ = h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v (len %d), want exactly 2 (predecessor and current-card, dropped hallucination)", cards, len(cards))
+	}
+	if cards[0].Title != "first" || cards[1].Title != "current-card" {
+		t.Fatalf("cards = %+v, want first and current-card", cards)
+	}
+	for _, c := range cards {
+		if c.EndTs <= c.StartTs || c.EndTs-c.StartTs > 4*3600 {
+			t.Fatalf("card duration invalid: %+v", c)
+		}
+	}
+}
+
+// seedCardBefore parks one card in the lookback window of the batch under test.
+// Fixtures build multi-card history this way rather than through extra batches:
+// the merge gate is about what the rewrite finds on the ground, and driving four
+// batches through the pipeline would test the batcher instead.
+func (h *harness) seedCardBefore(t *testing.T, batchID int64, start, end time.Time,
+	category, title, metadata string) {
+	t.Helper()
+	loc := h.store.Location()
+	shell := domain.CardShell{
+		Start:    timeutil.FormatClock(start, loc),
+		End:      timeutil.FormatClock(end, loc),
+		Category: category,
+		Title:    title,
+		Summary:  "S",
+		Metadata: metadata,
+	}
+	if _, err := h.store.Cards().ReplaceCardsInRange(context.Background(), start, end,
+		[]domain.CardShell{shell}, batchID); err != nil {
+		t.Fatalf("seed card %q: %v", title, err)
+	}
+}
+
+func (h *harness) onlyBatch(t *testing.T, at time.Time) int64 {
+	t.Helper()
+	batches, err := h.store.Analysis().BatchesInRange(context.Background(),
+		at.Add(-time.Hour), at.Add(time.Hour))
+	if err != nil || len(batches) != 1 {
+		t.Fatalf("batches = %+v, err = %v; want one", batches, err)
+	}
+	return batches[0].ID
+}
+
+func (h *harness) cardsFor(t *testing.T, day string) []domain.TimelineCard {
+	t.Helper()
+	cards, err := h.store.Cards().CardsForDay(context.Background(), day)
+	if err != nil {
+		t.Fatalf("cards for %s: %v", day, err)
+	}
+	return cards
+}
+
+// Four cards lead into the batch window — the shape a user sees as "four cards
+// fused into one". Same-category cards may be absorbed into the continuing
+// card; the merge is allowed and the rewrite owns the whole span.
+func TestPipelineMergeGateAllowsSameCategoryChain(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+	batchID := h.onlyBatch(t, base)
+
+	// Three short Coding cards before the window, plus the one the batch wrote.
+	h.seedCardBefore(t, batchID, base.Add(-30*time.Minute), base.Add(-20*time.Minute), "Coding", "older", "")
+	h.seedCardBefore(t, batchID, base.Add(-20*time.Minute), base.Add(-10*time.Minute), "Coding", "middle", "")
+
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"9:30 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"fused","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want the four same-category cards fused into one", cards)
+	}
+	if cards[0].Title != "fused" || cards[0].Start != "9:30 AM" || cards[0].Category != "Coding" {
+		t.Fatalf("fused card = %s – %s %s %q, want the 9:30 AM Coding rewrite",
+			cards[0].Start, cards[0].End, cards[0].Category, cards[0].Title)
+	}
+}
+
+// The same four-card chain with one card of another category inside it: the
+// merge would file those minutes under a category they never had, so the gate
+// refuses the extension outright and every earlier card keeps its own span.
+func TestPipelineMergeGateRefusesMixedCategoryChain(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+	batchID := h.onlyBatch(t, base)
+
+	h.seedCardBefore(t, batchID, base.Add(-30*time.Minute), base.Add(-20*time.Minute), "Coding", "older", "")
+	h.seedCardBefore(t, batchID, base.Add(-20*time.Minute), base.Add(-10*time.Minute), "Communication", "chat", "")
+
+	// The model claims one Coding card over the whole chain, chat included.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"9:30 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"fused","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards := h.cardsFor(t, "2026-09-12")
+	titles := make([]string, 0, len(cards))
+	for _, card := range cards {
+		titles = append(titles, card.Title)
+	}
+	// The predecessor chain survives intact — the batch-written card included,
+	// since the refused rewrite never reaches back past the window.
+	if len(cards) != 4 || titles[0] != "older" || titles[1] != "chat" || titles[2] != "first" || titles[3] != "fused" {
+		t.Fatalf("cards = %v, want older + chat + first preserved beside the clamped rewrite", titles)
+	}
+	if cards[3].StartTs != base2.Unix() || cards[3].Category != "Coding" {
+		t.Fatalf("clamped = %s – %s %s, want the rewrite starting at the window %s",
+			cards[3].Start, cards[3].End, cards[3].Category, base2.Format("3:04 PM"))
+	}
+}
+
+// A window sealed below the 15-minute floor is still no licence to swallow a
+// cross-category predecessor: the card carrying the window's end is the one the
+// floor exempts, so the gate stays shut and the predecessor keeps its span and
+// category (2026-09-21 decision — the floor outranks the cross-category refusal
+// for merges inside the rewrite span, not beyond its left edge).
+func TestPipelineMergeGateStaysShutWhenTheWindowIsBelowTheFloor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"9:30 AM","end":"9:45 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (9:30–9:45): one Coding card, the predecessor under test.
+	first := time.Date(2026, 9, 12, 9, 30, 0, 0, time.Local)
+	h.commitFrames(t, first, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	// Batch 2 (10:00–10:10) is sealed by a gap rather than the target duration,
+	// so its window is shorter than the floor.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"9:30 AM","end":"10:10 AM","category":"Communication","subcategory":"","title":"merged","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[{"time":"9:30 AM","description":"first"},{"time":"10:05 AM","description":"second"}]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, second, 61, 10*time.Second, func(int) *int { return intPtr(5) })
+	// The trailing frames only exist to seal the short run; their own span is
+	// below the target, so no third batch is created.
+	h.commitFrames(t, time.Date(2026, 9, 12, 10, 30, 0, 0, time.Local), 3, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v, want the clamped rewrite to validate on its first attempt", h.failures)
+	}
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the predecessor preserved beside the clamped card", cards)
+	}
+	predecessor, clamped := cards[0], cards[1]
+	if predecessor.Category != "Coding" || predecessor.Start != "9:30 AM" || predecessor.End != "9:45 AM" {
+		t.Fatalf("predecessor = %s – %s %s, want the untouched Coding card",
+			predecessor.Start, predecessor.End, predecessor.Category)
+	}
+	// The clamped card is 10 minutes long and carries the rewrite's end: the
+	// floor exempts it, which is why the refusal costs the model nothing.
+	if clamped.Category != "Communication" || clamped.StartTs != second.Unix() || clamped.End != "10:10 AM" {
+		t.Fatalf("clamped = %s – %s %s, want the Communication rewrite starting at the window %s",
+			clamped.Start, clamped.End, clamped.Category, second.Format("3:04 PM"))
+	}
+	if end := time.Unix(clamped.EndTs, 0); end.Sub(time.Unix(clamped.StartTs, 0)) >= minCardDuration {
+		t.Fatalf("clamped duration = %s, want the below-floor window this fixture is about",
+			end.Sub(time.Unix(clamped.StartTs, 0)))
+	}
+	var meta struct {
+		ActivityPoints []cardActivityPoint `json:"activityPoints"`
+	}
+	if err := json.Unmarshal([]byte(clamped.Metadata), &meta); err != nil {
+		t.Fatalf("decode clamped card metadata: %v", err)
+	}
+	if len(meta.ActivityPoints) != 1 || meta.ActivityPoints[0].Time != "10:05 AM" {
+		t.Fatalf("activityPoints = %+v, want only the in-window 10:05 AM point", meta.ActivityPoints)
+	}
+}
+
+// A fused card that names no app inherits the icon of the card it absorbed:
+// the predecessor is gone, and an empty appSites would leave the merged card
+// with no icon where the user used to see one.
+func TestPipelineMergedCardInheritsPredecessorAppSites(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":["github.com","Google Chrome"],"distractions":[],"activityPoints":[]}]}`,
+	})
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("seed cards = %+v, want one", cards)
+	}
+	if !strings.Contains(cards[0].Metadata, "github.com") {
+		t.Fatalf("seed metadata = %s, want the seeded appSites", cards[0].Metadata)
+	}
+
+	// The merged card covers the predecessor's span but names no app of its own.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"merged","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards = h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 || cards[0].Title != "merged" {
+		t.Fatalf("cards = %+v, want the merged card alone", cards)
+	}
+	var meta struct {
+		AppSites *appSitesMetadata `json:"appSites"`
+	}
+	if err := json.Unmarshal([]byte(cards[0].Metadata), &meta); err != nil {
+		t.Fatalf("decode merged metadata: %v", err)
+	}
+	if meta.AppSites == nil || meta.AppSites.Primary == nil || *meta.AppSites.Primary != "github.com" {
+		t.Fatalf("merged appSites = %+v, want the absorbed card's primary site", meta.AppSites)
 	}
 }
 

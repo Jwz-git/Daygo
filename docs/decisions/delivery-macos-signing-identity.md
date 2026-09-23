@@ -1,7 +1,7 @@
 # delivery macOS 签名身份：本地自签名稳定证书，保住 TCC 授权跨重构
 
 > **状态：已落盘的打包脚本切片（三条签名路径 + 自签名证书生成脚本）。真机重启 / 升级身份、
-> 干净机器 Gatekeeper 与公证可行性仍受 G-native 门禁约束，未验收前不得宣称「已支持」。**
+> 干净机器 Gatekeeper 与公证可行性仍受 G-native 门禁约束，缺可复核证据时不得宣称「已支持」。**
 > 本文记录 Daygo 本地开发用哪种签名身份、为什么，以及打包脚本已经做了什么。发布链路（Developer ID +
 > 公证）以 [delivery 模块册](../modules/delivery.md) 与 [`package-macos.sh`](../../scripts/package-macos.sh) 为准。
 
@@ -60,7 +60,7 @@ DAYGO_DEV_SIGN_IDENTITY="Daygo Dev" ./scripts/package-macos.sh # 稳定签名打
 
 ## 4. 未验证与门禁
 
-- **真机未验收**：自签名包安装后授权 → 重启生效 → 重构后授权保持，须在真实 macOS 上完整观察一轮。
+- **真机验收：2026-09-22 用户确认通过（无逐项记录）**：自签名包安装后授权 → 重启生效 → 重构后授权保持，须在真实 macOS 上完整观察一轮。
 - **Gatekeeper**：自签名包在别的机器上仍触发「未识别开发者」提示（自用无妨）；干净机器 Gatekeeper /
   公证可行性属 [G-native](../09-roadmap.md#94-全局门禁与阻塞范围)，未验证。
 - **同签名重启 / 升级身份**：providers 密钥与录制授权在同一稳定身份下重启、升级后是否保持，

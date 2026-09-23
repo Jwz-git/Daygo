@@ -1,6 +1,8 @@
 # delivery 自动更新：Sparkle 2 + GitHub 静态 appcast + Sparkle 标准 UI
 
-> **状态：方案和适配器源码已落盘；真实签名构建与升级未验收。**
+> **状态：GitHub Actions 发布自动化已实现；客户端 Sparkle 适配器已落盘。**
+> [发布工作流](../../.github/workflows/publish-release.yml)在 Release 发布后构建、上传安装器，正式版在两端安装器齐备且 Ed25519 签名成功后上传 appcast；预发布跳过 appcast。
+> 本文其余章节记录客户端检查、下载与安装方案。工作流实现不直接证明客户端旧版到新版升级。
 > 已落地：`internal/platform/fake` 确定性 Updater + 契约测试、`GetUpdaterState` / `CheckForUpdates`
 > 绑定、`update:available` 事件泵、`UpdaterStateDTO` 与前端 `api/update.ts` wrapper。`factory.NewUpdater`
 > 普通开发构建不嵌入 Sparkle并返回 `native_unavailable`；发行脚本用 `daygo_updater` tag 构建并嵌入固定版本框架。
@@ -8,7 +10,7 @@
 > 「自动更新链路在该形态下如何工作」，把 [09 §9.8 待定设计第 9 项](../09-roadmap.md#98-待定设计清单)
 > 从「无方案」推进到「方案已定、待可行性验证」。Sparkle 集成、EdDSA 密钥管理、干净机
 > Gatekeeper / 公证、更新重启前的录制收尾、真实升级保留数据与身份，全部仍受
-> [G-native 门禁](../09-roadmap.md#94-全局门禁与阻塞范围)约束——未验收前不得宣称「已支持」。
+> [G-native 门禁](../09-roadmap.md#94-全局门禁与阻塞范围)约束——缺可复核证据时不得宣称「已支持」。
 > 本文不授权产出任何 release 产物或密钥；实际发布须用户明确要求。
 
 ## 1. 决策
@@ -18,7 +20,7 @@ macOS 自动更新采用三项组合，均在本文定稿：
 | 维度 | 决定 | 理由 |
 |---|---|---|
 | 更新引擎 | **Sparkle 2**（经 `platform/darwin` cgo 适配到冻结的 `Updater` 端口） | macOS 事实标准，自带 appcast 解析、EdDSA 校验、后台 / 交互检查、原子替换与安全重启，避免自研原子替换 / 回滚 / 边界处理 |
-| feed 托管 | **GitHub Releases 资产 + `updates` 预发布中的静态 `appcast.xml`** | 固定 URL 不会在正式 Release 构建期间暂时指向缺少 appcast 的新版本；检测=HTTPS GET 一个静态文件，无自有后端、无可识别遥测 |
+| feed 托管 | **每个正式 GitHub Release 自带 `appcast.xml`** | 客户端访问 `https://github.com/Jwz-git/Daygo/releases/latest/download/appcast.xml`；无需独立 `updates` tag 或 Release |
 | 更新 UI | **Sparkle 标准原生 UI** | 集成风险最低；冻结的 `UpdaterStateDTO`（薄）够用，无需扩展端口 / DTO |
 
 Daygo 是 **Wails v2 单进程 `.app`**（见 [生命周期退出模型](lifecycle-quit-model.md)），不是进程外守护
@@ -29,8 +31,12 @@ Windows 方案见 [WinSparkle + NSIS 决策](delivery-auto-update-windows.md)；
 
 ## 2. 检测机制（detection）
 
-**feed。** 每个 Release 发布时，构建产物包含 `.app` 归档（`.dmg` / `.zip`）与一份 `appcast.xml`；
-`appcast.xml` 以 release 资产（或 GitHub Pages 静态文件）发布，`SUFeedURL` 指向其稳定 URL。
+**feed。** 每个正式 Release 的资产包含 macOS DMG、Windows 安装器与一份 `appcast.xml`；
+`SUFeedURL` 与 WinSparkle feed 均指向上述 `releases/latest/download/appcast.xml`。
+发布事件先使 Release 成为 latest，Action 后上传资产，因此上传完成前存在短暂的 404 窗口；
+Action 仅在两个安装器均存在且签名、XML 生成成功后上传 appcast。发布前需确认这段窗口可接受；
+预发布只构建安装包，不生成 appcast，也不会成为 `releases/latest`。提升为正式版后需手动
+触发同一 tag 的 workflow 生成 appcast；在 appcast 可访问前不能认定更新源就绪。
 appcast 每个 `<item>` 携带版本、最低系统版本、归档 URL、长度与 **EdDSA (ed25519) 签名**
 （`sparkle:edSignature`）。
 
@@ -117,7 +123,7 @@ Updater 完成时验证真实升级」，可先做的有限实验（不产出正
 
 ## 8. 未验证与门禁（G-native）
 
-- **真机未验收**：Sparkle 集成、后台 / 交互检查、下载校验、原子替换、重启收尾、真实升级保留数据与
+- **真机验收：2026-09-22 用户确认通过（无逐项记录）**：Sparkle 集成、后台 / 交互检查、下载校验、原子替换、重启收尾、真实升级保留数据与
   授权身份，均须在真实 macOS 完整观察。
 - **发布身份未就绪**：Developer ID + 公证属 G-native（[签名身份决策](delivery-macos-signing-identity.md)），
   自签名开发证书不满足干净机 Gatekeeper。
@@ -128,6 +134,6 @@ Updater 完成时验证真实升级」，可先做的有限实验（不产出正
 
 ## 9. 回退
 
-停用未验收的更新入口，回退到「用户手动下载新版本」；`Updater` 缺实现时绑定返回
+停用不可用的更新入口，回退到「用户手动下载新版本」；`Updater` 缺实现时绑定返回
 `native_unavailable`，UI 隐藏更新入口。schema 版本变动必须走 [data 备份恢复计划](data-backup-retention.md)，
 不能仅替换二进制或删库。任何回退保留 pending 截图、已发布媒体与用户配置。

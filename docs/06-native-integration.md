@@ -142,12 +142,12 @@ smoke** 的截图实现，发布范围与其余能力逐项经决策记录推进
 | 屏幕录制授权（第 1–3 项） | TCC 查询 / 请求 / 设置入口已实现 | 系统无对应 TCC，查询报告 `granted`、请求为 no-op | macOS 的正式签名升级身份仍属 G-native；Windows 不伪造授权弹框 |
 | 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
 | 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.x（身份 + 名称 + 图标 + 按 Bundle ID 回查） | 有限实现：Explorer `.exe` picker + 同一 ABI；路径哈希 ID、名称、PNG 图标和回查 | Windows 路径不进入 Wails DTO；回查优先内存、运行进程与 App Paths / Uninstall 注册表 |
-| 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | `InstalledApplications` 已实现，并在一台 Windows 11 机器核对过枚举结果 | 枚举结果只有本机证据；Windows 设置页网格的视觉与交互未验收，枚举不可用时仍回落到 Explorer `.exe` picker |
+| 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | `InstalledApplications` 已实现，并在一台 Windows 11 机器核对过枚举结果 | Windows 设置页网格的视觉与交互由用户确认已验收，未附逐项记录；枚举不可用时仍回落到 Explorer `.exe` picker |
 | 系统事件（第 15 / 16 项） | System ABI 已实现（睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保 / 显示器变化） | 睡眠 / 唤醒 / 锁屏 / 解锁 ABI 已实现；显示器可枚举 | Windows 编译与回调夹具已过，睡眠/锁屏恢复延迟及长期事件矩阵仍需实机 |
-| 状态栏（第 19 项） | `SetStatusItem` ABI 已实现并接入 | 通知区图标、菜单、左键重开及 open/toggle/pause/quit 动作已接入 | Windows 回调夹具通过；关窗后持续捕获、Explorer 重启恢复及完整交互 smoke 尚未验收 |
+| 状态栏（第 19 项） | `SetStatusItem` ABI 已实现并接入 | 通知区图标、菜单、左键重开及 open/toggle/pause/quit 动作已接入 | Windows 回调夹具通过；关窗后持续捕获、Explorer 重启恢复及完整交互由用户确认已验收，未附逐项记录 |
 | 帧解码 / 段探测（第 8、10 项） | 原生段读取（`frameDecode` / `segmentProbe`） | 纯 Go `mediafile` | 两平台都经 `platform.Media` 真实实现；Windows / Linux 走 [`internal/platform/mediafile`](../internal/platform/mediafile/mediafile.go)：JPEG 单帧解码 + 探测，非 JPEG 多帧段报 `Readable=false` |
 | 视频编码（第 9 项） | 未实现 | 未实现 | 两平台 `EncodeVideo` 均返回错误，待 M2 编码决策 |
-| 自动更新（第 22 项） | Sparkle 2.10.0 适配器（仅发行 tag 构建） | WinSparkle 0.9.4 动态适配器 | 两端共用签名 appcast、设置 UI、安装前 owner 门禁与 recorder 收尾；依赖版本 / SHA 固定，发布 workflow 已落盘；源码与 fake 契约通过，真实签名构建和旧版 → 新版升级尚未验收 |
+| 更新与发布（第 22 项） | Sparkle 2.10.0 适配器（仅发行 tag 构建） | WinSparkle 0.9.4 动态适配器 | GitHub Actions 已实现发布后构建并上传两端安装器；正式版在两个安装器齐备且 Ed25519 签名成功后上传 appcast。此处的发布自动化不等于客户端升级验收；后者按 [delivery 决策](decisions/delivery-auto-update.md)记录 |
 | 其余各项（第 4、11、17、18、20 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用

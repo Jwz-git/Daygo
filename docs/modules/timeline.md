@@ -3,7 +3,8 @@
 ## 用户结果与范围
 
 用户看到由捕获自动产生的按逻辑日活动卡片，可展开帧条、搜索、改标题 / 分类、软删除，
-重试失败批次、按卡片所属批次重处理，并对卡片记录专注 / 中性 / 分心判断。失败可见，空闲批次不调用 LLM。
+重试失败批次、重新生成单张卡片，对卡片记录专注 / 中性 / 分心判断，并对其摘要投拇指评分。
+失败可见，空闲批次不调用 LLM。
 负责 U1/2/3、F-A1–6、F-V1–3、F-S7；包括分类管理、媒体资源及既有 timelapse 需求。
 不包含每日 / 每周页面、Chat；卡片审阅判断属于 timeline，其他尚无交互与绑定的目标数据只跟踪设计，
 不自动扩展范围。
@@ -14,21 +15,30 @@
 
 ## 当前状态与证据
 
+> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+
 实现进度与验证状态以 [09 §9.1](../09-roadmap.md#91-模块总表) timeline 行为准。当前能力快照：
 
 - 存储：cards / categories / batches / observations repository（`ReplaceCardsInRange`
   单事务改写、时钟串三日锚点派生、尝试上限、软删除）；迁移链含各版旧库夹具。
 - 分析：两阶段流水线（帧分组转录 → 卡片生成 / 融合，首批单卡、持续窗口按活动证据重分 +
-  `activityPoints`；短活动不再为凑 10 分钟而吸收无关分钟）、分批器、空闲判定、失败分类与自动重排（5 次上限）、
+  `activityPoints`；每张卡 15–60 分钟，只有承载体改写窗口末端的那张卡可以更短，不足下限的
+  片段并入邻卡且**跨分类也并**，合并卡取占多数时间的活动分类）、分批器、空闲判定、
+  失败分类与自动重排（5 次上限）、
   请求级超时、时区统一为 store `Location()`、融合分类闸门
-  （跨分类的模型融合被夹紧回批次窗口，前卡保留）。
+  （跨分类的模型融合被夹紧回批次窗口，前卡保留；横跨批次起点的前卡无条件拥有；
+  该闸门不受 15 分钟下限放松）、
+  融合卡片继承被吸收前卡的 `appSites`（模型未点名应用时回填，避免图标消失）。
 - 绑定与前端：`GetTimelineDay`（卡片 / 分类 / 合计 / 失败分组一次带回）、卡片写操作
   （改分类 / 标题 / 摘要 / 软删除）、`RetryBatches` / `DeleteBatches` / `ReprocessDay` /
-  `ReprocessCard`（后者按卡片来源批次重排，同批次卡片会共同重建）、分类整体覆盖
+  `ReprocessCard`（后者同步重写该卡片**自己的时间窗**，复用窗内已存 observations、
+  不重新转录取图，两侧相邻卡不动，详见 [04 §4.3.5](../04-data-flow.md#435-单卡重写)）、分类整体覆盖
   （重命名同事务改写卡片）、分类管理向导（未改动的默认分类按界面语言显示，编辑并保存即
   改写为本地文案）、失败 / 处理中状态、当前日 15 秒实时跟随与 4 点边界自动
   重拉、帧回放（`GetCardMedia` + `/media/frame`）、周视图（hover 展开、日历选择）、
-  卡片审查流；审阅判断已持久化，支持在详情页读取 / 修改并刷新当日统计。Windows 时区回退
+  卡片审查流；审阅判断已持久化（`card_reviews`），支持在详情页读取 / 修改并刷新当日统计；
+  摘要拇指评分已持久化（`card_ratings`），详情页可投上 / 下并再次点击撤销，两者都不改写卡片，
+  因此都不发 `timeline:updated`。Windows 时区回退
   （`ZoneName` 注册表回退）已补齐，只影响新读取的页面。
 - 开发便利：Vite 开发服务在绑定缺失时提供匿名只读样例（`frontend/dev-fixtures/`），
   页面明确标记"仅开发"；production bundle 不含其 payload。
@@ -39,10 +49,10 @@
 
 **已知未修（需先决策再动）**：auth 批次 UI 标志说"不会自动重试"但 `RequeueFailed`
 仍会重排（语义需决策）；Retry-After 无抖动（多组同限流时刻齐重试）；转录组 20 图上限
-与低图片数网关的错配待配置化；跨 4AM 边界卡片在日视图与聚合中的口径冲突（双计 / 隐形
-时段）与用户编辑被相邻批次回滚，需先对 docs/03 §3.5 明确语义归属。
+与低图片数网关的错配待配置化；用户编辑被相邻批次回滚，需先对 docs/03 §3.5
+明确重处理语义归属。
 
-逐日实现与验证细节见下方[验证记录](#验证记录)；本节只维护"当前是什么状态"。
+验证摘要见下方[验证记录](#验证记录)。
 
 ## 能力与跨层职责
 
@@ -56,7 +66,8 @@
 输出 time 与 cards，可分别供 daily / weekly 验收，不等时间线页面全部完善。
 internal/analysis 拥有调度、媒体准备、批次路由粘性与范围串行化；internal/ai 拥有统一文本 /
 图片 / JSON Schema 调用、协议、重试、提示词与解析，且不读取分段路径；internal/insight 只读
-聚合；卡片、批次、observations、分类、llm_calls 和 review ratings 的 schema / repository
+聚合；卡片、批次、observations、分类、llm_calls 和审阅 / 评分（`card_reviews`、
+`card_ratings`）的 schema / repository
 统一落 internal/storage。llm_calls 只记录 attempt 元数据，不保存模型正文。本模块完善
 internal/timeutil。
 internal/app 负责绑定与数字 ID 资源入口，平台 Media 读像素；媒体缓存有界。
@@ -100,192 +111,14 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 
 ## 验证记录
 
-2026-09-20（时间线仍完全不显示图标）：09-16 那次只补了 appSites 这一半，本次修掉剩下两处。
-① 模型契约：`distractions` 此前被要求把时间折进一句话（`"7:17 PM opened the notification panel"`），
-生产者也按 `[]string` 原样写库，而 docs/05 §5.5.2、前端 `dto.ts`、详情页与 `stores/daily.ts` 一律读
-`{startTime, endTime, title, summary}` 对象——该字段解不开，详情页的时钟区间与当日分心时长同样无从计算。
-现在 `internal/analysis/schema.go` 把卡片 schema 的 `distractions` 改为 `{start,end,title,summary}`
-对象数组（`cardsDistraction`），提示词明确时间只写在 `start` / `end`，不得折进 `title`；
-`distractionsFromModel` 在生产者侧改名为 metadata 形状（start/end → startTime/endTime），丢弃无标题
-条目（否则详情页只剩一条裸时钟），空列表存 `[]` 而非 `null`（消费端会读 `.length`）；
-`dropPreWindowPoints` 的解码结构同步（该函数回写整个 metadata，字段解不开就静默停止过滤窗口前时间点）。
-② 绑定层：`parseCardMetadata` 三个装饰字段共用一个 `json.Unmarshal`，任一字段类型不符即整体返回空值，
-解不开的 `distractions` 因此**连坐**掉 appSites / activityPoints——这正是 09-16 修复后图标依旧全无的
-直接原因：生产者改对了，库里 09-16 之前写下的扁平 `distractions` 仍在，日轨道与周栅格共读的 `appSites`
-被一并丢弃。现在改为**逐字段解码**：解不开的字段丢弃，不连坐兄弟字段、也不拿猜测值顶替；缺失的
-`DistractionDTO.ID` 由绑定层按列表顺序生成（docs/05 §5.5.2 "metadata 中缺失时由 Go 生成，保持稳定"）。
-证据：把本机真实库复制到 `t.TempDir()` 后直接调用绑定层，修复前 `appSites: nil`，修复后
-`primary="code.visualstudio.com" secondary="github.com"`；同一批里带分心记录的卡片丢图标、不带的那张保留。
-夹具：pipeline happy path 断言存储字节是契约对象形状；新增 analysis
-`TestDistractionsFromModelMapsTheClockRangeOntoTheContract`（改名 / 去空标题 / 空列表非 nil）；
-新增 binding `TestCardMetadataKeepsFieldsBesideAnUndecodableOne`（一条解不开的字段不得带走 appSites，
-即本次回归的守卫）与 `TestCardDistractionsCarryTheStoredClockRange`（时钟区间与自动 id）；DB-5 夹具改为
-同一契约形状并断言对象字段，`TestCardMetadataWrittenByAnalysisPipelineParses` 注释指向逐字段解码。
-`go build ./...`、`go vet`、`go test ./internal/analysis/ ./internal/app/ ./internal/storage/` 通过；
-`./scripts/gate.sh` 除 bootstrap 阶段 `native/windows/build.ps1` 的 DLL 复制（本机 `wails dev` 正占用
-`build/bin/daygo_windows_native.dll`）外逐条手工跑通：Go build / test / vet、三组交叉编译、前端 unit
-（64 项）/ typecheck / production build、`check-docs.py`（49 个 md，0 问题）。契约同步 docs/05 §5.5.2
-（新增 metadata 存储形状与"映射归生产者"一节）。未复核：真实 LLM 是否稳定按新 schema 输出对象；
-历史库里已写入扁平字符串的行**只丢分心记录、图标恢复**，不回填，需重新分析该日才得到对象形状；
-真实 Wails 窗口下的观感待确认。
-
-2026-09-16（分类管理的本地化）：分类管理向导此前直接渲染 `categories` 原文，中文界面下六个默认
-分类的标题与描述是英文——种子文案按设计是给模型匹配的数据，缺的是显示层本地化。现在
-`categoryLabel.ts` 在原有名称表之外增加出厂描述表与 `categoryDetails()`：只对**仍保持种子原文**
-的行显示本地化文案，用户改写过的行原样显示。向导的只读行与编辑框预填同一份文案，因此
-「打开编辑 → 保存 → 完成」即把该分类从种子文案改写为用户文案（走既有重命名事务，历史卡片同步
-改写）；没打开过编辑的行原样回传，不会因一次浏览被批量改写。夹具：`categoryLabel.test.ts` 补四条
-分支（未改动 / 描述被改写 / 已改名 / 自定义）；新增 `categoryDefaults.test.ts` 从
-`internal/storage/migrate.go` 解析 v12 种子与前端描述表逐字对账（改动一侧字符串确认失败），并断言
-两份 bundle 都有键、en 等于种子原文、zh 不是英文原文。浏览器验证（Vite 独立预览 + 注入绑定桩、
-分类取迁移种子）：中文界面行显示「工作」等加中文描述，编辑框预填同一文案，`SaveCategories` 收到的
-载荷里只有被打开并保存的那一行变成中文，其余五行保持英文 / 用户原文；en 界面逐字等于种子文案。
-`npm --prefix frontend run test:unit`（50 项）、`typecheck`、production build 与
-`scripts/check-docs.py` 通过；契约同步 docs/03 §3.3.3。真实 Wails 窗口与真实库上的保存、卡片改写
-未复核。
-
-2026-09-20：修复批次因末帧仍在活跃录制分段而反复失败（`frameDecode: failed with status -3`，即 `DG_CAPTURE_E_UNSUPPORTED`）的问题。这是 `-7`（残缺分段缺 moov）之外的第二条时序失效：分段冻结（600 帧 / 600 秒 / 尺寸变化）与批次封口（间隔或目标时长）是两条独立边界，因空闲间隔提前封口或跨满 15 分钟的批次，其末帧可能仍落在录制器正在写、尚未收尾的分段里，此刻解码必然失败；批次失败进 `FailureRetryCooldown`（10 分钟）冷却，等分段轮换收尾后自动重试才成功——即用户观察到的"重试几次就好"。区别于 `-3` 之外的活跃分段既不缺 moov 也非损坏，无法用 `Readable`/moov 探测区分，故改用纯 Go 信号：`Recorder.ActiveSegmentPath()` 暴露当前正在写入的分段路径（暂停 / 停止 / 收尾后清空），分析调度器 `Config.ActiveSegment` 读取它；`processBatch` 在置 `processing` 前先判定批次任一帧是否属于活跃分段，若是则返回 `errBatchDeferred`，批次**保持 `pending`、不计尝试、不触发 `batch:failed`**，下一轮分段收尾后自然处理。夹具 `TestPipelineDefersBatchInActiveSegment`（活跃时推迟、清空后成功、零 provider 调用、零尝试计数）；`go test ./internal/analysis/... ./internal/recorder/...`、`go vet`、`CGO_ENABLED=0 go build ./internal/...` 全通；契约同步 docs/04 §4.3.2。真实 macOS 长期录制闭环未复核。
-
-2026-09-20：修复持续窗口把短而明确的不同活动强行合并成混合卡。此前校验器要求每张卡至少
-10 分钟，校正提示甚至要求 1–4 分钟活动整段并入邻卡、5–9 分钟活动从无关邻卡借分钟；当一张
-50 分钟卡追加 13 分钟、且尾段在抖音 / Daygo / Codex 间切换时，60 分钟上限与 10 分钟下限
-共同迫使模型生成一张单分类混合卡，直接污染专注 / 分心统计。现在删除最短时长约束，保留
-60 分钟上限、连续覆盖和无重叠校验；提示词要求保留有证据的短活动边界，只合并同一活动或真正
-偶发的插曲。夹具覆盖 2 / 4 / 4 / 3 分钟连续异类活动可通过验证，并检查首轮与校正提示不再要求
-借用无关分钟。既有混合卡不会自动迁移，需在新构建中重处理其来源批次。
-
-2026-09-20：修复重处理横跨批次起点的卡片时丢失窗口外前缀。真实数据中 batch 67 首次生成
-`10:16–11:06` 与 `11:06–11:19`，同批重处理只按原窗口 `11:04–11:19` 生成新卡；存储的重叠
-谓词因此整张软删除前卡，却没有重建 `10:16–11:04`。现在分析层把横跨批次起点的旧卡识别为
-持续重写所有者，以其 start 作为生成、校验、事务共同的 `rewriteStart`；存储层增加第二道约束，
-任何部分重叠但超出改写所有权的存活卡都会令事务回滚，而非无声删除。流水线夹具覆盖“前批卡向后
-融合 → 重处理后一拆二，仍连续覆盖 10:00–10:30”；storage 夹具覆盖 11:04 的两分钟重叠不得删除
-10:16–11:06 原卡。既有软删除卡未自动恢复，仍需在新构建中重处理相关来源批次。
-
-2026-09-18：修复卡片重新生成时下方相邻卡片底色被错误渲染为彩色的问题，并增强录制分段收尾与未完成分段对齐恢复。此前时间线使用像素矩形几何重叠（`boxesOverlap`）来判定卡片是否处于重新生成状态（`regenerating`），导致被 `MIN_CARD_HEIGHT` 撑到 34px 的短卡片或批次在垂直像素上压入下方相邻卡片，使其错误带上 `is-regenerating` 渐变彩底。现增加 `cardIntersectsRanges` 纯函数改由真实时间戳交集（时间重合度大于 0）精确判断卡片是否属于重分析批次，下方相邻卡片保持正常底色不变。同时在 `SegmentWriter.swift` 添加 `atexit` 自动收尾勾子并在 Wails 与系统信号中断时触发 `backend.shutdown()` 保证录制分段写入 moov atom，并在 `Reconcile` 启动时自动检查已提交分段，将缺失 moov atom 的残缺分段置为 `is_deleted = 1`，彻底杜绝 `frameDecode: failed with status -7` 拖垮整个分析批次。夹具：`timelineCoverage.test.ts` 与 `captures_test.go` 分别新增测试；`./scripts/gate.sh` 门禁全通。
-
-2026-09-16：修复「重新分析这一天」后时间线上「生成中」区块与旧卡片重叠。`ReprocessDay` 把当天
-终态批次改回 `pending` 时**不删除已有卡片**，于是 `processingRanges` 与 `cards` 同时覆盖同一
-窗口：日轨道把区块画成整行绝对定位盒（z-index 2），卡片（z-index 3）落在同一矩形上，两层叠在
-一起；周栅格同样。现在按「一个窗口只有一个主人」处理——被卡片覆盖的窗口不再画区块，改由该卡片
-进入重新分析态（`is-regenerating` 渐变底 + `aria-busy`），未被覆盖的窗口仍显示区块，所以首次
-分析的空窗体验不变。规则落在 `layout.ts` 的 `boxesOverlap` / `coveredBy` / `uncoveredBy`，
-日轨道与周栅格共用同一组纯函数。判据用**实际绘制的盒子**而非时间戳：4 分钟卡片被
-`MIN_CARD_HEIGHT` 撑到 34px 后会压到下一个窗口，只看时间戳会漏。夹具
-`frontend/tests/timelineCoverage.test.ts`（7 项，含周列同规则用例）；把 `weekLayout` 退回旧行为
-确认该用例失败。浏览器验证：vite 夹具临时注入 processingRanges（覆盖卡片、部分重叠、空窗三种），
-全日 69 张卡与区块矩形零相交，3 张被覆盖卡片带 `is-regenerating` 与 `aria-busy`，随后夹具已还原。
-`./scripts/gate.sh` 通过。真实 reprocess 与真实 LLM 下的观感未复核。
-
-2026-09-16：修复卡片 appSites 在真实链路上丢失。卡片阶段把模型输出的扁平列表
-（`["Code","github.com"]`）原样写进 `timeline_cards.metadata`，绑定层却按 docs/05 §5.5.2 的
-`{primary, secondary}` 对象解析，`json.Unmarshal` 的类型错误让 `parseCardMetadata` 整体返回空值
-——appSites、distractions、activityPoints 三项在真实数据上一起丢失，前端 `AppSiteIcon` 因此从未
-渲染。此前两处夹具各自自洽掩盖了这条缝：DB-5 与 binding 用例都用对象形状，analysis 用例用扁平
-列表，没有任何夹具跨过生产者→消费者。现在由 `appSitesFromList` 在生产者侧完成映射；
-`dropPreWindowPoints` 的解码结构同步改形状（该函数回写整个 metadata，字段解不开就会静默不再
-过滤窗口前时间点）。夹具：pipeline happy path 断言存储字节是契约对象形状，新增 binding
-`TestCardMetadataWrittenByAnalysisPipelineParses` 用生产者实测字节回灌绑定层，DB-5 夹具改为
-对象形状——期望值变更是一次显式决定，不是"测试挂了就改期望"。`go test ./...`、`go vet ./...`、
-`CGO_ENABLED=0 go build ./...` 通过。真实 LLM 与真实录制数据下的图标显示仍未验证。
-
-2026-09-15：修复 Windows 窗口重新获得焦点时的时间线加载闪屏。此前标题栏点击触发
-`window.focus` 后使用全量 `load()`，会暂时将已有时间轴替换为首次加载面板；现在窗口焦点与
-可见性恢复均使用 silent refresh，保留当前页面并在后台重拉。延迟后端夹具验证请求未完成时
-store 仍保持 `loading=false` 和既有页面状态；`npm --prefix frontend run test:unit`（35 项）、
-`npm --prefix frontend run typecheck` 与 production build 通过。尚未在 Wails 窗口中做人工复核。
-
-2026-09-15：融合分类闸门落地。此前合并决策完全由 prompt 承载，模型对任何相邻活动都倾向
-融合（用户反馈"相邻就融合"）。现在卡片阶段对声明的融合（输出 start 早于批次窗口）做确定性
-校验：将被吸收的前卡分类必须全部与输出卡一致，`System` 前卡豁免（分类本就未知）；不一致时
-夹紧回批次窗口起点、丢弃窗口前 `activityPoints`、前卡保留。prompt 同步告知规则（闸门在 Go
-侧强制，不依赖模型自律）。夹具为 pipeline「跨分类融合被闸门拒绝」（Coding 前卡 +
-Communication 融合声明 → 两卡并存、点过滤），既有「同分类融合吸收前卡」「System 前卡吸收」
-「idle 快路径融合」夹具不回归。契约同步 docs/03 §3.5、docs/04 §4.3.4。真实 LLM 下的融合
-质量未验证。
-
-2026-09-20：修复卡片阶段把非空模型结果过滤后退化为 `no cards returned` 的校正盲区。此前
-模型返回的所有卡片若因时钟不可解析或完全落在改写窗口外而被过滤，校正提示只收到“没有卡片”，
-既看不到被拒绝的原始时钟，也没有明确目标窗口；结构化 schema 同时允许 `cards: []`。真实批次
-#58 的 Provider 请求全部成功且校正调用仅产生 8 tokens，与该失效路径一致；因未存原始响应，不能
-进一步证明首次卡片被过滤的具体原因或 8-token 内容。现在全量过滤时保留卡片序号、标题、
-原始时钟与拒绝原因，校正提示明确改写窗口，schema 要求至少一张卡；混合结果中仍只保留窗口内
-卡片，避免上下文幻觉扩大改写范围。夹具覆盖全量窗口外结果的失败诊断 / 校正提示、空数组 schema
-拒绝，以及既有混合结果丢弃行为。真实 Provider 修复后的 #58 重试尚未执行。
-
-同日真实批次 #60 暴露第二层缺陷：`cardsCorrectionPrompt` 接收 `rawJSON` 却未把它写入请求，并错误
-声称可使用“ongoing conversation”；Provider 调用实际无会话状态，于是模型把“缺少之前的 JSON 和
-活动详情”包装成时间线卡片，未知分类再回退为 `System`。现在校正请求显式携带上一轮完整 JSON，
-说明请求无状态，并要求把 JSON 字符串视为数据而非指令；回归夹具同时断言 JSON 存在且不再宣称
-有对话上下文。既有异常卡片不会由代码迁移删除，须在新构建运行后由来源批次重处理吸收。
-
-2026-09-18：卡片生成速率限制与步频防护（TPM 限制防击穿）：转录引入等距帧采样（`DefaultSampledFrames = 15`，对齐 Dayflow 原版实现），单批请求由多次图片分组聚合为单次请求，输入 Token 消耗降低 >80%；调度器加入批次间步频控制（`DefaultBatchPacing = 10s`）与单 worker 串行化，遇 rate_limited 即刻熔断本轮排队；无 Retry-After 的 429 错误加入 long backoff 退避机制（15s 起算，封顶 30s），防止快速重试耗尽 attempt。
-
-2026-09-15：周视图三批前端修复（长标题单行溢出——flex 冻结选择器误命中无图标卡标题；
-clamp 测量顺序——先释放 `-webkit-line-clamp` 再读 `scrollHeight`；hover 展开动画去抖
-与幅度收敛——宽度瞬时跳变、上限 80px、超上限卡不反向缩小）经 Vite + mock 绑定浏览器
-实测与 `vue-tsc` / production build / check-docs 验证。同日 `ReplaceCardsInRange`
-吸收 System 前卡的缺陷修复：重叠谓词删除 System 例外（System 卡唯一实际写入来源是
-未知分类回退，保留导致融合后并列占段）；契约同步改写 docs/03 §3.5、docs/05、AGENTS.md；
-夹具为 storage「吸收他批 System 卡」（原「保留」期望显式反转）、pipeline「LLM 融合
-吸收 System 前卡」（回退旧代码确认失败）与「idle 快路径融合吸收前张 Idle 卡」。
-
-2026-09-14：批失败重试逻辑审查修复（attempt 级请求超时防挂死、`batch:failed` 事件
-attempts 差一、failureKind 本地错误归 `internal`、转录失败 note 不带分段路径、
-mid-flight 取消不计失败）经 `go test ./internal/ai/... ./internal/analysis/...
-./internal/app/...`、`go vet`、`CGO_ENABLED=0 go build` 验证；夹具含挂死 attempt
-超时重试、取消不计数、failureKind 全类目表。同日 Windows `ZoneName` 注册表回退与
-当前日 15 秒实时跟随 / 4 点边界自动重拉落盘，前端不推导逻辑日。
-
-2026-09-13：卡片生成缺陷修复批次通过 Go 单元测试（`go test ./internal/analysis/
-./internal/storage/ ./internal/timeutil/`）。夹具覆盖：`10:21AM` 粘着时钟整批路径
-（否则模型偏差导致永久失败循环）、批次尝试上限逐周期拒绝（配合 v8 → v9 迁移夹具
-证明旧库保数据且 attempts 从 0 起）、observations 重写幂等、UTF-8 截断不切断多字节
-rune、apps 元数据解析。失败面板排除 skipped_short 的语义变更已同步
-`TestFailedBatchesInRange` 期望（显式决定：skipped_short 是正常终态）。
-
-2026-09-12：cards 存储切片通过 Go 单元测试（`go test ./internal/storage/
-./internal/timeutil/`）与 `CGO_ENABLED=0` 的 macOS / Linux / Windows 构建。夹具覆盖：
-v1 → v2 迁移保数据（DB-2）、`ResolveClock` 三日锚点 / 跨午夜 / meridiem 与 24 小时
-格式 / DST（Lord Howe）/ 半小时与 45 分钟时区 / 畸形输入、`ReplaceCardsInRange`
-派生与插入 / 近午夜跨日 / 跳过卡片计数（喂 `NoteSkippedCards`）/ 保留其它批次
-System 卡片 / timelapse 路径回收 / 并发重叠最终一致（busy 视为合法重试信号）、
-分类种子 / 整体覆盖 / 重名拒绝 / 重命名同事务改写卡片。这只证明存储层行为，
-不证明绑定接入、分析流水线或真实闭环。
-
-2026-09-10：已有 timeutil 和绑定 Go 测试通过，见 [基线](../09-roadmap.md#当前代码证据)。
-
-2026-09-11：时间线前端切片通过 `vue-tsc --noEmit` 与 Vite production build；用一次性匿名
-浏览器夹具人工复核浅 / 深主题、1440×900 双栏、窄窗折叠、小时刻度、短卡片、长空白、
-失败 / 处理中区间、分类筛选与详情切换。production bundle 已检查不含夹具哨兵文本。
-这只证明前端呈现与状态边界，不证明 cards、媒体、写操作、真实闭环或长期稳定性。
-
-2026-09-11：前端视觉收敛为系统字体、中性窗口材质、低阴影和无位移悬浮反馈；删除逐项入场、
-漂浮、放大、光晕与无限 shimmer。Vite 开发服务增加可删除的匿名时间线夹具，浏览器人工复核
-浅 / 深主题、时间比例、详情选中和开发数据标记；production build 检查不含样例活动与 dev
-fixture endpoint。这是开发验收便利设施，不构成生产数据或 G-loop 证据。
-
-2026-09-11：时间轨道增加最小点击高度碰撞分栏与首次进入的相关时刻定位；日期选择写入路由并
-交回 `GetDayContext` 解析，Timeline 与 Daily 切页时保留同一日期键。匿名时间线夹具补充相邻
-在当时的开发阶段，真实 cards 绑定尚未交付，因此开发夹具中的
-日期导航保持禁用；这些改动不构成真实编辑、重试或聚合完成证据。
-
-2026-09-11：按既有公共契约补齐卡片改标题 / 改分类（分别提交，避免伪装成原子更新）、软删除
-二次确认、失败范围重试、整日重处理、时间线复制和后端视频 URL 播放路径。所有写操作要求
-`features` 含 `timeline`、实例持有写锁且对应绑定存在；写后不乐观更新，等待
-`timeline:updated` 重拉。浏览器开发夹具只用于检查禁用态、详情层、短卡片和复制反馈，不能
-验证真实写入、事件顺序、媒体解码或分析恢复。
-
-2026-09-14（失败重试入口，前端）：修复手动重试按钮不可点——前端曾把 `retryable`（仅表示
-"是否会自动重排"，`auth` / `invalid_request` / `no_provider` 或 attempts 达上限时为 false）
-误用为手动重试的禁用条件，而 Go `RetryBatches` 刻意无视失败类型与 attempt 上限并重置
-attempts。现汇总面板不再按 `retryable` 过滤失败条目、详情按钮只受写锁与绑定探测约束；
-`retryable` 仅用于提示文案（docs/05 §5.5.2 注释同步）。同日移除整日重处理前端入口
-（按钮、store action、API wrapper、i18n 文案与 settings 描述），后端 `ReprocessDay`
-本就未交付，设计条目保留在 docs/05。
-
-2026-09-12（查询与卡片写操作绑定，Go）：`go test ./internal/app/`、`go vet`、
-`CGO_ENABLED=0 go build ./...` 通过。空日 / 有卡日（metadata 解析、合计排 System、
-Idle 单列）、非法 day、未知分类、卡片不存在、只读实例拒绝、写后事件合并（同 day
-三次写一条 `timeline:updated`）、失败 60 秒容差分组均有断言。`wails dev` 真机端到端
-（真实库写入 → 事件刷新）未运行。
+- **退化时钟串（2026-09-23）**：匿名 `4:30 PM`–`4:29 PM` 夹具要求校正循环提示模型，
+  存储层保留同批合法卡并将退化卡计入 `SkippedCards`，不生成约 24 小时卡片。
+  `go test ./internal/analysis ./internal/storage ./internal/timeutil` 通过；真实 Provider 对校正提示的响应未单独验证。
+- **跨 4 点时间片（2026-09-23）**：匿名 03:30–04:30 卡片夹具先复现前一日计成 60 分钟；
+  修复后 `CardsForDay` 在相邻两日均可查到同一原始卡片，`GetTimelineDay` 每日只展示并
+  统计 30 分钟，周明细按 4 点分段，范围总量取交集；另覆盖纽约 DST 回拨、半小时与 45 分钟时区。
+  `go test ./internal/storage ./internal/app ./internal/insight`
+  通过；真实历史库与长时间跨日运行尚未单独复核。
+- **存储与分析（2026-09-12—21）**：`go test ./internal/storage/ ./internal/analysis/ ./internal/app/`、`go vet`、`CGO_ENABLED=0 go build ./...` 及迁移夹具覆盖卡片事务改写、分类、批次重试、范围边界、单卡重写、appSites 回填和评分。具体算法与约束见 [03 §3.5](../03-data-model.md#35-时钟串派生) 和 [04 §4.3](../04-data-flow.md#43-分析流水线)。
+- **前端（2026-09-11—21）**：typecheck、单元测试与 build 覆盖日 / 周视图、编辑、重处理状态、图标、分类本地化和详情页审阅 / 评分；Vite 预览使用匿名夹具。评分迁移为 v18，`card_ratings` 仅保存 `up` / `down`，再次点击撤销；审阅和评分都不改写卡片。
+- **原生与闭环**：历史记录包括 macOS 真实像素及分段 smoke；真实 Provider、Wails 时间线与长期观察由用户于 2026-09-22 确认验收，未附逐项运行记录。搜索尚未实现，见 [09 §9.1](../09-roadmap.md#91-模块总表)。

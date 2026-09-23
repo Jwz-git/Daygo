@@ -13,7 +13,10 @@
 呈灰色不可选，因此当前不向面板下发文件 filter；用户仍选择 `.app`，Go 与原生 inspector
 负责权威校验，任何非应用输入失败关闭。Wails 返回的路径只在一次绑定调用中使用，不持久化、
 不返回前端、不写日志。Windows 调起 Explorer common-item dialog，并用 `*.exe` filter 帮助选择；
-原生 inspector 仍会二次校验绝对路径、文件类型和存在性。
+原生 inspector 仍会二次校验绝对路径、文件类型和存在性。面板文案（标题与过滤器名）是界面文案
+而非身份，由前端经 `SetNativeUiLabels` 下发，随应用内语言变化
+（[05 §5.5.1](../05-interface-contract.md#551-绑定方法目录)）；macOS 面板不下发标题也不下发
+filter，理由同上。
 
 Go 通过 `platform.ApplicationInspector.InspectApplication` 调用
 [`daygo_application.h`](../../native/include/daygo_application.h) ABI。原生实现使用
@@ -197,8 +200,8 @@ prebuilt archive 会被 Go 侧握手明确拒绝，而不是静默返回缺图�
 \x00@ \x00FileVersion…`），修复后带非打印字符的条目为 0。`go test ./internal/platform/windows/`
 的枚举单测与 `./scripts/gate.sh` 通过。
 
-仍未验收：Windows 设置页应用网格的视觉与交互、图标批量解析在真实列表下的表现、
-以及除本机以外的枚举结果。macOS 侧仍未验收 picker 原生面板的视觉与交互、沙盒 / 发行身份、
+2026-09-22 用户确认已验收（无逐项记录）：Windows 设置页应用网格的视觉与交互、图标批量解析在真实列表下的表现、
+以及除本机以外的枚举结果。macOS 侧亦经用户确认验收 picker 原生面板的视觉与交互、沙盒 / 发行身份、
 缺失 Bundle ID 的应用、helper / XPC 子进程、多 Space、多显示器与快速前台切换；图标分辨率与
 暗色模式观感未做视觉验收。选择一个主 `.app` 不保证其 helper 使用相同 ID；MC 隐私矩阵通过前
 不得宣称应用已被完整屏蔽。

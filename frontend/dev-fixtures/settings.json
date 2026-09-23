@@ -21,6 +21,7 @@
     "language": "zh-CN"
   },
   "system": {
+    "launchAtLogin": false,
     "agentEditsEnabled": false,
     "testToolsEnabled": false
   },

@@ -605,6 +605,59 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 18,
+		name:    "timeline: per-card summary ratings",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// card_ratings stores the user's thumbs up/down on one card's
+			// AI summary. One row per card: re-rating overwrites; tapping the
+			// active thumb again deletes the row. Ratings are feedback on the
+			// summary text only — they never rewrite the summary or the card's
+			// category, so they live apart from card_reviews, where verdict is
+			// NOT NULL and a rating-only row would have nothing to store.
+			_, err := tx.ExecContext(ctx, `CREATE TABLE card_ratings (
+					card_id    INTEGER PRIMARY KEY REFERENCES timeline_cards(id) ON DELETE CASCADE,
+					rating     TEXT    NOT NULL CHECK (rating IN ('up', 'down')),
+					created_at INTEGER NOT NULL,
+					updated_at INTEGER NOT NULL
+				)`)
+			if err != nil {
+				return wrap("create v18 card_ratings table", err)
+			}
+			return nil
+		},
+	},
+	{
+		version: 19,
+		name:    "daily: drop journal_entries.summary",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// The daily standup recap is the day's AI summary; a separate
+			// journal-level summary was never generated and is being removed.
+			// Rebuild the table without the column (the SQLite table-rebuild
+			// pattern used by v15/v17) so the drop works on every SQLite build.
+			stmts := []string{
+				`CREATE TABLE journal_entries_v19 (
+					day         TEXT PRIMARY KEY,
+					intentions  TEXT,
+					notes       TEXT,
+					goals       TEXT,
+					reflections TEXT,
+					status      TEXT    NOT NULL,
+					updated_at  INTEGER NOT NULL
+				)`,
+				`INSERT INTO journal_entries_v19 (day, intentions, notes, goals, reflections, status, updated_at)
+				 SELECT day, intentions, notes, goals, reflections, status, updated_at FROM journal_entries`,
+				`DROP TABLE journal_entries`,
+				`ALTER TABLE journal_entries_v19 RENAME TO journal_entries`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("drop v19 journal summary", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like

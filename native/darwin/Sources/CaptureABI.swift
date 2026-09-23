@@ -428,6 +428,7 @@ func dg_frame_append(
                         return
                     }
                     let now = Date()
+                    try Task.checkCancellation()
                     let res = try SegmentWriter.shared.append(image: placeholder, capturedAt: now, recordingsDir: recordingsDir)
                     box.complete(.success(FrameAppendResult(
                         outcome: UInt32(DG_CAPTURE_BLOCKED),
@@ -447,6 +448,12 @@ func dg_frame_append(
                 showsCursor: showsCursor,
                 blockedApplicationIDs: blockedIDs
             )
+            // The ABI may have timed out and cancelled us while the system
+            // screenshot call — which ignores cooperative cancellation — ran to
+            // completion. Don't append a frame the Go side already abandoned: it
+            // would land out of order and keep this task's image alive across the
+            // write.
+            try Task.checkCancellation()
             let res = try SegmentWriter.shared.append(image: image, capturedAt: startedAt, recordingsDir: recordingsDir)
             let midpoint = startedAt.timeIntervalSince1970 + finishedAt.timeIntervalSince(startedAt) / 2
             box.complete(.success(FrameAppendResult(

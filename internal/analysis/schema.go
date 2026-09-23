@@ -133,28 +133,34 @@ type cardsDistraction struct {
 	Summary string `json:"summary"`
 }
 
+// modelCard is one card exactly as the model returned it, before the local
+// mapping (category fallback, bounds, metadata shape) that turns it into a
+// storable shell. Named so the batch pipeline and the single-card rewrite share
+// one mapping instead of drifting apart.
+type modelCard struct {
+	Start           string             `json:"start"`
+	End             string             `json:"end"`
+	Category        string             `json:"category"`
+	Subcategory     string             `json:"subcategory"`
+	Title           string             `json:"title"`
+	Summary         string             `json:"summary"`
+	DetailedSummary string             `json:"detailed_summary"`
+	AppSites        []string           `json:"appSites"`
+	Distractions    []cardsDistraction `json:"distractions"`
+	TitleEvidence   struct {
+		Activities []struct {
+			Activity string `json:"activity"`
+			Minutes  int    `json:"minutes"`
+		} `json:"activities"`
+		SelectedActivity string `json:"selectedActivity"`
+		FamiliarSubject  string `json:"familiarSubject"`
+	} `json:"titleEvidence"`
+	ActivityPoints []struct {
+		Time        string `json:"time"`
+		Description string `json:"description"`
+	} `json:"activityPoints"`
+}
+
 type cardsEnvelope struct {
-	Cards []struct {
-		Start           string             `json:"start"`
-		End             string             `json:"end"`
-		Category        string             `json:"category"`
-		Subcategory     string             `json:"subcategory"`
-		Title           string             `json:"title"`
-		Summary         string             `json:"summary"`
-		DetailedSummary string             `json:"detailed_summary"`
-		AppSites        []string           `json:"appSites"`
-		Distractions    []cardsDistraction `json:"distractions"`
-		TitleEvidence   struct {
-			Activities []struct {
-				Activity string `json:"activity"`
-				Minutes  int    `json:"minutes"`
-			} `json:"activities"`
-			SelectedActivity string `json:"selectedActivity"`
-			FamiliarSubject  string `json:"familiarSubject"`
-		} `json:"titleEvidence"`
-		ActivityPoints []struct {
-			Time        string `json:"time"`
-			Description string `json:"description"`
-		} `json:"activityPoints"`
-	} `json:"cards"`
+	Cards []modelCard `json:"cards"`
 }

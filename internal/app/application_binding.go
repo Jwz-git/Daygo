@@ -20,9 +20,19 @@ type applicationPicker interface {
 
 type wailsApplicationPicker struct {
 	ctx context.Context
+	// labels reads the current frontend-supplied copy at call time, so a
+	// language change between startup and the click is already applied.
+	labels func() NativeUiLabelsDTO
 }
 
 func (p wailsApplicationPicker) PickApplication() (string, error) {
+	return wailsruntime.OpenFileDialog(p.ctx, applicationPickerOptions(runtime.GOOS, p.labels()))
+}
+
+// applicationPickerOptions builds the native panel options. The copy comes from
+// the frontend (docs/05 §5.5.1); goos is a parameter so both branches are
+// testable from one host.
+func applicationPickerOptions(goos string, labels NativeUiLabelsDTO) wailsruntime.OpenDialogOptions {
 	options := wailsruntime.OpenDialogOptions{
 		DefaultDirectory: "/Applications",
 		// Wails v2 maps "*.app" to NSOpenPanel.allowedFileTypes, which leaves
@@ -31,18 +41,18 @@ func (p wailsApplicationPicker) PickApplication() (string, error) {
 		ResolvesAliases:            true,
 		TreatPackagesAsDirectories: false,
 	}
-	if runtime.GOOS == "windows" {
+	if goos == "windows" {
 		// The Windows common-item dialog is Explorer's native file picker. The
 		// inspector still validates the chosen file; the filter is only a usable
 		// affordance and not a security boundary.
 		options.DefaultDirectory = ""
-		options.Title = "Choose an application"
+		options.Title = labels.ApplicationPickerTitle
 		options.Filters = []wailsruntime.FileFilter{{
-			DisplayName: "Windows applications (*.exe)",
+			DisplayName: labels.ApplicationPickerFilter,
 			Pattern:     "*.exe",
 		}}
 	}
-	return wailsruntime.OpenFileDialog(p.ctx, options)
+	return options
 }
 
 // ApplicationDTO is the display identity of one platform application.

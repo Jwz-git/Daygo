@@ -65,6 +65,12 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
    （如 `Asia/Kathmandu`）。这些是夹具测试的必测项。
 3. 逻辑日窗口是**左闭右开** `[dayStartTs, dayEndTs)`。
 
+跨凌晨 4 点的活动仍是一张卡片：`timeline_cards.day` 永远是开始时刻所属的逻辑日，
+卡片 ID、审阅与编辑归属不变。日视图按卡片与当天窗口的**交集**展示，前后两日可看到
+同一 ID 的不同时间片；显示用的 `startTs` / `endTs` 和时长裁剪到当天窗口，原始时钟串及
+数据库时间戳不改。日、周总量只累计各自窗口内的分钟；周明细按 4 点边界拆为两个时间片。
+边界时刻只属于后一天，故两侧时间片无重叠、无缺口。
+
 ## 3.3 表结构
 
 `PRAGMA user_version` 从 `1` 起，配套版本化迁移链（`internal/storage/migrate.go`）。
@@ -253,15 +259,14 @@ CREATE TABLE daily_standup_entries (
   generated_at     INTEGER NOT NULL
 );
 
--- journal_entries（v5 已落盘）。summary 由 AI 生成、用户只读：repository 的
--- 用户写入路径不触碰该列。
+-- journal_entries（v5 落盘；v19 移除 summary 列）。日报站会即当日的 AI 摘要，
+-- 日记不再单独保存 AI summary。
 CREATE TABLE journal_entries (
   day          TEXT PRIMARY KEY,   -- 逻辑日
   intentions   TEXT,
   notes        TEXT,
   goals        TEXT,
   reflections  TEXT,
-  summary      TEXT,               -- AI 生成，用户只读
   status       TEXT NOT NULL,      -- draft | intentions_set | complete
   updated_at   INTEGER NOT NULL
 );
@@ -283,13 +288,28 @@ CREATE TABLE day_goal_categories (
   PRIMARY KEY (day, category_id, role)
 );
 
-CREATE TABLE timeline_review_ratings (
-  id        INTEGER PRIMARY KEY,
-  start_ts  INTEGER NOT NULL,
-  end_ts    INTEGER NOT NULL,
-  rating    INTEGER NOT NULL,
-  note      TEXT,
-  created_at INTEGER NOT NULL
+-- card_reviews（v14 已落盘）。卡片审阅流的判定：每卡一行，重判覆盖，撤销删除行。
+-- day 与 minutes 在判定时从卡片快照，卡片之后被编辑也不会改变当日统计；
+-- verdict 只进统计，从不改写卡片自己的分类。软删除的卡片经 join 退出统计。
+CREATE TABLE card_reviews (
+  card_id    INTEGER PRIMARY KEY REFERENCES timeline_cards(id) ON DELETE CASCADE,
+  day        TEXT    NOT NULL,
+  verdict    TEXT    NOT NULL CHECK (verdict IN ('distraction', 'neutral', 'focus')),
+  minutes    INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_card_reviews_day ON card_reviews (day);
+
+-- card_ratings（v18 已落盘）。详情页对卡片 AI 摘要的拇指评分：每卡一行，重评覆盖，
+-- 再次点击已激活的拇指删除行。只评价摘要文本，不改写摘要或卡片分类。
+-- 独立成表而非并入 card_reviews：那里的 verdict 是 NOT NULL，只评分未判定的行无处存。
+CREATE TABLE card_ratings (
+  card_id    INTEGER PRIMARY KEY REFERENCES timeline_cards(id) ON DELETE CASCADE,
+  rating     TEXT    NOT NULL CHECK (rating IN ('up', 'down')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 ```
 
@@ -433,15 +453,19 @@ resolveClock(h, m):
 
 startTs = resolveClock(startHour, startMinute)
 endTs   = resolveClock(endHour,   endMinute)
-if endTs < startTs: endTs += 24h                // 跨午夜
+if endTs <= startTs: skip card                  // 退化输出，见要点 2
 day     = 由 startTs 按凌晨 4 点边界得出
 ```
 
 四个各自独立的要点，缺一不可：
 
 1. **在前后共三天中选最近的候选。** 临近午夜时把 `"11:50 PM"` 直接解析到 anchor 当日
-   是错的；±1 天候选修正这一点。
-2. **`end < start` 表示跨午夜**，加一天。
+   是错的；±1 天候选修正这一点。真正的跨午夜卡（如 `"11:50 PM"`~`"12:10 AM"`）经此选择
+   后 start 落在前一天、end 落在当日，`endTs` 自然晚于 `startTs`，无需再加一天。
+2. **解析后 `end <= start` 属退化输出，不是跨午夜。** 三天候选已把合法跨午夜分到相邻两天；
+   仍然反转（如 `4:30pm`~`4:29pm`）只可能是模型错误。此时**不得**给 `endTs` 加一天——那会
+   持久化一张约 24h 的怪卡。校验层（`resolveCardSpans`）将其作为校正提示反馈给模型重试，
+   存储层（`ReplaceCardsInRange`）把它计入 `SkippedCards`，一律不落库。
 3. **`day` 用凌晨 4 点边界算**，不是日历日期。
 4. 全过程依赖宿主时区，必须在 DST 切换和非整点偏移时区中验证——这是基于属性的测试的
    首要候选（[08 §8.3](08-testing-strategy.md#83-行为测试)）。
@@ -469,6 +493,10 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 融合本身受确定性闸门约束（[04 §4.3.4](04-data-flow.md#434-提示词与输出解析)）：
 只有当将被吸收的前卡分类全部与输出卡一致时，融合才把改写范围扩展到前卡 start；
 分类不一致时前卡不属于融合对象，改写范围保持批次窗口，输出卡 start 被夹紧回窗口起点。
+**横跨批次起点的那张前卡例外**：批次的证据本身就与它重叠，只替换交集会删掉它的前缀，
+因此它的 start 无条件成为 `rewriteStart`。闸门算出的 `ownedFrom` 同时是校正提示、
+`validateCards` 与 `ReplaceCardsInRange` 的左边界——三者不一致会让被拒的融合在三次校正后
+仍以整批失败告终。
 
 **解析失败不得静默丢弃。** `ReplaceCardsInRange` 返回 `ReplaceResult.SkippedCards`，
 调用方必须消费并计入诊断指标（[05 §5.5.2](05-interface-contract.md#552-dto-目录) 的

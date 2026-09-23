@@ -108,7 +108,7 @@ function safeColor(value: string): string {
 
 function validCards(day: TimelineDayDTO): TimelineCardDTO[] {
   return day.cards
-    .filter((card) => card.endTs > card.startTs)
+    .filter((card) => card.endTs > card.startTs && card.endTs - card.startTs <= 4 * 3600)
     .filter((card) => card.endTs > day.dayStartTs && card.startTs < day.dayEndTs)
     .sort((left, right) => left.startTs - right.startTs || left.endTs - right.endTs)
 }
@@ -230,8 +230,11 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
   )
   const rawMarkers: DailyWorkflowDistractionMarker[] = []
 
-  if (hasDistractionCategory) {
-    for (const card of cards) {
+  // Embedded micro-distractions are valid even when the user has no
+  // top-level Distraction category. Build the dedicated track from markers
+  // independently; macro Distraction cards are included when that category
+  // exists.
+  for (const card of cards) {
       // Source 1: Full cards categorized as "Distraction"
       if (isDistractionCategoryKey(card.category)) {
         const clippedStart = Math.max(card.startTs, windowStartTs)
@@ -280,7 +283,6 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
           }
         }
       }
-    }
   }
 
   // Merge overlapping or adjacent markers (within 2 minutes)

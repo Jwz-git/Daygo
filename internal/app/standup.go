@@ -125,7 +125,8 @@ const standupTimeout = 2 * time.Minute
 // GenerateDailyRecap regenerates the standup for one calendar day from the
 // day's activity cards and stores the result. The write guard matches the
 // other recap writes: a read-only second instance must not overwrite the
-// owner's content.
+// owner's content. Manual regeneration generates even for an empty activity
+// day: the user asked for it explicitly.
 func (b *Backend) GenerateDailyRecap(standupDay string) (DailyRecapDTO, error) {
 	if err := b.requireTimelineWrite(); err != nil {
 		return DailyRecapDTO{}, err
@@ -146,23 +147,34 @@ func (b *Backend) GenerateDailyRecap(standupDay string) (DailyRecapDTO, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), standupTimeout)
 	defer cancel()
 
-	// The standup covers the calendar day [00:00, next 00:00) local, per
-	// docs/05 §5.3.2 — not the 4 AM logical-day window the cards are filed
-	// under. CardsInRange's overlap rule pulls in cross-midnight activities.
+	activity, err := b.dayActivityCards(ctx, standupDay, loc)
+	if err != nil {
+		return DailyRecapDTO{}, err
+	}
+	return b.generateRecapFromCards(ctx, standupDay, activity)
+}
+
+// dayActivityCards returns the user-activity cards for one calendar day, with
+// System and Idle cards removed. The standup covers the calendar day
+// [00:00, next 00:00) local, per docs/05 §5.3.2 — not the 4 AM logical-day
+// window the cards are filed under. CardsInRange's overlap rule pulls in
+// cross-midnight activities. The caller guarantees a non-nil store.
+func (b *Backend) dayActivityCards(ctx context.Context, standupDay string, loc *time.Location) ([]domain.TimelineCard, error) {
+	store := b.store()
 	dayStart, err := daytime.ParseDay(standupDay, loc)
 	if err != nil {
-		return DailyRecapDTO{}, apperr.E(apperr.InvalidArgument, "standupDay must use yyyy-MM-dd", err)
+		return nil, apperr.E(apperr.InvalidArgument, "standupDay must use yyyy-MM-dd", err)
 	}
 	cards, err := store.Cards().CardsInRange(ctx, dayStart, dayStart.AddDate(0, 0, 1))
 	if err != nil {
-		return DailyRecapDTO{}, mapStorageError("generate daily recap", err)
+		return nil, mapStorageError("generate daily recap", err)
 	}
 
 	// System and Idle cards are machine semantics, not user activity; the
 	// prompt must not ask the model to summarise them.
 	categories, err := store.Categories().List(ctx)
 	if err != nil {
-		return DailyRecapDTO{}, mapStorageError("generate daily recap", err)
+		return nil, mapStorageError("generate daily recap", err)
 	}
 	excluded := make(map[string]bool, len(categories))
 	for _, c := range categories {
@@ -176,7 +188,14 @@ func (b *Backend) GenerateDailyRecap(standupDay string) (DailyRecapDTO, error) {
 			activity = append(activity, card)
 		}
 	}
+	return activity, nil
+}
 
+// generateRecapFromCards runs one LLM generation over the day's activity,
+// stores the result and emits recap:updated. It takes the caller's ctx so a
+// backfill loop's in-flight call is cancelled at shutdown. The caller
+// guarantees a non-nil store and has already checked the write guard.
+func (b *Backend) generateRecapFromCards(ctx context.Context, standupDay string, activity []domain.TimelineCard) (DailyRecapDTO, error) {
 	chain, err := analysisChainSource{backend: b}.AnalysisChain(ctx)
 	if err != nil {
 		return DailyRecapDTO{}, mapStorageError("generate daily recap", err)
@@ -208,7 +227,7 @@ func (b *Backend) GenerateDailyRecap(standupDay string) (DailyRecapDTO, error) {
 		BlockersBody:    envelope.BlockersBody,
 		GeneratedAt:     now,
 	}
-	if err := store.Standup().Upsert(ctx, entry); err != nil {
+	if err := b.store().Standup().Upsert(ctx, entry); err != nil {
 		return DailyRecapDTO{}, mapStorageError("generate daily recap", err)
 	}
 	b.emitter.Emit(EventRecapUpdated, RecapUpdatedPayload{StandupDay: standupDay})

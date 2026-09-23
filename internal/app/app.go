@@ -130,6 +130,11 @@ func Run() error {
 			// still renders stored cards, and diagnostics reports the gap.
 			log.Printf("analysis pipeline unavailable: %v", err)
 		}
+
+		// Backfill standups for calendar days that completed while the agent
+		// was not running, then re-scan on a ticker for newly completed days.
+		// Owned by ctx like the analysis pipeline, so shutdown stops it.
+		go backend.runStandupBackfill(ctx)
 	}
 	// Start the updater only after storage ownership is known. Sparkle and
 	// WinSparkle may schedule a check immediately; an early update must not see
@@ -181,7 +186,7 @@ func Run() error {
 			})
 			emitter.SetContext(ctx)
 			backend.setWindowContext(ctx)
-			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx})
+			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx, labels: backend.nativeLabels.get})
 			updateStatus := func(state recorder.State) {
 				// Status-item setup is an optional platform capability and must not
 				// make the desktop shell's startup depend on native tray availability.
@@ -197,18 +202,24 @@ func Run() error {
 			}
 			backend.setStatusUpdater(updateStatus)
 			updateStatus(backend.recorderState())
-			openWindow := func() {
+			// showWindow restores the window on an explicit user request: the
+			// status-bar "open" item. The application is unhidden before the
+			// window is ordered front because a soft-quit orders the window
+			// itself out, which unhiding the app does not undo.
+			showWindow := func() {
 				if err := backend.exitBackground(ctx); err != nil {
 					log.Printf("restore dock icon on reopen unavailable: %v", err)
 				}
-				runtime.WindowShow(ctx)
 				runtime.Show(ctx)
+				runtime.WindowShow(ctx)
 			}
-			backend.setActivationAction(openWindow)
+			// Activation only has to undo a soft-quit. See restoreOnActivation
+			// for why every other activation must be left to the system.
+			backend.setActivationAction(func() { backend.restoreOnActivation(showWindow) })
 			backend.setStatusAction(func(action string) {
 				switch action {
 				case "open":
-					openWindow()
+					showWindow()
 				case "open_recordings":
 					if backend.system == nil {
 						return

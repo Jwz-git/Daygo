@@ -1,21 +1,5 @@
 /* Bundled reading faces. Controls use the native macOS UI stack below. */
 
-@font-face {
-  font-family: 'LXGW WenKai';
-  src: url('../assets/fonts/LXGWWenKai-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: 'LXGW WenKai';
-  src: url('../assets/fonts/LXGWWenKai-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: block;
-}
-
 /* Editorial serif for large display numerals (weekly hero totals). */
 @font-face {
   font-family: 'Instrument Serif';
@@ -36,7 +20,7 @@
     'Helvetica Neue', sans-serif;
   --dg-font-display-weight: 650;
   --dg-font-display-tracking: -0.02em;
-  --dg-font-reading: 'LXGW WenKai', 'PingFang SC', 'Hiragino Sans GB', serif;
+  --dg-font-reading: 'PingFang SC', 'Hiragino Sans GB', -apple-system, BlinkMacSystemFont, sans-serif;
   --dg-font-serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino', 'Georgia', serif;
 }
 

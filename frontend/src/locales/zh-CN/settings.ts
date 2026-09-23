@@ -49,6 +49,8 @@ export default {
       '允许应用内聊天助手修改卡片、分类与目标（仅限沙箱内的六个受控操作）。默认关闭；与上方外部通道相互独立。',
   },
   general: {
+    launchAtLogin: '开机自启',
+    launchAtLoginHint: '登录系统时自动启动 Daygo，在后台继续记录。需要已正确签名的应用；开发构建下可能无法生效。',
     testTools: '测试工具',
     testToolsHint: '在侧边栏显示测试页，集中放置捕获测试、数据清理等测试专用功能。',
     writeError: '保存失败，已恢复为数据库中的值。',
