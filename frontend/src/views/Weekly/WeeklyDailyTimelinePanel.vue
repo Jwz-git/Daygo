@@ -68,16 +68,31 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
       <span>{{ t('weekly.daily.hint') }}</span>
     </header>
 
-    <div class="daily__grid">
-      <div class="daily__labels" aria-hidden="true">
-        <span v-for="day in presentation.days" :key="day.weekday">
-          {{ dayNames(day.day) }}
-        </span>
+    <div class="daily__chart">
+      <div class="daily__axis" aria-hidden="true">
+        <span
+          v-for="tick in axisTicks"
+          :key="tick.minute"
+          class="daily__tick"
+          :style="{ left: `${((tick.minute - windowStart) / windowSpan) * 100}%` }"
+        >{{ tick.label }}</span>
       </div>
 
       <div class="daily__rows">
+        <div class="daily__guides" aria-hidden="true">
+          <span
+            v-for="tick in axisTicks"
+            :key="`guide-${tick.minute}`"
+            :style="{ left: `${((tick.minute - windowStart) / windowSpan) * 100}%` }"
+          />
+        </div>
+
         <div v-for="day in presentation.days" :key="day.weekday" class="daily__row">
-          <template v-if="day.segments.length">
+          <span class="daily__day">{{ dayNames(day.day) }}</span>
+          <div
+            class="daily__track"
+            :title="day.segments.length ? undefined : t('weekly.daily.noActivity')"
+          >
             <span
               v-for="(segment, index) in day.segments"
               :key="index"
@@ -86,21 +101,8 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
               :style="segmentStyle(segment)"
               :title="segmentTitle(day.day, segment)"
             />
-          </template>
-          <span v-else class="daily__empty" :title="t('weekly.daily.noActivity')">
-            {{ t('weekly.daily.noActivity') }}
-          </span>
-        </div>
-
-        <div class="daily__axis" aria-hidden="true">
-          <span
-            v-for="tick in axisTicks"
-            :key="tick.minute"
-            class="daily__tick"
-            :style="{ left: `${((tick.minute - windowStart) / windowSpan) * 100}%` }"
-          >
-            {{ tick.label }}
-          </span>
+          </div>
+          <span class="daily__total">{{ day.trackedMinutes > 0 ? duration(day.trackedMinutes) : '' }}</span>
         </div>
       </div>
     </div>
@@ -115,14 +117,16 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
 </template>
 
 <style scoped>
-.daily { padding: 24px 26px 16px; }
+.daily {
+  padding: 24px 26px 18px;
+}
 
 .daily__header {
   display: flex;
   align-items: end;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .daily__header p {
@@ -148,64 +152,20 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
 
 .daily__header > span { color: var(--dg-text-muted); font-size: 10px; }
 
-.daily__grid {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 10px;
+.daily__chart {
+  --label-w: 40px;
+  --total-w: 48px;
+  --col-gap: 12px;
 }
-
-.daily__labels {
-  display: grid;
-  gap: 6px;
-}
-
-.daily__labels span {
-  display: flex;
-  align-items: center;
-  height: 20px;
-  color: var(--dg-text-secondary);
-  font-size: 10px;
-}
-
-.daily__rows {
-  display: grid;
-  gap: 6px;
-}
-
-.daily__row {
-  position: relative;
-  height: 20px;
-  border-radius: 5px;
-  background: var(--dg-weekly-bar-track);
-}
-
-.daily__segment {
-  position: absolute;
-  top: 3px;
-  height: 14px;
-  border-radius: 3px;
-}
-
-.daily__segment--idle { opacity: 0.5; }
-
-.daily__empty {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  color: var(--dg-text-muted);
-  font-size: 9px;
-  place-items: center;
-}
-
 .daily__axis {
   position: relative;
-  height: 16px;
-  margin-top: 2px;
+  height: 15px;
+  margin: 0 calc(var(--total-w) + var(--col-gap)) 6px calc(var(--label-w) + var(--col-gap));
 }
 
 .daily__tick {
   position: absolute;
-  top: 0;
+  bottom: 0;
   transform: translateX(-50%);
   color: var(--dg-text-muted);
   font-size: 9px;
@@ -216,11 +176,79 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
 .daily__tick:first-child { transform: none; }
 .daily__tick:last-child { transform: translateX(-100%); }
 
+.daily__rows {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.daily__guides {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--label-w) + var(--col-gap));
+  right: calc(var(--total-w) + var(--col-gap));
+  pointer-events: none;
+}
+
+.daily__guides span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-0.5px);
+  background: var(--dg-daily-grid-line);
+}
+.daily__row {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: var(--label-w) minmax(0, 1fr) var(--total-w);
+  align-items: center;
+  gap: 0 var(--col-gap);
+}
+
+.daily__day {
+  color: var(--dg-text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.daily__track {
+  position: relative;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--dg-weekly-bar-track);
+}
+
+.daily__segment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.daily__segment--idle {
+  opacity: 0.42;
+  box-shadow: none;
+}
+
+.daily__total {
+  color: var(--dg-text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
 .daily__legend {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 16px;
-  margin-top: 14px;
+  margin-top: 18px;
   padding-top: 12px;
   border-top: 1px solid var(--dg-card-border);
 }
@@ -251,7 +279,8 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
 }
 
 @media (max-width: 640px) {
-  .daily__labels span { font-size: 9px; }
+  .daily__chart { --label-w: 34px; --total-w: 0px; --col-gap: 10px; }
+  .daily__total { display: none; }
   .daily__legend { gap: 4px 12px; }
 }
 </style>
