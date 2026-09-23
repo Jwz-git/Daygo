@@ -297,6 +297,17 @@ function onAssistantClick(e: MouseEvent): void {
   padding-left: 22px;
 }
 
+/* The global reset (styles/reset.css) strips list-style; restore markers here
+   so assistant bullet and numbered lists still read as lists. */
+.cb__md :deep(ul) { list-style: disc; }
+.cb__md :deep(ul ul) { list-style: circle; }
+.cb__md :deep(ol) { list-style: decimal; }
+
+/* GFM task-list items carry their own checkbox — drop the redundant marker. */
+.cb__md :deep(li:has(> input[type="checkbox"])) {
+  list-style: none;
+}
+
 .cb__md :deep(li) {
   margin-bottom: 4px;
 }

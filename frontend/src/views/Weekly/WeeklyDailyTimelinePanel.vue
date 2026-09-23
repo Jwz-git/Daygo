@@ -5,8 +5,8 @@ import { useI18n } from 'vue-i18n'
 import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { useDurationFormat } from '@/lib/duration'
-import type { WeeklyPresentation } from '@/stores/weeklyPresentation'
-import { hourLabel, localMinuteOfDay } from '@/stores/weeklyPresentation'
+import type { WeeklyDaySegment, WeeklyPresentation } from '@/stores/weeklyPresentation'
+import { hourLabel } from '@/stores/weeklyPresentation'
 
 const props = defineProps<{ presentation: WeeklyPresentation }>()
 const { t, locale } = useI18n()
@@ -32,23 +32,82 @@ const axisTicks = computed(() => {
   return ticks
 })
 
-function segmentStyle(segment: { startMinute: number; endMinute: number; colorHex: string }) {
-  const left = ((segment.startMinute - windowStart.value) / windowSpan.value) * 100
-  const width = Math.max(0.4, ((segment.endMinute - segment.startMinute) / windowSpan.value) * 100)
-  return {
-    left: `${left}%`,
-    width: `${width}%`,
-    background: segment.colorHex,
-  }
+interface DailyRun {
+  category: string
+  colorHex: string
+  isIdle: boolean
+  startMinute: number
+  endMinute: number
+  minutes: number
+  joinLeft: boolean
 }
 
-function segmentTitle(day: string, segment: { category: string; minutes: number; startMinute: number; endMinute: number; isIdle: boolean }) {
+// Bridge sub-gaps this small (minutes) between same-category segments so a
+// continuous stretch of one category reads as a single run, not confetti.
+const MERGE_GAP = 2
+
+// Segments arrive sorted by startMinute. Fold consecutive same-category (same
+// idle-ness) touching/overlapping segments into one run, then flag work runs
+// that directly abut a *different* work run so we can hairline-divide them.
+function buildRuns(segments: WeeklyDaySegment[]): DailyRun[] {
+  const runs: DailyRun[] = []
+  for (const seg of segments) {
+    const last = runs[runs.length - 1]
+    if (last && last.category === seg.category && last.isIdle === seg.isIdle
+      && seg.startMinute - last.endMinute <= MERGE_GAP) {
+      last.endMinute = Math.max(last.endMinute, seg.endMinute)
+      last.minutes += seg.minutes
+    } else {
+      runs.push({
+        category: seg.category,
+        colorHex: seg.colorHex,
+        isIdle: seg.isIdle,
+        startMinute: seg.startMinute,
+        endMinute: seg.endMinute,
+        minutes: seg.minutes,
+        joinLeft: false,
+      })
+    }
+  }
+  for (let i = 1; i < runs.length; i += 1) {
+    // Hairline only where two work runs touch with no gap; idle sits beneath
+    // work (z-index), and a real gap leaves the track showing instead.
+    runs[i].joinLeft = !runs[i].isIdle && !runs[i - 1].isIdle
+      && runs[i].startMinute - runs[i - 1].endMinute <= 0.5
+  }
+  return runs
+}
+
+const rows = computed(() => {
+  const start = windowStart.value
+  const span = windowSpan.value
+  const name = dayNames.value
+  return props.presentation.days.map((day) => {
+    const runs = buildRuns(day.segments).map((run) => ({
+      ...run,
+      style: {
+        left: `${((run.startMinute - start) / span) * 100}%`,
+        width: `${Math.max(0.6, ((run.endMinute - run.startMinute) / span) * 100)}%`,
+        '--run-color': run.colorHex,
+      },
+    }))
+    return {
+      key: day.weekday,
+      name: name(day.day),
+      total: day.trackedMinutes > 0 ? duration(day.trackedMinutes) : '',
+      hasActivity: runs.length > 0,
+      runs,
+    }
+  })
+})
+
+function runTitle(dayName: string, run: DailyRun): string {
   const clock = (minute: number) => hourLabel(Math.floor(minute / 60))
   return [
-    dayNames.value(day),
-    `${clock(segment.startMinute)}–${clock(segment.endMinute)}`,
-    `${categoryLabel(segment.category, t)} · ${duration(segment.minutes)}`,
-    segment.isIdle ? t('weekly.daily.idleTag') : '',
+    dayName,
+    `${clock(run.startMinute)}–${clock(run.endMinute)}`,
+    `${categoryLabel(run.category, t)} · ${duration(run.minutes)}`,
+    run.isIdle ? t('weekly.daily.idleTag') : '',
   ].filter(Boolean).join(' · ')
 }
 </script>
@@ -87,29 +146,40 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
           />
         </div>
 
-        <div v-for="day in presentation.days" :key="day.weekday" class="daily__row">
-          <span class="daily__day">{{ dayNames(day.day) }}</span>
+        <div
+          v-for="(row, index) in rows"
+          :key="row.key"
+          class="daily__row"
+          :style="{ '--row-i': index }"
+        >
+          <span class="daily__day">{{ row.name }}</span>
           <div
             class="daily__track"
-            :title="day.segments.length ? undefined : t('weekly.daily.noActivity')"
+            role="img"
+            :aria-label="`${row.name} · ${row.hasActivity ? row.total : t('weekly.daily.noActivity')}`"
           >
+            <span v-if="!row.hasActivity" class="daily__empty">{{ t('weekly.daily.noActivity') }}</span>
             <span
-              v-for="(segment, index) in day.segments"
-              :key="index"
-              class="daily__segment"
-              :class="{ 'daily__segment--idle': segment.isIdle }"
-              :style="segmentStyle(segment)"
-              :title="segmentTitle(day.day, segment)"
+              v-for="(run, i) in row.runs"
+              :key="i"
+              class="daily__run"
+              :class="{ 'daily__run--idle': run.isIdle, 'daily__run--join': run.joinLeft }"
+              :style="run.style"
+              :title="runTitle(row.name, run)"
             />
           </div>
-          <span class="daily__total">{{ day.trackedMinutes > 0 ? duration(day.trackedMinutes) : '' }}</span>
+          <span class="daily__total">{{ row.total }}</span>
         </div>
       </div>
     </div>
 
     <div class="daily__legend">
-      <span v-for="category in presentation.categories" :key="category.name">
-        <i :style="{ background: category.colorHex }" />
+      <span
+        v-for="category in presentation.categories"
+        :key="category.name"
+        :class="{ 'daily__legend-item--idle': category.name === 'Idle' }"
+      >
+        <i :style="{ '--legend-color': category.colorHex }" />
         {{ categoryLabel(category.name, t) }}
       </span>
     </div>
@@ -154,13 +224,14 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
 
 .daily__chart {
   --label-w: 40px;
-  --total-w: 48px;
-  --col-gap: 12px;
+  --total-w: 52px;
+  --col-gap: 14px;
 }
+
 .daily__axis {
   position: relative;
   height: 15px;
-  margin: 0 calc(var(--total-w) + var(--col-gap)) 6px calc(var(--label-w) + var(--col-gap));
+  margin: 0 calc(var(--total-w) + var(--col-gap)) 8px calc(var(--label-w) + var(--col-gap));
 }
 
 .daily__tick {
@@ -180,7 +251,7 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
 }
 
 .daily__guides {
@@ -201,6 +272,7 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
   transform: translateX(-0.5px);
   background: var(--dg-daily-grid-line);
 }
+
 .daily__row {
   position: relative;
   z-index: 1;
@@ -216,25 +288,57 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
   white-space: nowrap;
 }
 
+/* The whole lane is one clipped bar: rounded ends read a full day as a single
+   continuous strip; runs inside butt-join with square cuts, and a recessed
+   groove overlay makes the colours sit inside the channel. */
 .daily__track {
   position: relative;
-  height: 24px;
+  height: 22px;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 7px;
   background: var(--dg-weekly-bar-track);
 }
 
-.daily__segment {
+.daily__track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow: var(--dg-daily-track-groove);
+  pointer-events: none;
+}
+
+.daily__run {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-radius: 5px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  z-index: 2;
+  background: var(--run-color);
 }
 
-.daily__segment--idle {
-  opacity: 0.42;
-  box-shadow: none;
+/* Hairline only where a work run abuts a different work run with no gap. */
+.daily__run--join {
+  box-shadow: inset 0.75px 0 0 var(--dg-daily-run-divider);
+}
+
+/* Idle: a quiet solid diagonal hatch beneath work, never a translucent wash. */
+.daily__run--idle {
+  z-index: 1;
+  background:
+    repeating-linear-gradient(-45deg, var(--dg-daily-idle-line) 0 1px, transparent 1px 5px),
+    var(--dg-daily-idle-fill);
+}
+
+.daily__empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dg-text-muted);
+  font-size: 9px;
 }
 
 .daily__total {
@@ -244,6 +348,7 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
   text-align: right;
   white-space: nowrap;
 }
+
 .daily__legend {
   display: flex;
   flex-wrap: wrap;
@@ -265,12 +370,20 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
   width: 10px;
   height: 10px;
   border-radius: 3px;
+  background: var(--legend-color);
+}
+
+.daily__legend-item--idle i {
+  background:
+    repeating-linear-gradient(-45deg, var(--dg-daily-idle-line) 0 1px, transparent 1px 4px),
+    var(--dg-daily-idle-fill);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .daily__segment {
+  .daily__run {
     transform-origin: 0 50%;
-    animation: daily-grow 560ms var(--dg-ease-glide) both;
+    animation: daily-grow 520ms var(--dg-ease-glide) both;
+    animation-delay: calc(var(--row-i, 0) * 40ms);
   }
 }
 
@@ -284,3 +397,5 @@ function segmentTitle(day: string, segment: { category: string; minutes: number;
   .daily__legend { gap: 4px 12px; }
 }
 </style>
+
+

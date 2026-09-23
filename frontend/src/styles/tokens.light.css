@@ -181,6 +181,12 @@
   --dg-daily-distraction: #b8453d;
   --dg-daily-distraction-track: rgba(255, 101, 59, 0.10);
   --dg-daily-footer-fill: rgba(247, 247, 249, 0.52);
+  /* weekly daily-timeline lane: recessed groove, hairline between abutting
+     runs of different categories, and the quiet idle hatch. */
+  --dg-daily-track-groove: inset 0 1px 2px rgba(28, 34, 45, 0.09), inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+  --dg-daily-run-divider: rgba(255, 255, 255, 0.72);
+  --dg-daily-idle-fill: rgba(120, 120, 128, 0.09);
+  --dg-daily-idle-line: rgba(120, 120, 128, 0.30);
 
   /* weekly summary */
   --dg-weekly-focus: #3977c3;
