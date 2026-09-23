@@ -201,7 +201,7 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 		}
 		return TimelineDayDTO{}, apperr.E(apperr.DatabaseError, "timeline requires a database", nil)
 	}
-	loc := b.clock.Now().Location()
+	loc := store.Location()
 	start, end, err := timeutil.DayWindow(day, loc)
 	if err != nil {
 		return TimelineDayDTO{}, apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
@@ -248,11 +248,15 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 		if card.EndTs <= card.StartTs || card.EndTs-card.StartTs > 4*3600 {
 			continue
 		}
-		dto.Cards = append(dto.Cards, sharedCardDTO(card, flags))
+		visible := sharedCardDTO(card, flags)
+		visible.StartTs = max(card.StartTs, start.Unix())
+		visible.EndTs = min(card.EndTs, end.Unix())
+		visible.DurationMinutes = float64(visible.EndTs-visible.StartTs) / 60
+		dto.Cards = append(dto.Cards, visible)
 		if card.Category == "System" {
 			continue
 		}
-		minutes := cardDurationMinutes(card)
+		minutes := visible.DurationMinutes
 		if flags.isIdle[card.Category] {
 			dto.IdleMinutes += minutes
 		} else {
@@ -334,7 +338,7 @@ func (b *Backend) requireTimelineWrite() error {
 	return nil
 }
 
-// cardDay returns the logical day of one card, for the invalidation event.
+// cardDay returns the persisted ownership day of one card.
 func (b *Backend) cardDay(ctx context.Context, cardID int64) (string, error) {
 	store := b.store()
 	card, err := store.Cards().CardByID(ctx, cardID)
@@ -342,6 +346,24 @@ func (b *Backend) cardDay(ctx context.Context, cardID int64) (string, error) {
 		return "", mapStorageError("load card", err)
 	}
 	return card.Day, nil
+}
+
+// cardVisibleDays includes the continuation day when one persisted card spans
+// 4 AM. A write to that card must refresh both timeline projections.
+func (b *Backend) cardVisibleDays(ctx context.Context, cardID int64) ([]string, error) {
+	store := b.store()
+	card, err := store.Cards().CardByID(ctx, cardID)
+	if err != nil {
+		return nil, mapStorageError("load card", err)
+	}
+	days := []string{card.Day}
+	if card.EndTs > card.StartTs {
+		last := timeutil.LogicalDay(time.Unix(card.EndTs-1, 0), store.Location())
+		if last != card.Day {
+			days = append(days, last)
+		}
+	}
+	return days, nil
 }
 
 // UpdateCardCategory moves one card to an existing category name. Unknown
@@ -517,7 +539,7 @@ func (b *Backend) ReprocessDay(day string) error {
 		}
 		return apperr.E(apperr.DatabaseError, "reprocess day requires a database", nil)
 	}
-	loc := b.clock.Now().Location()
+	loc := store.Location()
 	start, end, err := timeutil.DayWindow(day, loc)
 	if err != nil {
 		return apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
@@ -681,14 +703,16 @@ func (b *Backend) ClearHistoryData() error {
 	return nil
 }
 
-// invalidateCardDay resolves a card's day after a successful write and
+// invalidateCardDay resolves a card's visible days after a successful write and
 // schedules the merged invalidation emit. The write already succeeded, so a
 // failure to reload the card (concurrent delete) still emits nothing wrong:
 // the day is simply unknown, and no emit is the acceptable degraded case.
 func (b *Backend) invalidateCardDay(cardID int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
-	if day, err := b.cardDay(ctx, cardID); err == nil {
-		b.emitTimelineInvalidation(day)
+	if days, err := b.cardVisibleDays(ctx, cardID); err == nil {
+		for _, day := range days {
+			b.emitTimelineInvalidation(day)
+		}
 	}
 }

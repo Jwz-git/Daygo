@@ -65,6 +65,12 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
    （如 `Asia/Kathmandu`）。这些是夹具测试的必测项。
 3. 逻辑日窗口是**左闭右开** `[dayStartTs, dayEndTs)`。
 
+跨凌晨 4 点的活动仍是一张卡片：`timeline_cards.day` 永远是开始时刻所属的逻辑日，
+卡片 ID、审阅与编辑归属不变。日视图按卡片与当天窗口的**交集**展示，前后两日可看到
+同一 ID 的不同时间片；显示用的 `startTs` / `endTs` 和时长裁剪到当天窗口，原始时钟串及
+数据库时间戳不改。日、周总量只累计各自窗口内的分钟；周明细按 4 点边界拆为两个时间片。
+边界时刻只属于后一天，故两侧时间片无重叠、无缺口。
+
 ## 3.3 表结构
 
 `PRAGMA user_version` 从 `1` 起，配套版本化迁移链（`internal/storage/migrate.go`）。

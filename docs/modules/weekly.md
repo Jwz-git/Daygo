@@ -19,7 +19,7 @@
 
 - 边界与聚合：`timeutil.WeekStart` / `WeekWindow`（周一 4 点对齐，
   decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`（与
-  `TotalMinutesTracked` 同一重叠谓词 + categories join 取 is_idle）、
+  `TotalMinutesTracked` 同一窗口交集口径 + categories join 取 is_idle）、
   `internal/insight.AggregateWeekly`（tracked 排 System、focus 排 isIdle 与 Distraction、share
   分母 0 为 0、minutes DESC）、`DayContextDTO.weekStart`（前端初始周不自算）。
 - 绑定与前端：`GetWeeklyDashboard`（非周一拒绝，含按日明细 `WeeklyDayDTO` 与洞察
@@ -72,3 +72,5 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 ## 验证记录
 
 2026-09-11—20：Go 的周边界属性测试、存储与聚合夹具覆盖空周、System / Idle / Distraction 排除、非周一拒绝及 DST / 半小时 / 45 分钟时区；前端 typecheck / build 和 Vite 匿名数据预览覆盖深浅主题、双语言与窄窗口。2026-09-20 修正 Distraction 误计为专注。真实卡片周与跨周观察由用户于 2026-09-22 确认验收，未附逐项运行记录。
+
+2026-09-23：匿名周一 03:30–04:30 卡片夹具验证前后两周各计 30 分钟，日明细各有一个无重叠时间片；`go test ./internal/app ./internal/storage ./internal/insight` 通过。真实历史库尚未单独复核。

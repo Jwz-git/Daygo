@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/domain"
+	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
 // seedCategory inserts a categories row; cards store names, but the
@@ -95,6 +96,85 @@ func TestCategoryMinutesInRange(t *testing.T) {
 	}
 	if len(rows) != 0 {
 		t.Fatalf("disjoint window rows = %+v, want none", rows)
+	}
+}
+
+func TestCrossFourAMMinutesBelongToEachWindowOnce(t *testing.T) {
+	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
+	seedBatch(t, store, 1)
+	seedCategory(t, store, "Coding", false)
+	ctx := context.Background()
+	loc := store.Location()
+	from := time.Date(2026, 9, 13, 3, 30, 0, 0, loc)
+	to := time.Date(2026, 9, 13, 4, 30, 0, 0, loc)
+	if _, err := store.Cards().ReplaceCardsInRange(ctx, from, to, []domain.CardShell{
+		shell("3:30 AM", "4:30 AM", "Coding", "boundary"),
+	}, 1); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		day        string
+		start, end time.Time
+	}{
+		{"2026-09-12", time.Date(2026, 9, 12, 4, 0, 0, 0, loc), time.Date(2026, 9, 13, 4, 0, 0, 0, loc)},
+		{"2026-09-13", time.Date(2026, 9, 13, 4, 0, 0, 0, loc), time.Date(2026, 9, 14, 4, 0, 0, 0, loc)},
+	} {
+		cards, err := store.Cards().CardsForDay(ctx, tc.day)
+		if err != nil || len(cards) != 1 || cards[0].Title != "boundary" {
+			t.Fatalf("%s cards = %+v, err = %v", tc.day, cards, err)
+		}
+		minutes, err := store.Cards().CategoryMinutesInRange(ctx, tc.start, tc.end)
+		if err != nil || len(minutes) != 1 || minutes[0].Minutes != 30 {
+			t.Fatalf("%s minutes = %+v, err = %v; want 30", tc.day, minutes, err)
+		}
+		spans, err := store.Cards().CardSpansInRange(ctx, tc.start, tc.end)
+		if err != nil || len(spans) != 1 || spans[0].StartTs != max(from.Unix(), tc.start.Unix()) || spans[0].EndTs != min(to.Unix(), tc.end.Unix()) || spans[0].Day != tc.day {
+			t.Fatalf("%s spans = %+v, err = %v", tc.day, spans, err)
+		}
+	}
+	spans, err := store.Cards().CardSpansInRange(ctx, time.Date(2026, 9, 12, 4, 0, 0, 0, loc), time.Date(2026, 9, 14, 4, 0, 0, 0, loc))
+	if err != nil || len(spans) != 2 || spans[0].Day != "2026-09-12" || spans[1].Day != "2026-09-13" || spans[0].EndTs != spans[1].StartTs {
+		t.Fatalf("two-day spans = %+v, err = %v; want two adjoining slices", spans, err)
+	}
+	total, err := store.Cards().TotalMinutesTracked(ctx, time.Date(2026, 9, 12, 4, 0, 0, 0, loc), time.Date(2026, 9, 13, 4, 0, 0, 0, loc))
+	if err != nil || total != 30 {
+		t.Fatalf("first day tracked = %v, err = %v; want 30", total, err)
+	}
+}
+
+func TestCrossFourAMWindowInDSTAndFractionalZones(t *testing.T) {
+	for _, tc := range []struct {
+		zone             string
+		year, month, day int
+	}{
+		{"America/New_York", 2026, 11, 1}, // fall-back day
+		{"Asia/Kolkata", 2026, 9, 13},     // UTC+05:30
+		{"Asia/Kathmandu", 2026, 9, 13},   // UTC+05:45
+	} {
+		t.Run(tc.zone, func(t *testing.T) {
+			store := openWriterAt(t, newDir(t), tc.zone)
+			seedBatch(t, store, 1)
+			ctx := context.Background()
+			loc := store.Location()
+			from := time.Date(tc.year, time.Month(tc.month), tc.day, 3, 30, 0, 0, loc)
+			to := time.Date(tc.year, time.Month(tc.month), tc.day, 4, 30, 0, 0, loc)
+			if _, err := store.Cards().ReplaceCardsInRange(ctx, from, to, []domain.CardShell{
+				shell("3:30 AM", "4:30 AM", "Coding", "boundary"),
+			}, 1); err != nil {
+				t.Fatal(err)
+			}
+			for _, at := range []time.Time{from, to} {
+				day := timeutil.LogicalDay(at, loc)
+				start, end, err := timeutil.DayWindow(day, loc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows, err := store.Cards().CategoryMinutesInRange(ctx, start, end)
+				if err != nil || len(rows) != 1 || rows[0].Minutes != 30 {
+					t.Fatalf("%s: rows = %+v, err = %v; want 30 minutes", day, rows, err)
+				}
+			}
+		})
 	}
 }
 

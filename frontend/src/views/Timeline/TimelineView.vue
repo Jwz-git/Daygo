@@ -169,7 +169,7 @@ const reviewedIds = ref<ReadonlySet<number>>(new Set())
 
 const reviewQueue = computed<TimelineCardDTO[]>(() =>
   (day.value?.cards ?? []).filter(
-    (card) => !card.isIdle && card.category !== 'System' && !reviewedIds.value.has(card.id),
+    (card) => card.day === day.value?.day && !card.isIdle && card.category !== 'System' && !reviewedIds.value.has(card.id),
   ),
 )
 

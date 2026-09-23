@@ -558,11 +558,11 @@ type TimelineDayDTO struct {
 type TimelineCardDTO struct {
     ID                    int64            `json:"id"`              // → timeline_cards.id
     BatchID               *int64           `json:"batchId"`         // → batch_id
-    Day                   string           `json:"day"`             // → day
+    Day                   string           `json:"day"`             // 卡片归属日；跨 4 点的次日时间片仍保留原归属日
     Start                 string           `json:"start"`           // → start，时钟串
     End                   string           `json:"end"`             // → end
-    StartTs               int64            `json:"startTs"`         // → start_ts
-    EndTs                 int64            `json:"endTs"`           // → end_ts
+    StartTs               int64            `json:"startTs"`         // GetTimelineDay 裁剪到所请求日窗口
+    EndTs                 int64            `json:"endTs"`           // 原始时间戳仍在数据库中
     Category              string           `json:"category"`        // → category（名称字符串）
     Subcategory           string           `json:"subcategory"`     // → subcategory
     Title                 string           `json:"title"`           // → title
@@ -573,7 +573,7 @@ type TimelineCardDTO struct {
     AppSites              *AppSitesDTO     `json:"appSites"`          // → metadata.appSites
     Distractions          []DistractionDTO `json:"distractions"`      // → metadata.distractions
     IsIdle                bool             `json:"isIdle"`            // 分类 isIdle 或 metadata.idle
-    DurationMinutes       int              `json:"durationMinutes"`   // 派生：max(0,(endTs-startTs)/60)
+    DurationMinutes       float64          `json:"durationMinutes"`   // 当前日可见时间片的分钟数
 }
 
 type DistractionDTO struct {
@@ -921,7 +921,7 @@ type CategoryTotalDTO struct {
     ColorHex string  `json:"colorHex"` // categories 表颜色；无分类行时为 ""
 }
 
-// 一天的时段不裁剪到日窗口（与 CategoryMinutesInRange 同一重叠谓词）；
+// 一天的时段裁剪到日窗口；跨 4 点卡片在相邻两日各占自己的时间片，周总量也只计窗口交集；
 // segments 含 Idle，System 全部排除。时段数量上限由批次生成节奏天然约束。
 type WeeklyDayDTO struct {
     Day            string             `json:"day"` // 逻辑日 yyyy-MM-dd
@@ -1449,8 +1449,8 @@ JSON 输出（`--json`）规则：
 3. 时间格式 `yyyy-MM-dd'T'HH:mm:ssZZZZZ`。
 4. 空值省略规则必须明确写死并测试（哪些字段为空时不输出）。
 5. 错误输出到 **stderr**，形状 `{"schema_version":1,"error":{"code":...,"message":...}}`。
-6. `timeline` 按 `start_ts` 落在逻辑日窗口内选择；`daily` 按**日历日**查询；
-   合计一律排除 `category = 'System'`。
+6. `timeline` 按卡片与逻辑日窗口相交选择，并将输出时间戳及分钟数裁剪到该窗口；
+   `daily` 按**日历日**查询；合计一律排除 `category = 'System'`。
 
 ### 5.9.2 Agent bridge（写入通道）
 
