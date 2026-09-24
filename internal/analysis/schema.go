@@ -69,27 +69,6 @@ var cardsOutput = ai.OutputSchema{Name: "daygo_cards", Schema: json.RawMessage(`
 							"additionalProperties": false
 						}
 					},
-					"titleEvidence": {
-						"type": "object",
-						"properties": {
-							"activities": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"properties": {
-										"activity": {"type": "string"},
-										"minutes": {"type": "number"}
-									},
-									"required": ["activity", "minutes"],
-									"additionalProperties": false
-								}
-							},
-							"selectedActivity": {"type": "string"},
-							"familiarSubject": {"type": "string"}
-						},
-						"required": ["activities", "selectedActivity", "familiarSubject"],
-						"additionalProperties": false
-					},
 					"activityPoints": {
 						"type": "array",
 						"items": {
@@ -147,15 +126,7 @@ type modelCard struct {
 	DetailedSummary string             `json:"detailed_summary"`
 	AppSites        []string           `json:"appSites"`
 	Distractions    []cardsDistraction `json:"distractions"`
-	TitleEvidence   struct {
-		Activities []struct {
-			Activity string `json:"activity"`
-			Minutes  int    `json:"minutes"`
-		} `json:"activities"`
-		SelectedActivity string `json:"selectedActivity"`
-		FamiliarSubject  string `json:"familiarSubject"`
-	} `json:"titleEvidence"`
-	ActivityPoints []struct {
+	ActivityPoints  []struct {
 		Time        string `json:"time"`
 		Description string `json:"description"`
 	} `json:"activityPoints"`

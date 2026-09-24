@@ -505,7 +505,7 @@ func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (tim
 	for i := len(existing) - 1; i >= 0; i-- {
 		card := existing[i]
 		if card.EndTs <= startUnix {
-			if startUnix-card.EndTs <= 300 {
+			if startUnix-card.EndTs <= int64(ongoingRewriteReachback.Seconds()) {
 				return time.Unix(card.StartTs, 0), true
 			}
 			break
@@ -514,13 +514,26 @@ func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (tim
 	return batchStart, false
 }
 
-// A single-card batch output is always the window's last card, so the
-// 15-minute floor (docs/04 §4.3.1) never constrains it and an isolated
-// few-minute activity lands as a tiny card. These bound the recovery merge
-// that folds such a card into an adjacent preceding card.
+// Three adjacency windows decide how far a rewrite reaches toward a
+// neighbouring card. They are deliberately different, not one stray magic
+// number:
+//   - ongoingRewriteReachback (5min): a sliding-window rewrite re-owns the
+//     nearest committed predecessor within this reach (cardRewriteStart).
+//     Permissive, because re-owning a same-window predecessor is safe.
+//   - maxShortCardMergeGap (4min): the deterministic short-single-card fold
+//     (mergeableSingleCardPredecessor). Stricter, because it merges identity
+//     across categories.
+//   - AdjacentIdleMergeGap (5min, rules.go): idle-into-idle merge on the idle
+//     fast path, a separate mechanism.
+//
+// shortSingleCardCeiling: a single-card batch output is always the window's
+// last card, so the 15-minute floor (docs/04 §4.3.1) never constrains it and
+// an isolated few-minute activity lands as a tiny card; the fold bounds the
+// recovery merge that folds such a card into an adjacent preceding card.
 const (
-	shortSingleCardCeiling = 13 * time.Minute
-	maxShortCardMergeGap   = 4 * time.Minute
+	ongoingRewriteReachback = 5 * time.Minute
+	shortSingleCardCeiling  = 13 * time.Minute
+	maxShortCardMergeGap    = 4 * time.Minute
 )
 
 // mergeableSingleCardPredecessor reports the committed card a short single-card
