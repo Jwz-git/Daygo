@@ -47,7 +47,7 @@ Provider CRUD / 路由链 / 密钥 / `TestProvider(id, model)` 绑定
 （openai / openai_responses / anthropic，经 `internal/ai` factory 统一构造）、路由、取消、
 重试与回退装饰器，以及内嵌匿名图片的连接探针（`ai.TestConnection`：固定文本 + PNG +
 严格 schema，单次调用，验证文本 / 图片 / 结构化输出三种能力）。图片仅接受
-JPEG / PNG / WebP，最多 20 张、单张 5 MiB、原始总量 20 MiB；调用记录只存 attempt 元数据，
+JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB；调用记录只存 attempt 元数据，
 不存 endpoint、正文、图片、密钥或费用。
 协议客户端归 internal/ai；上层任务通过消费者接口调用，不导入另一服务的内部实现。
 providers repository 在 internal/storage；Secrets.Get 只供 Go 客户端取密钥，

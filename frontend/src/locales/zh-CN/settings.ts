@@ -146,7 +146,7 @@ export default {
       removeModel: '移除该模型',
       maxImages: '单请求图片上限',
       maxImagesHint:
-        '0 表示默认（20 张）。该服务一次请求最多接受的图片数：网关限制更低时调小；开启视觉增强后每张截图会切成 5 张图输入，可按需调整。',
+        '0 表示默认（5 张）。该服务一次请求最多接受的图片数：网关限制更低时调小；开启视觉增强后每张截图会切成 5 张图输入，可按需调整。',
       maxImagesValue: '{count} 张',
       modelPlaceholder: {
         openai: '例如：gpt-4o-mini',

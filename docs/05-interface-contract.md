@@ -1175,7 +1175,7 @@ type ReplaceResult struct {
 
 1. `internal/ai` 暴露统一 `Generate(ctx, Request)`：`Request.Parts` 是有序文本 / 内存图片，
    可附带 JSON Schema；媒体由流水线经 `platform.Media` 准备，provider 不读路径或自行解码。
-   首期图片仅接受 JPEG / PNG / WebP，最多 20 张、单张 5 MiB、原始总量 20 MiB。
+   首期图片仅接受 JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB。
 2. 三种协议都发送原生 schema：openai（Chat Completions）与 openai_responses 分别使用
    `response_format` 和 `text.format`，anthropic 使用 `output_config.format`；返回后仍须
    本地提取 / 修复 JSON 并验证 schema。兼容端不支持时返回 `unsupported_feature`，

@@ -55,12 +55,13 @@ func TestGroupFramesHonorsImageCap(t *testing.T) {
 		}
 	}
 
-	// 0 and out-of-range caps fall back to the ai.MaxImages default.
-	if got := groupFrames(frames, 0); len(got) != 1 {
-		t.Fatalf("default cap produced %d groups, want 1", len(got))
+	// 0 and out-of-range caps fall back to the ai.MaxImages default (5), so
+	// 10 frames split into 5+5.
+	if got := groupFrames(frames, 0); len(got) != 2 {
+		t.Fatalf("default cap produced %d groups, want 2 (5+5)", len(got))
 	}
-	if got := groupFrames(frames, -1); len(got) != 1 {
-		t.Fatalf("negative cap produced %d groups, want 1", len(got))
+	if got := groupFrames(frames, -1); len(got) != 2 {
+		t.Fatalf("negative cap produced %d groups, want 2 (5+5)", len(got))
 	}
 }
 

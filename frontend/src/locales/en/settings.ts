@@ -148,7 +148,7 @@ export default {
       removeModel: 'Remove this model',
       maxImages: 'Images per request',
       maxImagesHint:
-        '0 means the default (20). The most images this service accepts in one request: lower it for gateways with tighter limits. With recognition enhancement on, each screenshot is sent as 5 images, so adjust as needed.',
+        '0 means the default (5). The most images this service accepts in one request: lower it for gateways with tighter limits. With recognition enhancement on, each screenshot is sent as 5 images, so adjust as needed.',
       maxImagesValue: '{count} images',
       modelPlaceholder: {
         openai: 'e.g. gpt-4o-mini',

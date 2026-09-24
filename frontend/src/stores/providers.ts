@@ -119,7 +119,7 @@ function validate(draft: ProviderDraft): { ok: true } | { ok: false; errors: Pro
     errors.endpoint = 'invalidUrl'
   }
 
-  if (!Number.isInteger(draft.maxImages) || draft.maxImages < 0 || draft.maxImages > 20) {
+  if (!Number.isInteger(draft.maxImages) || draft.maxImages < 0 || draft.maxImages > 5) {
     errors.maxImages = 'range'
   }
 

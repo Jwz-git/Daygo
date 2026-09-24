@@ -264,7 +264,7 @@ func TestClampMaxImages(t *testing.T) {
 		{-3, MaxImages},
 		{1, 1},
 		{5, 5},
-		{20, 20},
+		{6, MaxImages},
 		{21, MaxImages},
 	}
 	for _, c := range cases {
