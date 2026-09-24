@@ -46,3 +46,32 @@ func (b *Backend) OpenSystemSettings(pane string) error {
 	}
 	return nil
 }
+
+// SetPermissionRestartArmed arms or disarms the permission-change restart. The
+// frontend arms it while the screen-recording permission guidance is visible, so
+// that macOS's "Quit & Reopen" (and the guidance's own restart button) fully
+// terminate and relaunch the resident agent instead of soft-quitting to the
+// background — the only way a freshly granted TCC permission takes effect. It is
+// disarmed when the guidance is dismissed so an ordinary Cmd+Q still soft-quits.
+func (b *Backend) SetPermissionRestartArmed(armed bool) error {
+	if armed {
+		b.armPermissionRestart()
+	} else {
+		b.disarmPermissionRestart()
+	}
+	return nil
+}
+
+// RelaunchForPermission finalizes the active segment and restarts the app so a
+// freshly granted screen-recording permission takes effect. It is the guidance
+// layer's explicit "restart to apply" action; a resident agent otherwise only
+// hides its window on quit and never re-reads the grant.
+func (b *Backend) RelaunchForPermission() error {
+	requestShutdown := b.shutdownRequest()
+	if requestShutdown == nil {
+		return apperr.E(apperr.NativeUnavailable, "desktop shell is unavailable", nil)
+	}
+	b.beginPermissionRestart()
+	requestShutdown()
+	return nil
+}

@@ -18,6 +18,7 @@ type System struct {
 	revealedPaths     []string
 	launchAtLogin     bool
 	launchAtLoginCall int
+	relaunches        int
 }
 
 func NewSystem() *System {
@@ -118,4 +119,20 @@ func (s *System) RevealedPaths() []string {
 func (s *System) ScheduleNotification(context.Context, platform.Notification) error { return nil }
 func (s *System) CancelNotifications(context.Context, []string) error               { return nil }
 
+func (s *System) Relaunch(context.Context) error {
+	s.mu.Lock()
+	s.relaunches++
+	s.mu.Unlock()
+	return nil
+}
+
+// Relaunches counts Relaunch calls so tests can prove the permission-change
+// restart scheduled a relaunch rather than only quitting.
+func (s *System) Relaunches() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.relaunches
+}
+
 var _ platform.System = (*System)(nil)
+var _ platform.Relauncher = (*System)(nil)

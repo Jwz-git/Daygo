@@ -147,3 +147,51 @@ func TestBackgroundTransitionsNilSystem(t *testing.T) {
 		t.Fatalf("exitBackground with nil system must be a no-op: %v", err)
 	}
 }
+
+func TestPermissionRestartDefaultsDisarmed(t *testing.T) {
+	b := NewBackend(fake.NewSystem(), nil)
+	if b.permissionRestartArmed() {
+		t.Fatal("a fresh backend must not arm the permission restart; an ordinary Cmd+Q soft-quits")
+	}
+}
+
+func TestArmAndDisarmPermissionRestart(t *testing.T) {
+	b := NewBackend(fake.NewSystem(), nil)
+	if err := b.SetPermissionRestartArmed(true); err != nil {
+		t.Fatalf("SetPermissionRestartArmed(true): %v", err)
+	}
+	if !b.permissionRestartArmed() {
+		t.Fatal("arming must let the next quit terminate and relaunch")
+	}
+	if err := b.SetPermissionRestartArmed(false); err != nil {
+		t.Fatalf("SetPermissionRestartArmed(false): %v", err)
+	}
+	if b.permissionRestartArmed() {
+		t.Fatal("disarming must return the next quit to a background soft-quit")
+	}
+}
+
+func TestBeginPermissionRestartSchedulesRelaunch(t *testing.T) {
+	sys := fake.NewSystem()
+	b := NewBackend(sys, nil)
+	b.beginPermissionRestart()
+	if got := sys.Relaunches(); got != 1 {
+		t.Fatalf("beginPermissionRestart must schedule exactly one relaunch, got %d", got)
+	}
+}
+
+func TestBeginPermissionRestartWithoutRelauncherIsNoop(t *testing.T) {
+	// A nil System (headless) has no relaunch capability. Finalizing and quitting
+	// must still be safe; the process simply exits without an automatic relaunch.
+	b := NewBackend(nil, nil)
+	b.beginPermissionRestart()
+}
+
+func TestRelaunchForPermissionWithoutShellIsUnavailable(t *testing.T) {
+	// Without a desktop shell (no shutdown requester installed) the binding must
+	// report native_unavailable rather than pretend it restarted.
+	b := NewBackend(fake.NewSystem(), nil)
+	if err := b.RelaunchForPermission(); err == nil {
+		t.Fatal("RelaunchForPermission without a shell must fail rather than silently no-op")
+	}
+}

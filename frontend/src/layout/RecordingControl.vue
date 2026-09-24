@@ -28,6 +28,10 @@ function onOpenSettings(): void {
   void store.openScreenRecordingSettings()
 }
 
+function onRelaunch(): void {
+  void store.relaunchForPermission()
+}
+
 function onDismiss(): void {
   store.dismissPermissionPrompt()
 }
@@ -68,8 +72,11 @@ function onDismiss(): void {
             <button type="button" class="recording-permission__btn is-secondary" @click="onDismiss">
               {{ t('recording.permission.dismiss') }}
             </button>
-            <button type="button" class="recording-permission__btn is-primary" @click="onOpenSettings">
+            <button type="button" class="recording-permission__btn is-secondary" @click="onOpenSettings">
               {{ t('recording.permission.openSettings') }}
+            </button>
+            <button type="button" class="recording-permission__btn is-primary" @click="onRelaunch">
+              {{ t('recording.permission.relaunch') }}
             </button>
           </div>
         </div>
@@ -171,6 +178,7 @@ function onDismiss(): void {
 
 .recording-permission__actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }

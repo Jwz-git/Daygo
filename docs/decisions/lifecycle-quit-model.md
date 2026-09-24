@@ -12,6 +12,10 @@
 - **软退出**：Cmd+Q、Dock 右键「退出」、macOS App 菜单「退出」——不终止进程，只隐藏窗口
   并把激活策略切到 accessory（摘掉 Dock 图标），录制在后台继续。
 - **真退出**：只有状态栏菜单的「退出」会真正终止进程（收尾当前分段后停止捕获）。
+- **授权重启**：授权流程内武装后的退出（含 macOS 授权后自弹的「退出并重开」、引导层按钮）——完全退出
+  **并自动重启**，让新的屏幕录制授权生效。语义与实现见
+  [屏幕录制授权 §1a](recording-screen-recording-permission.md)；它是软退出之外唯一会自动拉起新实例的
+  退出路径，而更新重启由 Sparkle 拉起，两者互不改写。
 
 这与常驻后台 Agent 的定位一致：退出 UI 不等于用户要求停止录制。此前
 [架构 §2.6.2](../02-architecture.md#262-关闭) 把 Cmd+Q 记为「退出」，与该定位相悖，已随本切片改正。
@@ -47,8 +51,10 @@ runtime.Quit(ctx)  → frontend.Quit()
 Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
 
 - `Backend.allowQuit`（`atomic.Bool`，默认 false）+ `requestQuit()` / `quitAllowed()`。
-- `OnBeforeClose`：`quitAllowed()` 为真则返回 false 放行；否则 `runtime.WindowHide` +
-  `enterBackground`（切 accessory）后返回 true 阻止。
+- `OnBeforeClose`：`quitAllowed()` 为真则返回 false 放行（状态栏真退出 / 更新重启 / SIGTERM，**不**自重启）；
+  否则若「授权重启」已武装（`pendingPermissionRestart`），走 `beginPermissionRestart()`（收尾分段 → 调度
+  自重启）后返回 false 放行真退出；否则 `runtime.WindowHide` + `enterBackground`（切 accessory）后返回 true
+  阻止。授权重启路径的细节见 [屏幕录制授权 §1a](recording-screen-recording-permission.md)。
 - 状态栏 `"open"` 走 `showWindow`：先 `exitBackground`（切回 regular），再 `runtime.Show`
   （unhide 应用）**最后** `runtime.WindowShow`（order front + activate）。顺序不能颠倒：软退出
   用的是 `runtime.WindowHide`（`orderOut`），unhide 应用不会把它还原，先 order front 再 unhide

@@ -167,6 +167,32 @@ func dg_launch_at_login_set(_ enabled: UInt32) -> Int32 {
     }
 }
 
+@_cdecl("dg_relaunch")
+func dg_relaunch() -> Int32 {
+    // Schedule a fresh instance to start once THIS process has exited. macOS
+    // caches the screen-recording (TCC) decision at launch, so only a real
+    // relaunch picks up a newly granted permission; and the new instance must
+    // wait for the old one to release the write/capture locks before it can
+    // become the owner. A detached /bin/sh polls the parent PID, then `open -n`
+    // starts a new instance. When we exit the helper is reparented to launchd,
+    // so it outlives our termination. The bundle path is passed as $0 rather
+    // than interpolated into the script, so a path with spaces is handled by
+    // the shell without quoting games.
+    let bundlePath = Bundle.main.bundlePath
+    guard !bundlePath.isEmpty else { return -1 }
+    let pid = ProcessInfo.processInfo.processIdentifier
+    let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; sleep 0.5; exec open -n \"$0\""
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/bin/sh")
+    task.arguments = ["-c", script, bundlePath]
+    do {
+        try task.run()
+        return 0
+    } catch {
+        return -1
+    }
+}
+
 @_cdecl("dg_system_stop")
 func dg_system_stop() {
     let workspace = NSWorkspace.shared.notificationCenter

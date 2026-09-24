@@ -16,8 +16,9 @@ export default {
     body: 'Daygo needs Screen Recording permission to capture your screen. Grant it in System Settings, then restart Daygo.',
     step1: 'Allow Daygo to record the screen in the system prompt or the settings below',
     step2: 'Turn on the Daygo switch in the Screen Recording list',
-    step3: 'Fully quit and reopen Daygo for the permission to take effect',
+    step3: 'After granting, click "Restart to apply" — Daygo fully quits and reopens itself',
     openSettings: 'Open System Settings',
+    relaunch: 'Restart to apply',
     dismiss: 'Later',
   },
   menuBar: {

@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 #define DG_SYSTEM_ABI_MAJOR 1u
-#define DG_SYSTEM_ABI_MINOR 3u
+#define DG_SYSTEM_ABI_MINOR 4u
 typedef void (*dg_system_event_callback_v1)(uint32_t kind, int64_t at_unix_ns, void *user_data);
 enum { DG_SYSTEM_SLEEP=1, DG_SYSTEM_WAKE=2, DG_SYSTEM_SCREEN_LOCKED=3, DG_SYSTEM_SCREEN_UNLOCKED=4, DG_SYSTEM_SCREENSAVER_START=5, DG_SYSTEM_SCREENSAVER_STOP=6, DG_SYSTEM_DISPLAYS_CHANGED=7, DG_SYSTEM_APPLICATION_ACTIVATED=8 };
 enum { DG_ACTIVATION_REGULAR=0, DG_ACTIVATION_ACCESSORY=1, DG_ACTIVATION_PROHIBITED=2 };
@@ -38,6 +38,12 @@ int32_t dg_launch_at_login_query(void);
    DG_LAUNCH_AT_LOGIN_UNSUPPORTED's negative counterpart is not used — below
    macOS 13 it returns a negative error. */
 int32_t dg_launch_at_login_set(uint32_t enabled);
+/* Relaunches the app: schedules a fresh instance to start once the current
+   process has exited, then returns immediately (0), or negative on failure
+   (e.g. the bundle path cannot be resolved). Used by the permission-change
+   restart so a resident agent fully quits and comes back with the new
+   screen-recording (TCC) grant applied. */
+int32_t dg_relaunch(void);
 #ifdef __cplusplus
 }
 #endif

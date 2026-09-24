@@ -14,6 +14,7 @@ var activeSystem struct {
 }
 
 func systemStart() error { return errors.New("system ABI unavailable without cgo") }
+func relaunch() error    { return errors.New("relaunch ABI unavailable without cgo") }
 func setStatusItem(platform.StatusItemState) error {
 	return errors.New("status item ABI unavailable without cgo")
 }

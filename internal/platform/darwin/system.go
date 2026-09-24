@@ -159,4 +159,12 @@ func (s *System) RevealPath(ctx context.Context, path string) error {
 func (s *System) ScheduleNotification(context.Context, platform.Notification) error { return nil }
 func (s *System) CancelNotifications(context.Context, []string) error               { return nil }
 
-var _ platform.System = (*System)(nil)
+// Relaunch schedules a fresh instance to start once this process has exited so
+// a newly granted screen-recording (TCC) permission — cached by macOS at launch
+// — takes effect and the new instance can reclaim the write/capture locks.
+func (s *System) Relaunch(context.Context) error { return relaunch() }
+
+var (
+	_ platform.System     = (*System)(nil)
+	_ platform.Relauncher = (*System)(nil)
+)

@@ -1,7 +1,9 @@
 import {
   GetPermissionState,
   OpenSystemSettings,
+  RelaunchForPermission,
   RequestScreenRecordingPermission,
+  SetPermissionRestartArmed,
 } from '../../wailsjs/go/app/Backend'
 import type { app } from '../../wailsjs/go/models'
 
@@ -36,5 +38,27 @@ export async function requestScreenRecordingPermission(): Promise<void> {
 /** Opens one of the allowed system-settings panes. */
 export async function openSystemSettings(pane: SettingsPane): Promise<void> {
   if (hasBridge()) return OpenSystemSettings(pane)
+  throw new Error(WAILS_UNAVAILABLE)
+}
+
+/*
+ * Arms or disarms the permission-change restart. While armed, the next quit —
+ * including macOS's own "Quit & Reopen" prompt after the user changes the
+ * screen-recording grant — fully terminates and relaunches instead of the
+ * resident agent's usual soft-quit-to-background. The flag lives in the running
+ * process and resets on relaunch.
+ */
+export async function setPermissionRestartArmed(armed: boolean): Promise<void> {
+  if (hasBridge()) return SetPermissionRestartArmed(armed)
+  throw new Error(WAILS_UNAVAILABLE)
+}
+
+/*
+ * Fully quits and relaunches so a newly granted screen-recording permission —
+ * which macOS only reads at launch — takes effect. Resolves once the relaunch
+ * is scheduled; the process then exits and a fresh instance starts.
+ */
+export async function relaunchForPermission(): Promise<void> {
+  if (hasBridge()) return RelaunchForPermission()
   throw new Error(WAILS_UNAVAILABLE)
 }

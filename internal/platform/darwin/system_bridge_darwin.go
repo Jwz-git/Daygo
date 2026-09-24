@@ -33,6 +33,13 @@ func systemStart() error {
 }
 func systemStop() { C.dg_system_stop() }
 
+func relaunch() error {
+	if code := C.dg_relaunch(); code != 0 {
+		return fmt.Errorf("relaunch ABI failed: %d", int32(code))
+	}
+	return nil
+}
+
 func queryScreenRecordingPermission() (platform.PermissionState, error) {
 	switch code := C.dg_screen_recording_permission_query(); code {
 	case C.DG_PERMISSION_GRANTED:

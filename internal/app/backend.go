@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"log"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -78,10 +79,22 @@ type Backend struct {
 	// background soft-quit; only the status-bar Quit sets it (requestQuit)
 	// before runtime.Quit, letting that one path terminate for real. See
 	// docs/decisions/lifecycle-quit-model.md.
-	allowQuit       atomic.Bool
-	statusUpdaterMu sync.RWMutex
-	statusUpdater   func(recorder.State)
-	statusLabels    statusItemLabelStore
+	allowQuit atomic.Bool
+	// pendingPermissionRestart arms the next quit to be a real termination with
+	// an automatic relaunch, instead of the resident-agent soft-quit. The
+	// frontend sets it while the screen-recording permission guidance is up, so
+	// macOS's own "Quit & Reopen" (and the guidance's own restart button) fully
+	// terminate and come back with the new TCC grant in effect. See
+	// docs/decisions/recording-screen-recording-permission.md.
+	pendingPermissionRestart atomic.Bool
+	// shutdownRequester asks the desktop shell to terminate for real (requestQuit
+	// + runtime.Quit). It is installed in OnStartup because runtime.Quit needs the
+	// Wails context; it stays nil in headless construction.
+	shutdownRequesterMu sync.RWMutex
+	shutdownRequester   func()
+	statusUpdaterMu     sync.RWMutex
+	statusUpdater       func(recorder.State)
+	statusLabels        statusItemLabelStore
 	// nativeLabels carries the localized copy for the other native surfaces
 	// (application picker, update refusal); see native_ui.go.
 	nativeLabels nativeUiLabelStore
@@ -391,6 +404,49 @@ func (b *Backend) requestQuit() { b.allowQuit.Store(true) }
 
 // quitAllowed reports whether a real termination was requested.
 func (b *Backend) quitAllowed() bool { return b.allowQuit.Load() }
+
+// setShutdownRequester installs the closure that terminates the desktop shell
+// for real. Called once in OnStartup.
+func (b *Backend) setShutdownRequester(requester func()) {
+	b.shutdownRequesterMu.Lock()
+	b.shutdownRequester = requester
+	b.shutdownRequesterMu.Unlock()
+}
+
+func (b *Backend) shutdownRequest() func() {
+	b.shutdownRequesterMu.RLock()
+	defer b.shutdownRequesterMu.RUnlock()
+	return b.shutdownRequester
+}
+
+// armPermissionRestart / disarmPermissionRestart / permissionRestartArmed gate
+// whether the next quit becomes a full terminate-and-relaunch. The frontend arms
+// it while the permission guidance is visible and disarms it when the guidance
+// is dismissed, so an ordinary Cmd+Q outside that flow still soft-quits.
+func (b *Backend) armPermissionRestart()        { b.pendingPermissionRestart.Store(true) }
+func (b *Backend) disarmPermissionRestart()     { b.pendingPermissionRestart.Store(false) }
+func (b *Backend) permissionRestartArmed() bool { return b.pendingPermissionRestart.Load() }
+
+// beginPermissionRestart finalizes the active segment and schedules a relaunch
+// so the process can terminate and come back with the new TCC grant applied. The
+// caller still drives the actual quit (OnBeforeClose returning false, or the
+// shutdown requester). It is safe with a nil or non-relaunching System: it then
+// just finalizes and the process quits without an automatic relaunch.
+func (b *Backend) beginPermissionRestart() {
+	b.recorderMu.Lock()
+	r := b.recorder
+	b.recorderMu.Unlock()
+	if r != nil {
+		_ = r.Stop()
+	}
+	if relauncher, ok := b.system.(platform.Relauncher); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := relauncher.Relaunch(ctx); err != nil {
+			log.Printf("schedule relaunch for permission restart unavailable: %v", err)
+		}
+	}
+}
 
 // enterBackground drops the app to accessory (no Dock icon) for a soft-quit.
 // The status item stays as the only way back. It is a no-op without a platform

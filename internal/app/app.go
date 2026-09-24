@@ -180,10 +180,12 @@ func Run() error {
 		// installed here rather than at construction because runtime events
 		// require a live context.
 		OnStartup: func(ctx context.Context) {
-			backend.configureUpdateInstall(func() {
+			requestShutdown := func() {
 				backend.requestQuit()
 				runtime.Quit(ctx)
-			})
+			}
+			backend.configureUpdateInstall(requestShutdown)
+			backend.setShutdownRequester(requestShutdown)
 			emitter.SetContext(ctx)
 			backend.setWindowContext(ctx)
 			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx, labels: backend.nativeLabels.get})
@@ -278,6 +280,16 @@ func Run() error {
 		// status item as the way back (docs/decisions/lifecycle-quit-model.md).
 		OnBeforeClose: func(ctx context.Context) (prevent bool) {
 			if backend.quitAllowed() {
+				return false
+			}
+			// A permission-change restart must terminate for real and relaunch so
+			// a freshly granted screen-recording permission takes effect. macOS's
+			// own "Quit & Reopen" reaches this hook like any other quit; without
+			// this branch it would be downgraded to a background hide and the new
+			// grant would never apply (docs/decisions/
+			// recording-screen-recording-permission.md).
+			if backend.permissionRestartArmed() {
+				backend.beginPermissionRestart()
 				return false
 			}
 			runtime.WindowHide(ctx)

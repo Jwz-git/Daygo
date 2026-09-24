@@ -86,7 +86,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
-| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
+| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`SetPermissionRestartArmed`、`RelaunchForPermission`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；`SetPermissionRestartArmed` / `RelaunchForPermission` 承载授权后的完全退出 + 自动重启（见权限组说明）；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder`、`PollSystemEvents` | 直接调用平台 `Capture` 或排空系统事件广播缓冲；均不接 recorder / storage / config。`PollSystemEvents` 是共享广播缓冲的排空口（recorder 与测试页都要观察全部原生事件，直接消费会互相抢），**会消费缓冲**，正式产品页面不得调用 |
 | providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
@@ -473,12 +473,22 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 | `GetPermissionState() (PermissionDTO, error)` | recording | System 授权 | 读 | — | `native_unavailable` |
 | `RequestScreenRecordingPermission() error` | recording | System 授权交互 | 写·系统交互 | `permission:changed` | `native_unavailable` |
 | `OpenSystemSettings(pane string) error` | recording | System 面板入口 | 写·系统交互 | — | `invalid_argument` `native_unavailable` |
+| `SetPermissionRestartArmed(armed bool) error` | recording | System 生命周期 | 写·幂等 | — | — |
+| `RelaunchForPermission() error` | recording | System 自重启 | 写·系统交互 | — | `native_unavailable` |
 | `GetUpdaterState() (UpdaterStateDTO, error)` | delivery | Updater | 读 | — | `native_unavailable` |
 | `CheckForUpdates(interactive bool) error` | delivery | Updater / G-native | 写 | `update:available` | `native_unavailable` |
 | `SetAutomaticUpdateChecks(enabled bool) error` | delivery | Updater / G-native | 写·幂等 | — | `native_unavailable` |
 
 `OpenSystemSettings` 的 `pane` 是封闭枚举：`screen_recording` `notifications` `login_items`。
 **不接受任意 URL**，避免绑定层变成通用的系统跳转能力。
+
+`SetPermissionRestartArmed` 武装 / 解除「授权重启」意图（进程内标志，重启后自然复位）：前端在授权引导层
+出现时武装、关闭时解除。武装后的下一次退出——包括 macOS 授权后自弹的「退出并重开」——是**完全退出 +
+自动重启**，而非常驻 Agent 平时的软退出隐藏（见
+[生命周期退出模型](decisions/lifecycle-quit-model.md) 与
+[屏幕录制授权](decisions/recording-screen-recording-permission.md)）。`RelaunchForPermission`
+直接执行「收尾录制 → 调度自重启 → 真退出」，供引导层的「重启使授权生效」按钮调用；无桌面外壳时返回
+`native_unavailable`。macOS 在启动时缓存 TCC 授权，只有完全重启才能让新授权生效，这两个方法即为此存在。
 
 更新弹窗中**属于我们的**那句文案（本实例不是捕获所有者，因此拒绝安装）由前端经
 `SetNativeUiLabels` 下发（§5.5.1），适配器经 `UpdateCopySink` 接收；Sparkle 与 WinSparkle
@@ -1266,6 +1276,13 @@ type System interface {
     // Events 复用一条通道：睡眠、唤醒、锁定、解锁、屏保、显示器变化、
     // 应用激活、深链、状态项点击、通知点击。
     Events() <-chan SystemEvent
+}
+
+// Relauncher 是 System 的可选能力：进程退出后重新拉起自身。适配器实现即视为具备；
+// app 层类型断言，缺失时退化为普通退出（不自动重启）。用于授权重启——macOS 在启动时
+// 缓存 TCC 授权，常驻 Agent 的普通退出只隐藏窗口，只有完全重启才能让新授权生效。
+type Relauncher interface {
+    Relaunch(ctx context.Context) error
 }
 
 // Secrets 是系统钥匙串。service 为 io.github.jwz-git.daygo.apikeys.<provider>。
