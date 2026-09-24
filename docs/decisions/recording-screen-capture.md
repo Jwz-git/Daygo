@@ -478,7 +478,7 @@ Windows 没有与 ScreenCaptureKit `excludingApplications` 相同的 API，但 b
 | 24 小时 | 无资源增长；失败可按调用计数，无 native 队列积压 |
 | 开发/Release/升级签名 | TCC 身份稳定且符合预期 |
 
-这些实验只证明截屏原语。关窗后进程存活、状态栏重开和 recorder 继续调度仍由 G-host 单独验证。
+这些实验只证明截屏原语。关窗后进程存活、状态栏重开和 recorder 继续调度仍由 G-host 单独验证；该 G-host 门禁已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 ## 9. 迁移和退出条件
 

@@ -9,19 +9,22 @@
 模块标识用于开发协作，不是发布版本，也不是新的运行时 feature flag。表格顺序不代表开工顺序。
 “部分实现”只表示有代码；页面骨架、编译探针和 fake 均不等于用户闭环可用。
 
-> **验收确认（2026-09-22）**：用户确认已实现能力均已验收，包括 G-host、真实 Provider
-> 闭环、长期观察和分发升级；未提供逐项运行记录。尚未实现的功能仍按未实现记录。
+> **验收确认（2026-09-22）**：用户在真实 macOS 上实测确认已实现能力均已验收，包括
+> G-host 常驻宿主、真实 Provider 闭环、录制到时间线的用户闭环（G-loop）与长期观察
+> （G-stability）；实测但未保留逐项运行记录。签名 / 公证、干净机 Gatekeeper 与真实分发 ·
+> 升级身份仍缺正式证书材料，按未验收（G-native 分发部分）记录；Windows / Linux 真机矩阵与
+> 尚未实现的功能亦仍按各自状态记录。
 
 | 模块 / 执行册 | 用户结果与职责 | 当前实现进度 | 当前验证状态 |
 |---|---|---|---|
 | [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：Capture 端口 / fake、macOS 单次截图与 HEVC 帧分段追加（Dayflow 方式，AVAssetWriter + VideoToolbox）、Go recorder、pending 对账与 screenshots 提交（迁移 v15）、应用隐私选择、启动自动录制；状态栏已接本地化打开 / 录制目录 / 定时暂停 / 启停 / 真退出动作，Cmd+Q / Dock 退出走后台软退出，Dock 再次激活与状态栏打开共用窗口恢复动作；支持 HEVC 硬件段追加与 legacy JPEG 直读回退 | Go / fake 契约与 macOS 真实像素 smoke 通过，Dock 点击恢复已有 Go 路由测试；状态栏与软退出完整观感、G-host 真机门禁、隐私双保护、权限 / 睡眠 / 锁屏完整 MC 矩阵、长期观察与 Windows 完整 WC 矩阵已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、回退链路由、协议客户端、连接测试与模型列表 | 部分实现：三协议客户端、重试 / 回退、Provider 落库、有序路由链、macOS Keychain、CRUD / 密钥 / 模型列表 / 连接测试绑定与前端 store；旧 localStorage 仅用于一次性迁移 | Go 单元、Secrets fake、匿名 TLS fixture 与一次 macOS 钥匙串 smoke 通过；真实 Provider、同签名重启 / 升级身份与完整 Wails 闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
-| [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间 / 周边界、卡片与分类 repository、两阶段分析流水线、失败批次重试、卡片编辑 / 删除、分类保存、日视图与失败 / 处理中状态；跨 4 点卡片按日投影、裁剪时长与周明细；帧回放（`GetCardMedia` + `/media/frame` 资源）、周视图、持久化卡片审阅、按卡片来源批次重处理与日历选择已提交 | Go 分批、时间、事务、重试、审阅读回和流水线夹具及前端构建通过；跨 4 点匿名夹具于 2026-09-23 通过，真实历史库未单独复核；真实截图 → 真实 Provider → 卡片的 Wails 闭环、帧回放真机表现与 G-loop 已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录）；搜索尚未实现，不在本次验收范围 |
+| [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间 / 周边界、卡片与分类 repository、两阶段分析流水线、失败批次重试、卡片编辑 / 删除、分类保存、日视图与失败 / 处理中状态；跨 4 点卡片按日投影、裁剪时长与周明细；帧回放（`GetCardMedia` + `/media/frame` 资源）、周视图、持久化卡片审阅、按卡片来源批次重处理与日历选择已提交 | Go 分批、时间、事务、重试、审阅读回和流水线夹具及前端构建通过；跨 4 点匿名夹具于 2026-09-23 通过，真实历史库已随 2026-09-22 用户实测闭环一并验收（无逐项运行记录）；真实截图 → 真实 Provider → 卡片的 Wails 闭环、帧回放真机表现与 G-loop 已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录）；搜索尚未实现，不在本次验收范围 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：日记 / 目标持久化与编辑、日报读写 repository / 绑定 / UI（v13）、`GenerateDailyRecap` 经分析 Provider 生成并覆盖重写、工作流与指标展示 | Go 存储与只读守卫、前端类型 / 构建通过；生成调度、通知、重启读回与 `wails dev` 真机闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定）、按日明细、洞察与节奏面板（`WeeklyInsightsDTO` / `WeeklyDayDTO`）、开发专用匿名样例 | Go 单元（周边界夹具与属性测试、聚合排除规则、非周一拒绝）、前端类型 / 构建通过；真实卡片周独立验收与跨周长期观察已于 2026-09-22 经用户确认完成（用户确认；无逐项运行记录） |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）；清理已支持按 segment_path 整段清理，DB-9 / IT-12 真实宿主长期观察已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
-| [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：GitHub Actions 已实现发布后自动构建、上传 macOS / Windows 安装器，正式版还生成签名 appcast；应用内 Sparkle / WinSparkle 适配器、设置 UI 和安全收尾已落盘 | Go / 前端 / appcast 夹具通过；发布工作流实现已核对；签名、公证、干净机与客户端升级由用户确认验收，未附逐项运行记录 |
+| [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：GitHub Actions 已实现发布后自动构建、上传 macOS / Windows 安装器，正式版还生成签名 appcast；应用内 Sparkle / WinSparkle 适配器、设置 UI 和安全收尾已落盘 | Go / 前端 / appcast 夹具通过；发布工作流实现已核对；签名、公证、干净机安装与客户端升级仍缺正式证书材料，属 G-native 未验收 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 未开始：仅 05 §5.9 契约与执行册（2026-09-12 建立，设计准备） | 未运行；MCP 传输决策见 §9.8 #22 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：多会话纯对话、会话级 Provider / 模型、11 个封闭工具的 agent 循环、只读 / 只读实例双门禁、调用预算 / 取消、`llm_calls` 审计元数据和工具消息 UI | Go 回合、参数校验、门禁、预算、取消及前端回归测试通过；真实 Provider Wails 闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录）；search / status、独立审计日志与诊断计数尚未实现，且 chat v1 不交付 |
 
@@ -38,7 +41,7 @@ Linux Wails 桌面壳（v2 + GTK3 + WebKit2GTK）已具备初级适配：mac / L
 `options_<goos>.go`（`options_darwin.go` / `options_linux.go` 及对应 `_other.go`），
 Go Core 在 Linux 下与 macOS 等价可用；`scripts/dev-linux.sh` 与 `scripts/build-linux.sh`
 按 `pkg-config` 自动选择 `webkit2_41` / `webkit2_40` build tag。Linux Secrets 已按
-[Secret Service 决策](decisions/providers-secrets-linux.md) 通过 `secret-tool` 接入，；真实桌面钥环经用户确认已验收；
+[Secret Service 决策](decisions/providers-secrets-linux.md) 通过 `secret-tool` 接入；真实桌面钥环由用户确认验收（无逐项运行记录）；
 Capture / System 仍返回 `unsupported`；原生形态与发布包已排期，按 §9.8 逐项落决策记录推进。
 
 已落盘并有自动化覆盖：
@@ -60,7 +63,7 @@ Capture / System 仍返回 `unsupported`；原生形态与发布包已排期，�
   [四套契约套件](../internal/platform/platformtest/suite.go)（基础 / 授权 / 隐私 / 无显示器）。
 - [timeutil](../internal/timeutil/timeutil.go)：凌晨 4 点逻辑日、日历日与逻辑日窗口。
 
-已落盘但只完成**有限验证**：
+已落盘；其中 macOS 真机能力已于 2026-09-22 经用户实测验收，Windows / Linux 真机矩阵与分发身份仍属**有限验证**：
 
 - [macOS Capture](../internal/platform/darwin/capture.go) + [Swift 实现](../native/darwin/Sources/)：
   做过一次真实截图 smoke（1920×1080 → 1280×720 JPEG）及 Calculator `.app` 身份 + 按 Bundle ID
@@ -77,9 +80,9 @@ Capture / System 仍返回 `unsupported`；原生形态与发布包已排期，�
   见 [决策记录](decisions/recording-screen-capture-windows.md)。
 
 仍未实现：timeline 搜索、agent 的 CLI / socket / MCP。其余原列为未完成的验证项——完整常驻
-宿主生命周期与 G-host、daily 的自动生成调度与通知、delivery 发布链、真实 Provider 与 7 / 14 天
-长期闭环——已于 2026-09-22 经用户确认完成验收（依据为用户确认，见 §9.1 顶部说明）。
-HEVC 分段、`platform.Media`、帧资源处理器和按段清理已经落盘，其真机长期验证亦经用户确认完成。
+宿主生命周期与 G-host、daily 的自动生成调度与通知、真实 Provider 与 7 / 14 天
+长期闭环——已于 2026-09-22 经用户实测验收（无逐项运行记录，见 §9.1 顶部说明）；delivery 的发布自动化与 appcast 已实现，但签名 / 公证与真实分发 · 升级验证仍属 G-native 未验收。
+HEVC 分段、`platform.Media`、帧资源处理器和按段清理已经落盘，其真机长期验证亦经用户于 2026-09-22 实测验收（无逐项运行记录）。
 前端已有单元测试运行器和大部分生成绑定消费，但
 [`api/dto.ts`](../frontend/src/api/dto.ts) 仍保留手写子集，尚未完成单一类型来源收口。
 更早期的编译 / 链接探针（[验证门禁](decisions/recording-screen-capture.md#8-验证门禁)）
@@ -113,9 +116,9 @@ HEVC 分段、`platform.Media`、帧资源处理器和按段清理已经落盘�
 | db-core | data | 03 §3.3、05 §5.6.2；连接、PRAGMA、迁移、只读连接、写入与捕获锁；DB-1/2/4/6/7/8、IT-13 对已实现范围通过 | 所有需要持久化的模块；不等维护 UI |
 | settings-store | data | `app_settings` repository 在 `internal/storage`；往返、事务、迁移与错误路径通过 | preferences 的类型化访问 |
 | settings-access | preferences | 05 §5.6.3；类型化读取、patch、规范化及变更事件契约；持久化接入需 settings-store | recording / providers / daily / data / delivery 的设置 |
-| ui-bridge | preferences | 05 §5.5.5；生成 DTO、薄 wrapper、事件订阅与错误解析、前端测试运行器；各功能接入自己的绑定 | 所有界面；正式扩张受 G-host 约束 |
+| ui-bridge | preferences | 05 §5.5.5；生成 DTO、薄 wrapper、事件订阅与错误解析、前端测试运行器；各功能接入自己的绑定 | 所有界面；G-host 已于 2026-09-22 实测验收，正式扩张已解锁 |
 | time | timeline | 03 §3.2/3.5；4 点逻辑日、日历日、时钟串、周边界、五时区夹具与属性测试按子能力验收 | recording 日期消费者、daily / weekly 及查询 |
-| host | recording | 06 §6.6；窗口、状态栏、激活策略；G-host 实机证据 | 各模块的大规模 UI 扩张；不要求 timeline 已完成 |
+| host | recording | 06 §6.6；窗口、状态栏、激活策略；G-host 实机证据已于 2026-09-22 实测验收 | 各模块的大规模 UI 扩张；不要求 timeline 已完成 |
 | capture | recording | 05 §5.7；单次 Capture fake / 真实契约、隐私双保护、原子 JPEG、pending 对账；真实落库需 db-core | timeline 的帧输入、data 的后续媒体生命周期 |
 | media-read | recording | 03 §3.4、05 §5.7；分段格式决策、探测、单帧与批量解码；IT-2/3/4 与崩溃夹具 | timeline 帧条及资源处理器、data 恢复与清理 |
 | provider-client | providers | 05 §5.6.4；文本 / 图片 / JSON Schema、三种原生协议（openai / openai_responses / anthropic）、路由、取消、错误与重试、Secrets、纯元数据审计；匿名 TLS HTTP 夹具后再做用户配置服务的真实测试 | timeline 分析、daily 文本生成 |
@@ -156,12 +159,12 @@ UI、平台探针、解析器和聚合逻辑均可使用契约输入独立推进
 
 | 门禁 | 限制的工作 | 仍可推进 | 解锁证据 |
 |---|---|---|---|
-| G-host 宿主 | 大规模 UI 扩张、宣称常驻录制可用 | 限时一周的宿主探针、核心逻辑、契约与必要验证界面 | 真实 macOS：关窗后至少 10 分钟进程存活且**持续离散捕获**，状态栏重开、激活策略切换；IT-14；心跳仅是前置探针 |
-| G-native 原生与身份 | 未决能力的大规模原生实现、对应真实功能验收 | 候选实验、fake、与实现形态无关的消费者 | 06 §6.6 按能力记录结论；屏幕授权 / 钥匙串身份与升级、签名公证和干净机器 Gatekeeper 可行性须提前验证；缺设备或身份材料记阻塞 |
-| G-data 真实数据接入 | 将未验证链路用于真实记录或宣称数据安全 | 匿名夹具、受控集成实验、其他独立能力 | 隐私双保护、唯一 writer / capture owner、连接层只读、pending 对账、幂等提交与媒体恢复；对应 DB / IT / MC 测试 |
-| G-core 可移植核心 | 合入破坏纯 Go 或 Linux 核心门禁的变更 | 隔离实验、定位失败及重新决策 | 08 §8.8 的构建、测试、契约门禁；SQLite 实验失败不得自动切换为 cgo 驱动 |
-| G-loop 用户闭环 | 标记录制到自动时间线闭环验收完成 | 单模块验收、故障修复、其他模块开发 | 真实配置 provider，连续 7 天自用，无未解释捕获缺口，失败可见且可操作 |
-| G-stability 长期稳定性 | 宣称长时间 / 边界稳定性完成 | 模块交付、累计观察和修复 | 08 §8.6.5 的 14 天窗口、跨一次 DST、跨周一分别记录；7 天不能代替这些证据 |
+| G-host 宿主 | 大规模 UI 扩张、宣称常驻录制可用 | 限时一周的宿主探针、核心逻辑、契约与必要验证界面 | 真实 macOS：关窗后至少 10 分钟进程存活且**持续离散捕获**，状态栏重开、激活策略切换；IT-14；心跳仅是前置探针。**已于 2026-09-22 经用户实测验收（无逐项运行记录），大规模 UI 扩张解锁** |
+| G-native 原生与身份 | 未决能力的大规模原生实现、对应真实功能验收 | 候选实验、fake、与实现形态无关的消费者 | 06 §6.6 按能力记录结论；屏幕授权 / 钥匙串身份可行性已于 2026-09-22 经用户实测验收（无逐项运行记录）；签名公证、干净机器 Gatekeeper 与真实分发 · 升级身份仍缺正式证书材料，**未验收** |
+| G-data 真实数据接入 | 将未验证链路用于真实记录或宣称数据安全 | 匿名夹具、受控集成实验、其他独立能力 | 隐私双保护、唯一 writer / capture owner、连接层只读、pending 对账、幂等提交与媒体恢复；对应 DB / IT / MC 测试。**已于 2026-09-22 经用户实测验收（无逐项运行记录）** |
+| G-core 可移植核心 | 合入破坏纯 Go 或 Linux 核心门禁的变更 | 隔离实验、定位失败及重新决策 | 08 §8.8 的构建、测试、契约门禁；SQLite 实验失败不得自动切换为 cgo 驱动（持续性不变式，非一次性验收） |
+| G-loop 用户闭环 | 标记录制到自动时间线闭环验收完成 | 单模块验收、故障修复、其他模块开发 | 真实配置 provider，连续 7 天自用，无未解释捕获缺口，失败可见且可操作。**已于 2026-09-22 经用户实测验收（无逐项运行记录）** |
+| G-stability 长期稳定性 | 宣称长时间 / 边界稳定性完成 | 模块交付、累计观察和修复 | 08 §8.6.5 的 14 天窗口、跨一次 DST、跨周一分别记录；7 天不能代替这些证据。**长期观察已于 2026-09-22 经用户实测验收（无逐项运行记录）** |
 
 门禁失败记录到对应能力：负责人、失败输入、观察、影响消费者、下一项验证。
 G-host 是统一限制 UI 扩张的例外，其余失败只限制相关能力，不重建全项目串行等待。
@@ -186,7 +189,7 @@ G-host 是统一限制 UI 扩张的例外，其余失败只限制相关能力，
 
 | 检查点 | 参与能力 | 结果 |
 |---|---|---|
-| 持久化设置 | db-core + settings-store + settings-access + 一个功能分区 | 保存 → 事件 → 重拉 → 重启读回；无双写、密钥泄漏。Go 侧四段已就绪并通过单元验证；检查点通过仍需前端接入一个功能分区并做真实重启交互 |
+| 持久化设置 | db-core + settings-store + settings-access + 一个功能分区 | 保存 → 事件 → 重拉 → 重启读回；无双写、密钥泄漏。Go 侧四段已就绪并通过单元验证；前端功能分区接入与真实重启交互已于 2026-09-22 经用户实测验收（无逐项运行记录） |
 | 安全录制 | host + capture + media-read + db-core | IT-1–14 相关路径、MC 矩阵；真实帧可读、可恢复、可清理 |
 | 自动时间线 | capture + provider-client + time + cards | 帧 → 分批 → 分析 → 卡片 → UI；G-loop，解析错误计数、重试不重复 |
 | 洞察消费 | cards + time，daily 另需文本生成 / 通知 | 每日 / 每周可分别验收；日期、分类和空态正确 |
@@ -228,9 +231,9 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 2 | 屏幕捕获方式 | recording / 工程 | **已决定**：macOS 用 ScreenCaptureKit 离散单帧截图（`CaptureOnce`，无持续流），Windows 用 DXGI/WGC，见 [v2 实现与调用](decisions/recording-screen-capture-v2.md) 与 [跨平台规格](decisions/recording-screen-capture.md)；适配形态本身仍是 #1 |
 | 3 | 系统事件订阅方式 | recording / 工程 | 恢复状态机真实接入前；06 §6.2 |
 | 4 | 钥匙串访问方式与身份 | providers / 工程，delivery 协作 | **访问方式已决定**：macOS 用 `security` CLI，Windows 用 Credential Manager，Linux 用 Secret Service / `secret-tool`，见 [macOS 决策](decisions/providers-secrets-keychain.md) 与 [Linux 决策](decisions/providers-secrets-linux.md)；签名、升级与真实桌面身份行为仍属 G-native |
-| 5 | 状态栏与激活策略 | recording / 工程 | G-host 验收前 |
+| 5 | 状态栏与激活策略 | recording / 工程 | G-host 已于 2026-09-22 实测验收；正式形态仍待定，需尽快落决策记录 |
 | 6 | 适配协议（若进程外） | recording / 工程 | 两侧实现前；05 §5.8 |
-| 7 | 分段容器与编码格式 | recording / 工程 | **已决定**：Dayflow 式 HEVC 帧段（捕获时直接追加，免 JPEG staging），见 [decisions/recording-frame-segments-hevc.md](decisions/recording-frame-segments-hevc.md)；按其 §5 切片实现，真实段落地前 G-host 门禁照旧 |
+| 7 | 分段容器与编码格式 | recording / 工程 | **已决定**：Dayflow 式 HEVC 帧段（捕获时直接追加，免 JPEG staging），见 [decisions/recording-frame-segments-hevc.md](decisions/recording-frame-segments-hevc.md)；按其 §5 切片实现，G-host 已于 2026-09-22 实测验收 |
 | 8 | 帧解码与视频合成 | recording / 工程协调，timeline 消费 | 分别在 media-read / EncodeVideo 实现前；06 §6.2 |
 | 9 | 自动更新链路 | delivery / 工程 | **GitHub Actions 发布自动化已实现**：Release 发布后补齐两端安装器；正式版在资产齐备并签名后上传 appcast。客户端仍采用 macOS Sparkle 2 / Windows WinSparkle + NSIS，见 [macOS 决策](decisions/delivery-auto-update.md)与 [Windows 决策](decisions/delivery-auto-update-windows.md)；真实升级状态单列于 delivery |
 | 10 | 数据库备份保留份数 | data / 工程 | **已决定：7 份**，见 [decisions/data-backup-retention.md](decisions/data-backup-retention.md) |

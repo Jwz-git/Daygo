@@ -54,7 +54,7 @@ retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共�
 | 输入能力 / 契约 | 负责模块 | 可独立推进 / fake 可证明什么 | 真实接入前置条件 |
 |------|------|------|------|
 | provider-client（`internal/ai` 统一 Generate、重试 / 回退、结构化输出） | providers | 回合状态机用脚本化 fake provider 做匿名夹具单测 | 已达成（协议客户端）；chat 是否复用 `providers.routing` 是候选 |
-| cards / time / insight 读查询 | timeline / daily / weekly | 工具读面在匿名卡片库上的查询契约测试 | cards 与 daily / weekly insight 聚合已落盘；真实 Provider 闭环经用户确认已验收 |
+| cards / time / insight 读查询 | timeline / daily / weekly | 工具读面在匿名卡片库上的查询契约测试 | cards 与 daily / weekly insight 聚合已落盘；真实 Provider 闭环已于 2026-09-22 经用户实测验收（无逐项运行记录） |
 | 日记 / 目标 repository | daily | `goal_set` 等写工具的夹具库协议测试 | daily 表与 repository 落盘 |
 | 写入服务路径 | timeline / daily | 同源断言：绑定层与 chat 工具执行同一实现，副作用、事件、审计一致 | **已达成**（`internal/app/writes.go` 共享函数，绑定转发，测试断言同库同终态同事件） |
 | settings-access（`chat.editMode` 门禁） | preferences | 门禁拒绝路径的协议测试（服务端独立校验） | **已达成**（键已落盘，门禁每回合重读、fail closed） |
@@ -88,7 +88,7 @@ retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共�
 4. 绑定与事件：`SendChatMessage` / `CancelChatTurn` / `GetChatMessages`（会话作用域签名）、
    `chat:updated`；绑定清单反射测试与 05 §5.2.1 同步。**已落盘**（工具循环无新增绑定，
    回合内每条消息落库后各发一次 `chat:updated`）。
-5. UI：chat 视图与 store、`chat.editMode` 设置项、空态 / 错误态 / i18n；受 G-host 约束。
+5. UI：chat 视图与 store、`chat.editMode` 设置项、空态 / 错误态 / i18n；受 G-host 约束（G-host 已于 2026-09-22 经用户实测验收，无逐项运行记录）。
    **已落盘**：多会话列表、全局记忆（`chat.memory`）、会话级 provider 选择、
    `chat.editMode` 开关（AgentAccessSection）、工具消息折叠渲染（一行摘要 + 展开参数 /
    结果 JSON）。
@@ -102,7 +102,7 @@ retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共�
 ## 验收、阻塞与回退
 
 完成要求：沙箱门禁、参数校验、预算与取消全部有自动化证据；写操作同源断言通过；
-真实用户连续使用问答与受控编辑的闭环验收。UI 扩张与其他界面同样受 G-host 约束。
+真实用户连续使用问答与受控编辑的闭环验收。UI 扩张与其他界面同样受 G-host 约束；G-host 与其依赖的真实 Provider 闭环已于 2026-09-22 经用户实测验收（无逐项运行记录），chat v1 不交付因此其自身连续使用的闭环仍未单独验收。
 
 待决（[09 §9.8](../09-roadmap.md#98-待定设计清单) #23）：~~会话模型~~（已定：多会话）、
 token 级流式输出（已定：原子消息）、消息留存策略、审计来源标记（与 agent 模块共通）、

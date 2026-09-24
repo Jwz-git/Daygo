@@ -1,8 +1,8 @@
 # recording 屏幕截屏 v2：macOS 实现与上层调用
 
 > **状态：已实现的有限原生切片。** 本文记录当前代码已经完成的 macOS 单次截图路径，以及 Go
-> 上层应如何调用。它不表示 recorder、数据库 pending 恢复、隐私实机矩阵、G-host、签名公证或
-> 长期稳定性已经验收。
+> 上层应如何调用。recorder、数据库 pending 恢复与隐私实机矩阵已随 G-host / 长期稳定性于
+> 2026-09-22 经用户实测验收（无逐项运行记录）；签名 / 公证仍缺正式证书材料，属 G-native 未验收。
 >
 > C ABI 的字段布局和返回码以 [`native/include/daygo_capture.h`](../../native/include/daygo_capture.h)
 > 为唯一事实来源；平台端口以 [`internal/platform`](../../internal/platform) 当前代码为准。
@@ -62,7 +62,7 @@
 
 当前应用已在 macOS composition root 装配真实 `darwin.Capture`，但仅由临时 `CaptureTest` 联调绑定调用；
 本文写作时 recorder 消费者、数据库 pending 恢复和后台生命周期尚未实现；当前 recorder 与
-pending 对账已经落盘，后台宿主仍未通过 G-host。生产代码不能直接从 Vue 或正式
+pending 对账已经落盘，后台宿主已于 2026-09-22 通过 G-host 门禁的用户实测验收（无逐项运行记录）。生产代码不能直接从 Vue 或正式
 Wails binding 调用原生包；调用方向必须保持：
 
 ```text
@@ -402,15 +402,15 @@ go run -a ./tmp/capture-smoke
 - macOS `CGO_ENABLED=0 go build ./...`；
 - Linux `CGO_ENABLED=0 go build ./internal/...` 交叉构建。
 
-仍未验证或实现：
+recorder 与真实适配器应用装配、capture-owner 锁 / pending repository / 启动恢复均已落盘；
+关窗后 10 分钟持续离散捕获与状态栏重开（即 G-host）、前台 / 后台屏蔽与多空间隐私矩阵、
+多显示器 / 旋转 / HDR / 睡眠 · 唤醒 / 锁屏 · 解锁，以及 24 小时资源与捕获指示观察
+（[08 §8.6.2](../08-testing-strategy.md#862-mc真实-macos-捕获矩阵) 的 MC-1…MC-12）均已于
+2026-09-22 经用户实测验收（无逐项运行记录）。
 
-- recorder 和真实适配器应用装配；
-- capture-owner 锁、pending repository 与启动恢复；
-- 前台屏蔽、后台屏蔽窗口、快速切换和多空间隐私矩阵；
-- 多显示器、旋转、HDR、睡眠 / 唤醒、锁屏 / 解锁；
-- 关闭窗口后 10 分钟持续离散捕获与状态栏重开，即 G-host；
-- 开发 / Release / 升级签名的 TCC 身份；
-- 24 小时资源和捕获指示观察，即 [08 §8.6.2](../08-testing-strategy.md#862-mc真实-macos-捕获矩阵) 的 MC-1…MC-12；
+仍未验证：
+
+- 开发 / Release / 升级签名的 TCC 身份，属 G-native，仍缺正式证书材料；
 - Windows 适配已另有实现并完成有限真机 smoke，完整 WC 未验证；发布范围经决策记录推进（09 §9.8 #18），见
   [Windows 截图实现与限制](recording-screen-capture-windows.md)。
 

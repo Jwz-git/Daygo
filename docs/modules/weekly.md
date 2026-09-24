@@ -34,7 +34,7 @@
 |---|---|---|
 | timeline: time / cards | 固定卡片、分类与周窗口的聚合 fixture | 周边界和卡片 / 分类查询独立验收 |
 | data: db-core | repository fake 验证只读查询 | 真实库读取正确；无需维护界面完成 |
-| preferences: ui-bridge | DTO / store / 错误与空态 fixture | 生成绑定、事件重拉与 G-host |
+| preferences: ui-bridge | DTO / store / 错误与空态 fixture | 生成绑定、事件重拉与 G-host（G-host 已于 2026-09-22 经用户实测验收，无逐项运行记录） |
 
 internal/insight 负责只读周聚合；数据库查询只在 internal/storage，周边界只在 timeutil。
 周边界已决定：周一起始、凌晨 4 点逻辑日对齐（[decisions/weekly-boundary-monday](../decisions/weekly-boundary-monday.md)）。
@@ -58,7 +58,7 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 3. 已决定现有聚合 DTO 的首屏形态：专注比例环、三项时长和分类比例 / 排行；不增加公共字段。
    更丰富的热力图、应用关系或流向图若进入范围，先更新 05 和双侧契约再实现。
 4. 接周绑定、store 失效重拉、UI 与双语言空 / 错误 / 加载态。
-5. 用真实 cards 独立验收；跨周一的长期证据另行累计，无须等 daily 或完整分析 UI。
+5. 用真实 cards 独立验收；跨周一的长期证据另行累计，无须等 daily 或完整分析 UI。真实卡片周独立验收与跨周一长期观察已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 ## 验收、阻塞与回退
 

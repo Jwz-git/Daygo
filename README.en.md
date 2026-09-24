@@ -2,14 +2,70 @@
 
 [简体中文](README.md) · **English**
 
-**Let the day happen. Let the record write itself.**
+> At the end of the day, do you remember what you worked on?
 
-Daygo is a local-first, privacy-conscious desktop app for personal work history. It takes discrete screenshots
-in the background and uses the AI provider you configure to turn scattered activity into a timeline, daily
-reviews, and weekly summaries—so coding, research, meetings, conversations, and thinking do not disappear
-when their windows close.
+Daygo quietly records your work in the background. With an AI provider you choose, it turns a scattered day into a timeline, daily review, and weekly summary. Coding, research, meetings, conversations, and thinking no longer disappear when you close a window.
 
-> Current release: **v0.1.0 pre-release** · Available for macOS and Windows · Bring your own AI provider
+Daygo puts local storage and privacy first. Screen content stays on your computer by default; its only path off the device is to an AI provider you explicitly configure. Daygo takes **discrete screenshots**, not a continuous screen recording, so the system's screen recording indicator does not have to stay on continuously.
+
+## Why Daygo
+
+The usual tools leave gaps when you look back on your work:
+
+- **Manual timers** require you to remember to start and stop them, especially when you are focused.
+- **App usage statistics** can say “three hours in VS Code” but cannot say what you did there.
+- **Calendars** show what you planned, not necessarily what happened.
+
+Daygo captures the context of the work itself: what you built, investigated, discussed, and reviewed. When it is time for a standup or retrospective, you have a record to work from.
+
+## What Daygo does
+
+**Automatic timeline**
+
+- At intervals, Daygo captures the main display and uses AI to organize activity into cards with times, titles, summaries, and categories.
+- Each card links to the original frames, which you can inspect in its frame strip.
+
+**Daily and weekly reviews**
+
+- **Daily:** a calendar-day recap of highlights, completed work, and blockers for your standup.
+- **Weekly:** tracked and focused time, plus category shares; the total excludes the System category.
+
+**Control over the results**
+
+- Edit a card's category, title, or summary, and soft-delete cards you do not need.
+- Reprocess a time range when the first result is not useful, without creating duplicate cards.
+
+**Your choice of AI**
+
+- Supports OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages protocols.
+- Configure multiple models per provider and an ordered fallback chain across providers. A compatible local model can keep analysis on your device.
+- Daygo has no first-party backend and does not provide or choose a default provider.
+
+**Settings for your workflow**
+
+- Adjust the screenshot interval (1 / 5 / 10 / 20 / 30 / 60 seconds; 10 by default), resolution (720 / 1080; 1080 by default), blocked apps, and disk limit.
+- Add, remove, reorder, and recolor categories. Choose whether Daygo starts at login and whether its Dock icon is shown.
+- Use the interface in Simplified Chinese or English, with light, dark, or system theme.
+
+## Always available
+
+Daygo runs in the background after you close its window:
+
+- Recording continues when the window closes. Open it again, pause recording, or check its state from the menu bar.
+- Pause for 15, 30, or 60 minutes, or indefinitely. A timed pause resumes automatically.
+- Capture stops during sleep, screen lock, and the screensaver, then resumes afterward. System events do not restart recording if you turned it off yourself.
+
+## Your data, your choice
+
+Daygo handles highly sensitive screen information, so privacy is a product boundary:
+
+- Screenshots, timelines, journals, and the database stay on your computer by default. There is no Daygo server, account, or sync service.
+- Screen data leaves your computer only for the AI provider you explicitly configure. With a compatible local model, analysis can stay on your device.
+- Block apps by bundle ID. When a blocked app is in the foreground, Daygo writes a redacted placeholder frame: the timeline still shows that a period of activity occurred, without its content. The blocklist and placeholder are both required safeguards.
+- API keys go only into the operating system's credential store (macOS Keychain or Windows Credential Manager). They are write-only to the app and never enter frontend localStorage, the app database, or error messages.
+- Analytics and crash reporting are off by default and require opt-in. They must not include screen content, window titles, file paths, API keys, or AI request payloads.
+
+See [Privacy and security](docs/07-privacy-security.md) for the complete boundary.
 
 ## Download
 
@@ -20,96 +76,31 @@ Get the latest installer for your platform from the [Releases page](https://gith
 | macOS | macOS 14+, Apple Silicon (arm64) | `Daygo-<version>-arm64.dmg` |
 | Windows | Windows 11, x64 (amd64) | `Daygo-<version>-amd64.exe` |
 
-This is an early pre-release. GitHub Actions builds installers after a Release is published. Signing, notarization, in-app automatic updates, the complete install/upgrade matrix,
-and long-running stability tests are still in progress, so your operating system may show an unknown-developer
-or security warning. Download Daygo only from this repository's Releases page and keep an independent backup
-of important data while evaluating it. Other architectures and Linux do not have downloadable builds yet.
-
-## What Daygo does
-
-- **Records work context automatically:** takes discrete screenshots in the background without asking you to run a timer.
-- **Builds a timeline you can revisit:** turns activity into cards with times, titles, summaries, categories, and related frames.
-- **Creates daily and weekly reviews:** shows the day's progress and the week's time distribution, category shares, and trends.
-- **Keeps results editable:** change card titles, summaries, and categories; remove unwanted content; or reprocess a time range.
-- **Uses your choice of AI:** supports OpenAI Chat Completions, OpenAI Responses, and Anthropic-compatible protocols,
-  with multiple models and an ordered fallback chain.
-- **Adapts to your workflow:** offers Chinese and English, light and dark themes, capture intervals, blocked apps, and storage limits.
-
-## Privacy boundaries
-
-Daygo handles highly sensitive screen information, so privacy is a product boundary rather than an optional mode.
-
-- Screenshots, timelines, journals, and the database stay on your computer by default.
-- Daygo has no first-party backend and neither provides nor selects a default AI provider.
-- Screen data is sent only to a provider you explicitly configure. You can also connect a compatible local model.
-- You can block specific applications. When one is frontmost, Daygo records a redacted placeholder frame.
-- API keys are stored only in the operating system's credential store, not in frontend localStorage or the app database.
-- Analytics and crash reporting are off by default and must not contain screen content, window titles, file paths,
-  API keys, or LLM request payloads.
-
-See [Privacy and security](docs/07-privacy-security.md) for the complete boundary.
+macOS is the primary development platform; a Windows installer is also available. Other architectures and Linux do not have downloadable builds yet.
 
 ## First run
 
 1. Install and launch Daygo.
 2. On macOS, grant Screen Recording permission when prompted. Daygo may need to restart afterward.
-3. Add an AI provider, API key, and model in Settings, then run the connection test.
-4. Choose a capture interval, blocked applications, and a storage limit, then start recording.
-5. When the first analysis batch completes, review the timeline and edit the results if needed.
+3. Add your AI provider, API key, and model in Settings, then run the connection test.
+4. Choose a screenshot interval, blocked apps, and a disk limit, then start recording.
+5. When the first analysis batch completes, review the timeline and edit categories or summaries as needed.
 
-Daygo does not include an AI service or API credits. How data sent to a third-party provider is handled depends
-on the service you choose and its privacy policy.
+Daygo does not include an AI service or API credits. How a third-party provider handles data you send depends on that service and its privacy policy.
 
-## Project status
+## Contributing
 
-v0.1.0 provides installers for macOS and Windows, but publishing an installer does not mean every feature has
-completed its real-user acceptance loop. Evidence is still being collected for real providers, background
-operation after closing the window, both privacy safeguards, install/upgrade behavior, and 7/14-day runs.
-See the [roadmap module table](docs/09-roadmap.md#91-模块总表) for implemented scope, verification evidence,
-and remaining risks.
-
-If you find a problem, open an [issue](https://github.com/Jwz-git/Daygo/issues) with your OS version, Daygo
-version, reproduction steps, and expected/actual behavior. Do not attach real screenshots, API keys, databases,
-recordings, window titles, or other sensitive information.
-
-## Run from source
-
-You need Go 1.25+, Node.js 20.19+ (or 22.12+), and npm. macOS also needs Xcode Command Line Tools; see the
-[script guide](scripts/README.md) for Windows native build dependencies.
+Daygo is built with Go, Wails, Vue 3, and SQLite. Go owns product logic and is the sole database writer. Platform capabilities sit behind ports, and the frontend accesses Go through generated Wails bindings.
 
 ```bash
 git clone https://github.com/Jwz-git/Daygo.git
 cd Daygo
-
-# macOS
-./scripts/dev.sh
-
-# Windows PowerShell
-./scripts/dev.ps1
+./scripts/gate.sh   # Run the complete commit gate: bootstrap, build, tests, frontend
 ```
 
-## Contributing
+For design specifications, architecture, and contribution constraints, see [Design documentation](docs/README.md) and [AGENTS.md](AGENTS.md).
 
-Daygo is built with Go, Wails, Vue 3, TypeScript, Pinia, and SQLite. The Go core owns product logic and is the
-sole database writer. Platform capabilities sit behind narrow ports, and the frontend accesses Go only through
-generated Wails bindings.
-
-```text
-Vue 3 + TypeScript
-        ↓ Wails bindings
-Go services and foundation
-        ↓ platform ports
-macOS / Windows native adapters
-```
-
-Run the complete gate before submitting a change:
-
-```bash
-./scripts/gate.sh
-```
-
-Read more: [Design documentation](docs/README.md) · [Testing strategy](docs/08-testing-strategy.md) ·
-[Contribution constraints](AGENTS.md)
+Found a problem? Open an [issue](https://github.com/Jwz-git/Daygo/issues). Do not attach real screenshots, API keys, databases, or other sensitive information.
 
 ## License
 

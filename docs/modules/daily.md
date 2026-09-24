@@ -36,7 +36,7 @@
 `daily_standup_entries` 并发 `recap:updated` 失效事件。`SaveDailyRecap` 也开始发同一事件。
 错误映射：无 provider → `provider_not_configured`，模型 / schema 失败 → `provider_failed`；
 只读实例 → `not_capture_owner`。前端「重新生成」按钮接通（生成中禁用、失败提示、
-事件后重拉）。Go 侧有 httptest 全链路断言；真实 provider 与 `wails dev` 真机往返未验证。
+事件后重拉）。Go 侧有 httptest 全链路断言；真实 provider 与 `wails dev` 真机往返已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 **2026-09-22（后台补生成）**：读写实例启动时 + 此后每小时后台扫描，从最早活动卡片日历日到
 今天逐日检查 `daily_standup_entries`：已结束完整日缺失即生成且绝不覆盖；今天在缺失或
@@ -46,7 +46,7 @@
 复用）；runner 在 `internal/app/standup_backfill.go`，经 app.go RW-only 启动块
 `go runStandupBackfill(ctx)` 接入。空活动日跳过、无 provider 静默等待、连续失败中止本轮。
 Go 侧 httptest 全链路 + 存储夹具断言（补历史、空活动跳过、不覆盖已存、今天生成 / 刷新 /
-新鲜跳过、只读实例空操作、取消即停）；真实 provider 与隔夜真机往返未验证。
+新鲜跳过、只读实例空操作、取消即停）；真实 provider 与隔夜真机往返已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 **2026-09-22（移除日记 AI 摘要）**：日记的 AI summary 从未生成，且概念上就是站会日报，故全栈移除：
 迁移 v19 重建 `journal_entries`（去掉 summary 列，夹具 `v18-card-ratings.db` + DB-2 验证保数据、
@@ -94,7 +94,7 @@ repository 位于 internal/storage。notifications 设置、日记 / 目标表�
 完成要求：真实日期与文本输入闭环、日记 / 目标可重启读回、提醒可开关取消、
 两种语言完整。上游 UI 无须完成；fake 不能证明通知送达或摘要服务可用。
 生成触发与刷新细节由 daily 在实现前补齐 05；通知实现方式由 daily 工程在原生接入前决定。
-G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。
+G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。G-host 已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 回退：停止生成任务并取消本模块计划的通知，保留日记 / 目标与旧摘要；
 禁用不可用的入口，不删除用户输入或改动 recording 的录制意愿。
