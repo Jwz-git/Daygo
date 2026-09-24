@@ -441,21 +441,29 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 		return err
 	}
 
-	// A single-card output is always the window's last card, so the 15-minute
-	// floor (docs/04 §4.3.1) never applies to it: a few-minute activity that
-	// stands alone — the "just switched tasks for a few minutes" case — would
-	// persist as a tiny card. Fold it into an adjacent preceding card when the
-	// merge stays bounded; the merged card takes the majority activity's
-	// category (docs/04 §4.3.4). ownedFrom then starts at that predecessor so
-	// the rewrite owns and replaces it.
+	// A short activity next to a cross-category neighbour would persist as an
+	// unreadable fragment: the ownership gate (mergeOwnershipStart) refuses to
+	// merge across categories, and the 15-minute floor never applies to a card
+	// carrying the window's end (docs/04 §4.3.1). Two deterministic folds recover
+	// it, both taking the majority-time activity's identity (docs/04 §4.3.4): a
+	// short single-card output folds UP into its predecessor, and otherwise a
+	// short committed predecessor is absorbed DOWN into the first card. ownedFrom
+	// then starts at that predecessor so the rewrite owns and replaces it.
 	notifyFrom := batch.Start
-	if len(shells) == 1 {
+	if len(shells) > 0 {
 		anchor := ownedFrom.Add(batch.End.Sub(ownedFrom) / 2)
 		cStart, errStart := timeutil.ResolveClock(shells[0].Start, anchor, s.loc())
 		cEnd, errEnd := timeutil.ResolveClock(shells[0].End, anchor, s.loc())
 		if errStart == nil && errEnd == nil && cEnd.After(cStart) {
-			if pred, ok := mergeableSingleCardPredecessor(cStart, cEnd, existing); ok {
-				shells = []domain.CardShell{buildMergedShell(pred, shells[0], cEnd.Sub(cStart))}
+			pred, ok := domain.TimelineCard{}, false
+			if len(shells) == 1 {
+				pred, ok = mergeableSingleCardPredecessor(cStart, cEnd, existing)
+			}
+			if !ok {
+				pred, ok = mergeableSmallPredecessor(cStart, cEnd, existing)
+			}
+			if ok {
+				shells[0] = buildMergedShell(pred, shells[0], cEnd.Sub(cStart))
 				ownedFrom = time.Unix(pred.StartTs, 0)
 				notifyFrom = ownedFrom
 			}
@@ -526,29 +534,25 @@ func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (tim
 //   - AdjacentIdleMergeGap (5min, rules.go): idle-into-idle merge on the idle
 //     fast path, a separate mechanism.
 //
-// shortSingleCardCeiling: a single-card batch output is always the window's
-// last card, so the 15-minute floor (docs/04 §4.3.1) never constrains it and
-// an isolated few-minute activity lands as a tiny card; the fold bounds the
-// recovery merge that folds such a card into an adjacent preceding card.
+// shortSingleCardCeiling bounds both short-card folds (docs/04 §4.3.1): a
+// single-card batch output is always the window's last card, so the 15-minute
+// floor never constrains it and an isolated few-minute activity lands as a tiny
+// card. The ceiling caps whichever card may be folded — a short output folded
+// UP into a predecessor, or a short predecessor absorbed DOWN into a new card.
 const (
 	ongoingRewriteReachback = 5 * time.Minute
 	shortSingleCardCeiling  = 13 * time.Minute
 	maxShortCardMergeGap    = 4 * time.Minute
 )
 
-// mergeableSingleCardPredecessor reports the committed card a short single-card
-// output should be folded into, if any (docs/04 §4.3.1). The output must be
-// shorter than shortSingleCardCeiling; the predecessor is the nearest card
-// ending at or before it, must not be Idle or System (neither absorbs real
-// activity into a category the user cannot see), must end within
-// maxShortCardMergeGap, and the combined span must stay within maxCardDuration.
-// Because single-card mode only occurs with no card within the ongoing merge
-// window, a genuinely isolated fresh card fails the gap check and stays alone;
-// this fires for a short card sitting right after a cross-category neighbour.
-func mergeableSingleCardPredecessor(cStart, cEnd time.Time, existing []domain.TimelineCard) (domain.TimelineCard, bool) {
-	if cEnd.Sub(cStart) >= shortSingleCardCeiling {
-		return domain.TimelineCard{}, false
-	}
+// adjacentMergeablePredecessor finds the committed card a short-card fold may
+// absorb across the batch boundary for a card spanning [cStart, cEnd]: the
+// nearest card ending at or before cStart, not Idle or System (neither absorbs
+// real activity into a category the user cannot see), ending within
+// maxShortCardMergeGap, with a combined span within maxCardDuration. Which side
+// must be short is the caller's gate; this enforces only the adjacency and
+// bounds both fold directions share (docs/04 §4.3.1).
+func adjacentMergeablePredecessor(cStart, cEnd time.Time, existing []domain.TimelineCard) (domain.TimelineCard, bool) {
 	var pred *domain.TimelineCard
 	for i := range existing {
 		card := &existing[i]
@@ -571,11 +575,43 @@ func mergeableSingleCardPredecessor(cStart, cEnd time.Time, existing []domain.Ti
 	return *pred, true
 }
 
-// buildMergedShell fuses a short card into its predecessor across the gap
-// between them. The card covering the majority of the two activities' time
-// (the gap belongs to neither) owns the merged card's category and text; the
-// span runs from the predecessor's start to the short card's end, and both
-// cards' activity points and distractions are kept in order.
+// mergeableSingleCardPredecessor reports the committed card a short single-card
+// output should fold UP into (docs/04 §4.3.1): the output itself must be shorter
+// than shortSingleCardCeiling. Because single-card mode only occurs with no card
+// within the ongoing merge window, a genuinely isolated fresh card fails the gap
+// check and stays alone; this fires for a short output right after a
+// cross-category neighbour.
+func mergeableSingleCardPredecessor(cStart, cEnd time.Time, existing []domain.TimelineCard) (domain.TimelineCard, bool) {
+	if cEnd.Sub(cStart) >= shortSingleCardCeiling {
+		return domain.TimelineCard{}, false
+	}
+	return adjacentMergeablePredecessor(cStart, cEnd, existing)
+}
+
+// mergeableSmallPredecessor reports a short committed predecessor a newly
+// generated card should absorb DOWN into itself — the mirror of
+// mergeableSingleCardPredecessor (docs/04 §4.3.1). Here the predecessor, not the
+// output, must be shorter than shortSingleCardCeiling, so a small cross-category
+// fragment the ownership gate refused to bury (mergeOwnershipStart leaves it
+// beside the rewrite) is recovered instead of surviving forever. The output may
+// be one card or the first of several; only that first card grows left.
+func mergeableSmallPredecessor(cStart, cEnd time.Time, existing []domain.TimelineCard) (domain.TimelineCard, bool) {
+	pred, ok := adjacentMergeablePredecessor(cStart, cEnd, existing)
+	if !ok {
+		return domain.TimelineCard{}, false
+	}
+	if time.Duration(pred.EndTs-pred.StartTs)*time.Second >= shortSingleCardCeiling {
+		return domain.TimelineCard{}, false
+	}
+	return pred, true
+}
+
+// buildMergedShell fuses a card into an earlier committed predecessor across the
+// gap between them (both short-card fold directions, docs/04 §4.3.1). The card
+// covering the majority of the two activities' time (the gap belongs to neither)
+// owns the merged card's category and text; the span runs from the predecessor's
+// start to the later card's end, and both cards' activity points and
+// distractions are kept in order.
 func buildMergedShell(pred domain.TimelineCard, short domain.CardShell, shortDur time.Duration) domain.CardShell {
 	predDur := time.Duration(pred.EndTs-pred.StartTs) * time.Second
 	majorityPred := predDur >= shortDur
@@ -1163,28 +1199,36 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 		return err
 	}
 
-	// The regenerated window is the card's own span, so a single output card is
-	// its window's last card and the 15-minute floor never trims it (docs/04
-	// §4.3.1): regenerating a few-minute card would leave it just as short and
-	// stranded. Fold it into an adjacent preceding card exactly as the batch
-	// pipeline does, extending the rewrite's left edge to own and replace that
-	// predecessor. Skip the merge when a live batch overlaps the predecessor's
-	// span, since extending there would let that batch clobber the result when
-	// it lands.
+	// Short-card folds apply here exactly as in the batch pipeline (docs/04
+	// §4.3.1): the regenerated window is the card's own span, so a single output
+	// card is its window's last card and the 15-minute floor never trims it — a
+	// few-minute regeneration would stay short and stranded, so it folds UP into
+	// an adjacent preceding card. Otherwise a short committed predecessor is
+	// absorbed DOWN into the first output card. Either fold extends the rewrite's
+	// left edge to own and replace that predecessor; skip it when a live batch
+	// overlaps the predecessor's span, since extending there would let that batch
+	// clobber the result when it lands.
 	replaceFrom, notifyFrom := windowStart, windowStart
-	if len(shells) == 1 {
+	if len(shells) > 0 {
 		anchor := windowStart.Add(windowEnd.Sub(windowStart) / 2)
 		cStart, errStart := timeutil.ResolveClock(shells[0].Start, anchor, s.loc())
 		cEnd, errEnd := timeutil.ResolveClock(shells[0].End, anchor, s.loc())
 		if errStart == nil && errEnd == nil && cEnd.After(cStart) {
-			if pred, ok := mergeableSingleCardPredecessor(cStart, cEnd, existing); ok {
+			pred, ok := domain.TimelineCard{}, false
+			if len(shells) == 1 {
+				pred, ok = mergeableSingleCardPredecessor(cStart, cEnd, existing)
+			}
+			if !ok {
+				pred, ok = mergeableSmallPredecessor(cStart, cEnd, existing)
+			}
+			if ok {
 				predStart := time.Unix(pred.StartTs, 0)
 				busy, lookupErr := s.cfg.Store.ProcessingBatchesInRange(ctx, predStart, windowStart)
 				if lookupErr != nil {
 					return lookupErr
 				}
 				if len(busy) == 0 {
-					shells = []domain.CardShell{buildMergedShell(pred, shells[0], cEnd.Sub(cStart))}
+					shells[0] = buildMergedShell(pred, shells[0], cEnd.Sub(cStart))
 					replaceFrom, notifyFrom = predStart, predStart
 				}
 			}

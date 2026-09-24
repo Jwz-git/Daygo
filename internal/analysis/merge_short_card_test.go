@@ -93,6 +93,93 @@ func TestMergeableSingleCardPredecessor(t *testing.T) {
 	}
 }
 
+// mergeableSmallPredecessor is the mirror gate (docs/04 §4.3.1): a newly
+// generated card of any length absorbs a short committed predecessor left beside
+// the rewrite by the ownership gate. It shares adjacentMergeablePredecessor's
+// bounds with mergeableSingleCardPredecessor but gates on the *predecessor's*
+// duration, not the output's, so each boundary gets its own fixture.
+func TestMergeableSmallPredecessor(t *testing.T) {
+	loc := time.Local
+	at := func(h, m int) time.Time { return time.Date(2026, 9, 12, h, m, 0, 0, loc) }
+	card := func(start, end time.Time, category string) domain.TimelineCard {
+		return domain.TimelineCard{StartTs: start.Unix(), EndTs: end.Unix(), Category: category}
+	}
+
+	tests := []struct {
+		name     string
+		cStart   time.Time
+		cEnd     time.Time
+		existing []domain.TimelineCard
+		wantOK   bool
+	}{
+		{
+			name:   "long new card absorbs a short cross-category predecessor",
+			cStart: at(10, 15), cEnd: at(10, 45), // 30min output, length is not the gate
+			existing: []domain.TimelineCard{card(at(10, 9), at(10, 14), "Communication")}, // 5min
+			wantOK:   true,
+		},
+		{
+			name:   "predecessor just under the thirteen-minute ceiling merges",
+			cStart: at(10, 15), cEnd: at(10, 45),
+			existing: []domain.TimelineCard{card(at(10, 2), at(10, 14), "Communication")}, // 12min
+			wantOK:   true,
+		},
+		{
+			name:   "predecessor at the thirteen-minute ceiling does not merge",
+			cStart: at(10, 15), cEnd: at(10, 45),
+			existing: []domain.TimelineCard{card(at(10, 1), at(10, 14), "Communication")}, // exactly 13min
+			wantOK:   false,
+		},
+		{
+			name:   "no predecessor",
+			cStart: at(10, 15), cEnd: at(10, 45),
+			existing: nil,
+			wantOK:   false,
+		},
+		{
+			name:   "idle predecessor is never absorbed",
+			cStart: at(10, 15), cEnd: at(10, 45),
+			existing: []domain.TimelineCard{card(at(10, 9), at(10, 14), "Idle")},
+			wantOK:   false,
+		},
+		{
+			name:   "system predecessor is never absorbed",
+			cStart: at(10, 15), cEnd: at(10, 45),
+			existing: []domain.TimelineCard{card(at(10, 9), at(10, 14), "System")},
+			wantOK:   false,
+		},
+		{
+			name:   "gap over four minutes leaves the fragment alone",
+			cStart: at(10, 15), cEnd: at(10, 45),
+			existing: []domain.TimelineCard{card(at(10, 5), at(10, 10), "Communication")}, // 5min gap
+			wantOK:   false,
+		},
+		{
+			name:   "merged span over sixty minutes does not merge",
+			cStart: at(9, 8), cEnd: at(10, 10), // combined 70min from the predecessor start
+			existing: []domain.TimelineCard{card(at(9, 0), at(9, 5), "Communication")},
+			wantOK:   false,
+		},
+		{
+			name:   "a later card is not a predecessor",
+			cStart: at(10, 15), cEnd: at(10, 45),
+			existing: []domain.TimelineCard{
+				card(at(10, 9), at(10, 14), "Communication"), // the real predecessor
+				card(at(10, 50), at(11, 0), "Coding"),        // ends after C: ignored
+			},
+			wantOK: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pred, ok := mergeableSmallPredecessor(tc.cStart, tc.cEnd, tc.existing)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v (pred=%+v)", ok, tc.wantOK, pred)
+			}
+		})
+	}
+}
+
 // buildMergedShell must give the merged card the majority-time activity's
 // identity (docs/04 §4.3.4) while keeping the outer span [pred.Start, short.End]
 // and unioning both cards' metadata so no evidence is dropped.

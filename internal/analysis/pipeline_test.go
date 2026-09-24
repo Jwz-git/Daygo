@@ -1347,6 +1347,65 @@ func TestPipelineIsolatedShortSingleCardStaysAlone(t *testing.T) {
 	}
 }
 
+// The mirror fold (docs/04 §4.3.1): a short cross-category card already on the
+// timeline is left beside the rewrite by the ownership gate, so a normal-length
+// new card next to it absorbs it DOWN instead of letting it survive as a
+// fragment. The merged card keeps the majority-time new card's identity.
+func TestPipelineNewCardAbsorbsSmallCrossCategoryPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (10:00–10:15): a far-off Coding card, only here to give
+	// seedCardBefore a batch to attribute the parked fragment to.
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+	batchID := h.onlyBatch(t, base)
+
+	// A four-minute Communication fragment ending two minutes before batch 2 —
+	// the shape the ownership gate refuses to bury and leaves stranded.
+	h.seedCardBefore(t, batchID, time.Date(2026, 9, 12, 10, 24, 0, 0, time.Local),
+		time.Date(2026, 9, 12, 10, 28, 0, 0, time.Local), "Communication", "quick reply", "")
+
+	// Batch 2 (10:30–10:45): a full-length Coding card right after the fragment.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:30 AM","end":"10:45 AM","category":"Coding","subcategory":"","title":"focus","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 10, 30, 0, 0, time.Local)
+	h.commitFrames(t, second, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v, want the absorbing rewrite to validate on its first attempt", h.failures)
+	}
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the far-off first card beside the merged rewrite", cards)
+	}
+	for _, c := range cards {
+		if c.Category == "Communication" {
+			t.Fatalf("cards = %+v, want the Communication fragment absorbed, not surviving", cards)
+		}
+	}
+	merged := cards[1]
+	if merged.Category != "Coding" || merged.Title != "focus" {
+		t.Fatalf("merged identity = %s/%q, want the majority Coding new card's Coding/\"focus\"",
+			merged.Category, merged.Title)
+	}
+	if merged.Start != "10:24 AM" || merged.End != "10:45 AM" {
+		t.Fatalf("merged span = %s – %s, want 10:24 AM – 10:45 AM (grown left onto the fragment)",
+			merged.Start, merged.End)
+	}
+}
+
 // A fused card that names no app inherits the icon of the card it absorbed:
 // the predecessor is gone, and an empty appSites would leave the merged card
 // with no icon where the user used to see one.

@@ -504,3 +504,46 @@ func TestRegenerateCardMergesAShortOutputIntoItsPredecessor(t *testing.T) {
 		t.Fatalf("merged span = %s-%s, want 10:00 AM-10:14 AM", merged.Start, merged.End)
 	}
 }
+
+// The mirror fold (docs/04 §4.3.1): regenerating a normal-length card also
+// absorbs a short committed predecessor stranded beside it, exactly as the batch
+// pipeline does. A cross-category fragment the ownership gate refused to bury is
+// folded DOWN into the regenerated card rather than surviving as an unreadable
+// sliver.
+func TestRegenerateCardAbsorbsAShortCrossCategoryPredecessor(t *testing.T) {
+	h, batchID, target := pipelineCard(t)
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// A two-minute Communication fragment committed just before the card's
+	// window — the shape the ownership gate leaves stranded on the timeline.
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.seedCardBefore(t, batchID, base.Add(-3*time.Minute), base.Add(-1*time.Minute), "Communication", "quick reply", "")
+
+	// The regenerated card comes back a normal 15 minutes, so fold-up does not
+	// apply (it is not short); the short predecessor folds DOWN into it instead.
+	setCardsResponse(t, h, `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"",`+
+		`"title":"focus session","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`)
+
+	if err := h.service.RegenerateCard(context.Background(), target); err != nil {
+		t.Fatalf("RegenerateCard: %v", err)
+	}
+
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want the predecessor folded into the regenerated card", cards)
+	}
+	// The regenerated card (15min) outlasts the predecessor (2min): the merged
+	// card keeps the Coding identity and grows left to the predecessor's start.
+	merged := cards[0]
+	if merged.Category != "Coding" || merged.Title != "focus session" {
+		t.Fatalf("merged identity = %s/%s, want Coding/focus session", merged.Category, merged.Title)
+	}
+	if merged.Start != "9:57 AM" || merged.End != "10:15 AM" {
+		t.Fatalf("merged span = %s-%s, want 9:57 AM-10:15 AM", merged.Start, merged.End)
+	}
+}

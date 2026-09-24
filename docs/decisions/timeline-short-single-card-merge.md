@@ -1,7 +1,8 @@
 # timeline 单卡短卡恢复性融合：把孤立几分钟短卡并回前驱
 
-> **状态：已决定（本轮实现范围内）。** 本文记录 04 §4.3.1 新增的「单卡输出短卡恢复性融合」
-> 闸门；设计规格（04 §4.3.1 / §4.3.4）在实现同批 commit 内同步。
+> **状态：已决定（本轮实现范围内）。** 本文记录 04 §4.3.1 的两道「短卡恢复性融合」闸门——
+> 「单卡输出折上并入前驱」（§2）与其镜像「新卡折下吸收已落库的短前驱」（§2A）；设计规格
+> （04 §4.3.1 / §4.3.4）在实现同批 commit 内同步。
 
 ## 1. 背景
 
@@ -37,6 +38,31 @@
   [03 §3.5](../03-data-model.md#35-时钟串派生) 的所有权校验会拒绝一次未覆盖整卡的改写。
 
 任一条件不满足则不融合，短卡照原样落库。
+
+## 2A. 镜像方向：新卡吸收已落库的短前驱
+
+上面的闸门折的是"本批次输出恰好一张短卡"。对称的另一半是：短卡其实是**已提交的前驱** P，而本批次
+生成的是一张（或多张）正常长度的卡 C。这类 P 通常是被 §4.3.4 的所有权闸门以跨分类为由拒绝吸收、
+从而留在时间线上的碎卡——它不会被下一轮滑窗收拾，和 §1 描述的孤立短卡是同一个可读性问题的镜像。
+
+因此在同一处（`generateCards` 之后、`ReplaceCardsInRange` 之前）补第二道闸门
+（`mergeableSmallPredecessor` + `buildMergedShell`）：当紧邻 C 第一张卡的已提交前驱 P
+**时长 < 13 分钟**、非 `Idle` / `System`、间隔 `C.start − P.end ≤ 4 分钟`、融合后跨度
+`C.end − P.start ≤ 60 分钟` 时，把 P 并入 C 的**第一张卡**（只有第一张向左生长到 `P.start`）。
+身份仍走多数时间归属（C 通常更长，归 C），`ownedFrom` 前移到 `P.start`，改写因而拥有并替换 P。
+
+- **与"折上"闸门互斥且有先后**：输出恰好一张短卡时先试 `mergeableSingleCardPredecessor`（折上），
+  不成立才试 `mergeableSmallPredecessor`（折下）；两者共用
+  `adjacentMergeablePredecessor` 的邻接 / 跨度约束，只是一个卡输出时长、一个卡前驱时长。
+- **批次流水线（`processBatch`）与单卡重写（04 §4.3.5）里同样生效**：重写时同样先试
+  `mergeableSingleCardPredecessor`（折上）、不成立再试 `mergeableSmallPredecessor`（折下），把紧邻的
+  短前驱并进重写输出的第一张卡、左边界外扩到前驱起点。差别只有一处：重写只锁了原窗口，因此融合前
+  额外用 `ProcessingBatchesInRange(P.start, windowStart)` 确认前驱跨度上没有 pending / processing 批次，
+  避免那条批次随后落库覆盖被外扩纳入的前驱区间；有活跃批次时跳过融合、退回纯窗口内重写。
+- **仍服从多数时间对日 / 周占比的约束**：P < 13 分钟，跨分类归属的偏差被限制在少数分钟内，与 §3.1
+  接受的取舍一致。
+
+任一条件不满足则不折下，P 照原样留在时间线上。
 
 ## 3. 候选与取舍
 
@@ -76,20 +102,24 @@
 - **所有权校验**（03 §3.5）：`ownedFrom = P.start` 保证改写覆盖并软删除整张 `P`，不会触发
   「改写未覆盖整卡」的拒绝。
 - **`notifyDays`** 相应从 `P.start` 起算，让前移后的改写正确刷新受影响的逻辑日。
-- **单卡重写复用同一闸门**（04 §4.3.5）：`RegenerateCard` 在 `generateScopedCards` 之后同样对
-  单张短卡调用 `mergeableSingleCardPredecessor` / `buildMergedShell`，把改写左边界从窗口起点
-  外扩到前驱起点。差别只有一处：融合前额外用 `ProcessingBatchesInRange(P.start, windowStart)`
-  确认前驱跨度上没有 pending / processing 批次——重写只锁了原窗口，若那条批次随后落库会覆盖
-  被外扩纳入的前驱区间，因此有活跃批次时跳过融合、退回纯窗口内重写。
+- **单卡重写复用两道闸门**（04 §4.3.5）：`RegenerateCard` 在 `generateScopedCards` 之后先试
+  `mergeableSingleCardPredecessor`（折上，单张 < 13 分钟输出）、不成立再试 `mergeableSmallPredecessor`
+  （折下，紧邻 < 13 分钟前驱），命中即 `buildMergedShell` 并把改写左边界从窗口起点外扩到前驱起点。
+  差别只有一处：融合前额外用 `ProcessingBatchesInRange(P.start, windowStart)` 确认前驱跨度上没有
+  pending / processing 批次——重写只锁了原窗口，若那条批次随后落库会覆盖被外扩纳入的前驱区间，
+  因此有活跃批次时跳过融合、退回纯窗口内重写。
 
 ## 5. 验证
 
 - 纯函数夹具（`internal/analysis/merge_short_card_test.go`）：`mergeableSingleCardPredecessor`
   的每条边界（≥13 分钟不融合、无前驱、Idle / System 前驱、间隔 >4 分钟、跨度 >60 分钟、
-  邻接跨分类融合、末尾更晚的卡不算前驱），以及 `buildMergedShell` 的多数时间归属与
-  metadata 合并 / `appSites` 回退。
+  邻接跨分类融合、末尾更晚的卡不算前驱），`mergeableSmallPredecessor` 的镜像边界（前驱 ≥13 分钟
+  不折下、正常长度新卡照样折下短前驱、Idle / System 前驱、间隔 >4 分钟、跨度 >60 分钟），
+  以及 `buildMergedShell` 的多数时间归属与 metadata 合并 / `appSites` 回退。
 - 端到端（`internal/analysis/pipeline_test.go`）：一张紧邻前驱的短单卡被并回前驱且取多数
-  分类；一张间隔超过 4 分钟的孤立短单卡独立存活。
+  分类；一张间隔超过 4 分钟的孤立短单卡独立存活；一张正常长度的新卡把紧邻的跨分类短前驱折下吸收、
+  取多数（新卡）分类。
 - 单卡重写（`internal/analysis/regenerate_test.go`）：重新生成一张紧邻前驱的短卡把它并回前驱
-  （左边界外扩到前驱起点、跨分类取多数分类）；已有的窗口不动、前驱缺失等用例确认非短卡或无
+  （折上，左边界外扩到前驱起点、跨分类取多数分类）；重新生成一张正常长度的卡把紧邻的跨分类短前驱
+  折下吸收（左边界外扩到前驱起点、取多数分类）；已有的窗口不动、前驱缺失等用例确认非短卡或无
   可并前驱时仍是纯窗口内重写。
