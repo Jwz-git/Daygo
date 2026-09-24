@@ -20,6 +20,7 @@ import {
   reprocessCard as reprocessCardApi,
   reprocessDay,
   retryBatches,
+  stopRetries,
   TimelineUnavailableError,
   updateCardCategory,
   updateCardDetailedSummary,
@@ -39,6 +40,7 @@ export type TimelineAction =
   | 'update-card'
   | 'delete-card'
   | 'retry-batches'
+  | 'stop-retries'
   | 'delete-batches'
   | 'reprocess-day'
   | 'reprocess-card'
@@ -84,6 +86,7 @@ export const useTimelineStore = defineStore('timeline', () => {
       updateDetailedSummary: enabled && actionBindings.updateDetailedSummary,
       deleteCard: enabled && actionBindings.deleteCard,
       retryBatches: enabled && actionBindings.retryBatches,
+      stopRetries: enabled && actionBindings.stopRetries,
       reprocessDay: enabled && actionBindings.reprocessDay,
       reprocessCard: enabled && actionBindings.reprocessCard,
       deleteBatches: enabled && actionBindings.deleteBatches,
@@ -228,6 +231,10 @@ export const useTimelineStore = defineStore('timeline', () => {
     return runAction('retry-batches', () => retryBatches(batchIDs))
   }
 
+  function stopFailureRetries(batchIDs: number[]): Promise<boolean> {
+    return runAction('stop-retries', () => stopRetries(batchIDs))
+  }
+
   function dismissFailure(batchIDs: number[]): Promise<boolean> {
     return runAction('delete-batches', () => deleteBatches(batchIDs))
   }
@@ -286,6 +293,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     saveCardEdits,
     removeCard,
     retryFailure,
+    stopFailureRetries,
     dismissFailure,
     reprocessCurrentDay,
     reprocessCard,

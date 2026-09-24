@@ -16,6 +16,7 @@ interface TimelineBackend {
   UpdateCardDetailedSummary?: (cardID: number, text: string) => Promise<void>
   DeleteCard?: (cardID: number) => Promise<void>
   RetryBatches?: (batchIDs: number[]) => Promise<void>
+  StopRetries?: (batchIDs: number[]) => Promise<void>
   ReprocessDay?: (day: string) => Promise<void>
   ReprocessCard?: (cardID: number) => Promise<void>
   DeleteBatches?: (batchIDs: number[]) => Promise<void>
@@ -51,6 +52,7 @@ export interface TimelineActionAvailability {
   updateDetailedSummary: boolean
   deleteCard: boolean
   retryBatches: boolean
+  stopRetries: boolean
   reprocessDay: boolean
   reprocessCard: boolean
   deleteBatches: boolean
@@ -83,6 +85,7 @@ export function getTimelineActionAvailability(): TimelineActionAvailability {
     updateDetailedSummary: typeof current?.UpdateCardDetailedSummary === 'function',
     deleteCard: typeof current?.DeleteCard === 'function',
     retryBatches: typeof current?.RetryBatches === 'function',
+    stopRetries: typeof current?.StopRetries === 'function',
     reprocessDay: typeof current?.ReprocessDay === 'function',
     reprocessCard: typeof current?.ReprocessCard === 'function',
     deleteBatches: typeof current?.DeleteBatches === 'function',
@@ -141,6 +144,10 @@ export async function deleteCard(cardID: number): Promise<void> {
 
 export async function retryBatches(batchIDs: number[]): Promise<void> {
   return requiredMethod('RetryBatches')(batchIDs)
+}
+
+export async function stopRetries(batchIDs: number[]): Promise<void> {
+  return requiredMethod('StopRetries')(batchIDs)
 }
 
 export async function reprocessDay(day: string): Promise<void> {

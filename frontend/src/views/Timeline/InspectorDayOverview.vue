@@ -32,6 +32,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: [batchIDs: number[]]
+  stopRetries: [batchIDs: number[]]
   saveGoal: [goal: DayGoalDTO]
   reprocess: []
 }>()
@@ -55,7 +56,20 @@ const allFailedBatchIds = computed(() =>
   failuresWithBatches.value.flatMap((failure) => failure.batchIds),
 )
 
+// "Stop all" only targets the failures still on the auto-retry track — the
+// same predicate the failure detail pane uses to decide whether stopping does
+// anything. Batches whose kind needs attention (or already stopped) are left
+// out so the button hides once nothing is auto-retrying.
+const retryableFailedBatchIds = computed(() =>
+  failuresWithBatches.value
+    .filter((failure) => failure.retryable)
+    .flatMap((failure) => failure.batchIds),
+)
+
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
+const canStopAll = computed(
+  () => props.canWrite && props.actions.stopRetries && retryableFailedBatchIds.value.length > 0,
+)
 
 interface CategoryTotal {
   category: CategoryDTO
@@ -314,6 +328,16 @@ const reviewMinutesTotal = computed(() =>
       @click="emit('retry', allFailedBatchIds)"
     >
       {{ props.pendingAction === 'retry-batches' ? t('timeline.failure.retrying') : t('timeline.failure.retryAll', { count: failuresWithBatches.length }) }}
+    </button>
+    <button
+      v-if="canStopAll"
+      type="button"
+      class="dg-button inspector__retry"
+      :disabled="props.pendingAction !== null"
+      :title="t('timeline.failure.stopAll')"
+      @click="emit('stopRetries', retryableFailedBatchIds)"
+    >
+      {{ props.pendingAction === 'stop-retries' ? t('timeline.failure.stopping') : t('timeline.failure.stopAll') }}
     </button>
   </section>
 

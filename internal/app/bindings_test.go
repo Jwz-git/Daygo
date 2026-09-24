@@ -59,6 +59,7 @@ var contractBindings = []string{
 	"RelaunchForPermission",
 	"ResumeRecording",
 	"RetryBatches",
+	"StopRetries",
 	"SaveCardRating",
 	"SaveCardReview",
 	"SaveCategories",

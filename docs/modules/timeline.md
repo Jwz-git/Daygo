@@ -30,7 +30,7 @@
   该闸门不受 15 分钟下限放松）、
   融合卡片继承被吸收前卡的 `appSites`（模型未点名应用时回填，避免图标消失）。
 - 绑定与前端：`GetTimelineDay`（卡片 / 分类 / 合计 / 失败分组一次带回）、卡片写操作
-  （改分类 / 标题 / 摘要 / 软删除）、`RetryBatches` / `DeleteBatches` / `ReprocessDay` /
+  （改分类 / 标题 / 摘要 / 软删除）、`RetryBatches` / `StopRetries` / `DeleteBatches` / `ReprocessDay` /
   `ReprocessCard`（后者同步重写该卡片**自己的时间窗**，复用窗内已存 observations、
   不重新转录取图，两侧相邻卡不动，详见 [04 §4.3.5](../04-data-flow.md#435-单卡重写)）、分类整体覆盖
   （重命名同事务改写卡片）、分类管理向导（未改动的默认分类按界面语言显示，编辑并保存即

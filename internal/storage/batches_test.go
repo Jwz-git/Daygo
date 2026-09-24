@@ -538,6 +538,92 @@ func TestRetryBatchesRejectsMixedStatesAtomically(t *testing.T) {
 	}
 }
 
+// StopRetries caps a failed batch's attempts so the cooldown loop stops
+// requeueing it, while keeping it visible and reversible via RetryBatches.
+func TestStopRetriesCapsAttemptsAndPreventsRequeue(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	// One failure so far: retryable, and the cooldown clock would requeue it.
+	b := failedBatchAt(t, store, base, "network", 1)
+
+	stopped, err := store.Analysis().StopRetries(ctx, []int64{b.ID}, base.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("StopRetries: %v", err)
+	}
+	if len(stopped) != 1 {
+		t.Fatalf("stopped = %d batches, want 1", len(stopped))
+	}
+
+	batches, err := store.Analysis().BatchesInRange(ctx, base.Add(-time.Hour), base.Add(2*time.Hour))
+	if err != nil {
+		t.Fatalf("BatchesInRange: %v", err)
+	}
+	if len(batches) != 1 || batches[0].Status != BatchFailed || batches[0].Attempts != MaxBatchAttempts || batches[0].FailureKind != "network" {
+		t.Fatalf("batch after stop = %+v, want failed/%d/network", batches[0], MaxBatchAttempts)
+	}
+	// Still on the failure panel — stopping is not dismissing.
+	failed, err := store.Cards().FailedBatchesInRange(ctx, base.Add(-time.Hour), base.Add(2*time.Hour))
+	if err != nil {
+		t.Fatalf("FailedBatchesInRange: %v", err)
+	}
+	if len(failed) != 1 {
+		t.Fatalf("failed in range after stop = %d, want 1 (still visible)", len(failed))
+	}
+	// The cooldown clock no longer resurrects it, even well past the window.
+	if n, _ := store.Analysis().RequeueFailed(ctx, base.Add(3*time.Hour), base.Add(3*time.Hour)); n != 0 {
+		t.Fatalf("requeue after stop = %d, want 0 (attempts capped)", n)
+	}
+	if got := len(mustPending(t, store)); got != 0 {
+		t.Fatalf("pending after stop = %d, want 0", got)
+	}
+	// RetryBatches still overrides the stop: the counter resets and it requeues.
+	if _, err := store.Analysis().RetryBatches(ctx, []int64{b.ID}, base.Add(4*time.Hour)); err != nil {
+		t.Fatalf("RetryBatches after stop: %v", err)
+	}
+	if got := len(mustPending(t, store)); got != 1 {
+		t.Fatalf("pending after retry = %d, want 1 (stop is reversible)", got)
+	}
+}
+
+// StopRetries only touches failed batches, and rejects the whole call if any
+// id is not a failed batch — the same atomic strictness as RetryBatches.
+func TestStopRetriesRejectsNonFailed(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	ctx := context.Background()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+
+	failed := failedBatchAt(t, store, base, "network", 1)
+	pending, err := store.Analysis().CreateBatch(ctx, insertFrames(t, store, base.Add(time.Hour), 2), BatchPending, base.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("CreateBatch pending: %v", err)
+	}
+
+	_, err = store.Analysis().StopRetries(ctx, []int64{failed.ID, pending.ID}, base.Add(2*time.Hour))
+	if err == nil {
+		t.Fatal("StopRetries accepted a pending batch")
+	}
+	if kind, ok := KindOf(err); !ok || kind != KindConstraint {
+		t.Fatalf("StopRetries error kind = %v/%v, want constraint", kind, ok)
+	}
+	// The whole call rolled back: the failed batch keeps its original attempts.
+	batches, err := store.Analysis().BatchesInRange(ctx, base.Add(-time.Hour), base.Add(2*time.Hour))
+	if err != nil {
+		t.Fatalf("BatchesInRange: %v", err)
+	}
+	for _, batch := range batches {
+		if batch.ID == failed.ID && batch.Attempts != 1 {
+			t.Fatalf("failed batch attempts = %d after rolled-back stop, want 1", batch.Attempts)
+		}
+	}
+	if _, err := store.Analysis().StopRetries(ctx, []int64{9999}, base.Add(2*time.Hour)); err == nil {
+		t.Fatal("unknown id accepted")
+	} else if kind, ok := KindOf(err); !ok || kind != KindNotFound {
+		t.Fatalf("unknown id error kind = %v/%v, want not_found", kind, ok)
+	}
+}
+
 func TestDeleteBatchesDismissesFailures(t *testing.T) {
 	store := openWriter(t, newDir(t))
 	ctx := context.Background()

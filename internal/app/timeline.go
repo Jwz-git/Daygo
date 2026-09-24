@@ -522,6 +522,35 @@ func (b *Backend) RetryBatches(batchIDs []int64) error {
 	return nil
 }
 
+// StopRetries stops the named failed batches from auto-requeueing after their
+// cooldown. It is the inverse of RetryBatches: rather than resetting the
+// attempt counter it caps it, so RequeueFailed leaves the batch in its failed
+// terminal state and the failure panel stops promising an automatic retry. The
+// batch stays visible and a later RetryBatches still overrides this, so the
+// user can resume analyzing it. No batch is deleted and no LLM call is made.
+func (b *Backend) StopRetries(batchIDs []int64) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	store := b.store()
+	if store == nil {
+		if err := b.storageFailure(); err != nil {
+			return mapStorageError("stop retries", err)
+		}
+		return apperr.E(apperr.DatabaseError, "stop retries requires a database", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	batches, err := store.Analysis().StopRetries(ctx, batchIDs, b.clock.Now())
+	if err != nil {
+		return mapStorageError("stop retries", err)
+	}
+	for _, batch := range batches {
+		b.emitTimelineInvalidation(timeutil.LogicalDay(batch.Start, b.clock.Now().Location()))
+	}
+	return nil
+}
+
 // ReprocessDay requeues one logical day's terminal batches (succeeded,
 // failed, failed_empty) for re-analysis — the explicit user path to rebuild
 // cards with an updated prompt. Dismissed and skipped-short batches stay as

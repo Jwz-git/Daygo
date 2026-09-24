@@ -19,6 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   retry: [batchIDs: number[]]
+  stopRetries: [batchIDs: number[]]
   dismiss: [batchIDs: number[]]
 }>()
 
@@ -27,6 +28,12 @@ const confirmingDelete = ref(false)
 
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
 const canDelete = computed(() => props.canWrite && props.actions.deleteBatches)
+// Stopping only makes sense while the failure is still on the auto-retry
+// track; once it is not retryable (kind needs attention, or already stopped)
+// there is nothing to halt.
+const canStop = computed(
+  () => props.canWrite && props.actions.stopRetries && props.failure.retryable,
+)
 
 const failureClock = computed(() => {
   const format = new Intl.DateTimeFormat(locale.value, {
@@ -113,6 +120,16 @@ watch(
         @click="emit('retry', props.failure.batchIds)"
       >
         {{ props.pendingAction === 'retry-batches' ? t('timeline.failure.retrying') : t('common.action.retry') }}
+      </button>
+      <button
+        v-if="canStop"
+        type="button"
+        class="dg-button"
+        :disabled="props.pendingAction !== null"
+        :title="t('timeline.failure.stop')"
+        @click="emit('stopRetries', props.failure.batchIds)"
+      >
+        {{ props.pendingAction === 'stop-retries' ? t('timeline.failure.stopping') : t('timeline.failure.stop') }}
       </button>
       <button
         type="button"

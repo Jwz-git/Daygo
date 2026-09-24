@@ -348,6 +348,21 @@ func (r *AnalysisRepo) RetryBatches(ctx context.Context, ids []int64, now time.T
 		[]any{BatchPending, now.Unix()})
 }
 
+// StopRetries stops the named failed batches from auto-requeueing. It caps
+// their attempt counter at MaxBatchAttempts, which is exactly the state a
+// batch reaches when the cooldown loop gives up on its own: RequeueFailed then
+// skips it (attempts is not < MaxBatchAttempts) and the failure panel reports
+// it as not auto-retrying. The batch stays failed and visible; a later
+// RetryBatches still overrides this by resetting attempts to 0, so stopping is
+// reversible by the same explicit action that requeues any other failure. It
+// returns the affected batches so the caller can emit invalidation for their
+// days.
+func (r *AnalysisRepo) StopRetries(ctx context.Context, ids []int64, now time.Time) ([]Batch, error) {
+	return r.updateFailedBatches(ctx, "analysis stop retries", ids,
+		`UPDATE analysis_batches SET attempts = ?, updated_at = ? WHERE id = ?`,
+		[]any{MaxBatchAttempts, now.Unix()})
+}
+
 // ReprocessDay requeues every terminal batch of one logical day for
 // re-analysis: succeeded, failed and failed_empty batches whose start falls
 // in [from, to) go back to pending with the failure info cleared and the

@@ -180,7 +180,8 @@ CREATE INDEX idx_llm_calls_batch ON llm_calls (batch_id, purpose, attempt_no);
 **只有一个成功终态。** 不设置语义重复的第二个成功值。
 `attempts` 在每次进入 `failed` / `failed_empty` 时自增；达到 `MaxBatchAttempts`（5）后
 `RequeueFailed` 拒绝重新入队——确定性失败（帧文件丢失、时钟串不可解析）不应在冷却时钟上
-无限重复消耗 LLM 调用。手动 `RetryBatches` 绑定会显式重置该计数。
+无限重复消耗 LLM 调用。手动 `RetryBatches` 绑定会显式重置该计数；反向地，`StopRetries`
+把该计数封顶到 `MaxBatchAttempts`，让用户主动停止一个批次的自动重试而不删除它。
 
 ### 3.3.2 时间线
 
