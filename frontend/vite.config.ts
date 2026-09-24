@@ -68,11 +68,20 @@ function frameFallthrough(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  define: {
+    // The test-tools UI (sidebar Test page, capture test, data reset) is a
+    // dev/QA surface, not a shipped feature. It rides in dev builds and in an
+    // explicit opt-in build (VITE_DAYGO_TEST_TOOLS=1 for a real signed build to
+    // hand QA); the production installer tree-shakes it out entirely.
+    __DAYGO_TEST_TOOLS__: JSON.stringify(
+      mode !== 'production' || process.env.VITE_DAYGO_TEST_TOOLS === '1',
+    ),
+  },
   plugins: [vue(), developmentFixtures(), frameFallthrough()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-})
+}))

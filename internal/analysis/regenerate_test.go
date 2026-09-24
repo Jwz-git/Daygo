@@ -11,6 +11,7 @@ import (
 	"github.com/Jwz-git/Daygo/internal/ai"
 	"github.com/Jwz-git/Daygo/internal/domain"
 	"github.com/Jwz-git/Daygo/internal/storage"
+	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
 /*
@@ -434,4 +435,72 @@ func TestRegenerateCardWritesTheContractMetadataShape(t *testing.T) {
 		return
 	}
 	t.Fatalf("regenerated card not found")
+}
+
+// A regenerated card that comes back a few minutes long is its window's last
+// card, so the 15-minute floor never trims it (docs/04 §4.3.1). The same
+// deterministic gate the batch pipeline uses folds it into the adjacent
+// predecessor: regenerating a short card must not leave it stranded either.
+func TestRegenerateCardMergesAShortOutputIntoItsPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":["Code"]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"batch","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+	batchID := h.onlyBatch(t, base)
+
+	// Replace the batch's one card with the geometry the merge is about: a Coding
+	// predecessor and, two minutes later, a short Communication card sharing the
+	// batch's stored observations. One call owns the whole batch window so the
+	// storage ownership check is satisfied.
+	loc := h.store.Location()
+	reshape := []domain.CardShell{
+		{Start: timeutil.FormatClock(base, loc), End: timeutil.FormatClock(base.Add(9*time.Minute), loc),
+			Category: "Coding", Title: "coding-pred", Summary: "S"},
+		{Start: timeutil.FormatClock(base.Add(11*time.Minute), loc), End: timeutil.FormatClock(base.Add(14*time.Minute), loc),
+			Category: "Communication", Title: "chat", Summary: "S"},
+	}
+	if _, err := h.store.Cards().ReplaceCardsInRange(context.Background(), base, base.Add(15*time.Minute), reshape, batchID); err != nil {
+		t.Fatalf("reshape timeline: %v", err)
+	}
+	var short domain.TimelineCard
+	for _, c := range h.cardsFor(t, "2026-09-12") {
+		if c.Title == "chat" {
+			short = c
+		}
+	}
+	if short.ID == 0 {
+		t.Fatalf("short card was not seeded")
+	}
+
+	setCardsResponse(t, h, `{"cards":[{"start":"10:11 AM","end":"10:14 AM","category":"Communication","subcategory":"",`+
+		`"title":"chat again","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`)
+
+	if err := h.service.RegenerateCard(context.Background(), short); err != nil {
+		t.Fatalf("RegenerateCard: %v", err)
+	}
+
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want the short card folded into its predecessor", cards)
+	}
+	// The predecessor (9min) outlasts the regenerated card (3min), so the merged
+	// card keeps the Coding identity and runs from the predecessor's start to the
+	// regenerated card's end — the cross-category fold the gate allows.
+	merged := cards[0]
+	if merged.Category != "Coding" || merged.Title != "coding-pred" {
+		t.Fatalf("merged identity = %s/%s, want Coding/coding-pred", merged.Category, merged.Title)
+	}
+	if merged.Start != "10:00 AM" || merged.End != "10:14 AM" {
+		t.Fatalf("merged span = %s-%s, want 10:00 AM-10:14 AM", merged.Start, merged.End)
+	}
 }

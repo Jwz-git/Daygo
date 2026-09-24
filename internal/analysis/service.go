@@ -519,7 +519,7 @@ func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (tim
 // few-minute activity lands as a tiny card. These bound the recovery merge
 // that folds such a card into an adjacent preceding card.
 const (
-	shortSingleCardCeiling = 10 * time.Minute
+	shortSingleCardCeiling = 13 * time.Minute
 	maxShortCardMergeGap   = 4 * time.Minute
 )
 
@@ -1149,10 +1149,39 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 	if err != nil {
 		return err
 	}
-	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, windowStart, windowEnd, shells, *card.BatchID); err != nil {
+
+	// The regenerated window is the card's own span, so a single output card is
+	// its window's last card and the 15-minute floor never trims it (docs/04
+	// §4.3.1): regenerating a few-minute card would leave it just as short and
+	// stranded. Fold it into an adjacent preceding card exactly as the batch
+	// pipeline does, extending the rewrite's left edge to own and replace that
+	// predecessor. Skip the merge when a live batch overlaps the predecessor's
+	// span, since extending there would let that batch clobber the result when
+	// it lands.
+	replaceFrom, notifyFrom := windowStart, windowStart
+	if len(shells) == 1 {
+		anchor := windowStart.Add(windowEnd.Sub(windowStart) / 2)
+		cStart, errStart := timeutil.ResolveClock(shells[0].Start, anchor, s.loc())
+		cEnd, errEnd := timeutil.ResolveClock(shells[0].End, anchor, s.loc())
+		if errStart == nil && errEnd == nil && cEnd.After(cStart) {
+			if pred, ok := mergeableSingleCardPredecessor(cStart, cEnd, existing); ok {
+				predStart := time.Unix(pred.StartTs, 0)
+				busy, lookupErr := s.cfg.Store.ProcessingBatchesInRange(ctx, predStart, windowStart)
+				if lookupErr != nil {
+					return lookupErr
+				}
+				if len(busy) == 0 {
+					shells = []domain.CardShell{buildMergedShell(pred, shells[0], cEnd.Sub(cStart))}
+					replaceFrom, notifyFrom = predStart, predStart
+				}
+			}
+		}
+	}
+
+	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, windowEnd, shells, *card.BatchID); err != nil {
 		return err
 	}
-	s.notifyDays(windowStart, windowEnd)
+	s.notifyDays(notifyFrom, windowEnd)
 	return nil
 }
 

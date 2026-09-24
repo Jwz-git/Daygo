@@ -44,12 +44,16 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Settings/SettingsView.vue'),
     meta: { navKey: 'settings' },
   },
-  {
-    path: '/test',
-    name: 'test',
-    component: () => import('@/views/Test/TestView.vue'),
-    meta: { navKey: 'test' },
-  },
+  ...(__DAYGO_TEST_TOOLS__
+    ? ([
+        {
+          path: '/test',
+          name: 'test',
+          component: () => import('@/views/Test/TestView.vue'),
+          meta: { navKey: 'test' },
+        },
+      ] as RouteRecordRaw[])
+    : []),
   { path: '/:pathMatch(.*)*', redirect: { name: 'timeline' } },
 ]
 

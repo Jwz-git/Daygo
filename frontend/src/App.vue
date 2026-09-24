@@ -11,8 +11,9 @@ import AppShell from '@/layout/AppShell.vue'
 import { useTestToolsStore } from '@/stores/testTools'
 
 // Root-level init: the shell never unmounts, so the subscription needs no teardown.
+// Only wire up the test-tools store in builds that actually ship the test page.
 const testTools = useTestToolsStore()
-void testTools.initialize()
+if (__DAYGO_TEST_TOOLS__) void testTools.initialize()
 
 // Native surfaces (the menu-bar item, the application picker, the updater's
 // install refusal) render outside the webview, so vue-i18n cannot reach them.

@@ -32,8 +32,14 @@ func TestMergeableSingleCardPredecessor(t *testing.T) {
 			wantOK:   true,
 		},
 		{
-			name:   "card at the ten-minute ceiling does not merge",
-			cStart: at(10, 15), cEnd: at(10, 25), // exactly 10min
+			name:   "card just under the thirteen-minute ceiling merges",
+			cStart: at(10, 15), cEnd: at(10, 27), // 12min
+			existing: []domain.TimelineCard{card(at(10, 12), at(10, 14), "Coding")},
+			wantOK:   true,
+		},
+		{
+			name:   "card at the thirteen-minute ceiling does not merge",
+			cStart: at(10, 15), cEnd: at(10, 28), // exactly 13min
 			existing: []domain.TimelineCard{card(at(10, 12), at(10, 14), "Coding")},
 			wantOK:   false,
 		},

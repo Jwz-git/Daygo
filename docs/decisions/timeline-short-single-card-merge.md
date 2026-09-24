@@ -19,7 +19,7 @@
 在 `generateCards` 之后、`ReplaceCardsInRange` 之前补一道**确定性**闸门
 （`mergeableSingleCardPredecessor` + `buildMergedShell`，`internal/analysis/service.go`）：
 
-当本批次输出**恰好一张卡 C 且 `C.end − C.start < 10 分钟`** 时，寻找紧邻的已提交前驱卡 P
+当本批次输出**恰好一张卡 C 且 `C.end − C.start < 13 分钟`** 时，寻找紧邻的已提交前驱卡 P
 （`existing` 中结束时间 `≤ C.start` 的最近一张）。满足以下全部条件则把 C 并入 P：
 
 - `P` 不是 `Idle` 也不是 `System`；
@@ -43,7 +43,7 @@
 ### 3.1 选中：确定性后处理闸门，跨分类按多数时间归属
 
 **优点。** 时机明确（只在单卡短卡这一确定场景触发），不引入额外 LLM 调用与不确定性；
-参数（10 / 4 / 60 分钟）是显式常量，行为可用纯函数夹具钉死。跨分类允许是有意的：孤立短卡
+参数（13 / 4 / 60 分钟）是显式常量，行为可用纯函数夹具钉死。跨分类允许是有意的：孤立短卡
 恢复的价值在于消除碎片，而多数时间分类规则把归属交给占时间更长的一方，日 / 周占比的偏差
 被限制在少数分钟内。
 
@@ -76,12 +76,20 @@
 - **所有权校验**（03 §3.5）：`ownedFrom = P.start` 保证改写覆盖并软删除整张 `P`，不会触发
   「改写未覆盖整卡」的拒绝。
 - **`notifyDays`** 相应从 `P.start` 起算，让前移后的改写正确刷新受影响的逻辑日。
+- **单卡重写复用同一闸门**（04 §4.3.5）：`RegenerateCard` 在 `generateScopedCards` 之后同样对
+  单张短卡调用 `mergeableSingleCardPredecessor` / `buildMergedShell`，把改写左边界从窗口起点
+  外扩到前驱起点。差别只有一处：融合前额外用 `ProcessingBatchesInRange(P.start, windowStart)`
+  确认前驱跨度上没有 pending / processing 批次——重写只锁了原窗口，若那条批次随后落库会覆盖
+  被外扩纳入的前驱区间，因此有活跃批次时跳过融合、退回纯窗口内重写。
 
 ## 5. 验证
 
 - 纯函数夹具（`internal/analysis/merge_short_card_test.go`）：`mergeableSingleCardPredecessor`
-  的每条边界（≥10 分钟不融合、无前驱、Idle / System 前驱、间隔 >4 分钟、跨度 >60 分钟、
+  的每条边界（≥13 分钟不融合、无前驱、Idle / System 前驱、间隔 >4 分钟、跨度 >60 分钟、
   邻接跨分类融合、末尾更晚的卡不算前驱），以及 `buildMergedShell` 的多数时间归属与
   metadata 合并 / `appSites` 回退。
 - 端到端（`internal/analysis/pipeline_test.go`）：一张紧邻前驱的短单卡被并回前驱且取多数
   分类；一张间隔超过 4 分钟的孤立短单卡独立存活。
+- 单卡重写（`internal/analysis/regenerate_test.go`）：重新生成一张紧邻前驱的短卡把它并回前驱
+  （左边界外扩到前驱起点、跨分类取多数分类）；已有的窗口不动、前驱缺失等用例确认非短卡或无
+  可并前驱时仍是纯窗口内重写。

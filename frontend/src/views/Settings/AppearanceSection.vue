@@ -17,6 +17,10 @@ const appearance = useAppearanceStore()
 const testTools = useTestToolsStore()
 const testToolsFailed = ref(false)
 
+// The toggle only reveals a page that ships in dev/opt-in builds; hide it in
+// the production installer so there is no dead switch behind an absent page.
+const testToolsConfigurable = __DAYGO_TEST_TOOLS__
+
 const { state: systemState, settings: systemSettings, load: loadSystem, persist: persistSystem, writeFailed: systemWriteFailed } =
   useSettingsSection()
 const launchAtLogin = computed(() => systemSettings.value?.system.launchAtLogin ?? false)
@@ -110,15 +114,17 @@ function onLanguageChange(event: Event): void {
   </SettingRow>
   <p v-if="systemWriteFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
 
-  <SettingRow :title="t('settings.general.testTools')" :hint="t('settings.general.testToolsHint')">
-    <SwitchControl
-      :checked="testTools.enabled"
-      :disabled="!testTools.loaded"
-      :label="t('settings.general.testTools')"
-      @toggle="onToggleTestTools"
-    />
-  </SettingRow>
-  <p v-if="testToolsFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
+  <template v-if="testToolsConfigurable">
+    <SettingRow :title="t('settings.general.testTools')" :hint="t('settings.general.testToolsHint')">
+      <SwitchControl
+        :checked="testTools.enabled"
+        :disabled="!testTools.loaded"
+        :label="t('settings.general.testTools')"
+        @toggle="onToggleTestTools"
+      />
+    </SettingRow>
+    <p v-if="testToolsFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
+  </template>
 
   <RecognitionSection />
 </template>
