@@ -1241,6 +1241,112 @@ func TestPipelineMergeGateStaysShutWhenTheWindowIsBelowTheFloor(t *testing.T) {
 	}
 }
 
+// A single-card batch is always the window's last card, so the 15-minute floor
+// never applies and a few-minute activity sitting right after a differently
+// categorized neighbour would persist as a tiny card (docs/04 §4.3.1). The
+// recovery merge folds it into that predecessor, and — because the predecessor
+// holds the majority of the combined time — the merged card keeps the
+// predecessor's category and title (docs/04 §4.3.4).
+func TestPipelineShortSingleCardMergesIntoAdjacentPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"9:30 AM","end":"9:45 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (9:30–9:45): the Coding predecessor under test.
+	first := time.Date(2026, 9, 12, 9, 30, 0, 0, time.Local)
+	h.commitFrames(t, first, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 || cards[0].Category != "Coding" {
+		t.Fatalf("seed card = %+v, want one Coding card", cards)
+	}
+
+	// Batch 2 (9:46–9:52): a six-minute Communication card, one minute after the
+	// Coding card ends. Sealed by a gap so its window stays below the target and
+	// the model returns a single card.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"9:46 AM","end":"9:52 AM","category":"Communication","subcategory":"","title":"quick reply","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 9, 46, 0, 0, time.Local)
+	h.commitFrames(t, second, 40, 10*time.Second, func(int) *int { return intPtr(5) })
+	// Trailing frames only exist to seal the short run; their own span is below
+	// the target, so no third batch is created.
+	h.commitFrames(t, time.Date(2026, 9, 12, 10, 20, 0, 0, time.Local), 3, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v, want the merged rewrite to validate on its first attempt", h.failures)
+	}
+	cards = h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want the short card folded into its predecessor", cards)
+	}
+	merged := cards[0]
+	if merged.Category != "Coding" || merged.Title != "first" {
+		t.Fatalf("merged identity = %s/%q, want the majority Coding predecessor's Coding/\"first\"",
+			merged.Category, merged.Title)
+	}
+	if merged.Start != "9:30 AM" || merged.End != "9:52 AM" {
+		t.Fatalf("merged span = %s – %s, want 9:30 AM – 9:52 AM", merged.Start, merged.End)
+	}
+}
+
+// The mirror of the merge: a short single card whose only preceding neighbour
+// sits more than four minutes away stays on its own. Single-card mode implies
+// no card within the five-minute ongoing window, so a genuinely isolated fresh
+// card always fails the adjacency gate and is never folded backward.
+func TestPipelineIsolatedShortSingleCardStaysAlone(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"9:30 AM","end":"9:45 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (9:30–9:45): a Coding card that ends well before the next window.
+	first := time.Date(2026, 9, 12, 9, 30, 0, 0, time.Local)
+	h.commitFrames(t, first, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	// Batch 2 (10:05–10:11): a six-minute Communication card, twenty minutes
+	// after the Coding card — a fresh, isolated short card.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:05 AM","end":"10:11 AM","category":"Communication","subcategory":"","title":"quick reply","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 10, 5, 0, 0, time.Local)
+	h.commitFrames(t, second, 40, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.commitFrames(t, time.Date(2026, 9, 12, 10, 40, 0, 0, time.Local), 3, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v, want the fresh short card to validate on its first attempt", h.failures)
+	}
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the isolated short card standing beside its predecessor", cards)
+	}
+	if cards[0].Category != "Coding" || cards[0].Start != "9:30 AM" || cards[0].End != "9:45 AM" {
+		t.Fatalf("predecessor = %s – %s %s, want the untouched Coding card",
+			cards[0].Start, cards[0].End, cards[0].Category)
+	}
+	if cards[1].Category != "Communication" || cards[1].End != "10:11 AM" {
+		t.Fatalf("short card = %s – %s %s, want the standalone Communication card",
+			cards[1].Start, cards[1].End, cards[1].Category)
+	}
+}
+
 // A fused card that names no app inherits the icon of the card it absorbed:
 // the predecessor is gone, and an empty appSites would leave the merged card
 // with no icon where the user used to see one.

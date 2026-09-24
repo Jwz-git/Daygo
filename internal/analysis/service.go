@@ -440,6 +440,28 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	if err != nil {
 		return err
 	}
+
+	// A single-card output is always the window's last card, so the 15-minute
+	// floor (docs/04 §4.3.1) never applies to it: a few-minute activity that
+	// stands alone — the "just switched tasks for a few minutes" case — would
+	// persist as a tiny card. Fold it into an adjacent preceding card when the
+	// merge stays bounded; the merged card takes the majority activity's
+	// category (docs/04 §4.3.4). ownedFrom then starts at that predecessor so
+	// the rewrite owns and replaces it.
+	notifyFrom := batch.Start
+	if len(shells) == 1 {
+		anchor := ownedFrom.Add(batch.End.Sub(ownedFrom) / 2)
+		cStart, errStart := timeutil.ResolveClock(shells[0].Start, anchor, s.loc())
+		cEnd, errEnd := timeutil.ResolveClock(shells[0].End, anchor, s.loc())
+		if errStart == nil && errEnd == nil && cEnd.After(cStart) {
+			if pred, ok := mergeableSingleCardPredecessor(cStart, cEnd, existing); ok {
+				shells = []domain.CardShell{buildMergedShell(pred, shells[0], cEnd.Sub(cStart))}
+				ownedFrom = time.Unix(pred.StartTs, 0)
+				notifyFrom = ownedFrom
+			}
+		}
+	}
+
 	// The rewrite replaces everything from the span's start (the merged
 	// predecessor's start in ongoing mode) through the window end; cards
 	// before the span survive beside the rewrite. ownedFrom is that start after
@@ -459,7 +481,7 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchSucceeded, "", "", s.cfg.Now()); err != nil {
 		return err
 	}
-	s.notifyDays(batch.Start, batch.End)
+	s.notifyDays(notifyFrom, batch.End)
 	return nil
 }
 
@@ -490,6 +512,109 @@ func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (tim
 		}
 	}
 	return batchStart, false
+}
+
+// A single-card batch output is always the window's last card, so the
+// 15-minute floor (docs/04 §4.3.1) never constrains it and an isolated
+// few-minute activity lands as a tiny card. These bound the recovery merge
+// that folds such a card into an adjacent preceding card.
+const (
+	shortSingleCardCeiling = 10 * time.Minute
+	maxShortCardMergeGap   = 4 * time.Minute
+)
+
+// mergeableSingleCardPredecessor reports the committed card a short single-card
+// output should be folded into, if any (docs/04 §4.3.1). The output must be
+// shorter than shortSingleCardCeiling; the predecessor is the nearest card
+// ending at or before it, must not be Idle or System (neither absorbs real
+// activity into a category the user cannot see), must end within
+// maxShortCardMergeGap, and the combined span must stay within maxCardDuration.
+// Because single-card mode only occurs with no card within the ongoing merge
+// window, a genuinely isolated fresh card fails the gap check and stays alone;
+// this fires for a short card sitting right after a cross-category neighbour.
+func mergeableSingleCardPredecessor(cStart, cEnd time.Time, existing []domain.TimelineCard) (domain.TimelineCard, bool) {
+	if cEnd.Sub(cStart) >= shortSingleCardCeiling {
+		return domain.TimelineCard{}, false
+	}
+	var pred *domain.TimelineCard
+	for i := range existing {
+		card := &existing[i]
+		if card.EndTs > cStart.Unix() {
+			continue // not a preceding card
+		}
+		if pred == nil || card.EndTs > pred.EndTs {
+			pred = card
+		}
+	}
+	if pred == nil || pred.Category == "Idle" || pred.Category == "System" {
+		return domain.TimelineCard{}, false
+	}
+	if gap := cStart.Unix() - pred.EndTs; gap < 0 || gap > int64(maxShortCardMergeGap.Seconds()) {
+		return domain.TimelineCard{}, false
+	}
+	if cEnd.Unix()-pred.StartTs > int64(maxCardDuration.Seconds()) {
+		return domain.TimelineCard{}, false
+	}
+	return *pred, true
+}
+
+// buildMergedShell fuses a short card into its predecessor across the gap
+// between them. The card covering the majority of the two activities' time
+// (the gap belongs to neither) owns the merged card's category and text; the
+// span runs from the predecessor's start to the short card's end, and both
+// cards' activity points and distractions are kept in order.
+func buildMergedShell(pred domain.TimelineCard, short domain.CardShell, shortDur time.Duration) domain.CardShell {
+	predDur := time.Duration(pred.EndTs-pred.StartTs) * time.Second
+	majorityPred := predDur >= shortDur
+	merged := domain.CardShell{Start: pred.Start, End: short.End}
+	if majorityPred {
+		merged.Category = pred.Category
+		merged.Subcategory = pred.Subcategory
+		merged.Title = pred.Title
+		merged.Summary = pred.Summary
+		merged.DetailedSummary = pred.DetailedSummary
+	} else {
+		merged.Category = short.Category
+		merged.Subcategory = short.Subcategory
+		merged.Title = short.Title
+		merged.Summary = short.Summary
+		merged.DetailedSummary = short.DetailedSummary
+	}
+	merged.Metadata = mergeCardMetadata(pred.Metadata, short.Metadata, majorityPred)
+	return merged
+}
+
+// mergeCardMetadata unions two cards' stored metadata for a fusion: the
+// majority card's appSites win, falling back to the other when it named none,
+// and both cards' activity points and distractions are kept, predecessor
+// first. The output is always the full shape so consumers stay null-safe.
+func mergeCardMetadata(predMeta, shortMeta string, majorityPred bool) string {
+	type metaShape struct {
+		AppSites       *appSitesMetadata     `json:"appSites"`
+		Distractions   []distractionMetadata `json:"distractions"`
+		ActivityPoints []cardActivityPoint   `json:"activityPoints"`
+	}
+	var pm, sm metaShape
+	_ = json.Unmarshal([]byte(predMeta), &pm)
+	_ = json.Unmarshal([]byte(shortMeta), &sm)
+
+	primary, fallback := pm.AppSites, sm.AppSites
+	if !majorityPred {
+		primary, fallback = sm.AppSites, pm.AppSites
+	}
+	appSites := primary
+	if appSites == nil || appSites.Primary == nil || *appSites.Primary == "" {
+		appSites = fallback
+	}
+
+	points := append(append([]cardActivityPoint{}, pm.ActivityPoints...), sm.ActivityPoints...)
+	distractions := append(append([]distractionMetadata{}, pm.Distractions...), sm.Distractions...)
+	out, _ := json.Marshal(map[string]any{
+		"appSites":       appSites,
+		"distractions":   distractions,
+		"activityPoints": points,
+	})
+	return string(out)
 }
 
 // commitIdleCard writes the Idle card directly, merging with a directly
