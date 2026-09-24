@@ -20,19 +20,50 @@
 # Then build with it:
 #   DAYGO_DEV_SIGN_IDENTITY="Daygo Dev" ./scripts/package-macos.sh
 #
-# The script is idempotent: if the identity already exists it does nothing.
+# Export mode (for CI): set DAYGO_DEV_CERT_P12_OUT to a path OUTSIDE the repo to
+# also emit a password-protected .p12 and print its base64 + password, for the
+# GitHub Secrets DAYGO_DEV_CERT_P12_BASE64 / DAYGO_DEV_CERT_P12_PASSWORD that
+# publish-release.yml imports. Run this once and reuse the same secret for every
+# release: CI signs every build with that one certificate, so the designated
+# requirement — and the Screen Recording grant keyed to it — stays stable across
+# updates.
+#
+#   DAYGO_DEV_CERT_P12_OUT=/tmp/daygo-ci.p12 ./scripts/dev-cert-macos.sh
+#
+# The script is idempotent: if the identity already exists it does nothing
+# (export mode still emits a fresh CI certificate — see the note it prints).
 
 set -euo pipefail
 
 CERT_NAME="${DAYGO_DEV_CERT_NAME:-Daygo Dev}"
 KEYCHAIN="${DAYGO_DEV_KEYCHAIN:-$HOME/Library/Keychains/login.keychain-db}"
+P12_OUT="${DAYGO_DEV_CERT_P12_OUT:-}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   printf 'error: this script only runs on macOS\n' >&2
   exit 1
 fi
 
-if security find-identity -v -p codesigning "$KEYCHAIN" | grep -qF "\"$CERT_NAME\""; then
+# The exported .p12 holds the signing private key. Refuse to write it inside the
+# repository so it can never be committed (keys never live in Git-tracked files).
+if [[ -n "$P12_OUT" ]]; then
+  ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  OUT_DIR="$(cd "$(dirname "$P12_OUT")" && pwd)"
+  case "$OUT_DIR/" in
+    "$ROOT_DIR/"*)
+      printf 'error: DAYGO_DEV_CERT_P12_OUT (%s) is inside the repo.\n' "$P12_OUT" >&2
+      printf '       Choose a path outside the working tree, e.g. /tmp/daygo-ci.p12.\n' >&2
+      exit 1
+      ;;
+  esac
+fi
+
+identity_exists() {
+  security find-identity -v -p codesigning "$KEYCHAIN" | grep -qF "\"$CERT_NAME\""
+}
+
+# Without export mode, an already-present identity means there is nothing to do.
+if [[ -z "$P12_OUT" ]] && identity_exists; then
   printf 'Identity "%s" already exists in %s — nothing to do.\n' "$CERT_NAME" "$KEYCHAIN"
   printf 'Build with:\n\n  DAYGO_DEV_SIGN_IDENTITY="%s" ./scripts/package-macos.sh\n' "$CERT_NAME"
   exit 0
@@ -64,13 +95,40 @@ openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
   -out "$WORK_DIR/cert.pem" \
   -config "$WORK_DIR/cert.conf"
 
-# Bundle key + cert into a passwordless PKCS#12 for import.
+# Bundle key + cert into a passwordless PKCS#12 for local import.
 openssl pkcs12 -export \
   -inkey "$WORK_DIR/key.pem" \
   -in "$WORK_DIR/cert.pem" \
   -out "$WORK_DIR/identity.p12" \
   -name "$CERT_NAME" \
   -passout pass:
+
+# Export mode: emit a password-protected copy for GitHub Secrets. Done before the
+# local import so it works even when the login keychain already holds the name.
+if [[ -n "$P12_OUT" ]]; then
+  P12_PASSWORD="$(openssl rand -base64 24)"
+  openssl pkcs12 -export \
+    -inkey "$WORK_DIR/key.pem" \
+    -in "$WORK_DIR/cert.pem" \
+    -out "$P12_OUT" \
+    -name "$CERT_NAME" \
+    -passout "pass:$P12_PASSWORD"
+  printf '\n=== GitHub Secrets (copy these, then delete %s) ===\n\n' "$P12_OUT"
+  printf 'DAYGO_DEV_CERT_P12_BASE64:\n%s\n\n' "$(base64 < "$P12_OUT" | tr -d '\n')"
+  printf 'DAYGO_DEV_CERT_P12_PASSWORD:\n%s\n\n' "$P12_PASSWORD"
+  printf 'Set both in the repo Settings > Secrets and variables > Actions.\n'
+  printf 'publish-release.yml signs releases with "%s" when they are present.\n\n' "$CERT_NAME"
+fi
+
+if identity_exists; then
+  printf 'A "%s" identity is already in %s; skipping local import.\n' "$CERT_NAME" "$KEYCHAIN"
+  if [[ -n "$P12_OUT" ]]; then
+    printf 'Note: the exported .p12 is a NEW, independent certificate. To share ONE\n'
+    printf 'identity between local builds and CI (a single Screen Recording grant),\n'
+    printf 'remove the existing identity (security delete-identity -c "%s") and re-run.\n' "$CERT_NAME"
+  fi
+  exit 0
+fi
 
 # Import into the login keychain, pre-authorizing codesign to use the private
 # key (-T) so signing does not raise a UI prompt on every build.

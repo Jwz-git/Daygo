@@ -86,6 +86,38 @@ jobs:
           brew install create-dmg
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
 
+      # Import the persisted self-signed identity so every release carries the
+      # same designated requirement and the Screen Recording (TCC) grant keyed
+      # to it survives updates. When the secrets are absent the step is a no-op
+      # and package-macos.sh falls back to ad-hoc signing (unstable DR), so a
+      # fork without the certificate still produces a build.
+      - name: Import signing certificate
+        env:
+          DAYGO_DEV_CERT_P12_BASE64: ${{ secrets.DAYGO_DEV_CERT_P12_BASE64 }}
+          DAYGO_DEV_CERT_P12_PASSWORD: ${{ secrets.DAYGO_DEV_CERT_P12_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${DAYGO_DEV_CERT_P12_BASE64}" || -z "${DAYGO_DEV_CERT_P12_PASSWORD}" ]]; then
+            echo 'No signing certificate configured; package-macos.sh will ad-hoc sign.'
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/daygo-signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          p12="$RUNNER_TEMP/daygo-cert.p12"
+          printf '%s' "$DAYGO_DEV_CERT_P12_BASE64" | base64 --decode > "$p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$p12" -k "$keychain" -P "$DAYGO_DEV_CERT_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" >/dev/null
+          # Prepend the temp keychain to the search list so codesign resolves the
+          # identity, keeping the existing keychains (quotes stripped for reuse).
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$p12"
+          echo 'DAYGO_DEV_SIGN_IDENTITY=Daygo Dev' >> "$GITHUB_ENV"
+          echo 'Imported self-signed identity "Daygo Dev".'
+
       - name: Package macOS installer
         env:
           DAYGO_ARCH: arm64
@@ -101,6 +133,11 @@ jobs:
           asset="dist/Daygo-${VERSION}-arm64.dmg"
           test -f "$asset" || { echo "macOS installer not found: $asset" >&2; exit 1; }
           gh release upload "$RELEASE_TAG" "$asset" --clobber
+
+      - name: Clean up signing keychain
+        if: always()
+        shell: bash
+        run: security delete-keychain "$RUNNER_TEMP/daygo-signing.keychain-db" 2>/dev/null || true
 
   windows:
     needs: prepare
