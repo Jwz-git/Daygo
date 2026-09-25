@@ -21,7 +21,10 @@ type coordinatedUpdater struct {
 	canInstall func() bool
 	prepare    func() error
 	shutdown   func()
+	cancel     func()
 }
+
+func (u *coordinatedUpdater) SetInstallCancelled(cancel func()) { u.cancel = cancel }
 
 func (u *coordinatedUpdater) SetInstallCallbacks(canInstall func() bool, prepare func() error, shutdown func()) {
 	u.canInstall = canInstall
@@ -163,6 +166,26 @@ func TestUpdateInstallRequiresBothInstanceLocks(t *testing.T) {
 				t.Fatal("idle backend prepare must succeed")
 			}
 		})
+	}
+}
+
+func TestUpdateCancellationReleasesRecordingStartGate(t *testing.T) {
+	updater := &coordinatedUpdater{Updater: fake.NewUpdater()}
+	b := newBackend(fixedClock{}, nil, nil, true, true)
+	b.setUpdater(updater)
+	b.configureUpdateInstall(func() {})
+	if err := updater.prepare(); err != nil {
+		t.Fatal(err)
+	}
+	if !b.updatePrepared.Load() {
+		t.Fatal("preparation must gate recording starts")
+	}
+	if updater.cancel == nil {
+		t.Fatal("cancellation callback is required")
+	}
+	updater.cancel()
+	if b.updatePrepared.Load() {
+		t.Fatal("cancelled update must release recording start gate")
 	}
 }
 

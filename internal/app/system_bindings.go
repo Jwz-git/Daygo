@@ -71,7 +71,9 @@ func (b *Backend) RelaunchForPermission() error {
 	if requestShutdown == nil {
 		return apperr.E(apperr.NativeUnavailable, "desktop shell is unavailable", nil)
 	}
-	b.beginPermissionRestart()
+	if err := b.beginPermissionRestart(); err != nil {
+		return apperr.E(apperr.NativeUnavailable, "permission restart failed", err)
+	}
 	requestShutdown()
 	return nil
 }

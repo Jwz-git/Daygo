@@ -118,6 +118,7 @@ here — the project's own build/test runners are the right home for it.
 `release` environment. Configure these environment secrets before the first formal release:
 
 - `SPARKLE_ED25519_PRIVATE_KEY` — already generated; also retained in the local macOS keychain.
+- `DAYGO_MAC_TEAM_ID` / `DAYGO_WIN_SIGNER_THUMBPRINT` — protected `release` environment values that pin the macOS Developer ID team and Windows Authenticode certificate for formal appcast generation. Missing or mismatched values stop the appcast job; the verifier also checks notarization, installed binaries and asset hashes.
 - `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERT_PASSWORD`, `APPLE_API_KEY_P8_BASE64`,
   `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` — Developer ID signing and notarization.
 - `WINDOWS_CERTIFICATE_PFX_BASE64`, `WINDOWS_CERT_PASSWORD` — Authenticode signing.

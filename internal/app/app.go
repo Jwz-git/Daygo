@@ -289,7 +289,10 @@ func Run() error {
 			// grant would never apply (docs/decisions/
 			// recording-screen-recording-permission.md).
 			if backend.permissionRestartArmed() {
-				backend.beginPermissionRestart()
+				if err := backend.beginPermissionRestart(); err != nil {
+					log.Printf("permission restart cancelled: %v", err)
+					return true
+				}
 				return false
 			}
 			runtime.WindowHide(ctx)

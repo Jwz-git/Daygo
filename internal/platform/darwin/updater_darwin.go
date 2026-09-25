@@ -26,6 +26,7 @@ type Updater struct {
 	available  *string
 	canInstall func() bool
 	prepare    func() error
+	cancel     func()
 	closeOnce  sync.Once
 	startOnce  sync.Once
 }
@@ -96,6 +97,12 @@ func (u *Updater) SetInstallCallbacks(can func() bool, prepare func() error, _ f
 	u.prepare = prepare
 	u.mu.Unlock()
 	u.startOnce.Do(func() { C.dg_updater_activate() })
+}
+
+func (u *Updater) SetInstallCancelled(cancel func()) {
+	u.mu.Lock()
+	u.cancel = cancel
+	u.mu.Unlock()
 }
 
 // SetInstallRefusedMessage implements platform.UpdateCopySink. The copy is
@@ -181,4 +188,20 @@ func dgGoUpdaterPrepare() C.int32_t {
 		return -1
 	}
 	return 0
+}
+
+//export dgGoUpdaterCancelled
+func dgGoUpdaterCancelled() {
+	activeUpdaterMu.RLock()
+	u := activeUpdater
+	activeUpdaterMu.RUnlock()
+	if u == nil {
+		return
+	}
+	u.mu.RLock()
+	cancel := u.cancel
+	u.mu.RUnlock()
+	if cancel != nil {
+		cancel()
+	}
 }

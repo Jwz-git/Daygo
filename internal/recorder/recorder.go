@@ -66,6 +66,7 @@ type Recorder struct {
 	settingsChanged  chan struct{}
 	lastFrameAt      *time.Time
 	lastError        error
+	shutdownErr      error
 	systemBlockers   map[platform.SystemEventKind]struct{}
 	resumeGeneration uint64
 	lastSegmentPath  string
@@ -120,7 +121,14 @@ func (r *Recorder) LastError() error {
 func (r *Recorder) Start(ctx context.Context) error {
 	r.mu.Lock()
 	if r.state != StateIdle {
-		return fmt.Errorf("recorder: cannot start from %s", r.state)
+		state := r.state
+		r.mu.Unlock()
+		return fmt.Errorf("recorder: cannot start from %s", state)
+	}
+	if r.shutdownErr != nil {
+		err := r.shutdownErr
+		r.mu.Unlock()
+		return fmt.Errorf("recorder: previous segment finalization failed: %w", err)
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
@@ -128,6 +136,7 @@ func (r *Recorder) Start(ctx context.Context) error {
 	r.state = StateStarting
 	r.userPaused = false
 	r.lastError = nil
+	r.shutdownErr = nil
 	r.resumeGeneration++
 	r.mu.Unlock()
 	r.emit(StateStarting, nil)
@@ -137,8 +146,9 @@ func (r *Recorder) Start(ctx context.Context) error {
 func (r *Recorder) Stop() error {
 	r.mu.Lock()
 	if r.state == StateIdle {
+		err := r.shutdownErr
 		r.mu.Unlock()
-		return nil
+		return err
 	}
 	cancel := r.cancel
 	done := r.done
@@ -150,7 +160,9 @@ func (r *Recorder) Stop() error {
 	r.mu.Unlock()
 	cancel()
 	<-done
-	return nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.shutdownErr
 }
 
 // Pause stops capture at the user's request. A positive duration schedules an
@@ -317,15 +329,24 @@ func (r *Recorder) run(ctx context.Context) {
 	defer close(r.done)
 	defer func() {
 		if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
-			_ = closer.CloseActiveSegment(context.Background())
-			r.mu.Lock()
-			activePath := r.lastSegmentPath
-			activeSize := r.lastSegmentSize
-			r.lastSegmentPath = ""
-			r.lastSegmentSize = 0
-			r.mu.Unlock()
-			if activePath != "" {
-				_ = r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize)
+			if err := closer.CloseActiveSegment(context.Background()); err != nil {
+				r.mu.Lock()
+				r.shutdownErr = fmt.Errorf("recorder: finalize active segment: %w", err)
+				r.mu.Unlock()
+			} else {
+				r.mu.Lock()
+				activePath := r.lastSegmentPath
+				activeSize := r.lastSegmentSize
+				r.lastSegmentPath = ""
+				r.lastSegmentSize = 0
+				r.mu.Unlock()
+				if activePath != "" {
+					if err := r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize); err != nil {
+						r.mu.Lock()
+						r.shutdownErr = fmt.Errorf("recorder: account for finalized segment: %w", err)
+						r.mu.Unlock()
+					}
+				}
 			}
 		}
 		r.mu.Lock()

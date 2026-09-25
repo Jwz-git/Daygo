@@ -36,6 +36,12 @@ func (b *Backend) ensureRecorder() (*recorder.Recorder, error) {
 }
 
 func (b *Backend) SetRecording(enabled bool) error {
+	if enabled && b.updatePrepared.Load() {
+		return apperr.E(apperr.Conflict, "recording is paused for update installation", nil)
+	}
+	if !enabled && b.updatePrepared.Load() {
+		b.updateWasRecording.Store(false)
+	}
 	_, owner := b.instanceOwnership()
 	if !owner {
 		return apperr.E(apperr.NotCaptureOwner, "this instance is not the capture owner", nil)

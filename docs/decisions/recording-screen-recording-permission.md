@@ -95,6 +95,8 @@ Go 绑定（[`system_bindings.go`](../../internal/app/system_bindings.go)、
 
 ## 4. 未验证与门禁
 
+2026-09-25：授权重启现在要求活跃段收尾与 relaunch 调度都成功；任一步失败时显式按钮返回错误，系统触发的退出在 `OnBeforeClose` 被取消。Go 夹具覆盖 relaunch 失败，真实 TCC 弹窗、系统「退出并重开」仍需真机复验。
+
 - **ad-hoc 签名下授权不跨更新保持**：TCC 把授权绑定到 App 的 designated requirement，ad-hoc 签名的
   DR 是 cdhash，每次构建都变，旧授权被孤立。这是与本流程正交的独立问题，见
   [macOS 签名身份决策](delivery-macos-signing-identity.md)（CI 持久化自签名根治之）。**未用稳定签名前，

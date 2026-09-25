@@ -2,12 +2,20 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/fake"
 )
+
+type failedRelaunchSystem struct {
+	*fake.System
+	err error
+}
+
+func (s *failedRelaunchSystem) Relaunch(context.Context) error { return s.err }
 
 func TestApplicationActivationRoutesToWindowAction(t *testing.T) {
 	sys := fake.NewSystem()
@@ -174,17 +182,32 @@ func TestArmAndDisarmPermissionRestart(t *testing.T) {
 func TestBeginPermissionRestartSchedulesRelaunch(t *testing.T) {
 	sys := fake.NewSystem()
 	b := NewBackend(sys, nil)
-	b.beginPermissionRestart()
+	if err := b.beginPermissionRestart(); err != nil {
+		t.Fatal(err)
+	}
 	if got := sys.Relaunches(); got != 1 {
 		t.Fatalf("beginPermissionRestart must schedule exactly one relaunch, got %d", got)
 	}
 }
 
-func TestBeginPermissionRestartWithoutRelauncherIsNoop(t *testing.T) {
-	// A nil System (headless) has no relaunch capability. Finalizing and quitting
-	// must still be safe; the process simply exits without an automatic relaunch.
+func TestBeginPermissionRestartWithoutRelauncherFails(t *testing.T) {
 	b := NewBackend(nil, nil)
-	b.beginPermissionRestart()
+	if err := b.beginPermissionRestart(); err == nil {
+		t.Fatal("missing relauncher must prevent quit")
+	}
+}
+
+func TestRelaunchForPermissionPreservesProcessOnRelaunchFailure(t *testing.T) {
+	want := errors.New("fixture: relaunch failed")
+	b := NewBackend(&failedRelaunchSystem{System: fake.NewSystem(), err: want}, nil)
+	quit := false
+	b.setShutdownRequester(func() { quit = true })
+	if err := b.RelaunchForPermission(); !errors.Is(err, want) {
+		t.Fatalf("RelaunchForPermission error = %v", err)
+	}
+	if quit {
+		t.Fatal("failed relaunch must not terminate the process")
+	}
 }
 
 func TestRelaunchForPermissionWithoutShellIsUnavailable(t *testing.T) {

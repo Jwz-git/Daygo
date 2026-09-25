@@ -444,6 +444,30 @@ type slowCloser struct {
 	delay time.Duration
 }
 
+type failingCloser struct {
+	*fake.SegmentCapture
+	err error
+}
+
+func (c *failingCloser) CloseActiveSegment(context.Context) error { return c.err }
+
+func TestStopReportsSegmentFinalizeFailure(t *testing.T) {
+	want := errors.New("fixture: finalize failed")
+	r, err := New(Config{Capture: &failingCloser{SegmentCapture: fake.NewSegmentCapture(), err: want}, Store: &testStore{}, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Stop(); !errors.Is(err, want) {
+		t.Fatalf("Stop error = %v, want finalize failure", err)
+	}
+	if err := r.Start(t.Context()); !errors.Is(err, want) {
+		t.Fatalf("Start after failed finalize = %v, want original failure", err)
+	}
+}
+
 func (s *slowCloser) Capture(ctx context.Context, req platform.CaptureRequest) (platform.CaptureResult, error) {
 	return s.inner.Capture(ctx, req)
 }

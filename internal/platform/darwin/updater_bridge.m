@@ -7,6 +7,7 @@
 extern void dgGoUpdaterFound(char *version);
 extern int32_t dgGoUpdaterCanInstall(void);
 extern int32_t dgGoUpdaterPrepare(void);
+extern void dgGoUpdaterCancelled(void);
 
 /* Localized by the frontend and pushed through Go (docs/05 §5.5.1): no copy of
    our own lives here, and when the push has not happened yet Sparkle falls back
@@ -25,7 +26,7 @@ static NSString *installRefusedMessage;
         shouldProceedWithUpdate:(SUAppcastItem *)item
         updateCheck:(SPUUpdateCheck)updateCheck
         error:(NSError * __autoreleasing *)error {
-    if (dgGoUpdaterCanInstall() != 0) return YES;
+    if (dgGoUpdaterCanInstall() != 0 && dgGoUpdaterPrepare() == 0) return YES;
     if (error != NULL) {
         NSMutableDictionary *info = [NSMutableDictionary dictionary];
         if (installRefusedMessage.length > 0) {
@@ -37,8 +38,13 @@ static NSString *installRefusedMessage;
     }
     return NO;
 }
-- (void)updater:(SPUUpdater *)updater willInstallUpdate:(SUAppcastItem *)item {
-    (void)dgGoUpdaterPrepare();
+- (void)updater:(SPUUpdater *)updater userDidMakeChoice:(SPUUserUpdateChoice)choice forUpdate:(SUAppcastItem *)item state:(SPUUserUpdateState *)state {
+    if (choice == SPUUserUpdateChoiceSkip || (choice == SPUUserUpdateChoiceDismiss && state.stage != SPUUserUpdateStageInstalling)) {
+        dgGoUpdaterCancelled();
+    }
+}
+- (void)updater:(SPUUpdater *)updater didAbortWithError:(NSError *)error {
+    dgGoUpdaterCancelled();
 }
 @end
 

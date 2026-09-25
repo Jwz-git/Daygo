@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"runtime"
 	"sync"
@@ -159,6 +160,9 @@ type Backend struct {
 	// per day within the 200 ms merge window (docs/05 §5.5.3).
 	timelineEvents   map[string]*time.Timer
 	timelineEventsMu sync.Mutex
+
+	updatePrepared     atomic.Bool
+	updateWasRecording atomic.Bool
 }
 
 // setEventEmitter installs the Wails-backed emitter. It is called once during
@@ -429,23 +433,26 @@ func (b *Backend) permissionRestartArmed() bool { return b.pendingPermissionRest
 
 // beginPermissionRestart finalizes the active segment and schedules a relaunch
 // so the process can terminate and come back with the new TCC grant applied. The
-// caller still drives the actual quit (OnBeforeClose returning false, or the
-// shutdown requester). It is safe with a nil or non-relaunching System: it then
-// just finalizes and the process quits without an automatic relaunch.
-func (b *Backend) beginPermissionRestart() {
+// caller drives the actual quit only after this succeeds.
+func (b *Backend) beginPermissionRestart() error {
+	relauncher, ok := b.system.(platform.Relauncher)
+	if !ok {
+		return fmt.Errorf("permission restart: relaunch capability unavailable")
+	}
 	b.recorderMu.Lock()
 	r := b.recorder
 	b.recorderMu.Unlock()
 	if r != nil {
-		_ = r.Stop()
-	}
-	if relauncher, ok := b.system.(platform.Relauncher); ok {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		if err := relauncher.Relaunch(ctx); err != nil {
-			log.Printf("schedule relaunch for permission restart unavailable: %v", err)
+		if err := r.Stop(); err != nil {
+			return fmt.Errorf("permission restart: stop recorder: %w", err)
 		}
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := relauncher.Relaunch(ctx); err != nil {
+		return fmt.Errorf("permission restart: schedule relaunch: %w", err)
+	}
+	return nil
 }
 
 // enterBackground drops the app to accessory (no Dock icon) for a soft-quit.
@@ -700,14 +707,41 @@ func (b *Backend) configureUpdateInstall(requestShutdown func()) {
 			return canWrite && isCaptureOwner
 		},
 		func() error {
+			if !b.updatePrepared.CompareAndSwap(false, true) {
+				return nil
+			}
 			b.recorderMu.Lock()
 			r := b.recorder
 			b.recorderMu.Unlock()
 			if r == nil {
 				return nil
 			}
-			return r.Stop()
+			b.updateWasRecording.Store(r.State() == recorder.StateCapturing || r.State() == recorder.StateStarting)
+			if err := r.Stop(); err != nil {
+				b.updatePrepared.Store(false)
+				b.updateWasRecording.Store(false)
+				return err
+			}
+			return nil
 		},
 		requestShutdown,
 	)
+	if sink, ok := b.updater.(interface{ SetInstallCancelled(func()) }); ok {
+		sink.SetInstallCancelled(func() {
+			if !b.updatePrepared.Swap(false) {
+				return
+			}
+			if !b.updateWasRecording.Swap(false) {
+				return
+			}
+			b.recorderMu.Lock()
+			r := b.recorder
+			b.recorderMu.Unlock()
+			if r != nil {
+				if err := r.Start(context.Background()); err != nil {
+					log.Printf("resume recording after cancelled update: %v", err)
+				}
+			}
+		})
+	}
 }

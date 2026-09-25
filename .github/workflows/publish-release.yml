@@ -181,9 +181,89 @@ jobs:
           if (-not (Test-Path $asset -PathType Leaf)) { throw "Windows installer not found: $asset" }
           gh release upload $env:RELEASE_TAG $asset --clobber
 
+  verify_macos:
+    needs: [prepare, macos]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.is_prerelease == 'false' && (needs.macos.result == 'success' || needs.macos.result == 'skipped') }}
+    runs-on: macos-15
+    environment: release
+    outputs:
+      sha256: ${{ steps.verify.outputs.sha256 }}
+    steps:
+      - name: Verify released macOS identity
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          EXPECTED_TEAM_ID: ${{ secrets.DAYGO_MAC_TEAM_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="Daygo-${VERSION}-arm64.dmg"
+          gh release download "$RELEASE_TAG" --repo "$REPOSITORY" --pattern "$asset" --dir "$RUNNER_TEMP"
+          dmg="$RUNNER_TEMP/$asset"
+          codesign --verify --strict --verbose=2 "$dmg"
+          xcrun stapler validate "$dmg"
+          mount="$RUNNER_TEMP/daygo-mount"
+          mkdir -p "$mount"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount" -quiet "$dmg"
+          trap 'hdiutil detach "$mount" -quiet' EXIT
+          app="$mount/Daygo.app"
+          test -d "$app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = 'io.github.jwz-git.Daygo'
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv --verbose=4 "$app" 2>&1 | grep -q '^Authority=Developer ID Application:'
+          test -n "$EXPECTED_TEAM_ID"
+          codesign -dv --verbose=4 "$app" 2>&1 | grep -Fxq "TeamIdentifier=$EXPECTED_TEAM_ID"
+          spctl --assess --type execute --verbose=2 "$app"
+          echo "sha256=$(shasum -a 256 "$dmg" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+  verify_windows:
+    needs: [prepare, windows]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.is_prerelease == 'false' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+    runs-on: windows-2025
+    environment: release
+    outputs:
+      sha256: ${{ steps.verify.outputs.sha256 }}
+    steps:
+      - name: Verify released Windows installer identity
+        id: verify
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          EXPECTED_SIGNER_THUMBPRINT: ${{ secrets.DAYGO_WIN_SIGNER_THUMBPRINT }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $asset = "Daygo-$env:VERSION-amd64-installer.exe"
+          gh release download $env:RELEASE_TAG --repo $env:REPOSITORY --pattern $asset --dir $env:RUNNER_TEMP
+          if ($LASTEXITCODE -ne 0) { throw 'Windows installer download failed.' }
+          $signature = Get-AuthenticodeSignature (Join-Path $env:RUNNER_TEMP $asset)
+          if ($signature.Status -ne 'Valid') { throw "Windows installer signature is $($signature.Status)." }
+          if (-not $env:EXPECTED_SIGNER_THUMBPRINT) { throw 'Expected Windows signer thumbprint is not configured.' }
+          if ($signature.SignerCertificate.Thumbprint -ne $env:EXPECTED_SIGNER_THUMBPRINT) { throw 'Windows installer signer does not match the pinned release identity.' }
+          $sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue).Source
+          if (-not $sevenZip) { $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
+          if (-not (Test-Path $sevenZip)) { throw '7-Zip is required to inspect the installer payload.' }
+          $extract = Join-Path $env:RUNNER_TEMP 'daygo-installer-content'
+          & $sevenZip x (Join-Path $env:RUNNER_TEMP $asset) "-o$extract" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Windows installer extraction failed.' }
+          foreach ($name in @('Daygo.exe', 'daygo_windows_native.dll', 'WinSparkle.dll')) {
+            $files = @(Get-ChildItem -LiteralPath $extract -Filter $name -File -Recurse)
+            if ($files.Count -ne 1) { throw "Expected one $name in the Windows installer, found $($files.Count)." }
+            $innerSignature = Get-AuthenticodeSignature $files[0].FullName
+            if ($innerSignature.Status -ne 'Valid' -or $innerSignature.SignerCertificate.Thumbprint -ne $env:EXPECTED_SIGNER_THUMBPRINT) {
+              throw "$name is not signed by the pinned release identity."
+            }
+          }
+          "sha256=$((Get-FileHash (Join-Path $env:RUNNER_TEMP $asset) -Algorithm SHA256).Hash.ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
   appcast:
-    needs: [prepare, macos, windows]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.is_prerelease == 'false' && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+    needs: [prepare, macos, windows, verify_macos, verify_windows]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.verify_macos.result == 'success' && needs.verify_windows.result == 'success' }}
     runs-on: macos-15
     environment: release
     steps:
@@ -197,6 +277,8 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
           REPOSITORY: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          EXPECTED_MAC_SHA256: ${{ needs.verify_macos.outputs.sha256 }}
+          EXPECTED_WINDOWS_SHA256: ${{ needs.verify_windows.outputs.sha256 }}
         shell: bash
         run: |
           set -euo pipefail
@@ -206,6 +288,8 @@ jobs:
             --pattern "Daygo-${VERSION}-amd64-installer.exe"
           test -s "dist/Daygo-${VERSION}-arm64.dmg"
           test -s "dist/Daygo-${VERSION}-amd64-installer.exe"
+          test "$(shasum -a 256 "dist/Daygo-${VERSION}-arm64.dmg" | cut -d ' ' -f 1)" = "$EXPECTED_MAC_SHA256"
+          test "$(shasum -a 256 "dist/Daygo-${VERSION}-amd64-installer.exe" | cut -d ' ' -f 1)" = "$EXPECTED_WINDOWS_SHA256"
 
       - name: Sign installers and generate appcast
         env:
