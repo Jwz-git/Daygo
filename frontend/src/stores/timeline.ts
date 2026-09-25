@@ -59,6 +59,8 @@ export const useTimelineStore = defineStore('timeline', () => {
   const pendingAction = ref<TimelineAction | null>(null)
   const pendingCardID = ref<number | null>(null)
   const actionError = ref<unknown>(null)
+  const failedAction = ref<TimelineAction | null>(null)
+  const failedCardID = ref<number | null>(null)
   const actionBindings = getTimelineActionAvailability()
   let requestVersion = 0
   let stopEvents: (() => void) | null = null
@@ -120,6 +122,8 @@ export const useTimelineStore = defineStore('timeline', () => {
       unavailable.value = false
       error.value = null
       actionError.value = null
+      failedAction.value = null
+      failedCardID.value = null
       usingDevelopmentFixture.value = false
     }
 
@@ -171,12 +175,16 @@ export const useTimelineStore = defineStore('timeline', () => {
     selectedCardID.value = id
     selectedFailureTs.value = null
     actionError.value = null
+    failedAction.value = null
+    failedCardID.value = null
   }
 
   function selectFailure(startTs: number | null): void {
     selectedFailureTs.value = startTs
     if (startTs !== null) selectedCardID.value = null
     actionError.value = null
+    failedAction.value = null
+    failedCardID.value = null
   }
 
   function setCategoryFilter(category: string | null): void {
@@ -190,11 +198,14 @@ export const useTimelineStore = defineStore('timeline', () => {
     if (pendingAction.value !== null) return false
     pendingAction.value = action
     actionError.value = null
+    failedAction.value = null
+    failedCardID.value = null
     try {
       await operation()
       return true
     } catch (cause: unknown) {
       actionError.value = cause
+      failedAction.value = action
       return false
     } finally {
       pendingAction.value = null
@@ -243,14 +254,18 @@ export const useTimelineStore = defineStore('timeline', () => {
     return runAction('reprocess-day', () => reprocessDay(day))
   }
 
-  function reprocessCard(cardID: number): Promise<boolean> {
+  async function reprocessCard(cardID: number): Promise<boolean> {
     // The rewrite happens inside this call, so the card has to show its
     // regenerating state from here: no batch goes pending, and processingRanges
     // can therefore never report it.
     pendingCardID.value = cardID
-    return runAction('reprocess-card', () => reprocessCardApi(cardID)).finally(() => {
+    try {
+      const ok = await runAction('reprocess-card', () => reprocessCardApi(cardID))
+      if (!ok && failedAction.value === 'reprocess-card') failedCardID.value = cardID
+      return ok
+    } finally {
       pendingCardID.value = null
-    })
+    }
   }
 
   function startEvents(): void {
@@ -279,6 +294,8 @@ export const useTimelineStore = defineStore('timeline', () => {
     pendingAction,
     pendingCardID,
     actionError,
+    failedAction,
+    failedCardID,
     actionAvailability,
     cards,
     selectedCard,

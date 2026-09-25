@@ -26,6 +26,7 @@ const props = defineProps<{
   actions: TimelineActionAvailability
   pendingAction: TimelineAction | null
   actionFailed: boolean
+  cardReprocessFailureKey: string | null
   goal: DayGoalDTO | null
   goalUnavailable: boolean
   goalFailed: boolean
@@ -91,6 +92,7 @@ const { t } = useI18n()
           :actions="props.actions"
           :pending-action="props.pendingAction"
           :action-failed="props.actionFailed"
+          :card-reprocess-failure-key="props.cardReprocessFailureKey"
           @close="emit('close')"
           @save-edits="(cardID: number, edits: { title?: string; category?: string; summary?: string; detailedSummary?: string }) => emit('saveEdits', cardID, edits)"
           @delete="(cardID) => emit('delete', cardID)"

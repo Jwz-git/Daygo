@@ -31,6 +31,7 @@ const props = defineProps<{
   actions: TimelineActionAvailability
   pendingAction: TimelineAction | null
   actionFailed: boolean
+  cardReprocessFailureKey: string | null
 }>()
 
 const emit = defineEmits<{
@@ -293,12 +294,8 @@ function confirmDeletion(): void {
   confirmingDelete.value = false
 }
 
-/*
- * Regenerate one card: re-run the LLM on the batch that produced it. A card
- * with no originating batch (batchId null — a System fallback) cannot be
- * regenerated, so the control hides. It re-runs the whole batch (analysis is
- * per batch, not per card), so it is confirmed like delete before firing.
- */
+/* Regenerate only this card's own span from its stored observations. A card
+ * without batch provenance cannot be regenerated, so the control hides. */
 const confirmingReprocess = ref(false)
 const canReprocess = computed(
   () => props.canWrite && props.actions.reprocessCard && props.card.batchId !== null,
@@ -534,10 +531,6 @@ watch(
     <p v-else class="verdict__hint">{{ t('timeline.inspector.verdictHint') }}</p>
   </section>
 
-  <p v-if="props.actionFailed" class="inspector__error" role="alert">
-    {{ t('timeline.inspector.actionFailed') }}
-  </p>
-
   <div class="inspector__actions">
     <!-- Delete confirm takes over the row. -->
     <template v-if="confirmingDelete">
@@ -602,6 +595,12 @@ watch(
     >
       {{ t('timeline.inspector.actionsUnavailable') }}
     </span>
+    <p v-if="props.cardReprocessFailureKey !== null" class="inspector__error inspector__action-error" role="alert">
+      {{ t(props.cardReprocessFailureKey) }}
+    </p>
+    <p v-else-if="props.actionFailed" class="inspector__error inspector__action-error" role="alert">
+      {{ t('timeline.inspector.actionFailed') }}
+    </p>
   </div>
 
   <!-- Summary rating: thumbs up/down on the AI-written summary text. Feedback
@@ -635,6 +634,7 @@ watch(
 </template>
 
 <style scoped>
+.inspector__action-error { flex-basis: 100%; margin: 2px 0 0; line-height: 1.5; }
 .inspector__heading { min-width: 0; }
 
 /* The pencil floats in the top-right corner rather than taking a flex slot, so

@@ -152,6 +152,16 @@ export default {
     cardConfirmYes: '重新生成',
     cardRunning: '正在重新生成…',
     cardUnavailable: '这张卡片没有可重新生成的分析批次',
+    error: {
+      provider_not_configured: '重新生成失败：尚未配置可用的 AI 服务。请在设置中配置后重试；原卡片已保留。',
+      provider_failed: '重新生成失败：AI 请求失败或返回内容未通过校验。请检查服务连接与模型后重试；原卡片已保留。',
+      conflict: '重新生成失败：这段时间仍有分析任务在进行。请等待完成后重试；原卡片已保留。',
+      invalid_argument: '重新生成失败：这张卡片缺少所需的来源或时段证据；原卡片已保留。',
+      not_capture_owner: '重新生成失败：当前实例没有写入权限；原卡片已保留。',
+      not_found: '重新生成失败：这张卡片已不存在。请刷新时间线；原页面尚未更新。',
+      canceled: '重新生成已取消或超时；原卡片已保留，可稍后重试。',
+      application: '重新生成失败：Daygo 未能完成此次操作；原卡片已保留。',
+    },
   },
   state: {
     loading: {

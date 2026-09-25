@@ -154,6 +154,16 @@ export default {
     cardConfirmYes: 'Regenerate',
     cardRunning: 'Regenerating…',
     cardUnavailable: 'This card has no analysis batch to regenerate',
+    error: {
+      provider_not_configured: 'Regeneration failed: no usable AI provider is configured. Configure one in Settings and retry. The original card remains.',
+      provider_failed: 'Regeneration failed: the AI request failed or its output did not pass validation. Check the provider connection and model, then retry. The original card remains.',
+      conflict: 'Regeneration failed: analysis is still running for this time span. Retry when it finishes. The original card remains.',
+      invalid_argument: 'Regeneration failed: this card lacks the source or time-span evidence needed for a retry. The original card remains.',
+      not_capture_owner: 'Regeneration failed: this instance has no write access. The original card remains.',
+      not_found: 'Regeneration failed: this card no longer exists. Refresh the timeline to update this view.',
+      canceled: 'Regeneration was canceled or timed out. The original card remains; retry later.',
+      application: 'Regeneration failed: Daygo could not complete the operation. The original card remains.',
+    },
   },
   state: {
     loading: {
