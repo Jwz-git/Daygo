@@ -483,7 +483,8 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	// the counter lives in storage.NoteSkippedCards. A shell the model
 	// resolved entirely outside the window is filtered before this point.
 	if len(result.SkippedCards) > 0 {
-		return fmt.Errorf("batch %d skipped %d unresolvable cards", batch.ID, len(result.SkippedCards))
+		return ai.NewError(ai.ErrorInvalidOutput,
+			fmt.Sprintf("batch %d skipped %d unresolvable cards", batch.ID, len(result.SkippedCards)), 0, nil)
 	}
 
 	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchSucceeded, "", "", s.cfg.Now()); err != nil {
@@ -1102,7 +1103,8 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			shells[i].Metadata = dropPreWindowPoints(shells[i].Metadata, ownedFrom, batch.Start.Add(batch.End.Sub(batch.Start)/2), s.loc())
 		}
 	}
-	return nil, ownedFrom, fmt.Errorf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; "))
+	return nil, ownedFrom, ai.NewError(ai.ErrorInvalidOutput,
+		fmt.Sprintf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; ")), 0, nil)
 }
 
 // Failures of the single-card rewrite, kept distinguishable so the binding

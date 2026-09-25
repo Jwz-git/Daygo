@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import type { TimelineFailureDTO } from '@/api/dto'
 import type { TimelineActionAvailability } from '@/api/timeline'
 import type { TimelineAction } from '@/stores/timeline'
+import { failurePresentation } from './failurePresentation'
 
 /* The inspector's failure pane: what failed, why, and the batch-level
    retry/dismiss actions. */
@@ -28,6 +29,7 @@ const confirmingDelete = ref(false)
 
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
 const canDelete = computed(() => props.canWrite && props.actions.deleteBatches)
+const presentation = computed(() => failurePresentation(props.failure.kind))
 // Stopping only makes sense while the failure is still on the auto-retry
 // track; once it is not retryable (kind needs attention, or already stopped)
 // there is nothing to halt.
@@ -54,7 +56,7 @@ watch(
 <template>
   <header class="inspector__header">
     <div>
-      <p class="inspector__eyebrow inspector__eyebrow--danger">{{ t('timeline.failure.title') }}</p>
+      <p class="inspector__eyebrow inspector__eyebrow--danger">{{ t(presentation.titleKey) }}</p>
       <h2 class="inspector__title inspector__title--card">{{ t('timeline.failure.detailTitle') }}</h2>
     </div>
     <button
@@ -74,12 +76,17 @@ watch(
 
   <section class="inspector__section">
     <h3>{{ t('timeline.failure.detail.kind') }}</h3>
-    <p class="inspector__failure-kind">{{ props.failure.kind }}</p>
+    <p class="inspector__failure-kind">{{ t(presentation.reasonKey) }}</p>
   </section>
 
   <section class="inspector__section">
-    <h3>{{ t('timeline.failure.detail.message') }}</h3>
-    <p class="inspector__failure-message">{{ props.failure.message }}</p>
+    <h3>{{ t('timeline.failure.detail.nextStep') }}</h3>
+    <p class="inspector__failure-message">{{ t(presentation.actionKey) }}</p>
+    <RouterLink
+      v-if="presentation.source !== 'application'"
+      class="inspector__provider-link"
+      :to="{ name: 'settings', query: { section: 'providers' } }"
+    >{{ t('timeline.failure.openProviders') }}</RouterLink>
   </section>
 
   <section class="inspector__section">
@@ -168,6 +175,13 @@ watch(
   line-height: 1.6;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.inspector__provider-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--dg-accent);
+  font-size: 12px;
 }
 
 .failure-batches {

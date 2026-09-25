@@ -568,6 +568,9 @@ func TestPipelineAllCardsOutsideWindowReportsActionableCorrection(t *testing.T) 
 	if len(batches) != 1 || batches[0].Status != storage.BatchFailed {
 		t.Fatalf("batches = %+v, want one failed", batches)
 	}
+	if batches[0].FailureKind != "invalid_output" {
+		t.Fatalf("failure kind = %q, want invalid_output for unusable model cards", batches[0].FailureKind)
+	}
 	if !strings.Contains(batches[0].FailureNote, `card 1 (Wrong window) spans 8:00 AM-8:30 AM outside`) {
 		t.Fatalf("failure note = %q, want rejected card and clock range", batches[0].FailureNote)
 	}
@@ -670,6 +673,9 @@ func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
 	cardCalls := h.provider.callCount(string(ai.PurposeCards))
 	if cardCalls != 3 {
 		t.Fatalf("card calls after first tick = %d, want 3", cardCalls)
+	}
+	if batches := mustBatches(t, h.store); len(batches) != 1 || batches[0].FailureKind != "invalid_output" {
+		t.Fatalf("batches = %+v, want invalid_output failure", batches)
 	}
 
 	ctx := context.Background()

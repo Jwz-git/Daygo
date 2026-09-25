@@ -412,6 +412,22 @@ func TestMergeFailuresTolerance(t *testing.T) {
 	}
 }
 
+func TestMergeFailuresKeepsProviderAndInternalCausesSeparate(t *testing.T) {
+	got := mergeFailures([]failedBatchView{
+		{ID: 1, StartTs: 100, EndTs: 200, FailureKind: "network", FailureNote: "provider timed out", Attempts: 1},
+		{ID: 2, StartTs: 200, EndTs: 300, FailureKind: "internal", FailureNote: "card ownership conflict", Attempts: 5},
+		{ID: 3, StartTs: 300, EndTs: 400, FailureKind: "network", FailureNote: "provider timed out", Attempts: 5},
+	})
+	if len(got) != 3 {
+		t.Fatalf("groups = %d, want three distinct causes", len(got))
+	}
+	for i, want := range []string{"network", "internal", "network"} {
+		if got[i].Kind != want || len(got[i].BatchIDs) != 1 {
+			t.Fatalf("group %d = %+v, want one %s batch", i, got[i], want)
+		}
+	}
+}
+
 func TestClearHistoryData(t *testing.T) {
 	dir := t.TempDir()
 	backend, emitter := writerBackendWithStore(t, dir)

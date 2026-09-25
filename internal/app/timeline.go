@@ -115,9 +115,9 @@ func retryableFailure(kind string, attempts int) bool {
 
 // mergeFailures groups failed batches whose windows are adjacent within the
 // 60-second tolerance (docs/05 §5.5.2 TimelineFailureDTO), so a burst of small
-// batch failures renders as one panel entry with all their ids. A group carries
-// the retryable flag of its first batch; merged entries are adjacent in time
-// and produced by the same failure event, so the flags agree in practice.
+// batch failures with the same cause renders as one panel entry. Different
+// causes must stay separate: otherwise an internal storage error adjacent to a
+// provider timeout can be incorrectly presented as a provider problem.
 func mergeFailures(batches []failedBatchView) []TimelineFailureDTO {
 	if len(batches) == 0 {
 		// The wire contract declares failures as an array. A nil slice encodes
@@ -134,7 +134,8 @@ func mergeFailures(batches []failedBatchView) []TimelineFailureDTO {
 		Retryable: retryableFailure(batches[0].FailureKind, batches[0].Attempts),
 	}
 	for _, b := range batches[1:] {
-		if b.StartTs-current.EndTs <= 60 {
+		if b.StartTs-current.EndTs <= 60 && b.FailureKind == current.Kind &&
+			retryableFailure(b.FailureKind, b.Attempts) == current.Retryable {
 			current.BatchIDs = append(current.BatchIDs, b.ID)
 			if b.EndTs > current.EndTs {
 				current.EndTs = b.EndTs

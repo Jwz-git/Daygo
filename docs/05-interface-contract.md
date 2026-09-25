@@ -625,8 +625,8 @@ type TimelineFailureDTO struct {
     BatchIDs  []int64 `json:"batchIds"`
     StartTs   int64   `json:"startTs"`
     EndTs     int64   `json:"endTs"`
-    Kind      string  `json:"kind"`    // 面向用户的失败类别
-    Message   string  `json:"message"` // 已脱敏
+    Kind      string  `json:"kind"`    // 失败类别；前端按类别显示本地化原因，不从 message 猜测来源
+    Message   string  `json:"message"` // 已脱敏的诊断文本，不直接呈现在时间线上
     Retryable bool    `json:"retryable"` // 仅描述是否会自动重试；RetryBatches 不受它约束
 }
 
@@ -981,6 +981,12 @@ type UpdaterStateDTO struct {
     LastCheckedAtTs  *int64  `json:"lastCheckedAtTs"`
 }
 ```
+
+失败时段仅在 `kind` 相同且 `retryable` 相同时按 60 秒容差合并，避免相邻的 Provider 超时与
+Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`、`network`、
+`invalid_request`、`invalid_output` 是 Provider 请求相关类别；`network` 只表明请求链路失败，
+不推断服务商服务器一定有故障。`no_provider` 表示本机尚无可用配置；`internal` 与其它未知类别
+不得归因于服务商。模型连续输出不合法卡片时归 `invalid_output`；卡片存储所有权冲突仍归 `internal`。
 
 `availableVersion == nil` 表示未发现更新；非空字符串表示已发现且知道版本号；空字符串表示已发现但平台回调未提供版本号（Windows WinSparkle）。前端在空字符串时显示不含版本号的本地化提示。
 

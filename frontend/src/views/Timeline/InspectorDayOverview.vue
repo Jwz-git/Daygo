@@ -11,6 +11,7 @@ import type { TimelineAction } from '@/stores/timeline'
 import GoalEditor from './GoalEditor.vue'
 import type { ReviewTotals } from './review'
 import { FALLBACK_CATEGORY_COLOR, safeCategoryColor } from './layout'
+import { failurePresentation } from './failurePresentation'
 import { buildDonutSectors, fullRingPath, type DonutSector, type DonutSlice } from './donut'
 
 /*
@@ -46,6 +47,9 @@ const duration = useDurationFormat()
 // with batches gets a manual retry button regardless of that flag.
 const failuresWithBatches = computed(() =>
   props.day.failures.filter((failure) => failure.batchIds.length > 0),
+)
+const providerFailureCount = computed(() =>
+  failuresWithBatches.value.filter((failure) => failurePresentation(failure.kind).source === 'provider').length,
 )
 
 // A single retry submits every failed range's batches at once. The backend
@@ -319,6 +323,10 @@ const reviewMinutesTotal = computed(() =>
 
   <section v-if="failuresWithBatches.length > 0" class="inspector__section inspector__failures">
     <h3>{{ t('timeline.failure.title') }}</h3>
+    <p v-if="providerFailureCount > 0" class="inspector__failure-note" role="status">
+      {{ t('timeline.failure.providerSummary', { count: providerFailureCount }) }}
+      <RouterLink :to="{ name: 'settings', query: { section: 'providers' } }">{{ t('timeline.failure.openProviders') }}</RouterLink>
+    </p>
     <p class="inspector__failure-note">{{ t('timeline.failure.retryHint') }}</p>
     <button
       type="button"
