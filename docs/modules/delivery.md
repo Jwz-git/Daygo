@@ -128,6 +128,13 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
+2026-09-25（macOS 本机，release 身份准备）：生成一张固定的 Daygo 自签名证书，使用兼容 macOS
+钥匙串的加密 PKCS#12 并导入本机及临时钥匙串；临时可执行文件以证书哈希签名，`codesign -dr -`
+显示固定 Bundle ID 与 certificate leaf。两个证书 Secret 已写入 GitHub `release` 环境，macOS
+发布 job 现在引用该环境，缺证书即失败，并在上传前检查证书指纹与最终 DMG 内应用的 DR。
+尚未触发使用该配置的 CI 打包或真实升级，首次自签名版本仍预计需要一次屏幕录制重授权；
+不提升 G-native 分发验收状态。
+
 2026-09-25：移除正式 Release appcast 前的 macOS Developer ID / 公证和 Windows Authenticode
 验证任务；两端安装器齐备后仍用既有 Ed25519 密钥签最终资产并生成 `appcast.xml`。这恢复了客户端
 发现更新所需的 feed，不证明无正式平台证书时 Sparkle / WinSparkle 的真实安装升级可用。

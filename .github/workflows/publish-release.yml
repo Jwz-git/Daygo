@@ -66,6 +66,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.build_macos == 'true'
     runs-on: macos-15
+    environment: release
     steps:
       - uses: actions/checkout@v4
         with:
@@ -88,9 +89,7 @@ jobs:
 
       # Import the persisted self-signed identity so every release carries the
       # same designated requirement and the Screen Recording (TCC) grant keyed
-      # to it survives updates. When the secrets are absent the step is a no-op
-      # and package-macos.sh falls back to ad-hoc signing (unstable DR), so a
-      # fork without the certificate still produces a build.
+      # to it survives updates. A release without this identity must fail.
       - name: Import signing certificate
         env:
           DAYGO_DEV_CERT_P12_BASE64: ${{ secrets.DAYGO_DEV_CERT_P12_BASE64 }}
@@ -98,10 +97,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${DAYGO_DEV_CERT_P12_BASE64}" || -z "${DAYGO_DEV_CERT_P12_PASSWORD}" ]]; then
-            echo 'No signing certificate configured; package-macos.sh will ad-hoc sign.'
-            exit 0
-          fi
+          [[ -n "${DAYGO_DEV_CERT_P12_BASE64}" && -n "${DAYGO_DEV_CERT_P12_PASSWORD}" ]] || {
+            echo 'Daygo signing certificate is missing from the release environment.' >&2
+            exit 1
+          }
           keychain="$RUNNER_TEMP/daygo-signing.keychain-db"
           keychain_password="$(openssl rand -base64 24)"
           p12="$RUNNER_TEMP/daygo-cert.p12"
@@ -111,18 +110,44 @@ jobs:
           security unlock-keychain -p "$keychain_password" "$keychain"
           security import "$p12" -k "$keychain" -P "$DAYGO_DEV_CERT_P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" >/dev/null
+          certificate="$(security find-certificate -c 'Daygo Dev' -p "$keychain")"
+          fingerprint="$(printf '%s' "$certificate" | openssl x509 -noout -fingerprint -sha256)"
+          expected_fingerprint='sha256 Fingerprint=FB:FF:43:8B:AF:28:6B:BA:81:6F:11:24:B6:35:B9:5D:D9:39:82:59:AE:EB:22:C9:39:99:49:75:3B:EC:94:B4'
+          [[ "$fingerprint" == "$expected_fingerprint" ]] || {
+            echo 'Imported Daygo certificate fingerprint does not match the pinned release identity.' >&2
+            exit 1
+          }
           # Prepend the temp keychain to the search list so codesign resolves the
           # identity, keeping the existing keychains (quotes stripped for reuse).
           security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
           rm -f "$p12"
-          echo 'DAYGO_DEV_SIGN_IDENTITY=Daygo Dev' >> "$GITHUB_ENV"
-          echo 'Imported self-signed identity "Daygo Dev".'
+          echo 'DAYGO_DEV_SIGN_IDENTITY=AB33C5E51E1591AC730CDDFF03766F737A36F38E' >> "$GITHUB_ENV"
+          echo 'Imported pinned self-signed Daygo identity.'
 
       - name: Package macOS installer
         env:
           DAYGO_ARCH: arm64
           VERSION: ${{ needs.prepare.outputs.version }}
         run: ./scripts/package-macos.sh "$VERSION"
+
+      - name: Verify packaged macOS identity
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mount_dir="$RUNNER_TEMP/daygo-dmg"
+          mkdir -p "$mount_dir"
+          hdiutil attach -quiet -readonly -nobrowse -mountpoint "$mount_dir" "dist/Daygo-${VERSION}-arm64.dmg"
+          trap 'hdiutil detach -quiet "$mount_dir"' EXIT
+          app="$mount_dir/Daygo.app"
+          codesign --verify --deep --strict "$app"
+          requirement="$(codesign -dr - "$app" 2>&1)"
+          expected='designated => identifier "io.github.jwz-git.Daygo" and certificate leaf = H"ab33c5e51e1591ac730cddff03766f737a36f38e"'
+          [[ "$requirement" == *"$expected"* ]] || {
+            echo 'Packaged Daygo.app does not have the pinned release identity.' >&2
+            exit 1
+          }
 
       - name: Upload macOS installer to release assets
         env:
