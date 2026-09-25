@@ -1,7 +1,10 @@
 # delivery 自动更新：Sparkle 2 + GitHub 静态 appcast + Sparkle 标准 UI
 
 > **状态：GitHub Actions 发布自动化已实现；客户端 Sparkle 适配器已落盘。**
-> [发布工作流](../../.github/workflows/publish-release.yml)在 Release 发布后构建、上传安装器，正式版在两端安装器齐备且 Ed25519 签名成功后上传 appcast；预发布跳过 appcast。
+> [发布工作流](../../.github/workflows/publish-release.yml)在 Release 发布后构建、上传安装器。
+> 2026-09-25 用户决定不申请正式平台签名材料：普通发布改为手动下载安装，默认不生成 appcast；
+> 仅在显式启用 `DAYGO_SIGNED_RELEASE_APPCAST=true` 且两端资产通过既定正式身份验证时上传 appcast。
+> 预发布仍跳过 appcast。下文保留自动更新链路的目标设计，其 G-native 门禁未因此放宽。
 > 本文其余章节记录客户端检查、下载与安装方案。工作流实现不直接证明客户端旧版到新版升级。
 > 已落地：`internal/platform/fake` 确定性 Updater + 契约测试、`GetUpdaterState` / `CheckForUpdates`
 > 绑定、`update:available` 事件泵、`UpdaterStateDTO` 与前端 `api/update.ts` wrapper。`factory.NewUpdater`
@@ -20,7 +23,7 @@ macOS 自动更新采用三项组合，均在本文定稿：
 | 维度 | 决定 | 理由 |
 |---|---|---|
 | 更新引擎 | **Sparkle 2**（经 `platform/darwin` cgo 适配到冻结的 `Updater` 端口） | macOS 事实标准，自带 appcast 解析、EdDSA 校验、后台 / 交互检查、原子替换与安全重启，避免自研原子替换 / 回滚 / 边界处理 |
-| feed 托管 | **每个正式 GitHub Release 自带 `appcast.xml`** | 客户端访问 `https://github.com/Jwz-git/Daygo/releases/latest/download/appcast.xml`；无需独立 `updates` tag 或 Release |
+| feed 托管 | **启用签名更新源的正式 GitHub Release 自带 `appcast.xml`** | 客户端访问 `https://github.com/Jwz-git/Daygo/releases/latest/download/appcast.xml`；普通手动下载版本不提供 feed |
 | 更新 UI | **Sparkle 标准原生 UI** | 集成风险最低；冻结的 `UpdaterStateDTO`（薄）够用，无需扩展端口 / DTO |
 
 Daygo 是 **Wails v2 单进程 `.app`**（见 [生命周期退出模型](lifecycle-quit-model.md)），不是进程外守护
@@ -31,8 +34,9 @@ Windows 方案见 [WinSparkle + NSIS 决策](delivery-auto-update-windows.md)；
 
 ## 2. 检测机制（detection）
 
-**feed。** 每个正式 Release 的资产包含 macOS DMG、Windows 安装器与一份 `appcast.xml`；
+**feed。** 启用签名更新源的正式 Release 才包含 macOS DMG、Windows 安装器与一份 `appcast.xml`；
 `SUFeedURL` 与 WinSparkle feed 均指向上述 `releases/latest/download/appcast.xml`。
+普通手动下载版本的这个 URL 持续返回 404，应用内更新不可用。启用更新源时，
 发布事件先使 Release 成为 latest，Action 后上传资产，因此上传完成前存在短暂的 404 窗口；
 Action 仅在两个安装器均存在且签名、XML 生成成功后上传 appcast。发布前需确认这段窗口可接受；
 预发布只构建安装包，不生成 appcast，也不会成为 `releases/latest`。提升为正式版后需手动
@@ -131,8 +135,9 @@ Updater 完成时验证真实升级」，可先做的有限实验（不产出正
   自签名开发证书不满足干净机 Gatekeeper。
 - **EdDSA 流程已建立但未实发验证**：新私钥只在本机钥匙串和 GitHub Actions Secret，公钥编入
   两端适配器 / `Info.plist`；尚未用正式产物验证拒绝错签名与接受正确签名。
-- **发布链路源码已建立但未运行**：Release workflow 会构建两端、签名、生成共用 appcast 并上传；
-  Developer ID / 公证和 Windows Authenticode secrets 尚未配置，首次正式运行仍会失败关闭。
+- **发布链路源码已建立但未运行正式签名路径**：Release workflow 默认只构建、上传供手动下载的
+  安装器；签名更新源需显式启用并由身份验证任务放行。Developer ID / 公证和 Windows
+  Authenticode 材料未配置，因此当前不生成 appcast。
 
 ## 9. 回退
 

@@ -183,7 +183,9 @@ jobs:
 
   verify_macos:
     needs: [prepare, macos]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.is_prerelease == 'false' && (needs.macos.result == 'success' || needs.macos.result == 'skipped') }}
+    # Opt in only after both release assets have been signed and notarized.
+    # Ordinary releases can publish unsigned installers for manual download.
+    if: ${{ !cancelled() && vars.DAYGO_SIGNED_RELEASE_APPCAST == 'true' && needs.prepare.result == 'success' && needs.prepare.outputs.is_prerelease == 'false' && (needs.macos.result == 'success' || needs.macos.result == 'skipped') }}
     runs-on: macos-15
     environment: release
     outputs:
@@ -221,7 +223,7 @@ jobs:
 
   verify_windows:
     needs: [prepare, windows]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.is_prerelease == 'false' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+    if: ${{ !cancelled() && vars.DAYGO_SIGNED_RELEASE_APPCAST == 'true' && needs.prepare.result == 'success' && needs.prepare.outputs.is_prerelease == 'false' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
     runs-on: windows-2025
     environment: release
     outputs:

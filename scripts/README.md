@@ -112,22 +112,27 @@ interactive and silent install/uninstall, upgrade, and clean-machine startup.
 Anything that fits in `go run ./cmd/foo` or `npm run foo` does not belong
 here — the project's own build/test runners are the right home for it.
 
-## Protected release environment
+## Release assets and optional signed appcast
 
-`.github/workflows/publish-release.yml` runs only after a GitHub Release is published and uses the protected
-`release` environment. Configure these environment secrets before the first formal release:
+`.github/workflows/publish-release.yml` builds missing installers after a GitHub Release is published.
+Without platform certificates, it publishes the macOS DMG (self-signed when `DAYGO_DEV_CERT_P12_*` is configured,
+otherwise ad-hoc signed) and unsigned Windows installer for manual download. This path needs no `release`
+environment secrets. It does not publish `appcast.xml`, so in-app automatic updates have no feed.
+
+The signed appcast path is opt-in: set the repository variable `DAYGO_SIGNED_RELEASE_APPCAST=true` only after both
+final release assets have been signed externally and the macOS DMG has been notarized. Upload those assets before
+rerunning the workflow for that tag; the prepare job skips existing assets. The `verify_*` jobs then use the protected
+`release` environment to check the downloaded assets. They require these secrets:
 
 - `SPARKLE_ED25519_PRIVATE_KEY` — already generated; also retained in the local macOS keychain.
 - `DAYGO_MAC_TEAM_ID` / `DAYGO_WIN_SIGNER_THUMBPRINT` — protected `release` environment values that pin the macOS Developer ID team and Windows Authenticode certificate for formal appcast generation. Missing or mismatched values stop the appcast job; the verifier also checks notarization, installed binaries and asset hashes.
-- `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERT_PASSWORD`, `APPLE_API_KEY_P8_BASE64`,
-  `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` — Developer ID signing and notarization.
-- `WINDOWS_CERTIFICATE_PFX_BASE64`, `WINDOWS_CERT_PASSWORD` — Authenticode signing.
 
-For a published `vX.Y.Z` Release, the workflow uploads both platform assets. For a formal release only, it then signs
-their final bytes with Sparkle Ed25519 and uploads `appcast.xml` to that same Release. A prerelease skips the appcast
-job. A missing signing key or installer leaves a formal release's appcast absent. The `releases/latest` URL can return
-404 between publishing a formal Release and this final upload. After promoting a prerelease to formal, manually
-dispatch this workflow with its tag to generate the appcast; verify the asset exists before treating promotion as ready.
-The `release` environment retains the signing secret but has no required reviewer; the job runs automatically.
+The workflow does not import Developer ID or Authenticode certificates. The opt-in verifier expects already signed
+assets; the signing and notarization process would need to be supplied separately.
+
+With the opt-in flag, a formal `vX.Y.Z` Release gets `appcast.xml` only after both identity checks pass. Sparkle Ed25519
+signs the final asset bytes. Prereleases always skip the appcast. A missing or mismatched certificate leaves the appcast
+absent. The `releases/latest` URL returns 404 while the appcast is absent, including for ordinary manual-download
+releases. The `release` environment retains the signing secret but has no required reviewer.
 For an existing published Release whose original event was skipped or missed, use the workflow's manual dispatch with
 its `tag` input. The prepare job checks the live Release state before building.
