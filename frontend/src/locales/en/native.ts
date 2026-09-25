@@ -6,6 +6,6 @@ export default {
     filterExecutable: 'Windows applications (*.exe)',
   },
   updater: {
-    ownerRequired: 'Only the active Daygo capture owner can install updates.',
+    ownerRequired: 'Install updates from the Daygo window that is currently recording.',
   },
 }

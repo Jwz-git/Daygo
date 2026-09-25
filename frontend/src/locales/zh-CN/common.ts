@@ -33,7 +33,7 @@ export default {
   },
   fatal: {
     title: '出错了',
-    description: '刚刚发生了一处错误，页面已停止渲染以避免整屏空白。你可以复制详情反馈，或重新加载应用。',
+    description: '页面出了点问题，已暂停显示。你可以复制详情反馈给我们，或重新加载。',
     reload: '重新加载',
     dismiss: '关闭',
     copy: '复制详情',

@@ -6,6 +6,6 @@ export default {
     filterExecutable: 'Windows 应用 (*.exe)',
   },
   updater: {
-    ownerRequired: '只有持有捕获所有权的 Daygo 实例才能安装更新。',
+    ownerRequired: '请在正在录制的那个 Daygo 窗口中安装更新。',
   },
 }

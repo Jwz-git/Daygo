@@ -1,8 +1,8 @@
 export default {
-  actionError: "The action failed. Please retry; your input has been kept.",
+  actionError: 'Something went wrong. Please try again — your message is still here.',
   retry: "Retry",
-  working: "Working… You can stop at any time.",
-  tooLong: "Messages must be no larger than 32 KiB. Please shorten your message.",
+  working: 'Thinking…',
+  tooLong: 'That message is too long. Please shorten it and try again.',
 
   title: "Chat",
   newConversation: "New chat",
@@ -16,15 +16,15 @@ export default {
   renameTitlePlaceholder: "Enter a title for the conversation",
   renameTitleRequired: "A title is required",
   removeConfirm: "Delete this conversation?",
-  unavailableTitle: "Chat is unavailable",
-  unavailableDescription: "It needs to run inside the Daygo app with a database available.",
+  unavailableTitle: 'Chat is unavailable right now',
+  unavailableDescription: 'Try again later, or restart Daygo.',
   provider: {
-    label: "Provider",
-    placeholder: "No provider selected",
+    label: 'AI service',
+    placeholder: 'No AI service selected',
   },
   model: {
     label: "Model",
-    follow: "Follow provider ({model})",
+    follow: 'Default ({model})',
   },
   composer: {
     placeholder: "Type a message… (Enter to send)",
@@ -37,8 +37,8 @@ export default {
   },
   memory: {
     title: "Global instructions",
-    hint: "Appended to every conversation's system prompt (like a CLAUDE.md).",
-    placeholder: "e.g. Keep answers short; I track my time heavily…",
+    hint: 'Things you want Daygo to remember in every conversation.',
+    placeholder: 'e.g. Keep answers short; call me Sam…',
     save: "Save",
     saved: "Saved",
   },
@@ -62,7 +62,7 @@ export default {
 
   welcome: {
     title: "Hi, how can I help you?",
-    subtitle: "Ask about your timeline, daily summary, weekly review, categories or cards",
+    subtitle: 'Ask me anything about your timeline, standups, or weekly review',
     hints: [
       'What did I do today?',
       "Show me this week's category breakdown.",
