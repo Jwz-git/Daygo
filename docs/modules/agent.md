@@ -15,7 +15,7 @@
 
 非目标：不提供自有后端或远程访问（屏幕数据不离设备的原则不变）；不暴露原始帧、
 分段路径或 LLM payload；不引入绑定层与 §5.9.2 操作集之外的写能力；不做团队 /
-多人视角。**v1 不交付**，本册目前是设计准备。
+多人视角。**v1 不交付**；基础实现已落，真实客户端闭环未验收。
 
 依据：[05 §5.9](../05-interface-contract.md#59-b6对外接口推迟到-v11)、
 [03 §3.1](../03-data-model.md#31-磁盘布局)（agent.sock 布局与权限）、
@@ -23,9 +23,23 @@
 
 ## 当前状态与证据
 
-实现进度：未开始。仅有 05 §5.9 契约（CLI 命令面、agent.sock 帧格式、MCP 已定约束与
-候选）与本执行册；无任何 Go / 前端代码。`system.agentEditsEnabled` 设置键已在
-settings 落盘但无消费者。
+实现进度：部分实现。
+
+- CLI（`internal/agentcli`，经 `cmd/daygo` 子命令路由）：读命令 status / timeline / card /
+  daily / weekly / categories 走只读库；`write <operation> '<json>'` 经 `agent.sock`，不直连数据库。
+- agentbridge：0600 socket、一行请求一行响应、1 MB 上限、封闭错误码、服务端独立校验
+  `agentEditsEnabled`、`source` 来源标记与 `agent-writes.log`（只记时间 / 来源 / 操作，不记参数）。
+- 宿主接线：`app.Run` 仅在读写实例上监听 `<支持目录>/agent.sock`；handler 先用 chat 工具的
+  严格 schema 校验参数，再交给与 chat 同源的共享执行器，因此同校验、同事件（UI 自动刷新）。
+- MCP：`daygo mcp` stdio 服务，五读六写，读走只读库、写走 socket（[决策](../decisions/agent-mcp-transport.md)）。
+- 设置页「Agent 访问」：`GetAgentConnection` 返回当前可执行文件绝对路径与 socket 是否在监听，
+  页面据此给出可复制的 MCP 客户端配置和 CLI 读 / 写示例，不假定 `daygo` 在 PATH 上；
+  路径位于 App Translocation 或磁盘映像（`/Volumes/`）时提示先移入「应用程序」，因为该路径重启即失效。
+- 平台限制：Wails 在 Windows 生产构建中默认加 `-H windowsgui`，终端里运行得不到输出，
+  因此 Windows 设置页只提供 MCP 配置、不展示 CLI；Windows 上经管道的 MCP 与 AF_UNIX `agent.sock`
+  均未真机验证。
+
+未完成：search；真实 MCP 客户端多日闭环（macOS 与 Windows）；Windows 终端 CLI；对外接口的诊断计数。
 
 ## 能力与跨层职责
 
@@ -37,12 +51,12 @@ settings 落盘但无消费者。
 | db-core（只读连接） | data | CLI 直连只读模式（`query_only` 回读） | 已达成 |
 | 写入服务路径 | timeline / daily | 同一服务层被绑定层与 agent 复用的同源断言 | 绑定层写方法实现后 |
 
-输出能力：`agent-writes.log` 审计（含来源标记，MCP 归属待定）；对外 JSON 的
+输出能力：`agent-writes.log` 审计（`source` 来源标记：`agent.sock` / `cli` / `mcp`）；对外 JSON 的
 `schema_version` 信封。所有 SQL 在 internal/storage；CLI 与 MCP 不打开第二个写连接，
 写一律经 `agent.sock` → 绑定层同路径。密钥、屏幕内容不进入任何对外输出。
 
-internal/agentbridge 拥有 socket 帧协议与门禁；CLI 可执行在 cmd/ 或独立入口（随
-构建链决策）；MCP 包位置随 05 §5.9.3 传输决策定。
+internal/agentbridge 拥有 socket 帧协议与门禁；CLI 与 MCP 都是 `cmd/daygo` 主二进制的子命令
+（`internal/agentcli`、`internal/mcp`）；宿主侧 handler 与 `GetAgentConnection` 在 `internal/app`。
 
 ## 实验与失败条件
 
@@ -73,8 +87,9 @@ internal/agentbridge 拥有 socket 帧协议与门禁；CLI 可执行在 cmd/ �
 完成要求：CLI / agent.sock / MCP 三面各自的契约测试通过，真实 MCP 客户端闭环验收，
 写入同源断言通过。fake 协议测试不能证明真实客户端兼容性或 socket 长期稳定性。
 
-待决：MCP 传输与进程模型（09 §9.8 #22，本册切片 1 前必须落决策）；CLI 入口形态
-（主二进制子命令 vs 独立可执行，随构建链）；MCP 工具粒度与命名；审计来源标记。
+已决（[决策记录](../decisions/agent-mcp-transport.md)）：stdio 传输、`daygo` 主二进制子命令、
+逐命令工具粒度、`source` 审计来源标记。待决：search 语义（随 timeline 搜索一并定）；
+Windows 终端 CLI 入口（是否附带 `daygo-cli.exe`，[09 §9.8 #25](../09-roadmap.md#98-待定设计清单)）。
 
 回退：停用 `agentEditsEnabled` 即关闭全部外部写入；MCP / CLI 为纯增量面，移除不影响
 捕获与分析；socket 删除重建无数据损失。决策记录保留候选与回退路径。
@@ -84,3 +99,4 @@ internal/agentbridge 拥有 socket 帧协议与门禁；CLI 可执行在 cmd/ �
 | 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
 |---|---|---|---|
 | 2026-09-12（本册建立） | — | 未运行 | 仅契约与执行册；切片 1 前无代码可验证 |
+| 2026-09-25 / 工作区 / macOS | `go test ./internal/app/ ./internal/agentcli/ ./internal/agentbridge/ ./internal/mcp/`；`npm --prefix frontend run test:unit` | 宿主夹具：默认 `edits_disabled` → 开启后非法参数 `invalid_argument` → `goal_set` 落库、发 `goal:updated`、审计带 `"source":"mcp"` → 关闭后再拒绝；CLI `write` 经真实 socket 转发、错误码映射退出码、用法错误不拨号、宿主未运行时退出 1；前端 MCP 配置 / shell 引号 / DTO 解析通过 | fake handler 与临时库，不代表真实 MCP 客户端兼容性；真实客户端闭环待做 |

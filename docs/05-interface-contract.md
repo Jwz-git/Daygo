@@ -81,6 +81,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
+| agent | `GetAgentConnection` | 读写实例启动时监听 `agent.sock`（0600），写入经与 chat 同源的共享执行器（同校验、同事件），每次请求服务端校验 `agentEditsEnabled`，成功写入追加 `agent-writes.log`；绑定只报告可执行路径与 socket 是否在监听 |
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
 | timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`StopRetries`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试、停止自动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
@@ -394,11 +395,16 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 |------|----------|----------|------|------|-----------|
 | `GetSettings() (SettingsDTO, error)` | preferences | settings-store / settings-access | 读 | — | — |
 | `UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error)` | preferences | settings-access / 写入锁 | 写·幂等 | `settings:changed` | `invalid_argument` |
+| `GetAgentConnection() (AgentConnectionDTO, error)` | agent | 宿主 agent.sock 接线 | 读 | — | — |
 
 - `SaveCategories` 已随时间线绑定实现（§5.2.1 timeline 表）：整体覆盖，重命名在
   同一事务内同步改写已有卡片的 `category` 字符串并按触及日期触发 `timeline:updated`。
   分类列表本身随 `GetTimelineDay` / `GetDayContext` 返回，不再单设 `GetCategories`。
 
+- `GetAgentConnection` 只报告连接信息，不读设置：`executablePath` 是当前进程可执行文件的绝对路径
+  （解析符号链接；系统无法给出时为空，前端回退为 `daygo`），`socketActive` 表示本实例正在监听
+  `agent.sock`——只有读写实例启动 socket，只读第二实例恒为 false。外部写入门禁仍是每次请求时
+  服务端校验的 `agentEditsEnabled`（§5.9.2）。
 - `UpdateSettings` 是**局部补丁**：只有出现在负载中的键被应用（Go 侧字段用指针区分
   "未提供"与"置空"）。返回值是规范化、夹取后的完整设置，`settings:changed` 的 payload
   只带被改动的键名。
@@ -746,6 +752,12 @@ type SystemSettingsDTO struct {
     ShowDockIcon      bool `json:"showDockIcon"`
     AgentEditsEnabled bool `json:"agentEditsEnabled"` // 控制 agent.sock，见 §5.9
     TestToolsEnabled  bool `json:"testToolsEnabled"`  // 显示侧边栏测试页（捕获测试、数据清理）；默认 false
+}
+
+// AgentConnectionDTO 供设置页生成 MCP 客户端配置与 CLI 示例（§5.9.3）。
+type AgentConnectionDTO struct {
+    ExecutablePath string `json:"executablePath"` // 空 = 系统无法报告，前端回退 `daygo`
+    SocketActive   bool   `json:"socketActive"`   // 本实例正在监听 agent.sock
 }
 
 type TelemetrySettingsDTO struct {
@@ -1468,7 +1480,7 @@ v1 不交付这些接口，但形状先定，避免 v1 的数据模型在补做�
 |------|-----|
 | 命令名 | `daygo` |
 | 读命令 | `status` · `timeline [YYYY-MM-DD\|today\|yesterday]` · `card <id>` · `daily` · `weekly` · `categories` · `search <text>` |
-| 写命令 | 经 `agent.sock`，不直连数据库 |
+| 写命令 | `write <operation> '<json arguments>'`（操作集同 §5.9.2）：经 `agent.sock`，不直连数据库；bridge 错误码按同名映射退出码（`invalid_argument`→2、`not_found`→3，其余→1），成功时 `--json` 输出 `{"schema_version":1,"data":...}` |
 | 退出码 | `0` 成功 · `1` 意外 · `2` 参数错误 · `3` 未找到 · `5` 无数据 |
 | 数据库路径覆盖 | `DAYGO_DB` |
 | 连接 | 只读，`SQLITE_OPEN_READONLY` + `PRAGMA query_only` |
@@ -1501,12 +1513,13 @@ JSON 输出（`--json`）规则：
 **写入必须与绑定层走同一条服务路径**（同样的校验、同样的事件），否则外部 agent 改了数据
 而 UI 不刷新，或绕过了分类名校验。
 
-### 5.9.3 MCP 服务器（设计准备，未实现）
+### 5.9.3 MCP 服务器
 
 MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当作工具源：查时间线、
-读日报、在授权范围内改卡片与分类。本节**只固定已可确定的约束**；传输与进程模型未定，
-候选见下表与 [09 §9.8](09-roadmap.md#98-待定设计清单)，决策落
-`docs/decisions/agent-mcp-*.md` 后本节随之收敛。
+读日报、在授权范围内改卡片与分类。传输已定为 stdio 子进程 `daygo mcp`
+（[决策记录](decisions/agent-mcp-transport.md)）；下方候选表保留作决策依据与回退路径。
+客户端配置为启动 Daygo 主程序并传 `mcp` 参数；设置页经 `GetAgentConnection` 给出当前可执行文件的
+绝对路径，不假定 `daygo` 已在 PATH 上。
 
 已定约束：
 
@@ -1520,7 +1533,7 @@ MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当�
 | 隐私边界 | 工具不暴露原始帧、分段路径、LLM payload、密钥、屏幕内容 | [07](07-privacy-security.md) 的边界对 MCP 同样生效 |
 | 核心可测 | MCP 服务代码 `CGO_ENABLED=0` 且在 Linux 下可编译可测试 | §5.10.3 的 CI 门禁反向约束接口设计 |
 
-待定候选（09 §9.8 #22）：
+决策候选（09 §9.8 #22，已选 stdio，HTTP 保留为回退路径）：
 
 | 决策点 | 候选 | 含义与代价 |
 |--------|------|-----------|

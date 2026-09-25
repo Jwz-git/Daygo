@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Jwz-git/Daygo/frontend"
+	"github.com/Jwz-git/Daygo/internal/agentbridge"
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/recorder"
@@ -94,6 +95,26 @@ func Run() error {
 		// failed read returns 0 — the documented "no limit" — so the pass
 		// skips rather than deleting on uncertain ground.
 		settingsAccess := settings.New(store.Settings())
+		if writable, _ := backend.instanceOwnership(); writable {
+			audit, err := os.OpenFile(filepath.Join(dir, "agent-writes.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+			if err != nil {
+				log.Printf("agent audit unavailable: %v", err)
+			} else {
+				_ = audit.Chmod(0o600)
+				bridge := agentbridge.NewServer(agentWriteHandler{backend: backend}, audit)
+				if err := bridge.Start(ctx, filepath.Join(dir, "agent.sock")); err != nil {
+					log.Printf("agent socket unavailable: %v", err)
+					_ = audit.Close()
+				} else {
+					backend.agentSocketActive.Store(true)
+					defer func() {
+						backend.agentSocketActive.Store(false)
+						_ = bridge.Close()
+						_ = audit.Close()
+					}()
+				}
+			}
+		}
 		maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{
 			BackupDir:      dir,
 			RecordingsRoot: filepath.Join(dir, "recordings"),

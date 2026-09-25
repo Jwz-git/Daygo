@@ -161,6 +161,10 @@ type Backend struct {
 	timelineEvents   map[string]*time.Timer
 	timelineEventsMu sync.Mutex
 
+	// agentSocketActive is true while this instance serves agent.sock. Only
+	// the read-write instance starts the socket (app.Run), so a read-only
+	// second instance reports false and the settings page says so.
+	agentSocketActive  atomic.Bool
 	updatePrepared     atomic.Bool
 	updateWasRecording atomic.Bool
 }

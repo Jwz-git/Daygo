@@ -25,7 +25,7 @@
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）；清理已支持按 segment_path 整段清理，DB-9 / IT-12 真实宿主长期观察已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：GitHub Actions 已实现发布后自动构建、上传 macOS / Windows 安装器，正式版还生成签名 appcast；应用内 Sparkle / WinSparkle 适配器、设置 UI 和安全收尾已落盘 | Go / 前端 / appcast 夹具通过；发布工作流实现已核对；签名、公证、干净机安装与客户端升级仍缺正式证书材料，属 G-native 未验收 |
-| [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 未开始：仅 05 §5.9 契约与执行册（2026-09-12 建立，设计准备） | 未运行；MCP 传输决策见 §9.8 #22 |
+| [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 部分实现：CLI 读命令与 `write` 写命令、`daygo mcp` stdio 服务（五读六写）、宿主在读写实例上监听 `agent.sock` 并经与 chat 同源的共享执行器写入、`agent-writes.log` 来源审计；设置页给出 MCP 配置 / CLI 示例与 socket 状态（`GetAgentConnection`） | Go 协议、CLI 写命令（真实 socket + fake handler）、宿主端到端夹具（默认拒绝 → 开启写入 → `goal:updated` 事件 + 审计 → 关闭再拒绝）与前端单元测试通过；真实 MCP 客户端多日闭环与 search 未完成，属未验收 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：多会话纯对话、会话级 Provider / 模型、11 个封闭工具的 agent 循环、只读 / 只读实例双门禁、调用预算 / 取消、`llm_calls` 审计元数据和工具消息 UI | Go 回合、参数校验、门禁、预算、取消及前端回归测试通过；真实 Provider Wails 闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录）；search / status、独立审计日志与诊断计数尚未实现，且 chat v1 不交付 |
 
 ### 当前代码证据
@@ -79,7 +79,7 @@ Capture / System 仍返回 `unsupported`；原生形态与发布包已排期，�
   数据库存储路径在 Windows 上也保持规范化的 `staging/...`。Windows 隐私选择与排除已有限接入；完整竞态、受保护内容与长期矩阵已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录）。
   见 [决策记录](decisions/recording-screen-capture-windows.md)。
 
-仍未实现：timeline 搜索、agent 的 CLI / socket / MCP。其余原列为未完成的验证项——完整常驻
+仍未实现：timeline 搜索；agent 的 CLI / socket / MCP 已有基础实现，但真实 MCP 客户端闭环未验收。其余原列为未完成的验证项——完整常驻
 宿主生命周期与 G-host、daily 的自动生成调度与通知、真实 Provider 与 7 / 14 天
 长期闭环——已于 2026-09-22 经用户实测验收（无逐项运行记录，见 §9.1 顶部说明）；delivery 的发布自动化与 appcast 已实现，但签名 / 公证与真实分发 · 升级验证仍属 G-native 未验收。
 HEVC 分段、`platform.Media`、帧资源处理器和按段清理已经落盘，其真机长期验证亦经用户于 2026-09-22 实测验收（无逐项运行记录）。
@@ -248,9 +248,10 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 19 | 每日摘要 / 日记 summary 的生成触发、刷新与失败交互 | daily / 产品 + 工程 | 生成切片实现前；若新增绑定先补 05 与双侧契约，不假定现有查询方法就是生成入口 |
 | 20 | 多显示器是否恢复"跟随光标的活跃显示器" | recording / 产品 + 工程 | 多显示器支持进入范围前；当前冻结为系统主显示器（[04 §4.1.2](04-data-flow.md#412-只截一块显示器系统主显示器)），改动会给端口加字段和跨调用状态 |
 | 21 | Windows 截图是否合成鼠标指针 | recording / 工程 | **已决定**：ABI 将 `ShowsCursor` 定为平台尽力而为；Windows v1 不合成指针（Desktop Duplication 不含指针），置位记为 no-op 且文档化，指针合成留作后续可选增强。见 [Windows 决策记录 §3](decisions/recording-screen-capture-windows.md#3-与-macos-的差异四条不能忽略) |
-| 22 | MCP 传输与进程模型（stdio 子进程 vs 宿主内 HTTP；工具粒度与审计来源标记随之一并定） | agent / 工程，delivery 协作 | **传输已决定**：stdio 子进程（`daygo mcp`），读走只读 DB、写走 `agent.sock`；工具粒度=逐命令映射（读=timeline/card/daily/weekly/categories，写=六操作），来源标记随之落（`source` 字段，默认 `agent.sock`，MCP 标 `mcp`）。见 [决策记录](decisions/agent-mcp-transport.md) 与 [05 §5.9.3](05-interface-contract.md#593-mcp-服务器设计准备未实现)。基础实现（CLI 读 / bridge 写通道 / `daygo mcp` 骨架）已落；真实客户端多日闭环属 G 级未验收 |
+| 22 | MCP 传输与进程模型（stdio 子进程 vs 宿主内 HTTP；工具粒度与审计来源标记随之一并定） | agent / 工程，delivery 协作 | **传输已决定**：stdio 子进程（`daygo mcp`），读走只读 DB、写走 `agent.sock`；工具粒度=逐命令映射（读=timeline/card/daily/weekly/categories，写=六操作），来源标记随之落（`source` 字段，默认 `agent.sock`，MCP 标 `mcp`）。见 [决策记录](decisions/agent-mcp-transport.md) 与 [05 §5.9.3](05-interface-contract.md#593-mcp-服务器)。基础实现（CLI 读 / bridge 写通道 / `daygo mcp` 骨架）已落；真实客户端多日闭环属 G 级未验收 |
 | 23 | Chat 会话模型、流式输出、消息留存与 provider 路由 | chat / 产品 + 工程 | **会话模型、流式、provider 路由已决定**：多会话、原子消息、会话级 provider 选择（必选，新会话默认路由链首位，不回退），见 [decisions/chat-session-model.md](decisions/chat-session-model.md)；消息留存与审计来源标记仍待定，与 #15 / #22 一并定 |
 | 24 | Linux 适配器形态 | recording / 工程，delivery 协作 | **已排期**。Linux 桌面壳与构建入口已有初级适配；Secrets 已决定使用 Secret Service / `secret-tool`，见 [Secret Service 决策](decisions/providers-secrets-linux.md)。Capture / System / 状态栏与发布包形态见 [Linux 截图决策](decisions/recording-screen-capture-linux.md)（X11 vs Wayland、Portal 接口及 deb / rpm / AppImage 取舍，逐项决策中）|
+| 25 | Windows 终端 CLI 入口（发布构建为 `-H windowsgui` GUI 子系统，终端无输出；候选：随安装包附带控制台子系统的 `daygo-cli.exe`，或维持仅 MCP） | agent / 工程，delivery 协作 | **待定设计**（2026-09-25 用户确认暂缓）。当前 Windows 设置页只提供 MCP 配置、不展示 CLI；决策前不改安装包内容。见 [agent 执行册](modules/agent.md) |
 
 决定写入 `docs/decisions/<module>-<topic>.md`，记录候选、实验、结果、边界与回退，
 同步相应公共规范。无证据不标为已决定。捕获旧文档路径仅保留历史跳转。

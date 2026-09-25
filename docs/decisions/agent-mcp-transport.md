@@ -1,7 +1,7 @@
 # agent MCP 传输与进程模型：stdio 子进程（daygo mcp）
 
 > **状态：方案（切片 1 落盘，基础实现进行中）。** 本文收敛 [09 §9.8 #22](../09-roadmap.md#98-待定设计清单)
-> 与 [05 §5.9.3](../05-interface-contract.md#593-mcp-服务器设计准备未实现) 的传输待定表，是
+> 与 [05 §5.9.3](../05-interface-contract.md#593-mcp-服务器) 的传输待定表，是
 > [agent 执行册](../modules/agent.md)「切片 1 决策先行」的落盘。已定约束（读写同源、六写操作、
 > `schema_version` 信封、隐私边界、`CGO_ENABLED=0` 可测）不因本决策改变。真实 MCP 客户端多日闭环
 > 仍属 G 级验收，本文不代表其已完成。
@@ -54,7 +54,7 @@
 
 `agent.sock` 每次成功写入追加 `agent-writes.log`。来源标记区分 UI / CLI / MCP / chat：本次在 bridge 请求
 里携带 `source` 字段（默认 `agent.sock`，MCP 客户端写入标 `mcp`），写入审计行。字段为可选、封闭取值，
-未提供即记为通用 `agent.sock`——与 [05 §5.9.3 审计归属](../05-interface-contract.md#593-mcp-服务器设计准备未实现)
+未提供即记为通用 `agent.sock`——与 [05 §5.9.3 审计归属](../05-interface-contract.md#593-mcp-服务器)
 的待定项一并定。
 
 ## 6. 回退

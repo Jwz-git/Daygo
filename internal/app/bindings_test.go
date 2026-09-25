@@ -28,6 +28,7 @@ var contractBindings = []string{
 	"GetDailyRecap",
 	"GetDayContext",
 	"GetDayGoal",
+	"GetAgentConnection",
 	"GetBlockedApplications",
 	"GetDiagnostics",
 	"GenerateDailyRecap",

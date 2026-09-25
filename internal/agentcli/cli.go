@@ -6,17 +6,20 @@ package agentcli
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"slices"
 
+	"github.com/Jwz-git/Daygo/internal/agentbridge"
 	"github.com/Jwz-git/Daygo/internal/agentread"
 )
 
 // Commands is the read command set this build serves (docs/05 §5.9.1). search
 // is deferred with its semantics (09 §9.1) and is not offered here.
-var Commands = []string{"status", "timeline", "card", "daily", "weekly", "categories"}
+var Commands = []string{"status", "timeline", "card", "daily", "weekly", "categories", "write"}
 
 // Handles reports whether cmd is a CLI read command. cmd/daygo uses it to route
 // only known commands here, so a bare launch (and stray GUI launch flags) fall
@@ -51,6 +54,31 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	rest, opts := parseFlags(args[1:])
 
 	switch cmd {
+	case "write":
+		if len(rest) != 2 || !slices.Contains(agentbridge.Operations, rest[0]) || !json.Valid([]byte(rest[1])) {
+			return emitError(stderr, opts, faultUsage("usage: daygo write <operation> '<json arguments>'"))
+		}
+		var args json.RawMessage = []byte(rest[1])
+		socket, err := agentread.SocketPath()
+		if err != nil {
+			return emitError(stderr, opts, err)
+		}
+		data, err := agentbridge.NewClient(socket).Do(ctx, rest[0], args, agentbridge.SourceCLI)
+		if err != nil {
+			var bridgeErr *agentbridge.Error
+			if errors.As(err, &bridgeErr) {
+				return emitError(stderr, opts, faultOfCode(bridgeErr.Code, bridgeErr.Message))
+			}
+			return emitError(stderr, opts, err)
+		}
+		if opts.json {
+			return emitResult(stdout, opts, struct {
+				SchemaVersion int             `json:"schema_version"`
+				Data          json.RawMessage `json:"data"`
+			}{SchemaVersion: agentread.SchemaVersion, Data: data})
+		}
+		fmt.Fprintln(stdout, "ok")
+		return exitOK
 	case "status":
 		return withReader(ctx, opts, stdout, stderr, func(r *agentread.Reader) (any, error) {
 			return r.Status(ctx)
