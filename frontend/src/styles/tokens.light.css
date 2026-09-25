@@ -93,6 +93,8 @@
 
   /* segmented-control track (→ segmentTrackFill) */
   --dg-track-fill: rgba(91, 81, 96, 0.075);
+  /* selected segment: solid, like the switch knob, so the label stays crisp */
+  --dg-segment-thumb: #ffffff;
 
   /* text fields, selects (→ inputFill / inputBorder) */
   --dg-input-fill: rgba(255, 255, 255, 0.76);

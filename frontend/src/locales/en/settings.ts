@@ -41,12 +41,37 @@ export default {
     },
   },
   agentAccess: {
-    editsTitle: 'External write channel',
-    editsHint:
-      'Allow local CLI / MCP clients to modify cards, categories and goals. The channel arrives in v1.1; for now this preference is only stored.',
-    chatEditsTitle: 'In-app chat editing',
-    chatEditsHint:
-      'Allow the in-app chat assistant to modify cards, categories and goals (limited to the six sandboxed operations). Off by default; independent of the external channel above.',
+    connectTitle: 'Connect local tools',
+    connectHint: 'Let AI tools like Claude Desktop and Claude Code, or your terminal, read your timeline, standups, and weekly reviews. Your data stays on this Mac; Daygo needs to be running.',
+    tabs: {
+      mcp: 'MCP client',
+      cli: 'Command line',
+    },
+    status: {
+      writable: 'Changes allowed',
+      readonly: 'Read only',
+      inactive: 'Not connected',
+    },
+    translocated: 'Daygo isn’t running from your Applications folder, so this configuration will stop working after a restart. Move Daygo to Applications, reopen it, then copy the configuration.',
+    mcp: {
+      lead: 'Add the following to your tool’s MCP configuration file, then restart the tool.',
+      note: 'Once connected, queries always work. To let the tool change your data, turn on “Allow external tools to make changes” below.',
+    },
+    cli: {
+      lead: 'Run in your terminal. Add --json for script-friendly output.',
+      read: 'Query today\'s timeline',
+      write: 'Set a day’s focus target (replace YYYY-MM-DD with the date; requires allowing external changes)',
+      windows: 'The CLI isn’t available on Windows yet. Connect through MCP instead.',
+    },
+    copy: 'Copy',
+    copied: 'Copied',
+    permissionsTitle: 'Access',
+    permissionsHint: 'Reading is always available. Making changes must be turned on separately and is off by default.',
+    writeError: 'Couldn’t save. Your previous setting was restored.',
+    editsTitle: 'Allow external tools to make changes',
+    editsHint: 'Let MCP clients and the CLI edit cards, categories, and goals.',
+    chatEditsTitle: 'Allow chat to make changes',
+    chatEditsHint: 'Let in-app chat edit cards, categories, and goals for you. Independent of the setting above.',
   },
   general: {
     launchAtLogin: 'Launch at login',

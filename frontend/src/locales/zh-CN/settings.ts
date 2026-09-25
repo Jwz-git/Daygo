@@ -41,12 +41,37 @@ export default {
     },
   },
   agentAccess: {
-    editsTitle: '外部写入通道',
-    editsHint:
-      '允许本地 CLI / MCP 客户端修改卡片、分类与目标。通道在 v1.1 提供，当前版本仅保存此偏好。',
-    chatEditsTitle: '应用内对话编辑',
-    chatEditsHint:
-      '允许应用内聊天助手修改卡片、分类与目标（仅限沙箱内的六个受控操作）。默认关闭；与上方外部通道相互独立。',
+    connectTitle: '连接本地工具',
+    connectHint: '让 Claude Desktop、Claude Code 等 AI 工具或终端读取你的时间线、日报与周报。数据不离开本机，使用时需保持 Daygo 运行。',
+    tabs: {
+      mcp: 'MCP 客户端',
+      cli: '命令行',
+    },
+    status: {
+      writable: '允许修改',
+      readonly: '仅可读取',
+      inactive: '暂未连接',
+    },
+    translocated: 'Daygo 目前不在「应用程序」文件夹中运行，下面的配置在重启后会失效。请先把 Daygo 拖进「应用程序」并重新打开，再复制配置。',
+    mcp: {
+      lead: '把下面的内容加入工具的 MCP 配置文件，然后重启该工具。',
+      note: '连接后可以随时查询；如需让工具修改数据，请打开下方的「允许外部工具修改」。',
+    },
+    cli: {
+      lead: '在终端中运行。加上 --json 可输出便于脚本处理的格式。',
+      read: '查询今天的时间线',
+      write: '设置某一天的专注目标（把 YYYY-MM-DD 换成日期；需要允许外部工具修改）',
+      windows: 'Windows 版暂不支持命令行，请通过 MCP 连接。',
+    },
+    copy: '复制',
+    copied: '已复制',
+    permissionsTitle: '访问权限',
+    permissionsHint: '查询始终可用；修改数据需要单独开启，默认关闭。',
+    writeError: '保存失败，已恢复原设置。',
+    editsTitle: '允许外部工具修改',
+    editsHint: '允许通过 MCP 或命令行修改卡片、分类和目标。',
+    chatEditsTitle: '允许对话修改',
+    chatEditsHint: '允许应用内对话帮你修改卡片、分类和目标。与上一项互不影响。',
   },
   general: {
     launchAtLogin: '开机自启',
