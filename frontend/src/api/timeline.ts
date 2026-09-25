@@ -184,3 +184,15 @@ export function onTimelineUpdated(callback: (day: string | null) => void): () =>
     -1,
   )
 }
+
+/**
+ * A batch reaching its failed terminal state changes the day's failure list
+ * without rewriting any card, so no `timeline:updated` follows it. The payload
+ * carries only instants; the logical day stays a backend decision, so callers
+ * reload their current day instead of deriving one here.
+ */
+export function onBatchFailed(callback: () => void): () => void {
+  const method = (window as WailsWindow).runtime?.EventsOnMultiple
+  if (typeof method !== 'function') return () => undefined
+  return method('batch:failed', () => callback(), -1)
+}

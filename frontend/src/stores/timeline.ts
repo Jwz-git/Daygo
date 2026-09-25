@@ -16,6 +16,7 @@ import {
   getTimelineCapabilities,
   getTimelineDay,
   hasTimelineDayBinding,
+  onBatchFailed,
   onTimelineUpdated,
   reprocessCard as reprocessCardApi,
   reprocessDay,
@@ -270,11 +271,15 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   function startEvents(): void {
     if (stopEvents !== null) return
-    stopEvents = onTimelineUpdated((updatedDay) => {
-      if (updatedDay === null || updatedDay === context.value?.day) {
-        void load(context.value?.day ?? '', { silent: true })
-      }
+    const reloadCurrentDay = () => void load(context.value?.day ?? '', { silent: true })
+    const stopUpdated = onTimelineUpdated((updatedDay) => {
+      if (updatedDay === null || updatedDay === context.value?.day) reloadCurrentDay()
     })
+    const stopFailed = onBatchFailed(reloadCurrentDay)
+    stopEvents = () => {
+      stopUpdated()
+      stopFailed()
+    }
   }
 
   function stopListening(): void {
