@@ -6,19 +6,17 @@ package app
 type EventName string
 
 const (
-	EventTimelineUpdated     EventName = "timeline:updated"
-	EventJournalUpdated      EventName = "journal:updated"
-	EventGoalUpdated         EventName = "goal:updated"
-	EventSettingsChanged     EventName = "settings:changed"
-	EventRecordingState      EventName = "recording:state"
-	EventCapabilitiesChanged EventName = "capabilities:changed"
-	EventPermissionChanged   EventName = "permission:changed"
-	EventBatchProgress       EventName = "batch:progress"
-	EventBatchFailed         EventName = "batch:failed"
-	EventRecordingWarning    EventName = "recording:warning"
-	EventUpdateAvailable     EventName = "update:available"
-	EventChatUpdated         EventName = "chat:updated"
-	EventRecapUpdated        EventName = "recap:updated"
+	EventTimelineUpdated  EventName = "timeline:updated"
+	EventJournalUpdated   EventName = "journal:updated"
+	EventGoalUpdated      EventName = "goal:updated"
+	EventSettingsChanged  EventName = "settings:changed"
+	EventRecordingState   EventName = "recording:state"
+	EventBatchProgress    EventName = "batch:progress"
+	EventBatchFailed      EventName = "batch:failed"
+	EventRecordingWarning EventName = "recording:warning"
+	EventUpdateAvailable  EventName = "update:available"
+	EventChatUpdated      EventName = "chat:updated"
+	EventRecapUpdated     EventName = "recap:updated"
 )
 
 var eventNames = [...]EventName{
@@ -27,8 +25,6 @@ var eventNames = [...]EventName{
 	EventGoalUpdated,
 	EventSettingsChanged,
 	EventRecordingState,
-	EventCapabilitiesChanged,
-	EventPermissionChanged,
 	EventBatchProgress,
 	EventBatchFailed,
 	EventRecordingWarning,

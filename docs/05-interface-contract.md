@@ -280,11 +280,11 @@ export function toApiError(e: unknown): ApiError {
 | `UpdateCardSummary(cardID int64, text string) error` | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
 | `UpdateCardDetailedSummary(cardID int64, text string) error` | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
 | `DeleteCard(cardID int64) error` | timeline | cards / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` |
-| `RetryBatches(batchIDs []int64) error` | timeline | 批次 / provider-client / media-read | 写·非幂等 | `batch:progress` `timeline:updated` | `not_found` `conflict` |
+| `RetryBatches(batchIDs []int64) error` | timeline | 批次 / provider-client / media-read | 写·非幂等 | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `not_found` `conflict` |
 | `StopRetries(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（封顶 attempts） | `timeline:updated` | `not_found` `invalid_argument` |
 | `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
-| `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
+| `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `invalid_argument` `conflict` |
 | `ReprocessCard(cardID int64) error` | timeline | observations / cards / 写入锁 | 写·非幂等（重写该卡片自己的时间窗） | `timeline:updated` | `invalid_argument` `conflict` `provider_failed` `provider_not_configured` `not_found` |
 | `GetCardVerdict(cardID int64) (string, error)` | timeline | card_reviews | 读 | — | `invalid_argument` `database_error` |
 | `SaveCardReview(cardID int64, verdict string) error` | timeline | card_reviews / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` |
@@ -299,7 +299,7 @@ export function toApiError(e: unknown): ApiError {
   分类（`System` / `Idle`，由流水线赋值）时返回 `invalid_argument`，**不得**自动创建
   分类。
 - `DeleteCard` 是软删除并返回可清理的 timelapse 路径给内部维护；对前端只是 `error`。
-- `RetryBatches` / `ReprocessDay` 立即返回，进度通过 `batch:progress` 推送：
+- `RetryBatches` / `ReprocessDay` 立即返回，结果经 `timeline:updated` / `batch:failed` 通知后重新拉取（`batch:progress` 规划中，当前不发送）：
   `RetryBatches` 重置 `attempts` 并清空失败信息后回到 `pending`；调用方传入的
   id 里只要有一个不是失败终态的批次，整个调用返回 `invalid_argument` 且不落任何改动。
 - `StopRetries` 是 `RetryBatches` 的反向操作：把失败批次的 `attempts` 封顶到
@@ -483,7 +483,7 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
 | `GetPermissionState() (PermissionDTO, error)` | recording | System 授权 | 读 | — | `native_unavailable` |
-| `RequestScreenRecordingPermission() error` | recording | System 授权交互 | 写·系统交互 | `permission:changed` | `native_unavailable` |
+| `RequestScreenRecordingPermission() error` | recording | System 授权交互 | 写·系统交互 | — | `native_unavailable` |
 | `OpenSystemSettings(pane string) error` | recording | System 面板入口 | 写·系统交互 | — | `invalid_argument` `native_unavailable` |
 | `SetPermissionRestartArmed(armed bool) error` | recording | System 生命周期 | 写·幂等 | — | — |
 | `RelaunchForPermission() error` | recording | System 自重启 | 写·系统交互 | — | `native_unavailable` |
@@ -1021,12 +1021,12 @@ Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`
 | `settings:changed` | 失效 | `{keys: string[]}` | 设置、分类或 provider 写入成功后 |
 | `chat:updated` | 失效 | `{conversationId: string}` | chat 会话或消息落库（新建 / 删除 / 回合内每条消息 / 回合结束） |
 | `recording:state` | 状态 | `RecordingStateDTO` | 状态机转换、权限变化、暂停到期 |
-| `capabilities:changed` | 状态 | `CapabilitiesDTO` | 获得或失去写入 / 捕获所有者锁 |
-| `permission:changed` | 状态 | `PermissionDTO` | 系统授权变化 |
-| `batch:progress` | 状态 | `{batchId: number, step: string, day: string}` | 流水线阶段推进 |
+| `batch:progress` | 状态 | `{batchId: number, step: string, day: string}` | 流水线阶段推进（**规划中，当前不发送**） |
 | `batch:failed` | 状态 | `TimelineFailureDTO` | 批次进入失败终态 |
-| `recording:warning` | 状态 | `{kind: string, sinceTs: number}` | 看门狗：`capturing` 但超过 `interval × 5` 无帧 |
+| `recording:warning` | 状态 | `{kind: string, sinceTs: number}` | 看门狗：`capturing` 但超过 `interval × 5` 无帧（**规划中，当前不发送**） |
 | `update:available` | 状态 | `UpdaterStateDTO` | 发现新版本 |
+
+不设 `capabilities:changed` / `permission:changed`：写入 / 捕获所有者锁只在启动时获取，运行期间能力不变，前端以 `Get*` 返回的 `CapabilitiesDTO` 为准；授权状态由前端在开始录制前经 `GetPermissionState` 主动查询；macOS 新授予的屏幕录制权限要重启进程才生效（`RelaunchForPermission`），会话内没有需要推送的授权变化。`batch:progress` 与 `recording:warning` 已定常量但尚无发送方，前端不得依赖它们；在实现前进度与失败只能经 `timeline:updated` / `batch:failed` 后重新拉取获得。
 
 三条实现约束：
 
