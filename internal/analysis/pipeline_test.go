@@ -836,9 +836,8 @@ func TestPipelineReprocessPreservesStraddlingCardPrefix(t *testing.T) {
 	}
 
 	// The rerun may split the merged span again, but it must cover from 10:00
-	// rather than dropping 10:00–10:16. The 10-minute tail is legal: the card
-	// carrying the rewrite's end is the one card the 15-minute floor exempts
-	// (2026-09-21).
+	// rather than dropping 10:00–10:16. Its 10-minute tail passes validation
+	// as the last card, then the short-tail fold joins it back to the first card.
 	h.provider.mu.Lock()
 	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:20 AM","category":"Coding","subcategory":"","title":"before","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},{"start":"10:20 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"after","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
 	h.provider.mu.Unlock()
@@ -848,9 +847,8 @@ func TestPipelineReprocessPreservesStraddlingCardPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cards after reprocess: %v", err)
 	}
-	if len(cards) != 2 || cards[0].Start != "10:00 AM" || cards[0].End != "10:20 AM" ||
-		cards[1].Start != "10:20 AM" || cards[1].End != "10:30 AM" {
-		t.Fatalf("cards after reprocess = %+v, want continuous 10:00–10:30 coverage", cards)
+	if len(cards) != 1 || cards[0].Start != "10:00 AM" || cards[0].End != "10:30 AM" {
+		t.Fatalf("cards after reprocess = %+v, want the whole 10:00–10:30 span", cards)
 	}
 }
 
@@ -1244,6 +1242,45 @@ func TestPipelineMergeGateStaysShutWhenTheWindowIsBelowTheFloor(t *testing.T) {
 	}
 	if len(meta.ActivityPoints) != 1 || meta.ActivityPoints[0].Time != "10:05 AM" {
 		t.Fatalf("activityPoints = %+v, want only the in-window 10:05 AM point", meta.ActivityPoints)
+	}
+}
+
+// A batch can produce a normal card followed by a short last card. The last
+// card is exempt from the 15-minute validator, but it must get the same
+// adjacency fold that regenerating that short card would apply later.
+func TestPipelineFoldsShortLastOutputIntoEarlierOutput(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	first := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, first, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:25 AM","category":"Coding","subcategory":"","title":"coding","summary":"coding summary","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},{"start":"10:25 AM","end":"10:31 AM","category":"Communication","subcategory":"","title":"reply","summary":"reply summary","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, second, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v", h.failures)
+	}
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want the last short card folded on initial generation", cards)
+	}
+	if cards[0].Start != "10:00 AM" || cards[0].End != "10:31 AM" ||
+		cards[0].Category != "Coding" || cards[0].Title != "coding" {
+		t.Fatalf("merged card = %+v, want 10:00-10:31 Coding/coding", cards[0])
 	}
 }
 

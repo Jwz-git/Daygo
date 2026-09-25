@@ -236,3 +236,28 @@ func TestBuildMergedShellMajorityCategory(t *testing.T) {
 		t.Fatalf("merged appSites = %+v, want inherited Code when the majority named none", meta.AppSites)
 	}
 }
+
+func TestFoldShortOutputTailBoundaries(t *testing.T) {
+	loc := time.Local
+	at := func(h, m int) time.Time { return time.Date(2026, 9, 12, h, m, 0, 0, loc) }
+	tests := []struct {
+		name     string
+		pred     domain.CardShell
+		tail     domain.CardShell
+		wantFold bool
+	}{
+		{"adjacent six-minute tail", domain.CardShell{Start: "10:00 AM", End: "10:25 AM", Category: "Coding"}, domain.CardShell{Start: "10:25 AM", End: "10:31 AM", Category: "Communication"}, true},
+		{"thirteen-minute tail", domain.CardShell{Start: "10:00 AM", End: "10:18 AM", Category: "Coding"}, domain.CardShell{Start: "10:18 AM", End: "10:31 AM", Category: "Communication"}, false},
+		{"five-minute gap", domain.CardShell{Start: "10:00 AM", End: "10:20 AM", Category: "Coding"}, domain.CardShell{Start: "10:25 AM", End: "10:31 AM", Category: "Communication"}, false},
+		{"over sixty minutes combined", domain.CardShell{Start: "9:30 AM", End: "10:25 AM", Category: "Coding"}, domain.CardShell{Start: "10:25 AM", End: "10:31 AM", Category: "Communication"}, false},
+		{"idle predecessor", domain.CardShell{Start: "10:00 AM", End: "10:25 AM", Category: "Idle"}, domain.CardShell{Start: "10:25 AM", End: "10:31 AM", Category: "Communication"}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			shells := foldShortOutputTail([]domain.CardShell{tc.pred, tc.tail}, at(10, 0), at(10, 31), loc)
+			if got := len(shells) == 1; got != tc.wantFold {
+				t.Fatalf("folded = %v, want %v: %+v", got, tc.wantFold, shells)
+			}
+		})
+	}
+}

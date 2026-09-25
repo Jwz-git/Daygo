@@ -440,6 +440,7 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	if err != nil {
 		return err
 	}
+	shells = foldShortOutputTail(shells, ownedFrom, batch.End, s.loc())
 
 	// A short activity next to a cross-category neighbour would persist as an
 	// unreadable fragment: the ownership gate (mergeOwnershipStart) refuses to
@@ -605,6 +606,38 @@ func mergeableSmallPredecessor(cStart, cEnd time.Time, existing []domain.Timelin
 		return domain.TimelineCard{}, false
 	}
 	return pred, true
+}
+
+// foldShortOutputTail handles the case the validator deliberately exempts: a
+// short last card next to an earlier card in the same model output. The
+// committed-predecessor folds below only inspect the first output card, so
+// without this step an initial multi-card pass leaves a fragment that a later
+// single-card regeneration would fold into its predecessor.
+func foldShortOutputTail(shells []domain.CardShell, from, to time.Time, loc *time.Location) []domain.CardShell {
+	if len(shells) < 2 {
+		return shells
+	}
+	anchor := from.Add(to.Sub(from) / 2)
+	p := shells[len(shells)-2]
+	c := shells[len(shells)-1]
+	pStart, errPS := timeutil.ResolveClock(p.Start, anchor, loc)
+	pEnd, errPE := timeutil.ResolveClock(p.End, anchor, loc)
+	cStart, errCS := timeutil.ResolveClock(c.Start, anchor, loc)
+	cEnd, errCE := timeutil.ResolveClock(c.End, anchor, loc)
+	if errPS != nil || errPE != nil || errCS != nil || errCE != nil ||
+		!pEnd.After(pStart) || !cEnd.After(cStart) {
+		return shells
+	}
+	pred := domain.TimelineCard{
+		Start: p.Start, End: p.End, StartTs: pStart.Unix(), EndTs: pEnd.Unix(),
+		Category: p.Category, Subcategory: p.Subcategory, Title: p.Title,
+		Summary: p.Summary, DetailedSummary: p.DetailedSummary, Metadata: p.Metadata,
+	}
+	if _, ok := mergeableSingleCardPredecessor(cStart, cEnd, []domain.TimelineCard{pred}); !ok {
+		return shells
+	}
+	shells[len(shells)-2] = buildMergedShell(pred, c, cEnd.Sub(cStart))
+	return shells[:len(shells)-1]
 }
 
 // buildMergedShell fuses a card into an earlier committed predecessor across the
@@ -1200,6 +1233,7 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 	if err != nil {
 		return err
 	}
+	shells = foldShortOutputTail(shells, windowStart, windowEnd, s.loc())
 
 	// Short-card folds apply here exactly as in the batch pipeline (docs/04
 	// §4.3.1): the regenerated window is the card's own span, so a single output
