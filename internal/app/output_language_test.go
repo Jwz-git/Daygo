@@ -31,7 +31,14 @@ func TestResolveOutputLanguage_FollowsInterfaceLanguage(t *testing.T) {
 		want              string
 	}{
 		{"zh-CN", "zh-CN"},
+		{"zh-Hant", "zh-Hant"},
+		{"ja", "ja"},
+		{"ko", "ko"},
 		{"en", "en"},
+		{"de", "de"},
+		{"fr", "fr"},
+		{"es", "es"},
+		{"pt-BR", "pt-BR"},
 	}
 	for _, c := range cases {
 		got := resolveOutputLanguage(settings.Snapshot{

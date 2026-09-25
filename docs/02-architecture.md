@@ -198,11 +198,26 @@ Daygo/
   它装的是原生表面文案，见 [05 §5.5.1](05-interface-contract.md#551-绑定方法目录)）。
   key 命名 `<domain>.<区块>.<语义>`，
   camelCase，禁止用英文原文当 key。
+  已发布语言包：`zh-CN`（默认）、`zh-Hant`、`en`（回退）、`ja`、`ko`、`de`、`fr`、`es`、`pt-BR`。
 - 类型：语言包映射为 `Record<AppLocale, LocaleSchema>`，某个语言包缺 key 时 `vue-tsc`
   直接失败，而不是运行时静默回退。
-- 语言解析：已保存设置 → 跟随系统（`navigator.languages`）→ `zh-CN`。BCP 47 先经规范化
-  （`zh` / `zh-Hans*` → `zh-CN`，`en*` → `en`）。空串是"跟随系统"的哨兵值。
-- `<html>` 标记：切语言时同步更新 `lang` 与 `data-dg-lang-script`，后者驱动展示字体切换。
+- 加载：**只有默认语言 `zh-CN` 进初始 chunk**，其余语言包各自是惰性 chunk，切到该语言时才拉取。
+  加载器映射类型为 `Record<AppLocale, () => Promise<{ default: LocaleSchema }>>`，因此"新增语言
+  却忘了写加载器"和"语言包结构相对 zh-CN 漂移"仍然是编译错误。切语言是异步的，
+  `setLocale` 必须先完成加载再改 `<html>` 标记；`bootstrap()` 因此在首次挂载前 await 它。
+  加载失败时保持当前语言不变——默认语言始终在内存里，总有一个可回退的完整消息表，
+  不会把一个空表交给渲染层。
+- 语言解析：已保存设置 → 跟随系统（`navigator.languages`）→ `zh-CN`。BCP 47 先经规范化：
+  `zh` / `zh-Hans*` / `zh-CN` / `zh-SG` → `zh-CN`；`zh-Hant*` / `zh-TW` / `zh-HK` / `zh-MO`
+  → `zh-Hant`（**书写系统优先于地区**：`zh-Hant-CN` 按繁体处理）；`en*` → `en`；`ja*` → `ja`；
+  `ko*` → `ko`；`de*` → `de`；`fr*` → `fr`；`es*` → `es`；`pt*` → `pt-BR`；其余 → 未识别，
+  由调用方回退到默认语言。空串是"跟随系统"的哨兵值，且只有空串是——未识别与"跟随系统"必须可区分。
+  葡语是唯一按地区取标签的语言：巴西与欧洲葡语在普通 UI 用词上就分叉（`tela` / `ecrã`、
+  `salvar` / `guardar`），而德/法/西的地区变体没有这一层差异，因此折叠到单一语言包。
+  这张折叠表在 Go 侧有一份镜像（`settings.normalizeLanguage`），两侧必须逐项一致：界面渲染的是
+  折叠结果，而设置的权威存储是 Go 那一份，不一致就会出现"界面显示一种语言、设置里存的是另一种"。
+- `<html>` 标记：切语言时同步更新 `lang` 与 `data-dg-lang-script`（`hans` / `hant` / `jpan` /
+  `kore` / `latn`），后者驱动字体分栈与展示字距。
 - 日期：逻辑日 `day` 与日历日 `standupDay` 只能来自后端；卡片时钟串 `start`/`end` 原样
   渲染，不解析不重排（[05 §5.3.2](05-interface-contract.md#532-时间与日期)）。
 

@@ -472,20 +472,65 @@ func parseLooseClockTime(value string) (int, int, bool) {
 // normalizeLanguage applies the BCP 47 folding from docs/02 §2.5.1. The empty
 // string is preserved: it is the one documented sentinel (docs/05 §5.3.3) and
 // means "follow the system".
+//
+// Must stay in lockstep with normalizeLocale in frontend/src/i18n/locales.ts:
+// the UI renders whatever this folded value names, so a tag that folds
+// differently on the two sides shows one language and stores another.
 func normalizeLanguage(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""
 	}
-	lowered := strings.ToLower(value)
+	lowered := strings.ToLower(strings.ReplaceAll(value, "_", "-"))
 	switch {
-	case lowered == "zh" || strings.HasPrefix(lowered, "zh-hans") || strings.HasPrefix(lowered, "zh-cn"):
+	// Script beats region: zh-Hant-CN is Traditional by the writer's own
+	// declaration, so Hant is tested before the region list. A bare "zh" is
+	// Simplified, the more common reading.
+	case hasLanguagePrefix(lowered, "zh") && hasAnyPrefix(lowered, traditionalChinesePrefixes):
+		return "zh-Hant"
+	case hasLanguagePrefix(lowered, "zh"):
 		return "zh-CN"
-	case strings.HasPrefix(lowered, "en"):
+	case hasLanguagePrefix(lowered, "ja"):
+		return "ja"
+	case hasLanguagePrefix(lowered, "ko"):
+		return "ko"
+	case hasLanguagePrefix(lowered, "en"):
 		return "en"
+	case hasLanguagePrefix(lowered, "de"):
+		return "de"
+	case hasLanguagePrefix(lowered, "fr"):
+		return "fr"
+	case hasLanguagePrefix(lowered, "es"):
+		return "es"
+	// Every Portuguese region ships the Brazilian bundle: it is the larger
+	// audience and the de-facto default written standard in software, and the
+	// two standards diverge on ordinary UI vocabulary (tela/ecrã).
+	case hasLanguagePrefix(lowered, "pt"):
+		return "pt-BR"
 	default:
 		return DefaultLanguage
 	}
+}
+
+// traditionalChinesePrefixes are the tags that name a script or a region where
+// Traditional Chinese is the norm; all of them resolve to the single zh-Hant
+// bundle Daygo ships.
+var traditionalChinesePrefixes = []string{"zh-hant", "zh-tw", "zh-hk", "zh-mo"}
+
+// hasLanguagePrefix reports whether lowered is the primary subtag itself or a
+// tag beginning with it. Matching on the "-" boundary keeps "ja" from claiming
+// an unrelated tag that merely starts with those letters.
+func hasLanguagePrefix(lowered, primary string) bool {
+	return lowered == primary || strings.HasPrefix(lowered, primary+"-")
+}
+
+func hasAnyPrefix(lowered string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(lowered, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // normalizeMember returns value when it belongs to allowed, otherwise fallback.

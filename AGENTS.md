@@ -203,7 +203,10 @@ Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 
 - 保持严格类型检查，**不使用 `any` 绕过 Wails 边界**；需要逃逸时用显式 `unknown` + 解析函数。
 - Wails payload 使用显式、稳定的 DTO；领域转换放在薄 wrapper 或 store。
 - 组件负责呈现与交互；数据查询、轮询、业务聚合和事件订阅放在 store/`api/`。
-- 所有用户可见文案经 `vue-i18n`；`zh-CN` 是默认语言且是 key 结构的类型来源，`en` 为回退。
+- 所有用户可见文案经 `vue-i18n`；`zh-CN` 是默认语言且是 key 结构的类型来源，`en` 为回退，
+  另有 `zh-Hant` / `ja` / `ko` / `de` / `fr` / `es` / `pt-BR`。**新增或改动文案时必须同时改
+  全部语言包**——缺 key `vue-tsc` 会直接失败；与英文逐字相同的值会被
+  `tests/i18nKeys.test.ts` 当作漏译拦下。
 - localStorage 只能经 `frontend/src/storage/`，用带版本信封的记录存放。**密钥不得进入该层。**
 - 写操作后不做乐观更新，等事件后重新拉取。
 
