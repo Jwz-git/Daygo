@@ -19,9 +19,8 @@ Windows 发布也保持待决。CLI / agent socket / MCP 已移交
 > **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
 
 **当前“自动更新”的实现形式**：GitHub Actions 的 [发布工作流](../../.github/workflows/publish-release.yml)
-在 Release 发布后检查资产，缺少时构建并上传 macOS DMG 与 Windows NSIS 安装器；普通发布不生成
-`appcast.xml`，供手动下载安装。仅显式启用签名更新源且两端资产通过正式签名 / 公证验证时，
-才为正式版生成、上传 Ed25519 签名的 `appcast.xml`。预发布跳过 appcast；手动触发支持处理已有
+在 Release 发布后检查资产，缺少时构建并上传 macOS DMG 与 Windows NSIS 安装器；正式版在两端资产
+齐备并完成 Ed25519 签名后生成、上传 `appcast.xml`。预发布跳过 appcast；手动触发支持处理已有
 Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路径，不能用工作流源码或资产上传
 代替真实升级记录。
 
@@ -45,9 +44,8 @@ Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
 [Windows 决策](../decisions/delivery-auto-update-windows.md)接线：fake 契约、绑定、事件泵、设置 UI、
 Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow
 均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
-客户端 feed 指向同一正式 Release 的 `appcast.xml`；普通无正式签名发布时该 URL 持续返回 404，
-应用内自动更新不可用，须手动下载安装。启用签名更新源后，发布到 appcast 上传之间仍可能短暂
-返回 404；预发布提升为正式版后，可按同一 tag 手动触发工作流并核验资产。签名、公证、安装升级与首次引导
+客户端 feed 指向同一正式 Release 的 `appcast.xml`。发布到 appcast 上传之间可能短暂返回 404；
+预发布提升为正式版后，可按同一 tag 手动触发工作流并核验资产。签名、公证、安装升级与首次引导
 的用户确认状态见本节开头；历史运行记录仍按下文原日期保留。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 **2026-09-21：更新弹窗中属于我们的那句文案接入 i18n**（“只有持有捕获所有权的 Daygo 实例
@@ -130,13 +128,13 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
-2026-09-25：用户明确不准备申请 macOS Developer ID / Windows Authenticode 等正式签名材料。
-发布工作流保留自动构建 / 上传安装器，但将正式身份验证与 appcast 生成改为显式 opt-in
-（`DAYGO_SIGNED_RELEASE_APPCAST=true`）；默认无证书发布只供手动下载安装。已有 unsigned 资产
-不会在重跑时自动重建。此变更只验证了工作流源码；无证书包的干净机安装与真机升级未验收，
-也不把工作流成功当作 G-native 通过。
+2026-09-25：移除正式 Release appcast 前的 macOS Developer ID / 公证和 Windows Authenticode
+验证任务；两端安装器齐备后仍用既有 Ed25519 密钥签最终资产并生成 `appcast.xml`。这恢复了客户端
+发现更新所需的 feed，不证明无正式平台证书时 Sparkle / WinSparkle 的真实安装升级可用。
+GitHub Actions 实跑、干净机安装和升级仍待验证；缺少 `SPARKLE_ED25519_PRIVATE_KEY` 时 appcast
+任务失败且不上传 feed。
 
-2026-09-25：修复更新与权限重启的失败关闭路径。`Recorder.Stop` 现在把活跃段收尾及均摊失败返回给调用方；macOS Sparkle 在可拒绝的 `shouldProceedWithUpdate` 阶段准备更新，失败即拒绝，取消或下载失败后解除录制闸门并恢复此前正在捕获的录制。此策略会在发现可用更新后暂停捕获，直到更新完成或用户取消；仍需 macOS 真机验证 Sparkle 回调顺序与这一暂停窗口。授权重启若收尾或 relaunch 调度失败会保留当前进程，绑定返回错误。正式 appcast 现需通过已发布 macOS DMG 的 Developer ID、Team ID、公证票据与 Gatekeeper 验证，以及 Windows 安装器的有效 Authenticode 和证书指纹验证；生成前再次比对资产 SHA-256。`DAYGO_MAC_TEAM_ID` 和 `DAYGO_WIN_SIGNER_THUMBPRINT` 尚需配置于受保护的 `release` environment；缺失时正式 appcast 不生成。源码和夹具验证不代替真实安装、升级或权限真机验收。
+2026-09-25：修复更新与权限重启的失败关闭路径。`Recorder.Stop` 现在把活跃段收尾及均摊失败返回给调用方；macOS Sparkle 在可拒绝的 `shouldProceedWithUpdate` 阶段准备更新，失败即拒绝，取消或下载失败后解除录制闸门并恢复此前正在捕获的录制。此策略会在发现可用更新后暂停捕获，直到更新完成或用户取消；仍需 macOS 真机验证 Sparkle 回调顺序与这一暂停窗口。授权重启若收尾或 relaunch 调度失败会保留当前进程，绑定返回错误。曾添加正式平台签名验证作为 appcast 前置，但本日按用户无正式平台证书且需维持更新源的要求移除；源码和夹具验证不代替真实安装、升级或权限真机验收。
 
 2026-09-23：Windows WinSparkle 发现更新回调记录“版本未知”的可用状态并发送事件；Windows 测试源码通过 `GOOS=windows CGO_ENABLED=0 go test ./internal/platform/windows -run '^$' -exec true` 交叉编译。尚未在 Windows 真机触发回调；WinSparkle 回调不提供版本字符串，界面使用无版本号的本地化文案。
 

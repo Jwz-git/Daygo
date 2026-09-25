@@ -14,8 +14,10 @@ NSIS 将 `WinSparkle.dll` 与 `Daygo.exe`、`daygo_windows_native.dll` 一起安
 
 `win_sparkle_set_can_shutdown_callback` 只允许同时持有写锁和捕获锁的实例安装，并在返回允许前同步
 停止 recorder、收尾活跃分段；随后 `win_sparkle_set_shutdown_request_callback` 走 Wails 真退出。
-appcast 和安装器必须同时通过 Ed25519 与 Authenticode 两层验证。私钥只在本机钥匙串和受保护的
-GitHub Actions Secret，客户端只包含公钥。
+更新安装器必须通过 Ed25519 验证；有 Authenticode 证书时再提供平台签名。2026-09-25 用户决定
+不申请正式平台签名材料，发布工作流不再以 Authenticode 验证阻止 appcast 生成。
+Ed25519 私钥只在本机钥匙串和受保护的 GitHub Actions Secret，客户端只包含公钥。无 Authenticode
+时的真实安装与升级仍须在 Windows 真机验收，不能因 feed 可用就标记完成。
 
 ## 回退与验收
 

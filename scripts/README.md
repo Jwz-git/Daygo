@@ -112,27 +112,20 @@ interactive and silent install/uninstall, upgrade, and clean-machine startup.
 Anything that fits in `go run ./cmd/foo` or `npm run foo` does not belong
 here — the project's own build/test runners are the right home for it.
 
-## Release assets and optional signed appcast
+## Release appcast signing
 
-`.github/workflows/publish-release.yml` builds missing installers after a GitHub Release is published.
-Without platform certificates, it publishes the macOS DMG (self-signed when `DAYGO_DEV_CERT_P12_*` is configured,
-otherwise ad-hoc signed) and unsigned Windows installer for manual download. This path needs no `release`
-environment secrets. It does not publish `appcast.xml`, so in-app automatic updates have no feed.
-
-The signed appcast path is opt-in: set the repository variable `DAYGO_SIGNED_RELEASE_APPCAST=true` only after both
-final release assets have been signed externally and the macOS DMG has been notarized. Upload those assets before
-rerunning the workflow for that tag; the prepare job skips existing assets. The `verify_*` jobs then use the protected
-`release` environment to check the downloaded assets. They require these secrets:
+`.github/workflows/publish-release.yml` builds missing installers for a published Release. A formal release then
+downloads both final assets, signs their bytes with Sparkle Ed25519, and uploads `appcast.xml`. The appcast job uses the
+protected `release` environment and requires `SPARKLE_ED25519_PRIVATE_KEY`; if the key or an asset is missing, the
+job fails without uploading an appcast. Prereleases skip it. Developer ID, notarization, and Authenticode certificates
+are not inputs to the appcast job.
 
 - `SPARKLE_ED25519_PRIVATE_KEY` — already generated; also retained in the local macOS keychain.
-- `DAYGO_MAC_TEAM_ID` / `DAYGO_WIN_SIGNER_THUMBPRINT` — protected `release` environment values that pin the macOS Developer ID team and Windows Authenticode certificate for formal appcast generation. Missing or mismatched values stop the appcast job; the verifier also checks notarization, installed binaries and asset hashes.
 
-The workflow does not import Developer ID or Authenticode certificates. The opt-in verifier expects already signed
-assets; the signing and notarization process would need to be supplied separately.
-
-With the opt-in flag, a formal `vX.Y.Z` Release gets `appcast.xml` only after both identity checks pass. Sparkle Ed25519
-signs the final asset bytes. Prereleases always skip the appcast. A missing or mismatched certificate leaves the appcast
-absent. The `releases/latest` URL returns 404 while the appcast is absent, including for ordinary manual-download
-releases. The `release` environment retains the signing secret but has no required reviewer.
+The Ed25519 signature authenticates the update archive to Sparkle and WinSparkle. It does not give the macOS installer
+Apple Developer ID / Gatekeeper trust or the Windows installer Authenticode / SmartScreen reputation. Those platform
+identities and an actual installed-app upgrade remain separately unverified. The `releases/latest` URL can return 404
+between publishing a formal Release and uploading the appcast. After promoting a prerelease, manually dispatch the
+workflow with its tag and check that the appcast exists. Existing installers are reused by the prepare job.
 For an existing published Release whose original event was skipped or missed, use the workflow's manual dispatch with
 its `tag` input. The prepare job checks the live Release state before building.
