@@ -114,7 +114,6 @@ openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
 P12_PASSWORD="$(openssl rand -base64 24)"
 printf '%s' "$P12_PASSWORD" > "$WORK_DIR/identity.password"
 openssl pkcs12 -export \
-  -legacy \
   -keypbe PBE-SHA1-3DES \
   -certpbe PBE-SHA1-3DES \
   -macalg sha1 \

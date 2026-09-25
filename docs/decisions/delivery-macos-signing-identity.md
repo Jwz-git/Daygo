@@ -31,8 +31,9 @@ Terminal 启动 `wails dev` 能录制，是 "responsible process" 机制把权�
 其中 `certificate leaf` 锚定这张证书本身。因此只有当**每个发布版本都用同一张证书签名**时 DR 才稳定、TCC
 授权才跨更新保留。本地开发把证书存在 login keychain 里，CI 则把同一张证书的 p12 存进 GitHub Secret，
 每次发布都用它签名（见 §3.1）。Sparkle 的更新信任锚是不变的 EdDSA 归档签名（非代码签名，见
-[自动更新决策](delivery-auto-update.md)），所以从旧 ad-hoc 包升到首个自签名包也能被接受——代价只是首版
-DR 变一次、需重授权一次，此后永久保留。
+[自动更新决策](delivery-auto-update.md)）；从旧 ad-hoc 包升级到首个自签名包仍须真机验证 Sparkle 是否接受。
+该次 DR 会变化，预计需重授权一次；之后只有在证书、Bundle ID 等身份条件保持稳定且真实升级验证通过时，
+才能说授权跨版本保留。
 
 ## 2. 三条签名路径
 
@@ -52,7 +53,7 @@ DR 变一次、需重授权一次，此后永久保留。
 [`scripts/dev-cert-macos.sh`](../../scripts/dev-cert-macos.sh)（幂等，已存在则跳过）：
 
 - `openssl req -x509` 生成带 `codeSigning` EKU + `digitalSignature` keyUsage（均 critical）的自签名证书；
-- 打包成无口令 PKCS#12，`security import -T /usr/bin/codesign` 导入 login keychain；
+- 打包成随机口令保护的、兼容 macOS 钥匙串的 PKCS#12，`security import -T /usr/bin/codesign` 导入 login keychain；
 - `security set-key-partition-list` 预授权 codesign 非交互使用私钥（需 keychain 密码，脚本会提示）。
 
 证书**无需设为受信任**：codesign 嵌入签名只要 identity 在 keychain 且有 codeSigning EKU 即可；
@@ -101,5 +102,6 @@ EdDSA 私钥才能过 Sparkle 更新校验，且该证书非 Apple 身份、不�
   公证可行性属 [G-native](../09-roadmap.md#94-全局门禁与阻塞范围)，未验证。
 - **同签名重启 / 升级身份**：providers 密钥与录制授权在同一稳定身份下重启、升级后是否保持，
   是 G-native 的验收项，本切片不覆盖。
-- Developer ID 就绪后改传 `DAYGO_SIGN_IDENTITY` + `DAYGO_NOTARY_PROFILE`（`package-macos.sh` 已支持），
-  同时解决 Gatekeeper；EdDSA 锚不变，可平滑切换。未经用户明确要求不产出 release 产物。
+- Developer ID 就绪后可改传 `DAYGO_SIGN_IDENTITY` + `DAYGO_NOTARY_PROFILE`（`package-macos.sh` 已支持），
+  以取得 Gatekeeper 的正式分发身份。EdDSA 锚可保持不变，但代码签名 DR 将改变，屏幕录制授权预计需要
+  再迁移一次；Sparkle 安装及钥匙串身份也须实测。未经用户明确要求不产出 release 产物。

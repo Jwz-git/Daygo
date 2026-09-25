@@ -111,8 +111,9 @@ jobs:
           security import "$p12" -k "$keychain" -P "$DAYGO_DEV_CERT_P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" >/dev/null
           certificate="$(security find-certificate -c 'Daygo Dev' -p "$keychain")"
-          fingerprint="$(printf '%s' "$certificate" | openssl x509 -noout -fingerprint -sha256)"
-          expected_fingerprint='sha256 Fingerprint=FB:FF:43:8B:AF:28:6B:BA:81:6F:11:24:B6:35:B9:5D:D9:39:82:59:AE:EB:22:C9:39:99:49:75:3B:EC:94:B4'
+          # OpenSSL and LibreSSL vary the case of the "SHA256 Fingerprint" label.
+          fingerprint="$(printf '%s' "$certificate" | /usr/bin/openssl x509 -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          expected_fingerprint='FBFF438BAF286BBA816F1124B635B95DD9398259AEEB22C9399949753BEC94B4'
           [[ "$fingerprint" == "$expected_fingerprint" ]] || {
             echo 'Imported Daygo certificate fingerprint does not match the pinned release identity.' >&2
             exit 1
