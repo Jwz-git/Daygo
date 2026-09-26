@@ -509,24 +509,28 @@ func dg_frame_decode(
     outData.pointee = nil
     outLen.pointee = 0
 
-    do {
-        let recordingsDir = try decodeUTF8(recordingsDirView, maximumBytes: maximumPathBytes, allowEmpty: false)
-        let segmentRelPath = try decodeUTF8(segmentRelPathView, maximumBytes: maximumPathBytes, allowEmpty: false)
-        let data = try SegmentReader.shared.decodeFrame(
-            recordingsDir: recordingsDir,
-            segmentRelPath: segmentRelPath,
-            frameIndex: Int(frameIndex),
-            maxPixelSize: Int(maxPixelSize)
-        )
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
-        data.copyBytes(to: buffer, count: data.count)
-        outData.pointee = buffer
-        outLen.pointee = UInt64(data.count)
-        return Int32(DG_CAPTURE_OK)
-    } catch let failure as ScreenshotFailure {
-        return writeFailure(failure, to: nil)
-    } catch {
-        return Int32(DG_CAPTURE_E_IO)
+    // Go calls this ABI off the AppKit event loop. Drain Foundation/media
+    // temporaries per decode; the explicitly allocated result survives the pool.
+    return autoreleasepool {
+        do {
+            let recordingsDir = try decodeUTF8(recordingsDirView, maximumBytes: maximumPathBytes, allowEmpty: false)
+            let segmentRelPath = try decodeUTF8(segmentRelPathView, maximumBytes: maximumPathBytes, allowEmpty: false)
+            let data = try SegmentReader.shared.decodeFrame(
+                recordingsDir: recordingsDir,
+                segmentRelPath: segmentRelPath,
+                frameIndex: Int(frameIndex),
+                maxPixelSize: Int(maxPixelSize)
+            )
+            let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
+            data.copyBytes(to: buffer, count: data.count)
+            outData.pointee = buffer
+            outLen.pointee = UInt64(data.count)
+            return Int32(DG_CAPTURE_OK)
+        } catch let failure as ScreenshotFailure {
+            return writeFailure(failure, to: nil)
+        } catch {
+            return Int32(DG_CAPTURE_E_IO)
+        }
     }
 }
 

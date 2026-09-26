@@ -19,6 +19,14 @@
 
 ## 当前状态与证据
 
+2026-09-26：macOS 解码 ABI 增加每次调用的 `autoreleasepool`，保留 reader 取消和独立
+C 输出缓冲的所有权。新增匿名 1080p 多段 / 并发 / 缩略图 / 错误恢复夹具，验证返回缓冲不会
+被后续调用改写。`native/darwin/build.sh`、强制重新链接的原生测试和 `./scripts/gate.sh` 通过。
+`DAYGO_NATIVE_MEMORY=1 go test -a ./internal/platform/darwin -run '^TestNativeDecodeMemoryPlateau$' -count=1 -v`
+在三个独立进程中，300→600 次解码的静置 footprint 分别为 71.1→70.8、59.5→59.5、
+59.7→57.4 MiB，均未超过 5 MiB 增量上限；修改前同一夹具为 77.2→94.8 MiB，失败。
+测试内 Go GC 仅用于隔离原生保留，不是生产释放策略。24 小时与 14 天真实应用观察仍待验证。
+
 2026-09-23：macOS HEVC 单帧读取补充资源收尾。`SegmentReader.decodeFrame` 在
 `AVAssetReader.startReading()` 成功后，无论解码成功、帧缺失还是 JPEG 编码失败，均调用
 `cancelReading()` 结束该次 CoreMedia 读取。此前每次读取只取一个样本，不会自然读到文件末尾，
