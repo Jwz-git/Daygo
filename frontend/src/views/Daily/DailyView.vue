@@ -202,9 +202,12 @@ onBeforeUnmount(() => daily.stopListening())
 }
 
 .daily-intro span {
+  display: inline-block;
   color: var(--dg-accent-text);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .daily-intro h2 {

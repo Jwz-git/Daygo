@@ -77,13 +77,15 @@ const paused = computed(() => props.state === 'paused')
   height: 4px;
   border-radius: 1.5px;
   background: var(--dg-accent);
-  opacity: 0.25;
-  animation: gen-wave 1.7s infinite;
+  opacity: 0.3;
+  /* ease-in-out per segment + a raised floor turns the per-cell stagger into a
+     smooth travelling swell rather than a hard blink. */
+  animation: gen-wave 1.9s ease-in-out infinite;
 }
 
 @keyframes gen-wave {
-  0%, 55%, 100% { opacity: 0.25; }
-  18% { opacity: 1; }
+  0%, 62%, 100% { opacity: 0.3; }
+  22% { opacity: 1; }
 }
 
 .gen-card__hold {

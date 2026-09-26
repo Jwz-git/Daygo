@@ -287,14 +287,24 @@ const { t } = useI18n()
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 1.5px solid var(--dg-chip-border);
-  border-top-color: var(--dg-accent);
-  animation: ct-spin 700ms linear infinite;
+  /* Tapered conic tail masked into a ring — reads as a considered loader rather
+     than the flat single-segment border spin. Constant (linear) rotation is
+     correct for a continuous spinner; easing it would wobble. */
+  background: conic-gradient(from 0deg, transparent 8%, var(--dg-accent));
+  -webkit-mask: radial-gradient(closest-side, transparent 58%, #000 60%);
+  mask: radial-gradient(closest-side, transparent 58%, #000 60%);
+  animation: ct-spin 900ms linear infinite;
 }
 
 @keyframes ct-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct__spinner {
+    animation: none;
   }
 }
 
