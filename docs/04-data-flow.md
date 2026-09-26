@@ -1,7 +1,8 @@
 # 04 数据流
 
 > 本文追踪四条流水线，并锁定行为测试必须固定的常量与启发式规则。所有涉及系统 API 的
-> 步骤标注 **待定设计**——本文只定义*该步骤必须做到什么*，不定义用什么实现。
+> 步骤的实现与选型分别记录；已有实现见 [06](06-native-integration.md)，仍未决项见
+> [09 §9.8](09-roadmap.md#98-待定设计清单)。本文不把目标行为当成实现证据。
 
 流水线的执行归属：recording 交付捕获与分段交接；data 交付连接 / 写入封装和维护；
 timeline 交付分析与卡片；呈现由各功能的 app / store / UI 切片完成。
@@ -84,6 +85,7 @@ DXGI 为主路径。无论哪条原生路径，Go 侧都只接收一个 `Capture
 这与"UI 层的无操作提示"是两套无关机制，不要混用同一份数据。
 
 系统 API：**待定设计**。
+当前未接入真实空闲采样，`idle_seconds_at_capture` 为 NULL；空闲短路夹具通过不表示实际录制已产生空闲信号。
 
 ### 4.1.5 睡眠 / 唤醒 / 锁屏
 
@@ -115,7 +117,9 @@ idle ──启动──> starting ──就绪──> capturing
 每次停止都要收尾当前分段，**分段绝不跨越睡眠保持打开**。唤醒后延迟 5 秒是因为刚唤醒时
 系统返回的显示器列表可能是过期的。
 
-事件来源 API：**待定设计**。
+macOS / Windows 的原生系统事件与 Go 状态机已接入；正式订阅方式的汇总决策仍见
+[09 §9.8 #3](09-roadmap.md#98-待定设计清单)。2026-09-26 macOS 另将关机 / 注销路由为独立退出意图，
+普通收尾失败保留应用，系统终止尽力收尾且不触发授权自重启；见 [生命周期决策](decisions/lifecycle-quit-model.md)。
 
 ### 4.1.6 崩溃恢复
 
@@ -130,7 +134,7 @@ idle ──启动──> starting ──就绪──> capturing
 ```mermaid
 flowchart TD
     subgraph W["写入路径 —— 唯一写入方是 Go"]
-        CAP["捕获 → pending/staging → closed segment + screenshots"]
+        CAP["捕获 → 直接追加帧段 + pending / screenshots → 收尾与大小均摊（legacy JPEG 兼容）"]
         SCH["调度器 → analysis_batches + batch_screenshots"]
         PIPE["流水线 → observations + timeline_cards"]
         UI["绑定写方法 → 卡片 / 设置 / 分类 / 日记 / 目标"]

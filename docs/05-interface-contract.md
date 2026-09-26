@@ -93,7 +93,9 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
-上表只说明绑定与本地实现已存在。G-host、真实 Provider、签名后密钥身份与长期门禁由用户于 2026-09-22 确认验收；逐项运行记录尚未附入仓库，见 [09 §9.1](09-roadmap.md#91-模块总表)。
+上表只说明绑定与本地实现已存在。2026-09-26 用户确认所有已实现能力（含近期增量、长期观察与
+现有身份下真实安装升级）已验收；未附逐项运行记录，正式证书缺失与未实现功能保持原状态。
+确认代码范围与历史证据边界见 [09 §9.1.1](09-roadmap.md#911-本轮验收记录与证据边界)。
 fake 的覆盖以 §5.7.4 为准。
 
 > **绑定对象上的导出方法就是前端 API。** Wails 绑定会导出绑定对象的**每一个**导出方法，
@@ -1569,13 +1571,14 @@ JSON 输出（`--json`）规则：
 | 路径 | `~/Library/Application Support/Daygo/agent.sock` |
 | 权限 | `0600`（文件权限就是访问控制） |
 | 帧格式 | 一次连接一行 JSON 请求、一行 JSON 响应，然后关闭 |
-| 请求 | `{"protocol_version":1,"operation":"...","arguments":{...}}` |
+| 请求 | `{"protocol_version":1,"operation":"...","arguments":{...},"source":"mcp"}`；`source` 可省略 |
 | 响应 | `{"ok":true,"data":{...}}` 或 `{"ok":false,"error":{"code":"...","message":"..."}}` |
 | 上限 | 请求与响应各 1 MB |
 | 门禁 | `system.agentEditsEnabled` 为 false 时返回 `edits_disabled`，且**服务端独立校验**，不信任客户端检查 |
 | 操作 | `category_add` `category_update` `category_remove` `card_update` `card_delete` `goal_set` |
 | 错误码 | `protocol_error` `protocol_mismatch` `edits_disabled` `invalid_argument` `not_found` `unknown_operation` `internal_error` |
-| 审计 | 每次成功写入追加 `agent-writes.log` |
+| 来源 | `source` 封闭为 `agent.sock` / `cli` / `mcp`，省略默认 `agent.sock`；未知值报 `protocol_error`；仅作审计标签，不是授权证明 |
+| 审计 | 每次成功写入追加 `agent-writes.log`，只记时间 / 来源 / 操作，不记参数；UI / chat 当前不经过此日志 |
 
 **写入必须与绑定层走同一条服务路径**（同样的校验、同样的事件），否则外部 agent 改了数据
 而 UI 不刷新，或绕过了分类名校验。
@@ -1592,7 +1595,7 @@ MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当�
 
 | 约束 | 值 | 理由 |
 |------|-----|------|
-| 工具读面 | 与 §5.9.1 CLI 读命令同源：timeline / card / daily / weekly / categories / search | 一套查询语义，两处实现会漂移 |
+| 工具读面 | 与 §5.9.1 CLI 同源；已实现 timeline / card / daily / weekly / categories 五读，search 未实现 | 一套查询语义，两处实现会漂移；不能把目标 search 写成当前工具 |
 | 工具写面 | 操作集不超出 §5.9.2 的六个操作 | 不为 MCP 引入绑定层没有的写能力 |
 | 写入路径 | 与绑定层同一条服务路径：同校验、同事件、同 `edits_disabled` 门禁（服务端独立校验） | 外部写入后 UI 必须刷新；门禁不能靠客户端自律 |
 | 输出信封 | 复用 `schema_version`（初始 1），JSON 规则同 §5.9.1（键排序、时间格式、空值省略） | 一个版本域服务所有对外 JSON，diff 门禁共用 |
@@ -1606,8 +1609,8 @@ MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当�
 |--------|------|-----------|
 | 传输与进程模型 | **stdio**：MCP 客户端拉起 `daygo mcp` 子进程 | 独立进程，与 CLI 同构：读走只读 DB（`SQLITE_OPEN_READONLY` + `query_only`，`DAYGO_DB` 可覆盖），写走 `agent.sock`。无需端口与鉴权，权限模型沿用 0600 socket + `agentEditsEnabled` |
 | | **Streamable HTTP**：宿主内常驻服务 | 读写可直达服务层（等价于又一个绑定层消费者），但需要本地回环监听、端口选择与鉴权设计，扩大攻击面 |
-| 工具粒度与命名 | 逐命令映射（`daygo_timeline` …）vs 粗粒度查询工具 | 决策随传输一起落；命名进 `schema_version` 冻结范围 |
-| 审计归属 | MCP 写入在 `agent-writes.log` 中的来源标记 | 需要区分 UI / CLI / MCP 三种写入来源时一并定 |
+| 工具粒度与命名 | 已选逐命令映射（`daygo_timeline` …），粗粒度查询保留为候选 | 已实现五读六写；命名进 `schema_version` 冻结范围 |
+| 审计归属 | 已实现 `source=mcp` 的外部写入审计 | 仅覆盖 socket / CLI / MCP；UI / chat 独立写入审计仍未实现 |
 
 无论选哪种候选，上表"已定约束"不变；特别是**stdio 形态的 MCP 写入与 CLI 写入一样只能经
 `agent.sock`**，不得为省一跳而开第二条直连数据库的写路径。

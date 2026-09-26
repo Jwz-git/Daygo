@@ -30,7 +30,7 @@ flowchart TD
             AIM["ai — provider 注册表、路由、重试"]
             INSIGHT["insight — 时间线、每日、每周"]
             CHAT["chat — 应用内对话式 agent：问答与沙箱内受控编辑（已部分实现，v1 不交付）"]
-            AGENT["agent — 对外接口：agentbridge 写入通道 / MCP 工具面（未开始）"]
+            AGENT["agent — CLI 只读查询 / agentbridge 写入通道 / MCP 工具面（基础实现，v1 不交付）"]
         end
         subgraph FOUND["foundation"]
             direction TB
@@ -102,8 +102,7 @@ flowchart TD
 ```text
 Daygo/
 ├── cmd/
-│   ├── daygo/                       ★ Wails 入口 + wails.json
-│   └── daygo-cli/                   ☐ 只读 CLI（推迟到 v1.1）
+│   └── daygo/                       ★ Wails 入口 + CLI / mcp 子命令 + wails.json
 │
 ├── internal/
 │   ├── app/                         ★ 生命周期、绑定 API、事件、资源处理器；唯一知道 Wails 的层
@@ -112,7 +111,7 @@ Daygo/
 │   │   │                               timeline / daily / weekly / chat / media / recording / 诊断）
 │   │   ├── events.go                ★ 事件名常量；emitter_wails.go 事件发布（接口化）
 │   │   ├── backend.go               ★ 绑定对象与启动装配（含生命周期编排）
-│   │   └── lifecycle.go             ☐ 优雅关闭等长驻宿主细节
+│   │   └── ui_visibility.go         ★ 窗口可见性；退出编排在 app.go / backend.go
 │   │
 │   ├── storage/                     ★ 唯一 SQLite 写入方与 schema owner
 │   │   ├── open.go store.go pragma.go     连接、模式、可观测读写封装
@@ -134,7 +133,7 @@ Daygo/
 │   │   ├── ports.go types.go enums.go application.go
 │   │   ├── fake/                    ★ Capture / System 的确定性实现，全平台可跑
 │   │   ├── platformtest/            ★ fake 与真实适配层共用的契约套件
-│   │   ├── secrets/                 ★ Secrets 端口实现：fake、macOS Keychain、Linux Secret Service
+│   │   ├── secrets/                 ★ fake、macOS Keychain、Windows Credential Manager、Linux Secret Service
 │   │   ├── mediafile/               ★ Media 实现：从录制目录读单帧 JPEG
 │   │   ├── factory/                 ★ 按平台组装适配器
 │   │   ├── darwin/                  ★ cgo → ScreenCaptureKit（+ System / 状态栏 ABI）
@@ -146,8 +145,9 @@ Daygo/
 │   ├── chat/                        ★ 应用内对话 agent：回合状态机、工具沙箱与预算（v1 不交付；契约见 05 §5.12）
 │   ├── recorder/                    ★ 常驻录制：四状态机、定时捕获、staging 提交与对账
 │   ├── media/                       ☐ 已解码帧的有界 LRU（字节，不是图像对象）
-│   ├── agentbridge/                 ☐ 外部写入通道（agent 模块，推迟到 v1.1）
-│   ├── mcp/                         ☐ MCP 工具面（agent 模块，推迟；传输与进程模型见 05 §5.9.3）
+│   ├── agentcli/                    ★ 主二进制 CLI 子命令（读库只读；写经 socket，v1 不交付）
+│   ├── agentbridge/                 ★ 0600 socket、服务端写门禁与来源审计（v1 不交付）
+│   ├── mcp/                         ★ stdio 五读六写工具面（v1 不交付，见 05 §5.9.3）
 │   └── telemetry/                   ☐
 │
 ├── native/                          ★ 原生实现，两平台共用一份 C ABI
@@ -187,6 +187,7 @@ Daygo/
 - **禁止 `any` 跨越 Wails 边界。** 需要逃逸时用显式 `unknown` + 解析函数。
 - **写操作后不做乐观更新**（卡片、设置、分类），等对应事件后重新拉取。
 - **所有用户可见文案经 `vue-i18n`**，`zh-CN` 默认且是 key 结构的类型来源，`en` 为回退。
+  新增 / 改动文案同步九种语言；原生菜单与安装器同步各自本地化入口，见下文 i18n 规格。
 - **localStorage 只能经 `storage/`**，用带版本信封的记录存放，key 表集中在
   `storage/keys.ts`，分组与 `SettingsDTO` 对齐。**密钥不得进入该层。**
 

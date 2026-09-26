@@ -7,8 +7,8 @@
 签名、公证、身份和更新可行性要早做有限实验，完整发行只组合已验收模块。
 本执行册不授权生成、修改或发布 release 产物；实际发布须用户明确要求。
 Chat 已有部分实现，但 v1 明确不交付，v1.1 是否纳入留待后续评估，见 [chat 模块](chat.md)；
-Windows 发布也保持待决。CLI / agent socket / MCP 已移交
-[agent 模块](agent.md)（设计准备中，v1 不交付）。
+Windows 已有安装器与安装升级用户确认，正式 Authenticode 材料仍缺。CLI / agent socket / MCP 已移交
+[agent 模块](agent.md)（基础实现已落盘，v1 不交付）。
 
 依据：[06 选型问题](../06-native-integration.md#66-选型时要回答的问题)、
 [05 更新绑定](../05-interface-contract.md#权限系统与更新)、
@@ -16,7 +16,7 @@ Windows 发布也保持待决。CLI / agent socket / MCP 已移交
 
 ## 当前状态与证据
 
-> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+> **验收状态（2026-09-26）**：本模块所有已实现能力（含近期增量、长期观察与已实现的真实安装升级）经用户确认已验收，未附逐项运行记录。未实现能力、待定设计与正式证书缺失保持原状态；历史命令的失败、跳过或未运行不改写为通过。统一记录见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 **当前“自动更新”的实现形式**：GitHub Actions 的 [发布工作流](../../.github/workflows/publish-release.yml)
 在 Release 发布后检查资产，缺少时构建并上传 macOS DMG 与 Windows NSIS 安装器；正式版在两端资产
@@ -32,7 +32,8 @@ Windows 流程先签 EXE 与原生 DLL，再用仓库内 NSIS 模板重新封装
 `daygo_windows_native.dll`，同时输出带源码 commit、文件大小与 SHA-256 的验收清单。
 `package-windows.ps1` 已在真实 Windows 上产出 v0.1.0 amd64 NSIS 安装包，并与 macOS arm64 DMG
 一同发布到 GitHub Releases。该事实只证明发布资产存在，不自动证明其签名、安装、卸载或升级行为；
-安装程序内容、签名、静默安装 / 卸载与干净机启动仍需按验收矩阵补充可复现证据。
+安装升级的已实现功能于 09-26 用户确认已验收；安装程序内容、静默安装 / 卸载与干净机启动
+的逐项可复现证据未补录，正式签名材料仍缺。
 2026-09-21 本机已安装的 Windows EXE 导入 `libwinpthread-1.dll` 并请求 `clock_gettime64`，
 启动时出现入口点缺失；同一工作区当前 `build/bin/Daygo.exe` 的 PE 导入表不含该依赖。
 Windows 开发构建和打包入口现用 `objdump -p` 拒绝导入未随包提供的 MinGW 运行时 DLL，
@@ -45,8 +46,8 @@ Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
 Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow
 均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
 客户端 feed 指向同一正式 Release 的 `appcast.xml`。发布到 appcast 上传之间可能短暂返回 404；
-预发布提升为正式版后，可按同一 tag 手动触发工作流并核验资产。签名、公证、安装升级与首次引导
-的用户确认状态见本节开头；历史运行记录仍按下文原日期保留。
+预发布提升为正式版后，可按同一 tag 手动触发工作流并核验资产。现有身份下安装升级与首次引导
+的用户确认状态见本节开头；正式签名 / 公证不在确认范围；历史运行记录仍按下文原日期保留。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
 **2026-09-21：更新弹窗中属于我们的那句文案接入 i18n**（“只有持有捕获所有权的 Daygo 实例
 才能安装更新”，此前是 `updater_bridge.m` 里的硬编码英文）。它随

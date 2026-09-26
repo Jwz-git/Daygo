@@ -19,7 +19,8 @@ script owns a responsibility and which one a new contributor should reach for.
 | `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
 | `dev-linux.sh` | Linux `wails dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
 | `build-linux.sh` | Linux `wails build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
-| `package-macos.sh` | macOS packager: bootstrap → `wails build` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Ad-hoc signs by default; Developer ID + notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. | macOS release packaging |
+| `package-macos.sh` | macOS packager: bootstrap → `wails build` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Local default is ad-hoc; stable self-signed identity via `DAYGO_DEV_SIGN_IDENTITY`, Developer ID / notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. Release CI requires its pinned self-signed certificate. | macOS release packaging |
+| `dev-cert-macos.sh` | Creates a reusable local self-signed code-signing certificate; optional password-protected PKCS#12 export outside the repository. Does not notarize or build a release. | Explicit local identity preparation / CI certificate setup |
 | `package-windows.ps1` | Windows packager: bootstrap → Wails/NSIS materialisation → sign EXE + native DLL → repackage those final bytes → sign installer → emit SHA-256 acceptance manifest. The tracked `windows-installer/project.nsi` is required because stock Wails only installs the EXE. Supports `-InstallScope machine|user`; unsigned by default. Certificate file via `DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD`, or installed cert via `DAYGO_WIN_CERT_THUMBPRINT`. Windows-only; host run still required (see delivery module). | Windows release packaging |
 | `bootstrap-updaters.sh` | Downloads Sparkle 2.10.0 into ignored `build/deps`, verifies the pinned SHA-256, and exposes the framework plus signing tools. | macOS release build / appcast job |
 | `generate-appcast.py` | Builds the two-platform RSS appcast from already Ed25519-signed macOS and Windows assets. It never receives the private key. | protected GitHub `release` environment |
@@ -27,7 +28,14 @@ script owns a responsibility and which one a new contributor should reach for.
 | `windows-installer/test_installer.py` | Anonymous fixtures using the pinned Wails helper: translation coverage, both scope compilations (`makensis -WX`), missing-DLL rejection, and Windows-only silent install/uninstall, WebView2 failure/postcondition and locked-file checks. Uses temporary folders and unique registry/product identities, never real Daygo data. | `gate.sh`, Windows installer fixture workflow |
 | `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + docs and installer fixture checks. Python checks skip when `python3` is missing; NSIS compilations skip without `makensis`, Windows execution skips on other hosts. | CI runner, also local pre-commit |
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
+| `sample-memory.py` | Read-only macOS fixed-PID RSS / physical-footprint sampler. Checks process start identity, marks missing or reused PIDs, creates CSV exclusively, and collects no activity content. | Manual memory comparisons; see testing strategy |
 | `probe/analysis.go` | Provider-agnostic diagnostic: runs the production transcription + card-generation pipeline against the user-configured provider, never writes the database. | Manual, when debugging AI integration |
+
+The 2026-09-26 user confirmation accepts all implemented functionality, long-term observation, and actual
+installation / upgrades under the existing identity, without per-case execution records. It does not establish
+Developer ID, notarization, or Authenticode certification. See the [acceptance record](../docs/09-roadmap.md#911-本轮验收记录与证据边界).
+Historical skipped / failed fixture results remain unchanged. `gofmt -l .` must produce no output; the gate's
+exit code alone does not verify formatting.
 
 ## Shared helpers — where logic lives
 
@@ -153,7 +161,8 @@ are not inputs to the appcast job.
 
 The Ed25519 signature authenticates the update archive to Sparkle and WinSparkle. It does not give the macOS installer
 Apple Developer ID / Gatekeeper trust or the Windows installer Authenticode / SmartScreen reputation. Those platform
-identities and an actual installed-app upgrade remain separately unverified. The `releases/latest` URL can return 404
+identities still lack formal certificates. Actual installed-app upgrades were accepted by user confirmation on
+2026-09-26 without per-case records. The `releases/latest` URL can return 404
 between publishing a formal Release and uploading the appcast. After promoting a prerelease, manually dispatch the
 workflow with its tag and check that the appcast exists. Existing installers are reused by the prepare job.
 For an existing published Release whose original event was skipped or missed, use the workflow's manual dispatch with

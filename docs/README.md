@@ -34,8 +34,8 @@
 | [data](modules/data.md) | 数据维护与诊断 |
 | [preferences](modules/preferences.md) | 外观、语言与通用设置 |
 | [delivery](modules/delivery.md) | 安装与安全更新 |
-| [agent](modules/agent.md) | CLI、agent.sock 与 MCP（推迟，设计准备） |
-| [chat](modules/chat.md) | 应用内自然语言问答与受控编辑（部分实现） |
+| [agent](modules/agent.md) | CLI、agent.sock 与 MCP（基础实现已落盘，v1 不交付） |
+| [chat](modules/chat.md) | 应用内自然语言问答与受控编辑（部分实现，v1 不交付） |
 
 新增执行册沿用 [模板](modules/_template.md)。这些功能边界不改变 02 的技术分层。
 
@@ -50,12 +50,16 @@
 | [屏幕截屏 v2：macOS 实现与上层调用](decisions/recording-screen-capture-v2.md) | 有限实现 | Swift / cgo 路径、调用不变量、错误处理、调试与 recorder 接入边界 |
 | [屏幕录制授权：弹框 + 跳设置 + 提示重启](decisions/recording-screen-recording-permission.md) | 有限实现 | 启用时请求、preflight/request/跳设置 ABI、前端闸门与重启生效 |
 | [macOS 签名身份：本地自签名稳定证书](decisions/delivery-macos-signing-identity.md) | 有限实现 | TCC 绑定 DR、ad-hoc 授权失效根因、三条签名路径与自签名证书生成 |
+| [常驻宿主退出模型](decisions/lifecycle-quit-model.md) | 已决定并实现 | 软退出、真退出、更新与关机意图、Dock 偏好及状态栏恢复入口 |
+| [开机自启](decisions/recording-launch-at-login.md) | 已决定并实现 | macOS SMAppService、Windows Run 键；保存意图与 OS 实际注册状态的边界 |
+| [macOS 自动更新](decisions/delivery-auto-update.md) | 已决定并实现 | Sparkle、签名 appcast、安装前收尾与发行身份门禁 |
+| [Windows 自动更新](decisions/delivery-auto-update-windows.md) | 已决定并实现 | WinSparkle、NSIS 与共用 appcast |
 | [跨平台应用身份解析与 ABI](decisions/recording-application-picker.md) | 有限实现 | Wails `.app` / `.exe` picker、独立 Go 端口、ABI 2.1 图标与平台 ID 回查 |
-| [屏幕截屏（Windows）：DXGI/WGC 实现与限制](decisions/recording-screen-capture-windows.md) | 有限实机验证；发布门禁未清空 | DXGI/WGC、应用身份、系统事件/通知区、构建分发边界与未验证矩阵 |
+| [屏幕截屏（Windows）：DXGI/WGC 实现与限制](decisions/recording-screen-capture-windows.md) | 已实现能力用户确认已验收；正式证书仍缺 | DXGI/WGC、应用身份、系统事件 / 通知区、安装升级与证据边界 |
 | [屏幕截屏（Linux）：候选与决策进度](decisions/recording-screen-capture-linux.md) | 已排期，决策进行中 | X11 vs Wayland、离散截图约束、分发形态与 LC 门禁 |
 | [图片存储流水线](decisions/recording-image-storage.md) | 公共边界保留；staging 方案已被取代 | 像素 / SQLite 边界、整段清理与 LLM 内存图片发送；现行实现见下一项 |
 | [HEVC 帧分段](decisions/recording-frame-segments-hevc.md) | 已决定并有限实现 | macOS 直接追加、帧解码、v15/v16 迁移、按段清理与验收状态 |
-| [Windows 分段编码：探测与降级](decisions/recording-windows-segment-codec.md) | 已决定，待真机验证 | HEVC→H.264→逐帧 JPEG、一次性探测、首帧降级与 JPEG 单帧段契约 |
+| [Windows 分段编码：探测与降级](decisions/recording-windows-segment-codec.md) | 已决定并实现 | HEVC→H.264→逐帧 JPEG、一次性探测、首帧降级与 JPEG 单帧段契约；各降级分支单独记录证据 |
 | [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
 | [data 损坏恢复](decisions/data-corruption-recovery.md) | 已决定 | 备份识别、恢复流程与只读降级 |
@@ -65,7 +69,9 @@
 | [providers 密钥：Linux Secret Service](decisions/providers-secrets-linux.md) | 已落盘，用户确认真机验收 | `secret-tool` 访问 Secret Service 的取舍与边界 |
 | [weekly 周边界：周一起始](decisions/weekly-boundary-monday.md) | 已决定 | 周一 4 点对齐的语义与夹具 |
 | [chat 会话模型](decisions/chat-session-model.md) | 已决定 | 多会话、原子消息、会话级 provider 选择 |
-| [agent MCP 传输：stdio 子进程](decisions/agent-mcp-transport.md) | 方案（切片 1 落盘，基础实现进行中） | stdio `daygo mcp` 子进程、读走只读 DB / 写走 `agent.sock`、审计来源标记与回退 |
+| [agent MCP 传输：stdio 子进程](decisions/agent-mcp-transport.md) | 已决定，基础实现已落盘 | stdio `daygo mcp` 子进程、读走只读 DB / 写走 `agent.sock`、审计来源标记与回退 |
+| [时间线短卡合并](decisions/timeline-short-single-card-merge.md) | 已决定并实现 | 首批与持续窗口的 15 分钟下限及合并边界 |
+| [网站图标获取](decisions/timeline-favicon-fetch.md) | 已决定并实现 | 本地缓存、受限网络获取与载荷预算 |
 
 `scripts/check-docs.py` 会检查本目录里所有链接和小节锚点是否存在、有没有“谁都没链接到”
 的孤立文档；它由 `scripts/gate.sh` 调用。它只能证明文档内部自洽，**不能证明文档与代码一致**
@@ -108,7 +114,7 @@ Go foundation               storage / settings / domain / timeutil
         ↓ 接口
 internal/platform           端口：Capture / Media / System / Secrets / Updater
         ↓ 实现待定设计
-平台适配层                   唯一接触 macOS 能力的地方
+平台适配层                   唯一接触系统能力的地方
 ```
 
 Go 拥有全部可移植业务逻辑，并且是 SQLite 的唯一写入方。平台适配层的实现形态
@@ -126,7 +132,7 @@ Go 拥有全部可移植业务逻辑，并且是 SQLite 的唯一写入方。平
 | 设置（存储、隐私、账户） | ✅ | 需要 Go 绑定 |
 | 自然语言问答（Chat） | ❌ | 已部分实现，但 v1 明确不交付；v1.1 是否纳入待后续评估 |
 | 导出 Markdown | ❌ | 推迟到 v1.1 |
-| CLI / MCP / Agent 写入通道 | ❌ | 接口形状已定义（[05 §5.9](05-interface-contract.md#59-b6对外接口推迟到-v11)），设计准备见 [modules/agent.md](modules/agent.md)，实现推迟 |
+| CLI / MCP / Agent 写入通道 | ❌ | 基础实现已落盘（[05 §5.9](05-interface-contract.md#59-b6对外接口推迟到-v11)、[modules/agent.md](modules/agent.md)），交付推迟到后续版本 |
 
 推迟项的接口形状仍然写进 [05](05-interface-contract.md)，这样 v1 的数据模型不会在
 补做它们时被迫改动。

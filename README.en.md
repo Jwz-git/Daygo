@@ -45,7 +45,7 @@ Daygo captures the context of the work itself: what you built, investigated, dis
 
 - Adjust the screenshot interval (1 / 5 / 10 / 20 / 30 / 60 seconds; 10 by default), resolution (720 / 1080; 1080 by default), blocked apps, and disk limit.
 - Add, remove, reorder, and recolor categories. Choose whether Daygo starts at login and whether its Dock icon is shown.
-- Use the interface in Simplified Chinese or English, with light, dark, or system theme.
+- Use the interface in Simplified Chinese, Traditional Chinese, English, Japanese, Korean, German, French, Spanish, or Brazilian Portuguese, with light, dark, or system theme.
 
 ## Always available
 
@@ -62,8 +62,8 @@ Daygo handles highly sensitive screen information, so privacy is a product bound
 - Screenshots, timelines, journals, and the database stay on your computer by default. There is no Daygo server, account, or sync service.
 - Screen data leaves your computer only for the AI provider you explicitly configure. With a compatible local model, analysis can stay on your device.
 - Block apps by bundle ID. When a blocked app is in the foreground, Daygo writes a redacted placeholder frame: the timeline still shows that a period of activity occurred, without its content. The blocklist and placeholder are both required safeguards.
-- API keys go only into the operating system's credential store (macOS Keychain or Windows Credential Manager). They are write-only to the app and never enter frontend localStorage, the app database, or error messages.
-- Analytics and crash reporting are off by default and require opt-in. They must not include screen content, window titles, file paths, API keys, or AI request payloads.
+- API keys go only into the operating system's credential store (macOS Keychain or Windows Credential Manager). The frontend can write keys but cannot read them; the backend reads them only for provider calls. Keys never enter frontend localStorage, the app database, or error messages.
+- Analytics and crash reporting settings are off by default; reporting consumers are not implemented yet. The privacy contract forbids screen content, window titles, file paths, API keys, or AI request payloads in reports.
 
 See [Privacy and security](docs/07-privacy-security.md) for the complete boundary.
 
@@ -74,9 +74,11 @@ Get the latest installer for your platform from the [Releases page](https://gith
 | Platform | System and architecture | Installer |
 |---|---|---|
 | macOS | macOS 14+, Apple Silicon (arm64) | `Daygo-<version>-arm64.dmg` |
-| Windows | Windows 11, x64 (amd64) | `Daygo-<version>-amd64.exe` |
+| Windows | Windows 11 24H2 (build 26100+), x64 (amd64) | `Daygo-<version>-amd64.exe` |
 
 macOS is the primary development platform; a Windows installer is also available. Other architectures and Linux do not have downloadable builds yet.
+Installer availability and feature / distribution acceptance are tracked separately in the [module status table](docs/09-roadmap.md#91-模块总表).
+Windows uninstall preserves user data and credentials. Removing the macOS app also does not delete its application support directory or Keychain entries.
 
 ## First run
 

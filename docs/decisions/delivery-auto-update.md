@@ -1,5 +1,10 @@
 # delivery 自动更新：Sparkle 2 + GitHub 静态 appcast + Sparkle 标准 UI
 
+> **最新功能验收（2026-09-26）**：本文涉及的所有已实现能力、长期观察与现有身份下真实安装升级，
+> 均按本次用户确认记为已验收，未附逐项运行记录；未实现项、待定设计与正式证书缺失保留。
+> 下文旧日期的失败 / 跳过 / 未运行结果是历史记录，不倒填为通过；统一范围见
+> [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+
 > **状态：GitHub Actions 发布自动化已实现；客户端 Sparkle 适配器已落盘。**
 > [发布工作流](../../.github/workflows/publish-release.yml)在 Release 发布后构建、上传安装器，正式版在两端安装器齐备且 Ed25519 签名成功后上传 appcast；预发布跳过 appcast。
 > 2026-09-25 调整：用户不准备申请正式平台签名材料，但要求保留自动更新源。发布工作流不再把
@@ -112,8 +117,8 @@ Vue UI（`SPUUserDriver`）的收益——保持端口与 DTO 冻结不变。
   发行构建通过 `daygo_updater` tag 接入，开发构建不下载或伪造更新能力。
 - **Go Core 保持 `CGO_ENABLED=0` 可构建**：业务不接触 Sparkle，只对着 `Updater` 端口与 fake 写代码 /
   测试；`go test ./internal/...` 仍须在 Linux 通过。
-- **跨平台端口统一，引擎分平台定**：Windows（WinSparkle / NSIS 内建更新 / MSIX，属 Windows 待决发布范围）
-  与 Linux（当前 `unsupported` 桩）的具体引擎**留待各自子决策**，本文只定 macOS。
+- **跨平台端口统一，引擎分平台定**：Windows
+  已另按 [WinSparkle 决策](delivery-auto-update-windows.md)实现；Linux 更新仍不可用，具体引擎待决。本文只定 macOS。
 
 ## 7. 可行性实验（G-native 前置，先于实现）
 
@@ -137,7 +142,7 @@ Updater 完成时验证真实升级」，可先做的有限实验（不产出正
   两端适配器 / `Info.plist`；尚未用正式产物验证拒绝错签名与接受正确签名。
 - **发布链路源码已建立，但本次更改尚未实跑**：Release workflow 在两端安装器齐备后用 Ed25519
   签名最终资产、生成共用 appcast 并上传；缺少更新私钥或安装器时失败关闭。Developer ID / 公证和
-  Windows Authenticode 材料未配置，不阻止 feed 生成，但对应平台安装与真实升级仍未验收。
+  Windows Authenticode 材料未配置，不阻止 feed 生成，但现有身份下平台安装与真实升级于 09-26 用户确认已验收，未附逐项记录；正式证书身份不在范围。
 
 ## 9. 回退
 

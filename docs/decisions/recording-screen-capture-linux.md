@@ -10,15 +10,20 @@
 > [屏幕截屏：单次调用契约与原生 ABI](recording-screen-capture.md)。macOS / Windows 实现见
 > [v2](recording-screen-capture-v2.md) 与 [Windows](recording-screen-capture-windows.md)。
 
+> **2026-09-26 验收边界**：用户确认仅覆盖已实现能力；Linux Capture / System 与本页候选
+> 方案仍未实现 / 未决定，不因本轮确认改标为已支持。统一范围见
+> [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+
 ## 1. 当前事实（不是规划）
 
 - Linux 桌面壳（Wails v2 + GTK3 + WebKit2GTK）可启动并加载 Vue 前端；Go Core 与 SQLite
   在 Linux 上与 macOS 等价，`options_linux.go` 已拆分窗口选项。
 - `Capture` / `System` / `ApplicationInspector` 在 Linux 走
   [`factory/*_unavailable.go`](../../internal/platform/factory)（`//go:build !darwin && !windows`），
-  运行时返回 `unsupported`。
+  `Capture` / `ApplicationInspector` 返回 `unsupported`，`NewSystem()` 返回 `nil`，
+  由应用层处理系统能力不可用。
 - `Media` 在 Linux 是**真实实现**（[`internal/platform/mediafile`](../../internal/platform/mediafile/mediafile.go)，
-  纯 Go JPEG 单帧解码 / 探测）；`EncodeVideo` 待 M2 编码决策。
+  纯 Go JPEG 单帧解码 / 探测）；`EncodeVideo` 未实现，视频合成仍待单独决策。
 - `Secrets` 已决定用 freedesktop Secret Service / `secret-tool`
   （[Linux 密钥决策](providers-secrets-linux.md)），真实桌面钥环经用户确认已验收（无逐项记录）。
 - 实例锁走 `lock_unix.go` 的 `flock`，时区走 `zone_notwindows.go`——与 macOS 共用非 Windows 路径。

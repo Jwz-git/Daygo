@@ -22,6 +22,10 @@ Browser automation can select either state at navigation time:
 The query also works before the hash. Omitting it keeps the development default
 (`on`). Production always disables test data, regardless of the URL. Timeline,
 daily, weekly, settings, providers, and chat share this switch.
+The selection remains in memory across SPA route changes, including when a route drops the query string;
+it does not persist in localStorage. Settings fixtures also supply UI visibility and native-menu payloads for
+the anonymous preview. These stand-ins are development evidence; real functionality acceptance is tracked
+in the [module status table](../../docs/09-roadmap.md#91-模块总表).
 
 To remove the previews later, delete this directory,
 `src/api/developmentFixtures.ts`, the `developmentFixtures()` Vite plugin, and

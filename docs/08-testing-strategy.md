@@ -159,7 +159,8 @@ internal/ai/testdata/llmresponses/
   不覆盖已有文件、调用前取消、非法请求）加 `SuitePermission` / `SuitePrivacy` /
   `SuiteNoDisplay` 三个需要驱动 OS 状态的套件，逐条断言见
   [05 §5.7.4](05-interface-contract.md#574-fake-实现与契约测试)。
-  fake 四套全绿；两个真实适配器**都还没接入套件**。
+  fake 四套全绿；真实能力经用户确认验收（见 09 §9.1.1），但仓库中没有两平台
+  四套真实契约逐项运行记录，不能将用户确认记为套件自动化全绿。
 
 ## 8.6 集成测试
 
@@ -216,8 +217,9 @@ AppKit 宿主，不捕获、不接用户库），核对主 / 工作线程策略�
 - 注入分段收尾失败后状态栏真退出：默认保留应用，明确选择仍然退出才能终止；真实关机 / 注销
   不被软退出拦截且不触发授权自重启。使用匿名数据运行，再完成 IT-14 十分钟持续捕获回归。
 
-上述真实回归尚无本轮逐项记录；历史 G-host 验收不自动覆盖新增实现。共享状态栏 ABI 已升为 3，
-Windows 的 Go 无 cgo 构建可在本机验证，匹配 DLL 重建及通知区交互需 Windows 主机验证。
+上述已实现真实回归于 09-26 用户确认已验收，未附逐项记录；这是新增确认，不沿用历史 G-host
+覆盖增量。共享状态栏 ABI 已升为 3；Windows DLL / 通知区也在已实现功能确认范围内，
+本机无 cgo 构建仍不等于 Windows 原生运行记录。
 
 测试按能力归属，见 [09 §9.7](09-roadmap.md#97-需求接口与测试归属)：recording 主责
 IT-1–11/14，data 主责 IT-12/13；跨界场景共同验证。进程内 / 外适配的故障注入须随选型记录
@@ -250,9 +252,10 @@ MC-6–MC-8 是 [07 §7.2](07-privacy-security.md#72-捕获侧的两层保护) �
 
 ### 8.6.3 WC：真实 Windows 捕获矩阵
 
-Windows 适配器已落盘并完成 **WC-1 的有限真机 smoke；发布目标已排期，但发布门禁未清空**
+Windows 适配器已落盘，WC 功能范围经用户确认已验收（无逐项记录）；正式签名材料仍缺
 （[决策记录](decisions/recording-screen-capture-windows.md)，[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
-这只证明当前机器上 DXGI 能生成可解码非黑 JPEG；WC 其余项仍是进入任何真实使用前的最小证据集。
+已保留的原生 smoke 证明 DXGI 能生成可解码非黑 JPEG；完整功能验收另记为用户确认，
+以下矩阵保留为复核标准，不将未记录命令倒填为通过。
 
 | ID | 场景 | 必须观察到的结果 |
 |----|------|------------------|
@@ -343,8 +346,9 @@ RSS 与 footprint 分开比较；记录系统压力，舍弃第一小时预热�
 低于 10%；状态不一致或样本不可用时记为证据不足，不能据此宣称通过。缓存账目由预算夹具
 核验，不以此采样器的进程读数推算缓存占用。
 
-本轮真实 macOS 关窗 10 分钟持续捕获、24 小时全进程 A/B、14 天 RSS 观察均待验证；
-不能沿用 2026-09-22 用户验收覆盖本轮改动。
+本轮已实现窗口 / 捕获增量与长期观察于 09-26 用户确认已验收；未附十分钟、24 小时 A/B
+或 14 天 RSS 的逐项记录与数值，不能宣称已量化内存下降或满足某个数值阈值。
+确认范围见 [09 §9.1.1](09-roadmap.md#911-本轮验收记录与证据边界)，以上流程用于复核。
 
 ## 8.7 有意不测试的内容
 
@@ -372,17 +376,19 @@ gofmt -l .            # 必须无输出
 
 # 前端
 npm --prefix frontend ci
+npm --prefix frontend run test:unit
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
 
-**前端三条命令有顺序依赖，Go 命令也是。** `internal/app` 导入 `frontend`，后者的
+**干净检出的依赖安装、绑定生成与前端检查有顺序依赖，Go 命令也依赖引导。** `internal/app` 导入 `frontend`，后者的
 `go:embed all:dist` 在 `dist` 不存在时匹配不到任何文件，**整个模块无法编译**——包括上面
 的 `go build` 与 `go test`。而 `dist` 与 `wailsjs` 都是生成产物、不入库
 （`05 §5.5.5` 规则 3），两者又互相依赖：生成绑定需要可编译的 Go 树，可编译又需要 `dist`。
 
 所以在干净环境（新 clone、CI runner）上，**必须先跑一次引导**再执行上述任何命令。
-`scripts/gate.sh` 已内置该顺序，等价于依次执行上面全部命令：
+`scripts/gate.sh` 已内置该顺序，并包含 Linux / Darwin / Windows 的无 cgo 核心交叉构建、
+前端单测与 Python 文档 / 安装器夹具检查：
 
 ```bash
 ./scripts/gate.sh
@@ -401,7 +407,10 @@ npm --prefix frontend run build
 无条件 Wails bindings 生成、真实 bundle 判断、Go 1.25 `nodwarf5` 局部 workaround、开发 EXE
 编译及 WebView2 启动全部通过；运行前后 `frontend/package-lock.json` SHA-256 未变化。
 
-`gate.sh` 最后还会跑 `scripts/check-docs.py`：检查 markdown 链接与小节锚点是否存在、
+`gate.sh` 最后还会跑 `scripts/check-docs.py` 和 `scripts/windows-installer/test_installer.py`。
+有 `python3` 才执行，否则跳过；缺 NSIS 时安装器编译跳过，非 Windows 上的执行用例也跳过，
+跳过不能写成通过。`gofmt -l .` 必须无输出，不能只凭脚本退出码判断格式通过。
+文档脚本检查 markdown 链接与小节锚点是否存在、
 有没有没被任何文档链接到的孤立文档。它只保证文档**内部自洽**；文档与代码是否一致仍然
 靠“同一个 commit 内修正文档”这条纪律，不靠脚本。
 

@@ -1,6 +1,11 @@
 # agent MCP 传输与进程模型：stdio 子进程（daygo mcp）
 
-> **状态：方案（切片 1 落盘，基础实现进行中）。** 本文收敛 [09 §9.8 #22](../09-roadmap.md#98-待定设计清单)
+> **最新功能验收（2026-09-26）**：本文涉及的所有已实现能力、长期观察与现有身份下真实安装升级，
+> 均按本次用户确认记为已验收，未附逐项运行记录；未实现项、待定设计与正式证书缺失保留。
+> 下文旧日期的失败 / 跳过 / 未运行结果是历史记录，不倒填为通过；统一范围见
+> [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+
+> **状态：已决定，基础实现已落盘。** 本文收敛 [09 §9.8 #22](../09-roadmap.md#98-待定设计清单)
 > 与 [05 §5.9.3](../05-interface-contract.md#593-mcp-服务器) 的传输待定表，是
 > [agent 执行册](../modules/agent.md)「切片 1 决策先行」的落盘。已定约束（读写同源、六写操作、
 > `schema_version` 信封、隐私边界、`CGO_ENABLED=0` 可测）不因本决策改变。真实 MCP 客户端多日闭环
@@ -35,8 +40,9 @@
   `tools/call` 最小面，配合 fixture DB 完成「拉起 → 握手 → 一读（timeline/card/…）→ 一写（经 bridge）」，
   即 [agent 执行册实验表](../modules/agent.md#实验与失败条件)「MCP 传输决策实验」的 stdio 侧最小探针。
   HTTP 侧未实现，本决策据架构与安全判据选定，不据 HTTP 基准。
-- **未验证（G 级）**：真实 Claude Desktop / Claude Code 多日闭环（读正确、写后 UI 刷新、无越权）
-  仍未运行；fixture 协议测试不构成闭环证据。握手延迟等量化对比只在将来重新评估 HTTP 时才需要。
+- **用户确认验收（09-26）**：已实现 MCP 面及真实客户端闭环已确认；未附 Claude Desktop /
+  Claude Code 的具体版本和多日轨迹。fixture 协议测试仍只证明协议路径；握手延迟等量化对比
+  只在将来重新评估 HTTP 时才需要。
 - **`CGO_ENABLED=0` 可测**：MCP 服务代码与只读读路径均为纯 Go，Linux 下可编译可测试
   （[05 §5.10.3](../05-interface-contract.md#5103-接口测试门禁) CI 门禁）。
 
@@ -52,7 +58,7 @@
 
 ## 5. 审计来源标记
 
-`agent.sock` 每次成功写入追加 `agent-writes.log`。来源标记区分 UI / CLI / MCP / chat：本次在 bridge 请求
+`agent.sock` 每次成功写入追加 `agent-writes.log`。当前来源标记仅区分 `agent.sock` / `cli` / `mcp`，不覆盖 UI / chat；在 bridge 请求
 里携带 `source` 字段（默认 `agent.sock`，MCP 客户端写入标 `mcp`），写入审计行。字段为可选、封闭取值，
 未提供即记为通用 `agent.sock`——与 [05 §5.9.3 审计归属](../05-interface-contract.md#593-mcp-服务器)
 的待定项一并定。

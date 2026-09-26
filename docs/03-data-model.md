@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 17`）有十七张表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 19`）有十八张业务表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -10,7 +10,8 @@
 > `idx_batch_screenshots_screenshot`）；`analysis_batches.attempts`（v9）、批次软删除列（v10）、
 > `providers.max_images`（v11）、首次启动分类种子（v12）、`daily_standup_entries`（v13）、
 > `card_reviews`（v14）、`pending_captures.frame_index`（v15）、分段截图大小均摊（v16），
-> 以及 `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）。本文其余表
+> `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）、`card_ratings`（v18），
+> 以及移除 `journal_entries.summary`（v19，保留用户输入）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -27,11 +28,12 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
 ├── daygo.sqlite (+ -wal, -shm)   业务数据库                        ★
 ├── daygo.sqlite.lock             写入锁（flock / LockFileEx）       ★
 ├── capture.lock                  捕获所有者锁，与写入锁相互独立      ★
-├── recordings/staging/           Capture 原子 JPEG，提交分段后删除
-├── recordings/segments/          已关闭的不可变分段
-├── timelapses/<yyyy-MM-dd>/      每张卡片的时间压缩视频
+├── recordings/staging/           legacy JPEG 与旧 pending 兼容路径
+├── recordings/segments/          活跃帧段与已收尾不可变段             ★
+├── timelapses/<yyyy-MM-dd>/      每张卡片的时间压缩视频（目标，未实现）
 ├── backups/daygo-<UTC>-<seq>.db  每日数据库副本，保留 7 份           ★
-└── agent.sock                    外部写入通道（推迟到 v1.1）
+├── agent.sock                    外部写入通道，0600（v1 不交付）      ★
+└── agent-writes.log              外部成功写入来源审计，0600           ★
 ```
 
 ★ 已落盘。目录本身以 `0700` 创建。两把锁是独立文件而不是库内的行，这样只读实例
@@ -248,7 +250,7 @@ CREATE TABLE categories (
 
 ```sql
 -- daily_standup_entries（v13 已落盘）保存已生成的日报；
--- LLM 生成与调度尚未实现，不应与存储能力混为一谈。
+-- 手动 GenerateDailyRecap 与后台补生成均已实现，触发规则见 05 §5.5.1。
 CREATE TABLE daily_standup_entries (
   standup_day      TEXT PRIMARY KEY,   -- 日历日 yyyy-MM-dd
   highlights_title TEXT NOT NULL,
@@ -417,11 +419,14 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 
 ## 3.4 帧与分段
 
-像素**不进入 SQLite BLOB**。`Capture` 输出的逐帧 JPEG 只在 `recordings/staging/` 短期存在；
-积累到轮换边界后由 `Media` 批量构建不可变分段，成功提交后删除 staging。只有已完整发布并完成
-结构化提交的帧才写入 `screenshots`，按 `(segment_path, frame_index)` 寻址。完整状态机与崩溃
-窗口见[图片存储决策](decisions/recording-image-storage.md)。
-容器与编码格式**待定设计**，但必须满足：
+像素**不进入 SQLite BLOB**。macOS 每次离散捕获直接追加当前 HEVC / MP4 帧段；Windows
+按运行时探测选择 HEVC / H.264 的 MP4 段或单帧 JPEG 段。Go 通过 pending 意图提交
+`screenshots`，按 `(segment_path, frame_index)` 寻址；活跃 MP4 段在收尾前不交给分析读取。
+旧 `recordings/staging/` JPEG 保留兼容读路径，不执行一次性转码。现行编码与恢复边界见
+[HEVC 分段决策](decisions/recording-frame-segments-hevc.md)及
+[Windows 编码决策](decisions/recording-windows-segment-codec.md)；
+[图片存储决策](decisions/recording-image-storage.md)保留公共所有权约束及已被取代的 staging 方案。
+分段必须满足以下要求（Windows 单帧 JPEG 段只有 `frame_index=0`）：
 
 | # | 要求 | 原因 |
 |---|------|------|

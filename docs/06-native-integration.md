@@ -1,13 +1,14 @@
 # 06 原生集成
 
-> **实现方式整体待定设计。** 本文只回答两个问题：Daygo 需要平台提供**哪些能力**，
-> 以及 Go 侧的**端口长什么样**。用什么技术实现这些能力、适配层以什么形态存在，
-> 按负责模块的能力决策记录处理（[09 §9.8](09-roadmap.md#98-待定设计清单)）。
+> **平台能力已部分实现，形态汇总及部分选型仍待决策。** 本文说明能力、端口和各平台当前实现。
+> 具体选型按负责模块的决策记录处理（[09 §9.8](09-roadmap.md#98-待定设计清单)）；
+> 实现 / 验收以 [09 §9.1](09-roadmap.md#91-模块总表) 为准。2026-09-26 用户确认所有已实现
+> 功能、长期观察与真实安装升级已验收，未附逐项记录；未实现能力和正式证书缺失不在确认范围。
 >
 > 在决策落盘前，**不得**按某一种候选方案大规模实现，也不得删除其它候选路径。
 >
 > 22 项能力中已有一部分落地真实实现（单次截图分 macOS 与 Windows 两套，帧解码 / 探测与
-> Secrets 亦已实现），其余仍为待定设计；逐项状态见 [§6.7](#67-平台实现状态)。
+> Secrets、自启、宿主控制与更新亦已实现），仍有桩与未决项；逐项状态见 [§6.7](#67-平台实现状态)。
 
 ## 6.1 为什么单独隔离这一层
 
@@ -27,30 +28,32 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 
 | # | 能力 | 用于 | 端口方法 | 实现 |
 |---|------|------|----------|------|
-| 1 | 查询屏幕录制授权状态 | 捕获前预检 | `System.ScreenRecordingPermission` | 待定设计 |
-| 2 | 触发授权申请 | 引导流程 | `System.RequestScreenRecordingPermission` | 待定设计 |
-| 3 | 跳转到系统设置的指定面板 | 授权被拒后的引导 | `System.OpenSystemSettings` | 待定设计 |
-| 4 | 枚举显示器 | 选择捕获目标 | `System.Displays` | 待定设计 |
-| 5 | 截取当前主显示器的一帧 | 捕获 | `Capture.Capture` | 有限实现，待实机矩阵 |
-| 6 | 从捕获中排除指定应用 | 隐私屏蔽 | `CaptureRequest.BlockedApplicationIDs` | 有限实现，待双保护验收 |
-| 7 | 把单帧原子编码为 JPEG | staging | `Capture.Capture` | 有限实现，待恢复接入 |
-| 8 | 从分段解出单帧为 JPEG | 缩略图、帧条 | `Media.DecodeFrame(s)` | 待定设计 |
-| 9 | 把多帧合成为 mp4 | timelapse | `Media.EncodeVideo` | 待定设计 |
-| 10 | 探测分段的帧数与尺寸、可读性 | 崩溃恢复 | `Media.ProbeSegment` | 待定设计 |
-| 11 | 读取系统空闲秒数 | 空闲判定 | `System`（内部） | 待定设计 |
-| 12 | 解析调用时的系统主显示器 | 捕获目标 | `Capture.Capture`（内部） | 有限实现，待多屏验收 |
-| 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | 有限实现，待实机矩阵 |
+| 1 | 查询屏幕录制授权状态 | 捕获前预检 | `System.ScreenRecordingPermission` | macOS TCC 已实现；Windows 无对应授权，返回 granted |
+| 2 | 触发授权申请 | 引导流程 | `System.RequestScreenRecordingPermission` | macOS 已实现；Windows no-op |
+| 3 | 跳转到系统设置的指定面板 | 授权被拒后的引导 | `System.OpenSystemSettings` | macOS / Windows 已实现 |
+| 4 | 枚举显示器 | 选择捕获目标 | `System.Displays` | Windows 已实现；macOS 此端口仍返回空列表，Capture 内部独立选主屏 |
+| 5 | 截取当前主显示器的一帧 | 捕获 | `Capture.Capture` | macOS / Windows 已实现并经用户确认验收 |
+| 6 | 从捕获中排除指定应用 | 隐私屏蔽 | `CaptureRequest.BlockedApplicationIDs` | macOS / Windows 双保护已实现；Windows 非空名单要求 build 26100+ |
+| 7 | 持久化捕获像素 | 帧段写入 | `Capture.Capture` / `SegmentCloser` | macOS 直接追加 HEVC；Windows HEVC → H.264 → 单帧 JPEG；旧原子 JPEG ABI 保留 |
+| 8 | 从分段解出单帧为 JPEG | 缩略图、帧条 | `Media.DecodeFrame(s)` | macOS / Windows 原生解码已实现；legacy JPEG 兼容 |
+| 9 | 把多帧合成为 mp4 | timelapse | `Media.EncodeVideo` | 未实现；录制帧段追加不等于 timelapse 合成 |
+| 10 | 探测分段的帧数与尺寸、可读性 | 崩溃恢复 | `Media.ProbeSegment` | macOS / Windows 已实现 |
+| 11 | 读取系统空闲秒数 | 空闲判定 | 端口待决定 | 未实现，录制行该字段为 NULL |
+| 12 | 解析调用时的系统主显示器 | 捕获目标 | `Capture.Capture`（内部） | macOS / Windows 已实现 |
+| 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | Capture 内部已实现；公共 System 查询 macOS 为空值、Windows 返回不可用 |
 | 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | 两平台均已实现；Windows 从当前用户/机器、32/64 位 App Paths 与 Uninstall 注册表枚举，去重规则见 [应用身份解析](decisions/recording-application-picker.md) |
-| 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | macOS System ABI 已实现，待实机验证 |
-| 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | macOS System ABI 已实现，待实机验证 |
-| 17 | 开机自启开关 | 设置 | `System.{,Set}LaunchAtLogin` | 待定设计 |
-| 18 | 激活策略切换（是否占 Dock） | 后台 Agent 语义 | `System.SetActivationPolicy` | 待定设计 |
+| 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | macOS / Windows 已实现；正式订阅选型汇总仍待决策 |
+| 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | macOS / Windows 已实现 |
+| 17 | 开机自启开关 | 设置 | `System.{,Set}LaunchAtLogin` | macOS SMAppService / Windows Run 键已实现 |
+| 18 | 激活策略切换（是否占 Dock） | 后台 Agent 语义 | `System.SetActivationPolicy` | macOS 已实现并消费 Dock 偏好；Windows 无同等进程策略，窗口由 app 管理 |
 | 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | macOS 与 Windows ABI 均已实现并接入；两平台的完整宿主/长驻矩阵分别验收 |
-| 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | 待定设计 |
-| 21 | 系统钥匙串读写删 | provider 密钥 | `Secrets` | macOS / Windows 已实现；Linux Secret Service 已落盘，待真机验收 |
-| 22 | 自动更新 | 版本分发 | `Updater` | 待定设计 |
+| 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | 未实现：macOS no-op、Windows 不可用；权限查询也未接真实通知授权 |
+| 21 | 系统钥匙串读写删 | provider 密钥 | `Secrets` | macOS Keychain / Windows Credential Manager / Linux Secret Service 已实现并经用户确认验收 |
+| 22 | 自动更新 | 版本分发 | `Updater` | macOS Sparkle / Windows WinSparkle 已实现；真实安装升级经用户确认，正式证书 / 公证仍缺 |
 
 端口的完整 Go 签名见 [05 §5.7](05-interface-contract.md#57-b4platform-端口契约)。
+菜单 / 恢复入口增量另有 `StatusItemAvailability`、`ApplicationMenuCopySink` 与
+`StatusMessagePresenter` 可选能力；它们由宿主使用，不扩大捕获服务的职责。
 
 ### 6.2.1 关于捕获方式的一条产品约束
 
@@ -63,19 +66,19 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 适配层**承担**：
 
 - 上表 22 项能力的具体实现；
-- 单次 Capture 的临时 JPEG 编码与排他原子发布；调用返回后不保留帧缓冲、事件日志或 recorder
-  状态；
+- 像素捕获、原生帧段编码 / 收尾、解码 / 探测及 legacy JPEG 兼容；帧段 writer / reader 可以
+  持有有界媒体状态，但不拥有 Go recorder 的定时器、用户意愿、批次和数据库状态；
 - 与 Go 之间的协议编解码（若形态是进程外）。
 
 适配层**明确不承担**：
 
 - **不打开、不写 SQLite。** Go 是唯一写入方；Go 负责 pending 记录、幂等提交和启动对账。
-- **不读设置为自己决策。** 每次 Capture 请求全量携带本次参数，因此适配层调用后无状态、
-  在测试中可复现。
+- **不读设置为自己决策。** 每次 Capture 请求携带本次配置；媒体状态按段管理，宿主菜单文案与
+  策略由 Go 下发，重建后重新应用，测试中可复现。
 - **不发起网络请求。**
 - **不含产品逻辑**：不分批、不做空闲判定、不生成卡片、不判断哪天属于哪个逻辑日。
 
-这条边界的价值在于：它让"重启适配层"成为一个无需数据库协调的动作。
+这条边界让恢复责任保持明确：适配层恢复原生资源，Go 负责 pending 对账与数据库幂等提交。
 
 ## 6.4 已知的工程约束
 
@@ -130,25 +133,29 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 
 ## 6.7 平台实现状态
 
-macOS 是当前主线，Windows 与 Linux 是已排期的一等发布目标。Windows 现在有一份**完成有限真机
-smoke** 的截图实现，发布范围与其余能力逐项经决策记录推进（[09 §9.8 第 18 项](09-roadmap.md#98-待定设计清单)）。
+macOS 是当前主线，Windows 与 Linux 是已排期的一等发布目标。macOS / Windows 已实现能力与
+真实安装升级经用户确认验收；正式证书材料仍缺，Linux Capture / System 尚未实现
+（[09 §9.1](09-roadmap.md#91-模块总表)、[§9.8](09-roadmap.md#98-待定设计清单)）。
 把状态写在这里，是因为“仓库里有 Windows 代码”和“Windows 已验收可发布”是两件事，不写下来就会被混淆。
 
 | 能力 | macOS | Windows | 说明 |
 |---|---|---|---|
 | 单次截图（第 5 / 7 / 12 项） | 有限实现，已跑通真机 smoke | 有限实现，真机非黑 JPEG smoke 通过 | macOS 用 ScreenCaptureKit，Windows 优先 DXGI Desktop Duplication；GDI 只在有效桌面更新仍为全零时回退 |
 | 隐私屏蔽（第 6 / 13 项） | 前台兜底 + 画面排除，两层齐备 | build 26100+：前台兜底 + WGC `SetWindowExclusionList`；更旧系统失败关闭 | Windows 11 24H2（26100）是明确最低门禁；名单非空时改走 WGC，并等待对应 configuration iteration 后才接收帧 |
-| 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 实现与 ABI 语义之间的已知缺口 |
+| 光标（`ShowsCursor`） | 生效 | **忽略**（Desktop Duplication 不含指针） | 已决定为平台尽力而为，Windows v1 不合成指针；不属于验收后自动补齐的能力 |
 | 屏幕录制授权（第 1–3 项） | TCC 查询 / 请求 / 设置入口已实现 | 系统无对应 TCC，查询报告 `granted`、请求为 no-op | macOS 的正式签名升级身份仍属 G-native；Windows 不伪造授权弹框 |
 | 实例锁（写入锁 / 捕获所有者锁） | `flock` 已实现 | `LockFileEx` 已实现并通过跨进程 smoke | 两平台共享 `storage.Open`、只读降级与 `ErrLockBusy` 语义；见 [data 实例锁](decisions/data-locking.md) |
 | 应用身份解析（第 14 项前置） | 有限实现：Wails `.app` picker + 独立 ABI 2.x（身份 + 名称 + 图标 + 按 Bundle ID 回查） | 有限实现：Explorer `.exe` picker + 同一 ABI；路径哈希 ID、名称、PNG 图标和回查 | Windows 路径不进入 Wails DTO；回查优先内存、运行进程与 App Paths / Uninstall 注册表 |
 | 应用枚举（第 14 项） | `InstalledApplications` 已实现（含 Go cgo smoke） | `InstalledApplications` 已实现，并在一台 Windows 11 机器核对过枚举结果 | Windows 设置页网格的视觉与交互由用户确认已验收，未附逐项记录；枚举不可用时仍回落到 Explorer `.exe` picker |
-| 系统事件（第 15 / 16 项） | System ABI 已实现（睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保 / 显示器变化） | 睡眠 / 唤醒 / 锁屏 / 解锁 ABI 已实现；显示器可枚举 | Windows 编译与回调夹具已过，睡眠/锁屏恢复延迟及长期事件矩阵仍需实机 |
+| 系统事件（第 15 / 16 项） | System ABI 已实现（睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保 / 显示器变化） | 睡眠 / 唤醒 / 锁屏 / 解锁 ABI 已实现；显示器可枚举 | Windows 编译与回调夹具有记录；已实现事件与长期观察经用户确认验收，未附逐项记录 |
 | 状态栏（第 19 项） | `SetStatusItem` ABI 已实现并接入 | 通知区图标、菜单、左键重开及 open/toggle/pause/quit 动作已接入 | Windows 回调夹具通过；关窗后持续捕获、Explorer 重启恢复及完整交互由用户确认已验收，未附逐项记录 |
-| 帧解码 / 段探测（第 8、10 项） | 原生段读取（`frameDecode` / `segmentProbe`） | 纯 Go `mediafile` | 两平台都经 `platform.Media` 真实实现；Windows / Linux 走 [`internal/platform/mediafile`](../internal/platform/mediafile/mediafile.go)：JPEG 单帧解码 + 探测，非 JPEG 多帧段报 `Readable=false` |
-| 视频编码（第 9 项） | 未实现 | 未实现 | 两平台 `EncodeVideo` 均返回错误，待 M2 编码决策 |
+| 帧解码 / 段探测（第 8、10 项） | 原生段读取（`frameDecode` / `segmentProbe`） | Media Foundation / WIC 原生读取 | 两平台均经 `platform.Media` 读取帧段并兼容 JPEG；Linux / 其他非原生路径使用 [`mediafile`](../internal/platform/mediafile/mediafile.go)，仅支持 JPEG 单帧段 |
+| 视频编码（第 9 项） | 未实现 | 未实现 | 两平台 `EncodeVideo` 均返回错误；录制帧段格式已决定，timelapse 合成须另行决定 |
 | 更新与发布（第 22 项） | Sparkle 2.10.0 适配器（仅发行 tag 构建） | WinSparkle 0.9.4 动态适配器 | GitHub Actions 已实现发布后构建并上传两端安装器；正式版在两个安装器齐备且 Ed25519 签名成功后上传 appcast。此处的发布自动化不等于客户端升级验收；后者按 [delivery 决策](decisions/delivery-auto-update.md)记录 |
-| 其余各项（第 4、11、17、18、20 项） | 待定设计 | 待定设计 | 端口已冻结，实现均未开始 |
+| 显示器枚举（第 4 项） | System 空列表桩 | 已实现 | Capture 内部选主屏不依赖公共枚举 |
+| 自启（第 17 项） | SMAppService 已实现 | Run 键已实现 | DB 保存用户意图，OS 应用为尽力执行，失败不回滚保存 |
+| 激活策略（第 18 项） | AppKit 同步应用并确认 | 保存请求策略，窗口由 app 管理 | Dock 偏好与窗口可见性分别建模 |
+| 空闲采样 / 通知（第 11、20 项） | 未实现 | 未实现 | 空闲字段为 NULL；通知端口桩不能证明提醒送达 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
 `native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是

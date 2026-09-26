@@ -9,4 +9,8 @@ Wails 构建资源与产物目录（Wails v2 默认布局）：
 - `native/` — 原生静态库构建产物（`native/darwin/build.sh` 与
   `native/windows/build.ps1` 的输出，不入库）
 
-修改 macOS / Windows 构建文件后，按 Wails 惯例重新 `wails build` 即可生效。
+修改 macOS / Windows 构建文件后需重新构建；干净检出先运行
+`./scripts/bootstrap-frontend.sh`。完整打包走 `scripts/package-macos.sh` 或 Windows 主机上的
+`scripts/package-windows.ps1`，由入口补齐 Sparkle framework / WinSparkle DLL、原生产物与安装器。
+构建不等于签名身份验收；当前安装升级的用户确认与正式证书缺口见
+[delivery 执行册](../docs/modules/delivery.md)，脚本参数见 [scripts/README.md](../scripts/README.md)。
