@@ -19,6 +19,19 @@
 
 ## 当前状态与证据
 
+2026-09-26：macOS 宿主控制加固：新增状态栏已应用可用性查询，入口不可用时软退出保留
+Dock；激活策略同步返回 AppKit 成功 / 拒绝并可重试；普通真退出遇分段收尾失败保留进程，
+系统关机 / 注销独立放行且禁用授权自重启；System 关闭后拒绝晚到回调，终态关机事件优先入队。
+`CGO_ENABLED=0 go test ./internal/app ./internal/platform/darwin` 与
+`bash native/darwin/system-smoke.sh` 通过，后者在独立匿名宿主验证 regular / accessory、
+状态栏安装 / 隐藏 / 移除、合成关机通知与观察者移除；不读取用户库或屏幕。
+`native/darwin/build.sh` universal 构建、`go test -a ./internal/platform/darwin -run 'TestSystem' -count=1`
+与 `./scripts/gate.sh`（含三平台无 cgo 构建、168 项前端测试）通过。本切片生命周期与 System
+关闭夹具的定向 race 扫描通过；扩大到整个 app 包的 race 扫描在既有 `recordingEmitter`
+无锁测试收集器中失败（chat / timeline 测试），不记为全包 race 通过。
+真实注销 / 关机、策略失败观感与关窗十分钟持续
+捕获属 G-host / 原生生命周期回归，尚未验证；本记录不扩大历史验收范围。
+
 2026-09-26：macOS 解码 ABI 增加每次调用的 `autoreleasepool`，保留 reader 取消和独立
 C 输出缓冲的所有权。新增匿名 1080p 多段 / 并发 / 缩略图 / 错误恢复夹具，验证返回缓冲不会
 被后续调用改写。`native/darwin/build.sh`、强制重新链接的原生测试和 `./scripts/gate.sh` 通过。

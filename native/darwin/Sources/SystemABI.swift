@@ -44,6 +44,7 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
     }
     add(NSWorkspace.willSleepNotification, workspace)
     add(NSWorkspace.didWakeNotification, workspace)
+    add(NSWorkspace.willPowerOffNotification, workspace)
     add(NSApplication.didChangeScreenParametersNotification, NotificationCenter.default)
     add(NSApplication.didBecomeActiveNotification, NotificationCenter.default)
     add(NSApplication.didHideNotification, NotificationCenter.default)
@@ -67,6 +68,7 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
 private func kind(for name: Notification.Name) -> UInt32 {
     if name == NSWorkspace.willSleepNotification { return UInt32(DG_SYSTEM_SLEEP) }
     if name == NSWorkspace.didWakeNotification { return UInt32(DG_SYSTEM_WAKE) }
+    if name == NSWorkspace.willPowerOffNotification { return UInt32(DG_SYSTEM_SHUTDOWN) }
     if name == NSApplication.didBecomeActiveNotification { return UInt32(DG_SYSTEM_APPLICATION_ACTIVATED) }
     if name == NSApplication.didHideNotification { return UInt32(DG_SYSTEM_APPLICATION_HIDDEN) }
     if name == NSApplication.didUnhideNotification { return UInt32(DG_SYSTEM_APPLICATION_UNHIDDEN) }
@@ -90,8 +92,9 @@ func dg_activation_policy_set(_ policy: UInt32) -> Int32 {
     case UInt32(DG_ACTIVATION_PROHIBITED): target = .prohibited
     default: return -1
     }
-    activationRunOnMain { NSApp.setActivationPolicy(target) }
-    return 0
+    let apply: @Sendable @MainActor () -> Int32 = { NSApp.setActivationPolicy(target) ? 0 : -2 }
+    if Thread.isMainThread { return MainActor.assumeIsolated { apply() } }
+    return DispatchQueue.main.sync { MainActor.assumeIsolated { apply() } }
 }
 
 @_cdecl("dg_screen_recording_permission_query")

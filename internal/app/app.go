@@ -302,6 +302,14 @@ func Run() error {
 		// status item as the way back (docs/decisions/lifecycle-quit-model.md).
 		OnBeforeClose: func(ctx context.Context) (prevent bool) {
 			if backend.quitAllowed() {
+				if err := backend.prepareTermination(backend.stopRecorder); err != nil {
+					log.Printf("quit cancelled: recording finalization failed: %s", recordingFailureReason(err))
+					_ = backend.exitBackground(ctx)
+					runtime.Show(ctx)
+					runtime.WindowShow(ctx)
+					backend.setWindowHidden(false)
+					return true
+				}
 				return false
 			}
 			// A permission-change restart must terminate for real and relaunch so
@@ -340,6 +348,8 @@ func Run() error {
 		// ask Wails to quit — OnShutdown runs backend.shutdown(). Before startup
 		// hands over the runtime context there is no event loop to quit, so stop
 		// work directly and exit.
+		backend.systemShuttingDown.Store(true)
+		backend.disarmPermissionRestart()
 		backend.requestQuit()
 		if ctx := backend.windowContext(); ctx != nil {
 			runtime.Quit(ctx)

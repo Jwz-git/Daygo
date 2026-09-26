@@ -164,7 +164,7 @@ private func applyStatus(_ snapshot: StatusSnapshot, _ handles: StatusHandles) {
 @MainActor
 private func clearStatus() {
     statusLock.lock()
-    statusController?.item.isVisible = false
+    if let controller = statusController { NSStatusBar.system.removeStatusItem(controller.item) }
     statusController = nil
     statusLock.unlock()
 }
@@ -207,4 +207,14 @@ func dg_status_item_set(_ requested: UInt32, _ state: UnsafePointer<dg_status_it
 @_cdecl("dg_status_item_stop")
 func dg_status_item_stop() {
     runOnMainActor { clearStatus() }
+}
+
+@_cdecl("dg_status_item_is_available")
+func dg_status_item_is_available() -> Int32 {
+    let query: @Sendable @MainActor () -> Int32 = {
+        guard let controller = statusController, controller.item.isVisible, controller.item.button != nil else { return 0 }
+        return 1
+    }
+    if Thread.isMainThread { return MainActor.assumeIsolated { query() } }
+    return DispatchQueue.main.sync { MainActor.assumeIsolated { query() } }
 }

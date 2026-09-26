@@ -119,6 +119,7 @@ const (
 	EventApplicationActivated SystemEventKind = "application_activated"
 	EventApplicationHidden    SystemEventKind = "application_hidden"
 	EventApplicationUnhidden  SystemEventKind = "application_unhidden"
+	EventSystemShutdown       SystemEventKind = "system_shutdown"
 	EventDeepLink             SystemEventKind = "deep_link"
 	EventStatusItemClick      SystemEventKind = "status_item_clicked"
 	EventNotificationClick    SystemEventKind = "notification_clicked"

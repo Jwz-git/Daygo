@@ -81,7 +81,8 @@ type Backend struct {
 	// background soft-quit; only the status-bar Quit sets it (requestQuit)
 	// before runtime.Quit, letting that one path terminate for real. See
 	// docs/decisions/lifecycle-quit-model.md.
-	allowQuit atomic.Bool
+	allowQuit          atomic.Bool
+	systemShuttingDown atomic.Bool
 	// pendingPermissionRestart arms the next quit to be a real termination with
 	// an automatic relaunch, instead of the resident-agent soft-quit. The
 	// frontend sets it while the screen-recording permission guidance is up, so
@@ -104,8 +105,10 @@ type Backend struct {
 	// is ordered out and the activation policy is accessory. It is the single
 	// condition an activation uses to decide whether the window needs bringing
 	// back (restoreOnActivation).
-	backgroundMu sync.Mutex
-	backgrounded bool
+	backgroundMu      sync.Mutex
+	backgrounded      bool
+	activationApplied bool
+	activationPolicy  platform.ActivationPolicy
 	// windowCtx is the Wails runtime context handed over in OnStartup; it
 	// scopes WindowSetBackgroundColour calls (window_background.go). It is
 	// nil in headless construction, where those calls become no-ops.
@@ -315,6 +318,8 @@ func (b *Backend) startSystemEventPump() {
 				b.setApplicationHidden(true)
 			case platform.EventApplicationUnhidden:
 				b.setApplicationHidden(false)
+			case platform.EventSystemShutdown:
+				b.requestSystemShutdown()
 			}
 			b.systemEventMu.Lock()
 			if len(b.systemEventBuffer) >= 64 {
@@ -420,6 +425,42 @@ func (b *Backend) requestQuit() { b.allowQuit.Store(true) }
 // quitAllowed reports whether a real termination was requested.
 func (b *Backend) quitAllowed() bool { return b.allowQuit.Load() }
 
+// System termination must never be downgraded to a hide or permission relaunch.
+func (b *Backend) requestSystemShutdown() {
+	if !b.systemShuttingDown.CompareAndSwap(false, true) {
+		return
+	}
+	b.disarmPermissionRestart()
+	b.requestQuit()
+	if request := b.shutdownRequest(); request != nil {
+		request()
+	}
+}
+
+func (b *Backend) stopRecorder() error {
+	b.recorderMu.Lock()
+	r := b.recorder
+	b.recorderMu.Unlock()
+	if r != nil {
+		return r.Stop()
+	}
+	return nil
+}
+
+// Ordinary quits preserve the process on a failed segment finalization. System
+// shutdown and signals are best-effort; logging contains only a stable category.
+func (b *Backend) prepareTermination(stop func() error) error {
+	if err := stop(); err != nil {
+		if b.systemShuttingDown.Load() {
+			log.Printf("system shutdown recording finalization failed: %s", recordingFailureReason(err))
+			return nil
+		}
+		b.allowQuit.Store(false)
+		return err
+	}
+	return nil
+}
+
 // setShutdownRequester installs the closure that terminates the desktop shell
 // for real. Called once in OnStartup.
 func (b *Backend) setShutdownRequester(requester func()) {
@@ -475,13 +516,25 @@ func (b *Backend) beginPermissionRestart() error {
 // activation must still be able to bring it back.
 func (b *Backend) enterBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
-	entered := b.backgrounded
+	defer b.backgroundMu.Unlock()
+	policy := platform.ActivationAccessory
+	if availability, ok := b.system.(platform.StatusItemAvailability); ok {
+		ready, err := availability.StatusItemAvailable(ctx)
+		if err != nil || !ready {
+			policy = platform.ActivationRegular
+		}
+	}
+	unchanged := b.backgrounded && b.activationApplied && b.activationPolicy == policy
 	b.backgrounded = true
-	b.backgroundMu.Unlock()
-	if entered || b.system == nil {
+	if unchanged || b.system == nil {
 		return nil
 	}
-	return b.system.SetActivationPolicy(ctx, platform.ActivationAccessory)
+	if err := b.system.SetActivationPolicy(ctx, policy); err != nil {
+		return err
+	}
+	b.activationApplied = true
+	b.activationPolicy = policy
+	return nil
 }
 
 // exitBackground restores the regular (Dock-visible) policy when the user
@@ -494,13 +547,19 @@ func (b *Backend) enterBackground(ctx context.Context) error {
 // activation show the window for a frame and then lose it.
 func (b *Backend) exitBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
+	defer b.backgroundMu.Unlock()
 	entered := b.backgrounded
-	b.backgrounded = false
-	b.backgroundMu.Unlock()
 	if !entered || b.system == nil {
+		b.backgrounded = false
 		return nil
 	}
-	return b.system.SetActivationPolicy(ctx, platform.ActivationRegular)
+	if err := b.system.SetActivationPolicy(ctx, platform.ActivationRegular); err != nil {
+		return err
+	}
+	b.backgrounded = false
+	b.activationApplied = true
+	b.activationPolicy = platform.ActivationRegular
+	return nil
 }
 
 // restoreOnActivation runs show only when a soft-quit left the app in the
@@ -692,11 +751,8 @@ func (b *Backend) permissionState(op string, query func(ctx context.Context) (pl
 }
 
 func (b *Backend) shutdown() {
-	b.recorderMu.Lock()
-	r := b.recorder
-	b.recorderMu.Unlock()
-	if r != nil {
-		_ = r.Stop()
+	if err := b.stopRecorder(); err != nil {
+		log.Printf("shutdown recording finalization failed: %s", recordingFailureReason(err))
 	}
 	if closer, ok := b.updater.(interface{ Close() error }); ok {
 		_ = closer.Close()

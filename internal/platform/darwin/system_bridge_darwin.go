@@ -171,7 +171,8 @@ func setStatusItem(state platform.StatusItemState) error {
 	}
 	return nil
 }
-func stopStatusItem() { C.dg_status_item_stop() }
+func stopStatusItem()                    { C.dg_status_item_stop() }
+func statusItemAvailable() (bool, error) { return C.dg_status_item_is_available() == 1, nil }
 func boolToUint(v bool) uint32 {
 	if v {
 		return 1

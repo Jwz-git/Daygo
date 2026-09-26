@@ -84,6 +84,13 @@ type Relauncher interface {
 	Relaunch(ctx context.Context) error
 }
 
+// StatusItemAvailability confirms that the native recovery entry point exists.
+// Unlike SetStatusItem (which may enqueue a repaint), this is an applied-state
+// query. It is only called by host lifecycle actions, never recorder callbacks.
+type StatusItemAvailability interface {
+	StatusItemAvailable(ctx context.Context) (bool, error)
+}
+
 // Secrets is the system keychain. Get is for Go's provider client only; no
 // binding ever returns the value to the frontend.
 type Secrets interface {

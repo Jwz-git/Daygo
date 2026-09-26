@@ -1322,6 +1322,12 @@ type Relauncher interface {
     Relaunch(ctx context.Context) error
 }
 
+// macOS 的可选宿主能力：确认已应用的状态栏恢复入口。仅生命周期动作调用；
+// recorder 状态重绘仍异步，不能在其回调中等待主线程。
+type StatusItemAvailability interface {
+    StatusItemAvailable(ctx context.Context) (bool, error)
+}
+
 // Secrets 是系统钥匙串。service 为 io.github.jwz-git.daygo.apikeys.<provider>。
 type Secrets interface {
     Get(ctx context.Context, provider string) (string, error)
@@ -1348,6 +1354,12 @@ type UpdateCopySink interface {
 macOS System ABI 1.5 新增 `application_hidden` / `application_unhidden` 成对事件
 （原生值 9 / 10），与 `application_activated` 独立。观察者随 `dg_system_start` 安装，
 随 `dg_system_stop` 移除；不会将 UI 隐藏解释为 recorder 暂停或停止。
+
+macOS System ABI 1.6 增加 `system_shutdown`（原生值 11），来自 NSWorkspace 的
+`willPowerOffNotification`，覆盖关机 / 注销意图；app 放行真退出并尽力收尾，禁用授权自重启。
+该终态事件在通道满时替换最旧事件，不阻塞 AppKit；其余事件维持现有有界通道行为。
+macOS `dg_activation_policy_set` 同步等待主线程并报告 AppKit 拒绝（-2）；状态栏新增
+`dg_status_item_is_available` 查询，0 为不可用、1 为已安装且可见。重绘 ABI 仍异步。
 
 
 ### 5.7.1 调用语义

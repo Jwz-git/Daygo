@@ -19,7 +19,10 @@ func setStatusItem(platform.StatusItemState) error {
 	return errors.New("status item ABI unavailable without cgo")
 }
 func stopStatusItem() {}
-func systemStop()     {}
+func statusItemAvailable() (bool, error) {
+	return false, errors.New("status item ABI unavailable without cgo")
+}
+func systemStop() {}
 func setActivationPolicy(platform.ActivationPolicy) error {
 	return errors.New("activation policy ABI unavailable without cgo")
 }

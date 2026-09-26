@@ -16,6 +16,7 @@ type System struct {
 	mu      sync.Mutex
 	events  chan platform.SystemEvent
 	started bool
+	closed  bool
 }
 
 func NewSystem() *System {
@@ -45,27 +46,52 @@ func (s *System) start() error {
 func (s *System) Events() <-chan platform.SystemEvent { return s.events }
 func (s *System) Close() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.started {
+	if s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.closed = true
+	started := s.started
+	s.started = false
+	close(s.events)
+	s.mu.Unlock()
+	if started {
 		systemStop()
 		activeSystem.Lock()
 		if activeSystem.value == s {
 			activeSystem.value = nil
 		}
 		activeSystem.Unlock()
-		s.started = false
 	}
-	close(s.events)
+	stopStatusItem()
 }
 func (s *System) push(kind uint32, ns int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	event := platform.SystemEvent{Kind: systemEventKind(kind), At: time.Unix(0, ns)}
 	select {
-	case s.events <- platform.SystemEvent{Kind: systemEventKind(kind), At: time.Unix(0, ns)}:
+	case s.events <- event:
 	default:
+		// A terminal shutdown supersedes pending ordinary events. Never block an
+		// AppKit callback, and never silently discard the termination intent.
+		if event.Kind == platform.EventSystemShutdown {
+			select {
+			case <-s.events:
+			default:
+			}
+			s.events <- event
+		}
 	}
 }
 func (s *System) pushAction(kind platform.SystemEventKind, action uint32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
 	select {
 	case s.events <- platform.SystemEvent{Kind: kind, At: time.Now(), Data: platform.SystemEventData{StatusItemID: statusActionID(action)}}:
 	default:
@@ -118,6 +144,8 @@ func systemEventKind(k uint32) platform.SystemEventKind {
 		return platform.EventApplicationHidden
 	case 10:
 		return platform.EventApplicationUnhidden
+	case 11:
+		return platform.EventSystemShutdown
 	}
 	return ""
 }
@@ -149,6 +177,18 @@ func (s *System) SetActivationPolicy(_ context.Context, p platform.ActivationPol
 }
 func (s *System) SetStatusItem(_ context.Context, state platform.StatusItemState) error {
 	return setStatusItem(state)
+}
+func (s *System) StatusItemAvailable(ctx context.Context) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	started := s.started && !s.closed
+	s.mu.Unlock()
+	if !started {
+		return false, nil
+	}
+	return statusItemAvailable()
 }
 
 // RevealPath opens the path in Finder via /usr/bin/open. open hands the path to

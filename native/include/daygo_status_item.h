@@ -44,6 +44,9 @@ int32_t dg_status_item_set(uint32_t requested_abi_major,
                            dg_status_item_action_callback_v1 callback,
                            void *user_data);
 void dg_status_item_stop(void);
+/* macOS applied-state query: 1 installed/visible, 0 unavailable. Unlike repaint,
+   this waits for the main thread. Do not call from recorder event callbacks. */
+int32_t dg_status_item_is_available(void);
 #ifdef __cplusplus
 }
 #endif
