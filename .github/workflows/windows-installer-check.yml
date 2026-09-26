@@ -1,0 +1,53 @@
+name: Windows installer fixtures
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - scripts/windows-installer/**
+      - scripts/package-windows.ps1
+      - build/windows/icon.ico
+      - go.mod
+      - .github/workflows/windows-installer-check.yml
+  pull_request:
+    paths:
+      - scripts/windows-installer/**
+      - scripts/package-windows.ps1
+      - build/windows/icon.ico
+      - go.mod
+      - .github/workflows/windows-installer-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixtures:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare NSIS and pinned Wails helper
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS installation failed' }
+          "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          go mod download github.com/wailsapp/wails/v2
+          if ($LASTEXITCODE -ne 0) { throw 'Wails helper download failed' }
+      - name: Compile both scopes and run anonymous install/uninstall fixtures
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/package-windows.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { throw 'NSIS compiler missing' }
+          python scripts/windows-installer/test_installer.py
+          if ($LASTEXITCODE -ne 0) { throw 'Installer fixtures failed' }

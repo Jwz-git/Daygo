@@ -23,8 +23,9 @@ script owns a responsibility and which one a new contributor should reach for.
 | `package-windows.ps1` | Windows packager: bootstrap → Wails/NSIS materialisation → sign EXE + native DLL → repackage those final bytes → sign installer → emit SHA-256 acceptance manifest. The tracked `windows-installer/project.nsi` is required because stock Wails only installs the EXE. Supports `-InstallScope machine|user`; unsigned by default. Certificate file via `DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD`, or installed cert via `DAYGO_WIN_CERT_THUMBPRINT`. Windows-only; host run still required (see delivery module). | Windows release packaging |
 | `bootstrap-updaters.sh` | Downloads Sparkle 2.10.0 into ignored `build/deps`, verifies the pinned SHA-256, and exposes the framework plus signing tools. | macOS release build / appcast job |
 | `generate-appcast.py` | Builds the two-platform RSS appcast from already Ed25519-signed macOS and Windows assets. It never receives the private key. | protected GitHub `release` environment |
-| `windows-installer/project.nsi` | Wails-compatible NSIS project that installs `Daygo.exe` and the required `daygo_windows_native.dll` together. Copied into ignored `build/windows/installer/` at package time. | `package-windows.ps1` |
-| `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + `check-docs.py`. Skipped only when `python3` is missing (Python is for docs only). | CI runner, also local pre-commit |
+| `windows-installer/project.nsi` | Native Modern UI 2 installer with nine languages, optional desktop shortcut, dependency and in-use-file checks; no custom artwork. Installs `Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll`; uninstall removes only package-owned files and keeps user data. Includes are copied into ignored `build/windows/installer/` at package time. | `package-windows.ps1` |
+| `windows-installer/test_installer.py` | Anonymous fixtures using the pinned Wails helper: translation coverage, both scope compilations (`makensis -WX`), missing-DLL rejection, and Windows-only silent install/uninstall, WebView2 failure/postcondition and locked-file checks. Uses temporary folders and unique registry/product identities, never real Daygo data. | `gate.sh`, Windows installer fixture workflow |
+| `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + docs and installer fixture checks. Python checks skip when `python3` is missing; NSIS compilations skip without `makensis`, Windows execution skips on other hosts. | CI runner, also local pre-commit |
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
 | `probe/analysis.go` | Provider-agnostic diagnostic: runs the production transcription + card-generation pipeline against the user-configured provider, never writes the database. | Manual, when debugging AI integration |
 
@@ -74,6 +75,34 @@ release path: Wails' stock template omits the native DLL, and signing after pack
 leave the embedded executable unsigned. The resulting `dist/windows-package.json` is evidence
 for artifact identity only; the WD matrix still requires installed-file signature checks,
 interactive and silent install/uninstall, upgrade, and clean-machine startup.
+
+The installer follows the Windows UI language among the nine supported languages,
+with English as fallback. Custom strings live in `windows-installer/languages.nsh`
+because Vue is not running during installation. Success proceeds directly to the
+finish page; file details remain available. New desktop shortcuts are opt-in on
+that page; existing shortcuts are retained during an upgrade, and `/S` creates
+only the Start menu shortcut. Machine-scope setup never launches Daygo from its
+elevated token. User-scope setup offers launch only when not running as admin.
+The install scope, product identity and two-pass signing sequence are unchanged.
+
+Silent failure codes include 10 (required files inaccessible/in use), 20 (WebView2
+unavailable after bootstrap), and the Wails architecture/OS codes 65/64.
+Setup checks files before changing them and does not kill the resident agent.
+The access checks are not an atomic upgrade transaction: a concurrent launch or
+I/O failure can still interrupt extraction, which fails rather than offering
+Ignore for a required DLL. This needs the real WD-5 recovery check.
+
+For checks without a release build, install NSIS and run:
+
+```bash
+python3 scripts/windows-installer/test_installer.py
+```
+
+On Windows use `python` instead of `python3`. The separate Windows installer
+fixture workflow runs compilation, PowerShell parsing and anonymous `/S` cases;
+it does not build or publish a Daygo release. Manual WD-3 also needs all nine
+languages at 100%, 150% and 200% scaling, keyboard navigation, the two scope
+finish pages, optional shortcuts, and upgrade/uninstall while Daygo is resident.
 
 ## Naming
 
