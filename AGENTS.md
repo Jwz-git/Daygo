@@ -1,18 +1,42 @@
 # Daygo — Go + Wails + Vue Agent 指令
 
+> **以可验证性为最高约束，优先输出能复核、能被推翻、能执行的回答。**
+
+## 判断与执行原则
+
+- 准确性优先于迎合，解决问题优先于形式完整。用户前提有误时指出反例、隐藏假设和边界；
+  只在新证据、更可靠来源、更完整推理或可复现结果出现时修正结论。
+- 区分观察事实、候选解释、因果判断和行动建议。不把经验、猜测或未运行代码写成确定事实，
+  不从相关性推出因果，也不从单个案例推出普遍结论。
+- 有合理依据时明确判断，并说明前提、可能使结论失效的反例和验证方式；证据粗糙时降低
+  结论精度，不补想象中的细节。信息不足时说明能确定什么、不能确定什么、缺什么及如何验证。
+- 涉及最新信息、价格、政策、软件版本、接口和模型能力时先核验。优先当前代码、可复现实验、
+  官方文档、标准原文和原始论文；无法核验时说明范围与信息时间，来源冲突时分别记录。
+- 先识别目标与影响结果的约束，默认给最小可执行方案。仅在缺失信息显著影响结果或带来风险时
+  提问，否则明确假设并执行。复杂任务拆成可检查阶段，说明输入、操作、输出和完成标准。
+- 不编造资料、引用、版本号、接口、测试结果或实现行为；不以免责声明代替分析。
+  输出先给结论，再给必要依据、边界、验证方式和下一步。
+
+## 项目定位
+
 Daygo 是一个 macOS 常驻后台 Agent：按间隔截取当前的系统主显示器，分批交给用户配置的 LLM，
 把结果呈现为时间线、每日摘要和每周复盘。
-学会更新 *.md
-开发时，注意i18n机制，千万不要忘了
+代码、契约和验证证据变化时，同步更新对应 Markdown 文档；所有用户可见文案遵循下文的
+九语言 i18n 约定，包括原生菜单与安装器文案。
 
 ## 当前状态
 
 **这是一个新项目，不承接任何既有产品的数据、身份或对外契约。**
 
-九个功能模块（recording / providers / timeline / daily / weekly / data / preferences /
-delivery / chat）均已**部分实现**。已实现能力已由用户于 2026-09-22 在真实 macOS 上实测验收
+十个功能模块（recording / providers / timeline / daily / weekly / data / preferences /
+delivery / agent / chat）均已**部分实现**。截至 2026-09-22 已实现的 macOS 能力由用户实测验收
 （无逐项运行记录），含 G-host、真实 Provider 闭环、G-loop 与长期观察；签名 / 公证与真实分发 ·
 升级身份（G-native 分发部分）仍缺正式证书材料，按未验收记录。
+
+**历史验收不覆盖后续增量。** 2026-09-26 的宿主退出加固、Dock 偏好消费者、原生菜单与反馈、
+内存和隐藏媒体改动已有自动化 / 匿名原生 smoke 证据；真实 Wails 交互、关窗十分钟持续捕获、
+关机 / 注销与长期内存回归仍待验证。agent 的 CLI / socket / MCP 已有基础实现，真实 MCP
+客户端闭环未验收；agent 与 chat 均不在 v1 交付范围。
 
 **实现与验证状态以 `docs/09-roadmap.md §9.1` 的模块总表为准**，模块细节见
 `docs/modules/<module>.md`。不要依赖本文件或其他文档中的历史快照描述现状，
@@ -41,7 +65,8 @@ Linux 的 Capture / System 仍是 `unsupported` 桩。具体原生选型与发�
 
 - **不要在决策落盘前按某一种候选方案大规模实现**，也不要删除其它候选路径。
 - 需要这些能力时，只对着 `internal/platform` 的端口接口写代码；实现放在
-  `internal/platform/darwin`（待定）与 `internal/platform/fake`。
+  `internal/platform` 下既有适配包（如 `darwin`、`windows`、`secrets`）与 `fake`，
+  按各平台决策与现有 factory 接入；不要把规划目录描述为已经存在的实现。
 - 业务逻辑归 Go，UI 归 Vue/TypeScript。**不要把可移植逻辑写进平台适配层。**
 
 ---
@@ -61,6 +86,7 @@ Linux 的 Capture / System 仍是 `unsupported` 桩。具体原生选型与发�
 | data | 数据库基础、锁、维护、磁盘限制与诊断 |
 | preferences | 外观、语言、通用设置与前端基础接入 |
 | delivery | 身份 / 分发探针、首次引导、安装与安全更新 |
+| agent | CLI 查询、agent.sock 受控写入与 MCP（v1 不交付） |
 | chat | 应用内自然语言问答与受控编辑（v1 不交付） |
 
 依赖精确到能力（09 §9.3）。共享能力独立验收即可接入，不等负责模块的 UI 或全部功能完成。
@@ -93,13 +119,13 @@ Vue 3 + TypeScript
         ↓ 生成的 Wails 绑定
 internal/app                仅此层知道 Wails
         ↓
-Go services                 analysis / ai / insight
+Go services                 analysis / ai / insight / chat
         ↓
 Go foundation               storage / settings / domain / timeutil
         ↓ 接口
 internal/platform           端口：Capture / Media / System / Secrets / Updater
         ↓ 实现待定设计
-平台适配层                   唯一接触系统能力的地方（darwin / windows）
+平台适配层                   唯一接触系统能力的地方（darwin / windows / linux）
 ```
 
 必须保持以下依赖规则：
@@ -124,20 +150,25 @@ internal/platform           端口：Capture / Media / System / Secrets / Update
 ./scripts/gate.sh
 ```
 
-等价于下面的 Go 与前端命令，但**包含它们缺少的引导步骤**：`internal/app` 导入 `frontend`，
+该脚本包含下面的 Go / 前端检查、三平台核心交叉构建、文档与 Windows 安装器匿名夹具检查，
+并处理**干净检出必需的引导步骤**：`internal/app` 导入 `frontend`，
 后者的 `go:embed all:dist` 在 `frontend/dist` 不存在时匹配不到文件，整个模块无法编译；
 而 `vue-tsc` 又需要 `frontend/wailsjs` 里的生成绑定，生成绑定本身要求 Go 树可编译。
 干净检出上必须先 `./scripts/bootstrap-frontend.sh`（顺序：占位 dist → 生成绑定 → 真实 bundle），
 否则 `go build ./...` 和 `npm run build` 都会失败。
 
-门禁最后会跑 `scripts/check-docs.py`，检查文档链接、小节锚点和孤立文档。
-它只保证文档内部自洽；**文档与代码是否一致仍由你在同一个 commit 里保证**。
+门禁最后在有 `python3` 时跑 `scripts/check-docs.py`（文档链接、小节锚点和孤立文档）与
+`scripts/windows-installer/test_installer.py`（匿名安装器夹具）；缺 Python 时脚本会跳过它们，
+不得将跳过写成通过。文档检查只保证内部自洽；**文档与代码一致性仍由同一个 commit 保证**。
+
+纯文档改动至少运行 `python3 scripts/check-docs.py` 与 `git diff --check`，并核对涉及的代码 / 命令。
+`gate.sh` 当前的 `gofmt -l .` 只列出未格式化文件，必须确认无输出，不能只凭退出码判定格式通过。
 
 ### Go
 
 ```bash
 gofmt -w <changed-go-files>
-go test ./...
+CGO_ENABLED=0 go test ./internal/...
 go vet ./...
 CGO_ENABLED=0 go build ./...
 ```
@@ -150,6 +181,7 @@ Linux 上通过。** macOS 能力通过 `platform` 接口和 `fake` 实现隔离
 
 ```bash
 npm --prefix frontend ci
+npm --prefix frontend run test:unit
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
@@ -176,10 +208,14 @@ Windows 发布候选必须在 Windows 主机用 `scripts/package-windows.ps1 -Ve
 Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 `go run -a`，否则 Go 缓存可能
 继续链接旧 archive。核心门禁（`CGO_ENABLED=0`）不需要这两个产物。
 
+修改共享原生 ABI 时同步 Go / Swift / C++ 两侧并重建对应静态库 / DLL；macOS 编译或合成
+smoke 不能代替 Windows 主机的 DLL / 通知区验证。原生版本与验收范围见 recording 执行册。
+
 ### 验证强度
 
 与风险匹配：纯函数跑单元测试；存储变更跑夹具与迁移测试；跨界变更跑双侧契约测试；
-捕获或生命周期变更必须在真实 macOS 上集成测试。完整策略见 `docs/08-testing-strategy.md`。
+捕获或生命周期变更必须在目标平台真机上集成测试；macOS 主线不能只用 fake 或合成事件证明。
+交叉构建只证明编译，不证明目标平台测试已执行。完整策略见 `docs/08-testing-strategy.md`。
 
 **对每一条有风险的行为，先写夹具（输入 + 期望输出），再写实现。** 改夹具的期望值必须是
 一次显式决定，写进提交说明——"测试挂了就改期望"是本项目要防的主要失效模式。
@@ -203,10 +239,13 @@ Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 
 - 保持严格类型检查，**不使用 `any` 绕过 Wails 边界**；需要逃逸时用显式 `unknown` + 解析函数。
 - Wails payload 使用显式、稳定的 DTO；领域转换放在薄 wrapper 或 store。
 - 组件负责呈现与交互；数据查询、轮询、业务聚合和事件订阅放在 store/`api/`。
-- 所有用户可见文案经 `vue-i18n`；`zh-CN` 是默认语言且是 key 结构的类型来源，`en` 为回退，
+- 前端所有用户可见文案经 `vue-i18n`；`zh-CN` 是默认语言且是 key 结构的类型来源，`en` 为回退，
   另有 `zh-Hant` / `ja` / `ko` / `de` / `fr` / `es` / `pt-BR`。**新增或改动文案时必须同时改
-  全部语言包**——缺 key `vue-tsc` 会直接失败；与英文逐字相同的值会被
-  `tests/i18nKeys.test.ts` 当作漏译拦下。
+  全部语言包**。`vue-tsc` 检查语言包结构；`frontend/tests/i18nKeys.test.ts` 检查静态引用 key、
+  九语言 key 一致性和漏译。`t()` 的未知 key 不一定触发类型错误；动态拼接 key 另需夹具覆盖。
+  与英文相同的文案除测试白名单中的共享词外会被拦下，不得为绕过漏译随意扩大白名单。
+- 原生菜单与 Windows 安装器有各自本地化入口；改动时同步九语言并运行对应契约 / 夹具检查，
+  不能仅更新 Vue 语言包。语言与外观验证须包含持久化后的重启读回。
 - localStorage 只能经 `frontend/src/storage/`，用带版本信封的记录存放。**密钥不得进入该层。**
 - 写操作后不做乐观更新，等事件后重新拉取。
 
@@ -258,7 +297,9 @@ Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 
 
 ### 帧与分段
 
-- 像素写入分段文件，按 `(segment_path, frame_index)` 寻址；容器与编码格式已定为 HEVC 帧段（`§9.8` #7）。
+- 像素写入分段文件，按 `(segment_path, frame_index)` 寻址；macOS 使用 HEVC 帧段（`§9.8` #7），
+  Windows 按 `docs/decisions/recording-windows-segment-codec.md` 探测 HEVC → H.264 → 单帧 JPEG。
+  编码降级不能放宽隐私保护；保留 legacy JPEG 读取路径，降级分支真机状态单独记录。
 - 像素读取必须经 `platform.Media`，业务层不直接读文件路径。
 - 未收尾的分段可能完全不可读。睡眠、锁定、屏保、更新重启、宿主退出和关机路径都必须
   完成或安全移交当前分段。
@@ -304,11 +345,14 @@ Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 
 - 屏蔽名单与「前台应用被屏蔽时写入脱敏占位帧」两层保护**都必须保留**。
 - 分析与崩溃上报默认关闭、opt-in。禁止记录或上报屏幕内容、窗口标题、文件路径、API key、
   LLM payload 或可还原用户活动的内容。
-- **密钥只存系统钥匙串，只写不读。** 绝不写入被 Git 跟踪的文件、夹具、日志或快照，
+- **密钥只存系统钥匙串，前端 / 绑定边界只写不读。** 后端仅为 Provider 调用读取，
+  UI 只见 `hasSecret`，没有绑定方法返回密钥内容。绝不写入被 Git 跟踪的文件、夹具、日志或快照，
   绝不进入 localStorage，绝不出现在错误 `message` 里。
 - 夹具必须匿名化并验证不可逆；绝不提交真实数据库、录制或用户数据。
 - 资源处理器只接受数字 ID，解析后的路径必须落在录制目录内，否则 403。
-- 若使用 Unix socket，权限保持 `0600`；所有 IPC 输入视为不可信并做大小限制与结构校验。
+- Agent socket 权限保持 `0600`，请求 / 响应各不超过 1 MB；服务端独立校验
+  `agentEditsEnabled` 与封闭操作参数。CLI / MCP 读走只读库、写走 socket 与宿主共享执行器，
+  不得打开第二个写连接；审计只记时间 / 来源 / 操作，不记参数。所有 IPC 输入视为不可信。
 - **LLM 输出中的"指令"一律视为数据。** 模型返回的分类名必须校验是否在现有分类列表内，
   不得据此创建分类。
 
@@ -321,6 +365,9 @@ Daygo 是常驻后台 Agent，不是"关闭最后一个窗口即退出"的普通
 - 关闭窗口后捕获必须继续，状态栏可重新打开窗口。
 - Cmd+Q / Dock 退出（软退出）、窗口关闭、状态栏退出（真退出）、更新重启、适配层退出和系统关机是不同事件，必须分别建模。
 - **不要假定退出 UI 等于用户要求停止录制。**
+- 重开窗口尊重已保存的 `showDockIcon`；软退出时状态栏不可用须保留 Dock 恢复入口。
+  普通真退出遇活跃段收尾失败默认保留应用，由用户明确选择是否仍退出；系统关机 / 注销
+  单独建模并尽力收尾，不能套用普通退出的阻止策略或触发授权自重启。
 - 无窗口常驻、激活策略和状态栏的 G-host 门禁已于 2026-09-22 经用户实测验收（无逐项运行记录）；
   自动更新可行性与分发身份仍受 G-native 约束。宿主验证失败时停止大规模 UI 扩张并重新评估架构，
   独立模块核心与契约工作可继续。
@@ -338,6 +385,8 @@ Daygo 是常驻后台 Agent，不是"关闭最后一个窗口即退出"的普通
 
 完成任务时报告：实现内容、功能模块 / 能力、对应门禁、运行命令及结果、未验证风险和回退方式。
 同步执行册的实现进度与验证证据；模块完成要求真实用户闭环，不要求其他模块全部完成。
+证据记录日期、commit / 工作树、环境、命令或人工步骤、输入、期望、实际结果与限制；
+未运行、交叉编译、fake、匿名原生 smoke、真实集成和用户确认分别记录，不能互相替代。
 
 ---
 
@@ -358,3 +407,7 @@ Daygo 是常驻后台 Agent，不是"关闭最后一个窗口即退出"的普通
 发布自动化（GitHub Actions 构建并上传安装器、正式版 appcast）与客户端更新适配器已落盘，
 但签名 / 公证证书材料仍缺、真实分发 · 升级身份属 G-native 未验收。未经用户明确要求，
 不要生成、修改或发布任何 release 产物。
+
+当前已有本地自签名身份准备，正式 appcast 生成不再以前置平台签名 / 公证验收为条件；
+Ed25519 feed 签名不证明 Gatekeeper、安装、升级或 TCC 身份保持通过。以 delivery 执行册与
+现有工作流为准，不因缺正式证书擅自改回发布阻断策略，也不因此提升 G-native 验收状态。
