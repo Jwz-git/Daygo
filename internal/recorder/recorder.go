@@ -66,6 +66,7 @@ type Recorder struct {
 	settingsChanged  chan struct{}
 	lastFrameAt      *time.Time
 	lastError        error
+	pauseUntil       *time.Time
 	shutdownErr      error
 	systemBlockers   map[platform.SystemEventKind]struct{}
 	resumeGeneration uint64
@@ -118,6 +119,23 @@ func (r *Recorder) LastError() error {
 	defer r.mu.Unlock()
 	return r.lastError
 }
+
+type PauseInfo struct {
+	UserPaused    bool
+	SystemBlocked bool
+	Until         *time.Time
+}
+
+func (r *Recorder) PauseInfo() PauseInfo {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	info := PauseInfo{UserPaused: r.userPaused, SystemBlocked: len(r.systemBlockers) != 0}
+	if r.pauseUntil != nil {
+		value := *r.pauseUntil
+		info.Until = &value
+	}
+	return info
+}
 func (r *Recorder) Start(ctx context.Context) error {
 	r.mu.Lock()
 	if r.state != StateIdle {
@@ -136,6 +154,7 @@ func (r *Recorder) Start(ctx context.Context) error {
 	r.state = StateStarting
 	r.userPaused = false
 	r.lastError = nil
+	r.pauseUntil = nil
 	r.shutdownErr = nil
 	r.resumeGeneration++
 	r.mu.Unlock()
@@ -153,6 +172,8 @@ func (r *Recorder) Stop() error {
 	cancel := r.cancel
 	done := r.done
 	r.lastError = nil
+	r.pauseUntil = nil
+	r.userPaused = false
 	// Bump the resume generation so any pending user-pause or system-event
 	// timer no-ops when it fires: the state guard alone loses the race where
 	// the timer wins the lock before run()'s deferred teardown sets StateIdle.
@@ -177,6 +198,7 @@ func (r *Recorder) Pause(duration time.Duration) error {
 		return fmt.Errorf("recorder: cannot pause from %s", r.state)
 	}
 	r.userPaused = true
+	r.pauseUntil = nil
 	r.state = StatePaused
 	r.resumeGeneration++
 	generation := r.resumeGeneration
@@ -194,7 +216,16 @@ func (r *Recorder) Pause(duration time.Duration) error {
 		}
 	}
 	if duration > 0 {
-		time.AfterFunc(duration, func() { r.resumeAfterUserPause(generation) })
+		r.mu.Lock()
+		current := r.resumeGeneration == generation && r.state == StatePaused && r.userPaused
+		if current {
+			until := r.cfg.Clock.Now().Add(duration)
+			r.pauseUntil = &until
+		}
+		r.mu.Unlock()
+		if current {
+			time.AfterFunc(duration, func() { r.resumeAfterUserPause(generation) })
+		}
 	}
 	r.emit(StatePaused, nil)
 	return nil
@@ -212,8 +243,10 @@ func (r *Recorder) resumeAfterUserPause(generation uint64) {
 		return
 	}
 	r.userPaused = false
+	r.pauseUntil = nil
 	if len(r.systemBlockers) != 0 {
 		r.mu.Unlock()
+		r.emit(StatePaused, nil)
 		return
 	}
 	r.state = StateCapturing
@@ -231,6 +264,7 @@ func (r *Recorder) Resume() error {
 		return fmt.Errorf("recorder: cannot resume while system capture is blocked")
 	}
 	r.userPaused = false
+	r.pauseUntil = nil
 	r.state = StateCapturing
 	r.resumeGeneration++
 	r.mu.Unlock()
@@ -277,13 +311,21 @@ func (r *Recorder) HandleSystemEvent(event platform.SystemEvent) {
 			r.mu.Unlock()
 			r.emit(StatePaused, nil)
 		} else {
+			paused := r.state == StatePaused
 			r.mu.Unlock()
+			if paused {
+				r.emit(StatePaused, nil)
+			}
 		}
 	case platform.EventWake, platform.EventScreenUnlocked, platform.EventScreensaverStop:
 		r.mu.Lock()
 		delete(r.systemBlockers, blockingEventFor(event.Kind))
 		if r.userPaused || r.state != StatePaused || len(r.systemBlockers) != 0 {
+			paused := r.state == StatePaused
 			r.mu.Unlock()
+			if paused {
+				r.emit(StatePaused, nil)
+			}
 			return
 		}
 		delay := 5 * time.Second

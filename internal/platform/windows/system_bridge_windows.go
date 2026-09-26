@@ -60,6 +60,7 @@ func setStatusItem(state platform.StatusItemState) error {
 
 	native := C.dg_status_item_state_v1{
 		visible:                 C.uint32_t(boolToUint(state.Visible)),
+		icon:                    C.uint32_t(state.Icon),
 		pause_durations_enabled: C.uint32_t(boolToUint(state.PauseDurationsEnabled)),
 		primary_action_enabled:  C.uint32_t(boolToUint(state.PrimaryActionEnabled)),
 		title:                   title,

@@ -22,6 +22,7 @@
   },
   "system": {
     "launchAtLogin": false,
+    "showDockIcon": true,
     "agentEditsEnabled": false,
     "testToolsEnabled": false
   },

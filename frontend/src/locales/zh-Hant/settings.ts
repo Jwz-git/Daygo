@@ -73,6 +73,8 @@ export default {
     chatEditsHint: '允許應用程式內的對話幫你修改卡片、分類和目標。與上一項互不影響。',
   },
   general: {
+    showDockIcon: "在 Dock 中顯示",
+    showDockIconHint: "關閉後可透過選單列開啟 Daygo。Cmd+Q 會隱藏視窗並繼續背景記錄；選單列無法使用時會保留 Dock。",
     launchAtLogin: '登入時自動啟動',
     launchAtLoginHint: '登入電腦後自動打開 Daygo，並在背景下繼續記錄。',
     testTools: '測試工具',

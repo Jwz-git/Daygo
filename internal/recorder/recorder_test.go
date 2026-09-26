@@ -71,6 +71,76 @@ type testClock struct {
 	now time.Time
 }
 
+func TestPauseMetadataPreservesUserDeadlineAcrossSystemHold(t *testing.T) {
+	events := make(chan Event, 16)
+	r, err := New(Config{Capture: fake.NewCapture(), Store: &testStore{}, Settings: settings.Snapshot{CaptureIntervalSeconds: 10, CaptureHeightPixels: 18}, Directory: t.TempDir(), OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+	defer r.Stop()
+	if err = r.Pause(15 * time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	info := r.PauseInfo()
+	if !info.UserPaused || info.Until == nil || info.SystemBlocked {
+		t.Fatalf("pause info=%+v", info)
+	}
+	original := *info.Until
+	*info.Until = time.Time{}
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenLocked})
+	info = r.PauseInfo()
+	if !info.SystemBlocked || info.Until == nil || !info.Until.Equal(original) {
+		t.Fatalf("system hold changed deadline=%+v", info)
+	}
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenUnlocked})
+	if err = r.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	if info = r.PauseInfo(); info.UserPaused || info.Until != nil {
+		t.Fatalf("resume kept pause=%+v", info)
+	}
+}
+
+func TestExpiredPausePublishesMetadataWhileSystemRemainsBlocked(t *testing.T) {
+	events := make(chan Event, 16)
+	r, err := New(Config{Capture: fake.NewCapture(), Store: &testStore{}, Settings: settings.Snapshot{CaptureIntervalSeconds: 10, CaptureHeightPixels: 18}, Directory: t.TempDir(), OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+	defer r.Stop()
+	if err = r.Pause(15 * time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenLocked})
+	for len(events) > 0 {
+		<-events
+	}
+	r.mu.Lock()
+	generation := r.resumeGeneration
+	r.mu.Unlock()
+	r.resumeAfterUserPause(generation)
+	info := r.PauseInfo()
+	if info.UserPaused || info.Until != nil || !info.SystemBlocked {
+		t.Fatalf("expired info=%+v", info)
+	}
+	select {
+	case event := <-events:
+		if event.State != StatePaused {
+			t.Fatalf("state=%q", event.State)
+		}
+	default:
+		t.Fatal("expired deadline was not published")
+	}
+}
+
 func (c *testClock) Now() time.Time {
 	c.mu.Lock()
 	defer c.mu.Unlock()

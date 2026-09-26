@@ -97,6 +97,7 @@ type Backend struct {
 	shutdownRequester   func()
 	statusUpdaterMu     sync.RWMutex
 	statusUpdater       func(recorder.State)
+	statusPaintMu       sync.Mutex
 	statusLabels        statusItemLabelStore
 	// nativeLabels carries the localized copy for the other native surfaces
 	// (application picker, update refusal); see native_ui.go.
@@ -109,6 +110,7 @@ type Backend struct {
 	backgrounded      bool
 	activationApplied bool
 	activationPolicy  platform.ActivationPolicy
+	dockHidden        bool
 	// windowCtx is the Wails runtime context handed over in OnStartup; it
 	// scopes WindowSetBackgroundColour calls (window_background.go). It is
 	// nil in headless construction, where those calls become no-ops.
@@ -398,6 +400,8 @@ func (b *Backend) setStatusUpdater(updater func(recorder.State)) {
 }
 
 func (b *Backend) updateStatus(state recorder.State) {
+	b.statusPaintMu.Lock()
+	defer b.statusPaintMu.Unlock()
 	b.statusUpdaterMu.RLock()
 	updater := b.statusUpdater
 	b.statusUpdaterMu.RUnlock()
@@ -517,16 +521,60 @@ func (b *Backend) beginPermissionRestart() error {
 func (b *Backend) enterBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
 	defer b.backgroundMu.Unlock()
-	policy := platform.ActivationAccessory
-	if availability, ok := b.system.(platform.StatusItemAvailability); ok {
-		ready, err := availability.StatusItemAvailable(ctx)
-		if err != nil || !ready {
-			policy = platform.ActivationRegular
+	b.backgrounded = true
+	return b.applyDockPolicyLocked(ctx, true)
+}
+
+// exitBackground restores the configured foreground policy when the user
+// reopens the window from the status item (regular by default).
+//
+// The app launches regular (Wails sets NSApplicationActivationPolicyRegular in
+// applicationWillFinishLaunching), so an app that never left the foreground is
+// already there: pushing regular again would re-order its windows while the
+// system is still activating it, which is what made a Mission Control
+// activation show the window for a frame and then lose it.
+func (b *Backend) exitBackground(ctx context.Context) error {
+	b.backgroundMu.Lock()
+	defer b.backgroundMu.Unlock()
+	if b.system == nil {
+		b.backgrounded = false
+		return nil
+	}
+	if err := b.applyDockPolicyLocked(ctx, false); err != nil {
+		return err
+	}
+	b.backgrounded = false
+	return nil
+}
+
+// The preference and soft-quit are separate: an accessory app can have a visible
+// window. All policy transitions are serialized and only successful calls stick.
+func (b *Backend) applyDockPreference(ctx context.Context, show bool) error {
+	b.backgroundMu.Lock()
+	defer b.backgroundMu.Unlock()
+	b.dockHidden = !show
+	return b.applyDockPolicyLocked(ctx, b.backgrounded)
+}
+
+func (b *Backend) applyDockPolicyLocked(ctx context.Context, background bool) error {
+	if b.system == nil {
+		return nil
+	}
+	policy := platform.ActivationRegular
+	if background || b.dockHidden {
+		policy = platform.ActivationAccessory
+		if availability, ok := b.system.(platform.StatusItemAvailability); ok {
+			ready, err := availability.StatusItemAvailable(ctx)
+			if err != nil || !ready {
+				policy = platform.ActivationRegular
+			}
 		}
 	}
-	unchanged := b.backgrounded && b.activationApplied && b.activationPolicy == policy
-	b.backgrounded = true
-	if unchanged || b.system == nil {
+	if b.activationApplied && b.activationPolicy == policy {
+		return nil
+	}
+	// Wails starts regular. Avoid disturbing an already visible startup window.
+	if !b.activationApplied && policy == platform.ActivationRegular && !background && !b.dockHidden {
 		return nil
 	}
 	if err := b.system.SetActivationPolicy(ctx, policy); err != nil {
@@ -537,29 +585,18 @@ func (b *Backend) enterBackground(ctx context.Context) error {
 	return nil
 }
 
-// exitBackground restores the regular (Dock-visible) policy when the user
-// reopens the window from the status item.
-//
-// The app launches regular (Wails sets NSApplicationActivationPolicyRegular in
-// applicationWillFinishLaunching), so an app that never left the foreground is
-// already there: pushing regular again would re-order its windows while the
-// system is still activating it, which is what made a Mission Control
-// activation show the window for a frame and then lose it.
-func (b *Backend) exitBackground(ctx context.Context) error {
-	b.backgroundMu.Lock()
-	defer b.backgroundMu.Unlock()
-	entered := b.backgrounded
-	if !entered || b.system == nil {
-		b.backgrounded = false
-		return nil
+func (b *Backend) loadDockPreference(ctx context.Context) {
+	access, err := b.settingsAccess()
+	if err != nil {
+		return
 	}
-	if err := b.system.SetActivationPolicy(ctx, platform.ActivationRegular); err != nil {
-		return err
+	snapshot, err := access.Load(ctx)
+	if err != nil {
+		return
 	}
-	b.backgrounded = false
-	b.activationApplied = true
-	b.activationPolicy = platform.ActivationRegular
-	return nil
+	if err := b.applyDockPreference(ctx, snapshot.ShowDockIcon); err != nil {
+		log.Printf("apply dock preference unavailable")
+	}
 }
 
 // restoreOnActivation runs show only when a soft-quit left the app in the
@@ -687,13 +724,21 @@ func (b *Backend) GetRecordingState() (RecordingStateDTO, error) {
 		}
 	}
 	var reason *string
+	var userPaused bool
+	var pauseEndsAtTs *int64
 	if activeRecorder != nil {
+		pause := activeRecorder.PauseInfo()
+		userPaused = pause.UserPaused
+		if pause.Until != nil {
+			value := pause.Until.Unix()
+			pauseEndsAtTs = &value
+		}
 		if lastError := activeRecorder.LastError(); lastError != nil {
 			value := recordingFailureReason(lastError)
 			reason = &value
 		}
 	}
-	return RecordingStateDTO{State: state, Reason: reason, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
+	return RecordingStateDTO{State: state, Reason: reason, UserPaused: userPaused, PauseEndsAtTs: pauseEndsAtTs, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
 }
 
 // recordingPermission is GetRecordingState's single query: system unavailability

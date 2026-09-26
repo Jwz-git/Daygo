@@ -23,6 +23,12 @@ int32_t dg_system_start(uint32_t requested_abi_major, dg_system_event_callback_v
 void dg_system_stop(void);
 /* macOS waits for AppKit to apply the policy: 0 applied, negative on refusal. */
 int32_t dg_activation_policy_set(uint32_t policy);
+/* macOS main-menu localization: flat UTF-8 JSON object matching
+   ApplicationMenuLabels, max 8192 bytes. Copies before async main-thread apply. */
+int32_t dg_application_menu_labels_set(uint32_t requested_abi_major, const char *labels_json);
+/* macOS nonblocking host-owned message, flat UTF-8 JSON {title,message,button}.
+   At most one is displayed, and dg_system_stop dismisses it. Max 8192 bytes. */
+int32_t dg_status_message_show(uint32_t requested_abi_major, const char *message_json);
 /* Returns a DG_PERMISSION_* state (>=0), or a negative value on internal error. */
 int32_t dg_screen_recording_permission_query(void);
 /* Triggers the system prompt on first use; a no-op once denied. Returns

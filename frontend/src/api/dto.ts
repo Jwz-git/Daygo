@@ -58,6 +58,7 @@ export interface StorageSettingsDTO {
 export interface SystemSettingsDTO {
   /** Start Daygo automatically when the user logs in (SMAppService on macOS). */
   launchAtLogin: boolean
+  showDockIcon: boolean
   agentEditsEnabled: boolean
   /** Reveals the sidebar test page with the test-only features. */
   testToolsEnabled: boolean
@@ -92,6 +93,7 @@ export interface SettingsPatch {
   outputLanguage?: string
   recognitionEnhancementEnabled?: boolean
   launchAtLogin?: boolean
+  showDockIcon?: boolean
   agentEditsEnabled?: boolean
   testToolsEnabled?: boolean
   chatMemory?: string

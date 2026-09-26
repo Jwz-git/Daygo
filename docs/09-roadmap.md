@@ -17,13 +17,13 @@
 
 | 模块 / 执行册 | 用户结果与职责 | 当前实现进度 | 当前验证状态 |
 |---|---|---|---|
-| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：Capture 端口 / fake、macOS 单次截图与 HEVC 帧分段追加（Dayflow 方式，AVAssetWriter + VideoToolbox）、Go recorder、pending 对账与 screenshots 提交（迁移 v15）、应用隐私选择、启动自动录制；状态栏已接本地化打开 / 录制目录 / 定时暂停 / 启停 / 真退出动作，Cmd+Q / Dock 退出走后台软退出，Dock 再次激活与状态栏打开共用窗口恢复动作；支持 HEVC 硬件段追加与 legacy JPEG 直读回退 | Go / fake 契约与 macOS 真实像素 smoke 通过，Dock 点击恢复已有 Go 路由测试；状态栏与软退出完整观感、G-host 真机门禁、隐私双保护、权限 / 睡眠 / 锁屏完整 MC 矩阵、长期观察与 Windows 完整 WC 矩阵已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
+| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：Capture 端口 / fake、macOS 单次截图与 HEVC 帧分段追加（Dayflow 方式，AVAssetWriter + VideoToolbox）、Go recorder、pending 对账与 screenshots 提交（迁移 v15）、应用隐私选择、启动自动录制；状态栏本地化控制、Cmd+Q / Dock 软退出与窗口恢复；09-26 新增 Dock 偏好消费者、状态 / 图标 / 恢复时刻、禁用守卫、脱敏非阻塞反馈、主菜单本地化及收尾失败退出选择；支持 HEVC 硬件段追加与 legacy JPEG 直读回退 | Go / fake 契约与 macOS 真实像素 smoke 通过；截至 09-22 的状态栏观感、G-host、隐私双保护、完整 MC / WC 矩阵及长期观察经用户确认验收（无逐项运行记录）。09-26 增量通过 Go / 原生匿名 smoke / 前端夹具，真实 Wails Dock、语言、十分钟捕获与关机 / 注销回归待验收 |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、回退链路由、协议客户端、连接测试与模型列表 | 部分实现：三协议客户端、重试 / 回退、Provider 落库、有序路由链、macOS Keychain、CRUD / 密钥 / 模型列表 / 连接测试绑定与前端 store；旧 localStorage 仅用于一次性迁移 | Go 单元、Secrets fake、匿名 TLS fixture 与一次 macOS 钥匙串 smoke 通过；真实 Provider、同签名重启 / 升级身份与完整 Wails 闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间 / 周边界、卡片与分类 repository、两阶段分析流水线、失败批次重试、卡片编辑 / 删除、分类保存、日视图与失败 / 处理中状态；跨 4 点卡片按日投影、裁剪时长与周明细；帧回放（`GetCardMedia` + `/media/frame` 资源）、周视图、持久化卡片审阅、按卡片来源批次重处理与日历选择已提交 | Go 分批、时间、事务、重试、审阅读回和流水线夹具及前端构建通过；跨 4 点匿名夹具于 2026-09-23 通过，真实历史库已随 2026-09-22 用户实测闭环一并验收（无逐项运行记录）；真实截图 → 真实 Provider → 卡片的 Wails 闭环、帧回放真机表现与 G-loop 已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录）；搜索尚未实现，不在本次验收范围 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：日记 / 目标持久化与编辑、日报读写 repository / 绑定 / UI（v13）、`GenerateDailyRecap` 经分析 Provider 生成并覆盖重写、工作流与指标展示 | Go 存储与只读守卫、前端类型 / 构建通过；生成调度、通知、重启读回与 `wails dev` 真机闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定）、按日明细、洞察与节奏面板（`WeeklyInsightsDTO` / `WeeklyDayDTO`）、开发专用匿名样例 | Go 单元（周边界夹具与属性测试、聚合排除规则、非周一拒绝）、前端类型 / 构建通过；真实卡片周独立验收与跨周长期观察已于 2026-09-22 经用户确认完成（用户确认；无逐项运行记录） |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）；清理已支持按 segment_path 整段清理，DB-9 / IT-12 真实宿主长期观察已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
-| [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置、统一 UI 可见性与隐藏媒体暂停 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
+| [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、九语言 i18n、后端外观 / 语言接入、模型输出语言与识别增强设置、统一 UI 可见性与隐藏媒体暂停、macOS Dock 开关 | Go settings 契约、前端 typecheck / unit / build 通过；截至 09-22 已实现的真实 Wails 偏好重启闭环经用户确认（无逐项记录）。全量 DTO / 遥测消费者未完成；09-26 新增 Dock 消费者的 Go 与原生夹具通过，真实切换 / 重启待回归；不再把当时未接入的 Dock 消费者计入历史验收 |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：GitHub Actions 已实现发布后自动构建、上传 macOS / Windows 安装器，正式版还生成签名 appcast；应用内 Sparkle / WinSparkle 适配器、设置 UI 和安全收尾已落盘 | Go / 前端 / appcast 夹具通过；发布工作流实现已核对；签名、公证、干净机安装与客户端升级仍缺正式证书材料，属 G-native 未验收 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 部分实现：CLI 读命令与 `write` 写命令、`daygo mcp` stdio 服务（五读六写）、宿主在读写实例上监听 `agent.sock` 并经与 chat 同源的共享执行器写入、`agent-writes.log` 来源审计；设置页给出 MCP 配置 / CLI 示例与 socket 状态（`GetAgentConnection`） | Go 协议、CLI 写命令（真实 socket + fake handler）、宿主端到端夹具（默认拒绝 → 开启写入 → `goal:updated` 事件 + 审计 → 关闭再拒绝）与前端单元测试通过；真实 MCP 客户端多日闭环与 search 未完成，属未验收 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：多会话纯对话、会话级 Provider / 模型、11 个封闭工具的 agent 循环、只读 / 只读实例双门禁、调用预算 / 取消、`llm_calls` 审计元数据和工具消息 UI | Go 回合、参数校验、门禁、预算、取消及前端回归测试通过；真实 Provider Wails 闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录）；search / status、独立审计日志与诊断计数尚未实现，且 chat v1 不交付 |
@@ -102,6 +102,11 @@ HEVC 分段、`platform.Media`、帧资源处理器和按段清理已经落盘�
 2026-09-26 宿主控制增量：macOS 菜单栏不可用时保留 Dock 恢复入口、激活策略确认 / 重试、
 退出前分段收尾失败处理与关机 / 注销意图已接入；Go 夹具与独立原生合成事件 smoke 通过。
 真实 G-host 回归与关机 / 注销仍待验收，证据见 [recording](modules/recording.md)。
+
+同日菜单与偏好增量：Dock 保存值驱动策略且重开尊重偏好，状态栏区分只读 / 不可用 / 系统
+暂停 / 截图重试与恢复时刻；原生反馈非阻塞，退出收尾失败默认保留应用。20 项主菜单标题与
+新文案覆盖九种语言，既有快捷键保留，相同状态快照不重建菜单。共享状态栏 ABI 3 要求静态库 /
+DLL 匹配重建；macOS 原生匿名 smoke 通过，Windows DLL / 通知区需 Windows 主机验证。
 
 每个模块使用 [执行册模板](modules/_template.md)，保持实现进度与验证状态分开：
 实现进度为“未开始 / 部分实现 / 实现齐备”；验证记录分别列单元、fake 契约、真实集成、

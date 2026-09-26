@@ -10,8 +10,9 @@
 参考 legacy 原生 App（`legacy/dayflow`）的做法，把「退出」拆成两类：
 
 - **软退出**：Cmd+Q、Dock 右键「退出」、macOS App 菜单「退出」——不终止进程，只隐藏窗口
-  并把激活策略切到 accessory（摘掉 Dock 图标），录制在后台继续。
-- **真退出**：只有状态栏菜单的「退出」会真正终止进程（收尾当前分段后停止捕获）。
+  并请求 accessory（摘掉 Dock 图标），录制在后台继续；状态栏入口不可用时保留 Dock。
+- **真退出**：普通用户主动终止进程通过状态栏“停止录制并退出 Daygo”；更新、系统关机与
+  信号另有独立终止意图。先收尾当前分段后停止捕获，普通退出收尾失败时默认保留应用。
 - **授权重启**：授权流程内武装后的退出（含 macOS 授权后自弹的「退出并重开」、引导层按钮）——完全退出
   **并自动重启**，让新的屏幕录制授权生效。语义与实现见
   [屏幕录制授权 §1a](recording-screen-recording-permission.md)；它是软退出之外唯一会自动拉起新实例的
@@ -51,11 +52,12 @@ runtime.Quit(ctx)  → frontend.Quit()
 Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
 
 - `Backend.allowQuit`（`atomic.Bool`，默认 false）+ `requestQuit()` / `quitAllowed()`。
-- `OnBeforeClose`：`quitAllowed()` 为真则返回 false 放行（状态栏真退出 / 更新重启 / SIGTERM，**不**自重启）；
+- `OnBeforeClose`：`quitAllowed()` 为真则先等待收尾，成功放行；普通退出失败时默认取消并
+  提供“保留应用 / 仍然退出”选择。SIGTERM / 系统关机不阻止终止，**不**自重启；
   否则若「授权重启」已武装（`pendingPermissionRestart`），走 `beginPermissionRestart()`（收尾分段 → 调度
   自重启）后返回 false 放行真退出；否则 `runtime.WindowHide` + `enterBackground`（切 accessory）后返回 true
   阻止。授权重启路径的细节见 [屏幕录制授权 §1a](recording-screen-recording-permission.md)。
-- 状态栏 `"open"` 走 `showWindow`：先 `exitBackground`（切回 regular），再 `runtime.Show`
+- 状态栏 `"open"` 走 `showWindow`：先 `exitBackground`（按 Dock 偏好应用策略），再 `runtime.Show`
   （unhide 应用）**最后** `runtime.WindowShow`（order front + activate）。顺序不能颠倒：软退出
   用的是 `runtime.WindowHide`（`orderOut`），unhide 应用不会把它还原，先 order front 再 unhide
   会让窗口只闪一帧。
@@ -63,9 +65,8 @@ Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
   **只在 `Backend.backgrounded` 为真时**执行上面的 `showWindow`；`"quit"` 先 `requestQuit()`
   再 `runtime.Quit`。Wails v2.15.0 没有 reopen 回调，所以原生 `System` 观察该通知，经
   `System.Events` 把激活意图交给 app 层；平台层本身不操作 Wails 窗口。
-- 两个状态转换都是**幂等**的：`enterBackground` / `exitBackground` 只在真的发生转换时才推
-  激活策略，并把「已后台」状态记在 `Backend.backgrounded` 上（即使原生调用失败也置位，因为此时
-  窗口已被 order out）。
+- 两个状态转换都是**幂等**的：成功应用的同一策略不重复下发；失败策略不记录成功，后续显式
+  重开重试。`Backend.backgrounded` 独立记录窗口被 order out，即使策略失败也置位。
 
 **为什么激活路径必须设这道闸**（此前缺失，表现为窗口闪一下就消失）：
 
@@ -78,8 +79,8 @@ Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
 3. 关窗（`HideWindowOnClose`）在 Wails 里是 `[NSApp hide]`，**不** order out 窗口，也不经过
    `OnBeforeClose`；`[NSApp unhide]` 会连带把窗口带回来，因此前台激活什么都不做才是正确的。
 
-因此 `backgrounded` 是「窗口被我们自己 order out 且已切 accessory」的精确判据，也是激活唯一需要
-撤销的状态。
+因此 `backgrounded` 是“窗口被我们自己 order out”的判据，也是激活唯一需要撤销的状态；
+它与 Dock 偏好独立。窗口可见时也可能因 `showDockIcon=false` 使用 accessory。
 
 `enterBackground` / `exitBackground` 只走 `platform.System.SetActivationPolicy`，不碰系统 API；
 `system == nil`（headless）时是 no-op。
@@ -120,9 +121,21 @@ Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
   策略与后台恢复闸门，Dock 激活仍可带回窗口。
 - 激活策略 ABI 等待主线程执行并返回 AppKit 的实际成功值；状态栏重绘仍异步，不在 recorder
   回调中同步等待主线程。策略失败不记作已应用，允许下次显式动作重试。
-- 普通真退出先等待 recorder 收尾；失败时取消退出、恢复窗口并报告稳定错误类别，不能打印
-  原始错误或路径。SIGTERM / 系统关机、注销尽力收尾，不阻止系统终止，也不触发授权自重启。
+- 普通真退出先等待 recorder 收尾；失败时恢复窗口，默认“保留应用”，只有明确选择“仍然退出”
+  才忽略本次失败继续退出；提示当前分段可能丢失，不能打印原始错误或路径。SIGTERM / 系统关机、
+  注销尽力收尾，不阻止系统终止，也不触发授权自重启。
 - macOS 使用 NSWorkspace 自身 notificationCenter 的 willPowerOffNotification 上送独立
   system_shutdown 事件。该终态事件在缓冲满时优先入队；关闭事件源后晚到回调不再入队。
 
 实现与验证证据见 recording 执行册；纯 Go 与原生夹具不替代真实关机、注销及关窗十分钟门禁。
+
+## 菜单与 Dock 偏好（2026-09-26）
+
+`showDockIcon` 在启动与设置提交后应用；显式重开按已保存偏好恢复，不强制 regular。
+移除 Dock 仍须状态栏入口可用，偏好关闭但入口丢失时保留 regular。偏好保存与原生应用失败
+分别报告，重开允许重试。macOS 主应用菜单 Cmd+Q 标题改为“留在后台继续记录”，状态栏
+真退出标题明确为“停止录制并退出 Daygo”；20 项主菜单文案随应用语言切换，既有快捷键保留。
+
+状态栏展示只读、不可用、启动、截图重试和系统暂停，定时暂停显示本地恢复时刻；锁屏时
+不可手动恢复。普通操作失败采用非阻塞原生提示，不占用 System 事件泵；只有普通退出收尾
+失败才在 Wails 的独立退出回调等待选择。相同状态快照不重建菜单，避免每帧回调刷新菜单结构。

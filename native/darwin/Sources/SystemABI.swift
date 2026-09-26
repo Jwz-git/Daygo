@@ -49,6 +49,13 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
     add(NSApplication.didBecomeActiveNotification, NotificationCenter.default)
     add(NSApplication.didHideNotification, NotificationCenter.default)
     add(NSApplication.didUnhideNotification, NotificationCenter.default)
+    let menuObserver = NotificationCenter.default.addObserver(forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: nil) { _ in
+        DispatchQueue.main.async {
+            applyApplicationMenuCopy()
+            restoreAppliedActivationPolicy()
+        }
+    }
+    state.lock.lock(); state.observers.append(menuObserver); state.lock.unlock()
     for (name, value) in [("com.apple.screenIsLocked", UInt32(DG_SYSTEM_SCREEN_LOCKED)), ("com.apple.screenIsUnlocked", UInt32(DG_SYSTEM_SCREEN_UNLOCKED)), ("com.apple.screensaver.didstart", UInt32(DG_SYSTEM_SCREENSAVER_START)), ("com.apple.screensaver.didstop", UInt32(DG_SYSTEM_SCREENSAVER_STOP))] {
         let token = distributed.addObserver(forName: Notification.Name(name), object: nil, queue: nil) { _ in emit(value) }
         state.lock.lock(); state.observers.append(token); state.lock.unlock()
@@ -83,6 +90,12 @@ private func activationRunOnMain(_ body: @Sendable @escaping @MainActor () -> Vo
     }
 }
 
+@MainActor private var appliedActivationPolicy: NSApplication.ActivationPolicy?
+
+@MainActor private func restoreAppliedActivationPolicy() {
+    if let target = appliedActivationPolicy { _ = NSApp.setActivationPolicy(target) }
+}
+
 @_cdecl("dg_activation_policy_set")
 func dg_activation_policy_set(_ policy: UInt32) -> Int32 {
     let target: NSApplication.ActivationPolicy
@@ -92,7 +105,11 @@ func dg_activation_policy_set(_ policy: UInt32) -> Int32 {
     case UInt32(DG_ACTIVATION_PROHIBITED): target = .prohibited
     default: return -1
     }
-    let apply: @Sendable @MainActor () -> Int32 = { NSApp.setActivationPolicy(target) ? 0 : -2 }
+    let apply: @Sendable @MainActor () -> Int32 = {
+        guard NSApp.setActivationPolicy(target) else { return -2 }
+        appliedActivationPolicy = target
+        return 0
+    }
     if Thread.isMainThread { return MainActor.assumeIsolated { apply() } }
     return DispatchQueue.main.sync { MainActor.assumeIsolated { apply() } }
 }
@@ -202,6 +219,10 @@ func dg_relaunch() -> Int32 {
 
 @_cdecl("dg_system_stop")
 func dg_system_stop() {
+    activationRunOnMain {
+        dismissResidentMessage()
+        appliedActivationPolicy = nil
+    }
     let workspace = NSWorkspace.shared.notificationCenter
     let distributed = DistributedNotificationCenter.default()
     state.lock.lock(); let old = state.observers; let timer = state.lockTimer; state.observers.removeAll(); state.lockTimer = nil; state.lastLocked = nil; state.callback = nil; state.callbackData = nil; state.lock.unlock()

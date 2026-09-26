@@ -24,6 +24,8 @@ const testToolsConfigurable = __DAYGO_TEST_TOOLS__
 const { state: systemState, settings: systemSettings, load: loadSystem, persist: persistSystem, writeFailed: systemWriteFailed } =
   useSettingsSection()
 const launchAtLogin = computed(() => systemSettings.value?.system.launchAtLogin ?? false)
+const showDockIcon = computed(() => systemSettings.value?.system.showDockIcon ?? true)
+const dockConfigurable = document.documentElement.dataset.dgPlatform === 'darwin'
 
 onMounted(() => void loadSystem())
 
@@ -121,6 +123,15 @@ function onLanguageChange(event: Event): void {
     />
   </SettingRow>
   <p v-if="systemWriteFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
+
+  <SettingRow v-if="dockConfigurable" :title="t('settings.general.showDockIcon')" :hint="t('settings.general.showDockIconHint')">
+    <SwitchControl
+      :checked="showDockIcon"
+      :disabled="systemState !== 'ready'"
+      :label="t('settings.general.showDockIcon')"
+      @toggle="(next: boolean) => persistSystem({ showDockIcon: next })"
+    />
+  </SettingRow>
 
   <template v-if="testToolsConfigurable">
     <SettingRow :title="t('settings.general.testTools')" :hint="t('settings.general.testToolsHint')">

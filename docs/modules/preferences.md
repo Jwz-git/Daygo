@@ -13,6 +13,12 @@
 
 ## 当前状态与证据
 
+2026-09-26：macOS 外观页新增“在 Dock 中显示 Daygo”开关，沿用既有 settings patch / 事件重拉。
+启动与持久化后真实消费者由 recording 宿主策略接入；关窗、软退出与该偏好独立，重开尊重保存值，
+菜单栏入口不可用时保留 Dock。新增菜单 / 操作反馈 / 开关文案覆盖全部九种语言，暂停恢复时刻的
+vue-i18n 占位符有逐语言夹具。Go 设置与策略夹具通过；真实 Wails 切换 / 重启交互待回归，
+证据与门禁见 [recording](recording.md)。此前总表把尚未接入的 Dock 消费者列入 09-22 验收，已纠正。
+
 2026-09-26：新增 `GetUIVisibility` / `ui:visibility-changed` 与根组件统一可见性订阅。
 快照有事件 / 请求代次保护；普通失焦不隐藏。macOS 原生 hide / unhide 观察者由 System 生命周期
 持有，app 的窗口 order-out 独立保存状态，保留原退出策略。播放器隐藏时停时钟、解除预加载、
@@ -41,7 +47,8 @@ Go recorder 夹具验证 UI 隐藏后仍产生捕获提交，UI 事件不启动 
   提供 36px 顶栏：左侧只显示 Daygo 图标，右侧提供最小化、最大化 / 还原和“关闭即隐藏”控制；
   macOS 的隐藏标题栏和 Linux 原生窗口行为不变。
 
-未交付：前端所有 DTO 的生成类型替换、统一错误模型、localStorage 全量接管迁移，以及尚无产品消费者的启动项 / Dock / 遥测行为接入。
+未交付：前端所有 DTO 的生成类型替换、统一错误模型、localStorage 全量接管迁移，以及遥测行为接入。
+启动项消费者已存在；本轮补齐 macOS Dock 消费者，均由 recording 维护。
 `frontend/src/api/dto.ts` 仍保留时间线 / Provider 等尚未生成绑定的手写类型；主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。模型输出语言、识别增强和存储上限已通过生成绑定接入设置页。
 
 **绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
@@ -84,7 +91,7 @@ internal/app 拥有 Get/UpdateSettings 和 DTO；store / api 拥有取数与事�
 2. 以 settings-store fake 实现类型化访问与 patch；data repository 已就绪。
 3. 接生成绑定与 DTO、薄 wrapper、统一错误和事件消费；设置页已消费生成的 `SettingsDTO`，未实现的功能仍保持占位。
 4. 迁移外观 / 语言的存储来源，先通过一次 `UpdateSettings` 成功返回后删除旧 localStorage；数据库不可用时保留本地预览值且停止写入，避免双写。
-5. 接入模型输出语言、识别增强和存储上限的低风险设置 UI；启动项 / Dock / 遥测须等各自真实消费者就绪后再开放开关。
+5. 接入模型输出语言、识别增强和存储上限的设置 UI；启动项 / macOS Dock 消费者已接入，遥测仍须等实际消费者就绪后再开放开关。
 6. 验收偏好闭环与双语言状态；新增大规模界面仍受 G-host 约束，该门禁已于 2026-09-22 经用户实测验收（无逐项运行记录），大规模界面扩张已解锁。
 
 ## 验收、阻塞与回退

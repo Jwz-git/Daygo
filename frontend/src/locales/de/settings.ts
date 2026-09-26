@@ -73,6 +73,8 @@ export default {
     chatEditsHint: 'Lass den Chat in der App Karten, Kategorien und Ziele für dich bearbeiten. Unabhängig von der Einstellung darüber.',
   },
   general: {
+    showDockIcon: "Im Dock anzeigen",
+    showDockIconHint: "Wenn deaktiviert, öffnest du Daygo über die Menüleiste. Cmd+Q blendet das Fenster aus und zeichnet weiter auf. Ohne Menüleisteneintrag bleibt das Dock verfügbar.",
     launchAtLogin: 'Beim Anmelden starten',
     launchAtLoginHint: 'Daygo beim Anmelden automatisch öffnen und im Hintergrund weiter aufzeichnen.',
     testTools: 'Testwerkzeuge',

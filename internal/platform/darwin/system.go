@@ -191,6 +191,20 @@ func (s *System) StatusItemAvailable(ctx context.Context) (bool, error) {
 	return statusItemAvailable()
 }
 
+func (s *System) SetApplicationMenuLabels(ctx context.Context, labels platform.ApplicationMenuLabels) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return setApplicationMenuLabels(labels)
+}
+
+func (s *System) ShowStatusMessage(ctx context.Context, message platform.StatusMessage) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return showStatusMessage(message)
+}
+
 // RevealPath opens the path in Finder via /usr/bin/open. open hands the path to
 // LaunchServices and exits, so Run waits only for that dispatch, not for the
 // window; its exit code still surfaces a missing path as an error.

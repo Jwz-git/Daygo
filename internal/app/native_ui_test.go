@@ -1,11 +1,39 @@
 package app
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/fake"
 )
+
+type applicationMenuSinkFixture struct {
+	*fake.System
+	labels platform.ApplicationMenuLabels
+}
+
+func (s *applicationMenuSinkFixture) SetApplicationMenuLabels(_ context.Context, labels platform.ApplicationMenuLabels) error {
+	s.labels = labels
+	return nil
+}
+
+func TestApplicationMenuCopyUsesDefaultsAndForwardsLocale(t *testing.T) {
+	sys := &applicationMenuSinkFixture{System: fake.NewSystem()}
+	b := NewBackend(sys, nil)
+	b.pushApplicationMenuCopy()
+	if sys.labels.Background != defaultNativeUiLabels().ApplicationMenu.Background {
+		t.Fatal("native app menu had no startup copy")
+	}
+	labels := defaultNativeUiLabels()
+	labels.ApplicationMenu.Background = "Fixture background"
+	if err := b.SetNativeUiLabels(labels); err != nil {
+		t.Fatal(err)
+	}
+	if sys.labels != labels.ApplicationMenu {
+		t.Fatal("language change was not forwarded")
+	}
+}
 
 // copyCapturingUpdater records what the app pushes to an adapter that renders
 // the install refusal in its own dialog. It implements the sink but not the

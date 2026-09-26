@@ -73,6 +73,8 @@ export default {
     chatEditsHint: '앱 안의 채팅이 카드, 카테고리, 목표를 편집하도록 허용합니다. 위 설정과는 별개입니다.',
   },
   general: {
+    showDockIcon: "Dock에 표시",
+    showDockIconHint: "끄면 메뉴 막대에서 Daygo를 엽니다. Cmd+Q는 창을 숨기고 백그라운드 기록을 계속합니다. 메뉴 막대를 사용할 수 없으면 Dock에 표시됩니다.",
     launchAtLogin: '로그인 시 실행',
     launchAtLoginHint: '로그인하면 Daygo를 자동으로 열고 백그라운드에서 계속 기록합니다.',
     testTools: '테스트 도구',

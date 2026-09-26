@@ -13,6 +13,7 @@ import (
 
 	"github.com/Jwz-git/Daygo/frontend"
 	"github.com/Jwz-git/Daygo/internal/agentbridge"
+	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/recorder"
@@ -209,6 +210,7 @@ func Run() error {
 			backend.setShutdownRequester(requestShutdown)
 			emitter.SetContext(ctx)
 			backend.setWindowContext(ctx)
+			backend.pushApplicationMenuCopy()
 			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx, labels: backend.nativeLabels.get})
 			updateStatus := func(state recorder.State) {
 				// Status-item setup is an optional platform capability and must not
@@ -218,13 +220,14 @@ func Run() error {
 				}
 				// Labels come from the frontend (vue-i18n); the state → surface
 				// mapping stays here so the adapter never learns recorder states.
-				item := statusItemState(state, backend.statusLabels.get())
+				item := backend.statusItemPresentation(state)
 				if err := backend.system.SetStatusItem(ctx, item); err != nil {
 					log.Printf("status item update unavailable: %v", err)
 				}
 			}
 			backend.setStatusUpdater(updateStatus)
 			updateStatus(backend.recorderState())
+			backend.loadDockPreference(ctx)
 			// showWindow restores the window on an explicit user request: the
 			// status-bar "open" item. The application is unhidden before the
 			// window is ordered front because a soft-quit orders the window
@@ -236,6 +239,17 @@ func Run() error {
 				runtime.Show(ctx)
 				runtime.WindowShow(ctx)
 				backend.setWindowHidden(false)
+			}
+			reportActionError := func(err error) {
+				showWindow()
+				labels := backend.statusLabels.get()
+				if presenter, ok := backend.system.(platform.StatusMessagePresenter); ok {
+					if err := presenter.ShowStatusMessage(ctx, platform.StatusMessage{Title: labels.ActionFailedTitle, Message: nativeActionErrorMessage(err, labels), Button: labels.OK}); err != nil {
+						log.Printf("native action feedback unavailable")
+					}
+					return
+				}
+				_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{Type: runtime.ErrorDialog, Title: labels.ActionFailedTitle, Message: nativeActionErrorMessage(err, labels), Buttons: []string{labels.OK}, DefaultButton: labels.OK, CancelButton: labels.OK})
 			}
 			// Activation only has to undo a soft-quit. See restoreOnActivation
 			// for why every other activation must be left to the system.
@@ -250,40 +264,27 @@ func Run() error {
 					}
 					dir, err := backend.GetRecordingDirectory()
 					if err != nil {
-						log.Printf("open recordings folder unavailable: %v", err)
+						reportActionError(err)
 						return
 					}
 					// The directory only exists after the first capture; create
 					// it so the folder always opens instead of failing silently.
 					if err := os.MkdirAll(dir, 0o755); err != nil {
-						log.Printf("create recordings folder unavailable: %v", err)
+						reportActionError(err)
 						return
 					}
 					// Finder, not BrowserOpenURL: Wails' URL validator rejects the
 					// file:// scheme outright, so a file URL never opens the folder.
 					if err := backend.system.RevealPath(ctx, dir); err != nil {
-						log.Printf("open recordings folder unavailable: %v", err)
+						reportActionError(err)
 					}
 				case "quit":
 					backend.requestQuit()
 					runtime.Quit(ctx)
-				case "toggle_pause":
-					switch backend.recorderState() {
-					case recorder.StateIdle:
-						_ = backend.SetRecording(true)
-					case recorder.StatePaused:
-						_ = backend.ResumeRecording()
-					case recorder.StateCapturing:
-						_ = backend.PauseRecording(0)
+				case "toggle_pause", "pause_15", "pause_30", "pause_60", "pause_indefinite":
+					if err := backend.runStatusRecordingAction(action); err != nil {
+						reportActionError(err)
 					}
-				case "pause_15":
-					_ = backend.PauseRecording(15)
-				case "pause_30":
-					_ = backend.PauseRecording(30)
-				case "pause_60":
-					_ = backend.PauseRecording(60)
-				case "pause_indefinite":
-					_ = backend.PauseRecording(0)
 				}
 			})
 			// After the status action is installed so the status item reflects
@@ -308,6 +309,11 @@ func Run() error {
 					runtime.Show(ctx)
 					runtime.WindowShow(ctx)
 					backend.setWindowHidden(false)
+					labels := backend.statusLabels.get()
+					choice, _ := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{Type: runtime.WarningDialog, Title: labels.ActionFailedTitle, Message: labels.QuitFailed, Buttons: []string{labels.KeepOpen, labels.QuitAnyway}, DefaultButton: labels.KeepOpen, CancelButton: labels.KeepOpen})
+					if choice == labels.QuitAnyway {
+						return false
+					}
 					return true
 				}
 				return false

@@ -73,6 +73,8 @@ export default {
     chatEditsHint: 'Deja que el chat de la aplicación edite tarjetas, categorías y objetivos por ti. Es independiente del ajuste de arriba.',
   },
   general: {
+    showDockIcon: "Mostrar en el Dock",
+    showDockIconHint: "Si se desactiva, abre Daygo desde la barra de menús. Cmd+Q oculta la ventana y sigue grabando. Si la barra de menús no está disponible, se mantiene el Dock.",
     launchAtLogin: 'Abrir al iniciar sesión',
     launchAtLoginHint: 'Abre Daygo automáticamente al iniciar sesión y sigue grabando en segundo plano.',
     testTools: 'Herramientas de prueba',

@@ -19,6 +19,12 @@ func setStatusItem(platform.StatusItemState) error {
 	return errors.New("status item ABI unavailable without cgo")
 }
 func stopStatusItem() {}
+func showStatusMessage(platform.StatusMessage) error {
+	return errors.New("status message ABI unavailable without cgo")
+}
+func setApplicationMenuLabels(platform.ApplicationMenuLabels) error {
+	return errors.New("application menu ABI unavailable without cgo")
+}
 func statusItemAvailable() (bool, error) {
 	return false, errors.New("status item ABI unavailable without cgo")
 }

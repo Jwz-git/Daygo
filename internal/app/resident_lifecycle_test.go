@@ -114,3 +114,91 @@ func TestSystemShutdownEventRequestsTerminationOnce(t *testing.T) {
 	default:
 	}
 }
+
+func TestDockPreferenceAppliesOnlyWhenRecoveryIsAvailable(t *testing.T) {
+	sys := &residentSystemFixture{System: fake.NewSystem(), available: true}
+	b := NewBackend(sys, nil)
+	ctx := context.Background()
+	if err := b.applyDockPreference(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sys.ActivationPolicy(); got != platform.ActivationAccessory {
+		t.Fatalf("policy=%q", got)
+	}
+	if b.needsWindowRestore() {
+		t.Fatal("hiding Dock must not mark a visible window as soft-quit")
+	}
+	if err := b.enterBackground(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.exitBackground(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sys.ActivationPolicy(); got != platform.ActivationAccessory {
+		t.Fatalf("reopen ignored Dock preference: %q", got)
+	}
+	sys.available = false
+	if err := b.applyDockPreference(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sys.ActivationPolicy(); got != platform.ActivationRegular {
+		t.Fatalf("missing menu must keep Dock: %q", got)
+	}
+}
+
+func TestDockPreferenceChangeDoesNotReopenSoftQuit(t *testing.T) {
+	sys := &residentSystemFixture{System: fake.NewSystem(), available: true}
+	b := NewBackend(sys, nil)
+	ctx := context.Background()
+	if err := b.enterBackground(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.applyDockPreference(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	if !b.needsWindowRestore() {
+		t.Fatal("settings must not reopen a soft-quit window")
+	}
+	if got, _ := sys.ActivationPolicy(); got != platform.ActivationAccessory {
+		t.Fatalf("soft quit policy=%q", got)
+	}
+}
+
+func TestExplicitReopenRetriesFailedForegroundDockPreference(t *testing.T) {
+	sys := &residentSystemFixture{System: fake.NewSystem(), available: true, policyErr: errors.New("fixture: refused")}
+	b := NewBackend(sys, nil)
+	if err := b.applyDockPreference(context.Background(), false); err == nil {
+		t.Fatal("expected refusal")
+	}
+	sys.policyErr = nil
+	if err := b.exitBackground(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sys.ActivationPolicy(); got != platform.ActivationAccessory {
+		t.Fatalf("policy=%q", got)
+	}
+}
+
+func TestUpdateSettingsAppliesDockPreferenceAfterPersistence(t *testing.T) {
+	b, _ := backendWithStore(t)
+	sys := &residentSystemFixture{System: fake.NewSystem(), available: true}
+	b.system = sys
+	show := false
+	dto, err := b.UpdateSettings(SettingsPatchDTO{ShowDockIcon: &show})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dto.System.ShowDockIcon {
+		t.Fatal("Dock preference was not persisted")
+	}
+	if got, _ := sys.ActivationPolicy(); got != platform.ActivationAccessory {
+		t.Fatalf("policy=%q", got)
+	}
+	before := len(sys.policies)
+	if _, err = b.UpdateSettings(SettingsPatchDTO{IntervalSeconds: ptrInt(5)}); err != nil {
+		t.Fatal(err)
+	}
+	if len(sys.policies) != before {
+		t.Fatal("unrelated setting reapplied policy")
+	}
+}

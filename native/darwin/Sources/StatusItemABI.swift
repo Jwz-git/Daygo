@@ -9,8 +9,9 @@ import Foundation
 /// Every field is copied out of the pointer while still on the caller's thread,
 /// which is what keeps the non-Sendable pointer from crossing an isolation
 /// boundary later.
-private struct StatusSnapshot: Sendable {
+private struct StatusSnapshot: Sendable, Equatable {
     var visible: Bool
+    var icon: UInt32
     var pauseDurationsEnabled: Bool
     var primaryActionEnabled: Bool
     var title: String
@@ -40,6 +41,7 @@ private struct StatusHandles: @unchecked Sendable {
 private func snapshot(from state: UnsafePointer<dg_status_item_state_v1>) -> StatusSnapshot {
     StatusSnapshot(
         visible: state.pointee.visible != 0,
+        icon: state.pointee.icon,
         pauseDurationsEnabled: state.pointee.pause_durations_enabled != 0,
         primaryActionEnabled: state.pointee.primary_action_enabled != 0,
         title: String(cString: state.pointee.title),
@@ -61,6 +63,7 @@ private final class StatusController: NSObject {
     let item: NSStatusItem
     let menu = NSMenu()
     let handles: StatusHandles
+    private var currentSnapshot: StatusSnapshot?
 
     init(snapshot: StatusSnapshot, handles: StatusHandles) {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -75,10 +78,18 @@ private final class StatusController: NSObject {
     }
 
     func update(snapshot: StatusSnapshot) {
-        // pauseDurationsEnabled is set exactly while the recorder is capturing
-        // (see the app layer's statusItemState), so it doubles as the recording
-        // indicator: a filled glyph while capturing, an outline otherwise.
-        let symbol = snapshot.pauseDurationsEnabled ? "record.circle.fill" : "record.circle"
+        // Successful captures often publish the same surface. Preserve the menu
+        // and its tracking selection when nothing visible has changed.
+        guard currentSnapshot != snapshot else { return }
+        currentSnapshot = snapshot
+        let symbol: String
+        switch snapshot.icon {
+        case UInt32(DG_STATUS_ICON_ACTIVE): symbol = "record.circle.fill"
+        case UInt32(DG_STATUS_ICON_BUSY): symbol = "hourglass"
+        case UInt32(DG_STATUS_ICON_PAUSED): symbol = "pause.circle"
+        case UInt32(DG_STATUS_ICON_WARNING): symbol = "exclamationmark.circle"
+        default: symbol = "record.circle"
+        }
         item.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: snapshot.title.isEmpty ? snapshot.tooltip : snapshot.title)
         item.button?.image?.isTemplate = true
         // squareLength sizes the button for an icon alone; also setting a title
@@ -86,7 +97,7 @@ private final class StatusController: NSObject {
         // Recording state moves to the tooltip and the menu items instead.
         item.button?.title = ""
         item.button?.toolTip = snapshot.title.isEmpty ? snapshot.tooltip : "\(snapshot.tooltip) — \(snapshot.title)"
-        // The pause region changes shape between states (a duration submenu
+        // The pause region changes shape between states (inline durations
         // while capturing, a single action otherwise), so the whole menu is
         // rebuilt on each update rather than mutating items in place.
         rebuildMenu(snapshot: snapshot)
@@ -95,6 +106,11 @@ private final class StatusController: NSObject {
 
     private func rebuildMenu(snapshot: StatusSnapshot) {
         menu.removeAllItems()
+
+        let state = NSMenuItem(title: snapshot.title, action: nil, keyEquivalent: "")
+        state.isEnabled = false
+        menu.addItem(state)
+        menu.addItem(.separator())
 
         let open = NSMenuItem(title: snapshot.openLabel, action: #selector(openAction(_:)), keyEquivalent: "")
         open.target = self
@@ -117,6 +133,7 @@ private final class StatusController: NSObject {
                 let entry = NSMenuItem(title: label, action: #selector(durationAction(_:)), keyEquivalent: "")
                 entry.target = self
                 entry.tag = action
+                entry.indentationLevel = 1
                 menu.addItem(entry)
             }
         } else {
@@ -127,6 +144,7 @@ private final class StatusController: NSObject {
         }
 
         let recordings = NSMenuItem(title: snapshot.recordingsLabel, action: #selector(recordingsAction(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
         recordings.target = self
         menu.addItem(recordings)
 
@@ -197,7 +215,7 @@ private func runOnMainActor(_ body: @escaping @Sendable @MainActor () -> Void) {
 
 @_cdecl("dg_status_item_set")
 func dg_status_item_set(_ requested: UInt32, _ state: UnsafePointer<dg_status_item_state_v1>?, _ callback: dg_status_item_action_callback_v1?, _ data: UnsafeMutableRawPointer?) -> Int32 {
-    guard requested == DG_STATUS_ITEM_ABI_MAJOR, let state else { return -1 }
+    guard requested == DG_STATUS_ITEM_ABI_MAJOR, let state, state.pointee.icon <= UInt32(DG_STATUS_ICON_WARNING) else { return -1 }
     let snapshot = snapshot(from: state)
     let handles = StatusHandles(callback: callback, data: data)
     runOnMainActor { applyStatus(snapshot, handles) }
@@ -218,3 +236,7 @@ func dg_status_item_is_available() -> Int32 {
     if Thread.isMainThread { return MainActor.assumeIsolated { query() } }
     return DispatchQueue.main.sync { MainActor.assumeIsolated { query() } }
 }
+
+#if DAYGO_NATIVE_TESTS
+@MainActor func statusItemMenuForSmoke() -> NSMenu? { statusController?.menu }
+#endif

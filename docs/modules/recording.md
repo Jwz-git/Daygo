@@ -19,6 +19,30 @@
 
 ## 当前状态与证据
 
+2026-09-26 菜单栏 / Dock 增量：macOS Dock 开关已在启动与设置持久化后应用，重开尊重偏好，
+恢复入口不可用保留 regular，失败策略不缓存成功并可重试。状态栏首行与五类图标区分启动、
+录制、暂停、空闲和警告；只读 / 不可用禁用操作，系统阻塞不允许手动恢复，定时暂停显示恢复
+时刻。所有菜单动作消费错误并显示脱敏、本地化非阻塞提示，不阻塞系统事件泵；普通退出收尾
+失败默认保留应用，可明确选择仍然退出。原生相同快照不重建菜单，暂停时长项平铺。
+主应用 / 编辑 / 窗口菜单 20 项标题保留 selector 与快捷键，Cmd+Q 明确“留在后台继续记录”。
+原生在 Wails 启动完成后重应用已下发策略，避免启动 regular 覆盖已保存的 Dock 关闭偏好。
+Dock、菜单与错误文案全九种语言覆盖；recorder 的暂停元数据补齐既有 DTO，并在停止 / 到期时清除。
+
+Go 夹具覆盖八类状态、暂停 / 锁屏交错、过期状态事件、设置持久化及策略失败重试；原生独立
+smoke 覆盖工作线程同步策略与异步字符串拷贝、状态栏去重、20 项主菜单本地化与非阻塞提示
+显示 / 关闭 / 生命周期清理。状态栏 ABI 3 新增 icon 字段，macOS 静态库已匹配；Windows
+桥同步字段并需匹配 DLL 重建，本轮未在 Windows 主机运行原生通知区验证。
+本轮真实 Wails Dock 开关、语言切换、IT-14 十分钟持续捕获与关机 / 注销回归待验收，
+步骤见 [08 增量回归](../08-testing-strategy.md#861-l2-用例)；匿名原生宿主不替代 G-host。
+
+本增量验证：`./scripts/gate.sh` 通过（Go build / internal 单测 / vet、Linux / Darwin / Windows
+无 cgo 核心构建、169 项前端测试 / typecheck / build、54 篇文档链接、Windows 安装器夹具
+4 项通过 / 5 项限 Windows 执行跳过）。
+`bash native/darwin/system-smoke.sh` 通过（含启动策略被宿主重置后的重应用）；app / recorder /
+Darwin System 的定向 `-race` 通过。门禁已重新生成绑定并构建匹配的 universal 原生 archive；
+先前全 app 的 race 扩扫在旧 `recordingEmitter` 测试夹具中报告竞争，未将全包 race 记为通过。
+强制重新链接的 `go test -a ./internal/platform/darwin -run 'TestSystem' -count=1` 通过。
+
 2026-09-26：macOS 宿主控制加固：新增状态栏已应用可用性查询，入口不可用时软退出保留
 Dock；激活策略同步返回 AppKit 成功 / 拒绝并可重试；普通真退出遇分段收尾失败保留进程，
 系统关机 / 注销独立放行且禁用授权自重启；System 关闭后拒绝晚到回调，终态关机事件优先入队。

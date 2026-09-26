@@ -167,6 +167,7 @@ function isSettingsFixture(value: unknown): value is SettingsDTO {
     typeof value.llm.outputLanguage === 'string' &&
     typeof value.llm.recognitionEnhancementEnabled === 'boolean' &&
     typeof value.system.launchAtLogin === 'boolean' &&
+    typeof value.system.showDockIcon === 'boolean' &&
     typeof value.system.agentEditsEnabled === 'boolean' &&
     typeof value.system.testToolsEnabled === 'boolean'
   )
@@ -205,6 +206,7 @@ export function applyDevelopmentSettingsPatch(
     next.llm.recognitionEnhancementEnabled = patch.recognitionEnhancementEnabled
   }
   if (patch.launchAtLogin !== undefined) next.system.launchAtLogin = patch.launchAtLogin
+  if (patch.showDockIcon !== undefined) next.system.showDockIcon = patch.showDockIcon
   if (patch.agentEditsEnabled !== undefined) next.system.agentEditsEnabled = patch.agentEditsEnabled
   if (patch.testToolsEnabled !== undefined) next.system.testToolsEnabled = patch.testToolsEnabled
   if (patch.chatMemory !== undefined) next.chat.memory = patch.chatMemory

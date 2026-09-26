@@ -350,8 +350,8 @@ export function toApiError(e: unknown): ApiError {
 | `SetRecording(enabled bool) error` | recording | capture / db-core / 授权 | 写·幂等 | `recording:state` | `permission_denied` `not_capture_owner` `native_unavailable` |
 | `PauseRecording(minutes int) error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | `invalid_argument` `not_capture_owner` |
 | `ResumeRecording() error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | 同上 |
-| `SetStatusItemLabels(labels StatusItemLabelsDTO) error` | recording | 平台状态栏 | 写·幂等 | — | — |
-| `SetNativeUiLabels(labels NativeUiLabelsDTO) error` | recording / delivery | 原生应用选择面板、平台更新弹窗 | 写·幂等 | — | — |
+| `SetStatusItemLabels(labels StatusItemLabelsDTO) error` | recording | 平台状态栏 | 写·幂等 | — | `invalid_argument` |
+| `SetNativeUiLabels(labels NativeUiLabelsDTO) error` | recording / delivery | 原生应用菜单、选择面板、平台更新弹窗 | 写·幂等 | — | — |
 
 `PauseRecording` 的 `minutes` 取值 `15` `30` `60`，`0` 表示无限期暂停，其余值返回
 `invalid_argument`。取正值时 recorder 在时长结束后自动恢复（守卫同系统事件恢复：其间的
@@ -362,9 +362,16 @@ export function toApiError(e: unknown): ApiError {
 
 `SetStatusItemLabels` 由前端在加载与语言切换时下发整套已本地化的菜单栏文案（原生状态栏在
 webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 recorder 状态映射到状态栏
-表面（录制中显示暂停时长子菜单，其余状态显示单一主操作），再转发给平台适配层。原生适配层
-因此既不持有产品状态也不持有 locale。适配层不可用（如只读第二实例或非 macOS 平台）时下发
-只更新缓存的 bundle，重绘为空操作。
+表面（录制中显示暂停时长项，macOS 平铺、Windows 子菜单；其余状态显示单一主操作），再转发
+给平台适配层。适配层不持有产品状态或 locale；没有适配层时只缓存 bundle。
+只读 / 不可用实例禁用录制操作，系统阻塞暂停不允许手动恢复；`starting` 与捕获重试失败分别
+呈现忙碌与警告图标。macOS 菜单首行显示当前状态，完全相同的快照不重建菜单。
+
+`StatusItemLabelsDTO` 必须全量下发，包含操作、状态、错误反馈及收尾失败的退出选择文案。
+每项须为非空 UTF-8、无 NUL、最多 4096 字节，`keepOpen` 与 `quitAnyway` 不得相同；不合格
+返回 `invalid_argument` 且保留上一套文案。`pausedUntil` 使用 `{time}` 占位符，前端通过
+vue-i18n 保留该字面 token，再由 Go 替换为本地 `HH:mm`。`GetRecordingState.userPaused` 和
+`pauseEndsAtTs` 读取 recorder 实际暂停元数据；停止后清除，系统阻塞期间用户计时到期也会刷新。
 
 `SetNativeUiLabels` 是**其余原生界面**的同一条通道：处理状态栏之外、同样在 webview 之外渲染
 的文案。
@@ -374,6 +381,7 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
     ApplicationPickerTitle  string `json:"applicationPickerTitle"`  // 原生应用选择面板标题
     ApplicationPickerFilter string `json:"applicationPickerFilter"` // 面板的可执行文件过滤器名称
     UpdateOwnerRequired     string `json:"updateOwnerRequired"`     // 更新弹窗：本实例不是捕获所有者，拒绝安装
+    ApplicationMenu platform.ApplicationMenuLabels `json:"applicationMenu"` // macOS 应用 / 编辑 / 窗口菜单
 }
 ```
 
@@ -381,6 +389,9 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
   过滤器只是可用性提示，权威校验始终在 `ApplicationInspector`。
 - `updateOwnerRequired` 转发给实现 `platform.UpdateCopySink` 的更新适配器（§5.7）；由平台
   自行渲染安装提示的适配器不实现该端口，下发被跳过。
+- `applicationMenu` 经可选 `ApplicationMenuCopySink` 下发 20 个标题（完整字段见
+  `internal/platform/types.go`），仅替换既有菜单项文案，保留 selector、快捷键和 responder chain。
+  Cmd+Q 的应用菜单标题明确为“留在后台继续记录”；Dock 系统菜单的“退出”仍由系统渲染。
 
 与状态栏文案一样：后端只存 bundle 并按表面路由，不持有 locale，也不做翻译。每个字段在后端
 都有一份 zh-CN 默认值——这些表面除下发外没有第二个文案来源，空值会渲染出无标题或无说明的
@@ -1328,6 +1339,19 @@ type StatusItemAvailability interface {
     StatusItemAvailable(ctx context.Context) (bool, error)
 }
 
+// 可选 macOS 宿主文案与非阻塞反馈；业务错误映射到本地化文案后才传入平台。
+type ApplicationMenuCopySink interface {
+    SetApplicationMenuLabels(ctx context.Context, labels ApplicationMenuLabels) error
+}
+type StatusMessagePresenter interface {
+    ShowStatusMessage(ctx context.Context, message StatusMessage) error
+}
+type StatusMessage struct {
+    Title string `json:"title"`
+    Message string `json:"message"`
+    Button string `json:"button"`
+}
+
 // Secrets 是系统钥匙串。service 为 io.github.jwz-git.daygo.apikeys.<provider>。
 type Secrets interface {
     Get(ctx context.Context, provider string) (string, error)
@@ -1360,6 +1384,17 @@ macOS System ABI 1.6 增加 `system_shutdown`（原生值 11），来自 NSWorks
 该终态事件在通道满时替换最旧事件，不阻塞 AppKit；其余事件维持现有有界通道行为。
 macOS `dg_activation_policy_set` 同步等待主线程并报告 AppKit 拒绝（-2）；状态栏新增
 `dg_status_item_is_available` 查询，0 为不可用、1 为已安装且可见。重绘 ABI 仍异步。
+
+2026-09-26：状态栏 ABI 升为 **3**（结构新增显式 icon 枚举，禁止按文案猜图标），macOS 与
+Windows 的静态库 / DLL 必须与 Go 桥一起重建。System ABI 1.6 另提供应用菜单与操作反馈 JSON
+入口：菜单限 8192 字节、恰好 20 项且每项最多 512 字节；反馈限 8192 字节、标题 / 按钮最多
+512 字节、正文最多 4096 字节。原生先复制再异步主线程应用。反馈最多一个 modeless 提示，
+不阻塞系统事件泵，System 关闭时移除；收尾失败的退出选择仍在独立 Wails 退出回调中等待。
+
+`system.showDockIcon` 在启动及设置持久化后驱动 macOS 激活策略；关闭时窗口仍可显示，但从
+Dock / Cmd+Tab 隐去。软退出单独隐藏窗口并请求 accessory，重开按已保存偏好恢复策略。
+进入 accessory 前确认状态栏恢复入口可用，否则保留 regular；原生失败不记为已应用，并在
+下一次显式重开重试。设置保存成功而应用失败时提示该区别，不回滚已保存偏好。
 
 
 ### 5.7.1 调用语义

@@ -73,6 +73,8 @@ export default {
     chatEditsHint: 'Permet à la discussion intégrée de modifier les cartes, les catégories et les objectifs à votre place. Indépendant du réglage ci-dessus.',
   },
   general: {
+    showDockIcon: "Afficher dans le Dock",
+    showDockIconHint: "Sinon, ouvrez Daygo depuis la barre des menus. Cmd+Q masque la fenêtre et poursuit l’enregistrement. Le Dock reste disponible si la barre des menus ne l’est pas.",
     launchAtLogin: 'Ouvrir à l’ouverture de session',
     launchAtLoginHint: 'Ouvre Daygo automatiquement à l’ouverture de session et continue d’enregistrer en arrière-plan.',
     testTools: 'Outils de test',
