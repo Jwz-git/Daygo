@@ -41,9 +41,18 @@ struct SystemSmoke {
   @MainActor static func main() {
     let app = NSApplication.shared
     app.finishLaunching()
+    precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_REGULAR)) == 0)
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    window.title = "Anonymous Dock fixture"
+    window.orderFront(nil)
     precondition(dg_activation_policy_set(99) < 0)
     precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_ACCESSORY)) == 0)
+    precondition(window.isVisible, "hiding Dock must preserve a visible window")
     precondition(app.activationPolicy() == .accessory)
+    // AppKit returns false when the requested policy is already in effect.
+    // The ABI is an idempotent setter, including after a host changes policy.
+    precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_ACCESSORY)) == 0)
     precondition(dg_status_item_is_available() == 0)
     let text = strdup("Fixture")!
     defer { free(text) }
@@ -78,15 +87,22 @@ struct SystemSmoke {
     dg_status_item_stop()
     precondition(dg_status_item_is_available() == 0)
     precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_REGULAR)) == 0)
+    precondition(window.isVisible, "restoring Dock must preserve a visible window")
     precondition(app.activationPolicy() == .regular)
+    precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_REGULAR)) == 0)
+    precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_ACCESSORY)) == 0)
+    precondition(app.setActivationPolicy(.regular))
+    precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_REGULAR)) == 0)
     verifyWorkerThread(app)
     verifyApplicationMenu(app)
-    let message = #"{"title":"Fixture title","message":"Fixture message","button":"Acknowledge"}"#
+    let body = "Dock 显示设置已保存，但暂时无法应用。请从菜单栏重新打开 Daygo 后重试。"
+    let message = #"{"title":"Fixture title","message":"\#(body)","button":"Acknowledge"}"#
     precondition(message.withCString { dg_status_message_show(DG_SYSTEM_ABI_MAJOR, $0) } == 0)
     let alert = residentMessageForSmoke()!
     precondition(
-      alert.messageText == "Fixture title" && alert.informativeText == "Fixture message"
+      alert.messageText == "Fixture title" && alert.informativeText == body
         && alert.window.isVisible)
+    verifyMessageLayout(alert)
     alert.buttons[0].performClick(nil)
     precondition(residentMessageForSmoke() == nil)
     precondition("{}".withCString { dg_status_message_show(DG_SYSTEM_ABI_MAJOR, $0) } < 0)
@@ -107,9 +123,24 @@ struct SystemSmoke {
     NSWorkspace.shared.notificationCenter.post(
       name: NSWorkspace.willPowerOffNotification, object: NSWorkspace.shared)
     precondition(observed.count() == 1)
+    window.orderOut(nil)
     print(
-      "native system smoke: main/worker policy, status availability/deduplication, nonblocking feedback, main-menu localization, shutdown routing and teardown passed"
+      "native system smoke: main/worker idempotent policy, visible-window roundtrip, status availability/deduplication, feedback layout/dismissal, main-menu localization, shutdown routing and teardown passed"
     )
+  }
+
+  @MainActor private static func verifyMessageLayout(_ alert: NSAlert) {
+    func visibleViews(_ view: NSView) -> [NSView] {
+      if view.isHidden { return [] }
+      return [view] + view.subviews.flatMap { visibleViews($0) }
+    }
+    let views = visibleViews(alert.window.contentView!)
+    let buttons = views.compactMap { $0 as? NSButton }
+    precondition(buttons.count == 1 && buttons[0] === alert.buttons[0],
+      "feedback must render only the configured button, without template help/suppression/empty controls")
+    let body = views.compactMap { $0 as? NSTextField }.first { $0.stringValue == alert.informativeText }!
+    let fitting = body.cell!.cellSize(forBounds: NSRect(x: 0, y: 0, width: body.frame.width, height: 4096))
+    precondition(body.frame.height >= fitting.height - 1, "feedback body is clipped")
   }
 
   @MainActor private static func verifyApplicationMenu(_ app: NSApplication) {
@@ -159,6 +190,7 @@ struct SystemSmoke {
     let completion = WorkerCompletion()
     DispatchQueue.global().async {
       precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_ACCESSORY)) == 0)
+      precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_ACCESSORY)) == 0)
       let text = strdup("Worker fixture")!
       let p = UnsafePointer(text)
       var status = dg_status_item_state_v1()
@@ -180,6 +212,7 @@ struct SystemSmoke {
       precondition(dg_status_item_is_available() == 1)
       dg_status_item_stop()
       precondition(dg_status_item_is_available() == 0)
+      precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_REGULAR)) == 0)
       precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_REGULAR)) == 0)
       completion.finish()
     }

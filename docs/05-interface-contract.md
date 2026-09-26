@@ -1382,13 +1382,15 @@ macOS System ABI 1.5 新增 `application_hidden` / `application_unhidden` 成对
 macOS System ABI 1.6 增加 `system_shutdown`（原生值 11），来自 NSWorkspace 的
 `willPowerOffNotification`，覆盖关机 / 注销意图；app 放行真退出并尽力收尾，禁用授权自重启。
 该终态事件在通道满时替换最旧事件，不阻塞 AppKit；其余事件维持现有有界通道行为。
-macOS `dg_activation_policy_set` 同步等待主线程并报告 AppKit 拒绝（-2）；状态栏新增
+macOS `dg_activation_policy_set` 同步等待主线程并核对实际策略；已处于目标策略亦返回 0，
+调用后仍与目标不符返回 -2，未知枚举返回 -1。不能把 AppKit 对重复设置返回的 false 当作拒绝。状态栏新增
 `dg_status_item_is_available` 查询，0 为不可用、1 为已安装且可见。重绘 ABI 仍异步。
 
 2026-09-26：状态栏 ABI 升为 **3**（结构新增显式 icon 枚举，禁止按文案猜图标），macOS 与
 Windows 的静态库 / DLL 必须与 Go 桥一起重建。System ABI 1.6 另提供应用菜单与操作反馈 JSON
 入口：菜单限 8192 字节、恰好 20 项且每项最多 512 字节；反馈限 8192 字节、标题 / 按钮最多
 512 字节、正文最多 4096 字节。原生先复制再异步主线程应用。反馈最多一个 modeless 提示，
+显示 modeless 提示前显式调用 `NSAlert.layout()`，正文完整换行且只显示配置的一个按钮；
 不阻塞系统事件泵，System 关闭时移除；收尾失败的退出选择仍在独立 Wails 退出回调中等待。
 
 `system.showDockIcon` 在启动及设置持久化后驱动 macOS 激活策略；关闭时窗口仍可显示，但从

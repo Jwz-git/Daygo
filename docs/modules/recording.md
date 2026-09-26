@@ -19,6 +19,29 @@
 
 ## 当前状态与证据
 
+2026-09-26 Dock 重新启用报错与反馈布局修复（本次增量）：用户报告关闭后正常、重新启用
+弹出截断正文、英文占位复选框和空按钮。macOS 26.0.1 / arm64、基于 `ff573bf` 的修复工作树：
+匿名 AppKit 宿主实测重复设置当前激活策略返回 false、实际策略保持目标值；旧桥将其误判为 -2。
+桥现在只在实际策略不同才设置，并以主线程读回值判断成功；仍不匹配才报失败。
+直接显示 `NSAlert.window` 前补 `layout()`，保留非阻塞与原有按钮动作；
+[Apple NSAlert 文档](https://developer.apple.com/documentation/appkit/nsalert/layout())说明其用于立即布局。
+
+夹具先行：新增重复 accessory 断言在旧桥失败；修策略后，渲染控件断言在旧弹窗失败。
+修复后 `bash native/darwin/system-smoke.sh` 的独立可执行程序 / 匿名 `.app` 均通过：可见窗口
+regular → accessory → regular、主 / 工作线程重复设置、宿主先恢复 regular、正文不裁切、
+恰好一个按钮及点击关闭 / System 清理。Go 匿名库夹具覆盖 false → true → false → true 的
+设置保存 / 读回与策略，同时保持前台状态。既有夹具期望未放宽。
+`native/darwin/build.sh` universal 重建、
+`go test -a ./internal/platform/darwin -run '^TestSystem' -count=1`、
+`CGO_ENABLED=0 go test ./internal/app -run 'Test(DockPreference|UpdateSettingsAppliesDockPreference|FailedActivationPolicy|ExplicitReopen)' -count=1`
+及 `./scripts/gate.sh` 通过（169 项前端测试、三平台无 cgo 构建、文档 0 问题；
+Windows 安装器 4 项通过 / 5 项限 Windows 跳过）。`gofmt -l .` 无输出。
+
+范围：recording 宿主 / preferences Dock 消费者；属于 G-host 增量回归，不扩大正式分发身份验收。
+用户未注意报错时图标是否恢复，故尚不能确定其那次报错必然来自重复设置；本次修复后真实
+Wails 开关 / 重启读回和持续捕获待回归，运行中的已安装应用未替换。所有原生夹具不读用户库或屏幕。
+回退：整体回退本修复的桥、提示布局、夹具与契约，并重新构建原生库；不修改数据库或偏好键。
+
 2026-09-26 菜单栏 / Dock 增量：macOS Dock 开关已在启动与设置持久化后应用，重开尊重偏好，
 恢复入口不可用保留 regular，失败策略不缓存成功并可重试。状态栏首行与五类图标区分启动、
 录制、暂停、空闲和警告；只读 / 不可用禁用操作，系统阻塞不允许手动恢复，定时暂停显示恢复

@@ -16,6 +16,9 @@ import Foundation
     alert.window.delegate = self
   }
   func show() {
+    // Direct modeless presentation bypasses NSAlert's modal/sheet layout.
+    // Lay out first to size the body and remove unused template controls.
+    alert.layout()
     alert.window.center()
     alert.window.makeKeyAndOrderFront(nil)
   }

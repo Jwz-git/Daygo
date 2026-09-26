@@ -202,3 +202,32 @@ func TestUpdateSettingsAppliesDockPreferenceAfterPersistence(t *testing.T) {
 		t.Fatal("unrelated setting reapplied policy")
 	}
 }
+
+func TestDockPreferenceRoundTripPersistsAndKeepsVisibleWindow(t *testing.T) {
+	b, _ := backendWithStore(t)
+	sys := &residentSystemFixture{System: fake.NewSystem(), available: true}
+	b.system = sys
+	for _, show := range []bool{false, true, false, true} {
+		dto, err := b.UpdateSettings(SettingsPatchDTO{ShowDockIcon: &show})
+		if err != nil {
+			t.Fatal(err)
+		}
+		readback, err := b.GetSettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dto.System.ShowDockIcon != show || readback.System.ShowDockIcon != show {
+			t.Fatalf("show=%v: persisted=%v, returned=%v", show, readback.System.ShowDockIcon, dto.System.ShowDockIcon)
+		}
+		want := platform.ActivationAccessory
+		if show {
+			want = platform.ActivationRegular
+		}
+		if got, _ := sys.ActivationPolicy(); got != want || b.needsWindowRestore() {
+			t.Fatalf("show=%v: policy=%q, backgrounded=%v", show, got, b.needsWindowRestore())
+		}
+	}
+	if len(sys.policies) != 4 {
+		t.Fatalf("policy calls=%d, want four transitions", len(sys.policies))
+	}
+}

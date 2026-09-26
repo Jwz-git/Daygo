@@ -21,7 +21,8 @@ enum { DG_SETTINGS_PANE_SCREEN_RECORDING=0, DG_SETTINGS_PANE_NOTIFICATIONS=1, DG
 enum { DG_LAUNCH_AT_LOGIN_NOT_REGISTERED=0, DG_LAUNCH_AT_LOGIN_ENABLED=1, DG_LAUNCH_AT_LOGIN_REQUIRES_APPROVAL=2, DG_LAUNCH_AT_LOGIN_NOT_FOUND=3, DG_LAUNCH_AT_LOGIN_UNSUPPORTED=4 };
 int32_t dg_system_start(uint32_t requested_abi_major, dg_system_event_callback_v1 callback, void *user_data);
 void dg_system_stop(void);
-/* macOS waits for AppKit to apply the policy: 0 applied, negative on refusal. */
+/* macOS synchronously verifies AppKit's actual policy: 0 for applied/already
+   applied, -2 if it still differs, -1 for an unknown policy. */
 int32_t dg_activation_policy_set(uint32_t policy);
 /* macOS main-menu localization: flat UTF-8 JSON object matching
    ApplicationMenuLabels, max 8192 bytes. Copies before async main-thread apply. */

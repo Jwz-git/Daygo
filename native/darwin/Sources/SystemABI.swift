@@ -106,7 +106,12 @@ func dg_activation_policy_set(_ policy: UInt32) -> Int32 {
     default: return -1
     }
     let apply: @Sendable @MainActor () -> Int32 = {
-        guard NSApp.setActivationPolicy(target) else { return -2 }
+        // AppKit returns false for a no-op, including when the host already
+        // restored regular. Success is the observed policy, not a change flag.
+        if NSApp.activationPolicy() != target {
+            _ = NSApp.setActivationPolicy(target)
+        }
+        guard NSApp.activationPolicy() == target else { return -2 }
         appliedActivationPolicy = target
         return 0
     }
