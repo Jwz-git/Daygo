@@ -142,8 +142,12 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 验收状态，不生成或发布实际 release 产物。回退可还原本次安装器源码与打包输入，不变更用户数据。
 本机验证：在隔离检出运行 `./scripts/gate.sh` 通过（Go 核心测试 / 三平台纯 Go 构建、前端 168 项
 测试 / 类型检查 / bundle、文档检查）；NSIS 3.12 对 machine / user 匿名夹具以警告视为错误编译
-通过，安装器测试 4 项通过、5 项因需 Windows 执行而跳过。Windows workflow 实跑结果另行记录，
-上述证据不证明真机窗口布局或实际升级通过。
+通过，安装器测试 4 项通过、5 项因需 Windows 执行而跳过。
+Windows 自动化验证：[fixture run 36224660273](https://github.com/Jwz-git/Daygo/actions/runs/36224660273)
+在 `windows-2025` runner 对源码 `f35d6be` 实跑通过；PowerShell 打包脚本解析无错误，9 项安装器
+测试全部通过、无跳过（6.273 秒），包括 user `/S` 安装 / 卸载、保留未知文件、文件占用不改写、
+WebView2 bootstrap 失败 / 假成功及 `0.0.0.0` 拒绝。machine 范围仅编译；实际应用、真实依赖下载、
+签名身份、交互界面与跨版本升级未在该匿名夹具中运行，因此不提升对应 WD / G-native 门禁。
 
 2026-09-25（macOS 本机，release 身份准备）：生成一张固定的 Daygo 自签名证书，使用兼容 macOS
 钥匙串的加密 PKCS#12 并导入本机及临时钥匙串；临时可执行文件以证书哈希签名，`codesign -dr -`
