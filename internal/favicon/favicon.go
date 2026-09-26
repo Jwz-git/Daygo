@@ -50,7 +50,8 @@ const (
 	// later disk read — this cap is what stops a resident agent from retaining
 	// one icon (up to maxIconBytes) per distinct host seen over its whole
 	// uptime, which is the leak this package used to have.
-	memoryCacheCap = 512
+	memoryCacheCap   = 512
+	memoryCacheBytes = 8 << 20
 	// negativeCacheCap bounds the negative cache the same way. Its entries are
 	// only timestamps, but an always-on agent would still accumulate one per
 	// host that ever failed without a cap.
@@ -93,7 +94,7 @@ func New(cacheDir string) *Resolver {
 	return &Resolver{
 		client:   &http.Client{Transport: transport, Timeout: fetchTimeout},
 		cacheDir: cacheDir,
-		memory:   newLRUCache[Result](memoryCacheCap),
+		memory:   newWeightedLRUCache[Result](memoryCacheCap, memoryCacheBytes, func(result Result) int { return len(result.Data) }),
 		negative: newLRUCache[time.Time](negativeCacheCap),
 	}
 }

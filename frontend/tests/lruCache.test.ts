@@ -46,3 +46,37 @@ test('a stored null is a present entry, distinct from an absent key', () => {
   assert.equal(cache.get('dead.example'), null)
   assert.equal(cache.get('never.seen'), undefined)
 })
+
+test('byte budget preserves recency and accounts for replace/delete/clear', () => {
+  const cache = new LruCache<string, string | null>(10, {
+    maxWeight: 8,
+    weigh: (value) => (value?.length ?? 0) * 2,
+  })
+  cache.set('a', '12')
+  cache.set('b', '34')
+  cache.get('a')
+  cache.set('c', '5')
+  assert.equal(cache.has('b'), false)
+  assert.equal(cache.weight, 6)
+  cache.set('a', '1')
+  assert.equal(cache.weight, 4)
+  cache.delete('c')
+  assert.equal(cache.weight, 2)
+  cache.set('a', 'oversized')
+  assert.equal(cache.has('a'), false)
+  assert.equal(cache.weight, 0)
+  cache.set('empty', null)
+  assert.equal(cache.get('empty'), null)
+  cache.clear()
+  assert.equal(cache.size, 0)
+  assert.equal(cache.weight, 0)
+})
+
+test('entry and byte limits both hold under many different values', () => {
+  const cache = new LruCache<string, string>(3, { maxWeight: 10, weigh: (s) => s.length })
+  for (let index = 0; index < 1000; index += 1) {
+    cache.set(String(index), 'x'.repeat(index % 8))
+    assert.ok(cache.size <= 3)
+    assert.ok(cache.weight <= 10)
+  }
+})

@@ -2,36 +2,31 @@ package favicon
 
 import "container/list"
 
-// lruCache is a fixed-capacity, least-recently-used cache keyed by string. It
-// is NOT safe for concurrent use on its own: the Resolver serializes every call
-// under its own mutex, so adding a second lock here would be dead weight.
-//
-// It exists so the resolver's session caches are bounded. Without a cap a
-// resident agent accumulates one entry per distinct host it has ever seen, for
-// the whole process lifetime — the memory-growth this package was leaking.
+// lruCache is serialized by Resolver.mu. Entry and optional payload budgets
+// bound retention; eviction never affects the disk source of truth.
 type lruCache[V any] struct {
-	cap   int
-	ll    *list.List // front = most recently used, back = eviction candidate
-	items map[string]*list.Element
+	cap    int
+	budget int
+	used   int
+	weigh  func(V) int
+	ll     *list.List
+	items  map[string]*list.Element
 }
-
 type lruEntry[V any] struct {
-	key   string
-	value V
+	key    string
+	value  V
+	weight int
 }
 
 func newLRUCache[V any](capacity int) *lruCache[V] {
+	return newWeightedLRUCache[V](capacity, 0, nil)
+}
+func newWeightedLRUCache[V any](capacity, budget int, weigh func(V) int) *lruCache[V] {
 	if capacity < 1 {
 		capacity = 1
 	}
-	return &lruCache[V]{
-		cap:   capacity,
-		ll:    list.New(),
-		items: make(map[string]*list.Element),
-	}
+	return &lruCache[V]{cap: capacity, budget: budget, weigh: weigh, ll: list.New(), items: make(map[string]*list.Element)}
 }
-
-// get returns the value for key and, on a hit, marks it most-recently-used.
 func (c *lruCache[V]) get(key string) (V, bool) {
 	if el, ok := c.items[key]; ok {
 		c.ll.MoveToFront(el)
@@ -40,29 +35,28 @@ func (c *lruCache[V]) get(key string) (V, bool) {
 	var zero V
 	return zero, false
 }
-
-// put inserts or updates key, evicting the least-recently-used entry when the
-// insert would exceed the capacity.
 func (c *lruCache[V]) put(key string, value V) {
-	if el, ok := c.items[key]; ok {
-		c.ll.MoveToFront(el)
-		el.Value.(*lruEntry[V]).value = value
+	weight := 0
+	if c.weigh != nil {
+		weight = c.weigh(value)
+	}
+	c.delete(key)
+	// A caller can still use an oversized result without retaining it here.
+	if weight < 0 || (c.budget > 0 && weight > c.budget) {
 		return
 	}
-	c.items[key] = c.ll.PushFront(&lruEntry[V]{key: key, value: value})
-	if c.ll.Len() > c.cap {
-		if oldest := c.ll.Back(); oldest != nil {
-			c.ll.Remove(oldest)
-			delete(c.items, oldest.Value.(*lruEntry[V]).key)
-		}
+	c.items[key] = c.ll.PushFront(&lruEntry[V]{key: key, value: value, weight: weight})
+	c.used += weight
+	for c.ll.Len() > c.cap || (c.budget > 0 && c.used > c.budget) {
+		c.delete(c.ll.Back().Value.(*lruEntry[V]).key)
 	}
 }
-
 func (c *lruCache[V]) delete(key string) {
 	if el, ok := c.items[key]; ok {
+		c.used -= el.Value.(*lruEntry[V]).weight
 		c.ll.Remove(el)
 		delete(c.items, key)
 	}
 }
-
-func (c *lruCache[V]) len() int { return c.ll.Len() }
+func (c *lruCache[V]) len() int    { return c.ll.Len() }
+func (c *lruCache[V]) weight() int { return c.used }

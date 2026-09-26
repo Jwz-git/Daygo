@@ -21,7 +21,10 @@ const NEGATIVE_TTL_MS = 10 * 60 * 1000
 
 // Bounded so a long session that surfaces many distinct hosts can not grow the
 // webview heap without limit; an evicted host simply re-resolves on next view.
-const cache = new LruCache<string, string | null>(256)
+const cache = new LruCache<string, string | null>(256, {
+  maxWeight: 4 * 1024 * 1024,
+  weigh: (value) => (value?.length ?? 0) * 2,
+})
 const negativeUntil = new LruCache<string, number>(256)
 const inflight = new Map<string, Promise<string | null>>()
 

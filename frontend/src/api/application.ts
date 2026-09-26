@@ -73,7 +73,10 @@ export async function getBlockedApplications(): Promise<ApplicationDTO[]> {
  * not grow the webview heap without limit; evicted icons simply refetch.
  */
 let installedCache: { language: string; apps: ApplicationDTO[] } | null = null
-const identityCache = new LruCache<string, ApplicationDTO>(512)
+const identityCache = new LruCache<string, ApplicationDTO>(512, {
+  maxWeight: 8 * 1024 * 1024,
+  weigh: (value) => (value.id.length + value.name.length + value.iconDataUrl.length) * 2,
+})
 
 /**
  * On-demand cache warming, exposed as an opt-in helper. It is intentionally
