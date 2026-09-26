@@ -15,6 +15,7 @@ func TestEventNameContract(t *testing.T) {
 		"update:available",
 		"chat:updated",
 		"recap:updated",
+		"ui:visibility-changed",
 	}
 
 	got := EventNames()

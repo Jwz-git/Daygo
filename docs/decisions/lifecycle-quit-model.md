@@ -103,3 +103,11 @@ Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
   [架构 §2.6.3](../02-architecture.md#263-后台-agent-语义)、[风险 C-1](../10-risks.md#c-1宿主无法承载后台-agent)）。
 - 系统关机（`willPowerOff`）目前不特殊处理：`applicationShouldTerminate` 返回 Cancel 后由系统
   超时强杀。若观察到关机收尾不足，再补一条系统关机事件让软退出让路（后续切片）。
+
+## 媒体可见性（2026-09-26）
+
+退出 / 激活模型保持上述行为。`GetUIVisibility` 与 `ui:visibility-changed` 使用应用隐藏和
+窗口 order-out 两个独立状态：关窗按钮的 `NSApp hide` 由 native System 的 didHide / didUnhide
+通知接入；软退出与显式重开在 app 层更新窗口状态。应用 unhide 不会自动清除 order-out，
+普通激活也不直接改可见性。UI 只暂停媒体与移除图片，不卸载页面，不改变 recorder / 分析任务。
+测试已覆盖两个来源的交错顺序；本轮真实关窗 10 分钟持续捕获仍待验证。

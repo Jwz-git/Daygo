@@ -23,14 +23,23 @@
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：日记 / 目标持久化与编辑、日报读写 repository / 绑定 / UI（v13）、`GenerateDailyRecap` 经分析 Provider 生成并覆盖重写、工作流与指标展示 | Go 存储与只读守卫、前端类型 / 构建通过；生成调度、通知、重启读回与 `wails dev` 真机闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定）、按日明细、洞察与节奏面板（`WeeklyInsightsDTO` / `WeeklyDayDTO`）、开发专用匿名样例 | Go 单元（周边界夹具与属性测试、聚合排除规则、非周一拒绝）、前端类型 / 构建通过；真实卡片周独立验收与跨周长期观察已于 2026-09-22 经用户确认完成（用户确认；无逐项运行记录） |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入 | macOS DB-1–8 与 IT-13 通过（含一小时 DB-8）；清理已支持按 segment_path 整段清理，DB-9 / IT-12 真实宿主长期观察已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
-| [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
+| [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、i18n、后端外观 / 语言接入、模型输出语言与识别增强设置、统一 UI 可见性与隐藏媒体暂停 | Go settings 契约、前端 typecheck / unit / build 通过；真实 Wails 重启、全量 DTO 接管和启动项 / Dock / 遥测消费者已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录） |
 | [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：GitHub Actions 已实现发布后自动构建、上传 macOS / Windows 安装器，正式版还生成签名 appcast；应用内 Sparkle / WinSparkle 适配器、设置 UI 和安全收尾已落盘 | Go / 前端 / appcast 夹具通过；发布工作流实现已核对；签名、公证、干净机安装与客户端升级仍缺正式证书材料，属 G-native 未验收 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 部分实现：CLI 读命令与 `write` 写命令、`daygo mcp` stdio 服务（五读六写）、宿主在读写实例上监听 `agent.sock` 并经与 chat 同源的共享执行器写入、`agent-writes.log` 来源审计；设置页给出 MCP 配置 / CLI 示例与 socket 状态（`GetAgentConnection`） | Go 协议、CLI 写命令（真实 socket + fake handler）、宿主端到端夹具（默认拒绝 → 开启写入 → `goal:updated` 事件 + 审计 → 关闭再拒绝）与前端单元测试通过；真实 MCP 客户端多日闭环与 search 未完成，属未验收 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：多会话纯对话、会话级 Provider / 模型、11 个封闭工具的 agent 循环、只读 / 只读实例双门禁、调用预算 / 取消、`llm_calls` 审计元数据和工具消息 UI | Go 回合、参数校验、门禁、预算、取消及前端回归测试通过；真实 Provider Wails 闭环已于 2026-09-22 经用户确认完成验收（用户确认；无逐项运行记录）；search / status、独立审计日志与诊断计数尚未实现，且 chat v1 不交付 |
 
 ### 当前代码证据
 
-**最近有记录的完整无头门禁：2026-09-23，审查问题修复后的未提交工作树，macOS / arm64。**
+**2026-09-26 长期内存切片**：原生单帧资源释放、8 / 4 / 8 MiB 图标 memo 预算、
+256 像素缩略图及隐藏媒体释放均已实现；不卸载页面，不调整捕获 / Provider 配置。
+`./scripts/gate.sh` 通过（前端 168 项单测；包含真实 SFC 的匿名 host renderer，非真实 WebKit），
+macOS 原生 universal 构建及强制重新链接的分段 / 事件映射 smoke 通过。
+原生三独立进程 600 次解码内存门禁通过，详细数值见 [recording 执行册](modules/recording.md)。
+本轮真实关窗 10 分钟持续捕获、24 小时全进程 A/B 与 14 天 RSS 门禁待验证，
+流程见 [内存对照](08-testing-strategy.md#长期内存对照流程2026-09-26)。历史验收不覆盖这些新增行为。
+
+
+**此前记录的完整无头门禁：2026-09-23，审查问题修复后的未提交工作树，macOS / arm64。**
 `./scripts/gate.sh` 全绿（`CGO_ENABLED=0 go build ./...`、`CGO_ENABLED=0 go test ./internal/...`、
 `go vet ./...`、`gofmt -l .` 无输出、前端 `typecheck` 与 `build`）；
 `GOOS=linux CGO_ENABLED=0 go build ./internal/...` 与 `GOOS=windows CGO_ENABLED=0 go build ./internal/...`

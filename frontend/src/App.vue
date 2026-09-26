@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView } from 'vue-router'
 
@@ -9,6 +9,11 @@ import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import FatalErrorOverlay from '@/components/FatalErrorOverlay.vue'
 import AppShell from '@/layout/AppShell.vue'
 import { useTestToolsStore } from '@/stores/testTools'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
+
+const uiVisibility = useUIVisibilityStore()
+uiVisibility.start()
+onBeforeUnmount(() => uiVisibility.stop())
 
 // Root-level init: the shell never unmounts, so the subscription needs no teardown.
 // Only wire up the test-tools store in builds that actually ship the test page.

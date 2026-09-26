@@ -566,3 +566,53 @@ func TestRecorderFailureRemainsLive(t *testing.T) {
 		}
 	}
 }
+
+func TestUIVisibilityEventsPreserveRecorderStateAndCapture(t *testing.T) {
+	store := &testStore{}
+	r, err := New(Config{Capture: fake.NewCapture(), Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []platform.SystemEventKind{platform.EventApplicationHidden, platform.EventApplicationUnhidden, platform.EventApplicationActivated}
+	for _, kind := range events {
+		r.HandleSystemEvent(platform.SystemEvent{Kind: kind})
+	}
+	if r.State() != StateIdle {
+		t.Fatal("UI events started an idle recorder")
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	waitForCommit(t, store)
+	store.mu.Lock()
+	before := store.commits
+	store.mu.Unlock()
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventApplicationHidden})
+	if r.State() != StateCapturing {
+		t.Fatal("app hide paused capturing")
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		store.mu.Lock()
+		after := store.commits
+		store.mu.Unlock()
+		if after > before {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("capture did not continue while UI was hidden")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventApplicationUnhidden})
+	if err := r.Pause(0); err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range events {
+		r.HandleSystemEvent(platform.SystemEvent{Kind: kind})
+	}
+	if r.State() != StatePaused {
+		t.Fatal("UI events resumed a paused recorder")
+	}
+}

@@ -82,7 +82,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
 | agent | `GetAgentConnection` | 读写实例启动时监听 `agent.sock`（0600），写入经与 chat 同源的共享执行器（同校验、同事件），每次请求服务端校验 `agentEditsEnabled`，成功写入追加 `agent-writes.log`；绑定只报告可执行路径与 socket 是否在监听 |
-| preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
+| preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground`、`GetUIVisibility` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
 | timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`StopRetries`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试、停止自动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
@@ -263,6 +263,7 @@ export function toApiError(e: unknown): ApiError {
 |------|----------|----------|------|------|-----------|
 | `GetDayContext(day string) (DayContextDTO, error)` | timeline | time 日期子能力 | 读 | — | `invalid_argument` |
 | `GetCapabilities() (CapabilitiesDTO, error)` | preferences | 实际功能 / 锁状态 | 读 | — | — |
+| `GetUIVisibility() UIVisibilityDTO` | preferences | UI 宿主 | 读 | `ui:visibility-changed` | — |
 | `GetDiagnostics() (DiagnosticsDTO, error)` | data | diagnostics / db-core | 读 | — | `database_error` |
 
 `day` 传空串表示"当前逻辑日"。其余所有接受 `day` 的方法**必须**收到合法 `yyyy-MM-dd`，
@@ -1037,6 +1038,15 @@ Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`
 3. **事件不是数据源。** 任何界面都必须能只靠 `Get*` 方法完成首屏渲染；断开事件后功能
    降级为"不自动刷新"，而不是"显示错误"或"数据为空"。
 
+### UI 可见性
+
+`GetUIVisibility() UIVisibilityDTO` 返回 `{visible: boolean}`；`ui:visibility-changed`
+同形载荷，仅在有效状态改变时发出。app 维护应用隐藏与窗口 order-out 两个独立来源；
+macOS `didHide` / `didUnhide` 经 System 事件泵处理，软退出 / 显式重开由 Wails 入口处理。
+普通激活 / 失焦不构成隐藏；既有退出、录制状态和业务订阅不变。前端单一订阅先安装事件，
+再读快照；事件或较新的快照请求使旧快照失效，结合 `document.visibilityState` 驱动媒体。
+隐藏只暂停媒体时钟并移除像素元素，不卸载路由、播放器或编辑状态；重开保留播放意图与进度。
+
 ### 5.5.4 资源契约
 
 像素**不走 JSON**，通过 Wails 资源处理器以普通 HTTP 资源提供，这样浏览器免费获得
@@ -1334,6 +1344,11 @@ type UpdateCopySink interface {
     SetInstallRefusedMessage(message string)
 }
 ```
+
+macOS System ABI 1.5 新增 `application_hidden` / `application_unhidden` 成对事件
+（原生值 9 / 10），与 `application_activated` 独立。观察者随 `dg_system_start` 安装，
+随 `dg_system_stop` 移除；不会将 UI 隐藏解释为 recorder 暂停或停止。
+
 
 ### 5.7.1 调用语义
 

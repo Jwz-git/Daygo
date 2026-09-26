@@ -6,17 +6,18 @@ package app
 type EventName string
 
 const (
-	EventTimelineUpdated  EventName = "timeline:updated"
-	EventJournalUpdated   EventName = "journal:updated"
-	EventGoalUpdated      EventName = "goal:updated"
-	EventSettingsChanged  EventName = "settings:changed"
-	EventRecordingState   EventName = "recording:state"
-	EventBatchProgress    EventName = "batch:progress"
-	EventBatchFailed      EventName = "batch:failed"
-	EventRecordingWarning EventName = "recording:warning"
-	EventUpdateAvailable  EventName = "update:available"
-	EventChatUpdated      EventName = "chat:updated"
-	EventRecapUpdated     EventName = "recap:updated"
+	EventTimelineUpdated     EventName = "timeline:updated"
+	EventJournalUpdated      EventName = "journal:updated"
+	EventGoalUpdated         EventName = "goal:updated"
+	EventSettingsChanged     EventName = "settings:changed"
+	EventRecordingState      EventName = "recording:state"
+	EventBatchProgress       EventName = "batch:progress"
+	EventBatchFailed         EventName = "batch:failed"
+	EventRecordingWarning    EventName = "recording:warning"
+	EventUpdateAvailable     EventName = "update:available"
+	EventChatUpdated         EventName = "chat:updated"
+	EventRecapUpdated        EventName = "recap:updated"
+	EventUIVisibilityChanged EventName = "ui:visibility-changed"
 )
 
 var eventNames = [...]EventName{
@@ -31,6 +32,7 @@ var eventNames = [...]EventName{
 	EventUpdateAvailable,
 	EventChatUpdated,
 	EventRecapUpdated,
+	EventUIVisibilityChanged,
 }
 
 // EventNames returns a defensive copy of the complete event-name contract.

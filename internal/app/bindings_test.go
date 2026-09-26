@@ -44,6 +44,7 @@ var contractBindings = []string{
 	"GetRecordingState",
 	"GetSettings",
 	"GetTimelineDay",
+	"GetUIVisibility",
 	"GetUpdaterState",
 	"GetWeeklyDashboard",
 	"DescribeApplications",

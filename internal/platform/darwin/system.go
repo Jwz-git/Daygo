@@ -114,6 +114,10 @@ func systemEventKind(k uint32) platform.SystemEventKind {
 		return platform.EventDisplaysChanged
 	case 8:
 		return platform.EventApplicationActivated
+	case 9:
+		return platform.EventApplicationHidden
+	case 10:
+		return platform.EventApplicationUnhidden
 	}
 	return ""
 }

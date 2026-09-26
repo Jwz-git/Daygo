@@ -13,3 +13,11 @@ func TestSystemEventKindMapsApplicationActivation(t *testing.T) {
 		t.Fatalf("systemEventKind(8) = %q, want %q", got, platform.EventApplicationActivated)
 	}
 }
+
+func TestSystemEventKindMapsApplicationVisibility(t *testing.T) {
+	for input, want := range map[uint32]platform.SystemEventKind{9: platform.EventApplicationHidden, 10: platform.EventApplicationUnhidden} {
+		if got := systemEventKind(input); got != want || !got.Paired() {
+			t.Fatalf("visibility event %d maps to %q", input, got)
+		}
+	}
+}

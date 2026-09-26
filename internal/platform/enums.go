@@ -117,12 +117,15 @@ const (
 	EventScreensaverStop      SystemEventKind = "screensaver_stop"
 	EventDisplaysChanged      SystemEventKind = "displays_changed"
 	EventApplicationActivated SystemEventKind = "application_activated"
+	EventApplicationHidden    SystemEventKind = "application_hidden"
+	EventApplicationUnhidden  SystemEventKind = "application_unhidden"
 	EventDeepLink             SystemEventKind = "deep_link"
 	EventStatusItemClick      SystemEventKind = "status_item_clicked"
 	EventNotificationClick    SystemEventKind = "notification_clicked"
 )
 
 var pairedEvents = map[SystemEventKind]SystemEventKind{
+	EventApplicationHidden: EventApplicationUnhidden, EventApplicationUnhidden: EventApplicationHidden,
 	EventSleep: EventWake, EventWake: EventSleep,
 	EventScreenLocked: EventScreenUnlocked, EventScreenUnlocked: EventScreenLocked,
 	EventScreensaverStart: EventScreensaverStop, EventScreensaverStop: EventScreensaverStart,

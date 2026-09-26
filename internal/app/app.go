@@ -235,6 +235,7 @@ func Run() error {
 				}
 				runtime.Show(ctx)
 				runtime.WindowShow(ctx)
+				backend.setWindowHidden(false)
 			}
 			// Activation only has to undo a soft-quit. See restoreOnActivation
 			// for why every other activation must be left to the system.
@@ -316,6 +317,7 @@ func Run() error {
 				}
 				return false
 			}
+			backend.setWindowHidden(true)
 			runtime.WindowHide(ctx)
 			if err := backend.enterBackground(ctx); err != nil {
 				log.Printf("drop dock icon on background quit unavailable: %v", err)
