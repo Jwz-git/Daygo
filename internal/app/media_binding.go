@@ -80,6 +80,8 @@ func (b *Backend) serveAsset(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/media/frame":
 		b.serveFrame(w, r)
+	case "/media/thumbnail":
+		b.serveFrameSized(w, r, 256)
 	case "/favicon":
 		b.serveFavicon(w, r)
 	default:
@@ -92,6 +94,10 @@ func (b *Backend) serveAsset(w http.ResponseWriter, r *http.Request) {
 // recordings root by the Media adapter, and frames are immutable once written,
 // so responses may be cached.
 func (b *Backend) serveFrame(w http.ResponseWriter, r *http.Request) {
+	b.serveFrameSized(w, r, 0)
+}
+
+func (b *Backend) serveFrameSized(w http.ResponseWriter, r *http.Request, maxPixelSize int) {
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
@@ -101,9 +107,17 @@ func (b *Backend) serveFrame(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	rawID := r.URL.Query().Get("id")
+	query := r.URL.Query()
+	rawID := query.Get("id")
+	digitsOnly := rawID != ""
+	for _, ch := range rawID {
+		if ch < '0' || ch > '9' {
+			digitsOnly = false
+			break
+		}
+	}
 	id, err := strconv.ParseInt(rawID, 10, 64)
-	if err != nil || id <= 0 || len(rawID) > 18 {
+	if err != nil || id <= 0 || len(rawID) > 18 || !digitsOnly || len(query) != 1 || len(query["id"]) != 1 {
 		http.Error(w, "invalid frame id", http.StatusBadRequest)
 		return
 	}
@@ -120,7 +134,11 @@ func (b *Backend) serveFrame(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := media.DecodeFrame(ctx, platform.DecodeRequest{SegmentPath: segmentPath, FrameIndex: frameIndex})
+	if !platform.ValidSegmentPath(segmentPath) {
+		http.Error(w, "invalid segment location", http.StatusForbidden)
+		return
+	}
+	data, err := media.DecodeFrame(ctx, platform.DecodeRequest{SegmentPath: segmentPath, FrameIndex: frameIndex, MaxPixelSize: maxPixelSize})
 	if err != nil {
 		// The row can outlive its file (cleanup removes whole segments
 		// asynchronously); that is a missing resource, not a server error.

@@ -1045,11 +1045,12 @@ Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`
 | 资源 | 路径形状 | 内容 | 状态 |
 |------|----------|------|------|
 | 单帧 | `GET /media/frame?id={screenshotID}` | JPEG | 已实现 |
+| 缩略图 | `GET /media/thumbnail?id={screenshotID}` | 最长边不超过 256 像素的 JPEG，保持比例 | 已实现 |
 | Timelapse | `/media/timelapse/{cardID}` | mp4 | 规划中 |
 
 契约：
 
-1. **寻址以数字 ID 完成，路径形状是固定约定**（`/media/frame?id=`，无其他查询参数）。
+1. **寻址以数字 ID 完成，路径形状是固定约定**（`/media/frame?id=` 或 `/media/thumbnail?id=`，无其他查询参数）。
    前端从 `CardMediaFrameDTO.id` 生成 URL；"ID → 磁盘路径"的映射只存在于 Go 侧，
    帧寻址方式一旦变化只需改后端与这一处约定。
 2. **处理器只接受数字 ID。** 不接受文件路径参数；ID 在数据库中解析为 `segment_path`
@@ -1060,7 +1061,9 @@ Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`
 4. **状态码映射**：`404` 行不存在、已软删除或文件已清理（含解码失败——行存在但文件
    不可读等同缺资源，不区分 5xx）；`400` ID 非法。适配层不可用等同资源缺失（404），
    因为无录制目录时本来就没有帧。
-5. **解码在请求时发生**：`GetCardMedia` 只返回引用；像素在浏览器请求资源时经
+5. **缩略图**：与单帧复用 ID 校验、目录约束、状态码和缓存策略；使用
+   `DecodeRequest.MaxPixelSize=256`。主画面 / 放大查看仍走完整单帧，预览条走缩略图。
+6. **解码在请求时发生**：`GetCardMedia` 只返回引用；像素在浏览器请求资源时经
    `platform.Media.DecodeFrame` 解码。规划中的 Timelapse 资源将复用同一处理器约定。
 
 ### 5.5.5 前端侧规则

@@ -3,10 +3,11 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CardMediaFrameDTO } from '@/api/dto'
+import { FramePreloader, frameSrc, thumbnailSrc } from '@/lib/framePreloader'
 
 /*
  * Card playback over the frames the recorder actually stored — discrete
- * screenshots, no video codec (the encoding decision is still pending).
+ * screenshots decoded from finalized HEVC segments.
  * Playback advances a virtual clock at `rate` × real time and shows the last
  * frame captured before it; the scrubber maps to that clock. Hovering reveals
  * the rate badge (cycles 20x → 40x → 60x → 120x); the expand button opens the
@@ -58,7 +59,7 @@ const span = computed(() => {
 })
 const currentFrame = computed(() => props.frames[frameIndex.value] ?? null)
 
-const frameSrc = (id: number): string => `/media/frame?id=${id}`
+const preloader = new FramePreloader()
 
 function cycleRate(): void {
   rateIndex.value = (rateIndex.value + 1) % RATES.length
@@ -169,6 +170,7 @@ watch(playing, (value) => {
 
 // A new card means a fresh clock.
 watch(() => props.frames, () => {
+  preloader.clear()
   playing.value = false
   started.value = false
   virtualTs = clockStart.value
@@ -189,13 +191,7 @@ const currentClock = computed(() =>
 
 /* Warm the next few frames so stepping stays instant. */
 watch(frameIndex, (index) => {
-  for (let offset = 1; offset <= 3; offset += 1) {
-    const next = props.frames[index + offset]
-    if (next !== undefined) {
-      const image = new Image()
-      image.src = frameSrc(next.id)
-    }
-  }
+  preloader.update(props.frames.slice(index + 1, index + 4).map((frame) => frame.id))
 })
 
 /* Evenly sampled thumbnails for the lightbox filmstrip. */
@@ -220,6 +216,7 @@ watch(expanded, (value) => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown)
+  preloader.clear()
   if (rafID !== null) cancelAnimationFrame(rafID)
 })
 </script>
@@ -315,7 +312,7 @@ onBeforeUnmount(() => {
               v-for="frame in stripFrames"
               :key="frame.id"
               class="filmstrip__thumb"
-              :src="frameSrc(frame.id)"
+              :src="thumbnailSrc(frame.id)"
               alt=""
               loading="lazy"
               draggable="false"
