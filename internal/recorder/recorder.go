@@ -21,6 +21,19 @@ import (
 
 type State string
 
+// StopCause identifies why a running recorder entered idle. It contains no
+// paths, screen content, or native error text.
+type StopCause string
+
+const (
+	StopRequested StopCause = "requested"
+	StopShutdown  StopCause = "shutdown"
+	StopUpdate    StopCause = "update"
+	StopFailure   StopCause = "capture_failure"
+	StopContext   StopCause = "context_cancelled"
+	StopMigration StopCause = "storage_migration"
+)
+
 const (
 	StateIdle      State = "idle"
 	StateStarting  State = "starting"
@@ -68,10 +81,12 @@ type Recorder struct {
 	lastError        error
 	pauseUntil       *time.Time
 	shutdownErr      error
+	lastStopCause    StopCause
 	systemBlockers   map[platform.SystemEventKind]struct{}
 	resumeGeneration uint64
 	lastSegmentPath  string
 	lastSegmentSize  int64
+	startPaused      bool
 }
 
 func New(cfg Config) (*Recorder, error) {
@@ -136,7 +151,53 @@ func (r *Recorder) PauseInfo() PauseInfo {
 	}
 	return info
 }
+
+func (r *Recorder) LastStopCause() StopCause {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastStopCause
+}
 func (r *Recorder) Start(ctx context.Context) error {
+	return r.start(ctx, false, 0)
+}
+
+// StartPaused restores a user pause after a directory migration without
+// taking a frame in the old or new location before the pause is effective.
+func (r *Recorder) StartPaused(ctx context.Context, remaining time.Duration) error {
+	return r.start(ctx, true, remaining)
+}
+
+func (r *Recorder) PauseUntil() time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.pauseUntil == nil {
+		return time.Time{}
+	}
+	return *r.pauseUntil
+}
+
+func (r *Recorder) UserPaused() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.userPaused
+}
+
+// SetDirectory switches the root only after Stop has joined the capture loop.
+// Reusing the recorder preserves system blockers accumulated during the move.
+func (r *Recorder) SetDirectory(directory string) error {
+	if !filepath.IsAbs(directory) {
+		return fmt.Errorf("recorder: directory must be absolute")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.state != StateIdle || r.done != nil && r.cancel != nil {
+		return fmt.Errorf("recorder: directory change requires idle state")
+	}
+	r.cfg.Directory = directory
+	return nil
+}
+
+func (r *Recorder) start(ctx context.Context, paused bool, remaining time.Duration) error {
 	r.mu.Lock()
 	if r.state != StateIdle {
 		state := r.state
@@ -156,13 +217,28 @@ func (r *Recorder) Start(ctx context.Context) error {
 	r.lastError = nil
 	r.pauseUntil = nil
 	r.shutdownErr = nil
+	r.lastStopCause = ""
+	r.startPaused = paused
+	r.userPaused = paused
+	if paused && remaining > 0 {
+		until := r.cfg.Clock.Now().Add(remaining)
+		r.pauseUntil = &until
+	}
 	r.resumeGeneration++
+	generation := r.resumeGeneration
 	r.mu.Unlock()
 	r.emit(StateStarting, nil)
 	go r.run(runCtx)
+	if paused && remaining > 0 {
+		time.AfterFunc(remaining, func() { r.resumeAfterUserPause(generation) })
+	}
 	return nil
 }
 func (r *Recorder) Stop() error {
+	return r.StopWithCause(StopRequested)
+}
+
+func (r *Recorder) StopWithCause(cause StopCause) error {
 	r.mu.Lock()
 	if r.state == StateIdle {
 		err := r.shutdownErr
@@ -178,6 +254,7 @@ func (r *Recorder) Stop() error {
 	// timer no-ops when it fires: the state guard alone loses the race where
 	// the timer wins the lock before run()'s deferred teardown sets StateIdle.
 	r.resumeGeneration++
+	r.lastStopCause = cause
 	r.mu.Unlock()
 	cancel()
 	<-done
@@ -204,16 +281,22 @@ func (r *Recorder) Pause(duration time.Duration) error {
 	generation := r.resumeGeneration
 	r.mu.Unlock()
 	if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
-		_ = closer.CloseActiveSegment(context.Background())
+		if err := closer.CloseActiveSegment(context.Background()); err != nil {
+			return fmt.Errorf("recorder: close segment on pause: %w", err)
+		}
 		r.mu.Lock()
 		activePath := r.lastSegmentPath
 		activeSize := r.lastSegmentSize
+		r.mu.Unlock()
+		if activePath != "" {
+			if err := r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize); err != nil {
+				return fmt.Errorf("recorder: amortize segment on pause: %w", err)
+			}
+		}
+		r.mu.Lock()
 		r.lastSegmentPath = ""
 		r.lastSegmentSize = 0
 		r.mu.Unlock()
-		if activePath != "" {
-			_ = r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize)
-		}
 	}
 	if duration > 0 {
 		r.mu.Lock()
@@ -392,6 +475,13 @@ func (r *Recorder) run(ctx context.Context) {
 			}
 		}
 		r.mu.Lock()
+		if r.lastStopCause == "" {
+			if r.lastError != nil {
+				r.lastStopCause = StopFailure
+			} else if ctx.Err() != nil {
+				r.lastStopCause = StopContext
+			}
+		}
 		r.cancel = nil
 		r.state = StateIdle
 		r.mu.Unlock()
@@ -403,7 +493,8 @@ func (r *Recorder) run(ctx context.Context) {
 	}
 	r.mu.Lock()
 	blocked := len(r.systemBlockers) != 0
-	if blocked {
+	startPaused := r.startPaused
+	if blocked || startPaused {
 		r.state = StatePaused
 	} else {
 		r.state = StateCapturing
@@ -414,7 +505,7 @@ func (r *Recorder) run(ctx context.Context) {
 	current := r.captureSettings()
 	ticker := time.NewTicker(time.Duration(current.CaptureIntervalSeconds) * time.Second)
 	defer ticker.Stop()
-	if !blocked {
+	if !blocked && !startPaused {
 		if err := r.capture(ctx); err != nil && ctx.Err() == nil {
 			r.fail(err)
 		}

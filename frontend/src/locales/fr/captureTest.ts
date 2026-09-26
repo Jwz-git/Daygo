@@ -1,4 +1,5 @@
 export default {
+  stopCause: "Cause du dernier arrêt de l’enregistrement",
   platformSwitch: 'Plateforme de test',
   macosTab: 'ABI natif macOS',
   windowsTab: 'Recorder Windows',

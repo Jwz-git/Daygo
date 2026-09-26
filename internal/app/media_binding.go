@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -40,7 +41,11 @@ type CardMediaDTO struct {
 // directory is known. It runs during startup before any request can arrive,
 // so no lock guards the fields.
 func (b *Backend) attachMedia(root string) {
-	b.media = factory.NewMedia(root)
+	if runtime.GOOS == "windows" {
+		b.media = locationMedia{backend: b, fallback: root}
+	} else {
+		b.media = factory.NewMedia(root)
+	}
 	b.mediaRoot = root
 }
 

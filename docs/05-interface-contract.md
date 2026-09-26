@@ -344,6 +344,13 @@ export function toApiError(e: unknown): ApiError {
 |------|----------|----------|------|------|-----------|
 | `GetRecordingState() (RecordingStateDTO, error)` | recording | System / recorder 实际状态 | 读 | — | — |
 | `GetRecordingDirectory() (string, error)` | recording | recording path resolution | 读 | — | `database_error` |
+| `GetRecordingDirectoryMigration() (RecordingDirectoryMigrationDTO, error)` | recording / data | Windows 迁移状态 | 读 | — | `database_error` |
+| `PickRecordingDirectory() (string, error)` | recording | Windows 原生目录选择器 | 用户交互 | — | `native_unavailable` |
+| `MoveRecordingDirectory(target string) error` | recording / data | Windows 写入与捕获锁；完整迁移历史录制 | 写·非幂等 | `settings:changed` | `not_capture_owner` `invalid_argument` `conflict` `canceled` |
+| `CancelRecordingDirectoryMove() error` | recording / data | 取消进行中的 Windows 复制 | 写·幂等 | — | — |
+
+Windows 的有效录制目录由 `app_settings.storage.recordingsDirectory` 决定，空值回退到默认目录；迁移状态由 `storage.recordingsMigration` 保存。macOS 不提供迁移入口，继续使用默认目录。流程见[决策](decisions/recording-directory-windows.md)。
+`RecordingDirectoryMigrationDTO` 返回 `source`、`target`、`phase` 和 `available`；`available=false` 表示自定义录制目录当前不可访问。`phase=copying` 可继续复制，`phase=committed` 表示新目录已生效但旧文件清理待重试。
 | `CaptureTest(request CaptureTestRequestDTO) (CaptureTestResultDTO, error)` | recording（联调） | Capture 适配器 | 写·测试 | — | `invalid_argument` `permission_denied` `native_unavailable` |
 | `OpenCaptureTestFolder(path string) error` | recording（联调） | 系统文件管理器 | 写·测试 | — | `invalid_argument` `not_found` `native_unavailable` |
 | `PickApplication() (*ApplicationDTO, error)` | recording | Wails picker / ApplicationInspector | 写·用户交互 | — | `invalid_argument` `not_found` `native_unavailable` |
@@ -684,6 +691,7 @@ type FrameRefDTO struct {
 type RecordingStateDTO struct {
     State           string  `json:"state"`         // idle|starting|capturing|paused
     Reason          *string `json:"reason"`        // 系统暂停原因或脱敏录制失败代码，如 capture_timeout:0x887a0027
+    StopCause       *string `json:"stopCause"`     // idle 时最近停止来源：requested|shutdown|update|storage_migration|capture_failure|context_cancelled；启动时清空
     UserPaused      bool    `json:"userPaused"`    // 用户主动暂停，区别于系统事件暂停
     PauseEndsAtTs   *int64  `json:"pauseEndsAtTs"` // 定时暂停到期时刻；无限期为 null
     Permission      string  `json:"permission"`    // granted|denied|not_determined

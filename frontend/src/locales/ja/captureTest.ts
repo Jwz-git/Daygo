@@ -1,4 +1,5 @@
 export default {
+  stopCause: "最後に記録が停止した原因",
   platformSwitch: 'テスト対象のプラットフォーム',
   macosTab: 'macOS ネイティブ ABI',
   windowsTab: 'Windows Recorder',

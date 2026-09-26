@@ -183,6 +183,9 @@ func TestRecorderPauseResumeAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitState(t, events, StateIdle)
+	if got := r.LastStopCause(); got != StopRequested {
+		t.Fatalf("stop cause = %q, want %q", got, StopRequested)
+	}
 	store.mu.Lock()
 	commits := store.commits
 	store.mu.Unlock()
@@ -192,6 +195,30 @@ func TestRecorderPauseResumeAndStop(t *testing.T) {
 	if _, err := os.Stat(dir + "/staging"); err != nil {
 		t.Fatal(err)
 	}
+}
+func TestStartPausedDoesNotTakeInitialFrame(t *testing.T) {
+	store := &testStore{}
+	events := make(chan Event, 8)
+	r, err := New(Config{Capture: fake.NewCapture(), Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: t.TempDir(), OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.StartPaused(context.Background(), 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	waitState(t, events, StatePaused)
+	store.mu.Lock()
+	commits := store.commits
+	store.mu.Unlock()
+	if commits != 0 {
+		t.Fatalf("paused start captured %d frames", commits)
+	}
+	if err := r.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+	waitForCommit(t, store)
 }
 func TestRecorderUpdateSettingsAffectsNextCapture(t *testing.T) {
 	dir := t.TempDir()
@@ -339,6 +366,9 @@ func TestRecorderSurvivesTransientCaptureErrors(t *testing.T) {
 	}
 	if got := r.LastError(); got != nil {
 		t.Fatalf("last error after recovery = %v, want nil", got)
+	}
+	if got := r.LastStopCause(); got != "" {
+		t.Fatalf("stop cause while capturing = %q, want empty", got)
 	}
 }
 

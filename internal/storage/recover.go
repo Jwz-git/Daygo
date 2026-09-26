@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // ErrNoBackup reports that corruption was detected but there is no backup to
@@ -53,6 +54,20 @@ func (s *Store) recoverFromNewestBackup() (string, error) {
 
 	// Backups() returns oldest first, so the newest is the last entry.
 	newest := backups[len(backups)-1]
+	if runtime.GOOS == "windows" {
+		guard, guardErr := os.Stat(filepath.Join(dir, "recordings-location.guard"))
+		if guardErr == nil {
+			backupInfo, statErr := os.Stat(newest)
+			if statErr != nil {
+				return "", statErr
+			}
+			if backupInfo.ModTime().Before(guard.ModTime()) {
+				return "", newError(KindEnvironment, "recover: backup predates recording directory migration")
+			}
+		} else if !os.IsNotExist(guardErr) {
+			return "", guardErr
+		}
+	}
 	if err := RestoreFromBackup(newest, dir); err != nil {
 		return "", err
 	}

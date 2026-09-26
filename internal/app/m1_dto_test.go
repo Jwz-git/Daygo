@@ -75,7 +75,7 @@ func TestM1DTOJSONShapes(t *testing.T) {
 				Permission:     "not_determined",
 				IsCaptureOwner: false,
 			},
-			want: `{"state":"paused","reason":null,"userPaused":true,"pauseEndsAtTs":null,"permission":"not_determined","isCaptureOwner":false,"activeDisplayId":null,"lastFrameAtTs":null}`,
+			want: `{"state":"paused","reason":null,"stopCause":null,"userPaused":true,"pauseEndsAtTs":null,"permission":"not_determined","isCaptureOwner":false,"activeDisplayId":null,"lastFrameAtTs":null}`,
 		},
 		{
 			name: "permission",
