@@ -78,6 +78,7 @@ async function confirmRemove(id: string): Promise<void> {
   <header class="providers-head">
     <h2 class="providers-head__title">{{ t('settings.providers.title') }}</h2>
     <p class="providers-head__hint">{{ t('settings.providers.description') }}</p>
+    <RouterLink class="dg-button" :to="{ name: 'model-playground' }">{{ t('modelPlayground.title') }}</RouterLink>
   </header>
 
   <!-- Add/edit form (the add button lives here); kept above the list. -->
@@ -133,6 +134,7 @@ async function confirmRemove(id: string): Promise<void> {
               <ul class="model-list">
                 <li v-for="model in provider.models" :key="model" class="model-list__item">
                   <span class="model-list__name">{{ model }}</span>
+                  <RouterLink class="dg-button dg-button--tiny" :to="{ name: 'model-playground', query: { providerId: provider.id, model } }">{{ t('modelPlayground.title') }}</RouterLink>
                   <button
                     type="button"
                     class="dg-button dg-button--tiny"

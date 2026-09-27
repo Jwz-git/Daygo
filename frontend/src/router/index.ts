@@ -13,6 +13,12 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-rou
  * path strings.
  */
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/model-tests',
+    name: 'model-playground',
+    component: () => import('@/views/ModelPlayground/ModelPlaygroundView.vue'),
+    meta: { navKey: 'settings' },
+  },
   { path: '/', redirect: { name: 'timeline' } },
   {
     path: '/timeline',

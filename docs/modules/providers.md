@@ -17,6 +17,15 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-09-26 新增「模型试用」页面（本条在当日历史用户验收之后，真实闭环待验收）：
+设置页及各模型行可进入独立页面，选择已保存模型，上传 / 拖入 / 粘贴一张 PNG/JPEG 并预览，
+编辑文字后显式发送；支持纯文字或单张图片。`TryProvider` 复用三协议客户端与系统密钥，
+单次、无回退、无历史、非流式返回实际文本；展示模型 / 耗时和本地化失败，支持复制回复。
+上限为 5 MiB / 2000 万像素 / 16000 字符 / 2048 输出 tokens / 30 秒。
+内容只在内存中保留，卸载清空并忽略迟到结果；仅 `llm_calls` attempt 元数据落库，因此要求持锁读写实例。
+回复以转义纯文本呈现；不改变固定连接探针、录制、时间线或路由配置。
+契约和 DTO 见 [05 Provider](../05-interface-contract.md#provider)。
+
 > **验收状态（2026-09-26）**：本模块所有已实现能力（含近期增量、长期观察与已实现的真实安装升级）经用户确认已验收，未附逐项运行记录。未实现能力、待定设计与正式证书缺失保持原状态；历史命令的失败、跳过或未运行不改写为通过。统一记录见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 实现进度：部分实现。Go 侧已落地：三协议客户端、重试 / 回退链（`ai.Chain`，循环降级）、
@@ -97,6 +106,28 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-09-26—27 模型试用（基于 `ab8624b` 的 test 工作树，Windows amd64）**：新增匿名 HTTP 夹具覆盖三协议实际图文
+  请求 / 原始文本返回、无 schema / 单次调用、非法模型零请求、MIME 不一致 / 非图片 / 超限输入拒绝、
+  错误不回显正文。前端夹具覆盖重复发送闸门、清理后的迟到结果丢弃、上传大小 / 类型及回复 HTML 转义。
+  本次实现使用 PNG/JPEG 子集；WebP、流式、持久化历史、在途取消和批量对比未实现。
+  `CGO_ENABLED=0 go test ./internal/...`、`go vet ./...`、`CGO_ENABLED=0 go build ./...` 和
+  `GOOS=linux/darwin/windows CGO_ENABLED=0 go build ./internal/...` 通过；交叉构建不代表目标平台运行。
+  最终补充取消 / 像素上限 / 密钥回显夹具后，`CGO_ENABLED=0 go test ./internal/app ./internal/ai/...`
+  再次通过。`npm --prefix frontend run test:unit` 174 项通过；typecheck / build 通过；
+  `gofmt -l` 本次 Go 文件无输出；限定本次路径的 `git diff --check` 通过。
+  浏览器预览以仓库内匿名 PNG 为输入，图片预览及文字编辑符合预期；无 Wails 时发送按钮禁用，
+  没有用模拟成功替代真实回复。新增真实 Provider / Wails 真机闭环未运行，不继承历史验收。
+  完整 `scripts/gate.sh` 的 Go / 前端 / 三平台构建段通过，末尾 Python 入口未完成，因此不记录为
+  整体通过。初次五项 Agent 夹具因硬编码 `/tmp` 不存在失败，准备临时 `E:\tmp` 后原样全量通过，
+  无修改这五项预期。直接 `python scripts/check-docs.py` 因现有 CLAUDE.md 链接不可读失败；
+  `git archive HEAD` 的临时快照覆盖本次 docs，并仅在快照内将 CLAUDE.md 按 HEAD 目标 AGENTS.md
+  展开为文本后，原检查器检查 54 个 Markdown、0 问题。用户工作区链接保持不变。
+  `python scripts/windows-installer/test_installer.py`：2 项源契约通过，7 项因缺 makensis 跳过。
+  本轮夹具设计修正：Anthropic 根端点预期路径从 `/messages` 改为 `/v1/messages`，依据现有 SDK
+  适配和 `TestGenerateMapsMultimodalStructuredRequest`；取消夹具先读完 HTTP 请求体再观察断连，
+  保持“宿主取消必须终止在途请求”的预期不变。
+  回退：撤回本次页面、入口和 TryProvider 绑定；无 schema 迁移，不删除既有配置 / 密钥。
 
 - **2026-09-23 回归修复**：默认 Anthropic 端点及草稿模型列表的端点规范化由 Go 夹具验证；`./scripts/gate.sh` 通过。真实 Provider 网络调用未在本次重跑。
 

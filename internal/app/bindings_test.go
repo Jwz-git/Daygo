@@ -84,6 +84,7 @@ var contractBindings = []string{
 	"ReprocessDay",
 	"TestProvider",
 	"TestProviderConnection",
+	"TryProvider",
 	"UpdateCardCategory",
 	"UpdateCardDetailedSummary",
 	"UpdateCardSummary",

@@ -89,7 +89,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`SetPermissionRestartArmed`、`RelaunchForPermission`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；`SetPermissionRestartArmed` / `RelaunchForPermission` 承载授权后的完全退出 + 自动重启（见权限组说明）；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder`、`PollSystemEvents` | 直接调用平台 `Capture` 或排空系统事件广播缓冲；均不接 recorder / storage / config。`PollSystemEvents` 是共享广播缓冲的排空口（recorder 与测试页都要观察全部原生事件，直接消费会互相抢），**会消费缓冲**，正式产品页面不得调用 |
-| providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
+| providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels`、`TryProvider` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存；`TryProvider` 单次发送用户图文并返回文本，只保存 attempt 元数据 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
@@ -440,6 +440,7 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 | `TestProvider(id string, model string) (ProviderTestResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥或 model 不属于该 provider）`provider_failed`（结果行） |
 | `ListProviderModels(req ProviderModelsRequestDTO) (ProviderModelsResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`native_unavailable` |
 | `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | provider-client | 读·有网络副作用 | — | `invalid_argument` |
+| `TryProvider(req ProviderPlaygroundRequestDTO) (ProviderPlaygroundResultDTO, error)` | providers | 已保存 Provider / Secrets / 持锁读写实例 | 写 attempt 元数据·有网络副作用 | — | `invalid_argument` `not_found` `not_capture_owner` `native_unavailable` `database_error`；网络失败在结果中分类 |
 
 两个测试方法**不是重复**，区别必须保留：
 
@@ -455,6 +456,35 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 
 **密钥只写不读。** 没有任何绑定方法返回密钥内容；前端只能通过 `ProviderDTO.hasSecret`
 知道是否已配置。`TestProvider` 的返回里也不得回显密钥或完整请求体。
+
+**可视化模型试用（2026-09-26 增量）**：`TryProvider` 与上面的固定探针独立。
+设置中的「模型试用」进入 `#/model-tests`，可通过 `providerId` / `model` 查询参数预选已保存模型；
+参数须属于当前配置，不能指定任意 endpoint 或传入密钥。输入为用户主动选择的一张 PNG/JPEG
+（原始字节最多 5 MiB、最多 2000 万像素；校验 base64、图片头与声明 MIME 一致性）和 / 或文字
+（最多 16000 个 Unicode 字符，空白文本不单独构成请求）。图片以纯 base64 跨界，不接受路径 / URL。
+固定模型单次调用，不附带聊天历史、不重试、不回退、不应用识别增强、不强制 JSON Schema；
+操作 context 最长 30 秒，输出上限 2048 tokens；非流式返回。`ok` 仅表示收到非空文本，不代表质量合格。
+只有读写且拥有捕获锁的实例允许调用，`llm_calls` 沿用 attempt 元数据记录，不保存输入 / 回复 / 图片。
+回复正文只返回试用页面，由 Vue 转义为纯文本，不执行 HTML、远程图片或工具；防止供应商直接回显
+当前密钥的过滤发生在 attempt 观察器之前。网络失败只返回错误分类，不返回供应商错误正文。
+页面卸载清空输入 / 结果并丢弃迟到响应，不声称取消在途请求；在途请求由超时或宿主 context 取消终止。
+
+```go
+type ProviderPlaygroundRequestDTO struct {
+    ProviderID string `json:"providerId"`
+    Model string `json:"model"` // 必填且属于 provider
+    Text string `json:"text"`
+    ImageType string `json:"imageType"` // 空 / image/png / image/jpeg
+    ImageBase64 string `json:"imageBase64"`
+}
+type ProviderPlaygroundResultDTO struct {
+    OK bool `json:"ok"`
+    Text string `json:"text"` // 成功时实际回复；仅已存密钥的直接回显被脱敏
+    Model string `json:"model"` // 实际模型；供应商省略时使用请求模型
+    LatencyMs int64 `json:"latencyMs"`
+    ErrorCode string `json:"errorCode"` // 沿用 ai 错误分类；失败时无 Text
+}
+```
 
 `ProviderInputDTO.secret` 为空串时表示"保持不变"，不是"清空"。清空只能经
 `DeleteProviderSecret`。
