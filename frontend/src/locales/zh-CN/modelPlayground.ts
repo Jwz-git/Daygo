@@ -1,6 +1,6 @@
 export default {
-  title: "模型试用",
-  description: "发送图片和文字，查看模型的实际回复。",
+  title: "模型测试与试用",
+  description: "发送图片或文字，收到非空文字回复即表示本次测试成功。无需固定答案或 JSON 格式。",
   provider: "供应商",
   model: "模型",
   select: "请选择",
@@ -9,6 +9,7 @@ export default {
   imageHint: "PNG / JPEG，最多 5 MiB、2000 万像素；可拖入或粘贴一张图片。",
   remove: "移除图片",
   prompt: "给模型的文字",
+  defaultPrompt: "请描述这张图片的内容",
   placeholder: "请描述这张图片中的内容。",
   send: "发送给模型",
   sending: "等待回复…",
@@ -28,4 +29,6 @@ export default {
   invalidOutput: "模型未返回可显示的文字。",
   timeout: "请求超过 30 秒，请重试或更换模型。",
   textLimit: "文字最多 16000 个字符。",
+  saveFirst: "请先保存配置，再从模型列表进入测试与试用。",
+  success: "测试成功：已收到模型回复。",
 }

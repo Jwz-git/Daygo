@@ -1,17 +1,20 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import defaultImage from '@/assets/favicons/daygo.png?inline'
 import { useProvidersStore } from './providers'
 import { createPlaygroundSession, imageFileError } from './modelPlaygroundSession'
 import { playgroundAccess, readImage, tryProvider } from '@/api/modelPlayground'
 
 /** Page-scoped state: no storage, chat history, automatic requests or fallback. */
 export function useModelPlayground() {
+  const { t } = useI18n()
   const providers = useProvidersStore()
   const session = createPlaygroundSession(tryProvider)
   const providerId = ref('')
   const model = ref('')
-  const text = ref('')
-  const imageURL = ref('')
-  const imageType = ref('')
+  const text = ref(t('modelPlayground.defaultPrompt'))
+  const imageURL = ref(defaultImage)
+  const imageType = ref('image/png')
   const imageError = ref('')
   const reading = ref(false)
   const accessError = ref('')
@@ -26,6 +29,11 @@ export function useModelPlayground() {
 
   watch(provider, (value) => {
     if (!value?.models.includes(model.value)) model.value = value?.models[0] ?? ''
+  })
+
+  // A reply belongs to the exact input and selected model that produced it.
+  watch([providerId, model, text, imageURL], () => {
+    if (!session.busy.value) session.clear()
   })
 
   async function initialize(selectedProvider: unknown, selectedModel: unknown): Promise<void> {

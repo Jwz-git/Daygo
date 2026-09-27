@@ -1,6 +1,6 @@
 export default {
-  title: "Essayer un modèle",
-  description: "Envoyez une image et du texte pour voir la réponse réelle du modèle.",
+  title: "Test et essai du modèle",
+  description: "Envoyez une image ou du texte. Toute réponse textuelle non vide indique que ce test a réussi, sans réponse imposée ni format JSON.",
   provider: "Fournisseur",
   model: "Modèle",
   select: "Veuillez choisir",
@@ -9,6 +9,7 @@ export default {
   imageHint: "PNG / JPEG, jusqu’à 5 MiB et 20 mégapixels ; déposez ou collez une image.",
   remove: "Retirer l’image",
   prompt: "Texte pour le modèle",
+  defaultPrompt: "Décrivez le contenu de cette image.",
   placeholder: "Décrivez le contenu de cette image.",
   send: "Envoyer au modèle",
   sending: "En attente de réponse…",
@@ -28,4 +29,6 @@ export default {
   invalidOutput: "Le modèle n’a renvoyé aucun texte affichable.",
   timeout: "La requête a dépassé 30 secondes. Réessayez ou choisissez un autre modèle.",
   textLimit: "Le texte est limité à 16000 caractères.",
+  saveFirst: "Enregistrez la configuration, puis ouvrez le test depuis la liste des modèles.",
+  success: "Test réussi : une réponse du modèle a été reçue.",
 }

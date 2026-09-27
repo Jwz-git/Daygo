@@ -1,6 +1,6 @@
 export default {
-  title: "모델 체험",
-  description: "이미지와 텍스트를 보내 모델의 실제 응답을 확인하세요.",
+  title: "모델 테스트 및 체험",
+  description: "이미지나 텍스트를 보내세요. 비어 있지 않은 텍스트 응답을 받으면 이번 테스트는 성공입니다. 정해진 답이나 JSON 형식은 필요하지 않습니다.",
   provider: "공급자",
   model: "모델",
   select: "선택하세요",
@@ -9,6 +9,7 @@ export default {
   imageHint: "PNG / JPEG, 최대 5 MiB 및 2000만 화소. 이미지 한 장을 끌어 놓거나 붙여넣으세요.",
   remove: "이미지 제거",
   prompt: "모델에 보낼 텍스트",
+  defaultPrompt: "이 이미지의 내용을 설명해 주세요.",
   placeholder: "이 이미지의 내용을 설명해 주세요.",
   send: "모델에 보내기",
   sending: "응답 대기 중…",
@@ -28,4 +29,6 @@ export default {
   invalidOutput: "모델이 표시할 텍스트를 반환하지 않았습니다.",
   timeout: "요청이 30초를 초과했습니다. 다시 시도하거나 다른 모델을 선택하세요.",
   textLimit: "텍스트는 최대 16000자입니다.",
+  saveFirst: "먼저 설정을 저장한 다음 모델 목록에서 테스트를 여세요.",
+  success: "테스트 성공: 모델 응답을 받았습니다.",
 }

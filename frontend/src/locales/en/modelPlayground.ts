@@ -1,6 +1,6 @@
 export default {
-  title: "Model playground",
-  description: "Send an image and text to see the actual model response.",
+  title: "Model test and playground",
+  description: "Send an image or text. Any non-empty text reply means this test succeeded; no fixed answer or JSON format is required.",
   provider: "Provider",
   model: "Model",
   select: "Select an option",
@@ -9,6 +9,7 @@ export default {
   imageHint: "PNG / JPEG, up to 5 MiB and 20 megapixels; drop or paste one image.",
   remove: "Remove image",
   prompt: "Text for the model",
+  defaultPrompt: "Describe the content of this image.",
   placeholder: "Describe the content of this image.",
   send: "Send to model",
   sending: "Waiting for response…",
@@ -28,4 +29,6 @@ export default {
   invalidOutput: "The model returned no displayable text.",
   timeout: "The request exceeded 30 seconds. Retry or choose another model.",
   textLimit: "Text is limited to 16000 characters.",
+  saveFirst: "Save the configuration first, then open testing from the model list.",
+  success: "Test succeeded: a model reply was received.",
 }

@@ -6,6 +6,8 @@
 
 ## 9.1 模块总表
 
+2026-09-27：模型测试与试用统一入口，旧固定探针不再由设置页触发。九语言文案、显式成功状态与输入变化清除旧结果已实现；验证与真实闭环边界见 [providers 执行册](modules/providers.md)。
+
 2026-09-26 历史验收之后的增量：providers 新增模型试用独立页面与 `TryProvider` 图文请求绑定，
 preferences 新增设置入口和九语言交互。实现范围为单张 PNG/JPEG 预览、可编辑文字、实际回复显示，
 自动化 / 浏览器证据见 [providers 执行册](modules/providers.md#验证记录)；真实 Provider 与 Wails

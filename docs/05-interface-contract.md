@@ -449,23 +449,25 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 | `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | provider-client | 读·有网络副作用 | — | `invalid_argument` |
 | `TryProvider(req ProviderPlaygroundRequestDTO) (ProviderPlaygroundResultDTO, error)` | providers | 已保存 Provider / Secrets / 持锁读写实例 | 写 attempt 元数据·有网络副作用 | — | `invalid_argument` `not_found` `not_capture_owner` `native_unavailable` `database_error`；网络失败在结果中分类 |
 
-两个测试方法**不是重复**，区别必须保留：
+以下两个旧探针绑定保留兼容，但自 2026-09-27 起不再由产品设置页面调用；用户测试统一走 `TryProvider`：
 
 - `TestProviderConnection` 测的是**表单里还没保存的草稿**，密钥随调用传入、只进 Go 内存，
-  不落盘、不进日志、不回显。它已经实现，是用户在密钥输入框旁点击“测试”时走的路径。
+  不落盘、不进日志、不回显。该旧草稿探针已从表单移除，配置需先保存再进入可视化测试。
 - `TestProvider` 测的是**已保存的 provider**，密钥由 Go 从钥匙串取，调用方给 id 与要测的
   model（空 model 回退到该 provider 的首个模型）。无已存密钥、或 model 不属于该 provider 时
   返回 `invalid_argument`，不发探针。
 
 两者都只发一次探针（30 秒上限、不重试、不回退），**失败是返回值而不是 error**：
-`ok=false` 加分类后的错误码，让 UI 把结果显示在输入框旁而不是弹窗。探针的通过标准见
+`ok=false` 加分类后的错误码。旧探针的通过标准见
 §5.6.4 第 6 条——仅 HTTP 2xx 不算通过。
 
 **密钥只写不读。** 没有任何绑定方法返回密钥内容；前端只能通过 `ProviderDTO.hasSecret`
 知道是否已配置。`TestProvider` 的返回里也不得回显密钥或完整请求体。
 
-**可视化模型试用（2026-09-26 增量）**：`TryProvider` 与上面的固定探针独立。
-设置中的「模型试用」进入 `#/model-tests`，可通过 `providerId` / `model` 查询参数预选已保存模型；
+2026-09-27 默认输入增量：进入模型测试与试用页时，预填随包内置的 Daygo 软件图标 PNG 和当前界面的本地化描述提示词（简体中文为「请描述这张图片的内容」）。图标以打包内联 data URL 同时用于预览和请求字节，无需联网加载；用户可移除或替换图片、编辑文字。仅点击发送才调用模型，重新进入页面恢复默认值；切换语言不覆盖正在编辑的文字。
+
+**可视化模型测试与试用（2026-09-27 统一入口）**：产品测试全部使用 `TryProvider`，不再执行固定探针。
+设置中的「模型测试与试用」进入 `#/model-tests`，可通过 `providerId` / `model` 查询参数预选已保存模型；
 参数须属于当前配置，不能指定任意 endpoint 或传入密钥。输入为用户主动选择的一张 PNG/JPEG
 （原始字节最多 5 MiB、最多 2000 万像素；校验 base64、图片头与声明 MIME 一致性）和 / 或文字
 （最多 16000 个 Unicode 字符，空白文本不单独构成请求）。图片以纯 base64 跨界，不接受路径 / URL。
@@ -1286,8 +1288,8 @@ type ReplaceResult struct {
    连接探针，不重试、不 fallback，不发送业务正文。探针包含固定指令文本、内嵌匿名 PNG 和严格
    JSON Schema：模型必须回显固定 probe token 并正确识别图片特征才算通过，仅 HTTP 2xx 不构成
    成功；返回实际模型、延迟与已验证能力（文本 / 图片 / 结构化输出）。探针经 `TestProviderConnection`
-   绑定由用户在密钥输入框旁手动触发：草稿密钥仅为本次调用进入 Go 内存，不落盘、不进
-   日志；测试结果是建议性的，不阻塞保存，失败原因按错误分类本地化展示。
+   绑定保留兼容，但两个旧探针均无产品 UI 入口。草稿密钥仅为本次调用进入 Go 内存，不落盘、
+   不进日志。产品测试使用上述 `TryProvider`，以非空文字回复为成功标准，不验证结构化输出能力。
    HTTP endpoint 允许使用，仅提示明文传输风险，不强制 HTTPS。
 7. 转录可并行，**但卡片的 读取 → 生成 → 改写 序列必须按重叠范围串行化**。
 8. `context` 取消必须中止在途 HTTP 与退避；被取消的批次保持 `processing`，下次启动重新拾取。

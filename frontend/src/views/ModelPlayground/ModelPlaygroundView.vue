@@ -87,6 +87,7 @@ async function copy(): Promise<void> {
           <p v-if="busy" role="status">{{ t('modelPlayground.sending') }}</p>
           <p v-else-if="failure" class="playground-error" role="alert">{{ failure }}</p>
           <template v-else-if="result?.ok">
+            <p role="status">{{ t('modelPlayground.success') }}</p>
             <p class="playground-hint" role="status">{{ t('modelPlayground.resultMeta', { model: result.model, latency: result.latencyMs }) }}</p>
             <ModelReply :text="result.text" />
             <button type="button" class="dg-button" @click="copy">{{ t('modelPlayground.copy') }}</button>

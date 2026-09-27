@@ -1,6 +1,6 @@
 export default {
-  title: "Modell ausprobieren",
-  description: "Sende ein Bild und Text, um die tatsächliche Modellantwort zu sehen.",
+  title: "Modelltest und Erprobung",
+  description: "Senden Sie ein Bild oder Text. Jede nicht leere Textantwort gilt als erfolgreicher Test; eine feste Antwort oder JSON ist nicht erforderlich.",
   provider: "Anbieter",
   model: "Sprachmodell",
   select: "Bitte auswählen",
@@ -9,6 +9,7 @@ export default {
   imageHint: "PNG / JPEG, bis zu 5 MiB und 20 Megapixel; ein Bild ablegen oder einfügen.",
   remove: "Bild entfernen",
   prompt: "Text an das Modell",
+  defaultPrompt: "Beschreibe den Inhalt dieses Bildes.",
   placeholder: "Beschreibe den Inhalt dieses Bildes.",
   send: "An Modell senden",
   sending: "Warten auf Antwort…",
@@ -28,4 +29,6 @@ export default {
   invalidOutput: "Das Modell hat keinen anzeigbaren Text zurückgegeben.",
   timeout: "Die Anfrage dauerte länger als 30 Sekunden. Versuche es erneut oder wähle ein anderes Modell.",
   textLimit: "Der Text darf höchstens 16000 Zeichen enthalten.",
+  saveFirst: "Speichern Sie zuerst die Konfiguration und öffnen Sie dann den Test in der Modellliste.",
+  success: "Test erfolgreich: Eine Modellantwort wurde empfangen.",
 }

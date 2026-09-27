@@ -1,6 +1,6 @@
 export default {
-  title: "模型試用",
-  description: "傳送圖片和文字，查看模型的實際回覆。",
+  title: "模型測試與試用",
+  description: "傳送圖片或文字，收到非空文字回覆即表示本次測試成功。無需固定答案或 JSON 格式。",
   provider: "供應商",
   model: "模型",
   select: "請選擇",
@@ -9,6 +9,7 @@ export default {
   imageHint: "PNG / JPEG，最多 5 MiB、2000 萬像素；可拖入或貼上一張圖片。",
   remove: "移除圖片",
   prompt: "給模型的文字",
+  defaultPrompt: "請描述這張圖片中的內容。",
   placeholder: "請描述這張圖片中的內容。",
   send: "傳送給模型",
   sending: "等待回覆…",
@@ -28,4 +29,6 @@ export default {
   invalidOutput: "模型未傳回可顯示的文字。",
   timeout: "請求超過 30 秒，請重試或更換模型。",
   textLimit: "文字最多 16000 個字元。",
+  saveFirst: "請先儲存設定，再從模型清單進入測試與試用。",
+  success: "測試成功：已收到模型回覆。",
 }

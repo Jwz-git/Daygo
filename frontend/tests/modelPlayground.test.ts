@@ -58,3 +58,27 @@ test('image upload rejects empty, oversized and non-image inputs', () => {
   assert.equal(imageFileError({ type: 'image/svg+xml', size: 10 }), 'imageInvalid')
   assert.equal(imageFileError({ type: 'image/png', size: 0 }), 'imageInvalid')
 })
+
+// Product decision: settings must never run the strict fixed-image probe.
+test('settings exposes one visual testing path and no hidden probe', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const section = await readFile('src/views/Settings/ProvidersSection.vue', 'utf8')
+  const form = await readFile('src/views/Settings/ProviderForm.vue', 'utf8')
+  assert.ok(section.includes("query: { providerId: provider.id, model }"))
+  assert.ok(!section.includes('runSavedTest'))
+  assert.ok(!form.includes('testProviderConnection'))
+  assert.ok(form.includes('modelPlayground.saveFirst'))
+})
+
+test('built-in test image is a PNG within upload limits and default prompt is localized', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const png = await readFile('src/assets/favicons/daygo.png')
+  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a')
+  assert.equal(imageFileError({ type: 'image/png', size: png.length }), '')
+  assert.ok(png.readUInt32BE(16) * png.readUInt32BE(20) <= 20000000)
+  for (const locale of SUPPORTED_LOCALES) {
+    const messages = (await loadLocale(locale)).modelPlayground
+    assert.ok(messages.defaultPrompt.length > 0)
+    if (locale === 'zh-CN') assert.equal(messages.defaultPrompt, '请描述这张图片的内容')
+  }
+})

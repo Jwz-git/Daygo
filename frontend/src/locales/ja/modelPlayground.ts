@@ -1,6 +1,6 @@
 export default {
-  title: "モデルを試す",
-  description: "画像とテキストを送信して、モデルの実際の応答を確認します。",
+  title: "モデルのテストと試用",
+  description: "画像や文章を送信し、空でない文章の返信があれば今回のテストは成功です。決まった回答や JSON 形式は不要です。",
   provider: "プロバイダー",
   model: "モデル",
   select: "選択してください",
@@ -9,6 +9,7 @@ export default {
   imageHint: "PNG / JPEG、最大 5 MiB・2000 万画素。画像を1枚ドロップまたは貼り付けできます。",
   remove: "画像を削除",
   prompt: "モデルへのテキスト",
+  defaultPrompt: "この画像の内容を説明してください。",
   placeholder: "この画像の内容を説明してください。",
   send: "モデルに送信",
   sending: "応答を待っています…",
@@ -28,4 +29,6 @@ export default {
   invalidOutput: "表示できるテキストが返されませんでした。",
   timeout: "リクエストが30秒を超えました。再試行するか別のモデルを選択してください。",
   textLimit: "テキストは16000文字以内にしてください。",
+  saveFirst: "設定を保存してから、モデル一覧でテストを開いてください。",
+  success: "テスト成功：モデルの返信を受信しました。",
 }
