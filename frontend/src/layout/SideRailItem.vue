@@ -52,9 +52,9 @@ const props = defineProps<{
      currentColor stroke ends up on a sub-pixel — that is what causes the glyph
      to look skewed at rest. */
   transition:
-    background var(--dg-motion-base) ease,
-    border-color var(--dg-motion-base) ease,
-    box-shadow var(--dg-motion-base) ease;
+    background var(--dg-motion-base) var(--dg-ease-out),
+    border-color var(--dg-motion-base) var(--dg-ease-out),
+    box-shadow var(--dg-motion-base) var(--dg-ease-out);
 }
 
 .rail-item__icon {

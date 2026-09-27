@@ -142,6 +142,9 @@ export function buildWeeklyPresentation(dashboard: WeeklyDashboardDTO): WeeklyPr
     const segments: WeeklyDaySegment[] = day.segments
       .map((segment) => {
         const minutes = finiteNonNegative((segment.endTs - segment.startTs) / 60)
+        // Clock-axis minutes. A segment that crosses midnight keeps its tail
+        // past 1440 so the fold can wrap it into hour 0.
+        const startMinute = localMinuteOfDay(segment.startTs)
         return {
           category: segment.category,
           colorHex: safeCategoryColor(
@@ -149,8 +152,8 @@ export function buildWeeklyPresentation(dashboard: WeeklyDashboardDTO): WeeklyPr
             segment.category === 'Idle' ? '#C7C7CC' : '#7D7A84',
           ),
           isIdle: segment.isIdle,
-          startMinute: localMinuteOfDay(segment.startTs),
-          endMinute: localMinuteOfDay(segment.startTs) + minutes,
+          startMinute,
+          endMinute: startMinute + minutes,
           minutes,
         }
       })
@@ -201,7 +204,11 @@ export function buildWeeklyPresentation(dashboard: WeeklyDashboardDTO): WeeklyPr
     if (windowEnd - windowStart < 60) windowEnd = Math.min(24 * 60, windowStart + 60)
   }
 
-  // Rhythm: focus vs idle minutes per local clock hour across the week.
+  // Rhythm: focus vs idle minutes per local clock hour across the week. The
+  // walk is bounded to the hours a segment can cover (a logical day is at most
+  // 24 hours), so neither the midnight wrap nor a corrupt span can stall it —
+  // the previous cursor loop stopped advancing at 1440 and froze the page
+  // (2026-09-27).
   const rhythm: WeeklyRhythmSlot[] = Array.from({ length: 24 }, (_, hour) => ({
     hour,
     focusMinutes: 0,
@@ -209,17 +216,20 @@ export function buildWeeklyPresentation(dashboard: WeeklyDashboardDTO): WeeklyPr
   }))
   for (const day of days) {
     for (const segment of day.segments) {
-      let at = segment.startMinute
-      while (at < segment.endMinute) {
-        const absoluteHour = Math.floor(at / 60)
-        const hour = absoluteHour % 24
-        const hourEnd = (absoluteHour + 1) * 60
-        const overlap = Math.min(segment.endMinute, hourEnd) - at
-        if (overlap > 0) {
-          if (segment.isIdle || isDistractionCategory(segment.category)) rhythm[hour].idleMinutes += overlap
-          else rhythm[hour].focusMinutes += overlap
-        }
-        at = hourEnd
+      // Walk the clock hours this segment covers (a logical day is at most
+      // 24 hours, so the range is bounded) while keeping the wrap: the tail
+      // of a segment crossing midnight lands in hour 0.
+      const spanStart = segment.startMinute
+      const spanEnd = Math.min(segment.endMinute, segment.startMinute + 24 * 60)
+      const firstHour = Math.floor(spanStart / 60)
+      const lastHour = Math.ceil(spanEnd / 60)
+      for (let absoluteHour = firstHour; absoluteHour < lastHour; absoluteHour += 1) {
+        const overlap = Math.min(segment.endMinute, (absoluteHour + 1) * 60)
+          - Math.max(segment.startMinute, absoluteHour * 60)
+        if (overlap <= 0) continue
+        const hour = ((absoluteHour % 24) + 24) % 24
+        if (segment.isIdle || isDistractionCategory(segment.category)) rhythm[hour].idleMinutes += overlap
+        else rhythm[hour].focusMinutes += overlap
       }
     }
   }

@@ -2,6 +2,12 @@
 
 ## 用户结果与范围
 
+Windows 端可从设置页迁移全部历史录制到空目录；录制停写、分段收尾、状态恢复与目录失联时的保护见[Windows 录制目录迁移](../decisions/recording-directory-windows.md)。当前只有自动化验证，真实 Windows 跨盘与拔盘验收待补。macOS 固定目录行为不变。
+
+迁移时 recorder 使用 `storage_migration` 停止来源并在新目录按原启停 / 暂停状态恢复；`GetRecordingState.stopCause` 仅在 `idle` 时提供最近停止来源，新一次录制启动时清空。
+
+2026-09-26 Windows 工作树：`go test ./internal/app ./internal/recorder ./internal/recordinglocation ./internal/storage` 与目录迁移相关 `-race` 用例通过；`npm --prefix frontend run build` 通过。完整 `CGO_ENABLED=0` 核心门禁通过。真实 HEVC 分段收尾和外置磁盘断连尚未按本变更重新验收。
+
 用户授权后可开启、关闭或定时暂停记录；关窗后继续离散截图，状态栏可查看状态并重开窗口。
 屏蔽应用既从截图排除，前台命中时又生成脱敏占位帧；睡眠、锁屏、屏保、退出的分段安全收尾。
 包含间隔 / 分辨率、屏蔽名单与原生应用选择器、自启和 Dock 设置。
@@ -113,7 +119,7 @@ pending intent 提交进 `screenshots`、把文件缺失的 intent 丢弃（此�
 ② 暂停竞态泄漏修复：capture 过程中被暂停的帧现在 `Abandon` 其 pending 行（此前文件删除
 但行永久泄漏）。
 ③ 单帧失败容错：截图失败（含占位帧写失败）不再终止录制循环——适配器失败时 Abandon
-intent，连续失败计数达到 3 次才放弃，成功即清零；初始 capture 同样容错。
+intent，持续失败时仍按间隔重试，成功即清除失败状态；初始 capture 同样容错。
 ④ 空闲采样仍未接入：`idle_seconds_at_capture` 恒为 NULL，空闲判定因此永不命中——
 platform 端口缺 idle 查询能力，属待定设计，需要在 `System` 或 `Capture` 端口决策后
 （docs/09 §9.8）补一个 `docs/decisions/` 记录再实现。

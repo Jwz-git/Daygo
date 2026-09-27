@@ -46,8 +46,8 @@
   --dg-glass-tint: rgba(24, 24, 27, 0.6);
   --dg-glass-fallback: #1d1d20;
   --dg-glass-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.5),
-    0 12px 36px rgba(0, 0, 0, 0.38),
+    0 32px 72px -28px rgba(0, 0, 0, 0.62),
+    0 14px 34px -16px rgba(0, 0, 0, 0.42),
     0 1px 2px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.045);
@@ -120,7 +120,8 @@
 
   --dg-card-fill: rgba(255, 255, 255, 0.05);
   --dg-card-border: rgba(255, 255, 255, 0.09);
-  --dg-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --dg-card-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --dg-card-time: #888693;
 
   --dg-timeline-grid: rgba(255, 255, 255, 0.055);

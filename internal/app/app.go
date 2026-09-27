@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	goruntime "runtime"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/recorder"
+	"github.com/Jwz-git/Daygo/internal/recordinglocation"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v2"
@@ -84,9 +86,22 @@ func Run() error {
 		backend.setStorageError(openErr)
 	} else {
 		backend.attachStorage(store)
+		// Complete a previously committed file cleanup. A failed cleanup leaves
+		// the new root authoritative and is retried on the next launch.
+		if goruntime.GOOS == "windows" {
+			if _, _, phase, err := recordinglocation.Pending(ctx, store.Settings()); err == nil && phase == "committed" {
+				if err := recordinglocation.Finish(ctx, store.Settings()); err != nil {
+					log.Printf("recording location cleanup pending")
+				}
+			}
+		}
+		recordingsRoot, rootErr := backend.recordingRoot(ctx)
+		if rootErr != nil {
+			log.Printf("recording location unavailable: %v", rootErr)
+		}
 		// Frame playback serves screenshots from the recordings directory
 		// next to the database (same root GetRecordingDirectory reports).
-		backend.attachMedia(filepath.Join(filepath.Dir(store.Path()), "recordings"))
+		backend.attachMedia(recordingsRoot)
 		defer func() { _ = store.Close() }()
 
 		// Maintenance is owned by this context, so cancelling it at shutdown
@@ -117,8 +132,19 @@ func Run() error {
 			}
 		}
 		maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{
-			BackupDir:      dir,
-			RecordingsRoot: filepath.Join(dir, "recordings"),
+			BackupDir: dir,
+			RecordingsRootFunc: func() string {
+				root, err := backend.recordingRoot(ctx)
+				if err != nil {
+					return ""
+				}
+				info, err := os.Stat(root)
+				if err != nil || !info.IsDir() {
+					return ""
+				}
+				return root
+			},
+			CleanupLock: &backend.moveMu,
 			RecordingsLimit: func() int64 {
 				snapshot, err := settingsAccess.Load(ctx)
 				if err != nil {
@@ -133,7 +159,17 @@ func Run() error {
 		// read-only second instance holds neither lock the pipeline's writes
 		// need. Its recordings root is the staging directory the recorder
 		// commits frames into.
-		recordingsRoot := filepath.Join(dir, "recordings")
+		// A missing external volume must not make Reconcile soft-delete its
+		// committed frames. The pipeline can resume on the next app start.
+		rootAvailable := rootErr == nil
+		if rootAvailable {
+			info, statErr := os.Stat(recordingsRoot)
+			if statErr == nil {
+				rootAvailable = info.IsDir()
+			} else if !os.IsNotExist(statErr) || recordingsRoot != filepath.Join(dir, "recordings") {
+				rootAvailable = false
+			}
+		}
 
 		// Crash recovery first (docs/modules/recording): settle pending
 		// capture intents against the filesystem before the analysis
@@ -142,15 +178,19 @@ func Run() error {
 		// dropped. Failures are logged, not fatal — the UI still works on
 		// committed data.
 		reconcileCtx, reconcileCancel := context.WithTimeout(ctx, 30*time.Second)
-		if err := store.Captures().Reconcile(reconcileCtx, recordingsRoot); err != nil {
-			log.Printf("capture reconcile: %v", err)
+		if rootAvailable {
+			if err := store.Captures().Reconcile(reconcileCtx, recordingsRoot); err != nil {
+				log.Printf("capture reconcile: %v", err)
+			}
 		}
 		reconcileCancel()
 
-		if _, err := startAnalysis(ctx, backend, store, recordingsRoot); err != nil {
-			// Analysis failing to start must not take the shell down: the UI
-			// still renders stored cards, and diagnostics reports the gap.
-			log.Printf("analysis pipeline unavailable: %v", err)
+		if rootAvailable {
+			if _, err := startAnalysis(ctx, backend, store, recordingsRoot); err != nil {
+				// Analysis failing to start must not take the shell down: the UI
+				// still renders stored cards, and diagnostics reports the gap.
+				log.Printf("analysis pipeline unavailable: %v", err)
+			}
 		}
 
 		// Backfill standups for calendar days that completed while the agent

@@ -17,6 +17,8 @@
 九语言新增 modelPlayground 文案，布局在窄窗口折为单列；浏览器无 Wails 时明确不可发送。
 该增量不继承此前真实验收，Provider 请求 / 隐私与验证范围见 [providers 执行册](providers.md)。
 
+存储设置页增加 Windows 录制目录选择、确认、取消、中断和恢复入口；路径迁移与文件清理由 recording / data 实现。合并后前端 typecheck / build 与 169 项单测通过，真实 Wails 交互尚未验收。
+
 2026-09-26 Dock 重新启用报错修复：原生策略改为核对实际值，重复设置视为成功；
 非阻塞错误提示补齐 AppKit 布局，移除模板占位控件并使正文完整换行。
 设置 false → true → false → true 的匿名库保存 / 读回夹具、独立原生 / 匿名 `.app` smoke

@@ -27,6 +27,7 @@ const (
 	KeyCaptureHeightPixels          = "capture.heightPixels"
 	KeyPrivacyBlockedApplicationIDs = "privacy.blockedApplicationIds"
 	KeyStorageRecordingsLimitBytes  = "storage.recordingsLimitBytes"
+	KeyStorageRecordingsDirectory   = "storage.recordingsDirectory"
 	KeyNotificationsReminderEnabled = "notifications.journalReminderEnabled"
 	KeyNotificationsReminderTime    = "notifications.journalReminderTime"
 	KeyAppearanceTheme              = "appearance.theme"
@@ -53,6 +54,7 @@ func AllKeys() []string {
 		KeyCaptureHeightPixels,
 		KeyPrivacyBlockedApplicationIDs,
 		KeyStorageRecordingsLimitBytes,
+		KeyStorageRecordingsDirectory,
 		KeyNotificationsReminderEnabled,
 		KeyNotificationsReminderTime,
 		KeyAppearanceTheme,
@@ -147,6 +149,7 @@ type Snapshot struct {
 	CaptureHeightPixels    int
 	BlockedApplicationIDs  []string
 	RecordingsLimitBytes   int64
+	RecordingsDirectory    string
 	ReminderEnabled        bool
 	ReminderTime           string
 	Theme                  string
@@ -415,6 +418,7 @@ func (s *Settings) snapshotFrom(raw map[string]string) Snapshot {
 		CaptureHeightPixels:    clampInt(decodeInt(raw[KeyCaptureHeightPixels], DefaultCaptureHeightPixels), AllowedCaptureHeights, DefaultCaptureHeightPixels),
 		BlockedApplicationIDs:  decodeStrings(raw[KeyPrivacyBlockedApplicationIDs]),
 		RecordingsLimitBytes:   decodeInt64(raw[KeyStorageRecordingsLimitBytes], DefaultRecordingsLimitBytes),
+		RecordingsDirectory:    decodeString(raw[KeyStorageRecordingsDirectory], ""),
 		ReminderEnabled:        decodeBool(raw[KeyNotificationsReminderEnabled], DefaultReminderEnabled),
 		ReminderTime:           normalizeClockTime(decodeString(raw[KeyNotificationsReminderTime], DefaultReminderTime)),
 		Theme:                  normalizeMember(decodeString(raw[KeyAppearanceTheme], DefaultTheme), AllowedThemes, DefaultTheme),
@@ -589,6 +593,8 @@ func defaultFor(key string) string {
 		return "[]"
 	case KeyStorageRecordingsLimitBytes:
 		return encodeScalar(DefaultRecordingsLimitBytes)
+	case KeyStorageRecordingsDirectory:
+		return encodeScalar("")
 	case KeyNotificationsReminderEnabled:
 		return encodeScalar(DefaultReminderEnabled)
 	case KeyNotificationsReminderTime:

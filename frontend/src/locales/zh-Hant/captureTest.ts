@@ -1,4 +1,5 @@
 export default {
+  stopCause: "最近一次停止原因",
   platformSwitch: '測試平台',
   macosTab: 'macOS 原生 ABI',
   windowsTab: 'Windows Recorder',

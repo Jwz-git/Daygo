@@ -127,6 +127,12 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
   本轮夹具设计修正：Anthropic 根端点预期路径从 `/messages` 改为 `/v1/messages`，依据现有 SDK
   适配和 `TestGenerateMapsMultimodalStructuredRequest`；取消夹具先读完 HTTP 请求体再观察断连，
   保持“宿主取消必须终止在途请求”的预期不变。
+  **09-27 合并复核**：模型试用提交 `6c080c0` 与远端 `54b3044` 合并，两个文档插入冲突保留双方段落。
+  合并工作树上原门禁的全部 Go 测试、vet、本机构建、三平台核心交叉构建、前端 184 项单测、
+  typecheck / build 通过；Python 阶段仍未完成。文档临时快照改用 `git archive origin/test` 加本次
+  docs 覆盖，55 个 Markdown、0 问题；完整脚本不标通过。浏览器 600px 视口验证单列，
+  document scrollWidth 等于 viewport 600px。临时快照清理后，合并检出的 Go 文件仅因 CRLF 被 gofmt
+  列出；恢复标准换行后 `gofmt -l .` 无输出，Git 中没有额外 Go 内容差异。
   回退：撤回本次页面、入口和 TryProvider 绑定；无 schema 迁移，不删除既有配置 / 密钥。
 
 - **2026-09-23 回归修复**：默认 Anthropic 端点及草稿模型列表的端点规范化由 Go 夹具验证；`./scripts/gate.sh` 通过。真实 Provider 网络调用未在本次重跑。

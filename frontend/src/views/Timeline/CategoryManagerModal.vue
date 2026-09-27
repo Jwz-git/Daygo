@@ -4,7 +4,9 @@ import { useI18n } from 'vue-i18n'
 
 import { saveCategories } from '@/api/timeline'
 import type { CategoryDTO } from '@/api/dto'
+import ColorCanvasPicker from '@/components/ColorCanvasPicker.vue'
 import { categoryDetails, categoryLabel } from '@/lib/categoryLabel'
+import { SWATCH_COUNT, spectrumPalette } from '@/lib/colorPalette'
 import { safeCategoryColor } from './layout'
 
 /*
@@ -48,7 +50,6 @@ const draft = ref<DraftCategory[]>([])
 const editingIndex = ref<number | null>(null)
 const nameDraft = ref('')
 const detailsDraft = ref('')
-const selectedIndex = ref(0)
 const saving = ref(false)
 const error = ref<string | null>(null)
 
@@ -71,12 +72,67 @@ watch(
   { immediate: true, deep: false },
 )
 
-const PALETTE = [
-  '#a855f7', '#ec4899', '#ef4444', '#eab308',
-  '#84cc16', '#22c55e', '#22d3ee', '#3b82f6',
-] as const
+/*
+ * Color stage, ported from the reference implementation: the canvas sets a
+ * hue (drag angle) and a lightness (drag radius), and the eight spectrum
+ * swatches derive from them. A color is applied by dragging a swatch onto a
+ * category card — there is no select-then-click step.
+ */
+const paletteAngle = ref(-Math.PI / 2)
+const paletteRadius = ref(0.7)
+const draggingColor = ref(false)
+const targetedIndex = ref<number | null>(null)
+/** The reference shows a "Drag to category" hint until the first drag. */
+const showDragHint = ref(true)
 
-const selectedColor = computed(() => draft.value[selectedIndex.value]?.colorHex ?? PALETTE[0])
+const spectrumColors = computed(() =>
+  spectrumPalette(paletteAngle.value, paletteRadius.value),
+)
+
+function onPaletteChange(value: { angle: number; normalizedRadius: number }): void {
+  paletteAngle.value = value.angle
+  paletteRadius.value = value.normalizedRadius
+}
+
+function onSwatchDragStart(event: DragEvent, hex: string): void {
+  draggingColor.value = true
+  showDragHint.value = false
+  if (event.dataTransfer !== null) {
+    event.dataTransfer.setData('text/plain', hex)
+    event.dataTransfer.effectAllowed = 'copy'
+  }
+}
+
+function onSwatchDragEnd(): void {
+  draggingColor.value = false
+  targetedIndex.value = null
+}
+
+function onCardDragOver(index: number, event: DragEvent): void {
+  if (!draggingColor.value) return
+  targetedIndex.value = index
+  // dragover must be cancelled for the drop to fire at all.
+  event.preventDefault()
+  if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'copy'
+}
+
+function onCardDragLeave(index: number, event: DragEvent): void {
+  // dragleave also fires when the pointer crosses a child of the card; only a
+  // leave that exits the card entirely should drop the highlight.
+  const card = event.currentTarget as HTMLElement | null
+  const next = event.relatedTarget as Node | null
+  if (card !== null && next !== null && card.contains(next)) return
+  if (targetedIndex.value === index) targetedIndex.value = null
+}
+
+function onCardDrop(index: number, event: DragEvent): void {
+  const hex = event.dataTransfer?.getData('text/plain')?.trim() ?? ''
+  draggingColor.value = false
+  targetedIndex.value = null
+  const row = draft.value[index]
+  if (row === undefined || !/^#[0-9a-f]{6}$/i.test(hex)) return
+  row.colorHex = hex
+}
 
 function displayName(row: DraftCategory): string {
   return categoryLabel(row.name, t)
@@ -113,7 +169,9 @@ function addCategory(): void {
     id: '',
     name: '',
     details: '',
-    colorHex: PALETTE[draft.value.length % PALETTE.length] ?? PALETTE[0],
+    colorHex: spectrumColors.value[draft.value.length % SWATCH_COUNT]
+      ?? spectrumColors.value[0]
+      ?? '#7D7A84',
     sortOrder: maxOrder + 1,
     isIdle: false,
     createdAtTs: 0,
@@ -125,18 +183,6 @@ function addCategory(): void {
 function removeCategory(index: number): void {
   draft.value.splice(index, 1)
   if (editingIndex.value === index) editingIndex.value = null
-  selectedIndex.value = Math.min(selectedIndex.value, Math.max(0, draft.value.length - 1))
-}
-
-function applyColor(color: string): void {
-  const row = draft.value[selectedIndex.value]
-  if (row === undefined) return
-  row.colorHex = color
-}
-
-function selectRow(index: number): void {
-  if (editingIndex.value !== null) commitEdit()
-  selectedIndex.value = index
 }
 
 function toNext(): void {
@@ -206,18 +252,29 @@ async function finish(): Promise<void> {
       </template>
 
       <template v-else>
-        <div class="wizard__swatches" aria-hidden="true">
-          <i
-            v-for="color in PALETTE"
+        <ColorCanvasPicker class="wizard__canvas" @change="onPaletteChange" />
+
+        <div class="wizard__swatches" role="list" :aria-label="t('timeline.manage2.step2Title')">
+          <span
+            v-for="(color, index) in spectrumColors"
             :key="color"
+            role="listitem"
+            class="wizard__swatch"
             :style="{ background: color }"
-            :class="{ 'is-active': color === selectedColor }"
-            role="button"
-            :aria-label="t('timeline.manage2.step2Title')"
-            @click="applyColor(color)"
-          ></i>
+            :draggable="true"
+            :aria-label="color"
+            @dragstart="onSwatchDragStart($event, color)"
+            @dragend="onSwatchDragEnd"
+          >
+            <span v-if="showDragHint && index === 0" class="wizard__swatch-hint">
+              {{ t('timeline.manage2.swatchDragHint') }}
+            </span>
+          </span>
         </div>
-        <p class="wizard__note">{{ t('timeline.manage2.colorHint') }}</p>
+
+        <p class="wizard__note">
+          {{ draggingColor ? t('timeline.manage2.colorDropHint') : t('timeline.manage2.colorDragHint') }}
+        </p>
       </template>
     </div>
 
@@ -260,22 +317,24 @@ async function finish(): Promise<void> {
         <button type="button" class="wizard__add" @click="addCategory">+ {{ t('timeline.manage2.add') }}</button>
       </div>
 
-      <div v-else class="wizard__list">
-        <button
+      <div v-else class="wizard__list wizard__list--drop">
+        <div
           v-for="(row, index) in draft"
           :key="row.id || `new-${index}`"
-          type="button"
-          class="wizard-row wizard-row--color"
-          :class="{ 'is-selected': selectedIndex === index }"
-          @click="selectRow(index)"
+          class="wizard-drop-card"
+          :class="{ 'is-targeted': targetedIndex === index }"
+          @dragover="onCardDragOver(index, $event)"
+          @dragleave="onCardDragLeave(index, $event)"
+          @drop="onCardDrop(index, $event)"
         >
-          <i class="wizard-row__swatch" :style="{ background: safeCategoryColor(row.colorHex) }"></i>
-          <span class="wizard-row__text">
+          <i class="wizard-drop-card__swatch" :style="{ background: safeCategoryColor(row.colorHex) }"></i>
+          <span class="wizard__row-text">
             <strong>{{ displayName(row) || t('timeline.manage2.namePlaceholder') }}</strong>
-            <span>{{ displayDetails(row) }}</span>
+            <span v-if="displayDetails(row) !== ''">{{ displayDetails(row) }}</span>
           </span>
-        </button>
-        <p class="wizard__optional">{{ t('timeline.manage2.colorNote') }}</p>
+        </div>
+        <p v-if="draft.length === 0" class="wizard__optional">{{ t('timeline.manage2.empty') }}</p>
+        <p v-else class="wizard__optional">{{ t('timeline.manage2.colorNote') }}</p>
       </div>
     </div>
 
@@ -328,7 +387,11 @@ async function finish(): Promise<void> {
 
 .wizard__close:hover { background: var(--dg-hover-fill); }
 
-.wizard__side { padding-top: 26px; }
+.wizard__side {
+  min-height: 0;
+  padding-top: 26px;
+  overflow-y: auto;
+}
 
 .wizard__step {
   margin: 0 0 8px;
@@ -363,29 +426,49 @@ async function finish(): Promise<void> {
   line-height: 1.6;
 }
 
+/* Canvas + swatch grid, mirroring the reference color stage: the canvas sets
+   the palette, the eight swatches below it are dragged onto a category. */
+.wizard__canvas {
+  margin: 4px auto 0;
+}
+
 .wizard__swatches {
   display: grid;
-  grid-template-columns: repeat(2, 20px);
-  gap: 10px;
-  justify-content: center;
-  align-content: center;
-  min-height: 220px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.wizard__swatches i {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  opacity: 0.5;
-  cursor: pointer;
-  transition: transform var(--dg-motion-fast) var(--dg-ease-out), opacity var(--dg-motion-fast) ease;
+.wizard__swatch {
+  position: relative;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 2px #ffffff, 0 1px 3px rgba(35, 39, 60, 0.18);
+  cursor: grab;
+  transition: transform var(--dg-motion-fast) var(--dg-ease-out);
 }
 
-.wizard__swatches i.is-active {
-  opacity: 1;
-  transform: scale(1.5);
-  box-shadow: 0 0 0 2px var(--dg-surface), 0 4px 10px rgba(45, 50, 80, 0.25);
+.wizard__swatch:hover { transform: translateY(-2px); }
+.wizard__swatch:active { cursor: grabbing; }
+.wizard__swatch:focus-visible { outline: none; box-shadow: inset 0 0 0 2px #ffffff, 0 0 0 3px var(--dg-focus-ring); }
+
+.wizard__swatch-hint {
+  position: absolute;
+  opacity: 0;
+  transition: opacity var(--dg-motion-fast) ease;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(15, 15, 20, 0.8);
+  color: #ffffff;
+  font-size: 11px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
+
+.wizard__swatch:hover .wizard__swatch-hint { opacity: 1; }
 
 .wizard__main {
   min-height: 0;
@@ -411,23 +494,51 @@ async function finish(): Promise<void> {
 
 .wizard-row.is-editing { flex-direction: column; align-items: stretch; gap: 8px; }
 
-.wizard-row--color {
-  cursor: pointer;
+/* Drop targets for the swatches: the border lights up while a color is
+   dragged over the card. */
+.wizard__list--drop { padding: 2px; }
+
+.wizard-drop-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 8px;
+  background: var(--dg-timeline-card-fill);
+  box-shadow: 0 1px 2px rgba(35, 39, 60, 0.06);
   transition: border-color var(--dg-motion-fast) ease, box-shadow var(--dg-motion-fast) ease;
 }
 
-.wizard-row--color:hover { border-color: color-mix(in srgb, var(--dg-accent) 40%, transparent); }
-
-.wizard-row--color.is-selected {
+.wizard-drop-card.is-targeted {
   border-color: var(--dg-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dg-accent) 28%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dg-accent) 26%, transparent);
 }
 
-.wizard-row__swatch {
+.wizard-drop-card__swatch {
   flex: none;
   width: 18px;
   height: 18px;
   border-radius: 6px;
+  box-shadow: inset 0 0 0 1.5px #ffffff, 0 1px 3px rgba(35, 39, 60, 0.18);
+}
+
+.wizard__row-text {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.wizard__row-text strong { color: var(--dg-text-primary); font-size: 12px; font-weight: 650; }
+.wizard__row-text span {
+  overflow: hidden;
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .wizard-row__text {

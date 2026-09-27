@@ -16,7 +16,9 @@
 
   /* window — deepened focal points, wider hue range, richer chroma for better glass reveal */
   --dg-window-bg: #dce4f0;
-  --dg-window-padding: 8px;
+  /* A touch more inset so the primary glass slab reads as a deliberate floating
+     surface (larger corner radius below) rather than a bordered window. */
+  --dg-window-padding: 10px;
   --dg-windows-titlebar-height: 36px;
   --dg-titlebar-border: rgba(0, 0, 0, 0.08);
   --dg-window-gradient: radial-gradient(
@@ -34,7 +36,9 @@
   --dg-panel-fill: rgba(249, 249, 250, 0.94);
   --dg-panel-border: rgba(0, 0, 0, 0.1);
   --dg-panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --dg-panel-radius: 10px;
+  /* The primary glass slab. A generous radius is the single strongest cue that
+     the surface is an intentional floating material, not a chromeless window. */
+  --dg-panel-radius: 18px;
 
   /* The opaque raised surface content sits on: a chart's centre disc, a modal
      panel, the halo that punches a swatch out of its background. Opaque on
@@ -50,11 +54,14 @@
   --dg-glass-fallback: #f3f5f8;
   /* The two inset layers are the liquid-glass rim: a 1px specular top edge
      from the implied upper-left light, and a half-pixel inner outline that
-     reads as the refracting lip of the material. */
+     reads as the refracting lip of the material. The drop layers are graded
+     with a negative spread so the slab casts one broad, soft ambient plus a
+     tight contact line — that split is what reads as "floating" rather than
+     "bordered". */
   --dg-glass-shadow:
-    0 24px 64px rgba(28, 34, 45, 0.14),
-    0 12px 36px rgba(28, 34, 45, 0.1),
-    0 1px 2px rgba(28, 34, 45, 0.08),
+    0 32px 72px -28px rgba(24, 32, 48, 0.30),
+    0 14px 34px -16px rgba(24, 32, 48, 0.16),
+    0 1px 2px rgba(24, 32, 48, 0.07),
     inset 0 1px 0 rgba(255, 255, 255, 0.62),
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.3);
   /* Specular pool at the light source, plus a faint counter-glow along the
@@ -154,10 +161,12 @@
   --dg-card-fill: rgba(255, 255, 255, 0.64);
   --dg-card-border: rgba(65, 58, 70, 0.13);
   /* The inset line is the card's specular top edge — the same implied
-     upper-left light as the panel rim, one level dimmer. */
-  --dg-card-shadow: 0 1px 2px rgba(28, 34, 45, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+     upper-left light as the panel rim, one level dimmer. A soft graded drop
+     lifts the card just clear of the surface behind it. */
+  --dg-card-shadow: 0 2px 6px -2px rgba(28, 34, 45, 0.1), 0 1px 2px rgba(28, 34, 45, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
   --dg-card-time: #7d7a84;
-  --dg-card-radius: 9px;
+  --dg-card-radius: 12px;
 
   /* timeline */
   --dg-timeline-time-width: 66px;
@@ -213,7 +222,12 @@
   --dg-motion-fast: 100ms;
   --dg-motion-base: 160ms;
   --dg-motion-slow: 320ms;
-  --dg-ease-out: cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* True ease-out: quick departure, long silky settle with no overshoot. Drives
+     hover / press feedback, focus rings and depth changes — the closest a single
+     curve gets to a material coming to rest. (Previously this was
+     cubic-bezier(0.25, 0.1, 0.25, 1), i.e. the symmetric `ease` keyword, which
+     accelerates and decelerates equally and reads as generic.) */
+  --dg-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   /* Long deceleration tail for entrances and press/release; the closest CSS
      gets to a critically-damped spring. */
   --dg-ease-glide: cubic-bezier(0.32, 0.72, 0, 1);

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -19,12 +20,14 @@ const (
 // goroutine to be owned by the app lifecycle and cancellable on exit, with no
 // global database singleton.
 type Maintainer struct {
-	store           *Store
-	backupAt        string
-	retain          int
-	observer        Observer
-	recordingsRoot  string
-	recordingsLimit func() int64
+	store              *Store
+	backupAt           string
+	retain             int
+	observer           Observer
+	recordingsRoot     string
+	recordingsRootFunc func() string
+	cleanupLock        *sync.RWMutex
+	recordingsLimit    func() int64
 
 	// now is injectable so tests can drive the schedule without waiting.
 	now func() time.Time
@@ -35,6 +38,10 @@ type MaintainerOptions struct {
 	// RecordingsRoot is the recordings directory the cleanup pass trims.
 	// Empty disables recording cleanup.
 	RecordingsRoot string
+	// RecordingsRootFunc resolves the active root at each pass after a move.
+	RecordingsRootFunc func() string
+	// CleanupLock excludes a directory migration from backup and file cleanup.
+	CleanupLock *sync.RWMutex
 	// RecordingsLimit returns storage.recordingsLimitBytes live. A nil or
 	// zero-returning source means "no limit" and skips the pass: 0 is the
 	// documented unlimited, and a failed settings read must fail toward NOT
@@ -66,13 +73,15 @@ func NewMaintainer(store *Store, opts MaintainerOptions) *Maintainer {
 		now = time.Now
 	}
 	return &Maintainer{
-		store:           store,
-		backupAt:        opts.BackupDir,
-		retain:          retain,
-		observer:        observer,
-		recordingsRoot:  opts.RecordingsRoot,
-		recordingsLimit: opts.RecordingsLimit,
-		now:             now,
+		store:              store,
+		backupAt:           opts.BackupDir,
+		retain:             retain,
+		observer:           observer,
+		recordingsRoot:     opts.RecordingsRoot,
+		recordingsRootFunc: opts.RecordingsRootFunc,
+		cleanupLock:        opts.CleanupLock,
+		recordingsLimit:    opts.RecordingsLimit,
+		now:                now,
 	}
 }
 
@@ -143,6 +152,10 @@ func (m *Maintainer) runCheckpoint(ctx context.Context) {
 }
 
 func (m *Maintainer) runBackup(ctx context.Context) {
+	if m.cleanupLock != nil {
+		m.cleanupLock.RLock()
+		defer m.cleanupLock.RUnlock()
+	}
 	if m.backupAt == "" {
 		return
 	}
@@ -157,14 +170,22 @@ func (m *Maintainer) runBackup(ctx context.Context) {
 }
 
 func (m *Maintainer) runCleanup(ctx context.Context) {
-	if m.recordingsRoot == "" || m.recordingsLimit == nil {
+	if m.cleanupLock != nil {
+		m.cleanupLock.RLock()
+		defer m.cleanupLock.RUnlock()
+	}
+	root := m.recordingsRoot
+	if m.recordingsRootFunc != nil {
+		root = m.recordingsRootFunc()
+	}
+	if root == "" || m.recordingsLimit == nil {
 		return
 	}
 	limit := m.recordingsLimit()
 	if limit <= 0 {
 		return
 	}
-	result, err := m.store.CleanupRecordings(ctx, m.recordingsRoot, limit)
+	result, err := m.store.CleanupRecordings(ctx, root, limit)
 	if err != nil {
 		if !IsKind(err, KindReadOnly) {
 			m.observer.ObserveBreadcrumb("storage.cleanup.failed")

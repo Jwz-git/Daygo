@@ -696,6 +696,8 @@ func (b *Backend) ClearHistoryData() error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
+	b.moveMu.RLock()
+	defer b.moveMu.RUnlock()
 	if state := b.recorderState(); state != recorder.StateIdle {
 		return apperr.E(apperr.Conflict, "stop recording before clearing history data", nil)
 	}
@@ -716,7 +718,10 @@ func (b *Backend) ClearHistoryData() error {
 	// Files after the rows: file deletion cannot roll back with the database,
 	// so a failure here leaves orphan files for the next clear, not rows
 	// pointing at missing files.
-	recordings := filepath.Join(filepath.Dir(store.Path()), "recordings")
+	recordings, err := b.recordingRoot(ctx)
+	if err != nil {
+		return mapStorageError("resolve recording directory", err)
+	}
 	for _, dir := range []string{"staging", "segments", "timelapses"} {
 		if err := os.RemoveAll(filepath.Join(recordings, dir)); err != nil {
 			return apperr.E(apperr.Internal, "remove recordings "+dir+": "+err.Error(), nil)

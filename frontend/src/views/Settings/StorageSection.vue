@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import { CAPTURE_HEIGHTS, CAPTURE_INTERVAL_SECONDS } from '@/api/dto'
 import { getDiagnostics, type DiagnosticsDTO } from '@/api/diagnostics'
-import { getRecordingDirectory } from '@/api/recording'
+import { cancelRecordingDirectoryMove, getRecordingDirectory, getRecordingDirectoryMigration, moveRecordingDirectory, pickRecordingDirectory } from '@/api/recording'
 import SettingRow from './SettingRow.vue'
 import { useSettingsSection } from './useSettingsSection'
 
@@ -27,6 +27,12 @@ const limitGb = computed(() => {
 })
 
 const recordingDirectory = ref('')
+const isWindows = /Windows/i.test(navigator.userAgent)
+const moving = ref(false)
+const moveFailed = ref(false)
+const pendingTarget = ref('')
+const cleanupPending = ref(false)
+const directoryAvailable = ref(true)
 const recordingsBytes = ref(0)
 const gbInput = ref('1')
 function syncGbInput(): void { gbInput.value = String(limitGb.value) }
@@ -41,10 +47,43 @@ onMounted(() => {
   void getRecordingDirectory()
     .then((value) => { recordingDirectory.value = value })
     .catch(() => undefined)
+  if (isWindows) void getRecordingDirectoryMigration()
+    .then((value) => { if (value.phase === 'copying') pendingTarget.value = value.target; cleanupPending.value = value.phase === 'committed'; directoryAvailable.value = value.available })
+    .catch(() => undefined)
   void getDiagnostics()
     .then((value: DiagnosticsDTO) => { recordingsBytes.value = value.recordingsBytes })
     .catch(() => undefined)
 })
+
+async function performMove(target: string): Promise<void> {
+  moving.value = true
+  moveFailed.value = false
+  try {
+    await moveRecordingDirectory(target)
+    recordingDirectory.value = await getRecordingDirectory()
+    directoryAvailable.value = true
+    pendingTarget.value = ''
+    const status = await getRecordingDirectoryMigration()
+    cleanupPending.value = status.phase === 'committed'
+  } catch {
+    moveFailed.value = true
+    const pending = await getRecordingDirectoryMigration().catch(() => null)
+    pendingTarget.value = pending?.phase === 'copying' ? pending.target : ''
+  } finally {
+    moving.value = false
+  }
+}
+
+async function chooseDirectory(): Promise<void> {
+  try {
+    const target = await pickRecordingDirectory()
+    if (!target || target === recordingDirectory.value) return
+    if (!window.confirm(t('settings.storage.moveConfirm', { target }))) return
+    await performMove(target)
+  } catch { moveFailed.value = true }
+}
+
+function cancelMove(): void { void cancelRecordingDirectoryMove() }
 
 function onIntervalChange(event: Event): void {
   void persist({ intervalSeconds: Number((event.target as HTMLSelectElement).value) })
@@ -166,6 +205,15 @@ function onLimitChange(event: Event): void {
     <SettingRow :title="t('settings.storage.directoryPath')">
       <code class="directory">{{ recordingDirectory || t('settings.storage.directoryUnavailable') }}</code>
     </SettingRow>
+    <SettingRow v-if="isWindows" :title="t('settings.storage.moveTitle')" :hint="t('settings.storage.moveHint')">
+      <button v-if="!moving" type="button" :disabled="state !== 'ready'" @click="chooseDirectory">{{ t('settings.storage.moveButton') }}</button>
+      <button v-else type="button" @click="cancelMove">{{ t('settings.storage.moveCancel') }}</button>
+    </SettingRow>
+    <p v-if="isWindows && moving" role="status">{{ t('settings.storage.moving') }}</p>
+    <p v-if="isWindows && !directoryAvailable" role="alert">{{ t('settings.storage.directoryDisconnected') }}</p>
+    <p v-if="isWindows && pendingTarget && !moving" role="status">{{ t('settings.storage.moveInterrupted', { target: pendingTarget }) }} <button type="button" @click="performMove(pendingTarget)">{{ t('settings.storage.moveRetry') }}</button></p>
+    <p v-if="isWindows && cleanupPending && !moving" role="status">{{ t('settings.storage.cleanupPending') }}</p>
+    <p v-if="isWindows && moveFailed" role="alert">{{ t('settings.storage.moveFailed') }}</p>
   </SettingGroup>
   <p v-if="writeFailed" class="write-error" role="alert">{{ t('settings.storage.writeError') }}</p>
 </template>

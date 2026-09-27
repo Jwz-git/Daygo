@@ -10,6 +10,7 @@ import { fetchFaviconDataUrl, hostOf } from '@/lib/favicon'
  * Kinds without a bundled image keep their drawn SVG (or the favicon /
  * monogram fallbacks below).
  */
+import daygoImage from '@/assets/favicons/daygo.png'
 import claudeImage from '@/assets/favicons/claude.png'
 import chatgptImage from '@/assets/favicons/chatgpt.svg'
 import chromeImage from '@/assets/favicons/chrome.png'
@@ -27,6 +28,7 @@ import xcodeImage from '@/assets/favicons/xcode.png'
 import youtubeImage from '@/assets/favicons/youtube.png'
 
 const BRAND_IMAGES: Partial<Record<AppSiteIconKind, string>> = {
+  daygo: daygoImage,
   claude: claudeImage,
   chatgpt: chatgptImage,
   chrome: chromeImage,

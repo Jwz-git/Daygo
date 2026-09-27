@@ -23,6 +23,8 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
 
 ## 3.1 磁盘布局
 
+Windows 可通过设置迁移 `recordings/` 整棵目录；SQLite、备份和锁仍留在应用数据目录。`screenshots.segment_path` 保持相对录制根目录。迁移状态和恢复门禁见[Windows 录制目录迁移](decisions/recording-directory-windows.md)。macOS 仍使用以下固定布局。
+
 ```text
 ~/Library/Application Support/Daygo/
 ├── daygo.sqlite (+ -wal, -shm)   业务数据库                        ★

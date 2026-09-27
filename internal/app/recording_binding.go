@@ -5,6 +5,7 @@ import (
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/settings"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -24,7 +25,17 @@ func (b *Backend) ensureRecorder() (*recorder.Recorder, error) {
 	if err != nil {
 		return nil, mapStorageError("load recording settings", err)
 	}
-	r, err := recorder.New(recorder.Config{Capture: b.capture, Store: b.storage.Captures(), Settings: snapshot, Directory: filepath.Join(filepath.Dir(b.storage.Path()), "recordings"), OnEvent: func(e recorder.Event) {
+	directory, err := b.recordingRoot(ctx)
+	if err != nil {
+		return nil, mapStorageError("resolve recording directory", err)
+	}
+	defaultRoot := filepath.Join(filepath.Dir(b.storage.Path()), "recordings")
+	if directory != defaultRoot {
+		if info, err := os.Stat(directory); err != nil || !info.IsDir() {
+			return nil, apperr.E(apperr.NativeUnavailable, "recording directory is unavailable", err)
+		}
+	}
+	r, err := recorder.New(recorder.Config{Capture: b.capture, Store: b.storage.Captures(), Settings: snapshot, Directory: directory, OnEvent: func(e recorder.Event) {
 		b.emitter.Emit(EventRecordingState, map[string]string{"state": string(e.State)})
 		b.updateStatus(e.State)
 	}})
@@ -36,6 +47,8 @@ func (b *Backend) ensureRecorder() (*recorder.Recorder, error) {
 }
 
 func (b *Backend) SetRecording(enabled bool) error {
+	b.moveMu.RLock()
+	defer b.moveMu.RUnlock()
 	if enabled && b.updatePrepared.Load() {
 		return apperr.E(apperr.Conflict, "recording is paused for update installation", nil)
 	}
@@ -51,6 +64,13 @@ func (b *Backend) SetRecording(enabled bool) error {
 		return err
 	}
 	if enabled {
+		if root, err := b.recordingRoot(context.Background()); err != nil {
+			return mapStorageError("resolve recording directory", err)
+		} else if root != filepath.Join(filepath.Dir(b.storage.Path()), "recordings") {
+			if info, err := os.Stat(root); err != nil || !info.IsDir() {
+				return apperr.E(apperr.NativeUnavailable, "recording directory is unavailable", err)
+			}
+		}
 		if err := r.Start(context.Background()); err != nil {
 			return apperr.E(apperr.Conflict, "start recording failed", err)
 		}
@@ -59,6 +79,8 @@ func (b *Backend) SetRecording(enabled bool) error {
 	return r.Stop()
 }
 func (b *Backend) PauseRecording(minutes int) error {
+	b.moveMu.RLock()
+	defer b.moveMu.RUnlock()
 	if minutes != 0 && minutes != 15 && minutes != 30 && minutes != 60 {
 		return apperr.E(apperr.InvalidArgument, "pause duration is invalid", nil)
 	}
@@ -76,6 +98,8 @@ func (b *Backend) PauseRecording(minutes int) error {
 	return nil
 }
 func (b *Backend) ResumeRecording() error {
+	b.moveMu.RLock()
+	defer b.moveMu.RUnlock()
 	_, owner := b.instanceOwnership()
 	if !owner {
 		return apperr.E(apperr.NotCaptureOwner, "this instance is not the capture owner", nil)
@@ -113,5 +137,9 @@ func (b *Backend) GetRecordingDirectory() (string, error) {
 	if b.storage == nil {
 		return "", apperr.E(apperr.DatabaseError, "recording directory unavailable", nil)
 	}
-	return filepath.Join(filepath.Dir(b.storage.Path()), "recordings"), nil
+	root, err := b.recordingRoot(context.Background())
+	if err != nil {
+		return "", mapStorageError("recording directory", err)
+	}
+	return root, nil
 }

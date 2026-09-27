@@ -69,13 +69,17 @@ type Backend struct {
 	storage              *storage.Store
 	recorder             *recorder.Recorder
 	recorderMu           sync.Mutex
-	systemEventMu        sync.Mutex
-	systemEventBuffer    []platform.SystemEvent
-	statusActionMu       sync.RWMutex
-	statusAction         func(string)
-	activationActionMu   sync.RWMutex
-	activationAction     func()
-	uiVisibility         uiVisibilityState
+	// moveMu excludes capture commands, media reads and cleanup while files move.
+	moveMu             sync.RWMutex
+	moveControlMu      sync.Mutex
+	moveCancel         context.CancelFunc
+	systemEventMu      sync.Mutex
+	systemEventBuffer  []platform.SystemEvent
+	statusActionMu     sync.RWMutex
+	statusAction       func(string)
+	activationActionMu sync.RWMutex
+	activationAction   func()
+	uiVisibility       uiVisibilityState
 	// allowQuit gates the Wails OnBeforeClose hook. It stays false so Cmd+Q,
 	// the Dock "Quit" item and closing the window are downgraded to a
 	// background soft-quit; only the status-bar Quit sets it (requestQuit)
@@ -726,6 +730,7 @@ func (b *Backend) GetRecordingState() (RecordingStateDTO, error) {
 	var reason *string
 	var userPaused bool
 	var pauseEndsAtTs *int64
+	var stopCause *string
 	if activeRecorder != nil {
 		pause := activeRecorder.PauseInfo()
 		userPaused = pause.UserPaused
@@ -737,8 +742,14 @@ func (b *Backend) GetRecordingState() (RecordingStateDTO, error) {
 			value := recordingFailureReason(lastError)
 			reason = &value
 		}
+		if state == RecordingStateIdle {
+			if cause := activeRecorder.LastStopCause(); cause != "" {
+				value := string(cause)
+				stopCause = &value
+			}
+		}
 	}
-	return RecordingStateDTO{State: state, Reason: reason, UserPaused: userPaused, PauseEndsAtTs: pauseEndsAtTs, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
+	return RecordingStateDTO{State: state, Reason: reason, StopCause: stopCause, UserPaused: userPaused, PauseEndsAtTs: pauseEndsAtTs, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
 }
 
 // recordingPermission is GetRecordingState's single query: system unavailability
@@ -796,8 +807,16 @@ func (b *Backend) permissionState(op string, query func(ctx context.Context) (pl
 }
 
 func (b *Backend) shutdown() {
-	if err := b.stopRecorder(); err != nil {
-		log.Printf("shutdown recording finalization failed: %s", recordingFailureReason(err))
+	_ = b.CancelRecordingDirectoryMove()
+	b.moveMu.RLock()
+	defer b.moveMu.RUnlock()
+	b.recorderMu.Lock()
+	r := b.recorder
+	b.recorderMu.Unlock()
+	if r != nil {
+		if err := r.StopWithCause(recorder.StopShutdown); err != nil {
+			log.Printf("shutdown recording finalization failed: %s", recordingFailureReason(err))
+		}
 	}
 	if closer, ok := b.updater.(interface{ Close() error }); ok {
 		_ = closer.Close()
@@ -829,7 +848,7 @@ func (b *Backend) configureUpdateInstall(requestShutdown func()) {
 				return nil
 			}
 			b.updateWasRecording.Store(r.State() == recorder.StateCapturing || r.State() == recorder.StateStarting)
-			if err := r.Stop(); err != nil {
+			if err := r.StopWithCause(recorder.StopUpdate); err != nil {
 				b.updatePrepared.Store(false)
 				b.updateWasRecording.Store(false)
 				return err

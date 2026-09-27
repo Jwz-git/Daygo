@@ -11,6 +11,8 @@ preferences 新增设置入口和九语言交互。实现范围为单张 PNG/JPE
 自动化 / 浏览器证据见 [providers 执行册](modules/providers.md#验证记录)；真实 Provider 与 Wails
 新增闭环待验收，不纳入下方既有用户确认。模块继续为部分实现。
 
+Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，状态与有效目录持久化，重启可继续未完成复制或旧目录清理。Go / 前端自动化验证通过；真实 Windows 跨盘、拔盘和长时录制迁移待单列验收。macOS 目录行为未变。见[决策](decisions/recording-directory-windows.md)。
+
 模块标识用于开发协作，不是发布版本，也不是新的运行时 feature flag。表格顺序不代表开工顺序。
 “部分实现”只表示有代码；页面骨架、编译探针和 fake 均不等于用户闭环可用。
 
