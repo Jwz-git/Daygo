@@ -13,6 +13,7 @@ interface DailyBackend {
   GetTimelineDay?: (day: string) => Promise<TimelineDayDTO>
   GetDailyRecap?: (standupDay: string) => Promise<DailyRecapDTO>
   GenerateDailyRecap?: (standupDay: string) => Promise<DailyRecapDTO>
+  SaveDailyRecap?: (recap: DailyRecapDTO) => Promise<void>
   GetJournalDay?: (day: string) => Promise<JournalDayDTO>
   SaveJournalDay?: (entry: JournalDayDTO) => Promise<void>
   GetDayGoal?: (day: string) => Promise<DayGoalDTO>
@@ -81,6 +82,16 @@ export async function generateDailyRecap(standupDay: string): Promise<DailyRecap
   const method = backend()?.GenerateDailyRecap
   if (typeof method !== 'function') throw new DailyUnavailableError()
   return method(standupDay)
+}
+
+export function hasRecapSaveBinding(): boolean {
+  return typeof backend()?.SaveDailyRecap === 'function'
+}
+
+export async function saveDailyRecap(recap: DailyRecapDTO): Promise<void> {
+  const method = backend()?.SaveDailyRecap
+  if (typeof method !== 'function') throw new DailyUnavailableError()
+  return method(recap)
 }
 
 export async function getDailyCapabilities(): Promise<CapabilitiesDTO | null> {

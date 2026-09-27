@@ -20,6 +20,10 @@
     "theme": "system",
     "language": "zh-CN"
   },
+  "notifications": {
+    "journalReminderEnabled": true,
+    "journalReminderTime": "18:00"
+  },
   "system": {
     "launchAtLogin": false,
     "showDockIcon": true,

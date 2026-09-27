@@ -15,7 +15,6 @@ import {
   getProviderRouting,
   listProviders,
   setProviderRouting,
-  setProviderSecret,
   updateProvider,
 } from '@/api/providers'
 import { asMember, asRecordArray, asString, asText } from '@/storage/decode'
@@ -305,13 +304,6 @@ export const useProvidersStore = defineStore('providers', () => {
     await refresh()
   }
 
-  /** Save a key without touching other fields (the secret-entry row). */
-  async function saveSecret(id: string, secret: string): Promise<void> {
-    if (secret.trim() === '') return
-    await setProviderSecret(id, secret.trim())
-    await refresh()
-  }
-
   return {
     providers,
     routing,
@@ -323,6 +315,5 @@ export const useProvidersStore = defineStore('providers', () => {
     remove,
     setChain,
     clearSecret,
-    saveSecret,
   }
 })

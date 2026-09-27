@@ -136,10 +136,6 @@ func TestCrossFourAMMinutesBelongToEachWindowOnce(t *testing.T) {
 	if err != nil || len(spans) != 2 || spans[0].Day != "2026-09-12" || spans[1].Day != "2026-09-13" || spans[0].EndTs != spans[1].StartTs {
 		t.Fatalf("two-day spans = %+v, err = %v; want two adjoining slices", spans, err)
 	}
-	total, err := store.Cards().TotalMinutesTracked(ctx, time.Date(2026, 9, 12, 4, 0, 0, 0, loc), time.Date(2026, 9, 13, 4, 0, 0, 0, loc))
-	if err != nil || total != 30 {
-		t.Fatalf("first day tracked = %v, err = %v; want 30", total, err)
-	}
 }
 
 func TestCrossFourAMWindowInDSTAndFractionalZones(t *testing.T) {

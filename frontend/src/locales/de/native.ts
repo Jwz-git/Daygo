@@ -8,6 +8,10 @@ export default {
   updater: {
     ownerRequired: 'Installiere Updates im Daygo-Fenster, das gerade aufzeichnet.',
   },
+  journalReminder: {
+    title: 'Zeit fürs Tagebuch',
+    body: 'Nimm dir ein paar Minuten, um den heutigen Fortschritt und den Plan für morgen festzuhalten.',
+  },
   applicationMenu: {
     hide: "Daygo ausblenden",
     hideOthers: "Andere ausblenden",

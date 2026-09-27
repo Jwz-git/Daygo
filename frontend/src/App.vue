@@ -65,6 +65,8 @@ watch(
       applicationPickerTitle: t('native.applicationPicker.title'),
       applicationPickerFilter: t('native.applicationPicker.filterExecutable'),
       updateOwnerRequired: t('native.updater.ownerRequired'),
+      journalReminderTitle: t('native.journalReminder.title'),
+      journalReminderBody: t('native.journalReminder.body'),
       applicationMenu: {
         hide: t('native.applicationMenu.hide'),
         hideOthers: t('native.applicationMenu.hideOthers'),

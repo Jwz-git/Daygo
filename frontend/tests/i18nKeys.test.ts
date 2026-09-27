@@ -147,6 +147,7 @@ const SHARED_WORDING = new Set([
   // Units and abbreviations written the same across the shipped set. Note
   // "{count} min" and "720 pixels" reduce to 'min' and 'pixels'.
   'GB',
+  'MB',
   'Go',
   'min',
   'minutes',

@@ -55,6 +55,9 @@ export default {
     failureDescription: '활동 개요에는 영향이 없습니다. 나중에 다시 시도해 주세요.',
     draftBadge: '저널 초안',
     fromJournal: '저널에서',
+    saving: '저장 중…',
+    saveFailed: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    editHint: '한 줄에 하나씩',
   },
   journal: {
     title: '저널',

@@ -391,6 +391,8 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
     ApplicationPickerFilter string `json:"applicationPickerFilter"` // 面板的可执行文件过滤器名称
     UpdateOwnerRequired     string `json:"updateOwnerRequired"`     // 更新弹窗：本实例不是捕获所有者，拒绝安装
     ApplicationMenu platform.ApplicationMenuLabels `json:"applicationMenu"` // macOS 应用 / 编辑 / 窗口菜单
+    JournalReminderTitle    string `json:"journalReminderTitle"`    // 日记提醒通知标题
+    JournalReminderBody     string `json:"journalReminderBody"`     // 日记提醒通知正文
 }
 ```
 
@@ -401,6 +403,10 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 - `applicationMenu` 经可选 `ApplicationMenuCopySink` 下发 20 个标题（完整字段见
   `internal/platform/types.go`），仅替换既有菜单项文案，保留 selector、快捷键和 responder chain。
   Cmd+Q 的应用菜单标题明确为“留在后台继续记录”；Dock 系统菜单的“退出”仍由系统渲染。
+- `journalReminderTitle` / `journalReminderBody` 是**日记提醒通知**的文案。提醒的重复语义由 Go
+  拥有（端口 `ScheduleNotification` 是一次性通知，见 §5.7），调度器在读写实例上运行、按设置对账、
+  以稳定 id `journal-reminder` 覆盖或取消；文案随语言变化一并重排。决策与门禁见
+  [日记提醒决策](decisions/notifications-journal-reminder.md)。
 
 与状态栏文案一样：后端只存 bundle 并按表面路由，不持有 locale，也不做翻译。每个字段在后端
 都有一份 zh-CN 默认值——这些表面除下发外没有第二个文案来源，空值会渲染出无标题或无说明的
@@ -778,8 +784,8 @@ type StorageSettingsDTO struct {
 }
 
 type NotificationSettingsDTO struct {
-    JournalReminderEnabled bool   `json:"journalReminderEnabled"`
-    JournalReminderTime    string `json:"journalReminderTime"` // "HH:mm"，本地时间
+    JournalReminderEnabled bool   `json:"journalReminderEnabled"` // 默认 false
+    JournalReminderTime    string `json:"journalReminderTime"`    // "HH:mm"，本地时间；默认 "18:00"
 }
 
 type AppearanceSettingsDTO struct {
@@ -1212,7 +1218,6 @@ type TimelineRepository interface {
     CardsForDay(ctx context.Context, day string) ([]domain.TimelineCard, error)
     CardsInRange(ctx context.Context, from, to time.Time) ([]domain.TimelineCard, error)
     CardByID(ctx context.Context, id int64) (domain.TimelineCard, error)
-    CardsForBatch(ctx context.Context, batchID int64) ([]domain.TimelineCard, error)
 
     // ReplaceCardsInRange 是流水线的原子提交点：单个事务内完成软删除（范围内所有卡片，
     // 含 System 回退卡）、时钟串解析、插入，并返回可清理的 timelapse 路径与被跳过的卡片。
@@ -1223,7 +1228,6 @@ type TimelineRepository interface {
     UpdateCardCategory(ctx context.Context, id int64, category string) error
     UpdateCardTitle(ctx context.Context, id int64, title string) error
     SoftDeleteCard(ctx context.Context, id int64) (videoPath string, err error)
-    TotalMinutesTracked(ctx context.Context, from, to time.Time) (float64, error)
 }
 
 type ReplaceResult struct {
@@ -1379,6 +1383,17 @@ type Relauncher interface {
 // recorder 状态重绘仍异步，不能在其回调中等待主线程。
 type StatusItemAvailability interface {
     StatusItemAvailable(ctx context.Context) (bool, error)
+}
+
+// Notification 是一次性通知：DeliverAt 为空表示立即投递；端口没有重复 / 周期字段。
+// 「每天同一时刻」的重复语义由 Go 拥有——日记提醒调度器在读写实例上按设置对账，
+// 以稳定 id 覆盖或取消单条通知，文案随语言变化重排。见 §5.5.1 与
+// decisions/notifications-journal-reminder.md。
+type Notification struct {
+    ID        string
+    Title     string
+    Body      string
+    DeliverAt *time.Time
 }
 
 // 可选 macOS 宿主文案与非阻塞反馈；业务错误映射到本地化文案后才传入平台。

@@ -6,7 +6,7 @@ export type StatusItemLabels = app.StatusItemLabelsDTO
 
 export async function getRecordingState(): Promise<RecordingState> { return GetRecordingState() }
 export async function setRecording(enabled: boolean): Promise<void> { return SetRecording(enabled) }
-export async function pauseRecording(): Promise<void> { return PauseRecording(0) }
+export async function pauseRecording(minutes = 0): Promise<void> { return PauseRecording(minutes) }
 export async function resumeRecording(): Promise<void> { return ResumeRecording() }
 export async function getRecordingDirectory(): Promise<string> { return GetRecordingDirectory() }
 export interface RecordingDirectoryMigration { source: string; target: string; phase: string; available: boolean }

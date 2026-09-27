@@ -55,6 +55,9 @@ export default {
     failureDescription: 'Der Aktivitätsüberblick ist nicht betroffen. Versuche es später erneut.',
     draftBadge: 'Journal-Entwurf',
     fromJournal: 'Aus dem Journal',
+    saving: 'Wird gespeichert…',
+    saveFailed: 'Speichern fehlgeschlagen. Bitte versuchen Sie es später erneut.',
+    editHint: 'Ein Eintrag pro Zeile',
   },
   journal: {
     title: 'Journal',

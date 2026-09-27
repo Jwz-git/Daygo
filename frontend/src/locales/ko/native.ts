@@ -8,6 +8,10 @@ export default {
   updater: {
     ownerRequired: '지금 기록 중인 Daygo 창에서 업데이트를 설치하세요.',
   },
+  journalReminder: {
+    title: '오늘 저널을 쓸 시간이에요',
+    body: '몇 분만 들여 오늘의 진행 상황과 내일 계획을 기록해 보세요.',
+  },
   applicationMenu: {
     hide: "Daygo 가리기",
     hideOthers: "다른 앱 가리기",

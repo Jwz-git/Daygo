@@ -8,6 +8,10 @@ export default {
   updater: {
     ownerRequired: '请在正在录制的那个 Daygo 窗口中安装更新。',
   },
+  journalReminder: {
+    title: '记一下今天的日记',
+    body: '花几分钟记录今天的进展和明天的计划。',
+  },
   applicationMenu: {
     hide: "隐藏 Daygo",
     hideOthers: "隐藏其他应用",

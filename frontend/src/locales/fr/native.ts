@@ -8,6 +8,10 @@ export default {
   updater: {
     ownerRequired: 'Installez la mise à jour depuis la fenêtre Daygo en cours d’enregistrement.',
   },
+  journalReminder: {
+    title: 'C’est l’heure du journal',
+    body: 'Prenez quelques minutes pour noter les progrès du jour et le plan de demain.',
+  },
   applicationMenu: {
     hide: "Masquer Daygo",
     hideOthers: "Masquer les autres",

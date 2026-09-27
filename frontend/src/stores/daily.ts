@@ -15,6 +15,7 @@ import { getDailyDevelopmentFixture } from '@/api/developmentFixtures'
 import {
   DailyUnavailableError,
   generateDailyRecap,
+  saveDailyRecap,
   getDailyCapabilities,
   getDailyContext,
   getDailyRecap,
@@ -26,6 +27,7 @@ import {
   hasGoalBinding,
   hasJournalBinding,
   hasRecapGenerationBinding,
+  hasRecapSaveBinding,
   onGoalUpdated,
   onJournalUpdated,
   onRecapUpdated,
@@ -399,6 +401,8 @@ export const useDailyStore = defineStore('daily', () => {
   const recapError = ref<unknown>(null)
   const recapGenerating = ref(false)
   const recapGenerateError = ref<unknown>(null)
+  const recapSaving = ref(false)
+  const recapSaveError = ref<unknown>(null)
   const usingDevelopmentFixture = ref(false)
   const journal = ref<JournalDayDTO | null>(null)
   const journalUnavailable = ref(false)
@@ -585,6 +589,26 @@ export const useDailyStore = defineStore('daily', () => {
     }
   }
 
+  // A manual edit is a full overwrite of the stored recap for its standupDay.
+  // The write already happened when saveDailyRecap resolves, and recap:updated
+  // re-pulls other views, so applying the saved value directly is not optimistic.
+  async function saveRecap(next: DailyRecapDTO): Promise<void> {
+    const standupDay = context.value?.standupDay
+    if (standupDay === undefined || recapSaving.value) return
+    if (!hasRecapSaveBinding()) return
+    recapSaving.value = true
+    recapSaveError.value = null
+    try {
+      const saved: DailyRecapDTO = { ...next, standupDay }
+      await saveDailyRecap(saved)
+      recap.value = saved
+    } catch (cause: unknown) {
+      recapSaveError.value = cause
+    } finally {
+      recapSaving.value = false
+    }
+  }
+
   async function reloadRecap(standupDay: string, version: number): Promise<void> {
     try {
       const next = await getDailyRecap(standupDay)
@@ -646,6 +670,9 @@ export const useDailyStore = defineStore('daily', () => {
     recapGenerating,
     recapGenerateError,
     recapGenerationAvailable: computed(() => hasRecapGenerationBinding()),
+    recapSaving,
+    recapSaveError,
+    recapSaveAvailable: computed(() => hasRecapSaveBinding()),
     journal,
     journalUnavailable,
     journalError,
@@ -660,6 +687,7 @@ export const useDailyStore = defineStore('daily', () => {
     dayNavigationAvailable: computed(() => hasDailyDayBinding()),
     load,
     regenerateRecap,
+    saveRecap,
     saveJournal,
     saveGoal,
     startEvents,

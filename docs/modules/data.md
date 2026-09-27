@@ -55,7 +55,7 @@ Windows 录制目录迁移已增加纯 Go 复制、SHA-256 校验、数据库状
 诊断的「来源不存在」分支仍然保留，但已无法由正常迁移链触达，因此其测试改为显式删除表来构造
 （`internal/storage/db_gate_test.go`）。**录制清理已实现**，见「能力与跨层职责」。
 
-已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者和真实可用性；录制占用上限可持久化写入 `app_settings`。页面在数据源不可用时显示“尚未接入”，不把零误报为没有录制数据。**上限的消费者已接线**：修改它写入 `app_settings`，每小时的维护任务按它执行清理（读取失败按
+已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者、最近截图、待处理 / 失败批次、今日跳过卡片数与数据库大小，并在数据从备份恢复时给出显式警示；录制占用上限可持久化写入 `app_settings`。页面在数据源不可用时显示“尚未接入”，不把零误报为没有录制数据。**上限的消费者已接线**：修改它写入 `app_settings`，每小时的维护任务按它执行清理（读取失败按
 "不限"处理，宁可跳过也不在不确定中删文件）。
 
 落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,recover,settings,cards,categories,captures,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，匿名夹具与生成器在 `internal/storage/testdata/`；前端接入位于 `frontend/src/views/Settings/StorageSection.vue` 与 `frontend/src/api/diagnostics.ts`。

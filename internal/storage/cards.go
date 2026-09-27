@@ -120,32 +120,6 @@ func (r *CardRepo) CardByID(ctx context.Context, id int64) (domain.TimelineCard,
 	return card, nil
 }
 
-// CardsForBatch returns all non-deleted cards written by one batch.
-func (r *CardRepo) CardsForBatch(ctx context.Context, batchID int64) ([]domain.TimelineCard, error) {
-	var out []domain.TimelineCard
-	err := r.store.Read(ctx, "cards for batch", func(ctx context.Context, tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx,
-			"SELECT "+cardColumns+" FROM timeline_cards WHERE batch_id = ? AND is_deleted = 0 ORDER BY start_ts",
-			batchID)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = rows.Close() }()
-		for rows.Next() {
-			c, err := scanCard(rows)
-			if err != nil {
-				return err
-			}
-			out = append(out, c)
-		}
-		return rows.Err()
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ReplaceCardsInRange rewrites the cards of [from, to) with the pipeline's
 // output, in ONE transaction (docs/03 §3.5):
 //
@@ -350,28 +324,6 @@ func (r *CardRepo) SoftDeleteCard(ctx context.Context, id int64) (string, error)
 		return "", err
 	}
 	return videoPath, nil
-}
-
-// TotalMinutesTracked sums card intersections with [from, to), excluding the
-// System category (docs/modules/timeline: totals exclude System). The
-// denominator decision — whether idle categories count — belongs to the
-// caller composing totals, not to this sum.
-func (r *CardRepo) TotalMinutesTracked(ctx context.Context, from, to time.Time) (float64, error) {
-	var total sql.NullFloat64
-	err := r.store.Read(ctx, "total minutes tracked", func(ctx context.Context, tx *sql.Tx) error {
-		row := tx.QueryRowContext(ctx, `
-			SELECT SUM(MIN(end_ts, ?) - MAX(start_ts, ?)) / 60.0
-			FROM timeline_cards
-			WHERE start_ts < ? AND end_ts > ?
-			  AND end_ts > start_ts AND (end_ts - start_ts) <= 14400
-			  AND is_deleted = 0 AND category != 'System'`,
-			to.Unix(), from.Unix(), to.Unix(), from.Unix())
-		return row.Scan(&total)
-	})
-	if err != nil {
-		return 0, err
-	}
-	return total.Float64, nil
 }
 
 // CardDaysByCategory lists the distinct logical days holding live cards in

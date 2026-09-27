@@ -55,6 +55,9 @@ export default {
     failureDescription: 'La vue d’ensemble de l’activité n’est pas affectée. Réessayez plus tard.',
     draftBadge: 'Brouillon de journal',
     fromJournal: 'Depuis le journal',
+    saving: 'Enregistrement…',
+    saveFailed: 'Échec de l’enregistrement. Veuillez réessayer plus tard.',
+    editHint: 'Un élément par ligne',
   },
   journal: {
     title: 'Journal',
