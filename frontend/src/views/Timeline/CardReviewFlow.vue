@@ -162,6 +162,15 @@ const activeOverlayRating = ref<'distraction' | 'neutral' | 'focus' | null>(null
 const isEnteringFromBottom = ref(false)
 const isEnteringBack = ref(false)
 
+/*
+ * Advancing the deck is a reveal, not an entrance. The card under the judged
+ * one is already in its final place, so the element that takes it over must
+ * not play an entrance of its own while it swaps content — like a card deck,
+ * where removing the top card simply exposes the next one. The flag pins the
+ * resting style without a transition for one frame.
+ */
+const isRevealing = ref(false)
+
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 const dragStart = { x: 0, y: 0 }
@@ -171,6 +180,14 @@ const activeCardStyle = computed<CSSProperties>(() => {
     const rot = dragOffset.value.x / 20
     return {
       transform: `translate(${dragOffset.value.x}px, ${dragOffset.value.y}px) rotate(${rot}deg)`,
+      transition: 'none',
+    }
+  }
+
+  if (isRevealing.value) {
+    return {
+      transform: 'translate(0, 0) rotate(0deg)',
+      opacity: 1,
       transition: 'none',
     }
   }
@@ -220,13 +237,33 @@ const activeCardStyle = computed<CSSProperties>(() => {
   }
 })
 
+/* The card behind the active one: slightly inset, dimmed — a deck's next card. */
+const PEEK_TRANSFORM = 'scale(0.96) translateY(8px)'
+const PEEK_OPACITY = 0.85
+const PEEK_FILTER = 'brightness(0.96)'
+
 const underCardStyle = computed<CSSProperties>(() => {
+  // The takeover frame is instantaneous on both layers: the outgoing card
+  // leaves, the exposed one is already in place, and the next peek snaps back
+  // to its resting inset without animating.
+  if (isRevealing.value) {
+    return {
+      transform: PEEK_TRANSFORM,
+      opacity: PEEK_OPACITY,
+      filter: PEEK_FILTER,
+      transition: 'none',
+      pointerEvents: 'none',
+    }
+  }
+
   if (isAnimatingOut.value) {
+    // The next card is revealed by the outgoing one leaving, so it is already
+    // sitting in its final place: no rise, no fade of its own.
     return {
       transform: 'scale(1) translateY(0)',
       opacity: 1,
       filter: 'brightness(1)',
-      transition: 'transform 260ms cubic-bezier(0.2, 0.9, 0.4, 1), opacity 260ms ease, filter 260ms ease',
+      transition: 'none',
       pointerEvents: 'none',
     }
   }
@@ -236,7 +273,7 @@ const underCardStyle = computed<CSSProperties>(() => {
     const progress = Math.min(1, dragDistance / 140)
     const scale = 0.96 + 0.04 * progress
     const ty = 8 - 8 * progress
-    const op = 0.85 + 0.15 * progress
+    const op = PEEK_OPACITY + (1 - PEEK_OPACITY) * progress
     const bri = 0.96 + 0.04 * progress
     return {
       transform: `scale(${scale}) translateY(${ty}px)`,
@@ -248,9 +285,9 @@ const underCardStyle = computed<CSSProperties>(() => {
   }
 
   return {
-    transform: 'scale(0.96) translateY(8px)',
-    opacity: 0.85,
-    filter: 'brightness(0.96)',
+    transform: PEEK_TRANSFORM,
+    opacity: PEEK_OPACITY,
+    filter: PEEK_FILTER,
     transition: 'transform 240ms cubic-bezier(0.2, 0.9, 0.4, 1), opacity 200ms ease, filter 200ms ease',
     pointerEvents: 'none',
   }
@@ -354,7 +391,18 @@ async function judge(kind: 'distraction' | 'neutral' | 'focus'): Promise<void> {
     activeOverlayRating.value = null
     dragOffset.value = { x: 0, y: 0 }
     saving.value = false
+    revealInPlace()
   }, 260)
+}
+
+/* One transition-free frame for the content swap, then back to normal. */
+function revealInPlace(): void {
+  isRevealing.value = true
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      isRevealing.value = false
+    })
+  })
 }
 
 async function undo(): Promise<void> {
