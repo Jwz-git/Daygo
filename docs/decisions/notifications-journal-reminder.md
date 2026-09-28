@@ -3,7 +3,9 @@
 > **状态：已决定；Go 调度与前端已实现，原生投递待真机验收。** 本轮落盘：决策、Go 侧调度器
 > `runJournalReminder`、fake 夹具、设置 UI、九语言文案与 `NativeUiLabelsDTO` 文案通路。
 > macOS / Windows 原生投递（`ScheduleNotification` 真实实现）**尚未实现**，属本文 §6 的
-> on-device 门禁；`internal/platform/{darwin,windows}` 当前仍是 no-op 桩。
+> on-device 门禁；在此之前 `internal/platform/{darwin,windows}` 的 `ScheduleNotification` /
+> `CancelNotifications` 诚实返回 `platform.ErrCapabilityUnavailable`（不再以 nil 假装成功），
+> 调度器据此按能力静默跳过，见 §3「能力不可用」与 §6。
 
 ## 1. 决策
 
@@ -59,6 +61,10 @@
   `UNUserNotificationCenter.requestAuthorization` 弹一次系统授权；**Go 不主动轮询申请**，
   避免 daily 执行册禁止的「循环申请权限」。未授权时平台端口返回错误 → 记日志、不重试轰炸，
   等用户在系统设置里开启后由下一次 tick 的对账自然恢复。
+- **能力不可用 vs 权限 / 瞬时失败。** 端口返回 `platform.ErrCapabilityUnavailable`（尚未接入
+  原生投递的平台或构建）视为「本平台不投递」：`journalReminderSync` 以 `errors.Is` 判定后
+  静默跳过——不 arm、返回 nil、不每 tick 记日志，与「无 System」同类。其它错误（未授权、
+  瞬时失败）仍返回 `apperr.NativeUnavailable`，记日志并在下一次 tick 重试。
 - **tick 间隔。** 复用较低频的轮询（与 `standupBackfillInterval` 同量级），因为对账只需覆盖
   「设置改了」「跨过当天时刻」两类变化；分钟级精度由 `DeliverAt` 交给系统保证，不靠 tick 命中。
 
@@ -87,7 +93,8 @@
 - **on-device 投递（G-native）**：`ScheduleNotification` 的真实实现、系统授权弹窗、
   `DeliverAt` 到点真的弹出、进程不在（软退出为后台）时仍投递、点击通知唤回窗口
   （`SystemEventData.NotificationID` 已预留：`EventNotificationClick`），都必须在真实
-  macOS / Windows 观察。当前桩返回 nil，Go 调度器的正确性只能靠 fake 证明——**fake 通过
+  macOS / Windows 观察。当前桩返回 `platform.ErrCapabilityUnavailable`、调度器据此静默跳过，
+  Go 调度器的正确性只能靠 fake 证明——**fake 通过
   不等于通知送达**（daily 执行册明确此点）。
 - **签名身份**：macOS 未签名 / `wails dev` 下 `requestAuthorization` 行为与正式签名 `.app`
   可能不同，属 [G-native](delivery-macos-signing-identity.md)。

@@ -112,7 +112,11 @@ func (b *Backend) journalReminderSync(ctx context.Context) error {
 				if ctx.Err() != nil {
 					return nil
 				}
-				return apperr.E(apperr.NativeUnavailable, "cancel journal reminder", err)
+				if !errors.Is(err, platform.ErrCapabilityUnavailable) {
+					return apperr.E(apperr.NativeUnavailable, "cancel journal reminder", err)
+				}
+				// The capability is absent, so there is nothing to cancel: fall
+				// through and clear the local state rather than surface an error.
 			}
 			*state = journalReminderState{}
 		}
@@ -136,6 +140,12 @@ func (b *Backend) journalReminderSync(ctx context.Context) error {
 		DeliverAt: &deliverAt,
 	}); err != nil {
 		if ctx.Err() != nil {
+			return nil
+		}
+		if errors.Is(err, platform.ErrCapabilityUnavailable) {
+			// This platform has no notification delivery yet. Treat it like the
+			// no-System case: arm nothing, and return no error so the resident
+			// runner does not log on every tick.
 			return nil
 		}
 		// A platform refusal (e.g. notifications not authorized) is retried on

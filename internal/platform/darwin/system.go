@@ -214,8 +214,17 @@ func (s *System) RevealPath(ctx context.Context, path string) error {
 	}
 	return nil
 }
-func (s *System) ScheduleNotification(context.Context, platform.Notification) error { return nil }
-func (s *System) CancelNotifications(context.Context, []string) error               { return nil }
+
+// ScheduleNotification and CancelNotifications report the capability as
+// unavailable until native delivery is wired (docs/decisions/notifications-journal-reminder.md).
+// Returning the shared sentinel instead of nil keeps the resident journal
+// reminder from arming a notification that would never actually fire.
+func (s *System) ScheduleNotification(context.Context, platform.Notification) error {
+	return platform.ErrCapabilityUnavailable
+}
+func (s *System) CancelNotifications(context.Context, []string) error {
+	return platform.ErrCapabilityUnavailable
+}
 
 // Relaunch schedules a fresh instance to start once this process has exited so
 // a newly granted screen-recording (TCC) permission — cached by macOS at launch

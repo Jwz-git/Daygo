@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"strings"
 	"sync"
@@ -191,9 +192,11 @@ func (s *Service) recordBatchSuccess(batchID int64) {
 func (s *Service) Run(ctx context.Context) {
 	now := s.cfg.Now()
 	if _, err := s.cfg.Store.AdoptStaleProcessing(ctx, now); err != nil {
-		// Adoption is best-effort at startup: a stale batch left in processing
-		// is adopted on a later run, never lost.
-		_ = err
+		// Adoption is best-effort at startup: a stale batch left in processing is
+		// adopted on a later run, never lost. Log rather than drop it — the store
+		// runs with no observer in production, so a bare _ = err would leave a real
+		// DB fault here with zero trace. The message carries no user data.
+		log.Printf("analysis: adopt stale processing batches: %v", err)
 	}
 
 	ticker := time.NewTicker(s.cfg.TickEvery)

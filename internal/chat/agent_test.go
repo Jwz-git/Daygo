@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/Jwz-git/Daygo/internal/ai"
 )
 
 // fakeExecutor records calls and answers with scripted envelopes.
@@ -517,14 +515,7 @@ func TestAgentLoopProviderErrorLandsFailed(t *testing.T) {
 // Compile-time guard: the interfaces the app layer must implement.
 var (
 	_ ToolExecutor = (*fakeExecutor)(nil)
-	_ AttemptSink  = attemptSinkFunc(nil)
 )
-
-type attemptSinkFunc func(ctx context.Context, attempt ai.Attempt)
-
-func (f attemptSinkFunc) RecordAttempt(ctx context.Context, attempt ai.Attempt) {
-	f(ctx, attempt)
-}
 
 // The per-thread model override replaces the provider's configured model, and
 // switching providers resets it (an override chosen under one provider has no

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"os"
 	"sync"
@@ -178,7 +179,13 @@ func (s *Server) appendAudit(source, op string) {
 	}
 	s.auditMu.Lock()
 	defer s.auditMu.Unlock()
-	_, _ = s.audit.Write(append(b, '\n'))
+	if _, err := s.audit.Write(append(b, '\n')); err != nil {
+		// The audit log is a security control (docs/07); a dropped write must not
+		// pass silently. There is no return path here — the operation committed
+		// before this call — so log it. op is a validated operation name and
+		// source a known constant, so neither carries user data.
+		log.Printf("agentbridge: audit write failed for %s from %s: %v", op, source, err)
+	}
 }
 
 // auditEntry is one agent-writes.log line. It carries no arguments — only the

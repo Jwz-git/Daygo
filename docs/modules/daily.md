@@ -64,9 +64,10 @@ Go 侧 httptest 全链路 + 存储夹具断言（补历史、空活动跳过、�
 `ScheduleNotification` / `CancelNotifications` 供夹具断言；设置 UI（通用区开关 + 时刻输入）、
 `NativeUiLabelsDTO` 的 `journalReminderTitle` / `journalReminderBody` 文案通路与九语言文案。
 Go 侧夹具覆盖：默认关闭不排、按时刻排下一次、过点顺延次日、幂等不重排、改时刻 / 改文案重排、
-关闭取消、只读实例空操作、平台失败可重试、文案未下发则等待、DST 与半小时时区。
-**原生投递（macOS `UNUserNotificationCenter` / Windows toast）仍未实现**，`ScheduleNotification`
-当前仍是 no-op 桩；fake 通过不等于通知送达。
+关闭取消、只读实例空操作、平台失败可重试、能力不可用则静默跳过、文案未下发则等待、DST 与半小时时区。
+**原生投递（macOS `UNUserNotificationCenter` / Windows toast）仍未实现**；在此之前
+`ScheduleNotification` / `CancelNotifications` 诚实返回 `platform.ErrCapabilityUnavailable`
+（不再以 nil 假装成功），调度器据此按能力静默跳过。fake 通过不等于通知送达。
 
 ## 能力与跨层职责
 

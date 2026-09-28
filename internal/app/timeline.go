@@ -102,9 +102,13 @@ func categoryFlagsFrom(list []domain.Category) categoryFlags {
 	return flags
 }
 
-// retryableFailure reports whether a failed batch is worth retrying, for the
-// day view's failure panel. Mirrors the batch:failed event's classification
-// (retryableFailureKind in analysis_wiring.go).
+// retryableFailure reports whether a failed batch is worth retrying. It is the
+// single classifier behind both the day view's failure panel and the
+// batch:failed event. An exhausted attempt count means the cooldown/requeue
+// loop already gave up; auth and invalid_request failures do not heal on their
+// own (the user must fix the key or request), so the UI should say "needs
+// attention" rather than "will retry"; no_provider is the same story — nothing
+// retries its way out of an empty chain.
 func retryableFailure(kind string, attempts int) bool {
 	switch kind {
 	case "auth", "invalid_request", "no_provider":
@@ -285,13 +289,6 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 	return dto, nil
 }
 
-func cardDurationMinutes(card domain.TimelineCard) float64 {
-	if card.EndTs <= card.StartTs {
-		return 0
-	}
-	return float64(card.EndTs-card.StartTs) / 60.0
-}
-
 // sharedCardDTO assembles one card's DTO. Both the day view and the chat card
 // read tool go through it, so a card renders identically wherever it appears.
 // videoSummaryUrl stays null and otherVideoSummaryUrls empty: real URLs are
@@ -325,7 +322,7 @@ func sharedCardDTO(card domain.TimelineCard, flags categoryFlags) TimelineCardDT
 		Distractions:          distractions,
 		ActivityPoints:        activityPoints,
 		IsIdle:                flags.isIdle[card.Category],
-		DurationMinutes:       cardDurationMinutes(card),
+		DurationMinutes:       card.DurationMinutes(),
 	}
 }
 
@@ -337,16 +334,6 @@ func (b *Backend) requireTimelineWrite() error {
 		return apperr.E(apperr.NotCaptureOwner, "this instance is not the capture owner", nil)
 	}
 	return nil
-}
-
-// cardDay returns the persisted ownership day of one card.
-func (b *Backend) cardDay(ctx context.Context, cardID int64) (string, error) {
-	store := b.store()
-	card, err := store.Cards().CardByID(ctx, cardID)
-	if err != nil {
-		return "", mapStorageError("load card", err)
-	}
-	return card.Day, nil
 }
 
 // cardVisibleDays includes the continuation day when one persisted card spans

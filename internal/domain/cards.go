@@ -32,6 +32,16 @@ type TimelineCard struct {
 	UpdatedAtUnix    int64
 }
 
+// DurationMinutes is the card's span in minutes, derived from the Unix
+// timestamps. A non-positive span (end at or before start) is zero rather than
+// negative, so callers can sum durations without guarding each card.
+func (c TimelineCard) DurationMinutes() float64 {
+	if c.EndTs <= c.StartTs {
+		return 0
+	}
+	return float64(c.EndTs-c.StartTs) / 60.0
+}
+
 // CardShell is what the analysis pipeline submits to ReplaceCardsInRange: the
 // parsed LLM output before any timestamp derivation. IDs and derived
 // timestamps do not exist yet; ReplaceCardsInRange derives them inside its

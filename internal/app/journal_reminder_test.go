@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -284,6 +285,38 @@ func TestJournalReminderScheduleFailureIsRetried(t *testing.T) {
 	}
 	if _, ok := system.ScheduledNotification(journalReminderID); !ok {
 		t.Fatal("reminder was not scheduled after the platform recovered")
+	}
+}
+
+// A platform that reports the capability unavailable — directly, or wrapped with
+// %w as the Windows adapter does — is a quiet no-op rather than the retryable
+// failure above: the sync returns no error (so the resident runner does not log
+// every tick) and arms nothing, matching the no-System case. Without this the
+// macOS stub used to return nil and the reminder was recorded as armed while it
+// could never fire.
+func TestJournalReminderCapabilityUnavailableIsQuiet(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"direct", platform.ErrCapabilityUnavailable},
+		{"wrapped", fmt.Errorf("windows system capability is unavailable: %w", platform.ErrCapabilityUnavailable)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			system := fake.NewSystem()
+			system.SetScheduleError(tc.err)
+			now := time.Date(2026, 9, 27, 9, 0, 0, 0, time.Local)
+			backend := reminderBackend(t, system, now)
+			backend.nativeLabels.set(reminderLabels())
+			enableReminder(t, backend, "18:00")
+
+			if err := backend.journalReminderSync(context.Background()); err != nil {
+				t.Fatalf("journalReminderSync on an unavailable platform = %v, want nil (quiet no-op)", err)
+			}
+			if _, ok := system.ScheduledNotification(journalReminderID); ok {
+				t.Fatal("armed a reminder on a platform that cannot deliver notifications")
+			}
+		})
 	}
 }
 

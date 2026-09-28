@@ -23,10 +23,6 @@ func (p BatchPlan) Span() time.Duration {
 	return p.Frames[len(p.Frames)-1].CapturedAt.Sub(p.Frames[0].CapturedAt)
 }
 
-// Start and End are the batch's time bounds.
-func (p BatchPlan) Start() time.Time { return p.Frames[0].CapturedAt }
-func (p BatchPlan) End() time.Time   { return p.Frames[len(p.Frames)-1].CapturedAt }
-
 // splitResult is SplitFrames' output: batches sealed by a gap or by reaching
 // the target duration, plus the trailing batch that is still growing.
 type splitResult struct {
