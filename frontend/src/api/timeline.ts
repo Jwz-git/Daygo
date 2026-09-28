@@ -64,10 +64,6 @@ function backend(): TimelineBackend | null {
   return (window as WailsWindow).go?.app?.Backend ?? null
 }
 
-export function hasDayContextBinding(): boolean {
-  return typeof backend()?.GetDayContext === 'function'
-}
-
 export function hasTimelineDayBinding(): boolean {
   const current = backend()
   return (

@@ -33,7 +33,7 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 | [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：macOS 离散截图 / HEVC、Windows DXGI/WGC / 分段降级、Go recorder 与 pending 对账、自启、隐私选择、状态栏、软退出、Dock 偏好、菜单 / 反馈及关机意图；空闲采样与 Linux Capture / System 未实现 | Go / fake、原生 smoke 与前端夹具有记录；已实现能力、09-26 宿主增量、G-host、MC / WC 功能范围与长期观察于 09-26 用户确认已验收（无逐项记录）；正式分发身份仍缺证书 |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、回退链路由、协议客户端、连接测试与模型列表 | 部分实现：三协议客户端、重试 / 回退、Provider 落库、有序路由链、macOS Keychain、CRUD / 密钥 / 模型列表 / 连接测试绑定与前端 store；旧 localStorage 仅用于一次性迁移 | Go 单元 / Secrets fake / 匿名 TLS 与 macOS 钥匙串 smoke 有记录；真实 Provider、现有身份下重启 / 升级及 Wails 闭环于 09-26 用户确认已验收（无逐项记录）；正式证书身份不在范围 |
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间 / 周边界、卡片与分类 repository、两阶段分析流水线、失败批次重试、卡片编辑 / 删除、分类保存、日视图与失败 / 处理中状态；跨 4 点卡片按日投影、裁剪时长与周明细；帧回放（`GetCardMedia` + `/media/frame` 资源）、周视图、持久化卡片审阅、按卡片来源批次重处理与日历选择已提交 | Go 时间 / 事务 / 流水线与前端夹具有记录；卡片、跨 4 点投影、编辑 / 重处理、帧回放与近期媒体 / 图标增量、G-loop 和长期观察于 09-26 用户确认已验收（无逐项记录）；搜索未实现 |
-| [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：日记 / 目标持久化、日报读写与手动生成、启动 / 每小时后台补生成、当天 4 小时刷新、工作流与指标；v19 移除日记 AI summary；录制后即时生成与通知未实现 | Go 存储 / 生成夹具、前端类型 / 构建有记录；已实现的生成调度、重启读回与真实 Provider Wails 闭环于 09-26 用户确认已验收（无逐项记录）；通知不在已实现范围 |
+| [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：日记 / 目标持久化、日报读写与手动生成、启动 / 每小时后台补生成、当天 4 小时刷新、工作流与指标、日记提醒的 Go 调度 / 设置 UI / 文案通路（决策 notifications-journal-reminder）；v19 移除日记 AI summary；录制后即时生成与提醒的原生投递未实现 | Go 存储 / 生成 / 提醒夹具、前端类型 / 构建有记录；已实现的生成调度、重启读回与真实 Provider Wails 闭环于 09-26 用户确认已验收（无逐项记录）；提醒的原生投递不在已实现范围 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：周概览 / 分类分布前端切片、真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定）、按日明细、洞察与节奏面板（`WeeklyInsightsDTO` / `WeeklyDayDTO`）、开发专用匿名样例 | Go 周边界 / 聚合及前端夹具有记录；真实卡片周、九语言界面与跨周长期观察于 09-26 用户确认已验收（无逐项记录） |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入 | macOS DB-1–8 / IT-13 有记录（含一小时 DB-8）；已实现维护 / 整段清理、真实宿主与长期观察于 09-26 用户确认已验收（无逐项记录）；Windows DB-8 无逐项运行数据，遥测消费者未实现 |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、九语言 i18n、后端偏好接入、输出语言 / 识别增强、UI 可见性与隐藏媒体暂停、macOS Dock 开关 | Go / 前端 / 原生夹具有记录；九语言、偏好重启、Dock 和隐藏媒体的已实现功能于 09-26 用户确认已验收（无逐项记录）；全量 DTO 收口与遥测消费者未完成 |
@@ -116,9 +116,10 @@ Windows 非黑 JPEG、窗口排除、实例锁和录制落库 smoke；详细设�
 Windows `ShowsCursor` 为尽力而为的 no-op，不将确认写成新增鼠标指针合成能力；Linux 已实现
 Secrets 经用户确认，Capture / System 仍未实现；正式发行签名 / 公证材料仍缺。
 
-仍未实现：timeline / agent / chat 搜索、chat status 工具与独立写入审计、真实空闲采样、日记提醒、
-录制后即时日报生成、`Media.EncodeVideo`、遥测 / 崩溃上报消费者、Linux Capture / System 及 Windows
-终端 CLI。CLI / socket / MCP、后台日报生成、G-host、真实 Provider、长期观察和现有身份下安装升级
+仍未实现：timeline / agent / chat 搜索、chat status 工具与独立写入审计、真实空闲采样、日记提醒的
+**原生投递**（Go 调度、设置 UI 与文案通路已落盘）、录制后即时日报生成、`Media.EncodeVideo`、
+遥测 / 崩溃上报消费者、Linux Capture / System 及 Windows 终端 CLI。CLI / socket / MCP、后台日报生成、
+G-host、真实 Provider、长期观察和现有身份下安装升级
 均在 09-26 用户确认已验收范围；正式签名 / 公证材料仍缺，待定设计不因确认自动变为已决定。
 HEVC 分段、`platform.Media`、帧资源处理器和按段清理已经落盘，其真机长期验证亦经用户于 2026-09-22 实测验收（无逐项运行记录）。
 前端已有单元测试运行器和大部分生成绑定消费，但

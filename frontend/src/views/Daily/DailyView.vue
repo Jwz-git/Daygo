@@ -27,6 +27,9 @@ const {
   recapGenerating,
   recapGenerateError,
   recapGenerationAvailable,
+  recapSaving,
+  recapSaveError,
+  recapSaveAvailable,
   journal,
   journalUnavailable,
   journalError,
@@ -159,7 +162,11 @@ onBeforeUnmount(() => daily.stopListening())
             :generating="recapGenerating"
             :generate-failed="recapGenerateError !== null"
             :generation-available="recapGenerationAvailable"
+            :saving="recapSaving"
+            :save-failed="recapSaveError !== null"
+            :save-available="recapSaveAvailable"
             @regenerate="daily.regenerateRecap"
+            @save="daily.saveRecap"
           />
           <DailyJournalPanel
             :journal="journal"

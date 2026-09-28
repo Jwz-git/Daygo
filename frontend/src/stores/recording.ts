@@ -12,6 +12,7 @@ import {
 import {
   getPermissionState,
   openSystemSettings,
+  type PermissionState,
   relaunchForPermission as requestPermissionRelaunch,
   requestScreenRecordingPermission,
   setPermissionRestartArmed,
@@ -64,22 +65,26 @@ export const useRecordingStore = defineStore('recording', () => {
    * whether it can control capture.
    */
   async function ensureScreenRecordingPermission(): Promise<boolean> {
-    let granted: boolean
+    let permission: PermissionState
     try {
-      const state = await getPermissionState()
-      granted = state.screenRecording === 'granted'
+      permission = await getPermissionState()
     } catch {
       return true
     }
-    if (granted) {
+    if (permission.screenRecording === 'granted') {
       setPermissionGuidance(false)
       return true
     }
-    try {
-      await requestScreenRecordingPermission()
-    } catch {
-      // The prompt could not be shown; the guidance dialog still explains the
-      // manual path through System Settings.
+    // Only fire the OS prompt when the platform can still show it. Once the user
+    // has denied it, macOS silently ignores the request and the grant can only
+    // come from System Settings, so a request call would be a dead end.
+    if (permission.canRequest) {
+      try {
+        await requestScreenRecordingPermission()
+      } catch {
+        // The prompt could not be shown; the guidance dialog still explains the
+        // manual path through System Settings.
+      }
     }
     setPermissionGuidance(true)
     return false
@@ -137,14 +142,14 @@ export const useRecordingStore = defineStore('recording', () => {
     stopEvents = null
   }
 
-  async function perform(action: RecordingAction): Promise<void> {
+  async function perform(action: RecordingAction, minutes = 0): Promise<void> {
     if (pendingAction.value !== null || !canControl.value) return
     if (action === 'start' && !(await ensureScreenRecordingPermission())) return
     pendingAction.value = action
     error.value = null
     try {
       if (action === 'start') await setRecording(true)
-      if (action === 'pause') await pauseRecording()
+      if (action === 'pause') await pauseRecording(minutes)
       if (action === 'resume') await resumeRecording()
       if (action === 'stop') await setRecording(false)
       await refresh()

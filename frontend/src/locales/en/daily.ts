@@ -55,6 +55,9 @@ export default {
     failureDescription: 'The activity overview is unaffected. Try again later.',
     draftBadge: 'Journal draft',
     fromJournal: 'From journal',
+    saving: 'Saving…',
+    saveFailed: 'Couldn’t save. Please try again later.',
+    editHint: 'One item per line',
   },
   journal: {
     title: 'Journal',

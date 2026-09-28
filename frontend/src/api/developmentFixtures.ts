@@ -57,10 +57,6 @@ export function createDevelopmentTestDataSelector(
   }
 }
 
-export function resolveDevelopmentTestData(href: string, isDevelopment: boolean): boolean {
-  return createDevelopmentTestDataSelector(isDevelopment)(href)
-}
-
 let selectDevelopmentTestData: ((href: string) => boolean) | null = null
 
 export function canUseDevelopmentTestData(): boolean {
@@ -156,6 +152,7 @@ function isWeeklyFixture(value: unknown): value is WeeklyDevelopmentFixture {
 function isSettingsFixture(value: unknown): value is SettingsDTO {
   if (!isRecord(value) || !isRecord(value.capture) || !isRecord(value.llm)) return false
   if (!isRecord(value.privacy) || !isRecord(value.storage) || !isRecord(value.appearance) || !isRecord(value.system)) return false
+  if (!isRecord(value.notifications)) return false
 
   return (
     typeof value.capture.intervalSeconds === 'number' &&
@@ -166,6 +163,8 @@ function isSettingsFixture(value: unknown): value is SettingsDTO {
     typeof value.appearance.language === 'string' &&
     typeof value.llm.outputLanguage === 'string' &&
     typeof value.llm.recognitionEnhancementEnabled === 'boolean' &&
+    typeof value.notifications.journalReminderEnabled === 'boolean' &&
+    typeof value.notifications.journalReminderTime === 'string' &&
     typeof value.system.launchAtLogin === 'boolean' &&
     typeof value.system.showDockIcon === 'boolean' &&
     typeof value.system.agentEditsEnabled === 'boolean' &&
@@ -189,6 +188,7 @@ export function applyDevelopmentSettingsPatch(
     appearance: { ...current.appearance },
     llm: { ...current.llm },
     chat: { ...current.chat },
+    notifications: { ...current.notifications },
     system: { ...current.system },
   }
   if (patch.intervalSeconds !== undefined) next.capture.intervalSeconds = patch.intervalSeconds
@@ -210,6 +210,12 @@ export function applyDevelopmentSettingsPatch(
   if (patch.agentEditsEnabled !== undefined) next.system.agentEditsEnabled = patch.agentEditsEnabled
   if (patch.testToolsEnabled !== undefined) next.system.testToolsEnabled = patch.testToolsEnabled
   if (patch.chatMemory !== undefined) next.chat.memory = patch.chatMemory
+  if (patch.journalReminderEnabled !== undefined) {
+    next.notifications.journalReminderEnabled = patch.journalReminderEnabled
+  }
+  if (patch.journalReminderTime !== undefined) {
+    next.notifications.journalReminderTime = patch.journalReminderTime
+  }
   return next
 }
 

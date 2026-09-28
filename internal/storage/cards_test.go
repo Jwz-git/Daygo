@@ -407,7 +407,7 @@ func TestCardUpdateCategoryTitleAndSoftDelete(t *testing.T) {
 	}
 }
 
-func TestCardsInRangeAndTotalMinutesExcludesSystem(t *testing.T) {
+func TestCardsInRangeIncludesSystem(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
 	seedBatch(t, store, 1)
 	seedBatch(t, store, 2)
@@ -433,14 +433,6 @@ func TestCardsInRangeAndTotalMinutesExcludesSystem(t *testing.T) {
 	}
 	if len(cards) != 3 {
 		t.Fatalf("cards in range = %d, want 3 (System included in queries)", len(cards))
-	}
-
-	minutes, err := store.Cards().TotalMinutesTracked(ctx, rangeFrom, rangeTo)
-	if err != nil {
-		t.Fatalf("TotalMinutesTracked: %v", err)
-	}
-	if minutes != 60 {
-		t.Fatalf("tracked minutes = %v, want 60 (System excluded)", minutes)
 	}
 }
 

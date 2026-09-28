@@ -186,7 +186,7 @@ func (r *Reader) Card(ctx context.Context, id int64) (CardResult, error) {
 		Summary:         card.Summary,
 		DetailedSummary: card.DetailedSummary,
 		IsIdle:          idle[card.Category],
-		DurationMinutes: durationMinutes(card),
+		DurationMinutes: card.DurationMinutes(),
 	}, nil
 }
 
@@ -197,11 +197,4 @@ func idleFlags(list []domain.Category) map[string]bool {
 		flags[c.Name] = c.IsIdle
 	}
 	return flags
-}
-
-func durationMinutes(card domain.TimelineCard) float64 {
-	if card.EndTs <= card.StartTs {
-		return 0
-	}
-	return float64(card.EndTs-card.StartTs) / 60.0
 }

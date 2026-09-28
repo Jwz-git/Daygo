@@ -106,6 +106,11 @@ type Backend struct {
 	// nativeLabels carries the localized copy for the other native surfaces
 	// (application picker, update refusal); see native_ui.go.
 	nativeLabels nativeUiLabelStore
+	// reminder is the last reconciled journal reminder, guarded by reminderMu.
+	// journal_reminder.go owns it; it exists so a tick that finds nothing
+	// changed makes no platform call (docs/decisions/notifications-journal-reminder.md).
+	reminderMu sync.Mutex
+	reminder   journalReminderState
 	// backgrounded is true between a soft-quit and the next restore: the window
 	// is ordered out and the activation policy is accessory. It is the single
 	// condition an activation uses to decide whether the window needs bringing

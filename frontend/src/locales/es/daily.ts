@@ -55,6 +55,9 @@ export default {
     failureDescription: 'El resumen de actividad no se ve afectado. Inténtalo más tarde.',
     draftBadge: 'Borrador del diario',
     fromJournal: 'Desde el diario',
+    saving: 'Guardando…',
+    saveFailed: 'No se pudo guardar. Inténtalo de nuevo más tarde.',
+    editHint: 'Un elemento por línea',
   },
   journal: {
     title: 'Diario',

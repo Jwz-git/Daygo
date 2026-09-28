@@ -136,15 +136,19 @@ Daygo/
 │   │   ├── secrets/                 ★ fake、macOS Keychain、Windows Credential Manager、Linux Secret Service
 │   │   ├── mediafile/               ★ Media 实现：从录制目录读单帧 JPEG
 │   │   ├── factory/                 ★ 按平台组装适配器
+│   │   ├── updateconfig/            ★ 发布参数：appcast FeedURL 与 Ed25519 公钥（私钥在钥匙串 / CI）
 │   │   ├── darwin/                  ★ cgo → ScreenCaptureKit（+ System / 状态栏 ABI）
 │   │   └── windows/                 ★ cgo → DXGI / WGC、应用身份、系统事件与通知区（有限真机 smoke）
 │   ├── timeutil/                    ★ 凌晨 4 点逻辑日、时钟串派生、周边界（周一 4 点对齐）
 │   ├── domain/                      ★ 共享类型（cards），无行为
 │   ├── analysis/                    ★ 两阶段分析流水线：分批、提示词、schema、空闲判定、重处理
 │   ├── insight/                     ★ 卡片派生的只读视图：weekly / weekly_detail / standup
+│   ├── favicon/                     ★ 网站图标获取与本地缓存；主机名来自 LLM 输出按不可信处理（SSRF 防护）
 │   ├── chat/                        ★ 应用内对话 agent：回合状态机、工具沙箱与预算（v1 不交付；契约见 05 §5.12）
 │   ├── recorder/                    ★ 常驻录制：四状态机、定时捕获、staging 提交与对账
+│   ├── recordinglocation/           ★ 迁移录制目录并保持分段相对路径有效；不自行打开业务库
 │   ├── media/                       ☐ 已解码帧的有界 LRU（字节，不是图像对象）
+│   ├── agentread/                   ★ 外部只读接口：只读组装与绑定同形的 timeline/card/daily/weekly JSON（CLI 与 mcp 共用，v1 不交付）
 │   ├── agentcli/                    ★ 主二进制 CLI 子命令（读库只读；写经 socket，v1 不交付）
 │   ├── agentbridge/                 ★ 0600 socket、服务端写门禁与来源审计（v1 不交付）
 │   ├── mcp/                         ★ stdio 五读六写工具面（v1 不交付，见 05 §5.9.3）

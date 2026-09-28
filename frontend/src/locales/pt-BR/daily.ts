@@ -55,6 +55,9 @@ export default {
     failureDescription: 'O panorama de atividades não é afetado. Tente de novo mais tarde.',
     draftBadge: 'Rascunho do diário',
     fromJournal: 'Do diário',
+    saving: 'Salvando…',
+    saveFailed: 'Não foi possível salvar. Tente novamente mais tarde.',
+    editHint: 'Um item por linha',
   },
   journal: {
     title: 'Diário',

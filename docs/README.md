@@ -72,6 +72,8 @@
 | [agent MCP 传输：stdio 子进程](decisions/agent-mcp-transport.md) | 已决定，基础实现已落盘 | stdio `daygo mcp` 子进程、读走只读 DB / 写走 `agent.sock`、审计来源标记与回退 |
 | [时间线短卡合并](decisions/timeline-short-single-card-merge.md) | 已决定并实现 | 首批与持续窗口的 15 分钟下限及合并边界 |
 | [网站图标获取](decisions/timeline-favicon-fetch.md) | 已决定并实现 | 本地缓存、受限网络获取与载荷预算 |
+| [Windows 录制目录迁移](decisions/recording-directory-windows.md) | Windows 已实现，跨盘迁移待真机验收 | 迁移 recordings/ 树到用户所选空目录；DB / 备份 / 密钥 / 锁留在应用数据目录，segment_path 保持相对根不改写 |
+| [日记提醒通知](decisions/notifications-journal-reminder.md) | 已决定；Go 与前端已实现，原生投递待验收 | Go 拥有重复调度与一次性原生通知端口、墙钟时刻，文案经 NativeUiLabelsDTO 下发；原生不可用则静默门禁 |
 
 `scripts/check-docs.py` 会检查本目录里所有链接和小节锚点是否存在、有没有“谁都没链接到”
 的孤立文档；它由 `scripts/gate.sh` 调用。它只能证明文档内部自洽，**不能证明文档与代码一致**

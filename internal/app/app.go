@@ -197,6 +197,11 @@ func Run() error {
 		// was not running, then re-scan on a ticker for newly completed days.
 		// Owned by ctx like the analysis pipeline, so shutdown stops it.
 		go backend.runStandupBackfill(ctx)
+
+		// Keep the daily journal reminder in sync with the user's settings.
+		// Only the capture owner schedules notifications, so it is launched from
+		// this RW-only block alongside the analysis pipeline and the backfill.
+		go backend.runJournalReminder(ctx)
 	}
 	// Start the updater only after storage ownership is known. Sparkle and
 	// WinSparkle may schedule a check immediately; an early update must not see

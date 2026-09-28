@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import {
-  createDevelopmentTestDataSelector,
-  resolveDevelopmentTestData,
-} from '../src/api/developmentFixtures'
+import { createDevelopmentTestDataSelector } from '../src/api/developmentFixtures'
+
+// A fresh selector per URL: the first read of a page with no prior selection.
+function resolveDevelopmentTestData(href: string, isDevelopment: boolean): boolean {
+  return createDevelopmentTestDataSelector(isDevelopment)(href)
+}
 
 test('selects development test data before or after the hash', () => {
   assert.equal(resolveDevelopmentTestData('http://localhost:5173/?testData=on#/timeline', true), true)

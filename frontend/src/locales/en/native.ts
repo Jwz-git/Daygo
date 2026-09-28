@@ -8,6 +8,10 @@ export default {
   updater: {
     ownerRequired: 'Install updates from the Daygo window that is currently recording.',
   },
+  journalReminder: {
+    title: 'Time to journal',
+    body: 'Take a few minutes to log today’s progress and tomorrow’s plan.',
+  },
   applicationMenu: {
     hide: "Hide Daygo",
     hideOthers: "Hide Others",

@@ -831,7 +831,9 @@ func TestPipelineReprocessPreservesStraddlingCardPrefix(t *testing.T) {
 	if err != nil || len(batches) != 1 {
 		t.Fatalf("second batch = %+v, err=%v; want one", batches, err)
 	}
-	if _, err := h.store.Analysis().ReprocessBatches(context.Background(), []int64{batches[0].ID}, testNow.Add(time.Minute)); err != nil {
+	// The window starts after the first batch, so only the second batch is
+	// requeued — the same scope a per-batch requeue would have.
+	if _, err := h.store.Analysis().ReprocessDay(context.Background(), base2.Add(-time.Minute), base2.Add(20*time.Minute), testNow.Add(time.Minute)); err != nil {
 		t.Fatalf("reprocess batch: %v", err)
 	}
 

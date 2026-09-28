@@ -50,7 +50,7 @@
 - `timeutil.WeekStart(day, loc)`：`day` 是逻辑日，返回其所在周的周一 `yyyy-MM-dd`；
   `timeutil.WeekWindow(weekStart, loc)` 返回左闭右开的 `[周一 04:00, 下周一 04:00)`。
 - `GetWeeklyDashboard(weekStart)` 的聚合窗口即 `WeekWindow`；卡片归属按重叠谓词
-  （03 §3.5，与 `TotalMinutesTracked` 同一 SQL 谓词），不裁剪跨界卡片时长。
+  （03 §3.5，与 `CardsInRange` 同一 SQL 谓词），不裁剪跨界卡片时长。
 - `GetDayContext` 返回 `weekStart`，前端周导航永远传显式 `weekStart`，不自行推算
   （前端禁自算日界/周边界是硬规则）。
 - 属性测试口径：连续 `weekStart` 的窗口无重叠、无间隙地拼接覆盖整时间轴（08 §8.6.5）。

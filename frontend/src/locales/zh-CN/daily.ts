@@ -55,6 +55,9 @@ export default {
     failureDescription: '活动概览不受影响，稍后可以重试。',
     draftBadge: '日记草稿',
     fromJournal: '来自日记',
+    saving: '保存中…',
+    saveFailed: '保存失败，请稍后重试。',
+    editHint: '每行一条',
   },
   journal: {
     title: '日记',

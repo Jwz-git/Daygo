@@ -388,18 +388,6 @@ func waitForCommits(t *testing.T, s *testStore, n int) {
 	t.Fatalf("commits did not reach %d", n)
 }
 
-func waitStateIdle(t *testing.T, r *Recorder) {
-	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if r.State() == StateIdle {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatal("recorder did not reach idle")
-}
-
 // flakyCapture fails its next N captures, then succeeds.
 type flakyCapture struct {
 	mu           sync.Mutex

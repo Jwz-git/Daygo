@@ -8,6 +8,10 @@ export default {
   updater: {
     ownerRequired: '記録中の Daygo ウィンドウでアップデートをインストールしてください。',
   },
+  journalReminder: {
+    title: '今日のジャーナルを書こう',
+    body: '数分かけて、今日の進捗と明日の予定を書き留めましょう。',
+  },
   applicationMenu: {
     hide: "Daygo を隠す",
     hideOthers: "ほかのアプリを隠す",

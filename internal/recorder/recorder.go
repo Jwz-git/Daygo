@@ -610,7 +610,15 @@ func (r *Recorder) capture(ctx context.Context) error {
 		r.mu.Unlock()
 
 		if rolledPath != "" {
-			_ = r.cfg.Store.AmortizeSegment(ctx, rolledPath, rolledSize)
+			if err := r.cfg.Store.AmortizeSegment(ctx, rolledPath, rolledSize); err != nil {
+				// Mirror the finalize path: a disk-accounting failure must not abort
+				// the capture loop, but it also must not vanish, or per-frame size
+				// amortization drifts silently. Surface it through shutdownErr like
+				// the active-segment case above.
+				r.mu.Lock()
+				r.shutdownErr = fmt.Errorf("recorder: account for rolled segment: %w", err)
+				r.mu.Unlock()
+			}
 		}
 
 		if err := r.cfg.Store.Commit(ctx, id, frameDelta); err != nil {

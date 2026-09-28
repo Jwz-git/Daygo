@@ -215,10 +215,15 @@ func (r *CaptureRepo) Reconcile(ctx context.Context, root string) error {
 		}
 		filePath := filepath.Join(root, filepath.FromSlash(seg))
 		if !hasMoovAtom(filePath) {
-			_ = r.store.Write(ctx, "capture reconcile mark corrupt segment deleted", func(ctx context.Context, tx *sql.Tx) error {
+			// Propagate a failed mark like the two reconcile steps above: dropping
+			// it would report a clean reconcile while a corrupt segment stays
+			// is_deleted = 0 and analysis keeps failing to decode it every batch.
+			if err := r.store.Write(ctx, "capture reconcile mark corrupt segment deleted", func(ctx context.Context, tx *sql.Tx) error {
 				_, err := tx.ExecContext(ctx, `UPDATE screenshots SET is_deleted = 1 WHERE segment_path = ?`, seg)
 				return err
-			})
+			}); err != nil {
+				return err
+			}
 		}
 	}
 

@@ -10,7 +10,7 @@ import { useSettingsSection } from './useSettingsSection'
 
 const BYTES_PER_GB = 1024 ** 3
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { state, settings, load, persist, writeFailed } = useSettingsSection()
 
 const intervalSeconds = computed(
@@ -33,13 +33,52 @@ const moveFailed = ref(false)
 const pendingTarget = ref('')
 const cleanupPending = ref(false)
 const directoryAvailable = ref(true)
-const recordingsBytes = ref(0)
+const diagnostics = ref<DiagnosticsDTO | null>(null)
+const recordingsBytes = computed(() => diagnostics.value?.recordingsBytes ?? 0)
 const gbInput = ref('1')
 function syncGbInput(): void { gbInput.value = String(limitGb.value) }
 const usagePercent = computed(() => {
   const limit = limitBytes.value
   if (limit <= 0) return 0
   return Math.min(100, Math.round((recordingsBytes.value / limit) * 100))
+})
+
+/** A diagnostic whose data source does not exist yet is reported in Unavailable. */
+function isUnavailable(key: string): boolean {
+  return diagnostics.value?.unavailable?.[key] !== undefined
+}
+const dbStatusLabel = computed(() => {
+  switch (diagnostics.value?.dbStatus) {
+    case 'read_only': return t('settings.storage.diagnostics.dbStatusReadOnly')
+    case 'unavailable': return t('settings.storage.diagnostics.dbStatusUnavailable')
+    case 'ok': return t('settings.storage.diagnostics.dbStatusOk')
+    default: return t('settings.storage.diagnostics.unavailable')
+  }
+})
+const nativeStateLabel = computed(() => {
+  switch (diagnostics.value?.nativeState) {
+    case 'restarting': return t('settings.storage.diagnostics.nativeStateRestarting')
+    case 'unavailable': return t('settings.storage.diagnostics.nativeStateUnavailable')
+    case 'ok': return t('settings.storage.diagnostics.nativeStateOk')
+    default: return t('settings.storage.diagnostics.unavailable')
+  }
+})
+const captureOwnerLabel = computed(() => {
+  const pid = diagnostics.value?.captureOwnerPid
+  return pid != null
+    ? t('settings.storage.diagnostics.captureOwnerActive', { pid })
+    : t('settings.storage.diagnostics.captureOwnerInactive')
+})
+const lastCaptureLabel = computed(() => {
+  const value = diagnostics.value
+  if (!value || isUnavailable('lastCaptureAtTs')) return t('settings.storage.diagnostics.unavailable')
+  if (value.lastCaptureAtTs == null) return t('settings.storage.diagnostics.lastCaptureNever')
+  return new Date(value.lastCaptureAtTs * 1000).toLocaleString(locale.value)
+})
+const databaseSizeLabel = computed(() => {
+  const value = diagnostics.value
+  if (!value || value.dbStatus === 'unavailable') return t('settings.storage.diagnostics.unavailable')
+  return t('settings.storage.diagnostics.sizeValue', { mb: (value.databaseBytes / (1024 ** 2)).toFixed(1) })
 })
 
 onMounted(() => {
@@ -51,7 +90,7 @@ onMounted(() => {
     .then((value) => { if (value.phase === 'copying') pendingTarget.value = value.target; cleanupPending.value = value.phase === 'committed'; directoryAvailable.value = value.available })
     .catch(() => undefined)
   void getDiagnostics()
-    .then((value: DiagnosticsDTO) => { recordingsBytes.value = value.recordingsBytes })
+    .then((value: DiagnosticsDTO) => { diagnostics.value = value })
     .catch(() => undefined)
 })
 
@@ -215,6 +254,47 @@ function onLimitChange(event: Event): void {
     <p v-if="isWindows && cleanupPending && !moving" role="status">{{ t('settings.storage.cleanupPending') }}</p>
     <p v-if="isWindows && moveFailed" role="alert">{{ t('settings.storage.moveFailed') }}</p>
   </SettingGroup>
+
+  <SettingGroup
+    :title="t('settings.storage.diagnostics.title')"
+    :hint="t('settings.storage.diagnostics.hint')"
+  >
+    <p v-if="diagnostics?.recoveredFromBackup" class="recovered" role="alert">
+      <strong>{{ t('settings.storage.diagnostics.recovered') }}</strong>
+      {{ t('settings.storage.diagnostics.recoveredDetail', { backup: diagnostics.recoveredFromBackup }) }}
+    </p>
+    <SettingRow :title="t('settings.storage.diagnostics.dbStatus')">
+      <span class="diag-value">{{ dbStatusLabel }}</span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.nativeState')">
+      <span class="diag-value">{{ nativeStateLabel }}</span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.captureOwner')">
+      <span class="diag-value">{{ captureOwnerLabel }}</span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.lastCapture')">
+      <span class="diag-value">{{ lastCaptureLabel }}</span>
+    </SettingRow>
+    <SettingRow
+      :title="t('settings.storage.diagnostics.skippedCardsToday')"
+      :hint="t('settings.storage.diagnostics.skippedCardsHint')"
+    >
+      <span class="diag-value" :class="{ 'diag-value--warn': (diagnostics?.skippedCardsToday ?? 0) > 0 }">
+        {{ diagnostics ? diagnostics.skippedCardsToday : '—' }}
+      </span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.pendingBatches')">
+      <span class="diag-value">{{ isUnavailable('pendingBatches') ? t('settings.storage.diagnostics.unavailable') : (diagnostics?.pendingBatches ?? '—') }}</span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.failedBatches')">
+      <span class="diag-value" :class="{ 'diag-value--warn': !isUnavailable('failedBatches') && (diagnostics?.failedBatches ?? 0) > 0 }">
+        {{ isUnavailable('failedBatches') ? t('settings.storage.diagnostics.unavailable') : (diagnostics?.failedBatches ?? '—') }}
+      </span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.databaseSize')">
+      <span class="diag-value">{{ databaseSizeLabel }}</span>
+    </SettingRow>
+  </SettingGroup>
   <p v-if="writeFailed" class="write-error" role="alert">{{ t('settings.storage.writeError') }}</p>
 </template>
 
@@ -283,6 +363,29 @@ function onLimitChange(event: Event): void {
   font-size: 12px;
   word-break: break-all;
   text-align: right;
+}
+
+.diag-value {
+  color: var(--dg-text-secondary);
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.diag-value--warn {
+  color: var(--dg-danger, #b42318);
+  font-weight: 600;
+}
+
+.recovered {
+  color: var(--dg-danger, #b42318);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recovered strong {
+  display: block;
+  font-weight: 600;
 }
 
 .write-error {

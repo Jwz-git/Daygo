@@ -18,8 +18,8 @@
 实现进度与验证状态以 [09 §9.1](../09-roadmap.md#91-模块总表) weekly 行为准。当前能力快照：
 
 - 边界与聚合：`timeutil.WeekStart` / `WeekWindow`（周一 4 点对齐，
-  decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`（与
-  `TotalMinutesTracked` 同一窗口交集口径 + categories join 取 is_idle）、
+  decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`（03 §3.5
+  的窗口交集重叠谓词 + categories join 取 is_idle）、
   `internal/insight.AggregateWeekly`（tracked 排 System、focus 排 isIdle 与 Distraction、share
   分母 0 为 0、minutes DESC）、`DayContextDTO.weekStart`（前端初始周不自算）。
 - 绑定与前端：`GetWeeklyDashboard`（非周一拒绝，含按日明细 `WeeklyDayDTO` 与洞察

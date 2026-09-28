@@ -71,6 +71,17 @@ export interface AppearanceSettingsDTO {
   language: LanguagePreference
 }
 
+/**
+ * NotificationSettingsDTO — the daily journal reminder. `journalReminderTime` is
+ * a local wall-clock "HH:mm"; the recurrence is owned by the Go scheduler, which
+ * re-arms one platform notification at a time
+ * (docs/decisions/notifications-journal-reminder.md).
+ */
+export interface NotificationSettingsDTO {
+  journalReminderEnabled: boolean
+  journalReminderTime: string
+}
+
 /** SettingsDTO groups the settings consumed by current frontend sections. */
 export interface SettingsDTO {
   capture: CaptureSettingsDTO
@@ -79,6 +90,7 @@ export interface SettingsDTO {
   appearance: AppearanceSettingsDTO
   llm: LLMSettingsDTO
   chat: ChatSettingsDTO
+  notifications: NotificationSettingsDTO
   system: SystemSettingsDTO
 }
 
@@ -92,6 +104,8 @@ export interface SettingsPatch {
   language?: LanguagePreference
   outputLanguage?: string
   recognitionEnhancementEnabled?: boolean
+  journalReminderEnabled?: boolean
+  journalReminderTime?: string
   launchAtLogin?: boolean
   showDockIcon?: boolean
   agentEditsEnabled?: boolean

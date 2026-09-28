@@ -25,12 +25,33 @@ const { state: systemState, settings: systemSettings, load: loadSystem, persist:
   useSettingsSection()
 const launchAtLogin = computed(() => systemSettings.value?.system.launchAtLogin ?? false)
 const showDockIcon = computed(() => systemSettings.value?.system.showDockIcon ?? true)
+const journalReminderEnabled = computed(
+  () => systemSettings.value?.notifications.journalReminderEnabled ?? false,
+)
+const journalReminderTime = computed(
+  () => systemSettings.value?.notifications.journalReminderTime ?? '18:00',
+)
 const dockConfigurable = document.documentElement.dataset.dgPlatform === 'darwin'
 
 onMounted(() => void loadSystem())
 
 function onToggleLaunchAtLogin(next: boolean): void {
   void persistSystem({ launchAtLogin: next })
+}
+
+function onToggleJournalReminder(next: boolean): void {
+  void persistSystem({ journalReminderEnabled: next })
+}
+
+/**
+ * A half-typed <input type="time"> reports an empty value; persisting that would
+ * be rejected by the backend's normalizer and silently fall back to the default,
+ * so an empty intermediate value is ignored and the previous time stands.
+ */
+function onJournalReminderTimeChange(event: Event): void {
+  const value = (event.target as HTMLInputElement).value
+  if (value === '') return
+  void persistSystem({ journalReminderTime: value })
 }
 
 function onToggleTestTools(next: boolean): void {
@@ -133,6 +154,29 @@ function onLanguageChange(event: Event): void {
     />
   </SettingRow>
 
+  <SettingRow
+    :title="t('settings.general.journalReminder')"
+    :hint="t('settings.general.journalReminderHint')"
+  >
+    <div class="reminder-control">
+      <input
+        v-if="journalReminderEnabled"
+        class="dg-input reminder-time"
+        type="time"
+        :value="journalReminderTime"
+        :disabled="systemState !== 'ready'"
+        :aria-label="t('settings.general.journalReminderTime')"
+        @change="onJournalReminderTimeChange"
+      >
+      <SwitchControl
+        :checked="journalReminderEnabled"
+        :disabled="systemState !== 'ready'"
+        :label="t('settings.general.journalReminder')"
+        @toggle="onToggleJournalReminder"
+      />
+    </div>
+  </SettingRow>
+
   <template v-if="testToolsConfigurable">
     <SettingRow :title="t('settings.general.testTools')" :hint="t('settings.general.testToolsHint')">
       <SwitchControl
@@ -155,6 +199,19 @@ function onLanguageChange(event: Event): void {
  */
 .select {
   min-width: 168px;
+}
+
+/* The time input only appears while the reminder is on; the switch keeps its
+   place on the right so toggling does not shift the control column. */
+.reminder-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reminder-time {
+  min-width: 112px;
+  font-variant-numeric: tabular-nums;
 }
 
 .write-error {

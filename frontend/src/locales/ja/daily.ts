@@ -55,6 +55,9 @@ export default {
     failureDescription: '活動概要には影響ありません。しばらくしてから再度お試しください。',
     draftBadge: 'ジャーナルの下書き',
     fromJournal: 'ジャーナルから',
+    saving: '保存中…',
+    saveFailed: '保存できませんでした。しばらくしてからもう一度お試しください。',
+    editHint: '1行に1項目',
   },
   journal: {
     title: 'ジャーナル',

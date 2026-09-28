@@ -10,7 +10,8 @@ import (
 
 // NativeUiLabelsDTO is the localized copy for native surfaces that render
 // outside the webview and are not the status item: the platform application
-// picker, application menu and the copy the updater shows when it refuses an install.
+// picker, application menu, the journal reminder notification and the copy the
+// updater shows when it refuses an install.
 // vue-i18n cannot reach them, so the frontend pushes the translated bundle
 // (docs/05 §5.5.1) and this layer routes each field to its surface — no
 // adapter ever holds a locale.
@@ -25,6 +26,13 @@ type NativeUiLabelsDTO struct {
 	// is refused because this instance is not the capture owner.
 	UpdateOwnerRequired string                         `json:"updateOwnerRequired"`
 	ApplicationMenu     platform.ApplicationMenuLabels `json:"applicationMenu"`
+	// JournalReminderTitle / JournalReminderBody are the copy of the daily
+	// journal reminder notification. Its recurrence is owned by
+	// journal_reminder.go; the adapter only delivers what it is handed, so the
+	// localized wording travels this same push path
+	// (docs/decisions/notifications-journal-reminder.md).
+	JournalReminderTitle string `json:"journalReminderTitle"`
+	JournalReminderBody  string `json:"journalReminderBody"`
 }
 
 // defaultNativeUiLabels seeds the native surfaces before the frontend pushes a
@@ -41,6 +49,8 @@ func defaultNativeUiLabels() NativeUiLabelsDTO {
 		ApplicationMenu: platform.ApplicationMenuLabels{
 			Hide: "隐藏 Daygo", HideOthers: "隐藏其他应用", ShowAll: "显示全部", Background: "留在后台继续记录", Edit: "编辑", Undo: "撤销", Redo: "重做", Cut: "剪切", Copy: "复制", Paste: "粘贴", PasteMatch: "粘贴并匹配样式", Delete: "删除", SelectAll: "全选", Speech: "语音", StartSpeaking: "开始朗读", StopSpeaking: "停止朗读", Window: "窗口", Minimize: "最小化", Zoom: "缩放", FullScreen: "全屏",
 		},
+		JournalReminderTitle: "记一下今天的日记",
+		JournalReminderBody:  "花几分钟记录今天的进展和明天的计划。",
 	}
 }
 

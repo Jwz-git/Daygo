@@ -79,42 +79,6 @@ const identityCache = new LruCache<string, ApplicationDTO>(512, {
 })
 
 /**
- * On-demand cache warming, exposed as an opt-in helper. It is intentionally
- * NOT invoked at startup: warming every installed app's icon holds a base64
- * payload in the webview heap for the whole session even when the privacy grid
- * is never opened. A surface that wants an instant grid can call this itself.
- */
-export function prefetchInstalledApplications(language: string): void {
-  void warmInstalledApplicationCache(language)
-}
-
-/**
- * Best-effort cache warming. Unsupported platforms legitimately reject
- * application enumeration; that must not escape as an unhandled promise
- * rejection. The privacy page performs its own guarded load and keeps the
- * native picker available when enumeration is unsupported.
- */
-export async function warmInstalledApplicationCache(language: string): Promise<void> {
-  try {
-    const apps = await listInstalledApplications(language)
-    installedCache = { language, apps }
-    const missing = apps.filter((application) => !identityCache.has(application.id))
-    for (let start = 0; start < missing.length; start += 32) {
-      const batch = missing.slice(start, start + 32)
-      try {
-        const resolved = await describeApplications(batch.map((application) => application.id))
-        for (const application of resolved) identityCache.set(application.id, application)
-      } catch {
-        // Icons are display data; a failed batch simply refetches later.
-      }
-    }
-  } catch {
-    // Cache warming is optional. Windows versions without the enumeration
-    // capability return native_unavailable here by design.
-  }
-}
-
-/**
  * The user-visible installed applications, as identifier/name pairs resolved
  * in the requested language (the frontend's active UI locale), so the grid
  * reads 备忘录 or Notes depending on what the user chose.
