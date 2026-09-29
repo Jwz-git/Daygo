@@ -38,6 +38,7 @@ export default {
   windowsRecorderStatus: 'End-to-end status',
   lifecycleState: 'Lifecycle',
   failureReason: 'Latest recording failure code',
+  stopCause: 'Latest recording stop cause',
   permissionState: 'Capture permission semantics',
   capturesObserved: 'Frames committed this run',
   lastFrameAt: 'Last committed at',

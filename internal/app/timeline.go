@@ -102,9 +102,13 @@ func categoryFlagsFrom(list []domain.Category) categoryFlags {
 	return flags
 }
 
-// retryableFailure reports whether a failed batch is worth retrying, for the
-// day view's failure panel. Mirrors the batch:failed event's classification
-// (retryableFailureKind in analysis_wiring.go).
+// retryableFailure reports whether a failed batch is worth retrying. It is the
+// single classifier behind both the day view's failure panel and the
+// batch:failed event. An exhausted attempt count means the cooldown/requeue
+// loop already gave up; auth and invalid_request failures do not heal on their
+// own (the user must fix the key or request), so the UI should say "needs
+// attention" rather than "will retry"; no_provider is the same story — nothing
+// retries its way out of an empty chain.
 func retryableFailure(kind string, attempts int) bool {
 	switch kind {
 	case "auth", "invalid_request", "no_provider":
@@ -115,9 +119,9 @@ func retryableFailure(kind string, attempts int) bool {
 
 // mergeFailures groups failed batches whose windows are adjacent within the
 // 60-second tolerance (docs/05 §5.5.2 TimelineFailureDTO), so a burst of small
-// batch failures renders as one panel entry with all their ids. A group carries
-// the retryable flag of its first batch; merged entries are adjacent in time
-// and produced by the same failure event, so the flags agree in practice.
+// batch failures with the same cause renders as one panel entry. Different
+// causes must stay separate: otherwise an internal storage error adjacent to a
+// provider timeout can be incorrectly presented as a provider problem.
 func mergeFailures(batches []failedBatchView) []TimelineFailureDTO {
 	if len(batches) == 0 {
 		// The wire contract declares failures as an array. A nil slice encodes
@@ -134,7 +138,8 @@ func mergeFailures(batches []failedBatchView) []TimelineFailureDTO {
 		Retryable: retryableFailure(batches[0].FailureKind, batches[0].Attempts),
 	}
 	for _, b := range batches[1:] {
-		if b.StartTs-current.EndTs <= 60 {
+		if b.StartTs-current.EndTs <= 60 && b.FailureKind == current.Kind &&
+			retryableFailure(b.FailureKind, b.Attempts) == current.Retryable {
 			current.BatchIDs = append(current.BatchIDs, b.ID)
 			if b.EndTs > current.EndTs {
 				current.EndTs = b.EndTs
@@ -201,7 +206,7 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 		}
 		return TimelineDayDTO{}, apperr.E(apperr.DatabaseError, "timeline requires a database", nil)
 	}
-	loc := b.clock.Now().Location()
+	loc := store.Location()
 	start, end, err := timeutil.DayWindow(day, loc)
 	if err != nil {
 		return TimelineDayDTO{}, apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
@@ -245,11 +250,18 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 		})
 	}
 	for _, card := range cards {
-		dto.Cards = append(dto.Cards, sharedCardDTO(card, flags))
+		if card.EndTs <= card.StartTs || card.EndTs-card.StartTs > 4*3600 {
+			continue
+		}
+		visible := sharedCardDTO(card, flags)
+		visible.StartTs = max(card.StartTs, start.Unix())
+		visible.EndTs = min(card.EndTs, end.Unix())
+		visible.DurationMinutes = float64(visible.EndTs-visible.StartTs) / 60
+		dto.Cards = append(dto.Cards, visible)
 		if card.Category == "System" {
 			continue
 		}
-		minutes := cardDurationMinutes(card)
+		minutes := visible.DurationMinutes
 		if flags.isIdle[card.Category] {
 			dto.IdleMinutes += minutes
 		} else {
@@ -275,13 +287,6 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 	}
 	dto.Failures = mergeFailures(views)
 	return dto, nil
-}
-
-func cardDurationMinutes(card domain.TimelineCard) float64 {
-	if card.EndTs <= card.StartTs {
-		return 0
-	}
-	return float64(card.EndTs-card.StartTs) / 60.0
 }
 
 // sharedCardDTO assembles one card's DTO. Both the day view and the chat card
@@ -317,7 +322,7 @@ func sharedCardDTO(card domain.TimelineCard, flags categoryFlags) TimelineCardDT
 		Distractions:          distractions,
 		ActivityPoints:        activityPoints,
 		IsIdle:                flags.isIdle[card.Category],
-		DurationMinutes:       cardDurationMinutes(card),
+		DurationMinutes:       card.DurationMinutes(),
 	}
 }
 
@@ -331,14 +336,22 @@ func (b *Backend) requireTimelineWrite() error {
 	return nil
 }
 
-// cardDay returns the logical day of one card, for the invalidation event.
-func (b *Backend) cardDay(ctx context.Context, cardID int64) (string, error) {
+// cardVisibleDays includes the continuation day when one persisted card spans
+// 4 AM. A write to that card must refresh both timeline projections.
+func (b *Backend) cardVisibleDays(ctx context.Context, cardID int64) ([]string, error) {
 	store := b.store()
 	card, err := store.Cards().CardByID(ctx, cardID)
 	if err != nil {
-		return "", mapStorageError("load card", err)
+		return nil, mapStorageError("load card", err)
 	}
-	return card.Day, nil
+	days := []string{card.Day}
+	if card.EndTs > card.StartTs {
+		last := timeutil.LogicalDay(time.Unix(card.EndTs-1, 0), store.Location())
+		if last != card.Day {
+			days = append(days, last)
+		}
+	}
+	return days, nil
 }
 
 // UpdateCardCategory moves one card to an existing category name. Unknown
@@ -497,6 +510,35 @@ func (b *Backend) RetryBatches(batchIDs []int64) error {
 	return nil
 }
 
+// StopRetries stops the named failed batches from auto-requeueing after their
+// cooldown. It is the inverse of RetryBatches: rather than resetting the
+// attempt counter it caps it, so RequeueFailed leaves the batch in its failed
+// terminal state and the failure panel stops promising an automatic retry. The
+// batch stays visible and a later RetryBatches still overrides this, so the
+// user can resume analyzing it. No batch is deleted and no LLM call is made.
+func (b *Backend) StopRetries(batchIDs []int64) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	store := b.store()
+	if store == nil {
+		if err := b.storageFailure(); err != nil {
+			return mapStorageError("stop retries", err)
+		}
+		return apperr.E(apperr.DatabaseError, "stop retries requires a database", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	batches, err := store.Analysis().StopRetries(ctx, batchIDs, b.clock.Now())
+	if err != nil {
+		return mapStorageError("stop retries", err)
+	}
+	for _, batch := range batches {
+		b.emitTimelineInvalidation(timeutil.LogicalDay(batch.Start, b.clock.Now().Location()))
+	}
+	return nil
+}
+
 // ReprocessDay requeues one logical day's terminal batches (succeeded,
 // failed, failed_empty) for re-analysis — the explicit user path to rebuild
 // cards with an updated prompt. Dismissed and skipped-short batches stay as
@@ -514,7 +556,7 @@ func (b *Backend) ReprocessDay(day string) error {
 		}
 		return apperr.E(apperr.DatabaseError, "reprocess day requires a database", nil)
 	}
-	loc := b.clock.Now().Location()
+	loc := store.Location()
 	start, end, err := timeutil.DayWindow(day, loc)
 	if err != nil {
 		return apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
@@ -641,6 +683,8 @@ func (b *Backend) ClearHistoryData() error {
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
+	b.moveMu.RLock()
+	defer b.moveMu.RUnlock()
 	if state := b.recorderState(); state != recorder.StateIdle {
 		return apperr.E(apperr.Conflict, "stop recording before clearing history data", nil)
 	}
@@ -661,7 +705,10 @@ func (b *Backend) ClearHistoryData() error {
 	// Files after the rows: file deletion cannot roll back with the database,
 	// so a failure here leaves orphan files for the next clear, not rows
 	// pointing at missing files.
-	recordings := filepath.Join(filepath.Dir(store.Path()), "recordings")
+	recordings, err := b.recordingRoot(ctx)
+	if err != nil {
+		return mapStorageError("resolve recording directory", err)
+	}
 	for _, dir := range []string{"staging", "segments", "timelapses"} {
 		if err := os.RemoveAll(filepath.Join(recordings, dir)); err != nil {
 			return apperr.E(apperr.Internal, "remove recordings "+dir+": "+err.Error(), nil)
@@ -678,14 +725,16 @@ func (b *Backend) ClearHistoryData() error {
 	return nil
 }
 
-// invalidateCardDay resolves a card's day after a successful write and
+// invalidateCardDay resolves a card's visible days after a successful write and
 // schedules the merged invalidation emit. The write already succeeded, so a
 // failure to reload the card (concurrent delete) still emits nothing wrong:
 // the day is simply unknown, and no emit is the acceptable degraded case.
 func (b *Backend) invalidateCardDay(cardID int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
-	if day, err := b.cardDay(ctx, cardID); err == nil {
-		b.emitTimelineInvalidation(day)
+	if days, err := b.cardVisibleDays(ctx, cardID); err == nil {
+		for _, day := range days {
+			b.emitTimelineInvalidation(day)
+		}
 	}
 }

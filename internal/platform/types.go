@@ -156,13 +156,14 @@ type ApplicationIdentity struct {
 // by the app layer so the native adapter never owns product state or locale.
 //
 // The pause/resume region has two shapes. When PauseDurationsEnabled is true
-// (the recorder is capturing), the adapter renders PauseMenuLabel as a submenu
-// of the four duration items. Otherwise it renders PrimaryActionLabel as a
+// (the recorder is capturing), the adapter renders four duration items, inline
+// on macOS and in a PauseMenuLabel submenu on Windows. Otherwise it renders PrimaryActionLabel as a
 // single item — "start recording" when idle, "resume" when paused. Keeping the
 // mapping in the app layer means the adapter neither knows the recorder states
 // nor picks the copy for them.
 type StatusItemState struct {
 	Visible         bool
+	Icon            StatusItemIcon
 	Title           string
 	Tooltip         string
 	OpenLabel       string
@@ -186,6 +187,48 @@ type Notification struct {
 	Body      string
 	DeliverAt *time.Time
 }
+
+// ApplicationMenuLabels translates host-owned menu items without replacing
+// their native targets, responder-chain actions or keyboard shortcuts.
+type ApplicationMenuLabels struct {
+	Hide          string `json:"hide"`
+	HideOthers    string `json:"hideOthers"`
+	ShowAll       string `json:"showAll"`
+	Background    string `json:"background"`
+	Edit          string `json:"edit"`
+	Undo          string `json:"undo"`
+	Redo          string `json:"redo"`
+	Cut           string `json:"cut"`
+	Copy          string `json:"copy"`
+	Paste         string `json:"paste"`
+	PasteMatch    string `json:"pasteMatch"`
+	Delete        string `json:"delete"`
+	SelectAll     string `json:"selectAll"`
+	Speech        string `json:"speech"`
+	StartSpeaking string `json:"startSpeaking"`
+	StopSpeaking  string `json:"stopSpeaking"`
+	Window        string `json:"window"`
+	Minimize      string `json:"minimize"`
+	Zoom          string `json:"zoom"`
+	FullScreen    string `json:"fullScreen"`
+}
+
+type StatusMessage struct {
+	Title   string `json:"title"`
+	Message string `json:"message"`
+	Button  string `json:"button"`
+}
+
+// StatusItemIcon is a presentation choice, independent of recorder state.
+type StatusItemIcon uint32
+
+const (
+	StatusIconInactive StatusItemIcon = iota
+	StatusIconBusy
+	StatusIconActive
+	StatusIconPaused
+	StatusIconWarning
+)
 
 type SystemEvent struct {
 	Kind SystemEventKind

@@ -30,7 +30,7 @@ flowchart TD
             AIM["ai — provider 注册表、路由、重试"]
             INSIGHT["insight — 时间线、每日、每周"]
             CHAT["chat — 应用内对话式 agent：问答与沙箱内受控编辑（已部分实现，v1 不交付）"]
-            AGENT["agent — 对外接口：agentbridge 写入通道 / MCP 工具面（未开始）"]
+            AGENT["agent — CLI 只读查询 / agentbridge 写入通道 / MCP 工具面（基础实现，v1 不交付）"]
         end
         subgraph FOUND["foundation"]
             direction TB
@@ -102,8 +102,7 @@ flowchart TD
 ```text
 Daygo/
 ├── cmd/
-│   ├── daygo/                       ★ Wails 入口 + wails.json
-│   └── daygo-cli/                   ☐ 只读 CLI（推迟到 v1.1）
+│   └── daygo/                       ★ Wails 入口 + CLI / mcp 子命令 + wails.json
 │
 ├── internal/
 │   ├── app/                         ★ 生命周期、绑定 API、事件、资源处理器；唯一知道 Wails 的层
@@ -112,7 +111,7 @@ Daygo/
 │   │   │                               timeline / daily / weekly / chat / media / recording / 诊断）
 │   │   ├── events.go                ★ 事件名常量；emitter_wails.go 事件发布（接口化）
 │   │   ├── backend.go               ★ 绑定对象与启动装配（含生命周期编排）
-│   │   └── lifecycle.go             ☐ 优雅关闭等长驻宿主细节
+│   │   └── ui_visibility.go         ★ 窗口可见性；退出编排在 app.go / backend.go
 │   │
 │   ├── storage/                     ★ 唯一 SQLite 写入方与 schema owner
 │   │   ├── open.go store.go pragma.go     连接、模式、可观测读写封装
@@ -134,20 +133,25 @@ Daygo/
 │   │   ├── ports.go types.go enums.go application.go
 │   │   ├── fake/                    ★ Capture / System 的确定性实现，全平台可跑
 │   │   ├── platformtest/            ★ fake 与真实适配层共用的契约套件
-│   │   ├── secrets/                 ★ Secrets 端口实现：fake、macOS Keychain、Linux Secret Service
+│   │   ├── secrets/                 ★ fake、macOS Keychain、Windows Credential Manager、Linux Secret Service
 │   │   ├── mediafile/               ★ Media 实现：从录制目录读单帧 JPEG
 │   │   ├── factory/                 ★ 按平台组装适配器
+│   │   ├── updateconfig/            ★ 发布参数：appcast FeedURL 与 Ed25519 公钥（私钥在钥匙串 / CI）
 │   │   ├── darwin/                  ★ cgo → ScreenCaptureKit（+ System / 状态栏 ABI）
 │   │   └── windows/                 ★ cgo → DXGI / WGC、应用身份、系统事件与通知区（有限真机 smoke）
 │   ├── timeutil/                    ★ 凌晨 4 点逻辑日、时钟串派生、周边界（周一 4 点对齐）
 │   ├── domain/                      ★ 共享类型（cards），无行为
 │   ├── analysis/                    ★ 两阶段分析流水线：分批、提示词、schema、空闲判定、重处理
 │   ├── insight/                     ★ 卡片派生的只读视图：weekly / weekly_detail / standup
+│   ├── favicon/                     ★ 网站图标获取与本地缓存；主机名来自 LLM 输出按不可信处理（SSRF 防护）
 │   ├── chat/                        ★ 应用内对话 agent：回合状态机、工具沙箱与预算（v1 不交付；契约见 05 §5.12）
 │   ├── recorder/                    ★ 常驻录制：四状态机、定时捕获、staging 提交与对账
+│   ├── recordinglocation/           ★ 迁移录制目录并保持分段相对路径有效；不自行打开业务库
 │   ├── media/                       ☐ 已解码帧的有界 LRU（字节，不是图像对象）
-│   ├── agentbridge/                 ☐ 外部写入通道（agent 模块，推迟到 v1.1）
-│   ├── mcp/                         ☐ MCP 工具面（agent 模块，推迟；传输与进程模型见 05 §5.9.3）
+│   ├── agentread/                   ★ 外部只读接口：只读组装与绑定同形的 timeline/card/daily/weekly JSON（CLI 与 mcp 共用，v1 不交付）
+│   ├── agentcli/                    ★ 主二进制 CLI 子命令（读库只读；写经 socket，v1 不交付）
+│   ├── agentbridge/                 ★ 0600 socket、服务端写门禁与来源审计（v1 不交付）
+│   ├── mcp/                         ★ stdio 五读六写工具面（v1 不交付，见 05 §5.9.3）
 │   └── telemetry/                   ☐
 │
 ├── native/                          ★ 原生实现，两平台共用一份 C ABI
@@ -187,6 +191,7 @@ Daygo/
 - **禁止 `any` 跨越 Wails 边界。** 需要逃逸时用显式 `unknown` + 解析函数。
 - **写操作后不做乐观更新**（卡片、设置、分类），等对应事件后重新拉取。
 - **所有用户可见文案经 `vue-i18n`**，`zh-CN` 默认且是 key 结构的类型来源，`en` 为回退。
+  新增 / 改动文案同步九种语言；原生菜单与安装器同步各自本地化入口，见下文 i18n 规格。
 - **localStorage 只能经 `storage/`**，用带版本信封的记录存放，key 表集中在
   `storage/keys.ts`，分组与 `SettingsDTO` 对齐。**密钥不得进入该层。**
 
@@ -198,11 +203,26 @@ Daygo/
   它装的是原生表面文案，见 [05 §5.5.1](05-interface-contract.md#551-绑定方法目录)）。
   key 命名 `<domain>.<区块>.<语义>`，
   camelCase，禁止用英文原文当 key。
+  已发布语言包：`zh-CN`（默认）、`zh-Hant`、`en`（回退）、`ja`、`ko`、`de`、`fr`、`es`、`pt-BR`。
 - 类型：语言包映射为 `Record<AppLocale, LocaleSchema>`，某个语言包缺 key 时 `vue-tsc`
   直接失败，而不是运行时静默回退。
-- 语言解析：已保存设置 → 跟随系统（`navigator.languages`）→ `zh-CN`。BCP 47 先经规范化
-  （`zh` / `zh-Hans*` → `zh-CN`，`en*` → `en`）。空串是"跟随系统"的哨兵值。
-- `<html>` 标记：切语言时同步更新 `lang` 与 `data-dg-lang-script`，后者驱动展示字体切换。
+- 加载：**只有默认语言 `zh-CN` 进初始 chunk**，其余语言包各自是惰性 chunk，切到该语言时才拉取。
+  加载器映射类型为 `Record<AppLocale, () => Promise<{ default: LocaleSchema }>>`，因此"新增语言
+  却忘了写加载器"和"语言包结构相对 zh-CN 漂移"仍然是编译错误。切语言是异步的，
+  `setLocale` 必须先完成加载再改 `<html>` 标记；`bootstrap()` 因此在首次挂载前 await 它。
+  加载失败时保持当前语言不变——默认语言始终在内存里，总有一个可回退的完整消息表，
+  不会把一个空表交给渲染层。
+- 语言解析：已保存设置 → 跟随系统（`navigator.languages`）→ `zh-CN`。BCP 47 先经规范化：
+  `zh` / `zh-Hans*` / `zh-CN` / `zh-SG` → `zh-CN`；`zh-Hant*` / `zh-TW` / `zh-HK` / `zh-MO`
+  → `zh-Hant`（**书写系统优先于地区**：`zh-Hant-CN` 按繁体处理）；`en*` → `en`；`ja*` → `ja`；
+  `ko*` → `ko`；`de*` → `de`；`fr*` → `fr`；`es*` → `es`；`pt*` → `pt-BR`；其余 → 未识别，
+  由调用方回退到默认语言。空串是"跟随系统"的哨兵值，且只有空串是——未识别与"跟随系统"必须可区分。
+  葡语是唯一按地区取标签的语言：巴西与欧洲葡语在普通 UI 用词上就分叉（`tela` / `ecrã`、
+  `salvar` / `guardar`），而德/法/西的地区变体没有这一层差异，因此折叠到单一语言包。
+  这张折叠表在 Go 侧有一份镜像（`settings.normalizeLanguage`），两侧必须逐项一致：界面渲染的是
+  折叠结果，而设置的权威存储是 Go 那一份，不一致就会出现"界面显示一种语言、设置里存的是另一种"。
+- `<html>` 标记：切语言时同步更新 `lang` 与 `data-dg-lang-script`（`hans` / `hant` / `jpan` /
+  `kore` / `latn`），后者驱动字体分栈与展示字距。
 - 日期：逻辑日 `day` 与日历日 `standupDay` 只能来自后端；卡片时钟串 `start`/`end` 原样
   渲染，不解析不重排（[05 §5.3.2](05-interface-contract.md#532-时间与日期)）。
 
@@ -235,15 +255,15 @@ timeline 批次驱动，维护任务已在第 3 步前启动。
 ### 2.6.2 关闭
 
 关闭窗口、Cmd+Q / Dock「退出」、状态栏「退出」、更新重启、系统关机是**五个不同事件**，
-必须分别建模。**只有状态栏「退出」真正终止进程**；Cmd+Q 与 Dock 的「退出」被降级为
+必须分别建模。普通用户主动终止进程通过状态栏「停止录制并退出 Daygo」；Cmd+Q 与 Dock 的「退出」被降级为
 「软退出」——留在后台继续录制，只是把窗口藏起来、并摘掉 Dock 图标让它看起来已退出。
 决策与 Wails 承载机制见 [生命周期退出模型](decisions/lifecycle-quit-model.md)。
 
 | 事件 | 窗口 | Dock 图标 | 捕获 | 进程 |
 |------|------|-----------|------|------|
-| 关闭窗口 | 隐藏 | 保留 | **继续** | 存活 |
-| Cmd+Q / Dock「退出」 | 隐藏 | 摘除（accessory） | **继续** | 存活 |
-| 状态栏「退出」 | 关闭 | — | 收尾当前分段后停止 | 退出 |
+| 关闭窗口 | 隐藏 | 按 `showDockIcon` 偏好 | **继续** | 存活 |
+| Cmd+Q / Dock「退出」 | 隐藏 | accessory；状态栏不可用时保留 | **继续** | 存活 |
+| 状态栏「停止录制并退出 Daygo」 | 关闭 | — | 收尾当前分段后停止 | 退出；收尾失败默认保留应用，可明确选择仍然退出 |
 | 更新重启 | 关闭 | — | 收尾当前分段后停止 | 退出并由更新器拉起 |
 | 系统关机 | — | — | 尽力收尾 | 被系统终止 |
 
@@ -254,14 +274,16 @@ timeline 批次驱动，维护任务已在第 3 步前启动。
 
 关闭最后一个窗口后进程必须存活，状态栏项保留重新打开窗口的入口。Cmd+Q 或 Dock「退出」
 触发软退出时，激活策略切换为 accessory（不占活动中的 Dock）；状态栏“打开 Daygo”或用户再次
-点击保留在 Dock 的 Daygo 图标时恢复窗口并切回 regular。macOS 的应用激活通知只作为意图事件
+点击保留在 Dock 的 Daygo 图标时恢复窗口，按已保存的 `showDockIcon` 偏好应用激活策略。
+状态栏不可用时保留 regular 作为恢复入口。macOS 的应用激活通知只作为意图事件
 经 `platform.System` 上送，窗口操作仍由 `internal/app` 调用 Wails runtime 完成。
 **激活通知是泛化信号**（Dock、Cmd+Tab、调度中心、以及 `runtime.Show` 自身的
 `activateIgnoringOtherApps` 都会触发），因此只有软退出留下的后台状态才需要恢复窗口；应用已在前台
 时系统已经带回了窗口，再主动重开会在激活过渡中把窗口挤掉。判据与承载细节见
 [生命周期退出模型](decisions/lifecycle-quit-model.md)。
 **Wails 是否能承载这套语义是 G-host 硬门禁**，验证失败时停止大规模 UI 扩张
-并重新评估宿主（[风险 C-1](10-risks.md#c-1宿主无法承载后台-agent)）。
+并重新评估宿主（[风险 C-1](10-risks.md#c-1宿主无法承载后台-agent)）；该门禁
+**已于 2026-09-22 经用户实测验收（无逐项运行记录），大规模 UI 扩张解锁**。
 
 ### 2.6.4 适配层监管
 

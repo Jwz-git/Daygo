@@ -58,6 +58,7 @@ printf '\n== docs ==\n'
 # must not be the reason a Go/frontend gate cannot run on a machine.
 if command -v python3 >/dev/null 2>&1; then
   python3 scripts/check-docs.py
+  python3 scripts/windows-installer/test_installer.py
 else
   printf 'python3 not found; skipping docs check\n'
 fi

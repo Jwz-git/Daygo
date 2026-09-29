@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
+	"github.com/Jwz-git/Daygo/internal/domain"
 )
 
 // seedWeeklyCards seeds a Coding category and cards with explicit timestamps
@@ -101,6 +102,40 @@ func TestGetWeeklyDashboard(t *testing.T) {
 	}
 	if ins.AvgDailyFocusMinutes != 30 {
 		t.Fatalf("avg daily focus = %v, want 60/2", ins.AvgDailyFocusMinutes)
+	}
+}
+
+func TestGetWeeklyDashboardSplitsCardAtMondayFourAM(t *testing.T) {
+	backend, _ := backendWithStore(t)
+	store := backend.store()
+	ctx := context.Background()
+	if err := store.Write(ctx, "seed crossing batch", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO analysis_batches (id, start_ts, end_ts, status, created_at, updated_at) VALUES (1, 0, 0, 'succeeded', 0, 0)`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	loc := store.Location()
+	from := time.Date(2026, 9, 14, 3, 30, 0, 0, loc)
+	if _, err := store.Cards().ReplaceCardsInRange(ctx, from, from.Add(time.Hour), []domain.CardShell{{
+		Start: "3:30 AM", End: "4:30 AM", Category: "Focus Work", Title: "week boundary", Summary: "s",
+	}}, 1); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		week, day string
+		index     int
+	}{
+		{"2026-09-07", "2026-09-13", 6},
+		{"2026-09-14", "2026-09-14", 0},
+	} {
+		got, err := backend.GetWeeklyDashboard(tc.week)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.TrackedMinutes != 30 || got.FocusMinutes != 30 || got.Days[tc.index].Day != tc.day || got.Days[tc.index].TrackedMinutes != 30 || len(got.Days[tc.index].Segments) != 1 {
+			t.Fatalf("week %s = %+v; want one 30-minute slice on %s", tc.week, got, tc.day)
+		}
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	MaxImages     = 20
+	MaxImages     = 5
 	MaxImageBytes = 5 << 20
 	MaxTotalBytes = 20 << 20
 )

@@ -428,6 +428,7 @@ func dg_frame_append(
                         return
                     }
                     let now = Date()
+                    try Task.checkCancellation()
                     let res = try SegmentWriter.shared.append(image: placeholder, capturedAt: now, recordingsDir: recordingsDir)
                     box.complete(.success(FrameAppendResult(
                         outcome: UInt32(DG_CAPTURE_BLOCKED),
@@ -447,6 +448,12 @@ func dg_frame_append(
                 showsCursor: showsCursor,
                 blockedApplicationIDs: blockedIDs
             )
+            // The ABI may have timed out and cancelled us while the system
+            // screenshot call — which ignores cooperative cancellation — ran to
+            // completion. Don't append a frame the Go side already abandoned: it
+            // would land out of order and keep this task's image alive across the
+            // write.
+            try Task.checkCancellation()
             let res = try SegmentWriter.shared.append(image: image, capturedAt: startedAt, recordingsDir: recordingsDir)
             let midpoint = startedAt.timeIntervalSince1970 + finishedAt.timeIntervalSince(startedAt) / 2
             box.complete(.success(FrameAppendResult(
@@ -502,24 +509,28 @@ func dg_frame_decode(
     outData.pointee = nil
     outLen.pointee = 0
 
-    do {
-        let recordingsDir = try decodeUTF8(recordingsDirView, maximumBytes: maximumPathBytes, allowEmpty: false)
-        let segmentRelPath = try decodeUTF8(segmentRelPathView, maximumBytes: maximumPathBytes, allowEmpty: false)
-        let data = try SegmentReader.shared.decodeFrame(
-            recordingsDir: recordingsDir,
-            segmentRelPath: segmentRelPath,
-            frameIndex: Int(frameIndex),
-            maxPixelSize: Int(maxPixelSize)
-        )
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
-        data.copyBytes(to: buffer, count: data.count)
-        outData.pointee = buffer
-        outLen.pointee = UInt64(data.count)
-        return Int32(DG_CAPTURE_OK)
-    } catch let failure as ScreenshotFailure {
-        return writeFailure(failure, to: nil)
-    } catch {
-        return Int32(DG_CAPTURE_E_IO)
+    // Go calls this ABI off the AppKit event loop. Drain Foundation/media
+    // temporaries per decode; the explicitly allocated result survives the pool.
+    return autoreleasepool {
+        do {
+            let recordingsDir = try decodeUTF8(recordingsDirView, maximumBytes: maximumPathBytes, allowEmpty: false)
+            let segmentRelPath = try decodeUTF8(segmentRelPathView, maximumBytes: maximumPathBytes, allowEmpty: false)
+            let data = try SegmentReader.shared.decodeFrame(
+                recordingsDir: recordingsDir,
+                segmentRelPath: segmentRelPath,
+                frameIndex: Int(frameIndex),
+                maxPixelSize: Int(maxPixelSize)
+            )
+            let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
+            data.copyBytes(to: buffer, count: data.count)
+            outData.pointee = buffer
+            outLen.pointee = UInt64(data.count)
+            return Int32(DG_CAPTURE_OK)
+        } catch let failure as ScreenshotFailure {
+            return writeFailure(failure, to: nil)
+        } catch {
+            return Int32(DG_CAPTURE_E_IO)
+        }
     }
 }
 

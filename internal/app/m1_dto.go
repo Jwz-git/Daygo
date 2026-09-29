@@ -43,6 +43,7 @@ type CapabilitiesDTO struct {
 type RecordingStateDTO struct {
 	State           RecordingState `json:"state"`
 	Reason          *string        `json:"reason"`
+	StopCause       *string        `json:"stopCause"`
 	UserPaused      bool           `json:"userPaused"`
 	PauseEndsAtTs   *int64         `json:"pauseEndsAtTs"`
 	Permission      string         `json:"permission"`

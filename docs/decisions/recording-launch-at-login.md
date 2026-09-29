@@ -1,8 +1,13 @@
 # recording 开机自启：macOS 用 SMAppService.mainApp，Windows 用 Run 键
 
-> **状态：方案（待实现）。** 本文只落地"开机自启"的设计决策——端口不变、macOS 选型、
-> Windows 现状、状态映射与实现分片。macOS 原生实现尚未编写，Windows 已实现但真机 / 签名身份
-> 下的自启行为仍受 G-host / G-native 门禁约束，缺可复核证据时不得宣称「已支持」。
+> **最新功能验收（2026-09-26）**：本文涉及的所有已实现能力、长期观察与现有身份下真实安装升级，
+> 均按本次用户确认记为已验收，未附逐项运行记录；未实现项、待定设计与正式证书缺失保留。
+> 下文旧日期的失败 / 跳过 / 未运行结果是历史记录，不倒填为通过；统一范围见
+> [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+
+> **状态：已决定并实现。** macOS SMAppService、Windows Run 键、设置 patch 消费者与前端开关
+> 均已落盘；已实现功能于 2026-09-26 用户确认已验收，未附逐项运行记录。正式证书材料仍缺，
+> 保存用户意图不等于读取 OS 实际状态；以下单列尚未实现的对账与授权提示。
 > 端口签名以 [平台端口 `ports.go`](../../internal/platform/ports.go) 为准，
 > System C ABI 以 [`daygo_system.h`](../../native/include/daygo_system.h) 为准。
 
@@ -63,39 +68,28 @@ App 最低系统为 **macOS 14.0**（`scripts/package-macos.sh:39` `MACOS_MIN_VE
 SMAppService 有四态，端口只暴露 bool，映射约定：
 
 - `LaunchAtLogin()`：读 `status`，`.enabled` → `true`，其余 → `false`。
-- `SetLaunchAtLogin(true)`：`register()`；若注册后 `status` 仍为 `.requiresApproval`，
-  交由前端引导用户到登录项面板重新批准（不把它当作端口错误）。
+- `SetLaunchAtLogin(true)`：调用 `register()`，注册异常映射为桥接错误；当前不检查注册后的
+  `.requiresApproval`，专门引导属于尚未实现项。
 - `SetLaunchAtLogin(false)`：`unregister()`；已停用视为成功。
 
-**真相源**：DB 里持久化的 `system.launchAtLogin`（默认 `false`）是用户意图，OS 的
-`status` 是实际状态，两者可能因用户在系统设置里手动改动而分叉。约定：
+**当前实现的真相源与边界**：DB 的 `system.launchAtLogin`（默认 `false`）保存用户意图，
+OS 的 `status` 表示实际注册。`UpdateSettings` 提交成功后，仅当此键变更时尽力调用
+`SetLaunchAtLogin`；失败只记录日志，不撤销 DB 保存，也不将 OS 错误返回为设置保存失败。
+`GetSettings` 读回持久化意图，不会调用 OS 查询覆盖该值。
 
-- 写：`UpdateSettings` 检测到 `launchAtLogin` 变更时调用 `SetLaunchAtLogin`，与 recorder 转发
-  （`api_settings.go`）同处；失败经 `apperr` 映射，不静默吞掉。
-- 读 / 显示：设置页加载时以 `LaunchAtLogin()`（读 OS `status`）对账开关显示态，避免显示 DB 值
-  而 OS 已被用户改动。具体是复用现有绑定回读还是新增只读查询，实现时定，不提前过度设计。
+**尚未实现**：设置页加载时与 OS 实际注册状态对账；`.requiresApproval` 的专门引导。
+当前 bool 查询把非 enabled 映射为 false，不能区分“未注册”和“需要批准”。
+这些缺口不因已实现开关验收而自动成为已交付能力。
 
-## 5. 实现分片（待实现，本次仅方案）
+## 5. 已实现切片与剩余工作
 
-1. **C ABI**（`native/include/daygo_system.h`，minor 2→3，向后兼容新增函数）：
-   `dg_launch_at_login_query()` → 状态枚举（`NOT_REGISTERED` / `ENABLED` / `REQUIRES_APPROVAL` /
-   `NOT_FOUND` / `UNSUPPORTED`）；`dg_launch_at_login_set(uint32_t enabled)` → 0 或负值。
-2. **Swift**（[`SystemABI.swift`](../../native/darwin/Sources/SystemABI.swift)）：`@_cdecl` 实现，
-   `if #available(macOS 13, *)` 用 SMAppService，否则返回 `UNSUPPORTED`；register / unregister 的
-   `throws` 映射为负返回码。
-3. **cgo 桥接**（[`system_bridge_darwin.go`](../../internal/platform/darwin/system_bridge_darwin.go)）
-   映射枚举；[`system_bridge_unavailable_darwin.go`](../../internal/platform/darwin/system_bridge_unavailable_darwin.go)
-   无 cgo 时返回错误。
-4. **darwin 端口**（[`system.go`](../../internal/platform/darwin/system.go)）：把现有两个 no-op 桩
-   （`LaunchAtLogin` / `SetLaunchAtLogin`）改为转调桥接。
-5. **绑定接线**（`internal/app/api_settings.go`）：`UpdateSettings` 在 `launchAtLogin` 变更时调用
-   `system.SetLaunchAtLogin`，错误经 `apperr`。
-6. **fake**（[`fake/system.go`](../../internal/platform/fake/system.go)）：加记录字段，供 app 层断言接线。
-7. **前端**：`frontend/src/api/dto.ts` 补 `launchAtLogin`；`AppearanceSection.vue`（通用与外观）加一行
-   `SwitchControl`，用 `useSettingsSection` 的 `persist({ launchAtLogin })`；`.requiresApproval` 时用
-   `OpenSystemSettings(PaneLoginItems)` 引导。
-8. **i18n**：`general.launchAtLogin` / `launchAtLoginHint` 在 `zh-CN` 与 `en` 两侧（zh-CN 为准）。
-9. **测试**：fake 契约断言 set / query；app 层 `UpdateSettings` 接线测试；Windows 现有 Run 键行为保留。
+| 切片 | 当前落点 | 状态 |
+|---|---|---|
+| C ABI / Swift | `daygo_system.h` 的 `dg_launch_at_login_query` / `dg_launch_at_login_set`；`SystemABI.swift` 的 SMAppService 调用 | 已实现；System ABI 当前为 1.6，不再执行旧 minor 2→3 计划 |
+| Go 桥 / 端口 | `system_bridge_darwin.go`、无 cgo 不可用桥、`darwin.System`；Windows Run 键实现保留 | 已实现 |
+| 设置消费者 | `internal/app/api_settings.go` 的 `applyLaunchAtLogin`，提交后按改动键尽力应用 | 已实现；OS 失败不回滚保存 |
+| UI / i18n | `AppearanceSection.vue` 开关、设置 DTO / patch、九语言文案 | 已实现；当前展示 DB 意图 |
+| OS 对账 / 需要批准引导 | 加载时查询实际状态、专门呈现 requiresApproval | 未实现；新增绑定或 DTO 前先补 05 与双侧夹具 |
 
 ## 6. 未验证与门禁
 

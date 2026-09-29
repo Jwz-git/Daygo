@@ -9,10 +9,8 @@ import {
   type ProviderDTO,
   type ProviderModelsResult,
   type ProviderProtocol,
-  type ProviderTestResult,
 } from '@/api/dto'
 import { listProviderModels } from '@/api/providers'
-import { testProviderConnection, WAILS_UNAVAILABLE } from '@/api/providerTest'
 import {
   DEFAULT_ENDPOINTS,
   draftOf,
@@ -26,7 +24,7 @@ import {
 
 /*
  * The add/edit form owns the full draft lifecycle: the draft, its validation
- * errors, the draft connection test and the model listing. The section opens
+ * errors and the model listing. The section opens
  * it through the exposed openEdit/closeIfEditing; the add button lives here
  * because it toggles with the form.
  */
@@ -48,29 +46,12 @@ const modelPlaceholder = computed(() =>
 // Plain HTTP is accepted, only flagged: localhost gateways have no TLS story.
 const isPlainHttp = computed(() => draft.endpoint.trim().startsWith('http://'))
 
-type TestState =
-  | { phase: 'idle' }
-  | { phase: 'running' }
-  | { phase: 'done'; result: ProviderTestResult }
-
-const testState = ref<TestState>({ phase: 'idle' })
-
-/** Which model the draft probe runs against; '' picks the first filled one. */
-const testModel = ref('')
-
 type ModelsState =
   | { phase: 'idle' }
   | { phase: 'fetching' }
   | { phase: 'done'; result: ProviderModelsResult }
 
 const modelsState = ref<ModelsState>({ phase: 'idle' })
-
-/** The model a draft probe actually sends: the picked one, else the first. */
-const resolvedTestModel = computed(() => {
-  const picked = testModel.value.trim()
-  if (picked !== '' && filledModels.value.includes(picked)) return picked
-  return filledModels.value[0] ?? ''
-})
 
 /** Dropdown options for each model combobox; free text stays allowed. */
 const modelOptions = computed(() => {
@@ -95,9 +76,7 @@ function removeModelRow(index: number): void {
   draft.models.splice(index, 1)
   // The list never goes empty: a lone blank row keeps one editable field.
   if (draft.models.length === 0) draft.models.push('')
-  if (testModel.value !== '' && !filledModels.value.includes(testModel.value)) {
-    testModel.value = ''
-  }
+
 }
 
 function setModel(index: number, value: string): void {
@@ -114,24 +93,12 @@ function applyFetchedModels(models: string[]): void {
   draft.models = merged.length > 0 ? merged : ['']
 }
 
-// A result describes the draft as it was when tested; any later edit makes it
-// stale, so it clears instead of lingering next to a different configuration.
+// Clear model listings when their source configuration changes.
 watch(draft, () => {
-  testState.value = { phase: 'idle' }
   if (modelsState.value.phase === 'done') {
     modelsState.value = { phase: 'idle' }
   }
 })
-
-/** The typed key, or — while editing — nothing: the stored key is in the
- * keychain and never comes back, so a saved provider with no new key cannot
- * run a draft probe; the card's test button covers that case. */
-const canTest = computed(
-  () =>
-    draft.endpoint.trim() !== '' &&
-    resolvedTestModel.value !== '' &&
-    draft.secret.trim() !== '',
-)
 
 const canFetchModels = computed(
   () =>
@@ -139,44 +106,10 @@ const canFetchModels = computed(
     draft.secret.trim() !== '',
 )
 
-function testFailureText(result: ProviderTestResult): string {
-  const key = `settings.providers.test.error.${result.errorCode}`
-  const known = te(key) ? t(key) : ''
-  return known === '' ? result.message : known
-}
-
 function modelsFailureText(result: ProviderModelsResult): string {
   const key = `settings.providers.test.error.${result.errorCode}`
   const known = te(key) ? t(key) : ''
   return known === '' ? result.message : known
-}
-
-async function runTest(): Promise<void> {
-  if (testState.value.phase === 'running' || !canTest.value) return
-  testState.value = { phase: 'running' }
-  try {
-    const result = await testProviderConnection({
-      protocol: draft.protocol,
-      endpoint: draft.endpoint.trim(),
-      model: resolvedTestModel.value,
-      secret: draft.secret.trim(),
-    })
-    testState.value = { phase: 'done', result }
-  } catch (error) {
-    testState.value = {
-      phase: 'done',
-      result: {
-        ok: false,
-        model: '',
-        latencyMs: 0,
-        capabilities: [],
-        errorCode: error instanceof Error && error.message === WAILS_UNAVAILABLE
-          ? WAILS_UNAVAILABLE
-          : 'unavailable',
-        message: error instanceof Error ? error.message : String(error),
-      },
-    }
-  }
 }
 
 async function fetchModels(): Promise<void> {
@@ -220,7 +153,6 @@ function openAdd(): void {
   resetDraft(emptyDraft())
   editingId.value = null
   errors.value = {}
-  testModel.value = ''
   formOpen.value = true
   void nextTick(() => nameInput.value?.focus())
 }
@@ -229,7 +161,6 @@ function openEdit(provider: ProviderDTO): void {
   resetDraft(draftOf(provider))
   editingId.value = provider.id
   errors.value = {}
-  testModel.value = ''
   formOpen.value = true
   void nextTick(() => nameInput.value?.focus())
 }
@@ -239,9 +170,7 @@ function closeForm(): void {
   resetDraft(emptyDraft())
   editingId.value = null
   errors.value = {}
-  testModel.value = ''
   formOpen.value = false
-  testState.value = { phase: 'idle' }
   modelsState.value = { phase: 'idle' }
 }
 
@@ -429,53 +358,11 @@ function onProtocolChange(event: Event): void {
             spellcheck="false"
             :placeholder="t('settings.providers.form.apiKeyPlaceholder')"
           />
-          <button
-            type="button"
-            class="dg-button"
-            :disabled="!canTest || testState.phase === 'running'"
-            @click="runTest"
-          >
-            {{ t('settings.providers.test.run') }}
-          </button>
         </div>
-        <label v-if="filledModels.length > 1" class="form__test-model">
-          <span class="dg-field-label">{{ t('settings.providers.test.model') }}</span>
-          <select v-model="testModel" class="dg-input">
-            <option value="">
-              {{ t('settings.providers.test.modelDefault', { model: filledModels[0] }) }}
-            </option>
-            <option v-for="model in filledModels" :key="model" :value="model">
-              {{ model }}
-            </option>
-          </select>
-        </label>
         <p v-if="editingId !== null" class="form__hint">
           {{ t('settings.providers.form.apiKeyKeepHint') }}
         </p>
-        <p v-if="testState.phase === 'running'" class="form__hint" role="status" aria-live="polite">
-          {{ t('settings.providers.test.running') }}
-        </p>
-        <p
-          v-else-if="testState.phase === 'done' && testState.result.ok"
-          class="form__test-ok"
-          role="status"
-          aria-live="polite"
-        >
-          {{
-            t('settings.providers.test.passed', {
-              model: testState.result.model,
-              latency: testState.result.latencyMs,
-            })
-          }}
-        </p>
-        <p
-          v-else-if="testState.phase === 'done'"
-          class="form__error"
-          role="status"
-          aria-live="polite"
-        >
-          {{ testFailureText(testState.result) }}
-        </p>
+        <p class="form__hint">{{ t('modelPlayground.saveFirst') }}</p>
       </label>
     </div>
 

@@ -4,6 +4,9 @@ package app
 
 import "github.com/wailsapp/wails/v2/pkg/options/windows"
 
+// platformFrameless lets Vue provide the only Windows title bar.
+func platformFrameless() bool { return true }
+
 // platformWindowsOptions keeps Windows-specific host policy out of the
 // portable application composition. In particular, the capture helper DLL is
 // loaded only from the application directory (or System32 for OS libraries),
@@ -14,6 +17,9 @@ func platformWindowsOptions() *windows.Options {
 		BackdropType:     windows.Mica,
 		Messages:         windows.DefaultMessages(),
 		ResizeDebounceMS: 16,
-		DLLSearchPaths:   windows.DLLSearchApplicationDir | windows.DLLSearchSystem32,
+		// Keep native resize borders, shadows and Windows 11 rounded corners.
+		DisableFramelessWindowDecorations: false,
+		DisableWindowIcon:                 true,
+		DLLSearchPaths:                    windows.DLLSearchApplicationDir | windows.DLLSearchSystem32,
 	}
 }

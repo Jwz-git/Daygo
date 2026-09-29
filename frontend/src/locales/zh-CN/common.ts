@@ -25,9 +25,15 @@ export default {
     collapse: '收起选项',
     noMatches: '无匹配项',
   },
+  window: {
+    minimise: '最小化',
+    maximise: '最大化',
+    restore: '还原',
+    close: '关闭',
+  },
   fatal: {
     title: '出错了',
-    description: '刚刚发生了一处错误，页面已停止渲染以避免整屏空白。你可以复制详情反馈，或重新加载应用。',
+    description: '页面出了点问题，已暂停显示。你可以复制详情反馈给我们，或重新加载。',
     reload: '重新加载',
     dismiss: '关闭',
     copy: '复制详情',

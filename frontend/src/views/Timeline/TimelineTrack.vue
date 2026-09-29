@@ -10,6 +10,7 @@ import type {
   TimelineFailureDTO,
 } from '@/api/dto'
 import { safeTimeZone } from '@/lib/timeZone'
+import { failurePresentation } from './failurePresentation'
 
 import TimelineActivityCard from './TimelineActivityCard.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
@@ -238,12 +239,12 @@ onBeforeUnmount(() => {
             height: `${placed(failure.startTs, failure.endTs, 42).height}px`,
           }"
           :aria-pressed="failure.startTs === props.selectedFailureTs"
-          :aria-label="`${t('timeline.failure.title')}, ${failure.message}`"
+          :aria-label="`${t(failurePresentation(failure.kind).titleKey)}, ${t(failurePresentation(failure.kind).reasonKey)}`"
           @click="emit('selectFailure', failure.startTs)"
         >
           <span class="range__copy">
-            <span class="range__title">{{ t('timeline.failure.title') }}</span>
-            <span class="range__message">{{ failure.message }}</span>
+            <span class="range__title">{{ t(failurePresentation(failure.kind).titleKey) }}</span>
+            <span class="range__message">{{ t(failurePresentation(failure.kind).reasonKey) }}</span>
           </span>
         </button>
 

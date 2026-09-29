@@ -202,7 +202,7 @@ test('buildDailyPresentation merges overlapping or adjacent distractions within 
   assert.equal(presentation.distractionMarkers[0]!.durationMinutes, 7)
 })
 
-test('buildDailyPresentation suppresses distraction markers when user has no Distraction category', () => {
+test('buildDailyPresentation collects micro distractions even when user has no Distraction category', () => {
   const dayStart = 1_700_000_000
   const dayEnd = dayStart + 24 * 3600
   const day: TimelineDayDTO = {
@@ -236,5 +236,6 @@ test('buildDailyPresentation suppresses distraction markers when user has no Dis
   const presentation = buildDailyPresentation(day)
 
   assert.equal(presentation.hasDistractionCategory, false)
-  assert.equal(presentation.distractionMarkers.length, 0)
+  assert.equal(presentation.distractionMarkers.length, 1)
+  assert.equal(presentation.distractionMarkers[0]!.title, 'Reddit')
 })

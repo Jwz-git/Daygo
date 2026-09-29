@@ -220,7 +220,7 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 		}
 	}
 
-	b.WriteString("\n" + titleEvidenceBlock + "\n\n")
+	b.WriteString("\n" + titleBlock + "\n\n")
 	b.WriteString(summaryBlock + "\n\n")
 	b.WriteString(detailedSummaryBlock + "\n\n")
 	b.WriteString(distractionsBlock + "\n\n")
@@ -269,10 +269,10 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 	return b.String()
 }
 
-// titleEvidenceBlock ports Dayflow's primary title guidance (GeminiPromptDefaults.titleBlock):
+// titleBlock ports Dayflow's primary title guidance (GeminiPromptDefaults.titleBlock):
 // each title is a memory trigger, specific enough that it could only describe one situation,
 // roughly 5-15 words with honest verbs and no corporate filler.
-const titleEvidenceBlock = `TITLES — Each title is a memory trigger. Be specific enough that it could only describe one situation.
+const titleBlock = `TITLES — Each title is a memory trigger. Be specific enough that it could only describe one situation.
 "Bug fixes" could be anything. "Fixed the infinite scroll crash on search results" can only be one thing.
 "Gaming session" could be any day. "League ARAM — Thresh and Jinx" is a specific session.
 

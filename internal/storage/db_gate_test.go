@@ -34,13 +34,6 @@ func readEveryTable(t *testing.T, store *Store) {
 		time.Unix(0, 0), time.Unix(2_000_000_000, 0)); err != nil {
 		t.Errorf("cards CardsInRange: %v", err)
 	}
-	if _, err := store.Cards().CardsForBatch(ctx, 1); err != nil {
-		t.Errorf("cards CardsForBatch: %v", err)
-	}
-	if _, err := store.Cards().TotalMinutesTracked(ctx,
-		time.Unix(0, 0), time.Unix(2_000_000_000, 0)); err != nil {
-		t.Errorf("cards TotalMinutesTracked: %v", err)
-	}
 
 	// categories
 	if _, err := store.Categories().List(ctx); err != nil {

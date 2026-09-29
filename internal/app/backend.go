@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -67,30 +69,57 @@ type Backend struct {
 	storage              *storage.Store
 	recorder             *recorder.Recorder
 	recorderMu           sync.Mutex
-	systemEventMu        sync.Mutex
-	systemEventBuffer    []platform.SystemEvent
-	statusActionMu       sync.RWMutex
-	statusAction         func(string)
-	activationActionMu   sync.RWMutex
-	activationAction     func()
+	// moveMu excludes capture commands, media reads and cleanup while files move.
+	moveMu             sync.RWMutex
+	moveControlMu      sync.Mutex
+	moveCancel         context.CancelFunc
+	systemEventMu      sync.Mutex
+	systemEventBuffer  []platform.SystemEvent
+	statusActionMu     sync.RWMutex
+	statusAction       func(string)
+	activationActionMu sync.RWMutex
+	activationAction   func()
+	uiVisibility       uiVisibilityState
 	// allowQuit gates the Wails OnBeforeClose hook. It stays false so Cmd+Q,
 	// the Dock "Quit" item and closing the window are downgraded to a
 	// background soft-quit; only the status-bar Quit sets it (requestQuit)
 	// before runtime.Quit, letting that one path terminate for real. See
 	// docs/decisions/lifecycle-quit-model.md.
-	allowQuit       atomic.Bool
-	statusUpdaterMu sync.RWMutex
-	statusUpdater   func(recorder.State)
-	statusLabels    statusItemLabelStore
+	allowQuit          atomic.Bool
+	systemShuttingDown atomic.Bool
+	// pendingPermissionRestart arms the next quit to be a real termination with
+	// an automatic relaunch, instead of the resident-agent soft-quit. The
+	// frontend sets it while the screen-recording permission guidance is up, so
+	// macOS's own "Quit & Reopen" (and the guidance's own restart button) fully
+	// terminate and come back with the new TCC grant in effect. See
+	// docs/decisions/recording-screen-recording-permission.md.
+	pendingPermissionRestart atomic.Bool
+	// shutdownRequester asks the desktop shell to terminate for real (requestQuit
+	// + runtime.Quit). It is installed in OnStartup because runtime.Quit needs the
+	// Wails context; it stays nil in headless construction.
+	shutdownRequesterMu sync.RWMutex
+	shutdownRequester   func()
+	statusUpdaterMu     sync.RWMutex
+	statusUpdater       func(recorder.State)
+	statusPaintMu       sync.Mutex
+	statusLabels        statusItemLabelStore
 	// nativeLabels carries the localized copy for the other native surfaces
 	// (application picker, update refusal); see native_ui.go.
 	nativeLabels nativeUiLabelStore
+	// reminder is the last reconciled journal reminder, guarded by reminderMu.
+	// journal_reminder.go owns it; it exists so a tick that finds nothing
+	// changed makes no platform call (docs/decisions/notifications-journal-reminder.md).
+	reminderMu sync.Mutex
+	reminder   journalReminderState
 	// backgrounded is true between a soft-quit and the next restore: the window
 	// is ordered out and the activation policy is accessory. It is the single
 	// condition an activation uses to decide whether the window needs bringing
 	// back (restoreOnActivation).
-	backgroundMu sync.Mutex
-	backgrounded bool
+	backgroundMu      sync.Mutex
+	backgrounded      bool
+	activationApplied bool
+	activationPolicy  platform.ActivationPolicy
+	dockHidden        bool
 	// windowCtx is the Wails runtime context handed over in OnStartup; it
 	// scopes WindowSetBackgroundColour calls (window_background.go). It is
 	// nil in headless construction, where those calls become no-ops.
@@ -146,6 +175,13 @@ type Backend struct {
 	// per day within the 200 ms merge window (docs/05 §5.5.3).
 	timelineEvents   map[string]*time.Timer
 	timelineEventsMu sync.Mutex
+
+	// agentSocketActive is true while this instance serves agent.sock. Only
+	// the read-write instance starts the socket (app.Run), so a read-only
+	// second instance reports false and the settings page says so.
+	agentSocketActive  atomic.Bool
+	updatePrepared     atomic.Bool
+	updateWasRecording atomic.Bool
 }
 
 // setEventEmitter installs the Wails-backed emitter. It is called once during
@@ -288,6 +324,14 @@ func (b *Backend) startSystemEventPump() {
 	}
 	go func(events <-chan platform.SystemEvent) {
 		for event := range events {
+			switch event.Kind {
+			case platform.EventApplicationHidden:
+				b.setApplicationHidden(true)
+			case platform.EventApplicationUnhidden:
+				b.setApplicationHidden(false)
+			case platform.EventSystemShutdown:
+				b.requestSystemShutdown()
+			}
 			b.systemEventMu.Lock()
 			if len(b.systemEventBuffer) >= 64 {
 				b.systemEventBuffer = b.systemEventBuffer[1:]
@@ -365,6 +409,8 @@ func (b *Backend) setStatusUpdater(updater func(recorder.State)) {
 }
 
 func (b *Backend) updateStatus(state recorder.State) {
+	b.statusPaintMu.Lock()
+	defer b.statusPaintMu.Unlock()
 	b.statusUpdaterMu.RLock()
 	updater := b.statusUpdater
 	b.statusUpdaterMu.RUnlock()
@@ -392,6 +438,88 @@ func (b *Backend) requestQuit() { b.allowQuit.Store(true) }
 // quitAllowed reports whether a real termination was requested.
 func (b *Backend) quitAllowed() bool { return b.allowQuit.Load() }
 
+// System termination must never be downgraded to a hide or permission relaunch.
+func (b *Backend) requestSystemShutdown() {
+	if !b.systemShuttingDown.CompareAndSwap(false, true) {
+		return
+	}
+	b.disarmPermissionRestart()
+	b.requestQuit()
+	if request := b.shutdownRequest(); request != nil {
+		request()
+	}
+}
+
+func (b *Backend) stopRecorder() error {
+	b.recorderMu.Lock()
+	r := b.recorder
+	b.recorderMu.Unlock()
+	if r != nil {
+		return r.Stop()
+	}
+	return nil
+}
+
+// Ordinary quits preserve the process on a failed segment finalization. System
+// shutdown and signals are best-effort; logging contains only a stable category.
+func (b *Backend) prepareTermination(stop func() error) error {
+	if err := stop(); err != nil {
+		if b.systemShuttingDown.Load() {
+			log.Printf("system shutdown recording finalization failed: %s", recordingFailureReason(err))
+			return nil
+		}
+		b.allowQuit.Store(false)
+		return err
+	}
+	return nil
+}
+
+// setShutdownRequester installs the closure that terminates the desktop shell
+// for real. Called once in OnStartup.
+func (b *Backend) setShutdownRequester(requester func()) {
+	b.shutdownRequesterMu.Lock()
+	b.shutdownRequester = requester
+	b.shutdownRequesterMu.Unlock()
+}
+
+func (b *Backend) shutdownRequest() func() {
+	b.shutdownRequesterMu.RLock()
+	defer b.shutdownRequesterMu.RUnlock()
+	return b.shutdownRequester
+}
+
+// armPermissionRestart / disarmPermissionRestart / permissionRestartArmed gate
+// whether the next quit becomes a full terminate-and-relaunch. The frontend arms
+// it while the permission guidance is visible and disarms it when the guidance
+// is dismissed, so an ordinary Cmd+Q outside that flow still soft-quits.
+func (b *Backend) armPermissionRestart()        { b.pendingPermissionRestart.Store(true) }
+func (b *Backend) disarmPermissionRestart()     { b.pendingPermissionRestart.Store(false) }
+func (b *Backend) permissionRestartArmed() bool { return b.pendingPermissionRestart.Load() }
+
+// beginPermissionRestart finalizes the active segment and schedules a relaunch
+// so the process can terminate and come back with the new TCC grant applied. The
+// caller drives the actual quit only after this succeeds.
+func (b *Backend) beginPermissionRestart() error {
+	relauncher, ok := b.system.(platform.Relauncher)
+	if !ok {
+		return fmt.Errorf("permission restart: relaunch capability unavailable")
+	}
+	b.recorderMu.Lock()
+	r := b.recorder
+	b.recorderMu.Unlock()
+	if r != nil {
+		if err := r.Stop(); err != nil {
+			return fmt.Errorf("permission restart: stop recorder: %w", err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := relauncher.Relaunch(ctx); err != nil {
+		return fmt.Errorf("permission restart: schedule relaunch: %w", err)
+	}
+	return nil
+}
+
 // enterBackground drops the app to accessory (no Dock icon) for a soft-quit.
 // The status item stays as the only way back. It is a no-op without a platform
 // System (headless construction).
@@ -401,17 +529,13 @@ func (b *Backend) quitAllowed() bool { return b.allowQuit.Load() }
 // activation must still be able to bring it back.
 func (b *Backend) enterBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
-	entered := b.backgrounded
+	defer b.backgroundMu.Unlock()
 	b.backgrounded = true
-	b.backgroundMu.Unlock()
-	if entered || b.system == nil {
-		return nil
-	}
-	return b.system.SetActivationPolicy(ctx, platform.ActivationAccessory)
+	return b.applyDockPolicyLocked(ctx, true)
 }
 
-// exitBackground restores the regular (Dock-visible) policy when the user
-// reopens the window from the status item.
+// exitBackground restores the configured foreground policy when the user
+// reopens the window from the status item (regular by default).
 //
 // The app launches regular (Wails sets NSApplicationActivationPolicyRegular in
 // applicationWillFinishLaunching), so an app that never left the foreground is
@@ -420,13 +544,68 @@ func (b *Backend) enterBackground(ctx context.Context) error {
 // activation show the window for a frame and then lose it.
 func (b *Backend) exitBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
-	entered := b.backgrounded
-	b.backgrounded = false
-	b.backgroundMu.Unlock()
-	if !entered || b.system == nil {
+	defer b.backgroundMu.Unlock()
+	if b.system == nil {
+		b.backgrounded = false
 		return nil
 	}
-	return b.system.SetActivationPolicy(ctx, platform.ActivationRegular)
+	if err := b.applyDockPolicyLocked(ctx, false); err != nil {
+		return err
+	}
+	b.backgrounded = false
+	return nil
+}
+
+// The preference and soft-quit are separate: an accessory app can have a visible
+// window. All policy transitions are serialized and only successful calls stick.
+func (b *Backend) applyDockPreference(ctx context.Context, show bool) error {
+	b.backgroundMu.Lock()
+	defer b.backgroundMu.Unlock()
+	b.dockHidden = !show
+	return b.applyDockPolicyLocked(ctx, b.backgrounded)
+}
+
+func (b *Backend) applyDockPolicyLocked(ctx context.Context, background bool) error {
+	if b.system == nil {
+		return nil
+	}
+	policy := platform.ActivationRegular
+	if background || b.dockHidden {
+		policy = platform.ActivationAccessory
+		if availability, ok := b.system.(platform.StatusItemAvailability); ok {
+			ready, err := availability.StatusItemAvailable(ctx)
+			if err != nil || !ready {
+				policy = platform.ActivationRegular
+			}
+		}
+	}
+	if b.activationApplied && b.activationPolicy == policy {
+		return nil
+	}
+	// Wails starts regular. Avoid disturbing an already visible startup window.
+	if !b.activationApplied && policy == platform.ActivationRegular && !background && !b.dockHidden {
+		return nil
+	}
+	if err := b.system.SetActivationPolicy(ctx, policy); err != nil {
+		return err
+	}
+	b.activationApplied = true
+	b.activationPolicy = policy
+	return nil
+}
+
+func (b *Backend) loadDockPreference(ctx context.Context) {
+	access, err := b.settingsAccess()
+	if err != nil {
+		return
+	}
+	snapshot, err := access.Load(ctx)
+	if err != nil {
+		return
+	}
+	if err := b.applyDockPreference(ctx, snapshot.ShowDockIcon); err != nil {
+		log.Printf("apply dock preference unavailable")
+	}
 }
 
 // restoreOnActivation runs show only when a soft-quit left the app in the
@@ -554,13 +733,28 @@ func (b *Backend) GetRecordingState() (RecordingStateDTO, error) {
 		}
 	}
 	var reason *string
+	var userPaused bool
+	var pauseEndsAtTs *int64
+	var stopCause *string
 	if activeRecorder != nil {
+		pause := activeRecorder.PauseInfo()
+		userPaused = pause.UserPaused
+		if pause.Until != nil {
+			value := pause.Until.Unix()
+			pauseEndsAtTs = &value
+		}
 		if lastError := activeRecorder.LastError(); lastError != nil {
 			value := recordingFailureReason(lastError)
 			reason = &value
 		}
+		if state == RecordingStateIdle {
+			if cause := activeRecorder.LastStopCause(); cause != "" {
+				value := string(cause)
+				stopCause = &value
+			}
+		}
 	}
-	return RecordingStateDTO{State: state, Reason: reason, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
+	return RecordingStateDTO{State: state, Reason: reason, StopCause: stopCause, UserPaused: userPaused, PauseEndsAtTs: pauseEndsAtTs, Permission: permission, IsCaptureOwner: isCaptureOwner, LastFrameAtTs: lastFrameAtTs}, nil
 }
 
 // recordingPermission is GetRecordingState's single query: system unavailability
@@ -618,11 +812,16 @@ func (b *Backend) permissionState(op string, query func(ctx context.Context) (pl
 }
 
 func (b *Backend) shutdown() {
+	_ = b.CancelRecordingDirectoryMove()
+	b.moveMu.RLock()
+	defer b.moveMu.RUnlock()
 	b.recorderMu.Lock()
 	r := b.recorder
 	b.recorderMu.Unlock()
 	if r != nil {
-		_ = r.Stop()
+		if err := r.StopWithCause(recorder.StopShutdown); err != nil {
+			log.Printf("shutdown recording finalization failed: %s", recordingFailureReason(err))
+		}
 	}
 	if closer, ok := b.updater.(interface{ Close() error }); ok {
 		_ = closer.Close()
@@ -644,14 +843,41 @@ func (b *Backend) configureUpdateInstall(requestShutdown func()) {
 			return canWrite && isCaptureOwner
 		},
 		func() error {
+			if !b.updatePrepared.CompareAndSwap(false, true) {
+				return nil
+			}
 			b.recorderMu.Lock()
 			r := b.recorder
 			b.recorderMu.Unlock()
 			if r == nil {
 				return nil
 			}
-			return r.Stop()
+			b.updateWasRecording.Store(r.State() == recorder.StateCapturing || r.State() == recorder.StateStarting)
+			if err := r.StopWithCause(recorder.StopUpdate); err != nil {
+				b.updatePrepared.Store(false)
+				b.updateWasRecording.Store(false)
+				return err
+			}
+			return nil
 		},
 		requestShutdown,
 	)
+	if sink, ok := b.updater.(interface{ SetInstallCancelled(func()) }); ok {
+		sink.SetInstallCancelled(func() {
+			if !b.updatePrepared.Swap(false) {
+				return
+			}
+			if !b.updateWasRecording.Swap(false) {
+				return
+			}
+			b.recorderMu.Lock()
+			r := b.recorder
+			b.recorderMu.Unlock()
+			if r != nil {
+				if err := r.Start(context.Background()); err != nil {
+					log.Printf("resume recording after cancelled update: %v", err)
+				}
+			}
+		})
+	}
 }

@@ -187,6 +187,7 @@ onBeforeUnmount(() => {
     <dl>
       <div><dt>{{ t('captureTest.lifecycleState') }}</dt><dd><code>{{ lifecycle }}</code></dd></div>
       <div><dt>{{ t('captureTest.failureReason') }}</dt><dd><code>{{ state?.reason ?? '—' }}</code></dd></div>
+      <div><dt>{{ t('captureTest.stopCause') }}</dt><dd><code>{{ state?.stopCause ?? '—' }}</code></dd></div>
       <div><dt>{{ t('captureTest.permissionState') }}</dt><dd><code>{{ state?.permission ?? '—' }}</code></dd></div>
       <div><dt>{{ t('captureTest.capturesObserved') }}</dt><dd>{{ capturesObserved }}</dd></div>
       <div><dt>{{ t('captureTest.lastFrameAt') }}</dt><dd>{{ state?.lastFrameAtTs ? new Date(state.lastFrameAtTs * 1000).toLocaleString() : '—' }}</dd></div>

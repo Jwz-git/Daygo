@@ -58,7 +58,7 @@ Daygo 的目标是保留**工作本身的上下文**：在构建什么、排查�
 | F-C1 | 按固定间隔截取**一块**显示器，v1 取调用时的**系统主显示器** | 多显示器下只产生一路记录；用户在系统设置里换主显示器后，下一次捕获自动跟随 |
 | F-C2 | 间隔可配置 | 取值 1 / 5 / 10 / 20 / 30 / 60 秒，默认 10 秒 |
 | F-C3 | 捕获分辨率可配置 | 720 / 1080 px 高度，默认 1080 |
-| F-C4 | ABI 原子 JPEG 只作短期 staging；长期像素写入**不可变分段文件**，不写 SQLite BLOB | 完整分段发布后，单帧可通过 `(分段路径, 帧序号)` 随机访问；见[图片存储决策](decisions/recording-image-storage.md) |
+| F-C4 | macOS 捕获直接追加 HEVC 分段；Windows 按探测结果写 HEVC / H.264 或单帧 JPEG 段，像素不写 SQLite BLOB | 已收尾分段通过 `(分段路径, 帧序号)` 随机访问；保留 legacy JPEG 读取；见 [HEVC 决策](decisions/recording-frame-segments-hevc.md)与 [Windows 编码决策](decisions/recording-windows-segment-codec.md) |
 | F-C5 | 前台应用在屏蔽名单内时，写入脱敏占位帧而不是跳过 | 时间线上仍能看到"这段时间有活动"，但没有内容 |
 | F-C6 | 睡眠、锁屏、屏保期间停止捕获，事件结束后自动恢复 | 恢复是自动的，不需要用户干预 |
 | F-C7 | 用户主动关闭记录后，系统事件**不得**自动恢复它 | `idle`（用户关闭）与 `paused`（系统事件）是不同状态 |

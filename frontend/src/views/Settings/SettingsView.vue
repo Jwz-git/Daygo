@@ -23,9 +23,8 @@ const { t } = useI18n()
  * design.
  *
  * storage / privacy / agentAccess consume the real GetSettings /
- * UpdateSettings bindings. The values persist, but each setting's downstream
- * consumer (recorder, cleanup loop, agent.sock) is still unimplemented — the
- * agentAccess hint says so explicitly.
+ * UpdateSettings bindings. Each section reads the committed setting after a
+ * write; the agent socket checks its gate again for every external request.
  */
 const sections = SETTINGS_SECTIONS
 

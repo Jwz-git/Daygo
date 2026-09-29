@@ -44,8 +44,18 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
     }
     add(NSWorkspace.willSleepNotification, workspace)
     add(NSWorkspace.didWakeNotification, workspace)
+    add(NSWorkspace.willPowerOffNotification, workspace)
     add(NSApplication.didChangeScreenParametersNotification, NotificationCenter.default)
     add(NSApplication.didBecomeActiveNotification, NotificationCenter.default)
+    add(NSApplication.didHideNotification, NotificationCenter.default)
+    add(NSApplication.didUnhideNotification, NotificationCenter.default)
+    let menuObserver = NotificationCenter.default.addObserver(forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: nil) { _ in
+        DispatchQueue.main.async {
+            applyApplicationMenuCopy()
+            restoreAppliedActivationPolicy()
+        }
+    }
+    state.lock.lock(); state.observers.append(menuObserver); state.lock.unlock()
     for (name, value) in [("com.apple.screenIsLocked", UInt32(DG_SYSTEM_SCREEN_LOCKED)), ("com.apple.screenIsUnlocked", UInt32(DG_SYSTEM_SCREEN_UNLOCKED)), ("com.apple.screensaver.didstart", UInt32(DG_SYSTEM_SCREENSAVER_START)), ("com.apple.screensaver.didstop", UInt32(DG_SYSTEM_SCREENSAVER_STOP))] {
         let token = distributed.addObserver(forName: Notification.Name(name), object: nil, queue: nil) { _ in emit(value) }
         state.lock.lock(); state.observers.append(token); state.lock.unlock()
@@ -65,7 +75,10 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
 private func kind(for name: Notification.Name) -> UInt32 {
     if name == NSWorkspace.willSleepNotification { return UInt32(DG_SYSTEM_SLEEP) }
     if name == NSWorkspace.didWakeNotification { return UInt32(DG_SYSTEM_WAKE) }
+    if name == NSWorkspace.willPowerOffNotification { return UInt32(DG_SYSTEM_SHUTDOWN) }
     if name == NSApplication.didBecomeActiveNotification { return UInt32(DG_SYSTEM_APPLICATION_ACTIVATED) }
+    if name == NSApplication.didHideNotification { return UInt32(DG_SYSTEM_APPLICATION_HIDDEN) }
+    if name == NSApplication.didUnhideNotification { return UInt32(DG_SYSTEM_APPLICATION_UNHIDDEN) }
     return UInt32(DG_SYSTEM_DISPLAYS_CHANGED)
 }
 
@@ -77,6 +90,12 @@ private func activationRunOnMain(_ body: @Sendable @escaping @MainActor () -> Vo
     }
 }
 
+@MainActor private var appliedActivationPolicy: NSApplication.ActivationPolicy?
+
+@MainActor private func restoreAppliedActivationPolicy() {
+    if let target = appliedActivationPolicy { _ = NSApp.setActivationPolicy(target) }
+}
+
 @_cdecl("dg_activation_policy_set")
 func dg_activation_policy_set(_ policy: UInt32) -> Int32 {
     let target: NSApplication.ActivationPolicy
@@ -86,8 +105,18 @@ func dg_activation_policy_set(_ policy: UInt32) -> Int32 {
     case UInt32(DG_ACTIVATION_PROHIBITED): target = .prohibited
     default: return -1
     }
-    activationRunOnMain { NSApp.setActivationPolicy(target) }
-    return 0
+    let apply: @Sendable @MainActor () -> Int32 = {
+        // AppKit returns false for a no-op, including when the host already
+        // restored regular. Success is the observed policy, not a change flag.
+        if NSApp.activationPolicy() != target {
+            _ = NSApp.setActivationPolicy(target)
+        }
+        guard NSApp.activationPolicy() == target else { return -2 }
+        appliedActivationPolicy = target
+        return 0
+    }
+    if Thread.isMainThread { return MainActor.assumeIsolated { apply() } }
+    return DispatchQueue.main.sync { MainActor.assumeIsolated { apply() } }
 }
 
 @_cdecl("dg_screen_recording_permission_query")
@@ -167,8 +196,38 @@ func dg_launch_at_login_set(_ enabled: UInt32) -> Int32 {
     }
 }
 
+@_cdecl("dg_relaunch")
+func dg_relaunch() -> Int32 {
+    // Schedule a fresh instance to start once THIS process has exited. macOS
+    // caches the screen-recording (TCC) decision at launch, so only a real
+    // relaunch picks up a newly granted permission; and the new instance must
+    // wait for the old one to release the write/capture locks before it can
+    // become the owner. A detached /bin/sh polls the parent PID, then `open -n`
+    // starts a new instance. When we exit the helper is reparented to launchd,
+    // so it outlives our termination. The bundle path is passed as $0 rather
+    // than interpolated into the script, so a path with spaces is handled by
+    // the shell without quoting games.
+    let bundlePath = Bundle.main.bundlePath
+    guard !bundlePath.isEmpty else { return -1 }
+    let pid = ProcessInfo.processInfo.processIdentifier
+    let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; sleep 0.5; exec open -n \"$0\""
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/bin/sh")
+    task.arguments = ["-c", script, bundlePath]
+    do {
+        try task.run()
+        return 0
+    } catch {
+        return -1
+    }
+}
+
 @_cdecl("dg_system_stop")
 func dg_system_stop() {
+    activationRunOnMain {
+        dismissResidentMessage()
+        appliedActivationPolicy = nil
+    }
     let workspace = NSWorkspace.shared.notificationCenter
     let distributed = DistributedNotificationCenter.default()
     state.lock.lock(); let old = state.observers; let timer = state.lockTimer; state.observers.removeAll(); state.lockTimer = nil; state.lastLocked = nil; state.callback = nil; state.callbackData = nil; state.lock.unlock()

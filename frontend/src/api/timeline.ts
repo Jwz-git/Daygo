@@ -16,6 +16,7 @@ interface TimelineBackend {
   UpdateCardDetailedSummary?: (cardID: number, text: string) => Promise<void>
   DeleteCard?: (cardID: number) => Promise<void>
   RetryBatches?: (batchIDs: number[]) => Promise<void>
+  StopRetries?: (batchIDs: number[]) => Promise<void>
   ReprocessDay?: (day: string) => Promise<void>
   ReprocessCard?: (cardID: number) => Promise<void>
   DeleteBatches?: (batchIDs: number[]) => Promise<void>
@@ -51,6 +52,7 @@ export interface TimelineActionAvailability {
   updateDetailedSummary: boolean
   deleteCard: boolean
   retryBatches: boolean
+  stopRetries: boolean
   reprocessDay: boolean
   reprocessCard: boolean
   deleteBatches: boolean
@@ -60,10 +62,6 @@ export interface TimelineActionAvailability {
 
 function backend(): TimelineBackend | null {
   return (window as WailsWindow).go?.app?.Backend ?? null
-}
-
-export function hasDayContextBinding(): boolean {
-  return typeof backend()?.GetDayContext === 'function'
 }
 
 export function hasTimelineDayBinding(): boolean {
@@ -83,6 +81,7 @@ export function getTimelineActionAvailability(): TimelineActionAvailability {
     updateDetailedSummary: typeof current?.UpdateCardDetailedSummary === 'function',
     deleteCard: typeof current?.DeleteCard === 'function',
     retryBatches: typeof current?.RetryBatches === 'function',
+    stopRetries: typeof current?.StopRetries === 'function',
     reprocessDay: typeof current?.ReprocessDay === 'function',
     reprocessCard: typeof current?.ReprocessCard === 'function',
     deleteBatches: typeof current?.DeleteBatches === 'function',
@@ -143,6 +142,10 @@ export async function retryBatches(batchIDs: number[]): Promise<void> {
   return requiredMethod('RetryBatches')(batchIDs)
 }
 
+export async function stopRetries(batchIDs: number[]): Promise<void> {
+  return requiredMethod('StopRetries')(batchIDs)
+}
+
 export async function reprocessDay(day: string): Promise<void> {
   return requiredMethod('ReprocessDay')(day)
 }
@@ -176,4 +179,16 @@ export function onTimelineUpdated(callback: (day: string | null) => void): () =>
     },
     -1,
   )
+}
+
+/**
+ * A batch reaching its failed terminal state changes the day's failure list
+ * without rewriting any card, so no `timeline:updated` follows it. The payload
+ * carries only instants; the logical day stays a backend decision, so callers
+ * reload their current day instead of deriving one here.
+ */
+export function onBatchFailed(callback: () => void): () => void {
+  const method = (window as WailsWindow).runtime?.EventsOnMultiple
+  if (typeof method !== 'function') return () => undefined
+  return method('batch:failed', () => callback(), -1)
 }

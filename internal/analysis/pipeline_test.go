@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -567,6 +568,9 @@ func TestPipelineAllCardsOutsideWindowReportsActionableCorrection(t *testing.T) 
 	if len(batches) != 1 || batches[0].Status != storage.BatchFailed {
 		t.Fatalf("batches = %+v, want one failed", batches)
 	}
+	if batches[0].FailureKind != "invalid_output" {
+		t.Fatalf("failure kind = %q, want invalid_output for unusable model cards", batches[0].FailureKind)
+	}
 	if !strings.Contains(batches[0].FailureNote, `card 1 (Wrong window) spans 8:00 AM-8:30 AM outside`) {
 		t.Fatalf("failure note = %q, want rejected card and clock range", batches[0].FailureNote)
 	}
@@ -670,6 +674,9 @@ func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
 	if cardCalls != 3 {
 		t.Fatalf("card calls after first tick = %d, want 3", cardCalls)
 	}
+	if batches := mustBatches(t, h.store); len(batches) != 1 || batches[0].FailureKind != "invalid_output" {
+		t.Fatalf("batches = %+v, want invalid_output failure", batches)
+	}
 
 	ctx := context.Background()
 	for i := range storage.MaxBatchAttempts {
@@ -718,6 +725,37 @@ func TestPipelineAttemptsExhaustedStopsRetrying(t *testing.T) {
 		t.Fatalf("card calls = %d, want at most %d (capped, not unbounded)",
 			got, (storage.MaxBatchAttempts+1)*3)
 	}
+}
+
+// TestFailBatchClearsRateLimitTally guards the slow leak where a batch that was
+// rate-limited and then failed kept its rateLimitCount entry forever (batch IDs
+// only grow, so the map never shrank on a long-running agent).
+func TestFailBatchClearsRateLimitTally(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t, map[string]string{})
+	frames := h.commitFrames(t, testNow, 3, 10*time.Second, func(int) *int { return nil })
+	batch, err := h.store.Analysis().CreateBatch(ctx, frames, storage.BatchPending, testNow)
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+
+	// A transient rate limit seeds a per-batch tally.
+	h.service.handleBatchRateLimit(ctx, batch, errors.New("rate limited"))
+	if got := h.rateLimitEntries(); got != 1 {
+		t.Fatalf("after rate limit: rateLimitCount entries = %d, want 1", got)
+	}
+
+	// The batch then reaches a terminal failure; its tally must not survive.
+	h.service.failBatch(ctx, batch, errors.New("boom"))
+	if got := h.rateLimitEntries(); got != 0 {
+		t.Fatalf("after failBatch: rateLimitCount entries = %d, want 0 (leak)", got)
+	}
+}
+
+func (h *harness) rateLimitEntries() int {
+	h.service.queueMu.Lock()
+	defer h.service.queueMu.Unlock()
+	return len(h.service.rateLimitCount)
 }
 
 func mustPending(t *testing.T, store *storage.Store) []storage.Batch {
@@ -793,14 +831,15 @@ func TestPipelineReprocessPreservesStraddlingCardPrefix(t *testing.T) {
 	if err != nil || len(batches) != 1 {
 		t.Fatalf("second batch = %+v, err=%v; want one", batches, err)
 	}
-	if _, err := h.store.Analysis().ReprocessBatches(context.Background(), []int64{batches[0].ID}, testNow.Add(time.Minute)); err != nil {
+	// The window starts after the first batch, so only the second batch is
+	// requeued — the same scope a per-batch requeue would have.
+	if _, err := h.store.Analysis().ReprocessDay(context.Background(), base2.Add(-time.Minute), base2.Add(20*time.Minute), testNow.Add(time.Minute)); err != nil {
 		t.Fatalf("reprocess batch: %v", err)
 	}
 
 	// The rerun may split the merged span again, but it must cover from 10:00
-	// rather than dropping 10:00–10:16. The 10-minute tail is legal: the card
-	// carrying the rewrite's end is the one card the 15-minute floor exempts
-	// (2026-09-21).
+	// rather than dropping 10:00–10:16. Its 10-minute tail passes validation
+	// as the last card, then the short-tail fold joins it back to the first card.
 	h.provider.mu.Lock()
 	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:20 AM","category":"Coding","subcategory":"","title":"before","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},{"start":"10:20 AM","end":"10:30 AM","category":"Coding","subcategory":"","title":"after","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
 	h.provider.mu.Unlock()
@@ -810,9 +849,8 @@ func TestPipelineReprocessPreservesStraddlingCardPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cards after reprocess: %v", err)
 	}
-	if len(cards) != 2 || cards[0].Start != "10:00 AM" || cards[0].End != "10:20 AM" ||
-		cards[1].Start != "10:20 AM" || cards[1].End != "10:30 AM" {
-		t.Fatalf("cards after reprocess = %+v, want continuous 10:00–10:30 coverage", cards)
+	if len(cards) != 1 || cards[0].Start != "10:00 AM" || cards[0].End != "10:30 AM" {
+		t.Fatalf("cards after reprocess = %+v, want the whole 10:00–10:30 span", cards)
 	}
 }
 
@@ -961,6 +999,55 @@ func TestPipelineMergeGateRefusesCrossCategoryPredecessor(t *testing.T) {
 	// The refused claim's pre-window point is gone; the predecessor keeps it.
 	if len(meta.ActivityPoints) != 1 || meta.ActivityPoints[0].Time != "10:20 AM" {
 		t.Fatalf("activityPoints = %+v, want only the in-window 10:20 AM point", meta.ActivityPoints)
+	}
+}
+
+func TestPipelineMergeGateDropsRefusedPredecessorEndingBeforeFloor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (10:00–10:15): one Coding card.
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 1 || cards[0].Category != "Coding" {
+		t.Fatalf("seed card = %+v, want one Coding card", cards)
+	}
+
+	// Batch 2 (10:16–10:30): the model returns TWO cards:
+	// 1. A hallucinated repetition of predecessor (10:00 AM - 10:15 AM)
+	// 2. The real card for this window (10:16 AM - 10:30 AM)
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[
+		{"start":"10:00 AM","end":"10:15 AM","category":"Communication","subcategory":"","title":"hallucinated-predecessor","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},
+		{"start":"10:16 AM","end":"10:30 AM","category":"Communication","subcategory":"","title":"current-card","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}
+	]}`
+	h.provider.mu.Unlock()
+	base2 := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, base2, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards, _ = h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v (len %d), want exactly 2 (predecessor and current-card, dropped hallucination)", cards, len(cards))
+	}
+	if cards[0].Title != "first" || cards[1].Title != "current-card" {
+		t.Fatalf("cards = %+v, want first and current-card", cards)
+	}
+	for _, c := range cards {
+		if c.EndTs <= c.StartTs || c.EndTs-c.StartTs > 4*3600 {
+			t.Fatalf("card duration invalid: %+v", c)
+		}
 	}
 }
 
@@ -1160,6 +1247,210 @@ func TestPipelineMergeGateStaysShutWhenTheWindowIsBelowTheFloor(t *testing.T) {
 	}
 }
 
+// A batch can produce a normal card followed by a short last card. The last
+// card is exempt from the 15-minute validator, but it must get the same
+// adjacency fold that regenerating that short card would apply later.
+func TestPipelineFoldsShortLastOutputIntoEarlierOutput(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	first := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, first, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:25 AM","category":"Coding","subcategory":"","title":"coding","summary":"coding summary","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]},{"start":"10:25 AM","end":"10:31 AM","category":"Communication","subcategory":"","title":"reply","summary":"reply summary","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 10, 16, 0, 0, time.Local)
+	h.commitFrames(t, second, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v", h.failures)
+	}
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want the last short card folded on initial generation", cards)
+	}
+	if cards[0].Start != "10:00 AM" || cards[0].End != "10:31 AM" ||
+		cards[0].Category != "Coding" || cards[0].Title != "coding" {
+		t.Fatalf("merged card = %+v, want 10:00-10:31 Coding/coding", cards[0])
+	}
+}
+
+// A single-card batch is always the window's last card, so the 15-minute floor
+// never applies and a few-minute activity sitting right after a differently
+// categorized neighbour would persist as a tiny card (docs/04 §4.3.1). The
+// recovery merge folds it into that predecessor, and — because the predecessor
+// holds the majority of the combined time — the merged card keeps the
+// predecessor's category and title (docs/04 §4.3.4).
+func TestPipelineShortSingleCardMergesIntoAdjacentPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"9:30 AM","end":"9:45 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (9:30–9:45): the Coding predecessor under test.
+	first := time.Date(2026, 9, 12, 9, 30, 0, 0, time.Local)
+	h.commitFrames(t, first, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 || cards[0].Category != "Coding" {
+		t.Fatalf("seed card = %+v, want one Coding card", cards)
+	}
+
+	// Batch 2 (9:46–9:52): a six-minute Communication card, one minute after the
+	// Coding card ends. Sealed by a gap so its window stays below the target and
+	// the model returns a single card.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"9:46 AM","end":"9:52 AM","category":"Communication","subcategory":"","title":"quick reply","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 9, 46, 0, 0, time.Local)
+	h.commitFrames(t, second, 40, 10*time.Second, func(int) *int { return intPtr(5) })
+	// Trailing frames only exist to seal the short run; their own span is below
+	// the target, so no third batch is created.
+	h.commitFrames(t, time.Date(2026, 9, 12, 10, 20, 0, 0, time.Local), 3, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v, want the merged rewrite to validate on its first attempt", h.failures)
+	}
+	cards = h.cardsFor(t, "2026-09-12")
+	if len(cards) != 1 {
+		t.Fatalf("cards = %+v, want the short card folded into its predecessor", cards)
+	}
+	merged := cards[0]
+	if merged.Category != "Coding" || merged.Title != "first" {
+		t.Fatalf("merged identity = %s/%q, want the majority Coding predecessor's Coding/\"first\"",
+			merged.Category, merged.Title)
+	}
+	if merged.Start != "9:30 AM" || merged.End != "9:52 AM" {
+		t.Fatalf("merged span = %s – %s, want 9:30 AM – 9:52 AM", merged.Start, merged.End)
+	}
+}
+
+// The mirror of the merge: a short single card whose only preceding neighbour
+// sits more than four minutes away stays on its own. Single-card mode implies
+// no card within the five-minute ongoing window, so a genuinely isolated fresh
+// card always fails the adjacency gate and is never folded backward.
+func TestPipelineIsolatedShortSingleCardStaysAlone(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"9:30 AM","end":"9:45 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (9:30–9:45): a Coding card that ends well before the next window.
+	first := time.Date(2026, 9, 12, 9, 30, 0, 0, time.Local)
+	h.commitFrames(t, first, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	// Batch 2 (10:05–10:11): a six-minute Communication card, twenty minutes
+	// after the Coding card — a fresh, isolated short card.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:05 AM","end":"10:11 AM","category":"Communication","subcategory":"","title":"quick reply","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 10, 5, 0, 0, time.Local)
+	h.commitFrames(t, second, 40, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.commitFrames(t, time.Date(2026, 9, 12, 10, 40, 0, 0, time.Local), 3, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v, want the fresh short card to validate on its first attempt", h.failures)
+	}
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the isolated short card standing beside its predecessor", cards)
+	}
+	if cards[0].Category != "Coding" || cards[0].Start != "9:30 AM" || cards[0].End != "9:45 AM" {
+		t.Fatalf("predecessor = %s – %s %s, want the untouched Coding card",
+			cards[0].Start, cards[0].End, cards[0].Category)
+	}
+	if cards[1].Category != "Communication" || cards[1].End != "10:11 AM" {
+		t.Fatalf("short card = %s – %s %s, want the standalone Communication card",
+			cards[1].Start, cards[1].End, cards[1].Category)
+	}
+}
+
+// The mirror fold (docs/04 §4.3.1): a short cross-category card already on the
+// timeline is left beside the rewrite by the ownership gate, so a normal-length
+// new card next to it absorbs it DOWN instead of letting it survive as a
+// fragment. The merged card keeps the majority-time new card's identity.
+func TestPipelineNewCardAbsorbsSmallCrossCategoryPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"working","apps":[]}]}`,
+		string(ai.PurposeCards):      `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"first","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`,
+	})
+	if err := h.store.Categories().Save(context.Background(), []domain.Category{
+		{ID: "00000000-0000-4000-8000-0000000000aa", Name: "Coding", ColorHex: "#1E90FF", SortOrder: 1},
+		{ID: "00000000-0000-4000-8000-0000000000bb", Name: "Communication", ColorHex: "#32CD32", SortOrder: 2},
+	}); err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+
+	// Batch 1 (10:00–10:15): a far-off Coding card, only here to give
+	// seedCardBefore a batch to attribute the parked fragment to.
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+	batchID := h.onlyBatch(t, base)
+
+	// A four-minute Communication fragment ending two minutes before batch 2 —
+	// the shape the ownership gate refuses to bury and leaves stranded.
+	h.seedCardBefore(t, batchID, time.Date(2026, 9, 12, 10, 24, 0, 0, time.Local),
+		time.Date(2026, 9, 12, 10, 28, 0, 0, time.Local), "Communication", "quick reply", "")
+
+	// Batch 2 (10:30–10:45): a full-length Coding card right after the fragment.
+	h.provider.mu.Lock()
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:30 AM","end":"10:45 AM","category":"Coding","subcategory":"","title":"focus","summary":"S","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+	h.provider.mu.Unlock()
+	second := time.Date(2026, 9, 12, 10, 30, 0, 0, time.Local)
+	h.commitFrames(t, second, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(context.Background())
+
+	if len(h.failures) != 0 {
+		t.Fatalf("failures = %v, want the absorbing rewrite to validate on its first attempt", h.failures)
+	}
+	cards := h.cardsFor(t, "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the far-off first card beside the merged rewrite", cards)
+	}
+	for _, c := range cards {
+		if c.Category == "Communication" {
+			t.Fatalf("cards = %+v, want the Communication fragment absorbed, not surviving", cards)
+		}
+	}
+	merged := cards[1]
+	if merged.Category != "Coding" || merged.Title != "focus" {
+		t.Fatalf("merged identity = %s/%q, want the majority Coding new card's Coding/\"focus\"",
+			merged.Category, merged.Title)
+	}
+	if merged.Start != "10:24 AM" || merged.End != "10:45 AM" {
+		t.Fatalf("merged span = %s – %s, want 10:24 AM – 10:45 AM (grown left onto the fragment)",
+			merged.Start, merged.End)
+	}
+}
+
 // A fused card that names no app inherits the icon of the card it absorbed:
 // the predecessor is gone, and an empty appSites would leave the merged card
 // with no icon where the user used to see one.
@@ -1239,6 +1530,61 @@ func TestPipelineIdleMergeAbsorbsPrecedingIdleCard(t *testing.T) {
 	// second batch's end truncated to the minute.
 	if want := second.End.Truncate(time.Minute).Unix(); merged.EndTs != want {
 		t.Fatalf("merged idle card end_ts = %d, want %d (the second batch's end)", merged.EndTs, want)
+	}
+}
+
+// A prior non-Idle card whose stored end clock overhangs the idle window (the
+// LLM clock-overshoot / ongoing-card case) must not fail the idle batch:
+// commitIdleCard clips the overhang to the window edge and keeps the card
+// beside the Idle card, instead of hitting the ownership constraint that
+// rejects a card starting before the rewrite's owned span.
+func TestPipelineIdleAbsorbsOverhangingPredecessor(t *testing.T) {
+	h := newHarness(t, map[string]string{})
+	h.provider.err = ai.NewError(ai.ErrorInvalidRequest, "idle path must not call the provider", 0, nil)
+
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	cardStart := base.Add(-10 * time.Minute)
+	cardEnd := base.Add(2 * time.Minute) // overhangs where the idle batch begins
+	if err := h.store.Write(context.Background(), "seed overhang card", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO timeline_cards (batch_id, day, start, end, start_ts, end_ts, category, title, summary, created_at, updated_at)
+			VALUES (NULL, '2026-09-12', ?, ?, ?, ?, 'Coding', 'coding', 's', 0, 0)`,
+			timeutil.FormatClock(cardStart, time.Local), timeutil.FormatClock(cardEnd, time.Local),
+			cardStart.Unix(), cardEnd.Unix())
+		return err
+	}); err != nil {
+		t.Fatalf("seed overhang card: %v", err)
+	}
+
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(600) })
+	h.service.tick(context.Background())
+
+	batches := mustBatches(t, h.store)
+	if len(batches) != 1 || batches[0].Status != storage.BatchSucceeded {
+		t.Fatalf("batches = %+v, want one succeeded idle batch (the overhang must not fail it)", batches)
+	}
+
+	cards, _ := h.store.Cards().CardsForDay(context.Background(), "2026-09-12")
+	if len(cards) != 2 {
+		t.Fatalf("cards = %+v, want the clipped Coding card and the Idle card", cards)
+	}
+	byCat := map[string]domain.TimelineCard{}
+	for _, c := range cards {
+		byCat[c.Category] = c
+	}
+	coding, hasCoding := byCat["Coding"]
+	idle, hasIdle := byCat["Idle"]
+	if !hasCoding || !hasIdle {
+		t.Fatalf("cards = %+v, want one Coding and one Idle", cards)
+	}
+	// The Coding card keeps its own start and is clipped to the idle window
+	// start; its category — and thus the daily/weekly totals — is preserved
+	// rather than relabeled Idle.
+	if coding.StartTs != cardStart.Unix() {
+		t.Fatalf("coding start_ts = %d, want %d (start preserved)", coding.StartTs, cardStart.Unix())
+	}
+	if coding.EndTs > idle.StartTs {
+		t.Fatalf("coding end_ts %d overlaps idle start %d; the overhang was not clipped", coding.EndTs, idle.StartTs)
 	}
 }
 

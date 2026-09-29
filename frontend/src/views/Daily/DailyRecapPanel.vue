@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { DailyRecapDTO, JournalDayDTO } from '@/api/dto'
@@ -16,9 +16,12 @@ const props = defineProps<{
   generating: boolean
   generateFailed: boolean
   generationAvailable: boolean
+  saving: boolean
+  saveFailed: boolean
+  saveAvailable: boolean
 }>()
 
-const emit = defineEmits<{ regenerate: [] }>()
+const emit = defineEmits<{ regenerate: []; save: [DailyRecapDTO] }>()
 
 const { locale, t } = useI18n()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
@@ -143,6 +146,54 @@ async function copyRecap(): Promise<void> {
 }
 
 onBeforeUnmount(() => window.clearTimeout(resetTimer))
+
+// Manual edit of the stored recap. The list fields are edited as one item per
+// line, matching how the journal draft treats notes and intentions.
+const editing = ref(false)
+const draftHighlightsTitle = ref('')
+const draftHighlightsText = ref('')
+const draftTasksTitle = ref('')
+const draftTasksText = ref('')
+const draftBlockersTitle = ref('')
+const draftBlockersBody = ref('')
+
+function textToLines(text: string): string[] {
+  return text.split('\n').map((line) => line.trim()).filter(Boolean)
+}
+
+function startEdit(): void {
+  const current = props.recap
+  if (current === null) return
+  draftHighlightsTitle.value = current.highlightsTitle
+  draftHighlightsText.value = current.highlights.join('\n')
+  draftTasksTitle.value = current.tasksTitle
+  draftTasksText.value = current.tasks.join('\n')
+  draftBlockersTitle.value = current.blockersTitle
+  draftBlockersBody.value = current.blockersBody
+  editing.value = true
+}
+
+function cancelEdit(): void { editing.value = false }
+
+function submitEdit(): void {
+  const current = props.recap
+  if (current === null) return
+  emit('save', {
+    ...current,
+    highlightsTitle: draftHighlightsTitle.value.trim(),
+    highlights: textToLines(draftHighlightsText.value),
+    tasksTitle: draftTasksTitle.value.trim(),
+    tasks: textToLines(draftTasksText.value),
+    blockersTitle: draftBlockersTitle.value.trim(),
+    blockersBody: draftBlockersBody.value.trim(),
+  })
+}
+
+// Close the editor only once a save has actually succeeded; a failed save keeps
+// the draft on screen next to the error.
+watch(() => props.saving, (isSaving, was) => {
+  if (was && !isSaving && !props.saveFailed) editing.value = false
+})
 </script>
 
 <template>
@@ -153,37 +204,83 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
         <p>{{ t('daily.standup.description') }}</p>
       </div>
       <div class="recap-actions">
-        <button
-          v-if="generationAvailable"
-          type="button"
-          class="dg-button"
-          :disabled="generating"
-          @click="emit('regenerate')"
-        >
-          {{ generating ? t('daily.standup.generating') : t('common.action.regenerate') }}
-        </button>
-        <button
-          v-else-if="!unavailable && !failed"
-          type="button"
-          class="dg-button"
-          :title="t('daily.standup.generateUnavailable')"
-          disabled
-        >
-          {{ t('common.action.regenerate') }}
-        </button>
-        <button
-          type="button"
-          class="dg-button dg-button--primary"
-          :disabled="recap === null && !hasJournalFallback"
-          @click="copyRecap"
-        >
-          {{ copyLabel }}
-        </button>
+        <template v-if="editing">
+          <button type="button" class="dg-button" :disabled="saving" @click="cancelEdit">
+            {{ t('common.action.cancel') }}
+          </button>
+          <button type="button" class="dg-button dg-button--primary" :disabled="saving" @click="submitEdit">
+            {{ saving ? t('daily.standup.saving') : t('common.action.save') }}
+          </button>
+        </template>
+        <template v-else>
+          <button
+            v-if="generationAvailable"
+            type="button"
+            class="dg-button"
+            :disabled="generating"
+            @click="emit('regenerate')"
+          >
+            {{ generating ? t('daily.standup.generating') : t('common.action.regenerate') }}
+          </button>
+          <button
+            v-else-if="!unavailable && !failed"
+            type="button"
+            class="dg-button"
+            :title="t('daily.standup.generateUnavailable')"
+            disabled
+          >
+            {{ t('common.action.regenerate') }}
+          </button>
+          <button
+            v-if="saveAvailable && !unavailable && !failed && recap !== null"
+            type="button"
+            class="dg-button"
+            @click="startEdit"
+          >
+            {{ t('common.action.edit') }}
+          </button>
+          <button
+            type="button"
+            class="dg-button dg-button--primary"
+            :disabled="recap === null && !hasJournalFallback"
+            @click="copyRecap"
+          >
+            {{ copyLabel }}
+          </button>
+        </template>
       </div>
     </header>
 
+    <!-- Manual edit form -->
+    <div v-if="editing" class="recap-edit dg-card">
+      <label class="recap-edit__field">
+        <span>{{ t('daily.standup.highlightsTitle') }}</span>
+        <input v-model="draftHighlightsTitle" class="dg-input" type="text">
+      </label>
+      <label class="recap-edit__field">
+        <span>{{ t('daily.standup.highlights') }} · {{ t('daily.standup.editHint') }}</span>
+        <textarea v-model="draftHighlightsText" class="dg-reading" rows="4" />
+      </label>
+      <label class="recap-edit__field">
+        <span>{{ t('daily.standup.tasksTitle') }}</span>
+        <input v-model="draftTasksTitle" class="dg-input" type="text">
+      </label>
+      <label class="recap-edit__field">
+        <span>{{ t('daily.standup.tasks') }} · {{ t('daily.standup.editHint') }}</span>
+        <textarea v-model="draftTasksText" class="dg-reading" rows="4" />
+      </label>
+      <label class="recap-edit__field">
+        <span>{{ t('daily.standup.blockersTitle') }}</span>
+        <input v-model="draftBlockersTitle" class="dg-input" type="text">
+      </label>
+      <label class="recap-edit__field">
+        <span>{{ t('daily.standup.blockers') }}</span>
+        <textarea v-model="draftBlockersBody" class="dg-reading" rows="3" />
+      </label>
+    </div>
+
     <!-- AI generated recap -->
-    <div v-if="!unavailable && !failed && recap !== null" class="recap-card dg-card">
+    <div v-else-if="!unavailable && !failed && recap !== null" class="recap-card dg-card">
       <article class="recap-column">
         <span class="recap-index" aria-hidden="true">01</span>
         <h3>{{ recap.highlightsTitle || t('daily.standup.highlights') }}</h3>
@@ -254,6 +351,10 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
 
     <p v-if="generateFailed" class="recap-generate-error" role="alert">
       {{ generating ? t('daily.standup.generating') : t('daily.standup.generateFailed') }}
+    </p>
+
+    <p v-if="saveFailed" class="recap-generate-error" role="alert">
+      {{ t('daily.standup.saveFailed') }}
     </p>
   </section>
 </template>
@@ -352,6 +453,29 @@ onBeforeUnmount(() => window.clearTimeout(resetTimer))
 .recap-state span { color: var(--dg-text-tertiary); font-size: 12px; }
 
 .recap-generate-error { color: var(--dg-text-tertiary); font-size: 12px; }
+
+.recap-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px;
+}
+
+.recap-edit__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recap-edit__field > span {
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+}
+
+.recap-edit__field textarea {
+  resize: vertical;
+  min-height: 64px;
+}
 
 .recap-card--draft { position: relative; }
 

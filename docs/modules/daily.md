@@ -12,7 +12,7 @@
 
 ## 当前状态与证据
 
-> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+> **验收状态（2026-09-26）**：本模块所有已实现能力（含近期增量、长期观察与已实现的真实安装升级）经用户确认已验收，未附逐项运行记录。未实现能力、待定设计与正式证书缺失保持原状态；历史命令的失败、跳过或未运行不改写为通过。统一记录见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 实现进度：部分实现。已落盘可接入的 [每日页面](../../frontend/src/views/Daily/DailyView.vue)、
 [集中式 store](../../frontend/src/stores/daily.ts) 与薄
@@ -36,7 +36,7 @@
 `daily_standup_entries` 并发 `recap:updated` 失效事件。`SaveDailyRecap` 也开始发同一事件。
 错误映射：无 provider → `provider_not_configured`，模型 / schema 失败 → `provider_failed`；
 只读实例 → `not_capture_owner`。前端「重新生成」按钮接通（生成中禁用、失败提示、
-事件后重拉）。Go 侧有 httptest 全链路断言；真实 provider 与 `wails dev` 真机往返未验证。
+事件后重拉）。Go 侧有 httptest 全链路断言；真实 provider 与 `wails dev` 真机往返已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 **2026-09-22（后台补生成）**：读写实例启动时 + 此后每小时后台扫描，从最早活动卡片日历日到
 今天逐日检查 `daily_standup_entries`：已结束完整日缺失即生成且绝不覆盖；今天在缺失或
@@ -46,15 +46,28 @@
 复用）；runner 在 `internal/app/standup_backfill.go`，经 app.go RW-only 启动块
 `go runStandupBackfill(ctx)` 接入。空活动日跳过、无 provider 静默等待、连续失败中止本轮。
 Go 侧 httptest 全链路 + 存储夹具断言（补历史、空活动跳过、不覆盖已存、今天生成 / 刷新 /
-新鲜跳过、只读实例空操作、取消即停）；真实 provider 与隔夜真机往返未验证。
+新鲜跳过、只读实例空操作、取消即停）；真实 provider 与隔夜真机往返已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 **2026-09-22（移除日记 AI 摘要）**：日记的 AI summary 从未生成，且概念上就是站会日报，故全栈移除：
 迁移 v19 重建 `journal_entries`（去掉 summary 列，夹具 `v18-card-ratings.db` + DB-2 验证保数据、
 去列）、`storage.JournalEntry` 与 `app.JournalDayDTO` 去掉 Summary 字段、前端 DailyJournalPanel
 删除「AI 摘要」块与 i18n。
 
-文本生成录制后即时触发、通知仍未实现（补生成已覆盖"隔日自动出日报"与"当天每 4 小时刷新"，
+文本生成录制后即时触发仍未实现（补生成已覆盖"隔日自动出日报"与"当天每 4 小时刷新"，
 录制后的即时触发仍缺）。
+
+**2026-09-28（日记提醒调度）**：日记提醒的 Go 侧调度落盘——决策
+[notifications-journal-reminder](../decisions/notifications-journal-reminder.md)、
+调度器 `internal/app/journal_reminder.go` 的 `runJournalReminder` / `journalReminderSync`
+（ctx 持有、经 app.go RW-only 启动块接入，与 `runStandupBackfill` 同构）、
+`nextReminderAt` 墙钟时刻（本地 `time.Location`，DST 安全）；`fake.System` 记录
+`ScheduleNotification` / `CancelNotifications` 供夹具断言；设置 UI（通用区开关 + 时刻输入）、
+`NativeUiLabelsDTO` 的 `journalReminderTitle` / `journalReminderBody` 文案通路与九语言文案。
+Go 侧夹具覆盖：默认关闭不排、按时刻排下一次、过点顺延次日、幂等不重排、改时刻 / 改文案重排、
+关闭取消、只读实例空操作、平台失败可重试、能力不可用则静默跳过、文案未下发则等待、DST 与半小时时区。
+**原生投递（macOS `UNUserNotificationCenter` / Windows toast）仍未实现**；在此之前
+`ScheduleNotification` / `CancelNotifications` 诚实返回 `platform.ErrCapabilityUnavailable`
+（不再以 nil 假装成功），调度器据此按能力静默跳过。fake 通过不等于通知送达。
 
 ## 能力与跨层职责
 
@@ -68,8 +81,8 @@ Go 侧 httptest 全链路 + 存储夹具断言（补历史、空活动跳过、�
 输出 notifications 能力，由本模块负责 fake 与真实实现；公共 System 端口变更与 recording 协调。
 internal/insight 负责只读日视图；写入 / 生成通过 app 编排消费者接口，AI 调用走 providers，
 repository 位于 internal/storage。notifications 设置、日记 / 目标表和 UI 归本模块。
-模型输出只作为数据，AI summary 前端只读；如需新增生成触发 API，先补 05 和双侧契约，
-不得臆造现有绑定。v1 所需生成触发与刷新语义须在生成切片前明确。
+模型输出只作为数据；站会日报 AI 生成后可读回，日记不再有 AI summary。手动生成与后台补生成
+触发 / 刷新语义已经落在 05；录制后即时触发仍未实现，新增入口须先补契约与双侧夹具。
 
 ## 实验与失败条件
 
@@ -79,22 +92,25 @@ repository 位于 internal/storage。notifications 设置、日记 / 目标表�
 | 日记 / 目标往返 | 空日、填写 / 修改 / 跳过目标，重启后读取 | DTO 可空与状态正确、内容保留、事件后重拉 | 丢数据、覆盖 AI 只读字段或错误状态失败 |
 | 文本生成 | 固定成功 / 畸形 / 超时响应，真实服务单独验证 | 字段形状与失败状态可观察，不要求文本字面相同 | 把模型指令当操作、错误静默覆盖已存内容失败 |
 | 提醒 | 默认关闭，开启、改时刻、取消、拒绝权限 | 按设置调度，取消生效，不循环申请权限 | 重复提醒、关闭后仍提醒、无授权却伪报成功失败 |
+| 提醒调度（Go） | 开启 / 改时刻 / 改文案 / 关闭各跑一次 `journalReminderSync` | 排一次、幂等不重排、过点顺延次日、关闭即取消、只读空操作 | 重复排、关闭后仍排、未授权仍记已排（夹具 `journal_reminder_test.go`） |
 
 ## 实现切片与集成
 
-1. **部分完成**：固定日期、卡片及只读日报 fixture，完成工作流 / 指标 / 日报呈现；日记与目标
-   fixture、生成触发 / 刷新和错误交互仍待契约决策。
+1. **已实现**：日期 / 卡片 / 日报夹具、工作流与指标、日记 / 目标持久化、手动生成、后台补生成 / 刷新及错误交互；录制后即时触发仍缺。
 2. 在 storage 加所需迁移与 repository，独立验证保存、查询和重启；复用 time / cards。
 3. 通过客户端接口生成并存储摘要，保持 insight 只读；fixture 后接真实服务。
-4. 补 System 通知 fake / 原生与提醒设置；接每日绑定、事件、store、UI 和完整空 / 错误 / 加载态。
+4. **部分实现**：System 通知 fake 已记录调度 / 取消，提醒设置、文案通路与九语言 UI 已落盘；
+   真实原生投递（`ScheduleNotification` 实现、授权弹窗、点击唤回）仍缺。
 5. 用真实卡片与持久化日记验收用户闭环，并在真实 macOS 验证提醒；可独立于 weekly 完成。
 
 ## 验收、阻塞与回退
 
 完成要求：真实日期与文本输入闭环、日记 / 目标可重启读回、提醒可开关取消、
-两种语言完整。上游 UI 无须完成；fake 不能证明通知送达或摘要服务可用。
-生成触发与刷新细节由 daily 在实现前补齐 05；通知实现方式由 daily 工程在原生接入前决定。
-G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。
+九种语言完整。上游 UI 无须完成；fake 不能证明通知送达或摘要服务可用。
+生成触发与刷新细节由 daily 在实现前补齐 05；通知实现方式已由
+[日记提醒决策](../decisions/notifications-journal-reminder.md) 落定（重复归 Go、一次性端口、
+墙钟时刻、文案经 `NativeUiLabelsDTO` 下发），原生投递仍受 G-native 门禁。
+G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。G-host 已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 回退：停止生成任务并取消本模块计划的通知，保留日记 / 目标与旧摘要；
 禁用不可用的入口，不删除用户输入或改动 recording 的录制意愿。
@@ -102,3 +118,5 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。
 ## 验证记录
 
 2026-09-11—12：Go 绑定测试、前端 typecheck / build 与 Vite 匿名卡片预览覆盖日记编辑、日报展示、目标和日期路由。真实 Wails 保存、重启读回及长期表现由用户于 2026-09-22 确认验收，未附逐项运行记录。
+
+2026-09-28（日记提醒，macOS arm64，未提交工作树）：`./scripts/gate.sh` 通过——`CGO_ENABLED=0 go test ./internal/...`（24 包 ok，含 `journal_reminder_test.go` 14 项夹具）、`go vet`、`gofmt -l` 无输出、前端 `typecheck` 与 `build`、三平台核心交叉构建、`check-docs`（56 篇 0 处问题）与 Windows 安装器匿名夹具（9 项，5 项 skip 因需 Windows 主机的运行与卸载仍按 skip 记录，不倒填为通过）；前端 `test:unit` 178 项通过、0 失败 / 跳过。**这是 fake 与无头门禁证据**：不证明原生通知送达、授权弹窗或点击唤回，后者仍按下文 G-native 门禁单独验收。

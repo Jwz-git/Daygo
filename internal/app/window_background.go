@@ -24,6 +24,14 @@ func (b *Backend) setWindowContext(ctx context.Context) {
 	b.windowCtx = ctx
 }
 
+// windowContext returns the Wails runtime context handed over in OnStartup, or
+// nil if startup has not reached that point yet.
+func (b *Backend) windowContext() context.Context {
+	b.windowCtxMu.Lock()
+	defer b.windowCtxMu.Unlock()
+	return b.windowCtx
+}
+
 // SetWindowBackground accepts a "#rrggbb" colour and repaints the native
 // window backdrop with it. A nil window context (headless construction in
 // tests) has nothing to paint, so the call is a no-op rather than an error.

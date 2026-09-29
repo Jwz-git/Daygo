@@ -88,7 +88,7 @@ const effectiveModel = computed(() => {
 <template>
   <!-- Working / pending indicator -->
   <p v-if="store.pending" class="working" role="status">
-    <span class="working__spinner" aria-hidden="true" />
+    <span class="working__dots" aria-hidden="true"><i></i><i></i><i></i></span>
     {{ t('chat.working') }}
     <span v-if="effectiveModel !== ''" class="working__model">{{ effectiveModel }}</span>
   </p>
@@ -143,18 +143,48 @@ const effectiveModel = computed(() => {
   font-size: 11px;
 }
 
-.working__spinner {
+.working__dots {
   flex: none;
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--dg-chip-border);
-  border-top-color: var(--dg-accent-text);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+/* Three dots that swell and lift in sequence — a "thinking" cadence that reads
+   as considered, where a spinning ring reads as a generic wait. */
+.working__dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--dg-accent-text);
+  opacity: 0.3;
+  animation: working-pulse 1.25s ease-in-out infinite;
+}
+
+.working__dots i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.working__dots i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes working-pulse {
+  0%, 70%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working__dots i {
+    animation: none;
+    opacity: 0.6;
+  }
 }
 
 .working__model {

@@ -483,3 +483,23 @@ func TestServiceDeleteConversation(t *testing.T) {
 		t.Fatalf("conversations after delete = %+v", list)
 	}
 }
+
+// #4 regression: each turn builds its own chain, so a concurrent turn on
+// another conversation cannot swap the provider out from under an in-flight
+// Generate. buildChain must return an independent chain pinned to its own entry.
+func TestBuildChainIsolatesConcurrentTurns(t *testing.T) {
+	service, _ := testService(t, newFakeProviders(), &fakeSettings{})
+
+	chainX := service.buildChain([]ProviderEntry{{ID: "px", Protocol: "openai", Endpoint: "https://x.test", Model: "m", Secret: "k"}})
+	chainY := service.buildChain([]ProviderEntry{{ID: "py", Protocol: "openai", Endpoint: "https://y.test", Model: "m", Secret: "k"}})
+
+	if chainX == chainY {
+		t.Fatal("buildChain returned the same shared chain for two turns")
+	}
+	if got := chainX.ActiveID(); got != "px\x1fm" {
+		t.Fatalf("chainX active id = %q, want px\\x1fm", got)
+	}
+	if got := chainY.ActiveID(); got != "py\x1fm" {
+		t.Fatalf("chainY active id = %q, want py\\x1fm", got)
+	}
+}

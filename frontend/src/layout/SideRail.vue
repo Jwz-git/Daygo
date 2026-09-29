@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
+import { computed } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 
 import IconCaptureTest from '@/components/icons/IconCaptureTest.vue'
@@ -39,6 +40,10 @@ const utilityItems: readonly RailItem[] = [
 const route = useRoute()
 const testTools = useTestToolsStore()
 
+// The test page ships only in dev/opt-in builds; the production installer
+// tree-shakes it out, so the rail entry must be gone even if the setting is on.
+const testToolsVisible = computed(() => __DAYGO_TEST_TOOLS__ && testTools.enabled)
+
 function destination(item: RailItem): RouteLocationRaw {
   if (item.navKey !== 'timeline' && item.navKey !== 'daily') return item.to
   const day = calendarDayQuery(route.query.day)
@@ -61,7 +66,7 @@ function destination(item: RailItem): RouteLocationRaw {
     <div class="rail__utility">
       <RecordingControl />
       <SideRailItem
-        v-if="testTools.enabled"
+        v-if="testToolsVisible"
         :to="{ name: 'test' }"
         :label="$t('nav.test')"
         :icon="IconCaptureTest"

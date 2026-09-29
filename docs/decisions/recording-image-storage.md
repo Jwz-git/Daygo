@@ -1,11 +1,18 @@
 # recording 图片存储流水线：staging、分段、清理与发送
 
+> **最新功能验收（2026-09-26）**：本文涉及的所有已实现能力、长期观察与现有身份下真实安装升级，
+> 均按本次用户确认记为已验收，未附逐项运行记录；未实现项、待定设计与正式证书缺失保留。
+> 下文旧日期的失败 / 跳过 / 未运行结果是历史记录，不倒填为通过；统一范围见
+> [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+
 > **状态：边界已决定，原先的 staging 构建方案已被后续决策取代。** 本文仍固定“像素不进 SQLite、
 > 整段清理、解码后以内存 image parts 发送”的边界。分段容器与编码参数
-> **已冻结并有限实现**：采纳 Dayflow 式 HEVC 帧段（捕获时直接追加、免 JPEG staging），见
+> **已冻结并实现**：采纳 Dayflow 式 HEVC 帧段（捕获时直接追加、免 JPEG staging），见
 > [recording-frame-segments-hevc.md](recording-frame-segments-hevc.md)（其 §3 否决了本文的
-> staging 构建 variant；其余边界不变。 站点图标的
-> favicon 回退另见 [timeline-favicon-fetch.md](timeline-favicon-fetch.md)。
+> staging 构建方案；其余边界不变）。Windows 分段降级见
+> [Windows 分段编码](recording-windows-segment-codec.md)。站点图标的 favicon 回退另见
+> [timeline-favicon-fetch.md](timeline-favicon-fetch.md)。
+
 ## 1. 结论
 
 1. **图片像素不写入 SQLite BLOB。** SQLite 保存结构化事实、相对路径、帧序号和生命周期状态；
@@ -31,16 +38,15 @@
 因此文件系统存大块不可变媒体，SQLite 存可事务查询的索引与状态。数据库备份只备份结构化数据；
 录制像素留存由独立的 segment 清理策略负责。
 
-## 3. 推荐磁盘布局
+## 3. 当前磁盘布局
 
 ```text
 <user-config>/Daygo/
 ├── daygo.sqlite
 ├── recordings/
-│   ├── staging/
-│   │   └── <capture-id>.jpg
+│   ├── staging/                 # legacy JPEG 兼容路径
 │   └── segments/
-│       └── <segment-id>.<ext>
+│       └── <segment-id>.<ext>    # 活跃与已收尾段共用目录，无独立状态子目录
 └── backups/
 ```
 
@@ -71,8 +77,9 @@ recording_segments
   total_bytes
 ```
 
-`screenshots` 继续用 `(segment_path, frame_index)` 唯一寻址。是否增加显式 segment 外键，以及
-pending 表的准确名称和列，由 recording 的迁移夹具决定；不要在没有恢复测试时先冻结 schema。
+`screenshots` 继续用 `(segment_path, frame_index)` 唯一寻址。是否增加显式 segment 外键仍需另行
+决定；现行 pending 表名称与列以
+[03 数据模型](../03-data-model.md) 和版本化迁移夹具为准。
 
 ## 5. 历史 staging 方案（已被 HEVC 直接追加取代）
 
@@ -133,7 +140,7 @@ segment 的帧全部可见，要么一帧都不可见。
 ```text
 BatchRepository 选出一批 screenshot IDs
   → ScreenshotRepository 返回按 captured_at 排序的 FrameRef
-  → analysis 按当前规则等距采样到最多 15 帧并确定 max pixel size
+  → analysis 等距采样到最多 15 帧，并受当前 Provider 图片上限约束；确定 max pixel size
   → Media.DecodeFrames 批量解码 JPEG/PNG/WebP bytes
   → 校验单张 ≤ 5 MiB、合计 ≤ 20 MiB
   → 构造 internal/ai.Request 的有序 text/image parts
@@ -160,7 +167,10 @@ type SegmentBuilder interface {
 不读设置、不写 SQL。接口最终放进 `platform.Media` 还是 recording 私有消费者接口，要与容器实验
 一起决定。
 
-## 10. 验收条件
+## 10. 验收条件与历史 staging 方案检查标准
+
+下列 staging 构建 / 步骤 2–11 条目仅适用于被取代的历史方案；现行直接追加的恢复与收尾条件见
+[HEVC 分段决策](recording-frame-segments-hevc.md) 和 [recording 执行册](../modules/recording.md)。
 
 - 成功、编码失败、路径冲突、取消时只出现完整 final 或无 final；
 - 在步骤 2–11 的每个边界终止进程，重启对账不重复 screenshot、不发送陌生文件；

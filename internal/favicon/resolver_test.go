@@ -2,6 +2,7 @@ package favicon
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -72,5 +73,53 @@ func TestNegativeCacheWindow(t *testing.T) {
 	r.storeNegative(host)
 	if !r.negativeActive(host) {
 		t.Fatal("host should be negative after storeNegative")
+	}
+}
+
+// TestMemoryCacheBounded is the regression guard for the leak this package had:
+// the in-memory hot cache must not grow without bound as distinct hosts arrive.
+func TestMemoryCacheBounded(t *testing.T) {
+	r := New(t.TempDir())
+	for i := range memoryCacheCap + 50 {
+		r.storeMemory(fmt.Sprintf("host%d.example", i), Result{Data: pngPixel, ContentType: "image/png"})
+	}
+	if n := r.memory.len(); n > memoryCacheCap {
+		t.Fatalf("memory cache len = %d, want <= %d", n, memoryCacheCap)
+	}
+	if _, ok := r.lookup("host0.example"); ok {
+		t.Fatal("oldest entry should have been evicted once over capacity")
+	}
+	newest := fmt.Sprintf("host%d.example", memoryCacheCap+49)
+	if _, ok := r.lookup(newest); !ok {
+		t.Fatal("newest entry should still be cached")
+	}
+}
+
+// TestMemoryCacheKeepsRecentlyUsed proves eviction is LRU, not FIFO: a host
+// touched right before the cache overflows must survive.
+func TestMemoryCacheKeepsRecentlyUsed(t *testing.T) {
+	r := New(t.TempDir())
+	for i := range memoryCacheCap {
+		r.storeMemory(fmt.Sprintf("host%d.example", i), Result{Data: pngPixel, ContentType: "image/png"})
+	}
+	if _, ok := r.lookup("host0.example"); !ok { // touch the oldest, promoting it
+		t.Fatal("host0 should be present before overflow")
+	}
+	r.storeMemory("overflow.example", Result{Data: pngPixel, ContentType: "image/png"})
+	if _, ok := r.lookup("host0.example"); !ok {
+		t.Fatal("recently-used host0 must survive; host1 should have been evicted")
+	}
+	if _, ok := r.lookup("host1.example"); ok {
+		t.Fatal("least-recently-used host1 should have been evicted")
+	}
+}
+
+func TestNegativeCacheBounded(t *testing.T) {
+	r := New(t.TempDir())
+	for i := range negativeCacheCap + 50 {
+		r.storeNegative(fmt.Sprintf("dead%d.example", i))
+	}
+	if n := r.negative.len(); n > negativeCacheCap {
+		t.Fatalf("negative cache len = %d, want <= %d", n, negativeCacheCap)
 	}
 }

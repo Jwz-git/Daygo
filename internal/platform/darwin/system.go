@@ -16,6 +16,7 @@ type System struct {
 	mu      sync.Mutex
 	events  chan platform.SystemEvent
 	started bool
+	closed  bool
 }
 
 func NewSystem() *System {
@@ -45,27 +46,52 @@ func (s *System) start() error {
 func (s *System) Events() <-chan platform.SystemEvent { return s.events }
 func (s *System) Close() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.started {
+	if s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.closed = true
+	started := s.started
+	s.started = false
+	close(s.events)
+	s.mu.Unlock()
+	if started {
 		systemStop()
 		activeSystem.Lock()
 		if activeSystem.value == s {
 			activeSystem.value = nil
 		}
 		activeSystem.Unlock()
-		s.started = false
 	}
-	close(s.events)
+	stopStatusItem()
 }
 func (s *System) push(kind uint32, ns int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	event := platform.SystemEvent{Kind: systemEventKind(kind), At: time.Unix(0, ns)}
 	select {
-	case s.events <- platform.SystemEvent{Kind: systemEventKind(kind), At: time.Unix(0, ns)}:
+	case s.events <- event:
 	default:
+		// A terminal shutdown supersedes pending ordinary events. Never block an
+		// AppKit callback, and never silently discard the termination intent.
+		if event.Kind == platform.EventSystemShutdown {
+			select {
+			case <-s.events:
+			default:
+			}
+			s.events <- event
+		}
 	}
 }
 func (s *System) pushAction(kind platform.SystemEventKind, action uint32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
 	select {
 	case s.events <- platform.SystemEvent{Kind: kind, At: time.Now(), Data: platform.SystemEventData{StatusItemID: statusActionID(action)}}:
 	default:
@@ -114,6 +140,12 @@ func systemEventKind(k uint32) platform.SystemEventKind {
 		return platform.EventDisplaysChanged
 	case 8:
 		return platform.EventApplicationActivated
+	case 9:
+		return platform.EventApplicationHidden
+	case 10:
+		return platform.EventApplicationUnhidden
+	case 11:
+		return platform.EventSystemShutdown
 	}
 	return ""
 }
@@ -146,6 +178,32 @@ func (s *System) SetActivationPolicy(_ context.Context, p platform.ActivationPol
 func (s *System) SetStatusItem(_ context.Context, state platform.StatusItemState) error {
 	return setStatusItem(state)
 }
+func (s *System) StatusItemAvailable(ctx context.Context) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	started := s.started && !s.closed
+	s.mu.Unlock()
+	if !started {
+		return false, nil
+	}
+	return statusItemAvailable()
+}
+
+func (s *System) SetApplicationMenuLabels(ctx context.Context, labels platform.ApplicationMenuLabels) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return setApplicationMenuLabels(labels)
+}
+
+func (s *System) ShowStatusMessage(ctx context.Context, message platform.StatusMessage) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return showStatusMessage(message)
+}
 
 // RevealPath opens the path in Finder via /usr/bin/open. open hands the path to
 // LaunchServices and exits, so Run waits only for that dispatch, not for the
@@ -156,7 +214,24 @@ func (s *System) RevealPath(ctx context.Context, path string) error {
 	}
 	return nil
 }
-func (s *System) ScheduleNotification(context.Context, platform.Notification) error { return nil }
-func (s *System) CancelNotifications(context.Context, []string) error               { return nil }
 
-var _ platform.System = (*System)(nil)
+// ScheduleNotification and CancelNotifications report the capability as
+// unavailable until native delivery is wired (docs/decisions/notifications-journal-reminder.md).
+// Returning the shared sentinel instead of nil keeps the resident journal
+// reminder from arming a notification that would never actually fire.
+func (s *System) ScheduleNotification(context.Context, platform.Notification) error {
+	return platform.ErrCapabilityUnavailable
+}
+func (s *System) CancelNotifications(context.Context, []string) error {
+	return platform.ErrCapabilityUnavailable
+}
+
+// Relaunch schedules a fresh instance to start once this process has exited so
+// a newly granted screen-recording (TCC) permission — cached by macOS at launch
+// — takes effect and the new instance can reclaim the write/capture locks.
+func (s *System) Relaunch(context.Context) error { return relaunch() }
+
+var (
+	_ platform.System     = (*System)(nil)
+	_ platform.Relauncher = (*System)(nil)
+)

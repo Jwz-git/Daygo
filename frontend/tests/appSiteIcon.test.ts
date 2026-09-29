@@ -19,6 +19,8 @@ test('normalizes a display host without treating application names as hosts', ()
 
 test('maps known applications and sites using only local rules', () => {
   assert.equal(resolveAppSiteIdentity('Visual Studio Code').kind, 'vscode')
+  assert.equal(resolveAppSiteIdentity('Daygo').kind, 'daygo')
+  assert.equal(resolveAppSiteIdentity('daygo').kind, 'daygo')
   // The model returns the browsed site as often as the application name, so the
   // domain form has to reach the same mark - otherwise that card falls through
   // to the installed-app and favicon probes for an icon the build already ships.

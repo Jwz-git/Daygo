@@ -229,7 +229,7 @@ body {
   font-size: 13px;
   transition:
     background-color var(--dg-motion-fast) ease,
-    box-shadow var(--dg-motion-fast) ease;
+    box-shadow var(--dg-motion-base) var(--dg-ease-out);
 }
 
 .dg-input:hover {
@@ -351,7 +351,7 @@ input[type='number']::-webkit-outer-spin-button {
   white-space: nowrap;
   transition:
     background var(--dg-motion-fast) ease,
-    box-shadow var(--dg-motion-fast) ease,
+    box-shadow var(--dg-motion-base) var(--dg-ease-out),
     transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
@@ -403,7 +403,8 @@ input[type='number']::-webkit-outer-spin-button {
   font-size: 12px;
   transition:
     background var(--dg-motion-fast) ease,
-    border-color var(--dg-motion-fast) ease;
+    border-color var(--dg-motion-fast) ease,
+    transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
 .dg-chip--filled {
@@ -421,6 +422,13 @@ input[type='number']::-webkit-outer-spin-button {
   background: var(--dg-control-fill-hover);
 }
 
+/* Tactile press: the chip dips under the pointer and springs back on release
+   (the glide easing supplies the soft rebound). Matches the button press. */
+.dg-chip:not(:disabled):active {
+  transform: scale(0.96);
+  transition-duration: var(--dg-motion-fast);
+}
+
 .dg-chip:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
@@ -435,6 +443,10 @@ input[type='number']::-webkit-outer-spin-button {
   }
 
   .dg-button:not(:disabled):active {
+    transform: none;
+  }
+
+  .dg-chip:not(:disabled):active {
     transform: none;
   }
 }

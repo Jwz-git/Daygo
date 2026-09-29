@@ -165,7 +165,6 @@ type Service struct {
 
 	mu       sync.Mutex
 	inflight map[string]context.CancelFunc
-	chain    *ai.Chain
 }
 
 // New wires the service. tools may be nil (plain-conversation mode: the
@@ -179,7 +178,6 @@ func New(store Store, providers Providers, settings Settings, tools ToolExecutor
 		tools:     tools,
 		sink:      sink,
 		inflight:  make(map[string]context.CancelFunc),
-		chain:     ai.NewChain(nil, 0),
 	}
 }
 
@@ -260,9 +258,12 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 		return
 	}
 
-	s.mu.Lock()
-	s.rebuildChain(entries)
-	s.mu.Unlock()
+	// The chain is per-turn, not shared: concurrent turns on other
+	// conversations resolve their own pinned providers, and a shared chain would
+	// let one turn's Generate run against another's entries and reach the wrong
+	// provider. Chat chains are single-entry, so no cross-turn demotion state is
+	// lost by rebuilding here.
+	chain := s.buildChain(entries)
 
 	toolCalls := 0
 	correction := ""
@@ -274,7 +275,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 		}
 		request.Output = &envelopeOutput
 
-		result, err := s.chain.Generate(ctx, request)
+		result, err := chain.Generate(ctx, request)
 		correction = ""
 		if err != nil {
 			status := StatusFailed
@@ -434,9 +435,10 @@ func (s *Service) resolveEntries(ctx context.Context, conversation Conversation)
 	return []ProviderEntry{entry}, nil
 }
 
-// rebuildChain swaps the chain's entries, preserving failure counters by id
-// (ai.Chain.Rebuild).
-func (s *Service) rebuildChain(entries []ProviderEntry) {
+// buildChain constructs a fresh provider chain for one turn from its resolved
+// entries. Each turn gets its own chain so concurrent turns never share routing
+// state (ai.Chain.Generate).
+func (s *Service) buildChain(entries []ProviderEntry) *ai.Chain {
 	chainEntries := make([]ai.ChainEntry, 0, len(entries))
 	for _, entry := range entries {
 		provider, err := factory.NewClient(nil, factory.Config{
@@ -469,7 +471,7 @@ func (s *Service) rebuildChain(entries []ProviderEntry) {
 		// llm_calls (decisions/providers-multi-model).
 		chainEntries = append(chainEntries, ai.ChainEntry{ID: entry.ID + "\x1f" + entry.Model, Provider: provider})
 	}
-	s.chain.Rebuild(chainEntries)
+	return ai.NewChain(chainEntries, 0)
 }
 
 // buildRequest assembles the prompt: agent system text (catalog + gate +

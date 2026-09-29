@@ -119,6 +119,71 @@ func TestGetTimelineDayCardsAndTotals(t *testing.T) {
 	}
 }
 
+func TestGetTimelineDayClipsCardAcrossFourAM(t *testing.T) {
+	backend, _ := backendWithStore(t)
+	store := backend.store()
+	ctx := context.Background()
+	if err := store.Write(ctx, "seed crossing batch", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO analysis_batches (id, start_ts, end_ts, status, created_at, updated_at) VALUES (1, 0, 0, 'succeeded', 0, 0)`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	loc := store.Location()
+	from := time.Date(2026, 9, 13, 3, 30, 0, 0, loc)
+	to := time.Date(2026, 9, 13, 4, 30, 0, 0, loc)
+	if _, err := store.Cards().ReplaceCardsInRange(ctx, from, to, []domain.CardShell{{
+		Start: "3:30 AM", End: "4:30 AM", Category: "Work", Title: "crossing", Summary: "s",
+	}}, 1); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		day        string
+		start, end int64
+	}{
+		{"2026-09-12", from.Unix(), from.Add(30 * time.Minute).Unix()},
+		{"2026-09-13", from.Add(30 * time.Minute).Unix(), to.Unix()},
+	} {
+		got, err := backend.GetTimelineDay(tc.day)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Cards) != 1 || got.Cards[0].StartTs != tc.start || got.Cards[0].EndTs != tc.end || got.Cards[0].DurationMinutes != 30 || got.TrackedMinutes != 30 {
+			t.Fatalf("%s = %+v, want one 30-minute visible slice", tc.day, got)
+		}
+	}
+}
+
+func TestCrossFourAMCardWriteInvalidatesBothDays(t *testing.T) {
+	backend, emitter := writerBackendWithStore(t, t.TempDir())
+	store := backend.store()
+	ctx := context.Background()
+	if err := store.Write(ctx, "seed crossing batch", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO analysis_batches (id, start_ts, end_ts, status, created_at, updated_at) VALUES (1, 0, 0, 'succeeded', 0, 0)`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	loc := store.Location()
+	from := time.Date(2026, 9, 13, 3, 30, 0, 0, loc)
+	res, err := store.Cards().ReplaceCardsInRange(ctx, from, from.Add(time.Hour), []domain.CardShell{{
+		Start: "3:30 AM", End: "4:30 AM", Category: "Focus Work", Title: "crossing", Summary: "s",
+	}}, 1)
+	if err != nil || len(res.InsertedIDs) != 1 {
+		t.Fatalf("seed card = %+v, %v", res, err)
+	}
+	if err := backend.UpdateCardTitle(res.InsertedIDs[0], "edited"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for emitter.count(EventTimelineUpdated) < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := emitter.count(EventTimelineUpdated); got != 2 {
+		t.Fatalf("invalidation events = %d, want both logical days", got)
+	}
+}
+
 // The bytes below are what the analysis pipeline stores for its happy-path
 // card; internal/analysis/pipeline_test.go pins the producer to the same
 // shape. appSites crossing this boundary as the model's flat list instead of
@@ -344,6 +409,22 @@ func TestMergeFailuresTolerance(t *testing.T) {
 	}
 	if strings.Contains(got[0].Message, "\n") {
 		t.Fatal("message must be the sanitized note verbatim")
+	}
+}
+
+func TestMergeFailuresKeepsProviderAndInternalCausesSeparate(t *testing.T) {
+	got := mergeFailures([]failedBatchView{
+		{ID: 1, StartTs: 100, EndTs: 200, FailureKind: "network", FailureNote: "provider timed out", Attempts: 1},
+		{ID: 2, StartTs: 200, EndTs: 300, FailureKind: "internal", FailureNote: "card ownership conflict", Attempts: 5},
+		{ID: 3, StartTs: 300, EndTs: 400, FailureKind: "network", FailureNote: "provider timed out", Attempts: 5},
+	})
+	if len(got) != 3 {
+		t.Fatalf("groups = %d, want three distinct causes", len(got))
+	}
+	for i, want := range []string{"network", "internal", "network"} {
+		if got[i].Kind != want || len(got[i].BatchIDs) != 1 {
+			t.Fatalf("group %d = %+v, want one %s batch", i, got[i], want)
+		}
 	}
 }
 

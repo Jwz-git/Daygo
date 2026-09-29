@@ -14,11 +14,21 @@ var activeSystem struct {
 }
 
 func systemStart() error { return errors.New("system ABI unavailable without cgo") }
+func relaunch() error    { return errors.New("relaunch ABI unavailable without cgo") }
 func setStatusItem(platform.StatusItemState) error {
 	return errors.New("status item ABI unavailable without cgo")
 }
 func stopStatusItem() {}
-func systemStop()     {}
+func showStatusMessage(platform.StatusMessage) error {
+	return errors.New("status message ABI unavailable without cgo")
+}
+func setApplicationMenuLabels(platform.ApplicationMenuLabels) error {
+	return errors.New("application menu ABI unavailable without cgo")
+}
+func statusItemAvailable() (bool, error) {
+	return false, errors.New("status item ABI unavailable without cgo")
+}
+func systemStop() {}
 func setActivationPolicy(platform.ActivationPolicy) error {
 	return errors.New("activation policy ABI unavailable without cgo")
 }

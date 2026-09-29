@@ -81,18 +81,21 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 
 | 模块 | 已实现的绑定 | 真实程度 |
 |---|---|---|
-| preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
-| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
+| agent | `GetAgentConnection` | 读写实例启动时监听 `agent.sock`（0600），写入经与 chat 同源的共享执行器（同校验、同事件），每次请求服务端校验 `agentEditsEnabled`，成功写入追加 `agent-writes.log`；绑定只报告可执行路径与 socket 是否在监听 |
+| preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground`、`GetUIVisibility` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`StopRetries`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试、停止自动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
-| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
+| recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`SetPermissionRestartArmed`、`RelaunchForPermission`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；`SetPermissionRestartArmed` / `RelaunchForPermission` 承载授权后的完全退出 + 自动重启（见权限组说明）；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder`、`PollSystemEvents` | 直接调用平台 `Capture` 或排空系统事件广播缓冲；均不接 recorder / storage / config。`PollSystemEvents` 是共享广播缓冲的排空口（recorder 与测试页都要观察全部原生事件，直接消费会互相抢），**会消费缓冲**，正式产品页面不得调用 |
-| providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存 |
+| providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels`、`TryProvider` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存；`TryProvider` 单次发送用户图文并返回文本，只保存 attempt 元数据 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
-上表只说明绑定与本地实现已存在。G-host、真实 Provider、签名后密钥身份与长期门禁由用户于 2026-09-22 确认验收；逐项运行记录尚未附入仓库，见 [09 §9.1](09-roadmap.md#91-模块总表)。
+上表只说明绑定与本地实现已存在。2026-09-26 用户确认所有已实现能力（含近期增量、长期观察与
+现有身份下真实安装升级）已验收；未附逐项运行记录，正式证书缺失与未实现功能保持原状态。
+确认代码范围与历史证据边界见 [09 §9.1.1](09-roadmap.md#911-本轮验收记录与证据边界)。
 fake 的覆盖以 §5.7.4 为准。
 
 > **绑定对象上的导出方法就是前端 API。** Wails 绑定会导出绑定对象的**每一个**导出方法，
@@ -262,6 +265,7 @@ export function toApiError(e: unknown): ApiError {
 |------|----------|----------|------|------|-----------|
 | `GetDayContext(day string) (DayContextDTO, error)` | timeline | time 日期子能力 | 读 | — | `invalid_argument` |
 | `GetCapabilities() (CapabilitiesDTO, error)` | preferences | 实际功能 / 锁状态 | 读 | — | — |
+| `GetUIVisibility() UIVisibilityDTO` | preferences | UI 宿主 | 读 | `ui:visibility-changed` | — |
 | `GetDiagnostics() (DiagnosticsDTO, error)` | data | diagnostics / db-core | 读 | — | `database_error` |
 
 `day` 传空串表示"当前逻辑日"。其余所有接受 `day` 的方法**必须**收到合法 `yyyy-MM-dd`，
@@ -279,10 +283,11 @@ export function toApiError(e: unknown): ApiError {
 | `UpdateCardSummary(cardID int64, text string) error` | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
 | `UpdateCardDetailedSummary(cardID int64, text string) error` | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
 | `DeleteCard(cardID int64) error` | timeline | cards / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` |
-| `RetryBatches(batchIDs []int64) error` | timeline | 批次 / provider-client / media-read | 写·非幂等 | `batch:progress` `timeline:updated` | `not_found` `conflict` |
+| `RetryBatches(batchIDs []int64) error` | timeline | 批次 / provider-client / media-read | 写·非幂等 | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `not_found` `conflict` |
+| `StopRetries(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（封顶 attempts） | `timeline:updated` | `not_found` `invalid_argument` |
 | `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
-| `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `batch:progress` `timeline:updated` | `invalid_argument` `conflict` |
+| `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `invalid_argument` `conflict` |
 | `ReprocessCard(cardID int64) error` | timeline | observations / cards / 写入锁 | 写·非幂等（重写该卡片自己的时间窗） | `timeline:updated` | `invalid_argument` `conflict` `provider_failed` `provider_not_configured` `not_found` |
 | `GetCardVerdict(cardID int64) (string, error)` | timeline | card_reviews | 读 | — | `invalid_argument` `database_error` |
 | `SaveCardReview(cardID int64, verdict string) error` | timeline | card_reviews / 写入锁 | 写·幂等 | — | `invalid_argument` `not_capture_owner` |
@@ -297,9 +302,14 @@ export function toApiError(e: unknown): ApiError {
   分类（`System` / `Idle`，由流水线赋值）时返回 `invalid_argument`，**不得**自动创建
   分类。
 - `DeleteCard` 是软删除并返回可清理的 timelapse 路径给内部维护；对前端只是 `error`。
-- `RetryBatches` / `ReprocessDay` 立即返回，进度通过 `batch:progress` 推送：
+- `RetryBatches` / `ReprocessDay` 立即返回，结果经 `timeline:updated` / `batch:failed` 通知后重新拉取（`batch:progress` 规划中，当前不发送）：
   `RetryBatches` 重置 `attempts` 并清空失败信息后回到 `pending`；调用方传入的
   id 里只要有一个不是失败终态的批次，整个调用返回 `invalid_argument` 且不落任何改动。
+- `StopRetries` 是 `RetryBatches` 的反向操作：把失败批次的 `attempts` 封顶到
+  `MaxBatchAttempts`（不改状态、不删行、不发 LLM 调用），于是冷却重排（`RequeueFailed`）
+  跳过它、失败面板不再宣称「将自动重试」。批次保持失败终态且可见，之后 `RetryBatches`
+  仍能重置计数覆盖本操作，因此停止可逆。与 `RetryBatches` 同样要求所有 id 均为失败终态，
+  否则返回 `invalid_argument` 且不落任何改动。
 - `ReprocessCard` **同步**执行且**只重写这张卡片自己的时间窗**（[04 §4.3.5](04-data-flow.md#435-单卡重写)）：
   它复用该窗内已存的 observations 重跑一次 LLM，在 `[card.start, card.end)` 内重建卡片，
   两侧相邻卡片不受影响，也不产生 `batch:progress`。调用方必须按长任务设置超时
@@ -334,6 +344,13 @@ export function toApiError(e: unknown): ApiError {
 |------|----------|----------|------|------|-----------|
 | `GetRecordingState() (RecordingStateDTO, error)` | recording | System / recorder 实际状态 | 读 | — | — |
 | `GetRecordingDirectory() (string, error)` | recording | recording path resolution | 读 | — | `database_error` |
+| `GetRecordingDirectoryMigration() (RecordingDirectoryMigrationDTO, error)` | recording / data | Windows 迁移状态 | 读 | — | `database_error` |
+| `PickRecordingDirectory() (string, error)` | recording | Windows 原生目录选择器 | 用户交互 | — | `native_unavailable` |
+| `MoveRecordingDirectory(target string) error` | recording / data | Windows 写入与捕获锁；完整迁移历史录制 | 写·非幂等 | `settings:changed` | `not_capture_owner` `invalid_argument` `conflict` `canceled` |
+| `CancelRecordingDirectoryMove() error` | recording / data | 取消进行中的 Windows 复制 | 写·幂等 | — | — |
+
+Windows 的有效录制目录由 `app_settings.storage.recordingsDirectory` 决定，空值回退到默认目录；迁移状态由 `storage.recordingsMigration` 保存。macOS 不提供迁移入口，继续使用默认目录。流程见[决策](decisions/recording-directory-windows.md)。
+`RecordingDirectoryMigrationDTO` 返回 `source`、`target`、`phase` 和 `available`；`available=false` 表示自定义录制目录当前不可访问。`phase=copying` 可继续复制，`phase=committed` 表示新目录已生效但旧文件清理待重试。
 | `CaptureTest(request CaptureTestRequestDTO) (CaptureTestResultDTO, error)` | recording（联调） | Capture 适配器 | 写·测试 | — | `invalid_argument` `permission_denied` `native_unavailable` |
 | `OpenCaptureTestFolder(path string) error` | recording（联调） | 系统文件管理器 | 写·测试 | — | `invalid_argument` `not_found` `native_unavailable` |
 | `PickApplication() (*ApplicationDTO, error)` | recording | Wails picker / ApplicationInspector | 写·用户交互 | — | `invalid_argument` `not_found` `native_unavailable` |
@@ -342,8 +359,8 @@ export function toApiError(e: unknown): ApiError {
 | `SetRecording(enabled bool) error` | recording | capture / db-core / 授权 | 写·幂等 | `recording:state` | `permission_denied` `not_capture_owner` `native_unavailable` |
 | `PauseRecording(minutes int) error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | `invalid_argument` `not_capture_owner` |
 | `ResumeRecording() error` | recording | recorder / 所有权 | 写·幂等 | `recording:state` | 同上 |
-| `SetStatusItemLabels(labels StatusItemLabelsDTO) error` | recording | 平台状态栏 | 写·幂等 | — | — |
-| `SetNativeUiLabels(labels NativeUiLabelsDTO) error` | recording / delivery | 原生应用选择面板、平台更新弹窗 | 写·幂等 | — | — |
+| `SetStatusItemLabels(labels StatusItemLabelsDTO) error` | recording | 平台状态栏 | 写·幂等 | — | `invalid_argument` |
+| `SetNativeUiLabels(labels NativeUiLabelsDTO) error` | recording / delivery | 原生应用菜单、选择面板、平台更新弹窗 | 写·幂等 | — | — |
 
 `PauseRecording` 的 `minutes` 取值 `15` `30` `60`，`0` 表示无限期暂停，其余值返回
 `invalid_argument`。取正值时 recorder 在时长结束后自动恢复（守卫同系统事件恢复：其间的
@@ -354,9 +371,16 @@ export function toApiError(e: unknown): ApiError {
 
 `SetStatusItemLabels` 由前端在加载与语言切换时下发整套已本地化的菜单栏文案（原生状态栏在
 webview 之外渲染，vue-i18n 无法直达）；后端存储该 bundle 并按 recorder 状态映射到状态栏
-表面（录制中显示暂停时长子菜单，其余状态显示单一主操作），再转发给平台适配层。原生适配层
-因此既不持有产品状态也不持有 locale。适配层不可用（如只读第二实例或非 macOS 平台）时下发
-只更新缓存的 bundle，重绘为空操作。
+表面（录制中显示暂停时长项，macOS 平铺、Windows 子菜单；其余状态显示单一主操作），再转发
+给平台适配层。适配层不持有产品状态或 locale；没有适配层时只缓存 bundle。
+只读 / 不可用实例禁用录制操作，系统阻塞暂停不允许手动恢复；`starting` 与捕获重试失败分别
+呈现忙碌与警告图标。macOS 菜单首行显示当前状态，完全相同的快照不重建菜单。
+
+`StatusItemLabelsDTO` 必须全量下发，包含操作、状态、错误反馈及收尾失败的退出选择文案。
+每项须为非空 UTF-8、无 NUL、最多 4096 字节，`keepOpen` 与 `quitAnyway` 不得相同；不合格
+返回 `invalid_argument` 且保留上一套文案。`pausedUntil` 使用 `{time}` 占位符，前端通过
+vue-i18n 保留该字面 token，再由 Go 替换为本地 `HH:mm`。`GetRecordingState.userPaused` 和
+`pauseEndsAtTs` 读取 recorder 实际暂停元数据；停止后清除，系统阻塞期间用户计时到期也会刷新。
 
 `SetNativeUiLabels` 是**其余原生界面**的同一条通道：处理状态栏之外、同样在 webview 之外渲染
 的文案。
@@ -366,6 +390,9 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
     ApplicationPickerTitle  string `json:"applicationPickerTitle"`  // 原生应用选择面板标题
     ApplicationPickerFilter string `json:"applicationPickerFilter"` // 面板的可执行文件过滤器名称
     UpdateOwnerRequired     string `json:"updateOwnerRequired"`     // 更新弹窗：本实例不是捕获所有者，拒绝安装
+    ApplicationMenu platform.ApplicationMenuLabels `json:"applicationMenu"` // macOS 应用 / 编辑 / 窗口菜单
+    JournalReminderTitle    string `json:"journalReminderTitle"`    // 日记提醒通知标题
+    JournalReminderBody     string `json:"journalReminderBody"`     // 日记提醒通知正文
 }
 ```
 
@@ -373,6 +400,13 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
   过滤器只是可用性提示，权威校验始终在 `ApplicationInspector`。
 - `updateOwnerRequired` 转发给实现 `platform.UpdateCopySink` 的更新适配器（§5.7）；由平台
   自行渲染安装提示的适配器不实现该端口，下发被跳过。
+- `applicationMenu` 经可选 `ApplicationMenuCopySink` 下发 20 个标题（完整字段见
+  `internal/platform/types.go`），仅替换既有菜单项文案，保留 selector、快捷键和 responder chain。
+  Cmd+Q 的应用菜单标题明确为“留在后台继续记录”；Dock 系统菜单的“退出”仍由系统渲染。
+- `journalReminderTitle` / `journalReminderBody` 是**日记提醒通知**的文案。提醒的重复语义由 Go
+  拥有（端口 `ScheduleNotification` 是一次性通知，见 §5.7），调度器在读写实例上运行、按设置对账、
+  以稳定 id `journal-reminder` 覆盖或取消；文案随语言变化一并重排。决策与门禁见
+  [日记提醒决策](decisions/notifications-journal-reminder.md)。
 
 与状态栏文案一样：后端只存 bundle 并按表面路由，不持有 locale，也不做翻译。每个字段在后端
 都有一份 zh-CN 默认值——这些表面除下发外没有第二个文案来源，空值会渲染出无标题或无说明的
@@ -388,11 +422,16 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 |------|----------|----------|------|------|-----------|
 | `GetSettings() (SettingsDTO, error)` | preferences | settings-store / settings-access | 读 | — | — |
 | `UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error)` | preferences | settings-access / 写入锁 | 写·幂等 | `settings:changed` | `invalid_argument` |
+| `GetAgentConnection() (AgentConnectionDTO, error)` | agent | 宿主 agent.sock 接线 | 读 | — | — |
 
 - `SaveCategories` 已随时间线绑定实现（§5.2.1 timeline 表）：整体覆盖，重命名在
   同一事务内同步改写已有卡片的 `category` 字符串并按触及日期触发 `timeline:updated`。
   分类列表本身随 `GetTimelineDay` / `GetDayContext` 返回，不再单设 `GetCategories`。
 
+- `GetAgentConnection` 只报告连接信息，不读设置：`executablePath` 是当前进程可执行文件的绝对路径
+  （解析符号链接；系统无法给出时为空，前端回退为 `daygo`），`socketActive` 表示本实例正在监听
+  `agent.sock`——只有读写实例启动 socket，只读第二实例恒为 false。外部写入门禁仍是每次请求时
+  服务端校验的 `agentEditsEnabled`（§5.9.2）。
 - `UpdateSettings` 是**局部补丁**：只有出现在负载中的键被应用（Go 侧字段用指针区分
   "未提供"与"置空"）。返回值是规范化、夹取后的完整设置，`settings:changed` 的 payload
   只带被改动的键名。
@@ -414,21 +453,53 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 | `TestProvider(id string, model string) (ProviderTestResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥或 model 不属于该 provider）`provider_failed`（结果行） |
 | `ListProviderModels(req ProviderModelsRequestDTO) (ProviderModelsResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`native_unavailable` |
 | `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | provider-client | 读·有网络副作用 | — | `invalid_argument` |
+| `TryProvider(req ProviderPlaygroundRequestDTO) (ProviderPlaygroundResultDTO, error)` | providers | 已保存 Provider / Secrets / 持锁读写实例 | 写 attempt 元数据·有网络副作用 | — | `invalid_argument` `not_found` `not_capture_owner` `native_unavailable` `database_error`；网络失败在结果中分类 |
 
-两个测试方法**不是重复**，区别必须保留：
+以下两个旧探针绑定保留兼容，但自 2026-09-27 起不再由产品设置页面调用；用户测试统一走 `TryProvider`：
 
 - `TestProviderConnection` 测的是**表单里还没保存的草稿**，密钥随调用传入、只进 Go 内存，
-  不落盘、不进日志、不回显。它已经实现，是用户在密钥输入框旁点击“测试”时走的路径。
+  不落盘、不进日志、不回显。该旧草稿探针已从表单移除，配置需先保存再进入可视化测试。
 - `TestProvider` 测的是**已保存的 provider**，密钥由 Go 从钥匙串取，调用方给 id 与要测的
   model（空 model 回退到该 provider 的首个模型）。无已存密钥、或 model 不属于该 provider 时
   返回 `invalid_argument`，不发探针。
 
 两者都只发一次探针（30 秒上限、不重试、不回退），**失败是返回值而不是 error**：
-`ok=false` 加分类后的错误码，让 UI 把结果显示在输入框旁而不是弹窗。探针的通过标准见
+`ok=false` 加分类后的错误码。旧探针的通过标准见
 §5.6.4 第 6 条——仅 HTTP 2xx 不算通过。
 
 **密钥只写不读。** 没有任何绑定方法返回密钥内容；前端只能通过 `ProviderDTO.hasSecret`
 知道是否已配置。`TestProvider` 的返回里也不得回显密钥或完整请求体。
+
+2026-09-27 默认输入增量：进入模型测试与试用页时，预填随包内置的 Daygo 软件图标 PNG 和当前界面的本地化描述提示词（简体中文为「请描述这张图片的内容」）。图标以打包内联 data URL 同时用于预览和请求字节，无需联网加载；用户可移除或替换图片、编辑文字。仅点击发送才调用模型，重新进入页面恢复默认值；切换语言不覆盖正在编辑的文字。
+
+**可视化模型测试与试用（2026-09-27 统一入口）**：产品测试全部使用 `TryProvider`，不再执行固定探针。
+设置中的「模型测试与试用」进入 `#/model-tests`，可通过 `providerId` / `model` 查询参数预选已保存模型；
+参数须属于当前配置，不能指定任意 endpoint 或传入密钥。输入为用户主动选择的一张 PNG/JPEG
+（原始字节最多 5 MiB、最多 2000 万像素；校验 base64、图片头与声明 MIME 一致性）和 / 或文字
+（最多 16000 个 Unicode 字符，空白文本不单独构成请求）。图片以纯 base64 跨界，不接受路径 / URL。
+固定模型单次调用，不附带聊天历史、不重试、不回退、不应用识别增强、不强制 JSON Schema；
+操作 context 最长 30 秒，输出上限 2048 tokens；非流式返回。`ok` 仅表示收到非空文本，不代表质量合格。
+只有读写且拥有捕获锁的实例允许调用，`llm_calls` 沿用 attempt 元数据记录，不保存输入 / 回复 / 图片。
+回复正文只返回试用页面，由 Vue 转义为纯文本，不执行 HTML、远程图片或工具；防止供应商直接回显
+当前密钥的过滤发生在 attempt 观察器之前。网络失败只返回错误分类，不返回供应商错误正文。
+页面卸载清空输入 / 结果并丢弃迟到响应，不声称取消在途请求；在途请求由超时或宿主 context 取消终止。
+
+```go
+type ProviderPlaygroundRequestDTO struct {
+    ProviderID string `json:"providerId"`
+    Model string `json:"model"` // 必填且属于 provider
+    Text string `json:"text"`
+    ImageType string `json:"imageType"` // 空 / image/png / image/jpeg
+    ImageBase64 string `json:"imageBase64"`
+}
+type ProviderPlaygroundResultDTO struct {
+    OK bool `json:"ok"`
+    Text string `json:"text"` // 成功时实际回复；仅已存密钥的直接回显被脱敏
+    Model string `json:"model"` // 实际模型；供应商省略时使用请求模型
+    LatencyMs int64 `json:"latencyMs"`
+    ErrorCode string `json:"errorCode"` // 沿用 ai 错误分类；失败时无 Text
+}
+```
 
 `ProviderInputDTO.secret` 为空串时表示"保持不变"，不是"清空"。清空只能经
 `DeleteProviderSecret`。
@@ -471,14 +542,24 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
 | `GetPermissionState() (PermissionDTO, error)` | recording | System 授权 | 读 | — | `native_unavailable` |
-| `RequestScreenRecordingPermission() error` | recording | System 授权交互 | 写·系统交互 | `permission:changed` | `native_unavailable` |
+| `RequestScreenRecordingPermission() error` | recording | System 授权交互 | 写·系统交互 | — | `native_unavailable` |
 | `OpenSystemSettings(pane string) error` | recording | System 面板入口 | 写·系统交互 | — | `invalid_argument` `native_unavailable` |
+| `SetPermissionRestartArmed(armed bool) error` | recording | System 生命周期 | 写·幂等 | — | — |
+| `RelaunchForPermission() error` | recording | System 自重启 | 写·系统交互 | — | `native_unavailable` |
 | `GetUpdaterState() (UpdaterStateDTO, error)` | delivery | Updater | 读 | — | `native_unavailable` |
 | `CheckForUpdates(interactive bool) error` | delivery | Updater / G-native | 写 | `update:available` | `native_unavailable` |
 | `SetAutomaticUpdateChecks(enabled bool) error` | delivery | Updater / G-native | 写·幂等 | — | `native_unavailable` |
 
 `OpenSystemSettings` 的 `pane` 是封闭枚举：`screen_recording` `notifications` `login_items`。
 **不接受任意 URL**，避免绑定层变成通用的系统跳转能力。
+
+`SetPermissionRestartArmed` 武装 / 解除「授权重启」意图（进程内标志，重启后自然复位）：前端在授权引导层
+出现时武装、关闭时解除。武装后的下一次退出——包括 macOS 授权后自弹的「退出并重开」——是**完全退出 +
+自动重启**，而非常驻 Agent 平时的软退出隐藏（见
+[生命周期退出模型](decisions/lifecycle-quit-model.md) 与
+[屏幕录制授权](decisions/recording-screen-recording-permission.md)）。`RelaunchForPermission`
+直接执行「收尾录制 → 调度自重启 → 真退出」，供引导层的「重启使授权生效」按钮调用；无桌面外壳时返回
+`native_unavailable`。macOS 在启动时缓存 TCC 授权，只有完全重启才能让新授权生效，这两个方法即为此存在。
 
 更新弹窗中**属于我们的**那句文案（本实例不是捕获所有者，因此拒绝安装）由前端经
 `SetNativeUiLabels` 下发（§5.5.1），适配器经 `UpdateCopySink` 接收；Sparkle 与 WinSparkle
@@ -558,11 +639,11 @@ type TimelineDayDTO struct {
 type TimelineCardDTO struct {
     ID                    int64            `json:"id"`              // → timeline_cards.id
     BatchID               *int64           `json:"batchId"`         // → batch_id
-    Day                   string           `json:"day"`             // → day
+    Day                   string           `json:"day"`             // 卡片归属日；跨 4 点的次日时间片仍保留原归属日
     Start                 string           `json:"start"`           // → start，时钟串
     End                   string           `json:"end"`             // → end
-    StartTs               int64            `json:"startTs"`         // → start_ts
-    EndTs                 int64            `json:"endTs"`           // → end_ts
+    StartTs               int64            `json:"startTs"`         // GetTimelineDay 裁剪到所请求日窗口
+    EndTs                 int64            `json:"endTs"`           // 原始时间戳仍在数据库中
     Category              string           `json:"category"`        // → category（名称字符串）
     Subcategory           string           `json:"subcategory"`     // → subcategory
     Title                 string           `json:"title"`           // → title
@@ -573,7 +654,7 @@ type TimelineCardDTO struct {
     AppSites              *AppSitesDTO     `json:"appSites"`          // → metadata.appSites
     Distractions          []DistractionDTO `json:"distractions"`      // → metadata.distractions
     IsIdle                bool             `json:"isIdle"`            // 分类 isIdle 或 metadata.idle
-    DurationMinutes       int              `json:"durationMinutes"`   // 派生：max(0,(endTs-startTs)/60)
+    DurationMinutes       float64          `json:"durationMinutes"`   // 当前日可见时间片的分钟数
 }
 
 type DistractionDTO struct {
@@ -609,8 +690,8 @@ type TimelineFailureDTO struct {
     BatchIDs  []int64 `json:"batchIds"`
     StartTs   int64   `json:"startTs"`
     EndTs     int64   `json:"endTs"`
-    Kind      string  `json:"kind"`    // 面向用户的失败类别
-    Message   string  `json:"message"` // 已脱敏
+    Kind      string  `json:"kind"`    // 失败类别；前端按类别显示本地化原因，不从 message 猜测来源
+    Message   string  `json:"message"` // 已脱敏的诊断文本，不直接呈现在时间线上
     Retryable bool    `json:"retryable"` // 仅描述是否会自动重试；RetryBatches 不受它约束
 }
 
@@ -648,6 +729,7 @@ type FrameRefDTO struct {
 type RecordingStateDTO struct {
     State           string  `json:"state"`         // idle|starting|capturing|paused
     Reason          *string `json:"reason"`        // 系统暂停原因或脱敏录制失败代码，如 capture_timeout:0x887a0027
+    StopCause       *string `json:"stopCause"`     // idle 时最近停止来源：requested|shutdown|update|storage_migration|capture_failure|context_cancelled；启动时清空
     UserPaused      bool    `json:"userPaused"`    // 用户主动暂停，区别于系统事件暂停
     PauseEndsAtTs   *int64  `json:"pauseEndsAtTs"` // 定时暂停到期时刻；无限期为 null
     Permission      string  `json:"permission"`    // granted|denied|not_determined
@@ -702,8 +784,8 @@ type StorageSettingsDTO struct {
 }
 
 type NotificationSettingsDTO struct {
-    JournalReminderEnabled bool   `json:"journalReminderEnabled"`
-    JournalReminderTime    string `json:"journalReminderTime"` // "HH:mm"，本地时间
+    JournalReminderEnabled bool   `json:"journalReminderEnabled"` // 默认 false
+    JournalReminderTime    string `json:"journalReminderTime"`    // "HH:mm"，本地时间；默认 "18:00"
 }
 
 type AppearanceSettingsDTO struct {
@@ -730,6 +812,12 @@ type SystemSettingsDTO struct {
     ShowDockIcon      bool `json:"showDockIcon"`
     AgentEditsEnabled bool `json:"agentEditsEnabled"` // 控制 agent.sock，见 §5.9
     TestToolsEnabled  bool `json:"testToolsEnabled"`  // 显示侧边栏测试页（捕获测试、数据清理）；默认 false
+}
+
+// AgentConnectionDTO 供设置页生成 MCP 客户端配置与 CLI 示例（§5.9.3）。
+type AgentConnectionDTO struct {
+    ExecutablePath string `json:"executablePath"` // 空 = 系统无法报告，前端回退 `daygo`
+    SocketActive   bool   `json:"socketActive"`   // 本实例正在监听 agent.sock
 }
 
 type TelemetrySettingsDTO struct {
@@ -921,7 +1009,7 @@ type CategoryTotalDTO struct {
     ColorHex string  `json:"colorHex"` // categories 表颜色；无分类行时为 ""
 }
 
-// 一天的时段不裁剪到日窗口（与 CategoryMinutesInRange 同一重叠谓词）；
+// 一天的时段裁剪到日窗口；跨 4 点卡片在相邻两日各占自己的时间片，周总量也只计窗口交集；
 // segments 含 Idle，System 全部排除。时段数量上限由批次生成节奏天然约束。
 type WeeklyDayDTO struct {
     Day            string             `json:"day"` // 逻辑日 yyyy-MM-dd
@@ -966,6 +1054,14 @@ type UpdaterStateDTO struct {
 }
 ```
 
+失败时段仅在 `kind` 相同且 `retryable` 相同时按 60 秒容差合并，避免相邻的 Provider 超时与
+Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`、`network`、
+`invalid_request`、`invalid_output` 是 Provider 请求相关类别；`network` 只表明请求链路失败，
+不推断服务商服务器一定有故障。`no_provider` 表示本机尚无可用配置；`internal` 与其它未知类别
+不得归因于服务商。模型连续输出不合法卡片时归 `invalid_output`；卡片存储所有权冲突仍归 `internal`。
+
+`availableVersion == nil` 表示未发现更新；非空字符串表示已发现且知道版本号；空字符串表示已发现但平台回调未提供版本号（Windows WinSparkle）。前端在空字符串时显示不含版本号的本地化提示。
+
 ### 5.5.3 事件目录
 
 事件只有三类，规则不同。混用是状态分叉的主要来源，所以每个事件必须先归类：
@@ -985,12 +1081,12 @@ type UpdaterStateDTO struct {
 | `settings:changed` | 失效 | `{keys: string[]}` | 设置、分类或 provider 写入成功后 |
 | `chat:updated` | 失效 | `{conversationId: string}` | chat 会话或消息落库（新建 / 删除 / 回合内每条消息 / 回合结束） |
 | `recording:state` | 状态 | `RecordingStateDTO` | 状态机转换、权限变化、暂停到期 |
-| `capabilities:changed` | 状态 | `CapabilitiesDTO` | 获得或失去写入 / 捕获所有者锁 |
-| `permission:changed` | 状态 | `PermissionDTO` | 系统授权变化 |
-| `batch:progress` | 状态 | `{batchId: number, step: string, day: string}` | 流水线阶段推进 |
+| `batch:progress` | 状态 | `{batchId: number, step: string, day: string}` | 流水线阶段推进（**规划中，当前不发送**） |
 | `batch:failed` | 状态 | `TimelineFailureDTO` | 批次进入失败终态 |
-| `recording:warning` | 状态 | `{kind: string, sinceTs: number}` | 看门狗：`capturing` 但超过 `interval × 5` 无帧 |
+| `recording:warning` | 状态 | `{kind: string, sinceTs: number}` | 看门狗：`capturing` 但超过 `interval × 5` 无帧（**规划中，当前不发送**） |
 | `update:available` | 状态 | `UpdaterStateDTO` | 发现新版本 |
+
+不设 `capabilities:changed` / `permission:changed`：写入 / 捕获所有者锁只在启动时获取，运行期间能力不变，前端以 `Get*` 返回的 `CapabilitiesDTO` 为准；授权状态由前端在开始录制前经 `GetPermissionState` 主动查询；macOS 新授予的屏幕录制权限要重启进程才生效（`RelaunchForPermission`），会话内没有需要推送的授权变化。`batch:progress` 与 `recording:warning` 已定常量但尚无发送方，前端不得依赖它们；在实现前进度与失败只能经 `timeline:updated` / `batch:failed` 后重新拉取获得。
 
 三条实现约束：
 
@@ -1001,6 +1097,15 @@ type UpdaterStateDTO struct {
 3. **事件不是数据源。** 任何界面都必须能只靠 `Get*` 方法完成首屏渲染；断开事件后功能
    降级为"不自动刷新"，而不是"显示错误"或"数据为空"。
 
+### UI 可见性
+
+`GetUIVisibility() UIVisibilityDTO` 返回 `{visible: boolean}`；`ui:visibility-changed`
+同形载荷，仅在有效状态改变时发出。app 维护应用隐藏与窗口 order-out 两个独立来源；
+macOS `didHide` / `didUnhide` 经 System 事件泵处理，软退出 / 显式重开由 Wails 入口处理。
+普通激活 / 失焦不构成隐藏；既有退出、录制状态和业务订阅不变。前端单一订阅先安装事件，
+再读快照；事件或较新的快照请求使旧快照失效，结合 `document.visibilityState` 驱动媒体。
+隐藏只暂停媒体时钟并移除像素元素，不卸载路由、播放器或编辑状态；重开保留播放意图与进度。
+
 ### 5.5.4 资源契约
 
 像素**不走 JSON**，通过 Wails 资源处理器以普通 HTTP 资源提供，这样浏览器免费获得
@@ -1009,11 +1114,12 @@ type UpdaterStateDTO struct {
 | 资源 | 路径形状 | 内容 | 状态 |
 |------|----------|------|------|
 | 单帧 | `GET /media/frame?id={screenshotID}` | JPEG | 已实现 |
+| 缩略图 | `GET /media/thumbnail?id={screenshotID}` | 最长边不超过 256 像素的 JPEG，保持比例 | 已实现 |
 | Timelapse | `/media/timelapse/{cardID}` | mp4 | 规划中 |
 
 契约：
 
-1. **寻址以数字 ID 完成，路径形状是固定约定**（`/media/frame?id=`，无其他查询参数）。
+1. **寻址以数字 ID 完成，路径形状是固定约定**（`/media/frame?id=` 或 `/media/thumbnail?id=`，无其他查询参数）。
    前端从 `CardMediaFrameDTO.id` 生成 URL；"ID → 磁盘路径"的映射只存在于 Go 侧，
    帧寻址方式一旦变化只需改后端与这一处约定。
 2. **处理器只接受数字 ID。** 不接受文件路径参数；ID 在数据库中解析为 `segment_path`
@@ -1024,7 +1130,9 @@ type UpdaterStateDTO struct {
 4. **状态码映射**：`404` 行不存在、已软删除或文件已清理（含解码失败——行存在但文件
    不可读等同缺资源，不区分 5xx）；`400` ID 非法。适配层不可用等同资源缺失（404），
    因为无录制目录时本来就没有帧。
-5. **解码在请求时发生**：`GetCardMedia` 只返回引用；像素在浏览器请求资源时经
+5. **缩略图**：与单帧复用 ID 校验、目录约束、状态码和缓存策略；使用
+   `DecodeRequest.MaxPixelSize=256`。主画面 / 放大查看仍走完整单帧，预览条走缩略图。
+6. **解码在请求时发生**：`GetCardMedia` 只返回引用；像素在浏览器请求资源时经
    `platform.Media.DecodeFrame` 解码。规划中的 Timelapse 资源将复用同一处理器约定。
 
 ### 5.5.5 前端侧规则
@@ -1110,7 +1218,6 @@ type TimelineRepository interface {
     CardsForDay(ctx context.Context, day string) ([]domain.TimelineCard, error)
     CardsInRange(ctx context.Context, from, to time.Time) ([]domain.TimelineCard, error)
     CardByID(ctx context.Context, id int64) (domain.TimelineCard, error)
-    CardsForBatch(ctx context.Context, batchID int64) ([]domain.TimelineCard, error)
 
     // ReplaceCardsInRange 是流水线的原子提交点：单个事务内完成软删除（范围内所有卡片，
     // 含 System 回退卡）、时钟串解析、插入，并返回可清理的 timelapse 路径与被跳过的卡片。
@@ -1121,7 +1228,6 @@ type TimelineRepository interface {
     UpdateCardCategory(ctx context.Context, id int64, category string) error
     UpdateCardTitle(ctx context.Context, id int64, title string) error
     SoftDeleteCard(ctx context.Context, id int64) (videoPath string, err error)
-    TotalMinutesTracked(ctx context.Context, from, to time.Time) (float64, error)
 }
 
 type ReplaceResult struct {
@@ -1163,7 +1269,7 @@ type ReplaceResult struct {
 
 1. `internal/ai` 暴露统一 `Generate(ctx, Request)`：`Request.Parts` 是有序文本 / 内存图片，
    可附带 JSON Schema；媒体由流水线经 `platform.Media` 准备，provider 不读路径或自行解码。
-   首期图片仅接受 JPEG / PNG / WebP，最多 20 张、单张 5 MiB、原始总量 20 MiB。
+   首期图片仅接受 JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB。
 2. 三种协议都发送原生 schema：openai（Chat Completions）与 openai_responses 分别使用
    `response_format` 和 `text.format`，anthropic 使用 `output_config.format`；返回后仍须
    本地提取 / 修复 JSON 并验证 schema。兼容端不支持时返回 `unsupported_feature`，
@@ -1186,8 +1292,8 @@ type ReplaceResult struct {
    连接探针，不重试、不 fallback，不发送业务正文。探针包含固定指令文本、内嵌匿名 PNG 和严格
    JSON Schema：模型必须回显固定 probe token 并正确识别图片特征才算通过，仅 HTTP 2xx 不构成
    成功；返回实际模型、延迟与已验证能力（文本 / 图片 / 结构化输出）。探针经 `TestProviderConnection`
-   绑定由用户在密钥输入框旁手动触发：草稿密钥仅为本次调用进入 Go 内存，不落盘、不进
-   日志；测试结果是建议性的，不阻塞保存，失败原因按错误分类本地化展示。
+   绑定保留兼容，但两个旧探针均无产品 UI 入口。草稿密钥仅为本次调用进入 Go 内存，不落盘、
+   不进日志。产品测试使用上述 `TryProvider`，以非空文字回复为成功标准，不验证结构化输出能力。
    HTTP endpoint 允许使用，仅提示明文传输风险，不强制 HTTPS。
 7. 转录可并行，**但卡片的 读取 → 生成 → 改写 序列必须按重叠范围串行化**。
 8. `context` 取消必须中止在途 HTTP 与退避；被取消的批次保持 `processing`，下次启动重新拾取。
@@ -1266,6 +1372,43 @@ type System interface {
     Events() <-chan SystemEvent
 }
 
+// Relauncher 是 System 的可选能力：进程退出后重新拉起自身。适配器实现即视为具备；
+// app 层类型断言，缺失时退化为普通退出（不自动重启）。用于授权重启——macOS 在启动时
+// 缓存 TCC 授权，常驻 Agent 的普通退出只隐藏窗口，只有完全重启才能让新授权生效。
+type Relauncher interface {
+    Relaunch(ctx context.Context) error
+}
+
+// macOS 的可选宿主能力：确认已应用的状态栏恢复入口。仅生命周期动作调用；
+// recorder 状态重绘仍异步，不能在其回调中等待主线程。
+type StatusItemAvailability interface {
+    StatusItemAvailable(ctx context.Context) (bool, error)
+}
+
+// Notification 是一次性通知：DeliverAt 为空表示立即投递；端口没有重复 / 周期字段。
+// 「每天同一时刻」的重复语义由 Go 拥有——日记提醒调度器在读写实例上按设置对账，
+// 以稳定 id 覆盖或取消单条通知，文案随语言变化重排。见 §5.5.1 与
+// decisions/notifications-journal-reminder.md。
+type Notification struct {
+    ID        string
+    Title     string
+    Body      string
+    DeliverAt *time.Time
+}
+
+// 可选 macOS 宿主文案与非阻塞反馈；业务错误映射到本地化文案后才传入平台。
+type ApplicationMenuCopySink interface {
+    SetApplicationMenuLabels(ctx context.Context, labels ApplicationMenuLabels) error
+}
+type StatusMessagePresenter interface {
+    ShowStatusMessage(ctx context.Context, message StatusMessage) error
+}
+type StatusMessage struct {
+    Title string `json:"title"`
+    Message string `json:"message"`
+    Button string `json:"button"`
+}
+
 // Secrets 是系统钥匙串。service 为 io.github.jwz-git.daygo.apikeys.<provider>。
 type Secrets interface {
     Get(ctx context.Context, provider string) (string, error)
@@ -1288,6 +1431,30 @@ type UpdateCopySink interface {
     SetInstallRefusedMessage(message string)
 }
 ```
+
+macOS System ABI 1.5 新增 `application_hidden` / `application_unhidden` 成对事件
+（原生值 9 / 10），与 `application_activated` 独立。观察者随 `dg_system_start` 安装，
+随 `dg_system_stop` 移除；不会将 UI 隐藏解释为 recorder 暂停或停止。
+
+macOS System ABI 1.6 增加 `system_shutdown`（原生值 11），来自 NSWorkspace 的
+`willPowerOffNotification`，覆盖关机 / 注销意图；app 放行真退出并尽力收尾，禁用授权自重启。
+该终态事件在通道满时替换最旧事件，不阻塞 AppKit；其余事件维持现有有界通道行为。
+macOS `dg_activation_policy_set` 同步等待主线程并核对实际策略；已处于目标策略亦返回 0，
+调用后仍与目标不符返回 -2，未知枚举返回 -1。不能把 AppKit 对重复设置返回的 false 当作拒绝。状态栏新增
+`dg_status_item_is_available` 查询，0 为不可用、1 为已安装且可见。重绘 ABI 仍异步。
+
+2026-09-26：状态栏 ABI 升为 **3**（结构新增显式 icon 枚举，禁止按文案猜图标），macOS 与
+Windows 的静态库 / DLL 必须与 Go 桥一起重建。System ABI 1.6 另提供应用菜单与操作反馈 JSON
+入口：菜单限 8192 字节、恰好 20 项且每项最多 512 字节；反馈限 8192 字节、标题 / 按钮最多
+512 字节、正文最多 4096 字节。原生先复制再异步主线程应用。反馈最多一个 modeless 提示，
+显示 modeless 提示前显式调用 `NSAlert.layout()`，正文完整换行且只显示配置的一个按钮；
+不阻塞系统事件泵，System 关闭时移除；收尾失败的退出选择仍在独立 Wails 退出回调中等待。
+
+`system.showDockIcon` 在启动及设置持久化后驱动 macOS 激活策略；关闭时窗口仍可显示，但从
+Dock / Cmd+Tab 隐去。软退出单独隐藏窗口并请求 accessory，重开按已保存偏好恢复策略。
+进入 accessory 前确认状态栏恢复入口可用，否则保留 regular；原生失败不记为已应用，并在
+下一次显式重开重试。设置保存成功而应用失败时提示该区别，不回滚已保存偏好。
+
 
 ### 5.7.1 调用语义
 
@@ -1437,7 +1604,7 @@ v1 不交付这些接口，但形状先定，避免 v1 的数据模型在补做�
 |------|-----|
 | 命令名 | `daygo` |
 | 读命令 | `status` · `timeline [YYYY-MM-DD\|today\|yesterday]` · `card <id>` · `daily` · `weekly` · `categories` · `search <text>` |
-| 写命令 | 经 `agent.sock`，不直连数据库 |
+| 写命令 | `write <operation> '<json arguments>'`（操作集同 §5.9.2）：经 `agent.sock`，不直连数据库；bridge 错误码按同名映射退出码（`invalid_argument`→2、`not_found`→3，其余→1），成功时 `--json` 输出 `{"schema_version":1,"data":...}` |
 | 退出码 | `0` 成功 · `1` 意外 · `2` 参数错误 · `3` 未找到 · `5` 无数据 |
 | 数据库路径覆盖 | `DAYGO_DB` |
 | 连接 | 只读，`SQLITE_OPEN_READONLY` + `PRAGMA query_only` |
@@ -1449,8 +1616,8 @@ JSON 输出（`--json`）规则：
 3. 时间格式 `yyyy-MM-dd'T'HH:mm:ssZZZZZ`。
 4. 空值省略规则必须明确写死并测试（哪些字段为空时不输出）。
 5. 错误输出到 **stderr**，形状 `{"schema_version":1,"error":{"code":...,"message":...}}`。
-6. `timeline` 按 `start_ts` 落在逻辑日窗口内选择；`daily` 按**日历日**查询；
-   合计一律排除 `category = 'System'`。
+6. `timeline` 按卡片与逻辑日窗口相交选择，并将输出时间戳及分钟数裁剪到该窗口；
+   `daily` 按**日历日**查询；合计一律排除 `category = 'System'`。
 
 ### 5.9.2 Agent bridge（写入通道）
 
@@ -1459,29 +1626,31 @@ JSON 输出（`--json`）规则：
 | 路径 | `~/Library/Application Support/Daygo/agent.sock` |
 | 权限 | `0600`（文件权限就是访问控制） |
 | 帧格式 | 一次连接一行 JSON 请求、一行 JSON 响应，然后关闭 |
-| 请求 | `{"protocol_version":1,"operation":"...","arguments":{...}}` |
+| 请求 | `{"protocol_version":1,"operation":"...","arguments":{...},"source":"mcp"}`；`source` 可省略 |
 | 响应 | `{"ok":true,"data":{...}}` 或 `{"ok":false,"error":{"code":"...","message":"..."}}` |
 | 上限 | 请求与响应各 1 MB |
 | 门禁 | `system.agentEditsEnabled` 为 false 时返回 `edits_disabled`，且**服务端独立校验**，不信任客户端检查 |
 | 操作 | `category_add` `category_update` `category_remove` `card_update` `card_delete` `goal_set` |
 | 错误码 | `protocol_error` `protocol_mismatch` `edits_disabled` `invalid_argument` `not_found` `unknown_operation` `internal_error` |
-| 审计 | 每次成功写入追加 `agent-writes.log` |
+| 来源 | `source` 封闭为 `agent.sock` / `cli` / `mcp`，省略默认 `agent.sock`；未知值报 `protocol_error`；仅作审计标签，不是授权证明 |
+| 审计 | 每次成功写入追加 `agent-writes.log`，只记时间 / 来源 / 操作，不记参数；UI / chat 当前不经过此日志 |
 
 **写入必须与绑定层走同一条服务路径**（同样的校验、同样的事件），否则外部 agent 改了数据
 而 UI 不刷新，或绕过了分类名校验。
 
-### 5.9.3 MCP 服务器（设计准备，未实现）
+### 5.9.3 MCP 服务器
 
 MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当作工具源：查时间线、
-读日报、在授权范围内改卡片与分类。本节**只固定已可确定的约束**；传输与进程模型未定，
-候选见下表与 [09 §9.8](09-roadmap.md#98-待定设计清单)，决策落
-`docs/decisions/agent-mcp-*.md` 后本节随之收敛。
+读日报、在授权范围内改卡片与分类。传输已定为 stdio 子进程 `daygo mcp`
+（[决策记录](decisions/agent-mcp-transport.md)）；下方候选表保留作决策依据与回退路径。
+客户端配置为启动 Daygo 主程序并传 `mcp` 参数；设置页经 `GetAgentConnection` 给出当前可执行文件的
+绝对路径，不假定 `daygo` 已在 PATH 上。
 
 已定约束：
 
 | 约束 | 值 | 理由 |
 |------|-----|------|
-| 工具读面 | 与 §5.9.1 CLI 读命令同源：timeline / card / daily / weekly / categories / search | 一套查询语义，两处实现会漂移 |
+| 工具读面 | 与 §5.9.1 CLI 同源；已实现 timeline / card / daily / weekly / categories 五读，search 未实现 | 一套查询语义，两处实现会漂移；不能把目标 search 写成当前工具 |
 | 工具写面 | 操作集不超出 §5.9.2 的六个操作 | 不为 MCP 引入绑定层没有的写能力 |
 | 写入路径 | 与绑定层同一条服务路径：同校验、同事件、同 `edits_disabled` 门禁（服务端独立校验） | 外部写入后 UI 必须刷新；门禁不能靠客户端自律 |
 | 输出信封 | 复用 `schema_version`（初始 1），JSON 规则同 §5.9.1（键排序、时间格式、空值省略） | 一个版本域服务所有对外 JSON，diff 门禁共用 |
@@ -1489,14 +1658,14 @@ MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当�
 | 隐私边界 | 工具不暴露原始帧、分段路径、LLM payload、密钥、屏幕内容 | [07](07-privacy-security.md) 的边界对 MCP 同样生效 |
 | 核心可测 | MCP 服务代码 `CGO_ENABLED=0` 且在 Linux 下可编译可测试 | §5.10.3 的 CI 门禁反向约束接口设计 |
 
-待定候选（09 §9.8 #22）：
+决策候选（09 §9.8 #22，已选 stdio，HTTP 保留为回退路径）：
 
 | 决策点 | 候选 | 含义与代价 |
 |--------|------|-----------|
 | 传输与进程模型 | **stdio**：MCP 客户端拉起 `daygo mcp` 子进程 | 独立进程，与 CLI 同构：读走只读 DB（`SQLITE_OPEN_READONLY` + `query_only`，`DAYGO_DB` 可覆盖），写走 `agent.sock`。无需端口与鉴权，权限模型沿用 0600 socket + `agentEditsEnabled` |
 | | **Streamable HTTP**：宿主内常驻服务 | 读写可直达服务层（等价于又一个绑定层消费者），但需要本地回环监听、端口选择与鉴权设计，扩大攻击面 |
-| 工具粒度与命名 | 逐命令映射（`daygo_timeline` …）vs 粗粒度查询工具 | 决策随传输一起落；命名进 `schema_version` 冻结范围 |
-| 审计归属 | MCP 写入在 `agent-writes.log` 中的来源标记 | 需要区分 UI / CLI / MCP 三种写入来源时一并定 |
+| 工具粒度与命名 | 已选逐命令映射（`daygo_timeline` …），粗粒度查询保留为候选 | 已实现五读六写；命名进 `schema_version` 冻结范围 |
+| 审计归属 | 已实现 `source=mcp` 的外部写入审计 | 仅覆盖 socket / CLI / MCP；UI / chat 独立写入审计仍未实现 |
 
 无论选哪种候选，上表"已定约束"不变；特别是**stdio 形态的 MCP 写入与 CLI 写入一样只能经
 `agent.sock`**，不得为省一跳而开第二条直连数据库的写路径。

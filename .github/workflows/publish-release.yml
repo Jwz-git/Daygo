@@ -66,6 +66,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.build_macos == 'true'
     runs-on: macos-15
+    environment: release
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,11 +87,68 @@ jobs:
           brew install create-dmg
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
 
+      # Import the persisted self-signed identity so every release carries the
+      # same designated requirement and the Screen Recording (TCC) grant keyed
+      # to it survives updates. A release without this identity must fail.
+      - name: Import signing certificate
+        env:
+          DAYGO_DEV_CERT_P12_BASE64: ${{ secrets.DAYGO_DEV_CERT_P12_BASE64 }}
+          DAYGO_DEV_CERT_P12_PASSWORD: ${{ secrets.DAYGO_DEV_CERT_P12_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${DAYGO_DEV_CERT_P12_BASE64}" && -n "${DAYGO_DEV_CERT_P12_PASSWORD}" ]] || {
+            echo 'Daygo signing certificate is missing from the release environment.' >&2
+            exit 1
+          }
+          keychain="$RUNNER_TEMP/daygo-signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          p12="$RUNNER_TEMP/daygo-cert.p12"
+          printf '%s' "$DAYGO_DEV_CERT_P12_BASE64" | base64 --decode > "$p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$p12" -k "$keychain" -P "$DAYGO_DEV_CERT_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" >/dev/null
+          certificate="$(security find-certificate -c 'Daygo Dev' -p "$keychain")"
+          # OpenSSL and LibreSSL vary the case of the "SHA256 Fingerprint" label.
+          fingerprint="$(printf '%s' "$certificate" | /usr/bin/openssl x509 -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          expected_fingerprint='FBFF438BAF286BBA816F1124B635B95DD9398259AEEB22C9399949753BEC94B4'
+          [[ "$fingerprint" == "$expected_fingerprint" ]] || {
+            echo 'Imported Daygo certificate fingerprint does not match the pinned release identity.' >&2
+            exit 1
+          }
+          # Prepend the temp keychain to the search list so codesign resolves the
+          # identity, keeping the existing keychains (quotes stripped for reuse).
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$p12"
+          echo 'DAYGO_DEV_SIGN_IDENTITY=AB33C5E51E1591AC730CDDFF03766F737A36F38E' >> "$GITHUB_ENV"
+          echo 'Imported pinned self-signed Daygo identity.'
+
       - name: Package macOS installer
         env:
           DAYGO_ARCH: arm64
           VERSION: ${{ needs.prepare.outputs.version }}
         run: ./scripts/package-macos.sh "$VERSION"
+
+      - name: Verify packaged macOS identity
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mount_dir="$RUNNER_TEMP/daygo-dmg"
+          mkdir -p "$mount_dir"
+          hdiutil attach -quiet -readonly -nobrowse -mountpoint "$mount_dir" "dist/Daygo-${VERSION}-arm64.dmg"
+          trap 'hdiutil detach -quiet "$mount_dir"' EXIT
+          app="$mount_dir/Daygo.app"
+          codesign --verify --deep --strict "$app"
+          requirement="$(codesign -dr - "$app" 2>&1)"
+          expected='designated => identifier "io.github.jwz-git.Daygo" and certificate leaf = H"ab33c5e51e1591ac730cddff03766f737a36f38e"'
+          [[ "$requirement" == *"$expected"* ]] || {
+            echo 'Packaged Daygo.app does not have the pinned release identity.' >&2
+            exit 1
+          }
 
       - name: Upload macOS installer to release assets
         env:
@@ -101,6 +159,11 @@ jobs:
           asset="dist/Daygo-${VERSION}-arm64.dmg"
           test -f "$asset" || { echo "macOS installer not found: $asset" >&2; exit 1; }
           gh release upload "$RELEASE_TAG" "$asset" --clobber
+
+      - name: Clean up signing keychain
+        if: always()
+        shell: bash
+        run: security delete-keychain "$RUNNER_TEMP/daygo-signing.keychain-db" 2>/dev/null || true
 
   windows:
     needs: prepare

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
+	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/settings"
 )
 
@@ -80,6 +81,15 @@ func (b *Backend) UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error) {
 		b.emitSettingsChanged(changed)
 	}
 	b.applyLaunchAtLogin(ctx, changed, snapshot.LaunchAtLogin)
+	if slices.Contains(changed, settings.KeySystemShowDockIcon) {
+		if err := b.applyDockPreference(ctx, snapshot.ShowDockIcon); err != nil {
+			log.Printf("apply dock preference unavailable")
+			if presenter, ok := b.system.(platform.StatusMessagePresenter); ok {
+				labels := b.statusLabels.get()
+				_ = presenter.ShowStatusMessage(ctx, platform.StatusMessage{Title: labels.ActionFailedTitle, Message: labels.ErrorDock, Button: labels.OK})
+			}
+		}
+	}
 	b.recorderMu.Lock()
 	activeRecorder := b.recorder
 	b.recorderMu.Unlock()

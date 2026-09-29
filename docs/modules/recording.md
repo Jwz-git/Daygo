@@ -2,6 +2,12 @@
 
 ## 用户结果与范围
 
+Windows 端可从设置页迁移全部历史录制到空目录；录制停写、分段收尾、状态恢复与目录失联时的保护见[Windows 录制目录迁移](../decisions/recording-directory-windows.md)。当前只有自动化验证，真实 Windows 跨盘与拔盘验收待补。macOS 固定目录行为不变。
+
+迁移时 recorder 使用 `storage_migration` 停止来源并在新目录按原启停 / 暂停状态恢复；`GetRecordingState.stopCause` 仅在 `idle` 时提供最近停止来源，新一次录制启动时清空。
+
+2026-09-26 Windows 工作树：`go test ./internal/app ./internal/recorder ./internal/recordinglocation ./internal/storage` 与目录迁移相关 `-race` 用例通过；`npm --prefix frontend run build` 通过。完整 `CGO_ENABLED=0` 核心门禁通过。真实 HEVC 分段收尾和外置磁盘断连尚未按本变更重新验收。
+
 用户授权后可开启、关闭或定时暂停记录；关窗后继续离散截图，状态栏可查看状态并重开窗口。
 屏蔽应用既从截图排除，前台命中时又生成脱敏占位帧；睡眠、锁屏、屏保、退出的分段安全收尾。
 包含间隔 / 分辨率、屏蔽名单与原生应用选择器、自启和 Dock 设置。
@@ -19,7 +25,83 @@
 
 ## 当前状态与证据
 
-> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+2026-09-26 Dock 重新启用报错与反馈布局修复（本次增量）：用户报告关闭后正常、重新启用
+弹出截断正文、英文占位复选框和空按钮。macOS 26.0.1 / arm64、基于 `ff573bf` 的修复工作树：
+匿名 AppKit 宿主实测重复设置当前激活策略返回 false、实际策略保持目标值；旧桥将其误判为 -2。
+桥现在只在实际策略不同才设置，并以主线程读回值判断成功；仍不匹配才报失败。
+直接显示 `NSAlert.window` 前补 `layout()`，保留非阻塞与原有按钮动作；
+[Apple NSAlert 文档](https://developer.apple.com/documentation/appkit/nsalert/layout())说明其用于立即布局。
+
+夹具先行：新增重复 accessory 断言在旧桥失败；修策略后，渲染控件断言在旧弹窗失败。
+修复后 `bash native/darwin/system-smoke.sh` 的独立可执行程序 / 匿名 `.app` 均通过：可见窗口
+regular → accessory → regular、主 / 工作线程重复设置、宿主先恢复 regular、正文不裁切、
+恰好一个按钮及点击关闭 / System 清理。Go 匿名库夹具覆盖 false → true → false → true 的
+设置保存 / 读回与策略，同时保持前台状态。既有夹具期望未放宽。
+`native/darwin/build.sh` universal 重建、
+`go test -a ./internal/platform/darwin -run '^TestSystem' -count=1`、
+`CGO_ENABLED=0 go test ./internal/app -run 'Test(DockPreference|UpdateSettingsAppliesDockPreference|FailedActivationPolicy|ExplicitReopen)' -count=1`
+及 `./scripts/gate.sh` 通过（169 项前端测试、三平台无 cgo 构建、文档 0 问题；
+Windows 安装器 4 项通过 / 5 项限 Windows 跳过）。`gofmt -l .` 无输出。
+
+范围：recording 宿主 / preferences Dock 消费者；属于 G-host 增量回归，不扩大正式分发身份验收。
+用户未注意报错时图标是否恢复，故尚不能确定其那次报错必然来自重复设置；本次修复后真实
+Wails 开关 / 重启读回和持续捕获待回归，运行中的已安装应用未替换。所有原生夹具不读用户库或屏幕。
+回退：整体回退本修复的桥、提示布局、夹具与契约，并重新构建原生库；不修改数据库或偏好键。
+
+2026-09-26 菜单栏 / Dock 增量：macOS Dock 开关已在启动与设置持久化后应用，重开尊重偏好，
+恢复入口不可用保留 regular，失败策略不缓存成功并可重试。状态栏首行与五类图标区分启动、
+录制、暂停、空闲和警告；只读 / 不可用禁用操作，系统阻塞不允许手动恢复，定时暂停显示恢复
+时刻。所有菜单动作消费错误并显示脱敏、本地化非阻塞提示，不阻塞系统事件泵；普通退出收尾
+失败默认保留应用，可明确选择仍然退出。原生相同快照不重建菜单，暂停时长项平铺。
+主应用 / 编辑 / 窗口菜单 20 项标题保留 selector 与快捷键，Cmd+Q 明确“留在后台继续记录”。
+原生在 Wails 启动完成后重应用已下发策略，避免启动 regular 覆盖已保存的 Dock 关闭偏好。
+Dock、菜单与错误文案全九种语言覆盖；recorder 的暂停元数据补齐既有 DTO，并在停止 / 到期时清除。
+
+Go 夹具覆盖八类状态、暂停 / 锁屏交错、过期状态事件、设置持久化及策略失败重试；原生独立
+smoke 覆盖工作线程同步策略与异步字符串拷贝、状态栏去重、20 项主菜单本地化与非阻塞提示
+显示 / 关闭 / 生命周期清理。状态栏 ABI 3 新增 icon 字段，macOS 静态库已匹配；Windows
+桥同步字段并需匹配 DLL 重建，本次自动化记录未在 Windows 主机运行原生通知区验证；已实现功能另经 09-26 用户确认验收。
+本轮真实 Wails Dock 开关、语言切换、捕获连续性与已实现关机 / 注销路径于 09-26 用户确认已验收（无逐项记录），
+步骤见 [08 增量回归](../08-testing-strategy.md#861-l2-用例)；匿名原生宿主不替代 G-host。
+
+本增量验证：`./scripts/gate.sh` 通过（Go build / internal 单测 / vet、Linux / Darwin / Windows
+无 cgo 核心构建、169 项前端测试 / typecheck / build、54 篇文档链接、Windows 安装器夹具
+4 项通过 / 5 项限 Windows 执行跳过）。
+`bash native/darwin/system-smoke.sh` 通过（含启动策略被宿主重置后的重应用）；app / recorder /
+Darwin System 的定向 `-race` 通过。门禁已重新生成绑定并构建匹配的 universal 原生 archive；
+先前全 app 的 race 扩扫在旧 `recordingEmitter` 测试夹具中报告竞争，未将全包 race 记为通过。
+强制重新链接的 `go test -a ./internal/platform/darwin -run 'TestSystem' -count=1` 通过。
+
+2026-09-26：macOS 宿主控制加固：新增状态栏已应用可用性查询，入口不可用时软退出保留
+Dock；激活策略同步返回 AppKit 成功 / 拒绝并可重试；普通真退出遇分段收尾失败保留进程，
+系统关机 / 注销独立放行且禁用授权自重启；System 关闭后拒绝晚到回调，终态关机事件优先入队。
+`CGO_ENABLED=0 go test ./internal/app ./internal/platform/darwin` 与
+`bash native/darwin/system-smoke.sh` 通过，后者在独立匿名宿主验证 regular / accessory、
+状态栏安装 / 隐藏 / 移除、合成关机通知与观察者移除；不读取用户库或屏幕。
+`native/darwin/build.sh` universal 构建、`go test -a ./internal/platform/darwin -run 'TestSystem' -count=1`
+与 `./scripts/gate.sh`（含三平台无 cgo 构建、168 项前端测试）通过。本切片生命周期与 System
+关闭夹具的定向 race 扫描通过；扩大到整个 app 包的 race 扫描在既有 `recordingEmitter`
+无锁测试收集器中失败（chat / timeline 测试），不记为全包 race 通过。
+真实注销 / 关机、策略与关窗持续捕获的已实现功能于 09-26 用户确认已验收；未附逐项步骤，
+不倒填为上述匿名 smoke 的真实宿主证据。
+
+2026-09-26：macOS 解码 ABI 增加每次调用的 `autoreleasepool`，保留 reader 取消和独立
+C 输出缓冲的所有权。新增匿名 1080p 多段 / 并发 / 缩略图 / 错误恢复夹具，验证返回缓冲不会
+被后续调用改写。`native/darwin/build.sh`、强制重新链接的原生测试和 `./scripts/gate.sh` 通过。
+`DAYGO_NATIVE_MEMORY=1 go test -a ./internal/platform/darwin -run '^TestNativeDecodeMemoryPlateau$' -count=1 -v`
+在三个独立进程中，300→600 次解码的静置 footprint 分别为 71.1→70.8、59.5→59.5、
+59.7→57.4 MiB，均未超过 5 MiB 增量上限；修改前同一夹具为 77.2→94.8 MiB，失败。
+测试内 Go GC 仅用于隔离原生保留，不是生产释放策略。长期真实应用观察于 09-26 用户确认已验收；未附 24 小时 / 14 天逐项记录或新增测量值。
+
+2026-09-23：macOS HEVC 单帧读取补充资源收尾。`SegmentReader.decodeFrame` 在
+`AVAssetReader.startReading()` 成功后，无论解码成功、帧缺失还是 JPEG 编码失败，均调用
+`cancelReading()` 结束该次 CoreMedia 读取。此前每次读取只取一个样本，不会自然读到文件末尾，
+存在解码工作线程滞留的风险。原生 universal 静态库构建和 macOS 分段读写 smoke 已通过，
+另以同一进程连续 200 次单帧解码验证结果可读；
+尚无同一进程连续 24–48 小时的线程数与 RSS 对照记录，因此不能将用户观察到的全部长期增长
+归因于这一处；macOS 长期观察已于 2026-09-22 经用户实测验收（无逐项运行记录）。
+
+> **验收状态（2026-09-26）**：本模块所有已实现能力（含近期增量、长期观察与已实现的真实安装升级）经用户确认已验收，未附逐项运行记录。未实现能力、待定设计与正式证书缺失保持原状态；历史命令的失败、跳过或未运行不改写为通过。统一记录见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 实现进度：部分实现。单元 / fake 契约已覆盖单次截图语义；macOS 原生单次截图与 cgo 适配已
 落盘并完成一轮真实像素 smoke；Go recorder、pending capture 提交 / 恢复已落盘并通过 fake
@@ -27,8 +109,8 @@
 已经落盘，用户已确认 dev 基本功能正常。**2026-09-12：启动自动录制已落盘**——
 OnStartup 在状态栏安装后调用 `maybeAutoStartRecording`，三重防呆（capture owner /
 屏幕授权 granted / 路由链主 provider 存在）全过才 `SetRecording(true)`，否则静默跳过；
-已知偏差：无「停止后不自启」记忆（每次启动都录，设置项后续切片）、G-host 未跑
-（退出即停，空窗由分析流水线 24h 未分批回看补齐）。production、隐私实机矩阵和长期观察
+已知偏差：无「停止后不自启」记忆（每次启动都录，设置项后续切片）、G-host 当时未跑
+（退出即停，空窗由分析流水线 24h 未分批回看补齐），后已于 2026-09-22 经用户实测验收（无逐项运行记录）。production、隐私实机矩阵和长期观察
 经用户确认已验收。
 **2026-09-13：录制鲁棒性与崩溃恢复修复已落盘**——
 ① 崩溃恢复接线：启动时 `Captures().Reconcile` 在分析流水线之前运行，把已落盘但未提交的
@@ -37,7 +119,7 @@ pending intent 提交进 `screenshots`、把文件缺失的 intent 丢弃（此�
 ② 暂停竞态泄漏修复：capture 过程中被暂停的帧现在 `Abandon` 其 pending 行（此前文件删除
 但行永久泄漏）。
 ③ 单帧失败容错：截图失败（含占位帧写失败）不再终止录制循环——适配器失败时 Abandon
-intent，连续失败计数达到 3 次才放弃，成功即清零；初始 capture 同样容错。
+intent，持续失败时仍按间隔重试，成功即清除失败状态；初始 capture 同样容错。
 ④ 空闲采样仍未接入：`idle_seconds_at_capture` 恒为 NULL，空闲判定因此永不命中——
 platform 端口缺 idle 查询能力，属待定设计，需要在 `System` 或 `Capture` 端口决策后
 （docs/09 §9.8）补一个 `docs/decisions/` 记录再实现。
@@ -65,8 +147,6 @@ Windows 侧另有一份同 ABI 的 DXGI/WGC 实现（`internal/platform/windows`
 只有编译、回调夹具与有限启动证据，尚不能替代关窗持续捕获、真实系统事件和 24 小时资源矩阵。
 以上不改变本模块的验收口径。
 
-2026-09-22：Ubuntu 24.04 / Wayland 上完成 X11 单次截图探针的编译和会话类型失败关闭验证，未读取真实屏幕；Xorg 实测、Wayland Screenshot Portal 的授权行为、隐私双保护和 Linux System / 托盘均未验收。详见 [Linux 截图决策 §7](../decisions/recording-screen-capture-linux.md#7-ubuntu-2404-前置实验记录2026-09-22)。
-
 2026-09-20：Windows 平台差集实现已接线：Media Foundation HEVC/MP4 分段写入、Source Reader
 按帧读取和 legacy JPEG 回退；`System` 增加屏保状态转换与 `WM_DISPLAYCHANGE`；隐私应用列表从
 当前用户/机器、32/64 位 App Paths 与 Uninstall 注册表枚举，并统一经过现有 EXE 身份解析；
@@ -76,7 +156,7 @@ Windows 编译、HEVC 编解码 smoke、真实屏保/显示器通知与应用枚
 
 **2026-09-20：macOS Dock 点击重开窗口修复已落盘**——原生 `System` 观察应用重新激活并通过
 平台事件上送，app 层与状态栏“打开 Daygo”共用恢复激活策略及显示窗口的动作；Go 路由测试已覆盖。
-真实 Dock 点击、accessory/regular 切换观感及关窗后长期捕获仍须 G-host 真机验收。
+真实 Dock 点击、accessory/regular 切换观感及关窗后长期捕获已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 **2026-09-21：原生界面文案接入 i18n**——此前 `PickApplication` 的 Windows 面板标题 /
 `.exe` 过滤器名是硬编码英文，与状态栏文案走的两条通道不同。新增绑定
@@ -89,8 +169,8 @@ Windows 编译、HEVC 编解码 smoke、真实屏保/显示器通知与应用枚
 `CGO_ENABLED=0` 构建。**经用户确认已验收**：Windows 上原生面板标题与过滤器名的实际渲染、
 macOS 面板仍按决策不下发标题。系统授权框、钥匙串与 WinSparkle 的文案不由本应用提供，
 不在本通道内（见 [delivery](delivery.md)）。
-**2026-09-21：Windows 连续失败诊断补齐**——recorder 仍在连续 3 次捕获/提交失败后进入
-`idle`，但会保留最后一次失败供 `GetRecordingState.reason` 查询；成功捕获、重新启动或用户主动
+**2026-09-23：连续失败后保持重试**——recorder 遇连续捕获/提交失败仍保持 `capturing` 并按间隔重试，
+保留最后一次失败供 `GetRecordingState.reason` 查询；成功捕获、重新启动或用户主动
 停止时清除。原因只包含 Capture 稳定错误码及原生数值码、storage 错误类别，或通用文件/未知类别，
 不包含错误文本、路径或屏幕内容。Windows Recorder 测试页显示该代码。该改动证明失败原因可见，
 并不证明当前 Windows 真机停止录制的实际根因；仍需对应故障时的代码和 WC-8 长时间观察。
@@ -147,7 +227,7 @@ internal/storage。recording 协调 System 公共端口，daily 自行交付通�
 
 完成要求：用户闭环与 IT-1–14 中本模块路径、相关 MC 门禁通过，真实 JPEG 与后续媒体产物可读、
 可恢复，隐私双保护和状态栏可操作。fake 仅证明契约，不证明像素、身份、耗电。
-G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixture 和其他模块仍可推进。
+G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixture 和其他模块仍可推进。G-host 已于 2026-09-22 经用户实测验收（无逐项运行记录），大规模 UI 扩张解锁；现有身份下真实安装升级于 09-26 用户确认已验收；G-native 的正式签名 / 公证材料仍缺，正式发布身份未验收。
 
 待决：宿主 / 适配形态、截图真实门禁、系统事件、分段格式、解码、状态栏正式形态与长驻验收、
 协议；负责人为 recording 工程，身份协同 delivery；均须在相应大规模实现前决定，见 09 §9.8。
@@ -156,6 +236,11 @@ G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixt
 
 ## 验证记录
 
+- **状态机回归（2026-09-23）**：连续 4 次捕获失败后自动恢复、睡眠期间定时暂停、停止时恢复定时器竞态的 Go 夹具通过；`./scripts/gate.sh` 通过。尚未在真实 Windows 捕获故障上复现与复核。
+- **macOS 分段追加（2026-09-23）**：取消后的截图任务在写段前再次检查取消；每帧像素缓冲在
+  `autoreleasepool` 内释放；段收尾等待限制为 10 秒并记录超时诊断。`native/darwin/build.sh`
+  构建 arm64 / x86_64 通用静态库，`go test -a ./internal/platform/darwin -run TestNativeSegment -count=1`
+  的追加、解码、滚动和重复读取 smoke 通过。尚未注入 HEVC 收尾卡死，也未完成 24–48 小时 RSS 对照。
 - **macOS（2026-09-10—17）**：Capture fake 契约、Swift 通用静态库构建、真实单次像素 smoke、HEVC 段追加 / 解码 / 滚动 smoke、迁移夹具及 `./scripts/gate.sh` 通过。Go recorder 的暂停、失败容错和 pending 恢复有单元测试。
 - **Windows（2026-09-11—20）**：Windows 11 双屏机器上完成原生与 Go cgo 的非黑 JPEG smoke；`LockFileEx`、设置页应用选择和通知区完成有限验证。Media Foundation 分段与系统事件已有代码和 Go 测试；完整矩阵由用户于 2026-09-22 确认验收，未附逐项运行记录。
 - **用户闭环**：隐私、授权、G-host 和长期观察由用户于 2026-09-22 确认验收，未附逐项运行记录。未实现的空闲采样与 Linux Capture / System 不在本次验收范围；边界见 [09 §9.1](../09-roadmap.md#91-模块总表)。

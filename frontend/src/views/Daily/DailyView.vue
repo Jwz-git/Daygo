@@ -27,6 +27,9 @@ const {
   recapGenerating,
   recapGenerateError,
   recapGenerationAvailable,
+  recapSaving,
+  recapSaveError,
+  recapSaveAvailable,
   journal,
   journalUnavailable,
   journalError,
@@ -159,7 +162,11 @@ onBeforeUnmount(() => daily.stopListening())
             :generating="recapGenerating"
             :generate-failed="recapGenerateError !== null"
             :generation-available="recapGenerationAvailable"
+            :saving="recapSaving"
+            :save-failed="recapSaveError !== null"
+            :save-available="recapSaveAvailable"
             @regenerate="daily.regenerateRecap"
+            @save="daily.saveRecap"
           />
           <DailyJournalPanel
             :journal="journal"
@@ -202,9 +209,12 @@ onBeforeUnmount(() => daily.stopListening())
 }
 
 .daily-intro span {
+  display: inline-block;
   color: var(--dg-accent-text);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .daily-intro h2 {

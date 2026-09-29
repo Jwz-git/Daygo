@@ -1,7 +1,15 @@
 # delivery 自动更新：Sparkle 2 + GitHub 静态 appcast + Sparkle 标准 UI
 
+> **最新功能验收（2026-09-26）**：本文涉及的所有已实现能力、长期观察与现有身份下真实安装升级，
+> 均按本次用户确认记为已验收，未附逐项运行记录；未实现项、待定设计与正式证书缺失保留。
+> 下文旧日期的失败 / 跳过 / 未运行结果是历史记录，不倒填为通过；统一范围见
+> [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+
 > **状态：GitHub Actions 发布自动化已实现；客户端 Sparkle 适配器已落盘。**
 > [发布工作流](../../.github/workflows/publish-release.yml)在 Release 发布后构建、上传安装器，正式版在两端安装器齐备且 Ed25519 签名成功后上传 appcast；预发布跳过 appcast。
+> 2026-09-25 调整：用户不准备申请正式平台签名材料，但要求保留自动更新源。发布工作流不再把
+> Developer ID / 公证 / Authenticode 验证作为 appcast 前置；更新归档仍必须通过 Ed25519 签名。
+> 这只改变 feed 发布条件，真实安装与升级的 G-native 验收状态不变。
 > 本文其余章节记录客户端检查、下载与安装方案。工作流实现不直接证明客户端旧版到新版升级。
 > 已落地：`internal/platform/fake` 确定性 Updater + 契约测试、`GetUpdaterState` / `CheckForUpdates`
 > 绑定、`update:available` 事件泵、`UpdaterStateDTO` 与前端 `api/update.ts` wrapper。`factory.NewUpdater`
@@ -56,19 +64,22 @@ appcast 每个 `<item>` 携带版本、最低系统版本、归档 URL、长度�
 
 ## 3. 更新机制（apply）
 
-Sparkle 负责：下载归档 → 校验 **EdDSA 签名**（防篡改 feed）→ 校验 **.app 的 Developer ID 签名 + 公证**
-（Gatekeeper 层）→ **原子替换** bundle → **重启**。Daygo 侧只需：
+Sparkle 负责：下载归档 → 校验 **EdDSA 签名** → 验证可用的应用代码签名 → **原子替换** bundle
+→ **重启**。Developer ID + 公证会增加 Gatekeeper 信任，但目前没有正式证书；无正式证书时真实
+升级能否完成仍须真机验证。Daygo 侧只需：
 
 1. 提供 `SPUUpdater`（`SPUStandardUpdaterController`，标准 UI）；
 2. 在重启前挂钩里完成录制收尾与锁移交（§4）；
 3. 把「已发现新版本」经 `update:available` 事件冒泡为次要提示（如状态栏角标），主流程仍由 Sparkle UI 承载。
 
-**签名与密钥。** `.app` 走 Developer ID + 公证（已排期，属 G-native，见
+**签名与密钥。** `.app` 的 Developer ID + 公证属未验收的 G-native（见
 [签名身份决策](delivery-macos-signing-identity.md)）；appcast / 归档另用 EdDSA(ed25519) 签名，
 **公钥编入 `Info.plist` 的 `SUPublicEDKey`**，**私钥绝不入库**（存本地钥匙串 / CI secret，用后不留存）。
 两套签名正交：Developer ID 管 Gatekeeper 信任，EdDSA 管 feed 完整性。
 
 ## 4. 生命周期：更新重启前的收尾（硬约束）
+
+2026-09-25 实现约束：Sparkle 的 `willInstallUpdate` 只有通知作用，不能用返回值拒绝安装。因此 macOS 适配器在可拒绝的 `shouldProceedWithUpdate` 回调中完成 `Recorder.Stop`，失败则拒绝该次更新；在用户跳过、未安排安装的取消或更新驱动报错时解除录制闸门，恢复此前正在捕获的录制。发现更新到用户决定之间会暂停捕获，须在真机验证回调次序和实际暂停时长。
 
 「更新重启」是区别于软退出 / 真退出的**独立生命周期事件**（[生命周期退出模型](lifecycle-quit-model.md)
 已把它列为独立事件）。Sparkle 在替换 bundle 前会终止进程，因此重启前**必须**同步完成：
@@ -106,8 +117,8 @@ Vue UI（`SPUUserDriver`）的收益——保持端口与 DTO 冻结不变。
   发行构建通过 `daygo_updater` tag 接入，开发构建不下载或伪造更新能力。
 - **Go Core 保持 `CGO_ENABLED=0` 可构建**：业务不接触 Sparkle，只对着 `Updater` 端口与 fake 写代码 /
   测试；`go test ./internal/...` 仍须在 Linux 通过。
-- **跨平台端口统一，引擎分平台定**：Windows（WinSparkle / NSIS 内建更新 / MSIX，属 Windows 待决发布范围）
-  与 Linux（当前 `unsupported` 桩）的具体引擎**留待各自子决策**，本文只定 macOS。
+- **跨平台端口统一，引擎分平台定**：Windows
+  已另按 [WinSparkle 决策](delivery-auto-update-windows.md)实现；Linux 更新仍不可用，具体引擎待决。本文只定 macOS。
 
 ## 7. 可行性实验（G-native 前置，先于实现）
 
@@ -129,8 +140,9 @@ Updater 完成时验证真实升级」，可先做的有限实验（不产出正
   自签名开发证书不满足干净机 Gatekeeper。
 - **EdDSA 流程已建立但未实发验证**：新私钥只在本机钥匙串和 GitHub Actions Secret，公钥编入
   两端适配器 / `Info.plist`；尚未用正式产物验证拒绝错签名与接受正确签名。
-- **发布链路源码已建立但未运行**：Release workflow 会构建两端、签名、生成共用 appcast 并上传；
-  Developer ID / 公证和 Windows Authenticode secrets 尚未配置，首次正式运行仍会失败关闭。
+- **发布链路源码已建立，但本次更改尚未实跑**：Release workflow 在两端安装器齐备后用 Ed25519
+  签名最终资产、生成共用 appcast 并上传；缺少更新私钥或安装器时失败关闭。Developer ID / 公证和
+  Windows Authenticode 材料未配置，不阻止 feed 生成，但现有身份下平台安装与真实升级于 09-26 用户确认已验收，未附逐项记录；正式证书身份不在范围。
 
 ## 9. 回退
 

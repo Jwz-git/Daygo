@@ -244,6 +244,13 @@ if (-not (Test-Path -LiteralPath $InstallerProjectSource -PathType Leaf)) {
 }
 New-Item -ItemType Directory -Path (Split-Path -Parent $InstallerProject) -Force | Out-Null
 Copy-Item -LiteralPath $InstallerProjectSource -Destination $InstallerProject -Force
+# The tracked project owns its translated copy and safeguards.
+# Keep both Wails' initial pass and the signed-byte repack on the same inputs.
+$InstallerSourceDir = Split-Path -Parent $InstallerProjectSource
+$InstallerTargetDir = Split-Path -Parent $InstallerProject
+foreach ($includeName in @('languages.nsh', 'safeguards.nsh')) {
+    Copy-Item -LiteralPath (Join-Path $InstallerSourceDir $includeName) -Destination $InstallerTargetDir -Force
+}
 
 # build/windows/info.json is a Wails template; the versioninfo resource is
 # compiled from it. Pin the concrete version for a release build, then restore

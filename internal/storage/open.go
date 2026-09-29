@@ -140,6 +140,35 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	return store, nil
 }
 
+// OpenReadOnly opens the business database read-only at an explicit file path,
+// without taking either instance lock. It is the connection the external
+// read interfaces use (docs/05 §5.9.1): the daygo CLI and the daygo mcp
+// subprocess run as separate processes that must never write or migrate, even
+// when no writer daemon is running and the write lock would be free.
+//
+// Unlike Open it does not derive the path from a directory: the caller passes
+// the file directly so DAYGO_DB can point anywhere. mode=ro means SQLite will
+// not create a missing file, so a clear not-found is reported up front rather
+// than as a driver error on the first query. loc is the host zone repositories
+// derive day boundaries and clock strings against; nil means time.Local.
+func OpenReadOnly(ctx context.Context, path string, loc *time.Location, observer Observer) (*Store, error) {
+	if path == "" {
+		return nil, errors.New("storage: OpenReadOnly: path is required")
+	}
+	if observer == nil {
+		observer = NopObserver{}
+	}
+	if _, err := os.Stat(path); err != nil {
+		return nil, wrap("open read-only database", err)
+	}
+	store := &Store{path: path, observer: observer, loc: loc, mode: ModeReadOnly}
+	if err := store.connect(ctx); err != nil {
+		_ = store.Close()
+		return nil, err
+	}
+	return store, nil
+}
+
 // connect opens the SQL driver, configures the pragmas, verifies them and, for
 // the writer, brings the schema up to date.
 //
@@ -173,5 +202,17 @@ func (s *Store) connect(ctx context.Context) error {
 	if err := s.migrate(ctx); err != nil {
 		return classifyOpenFailure(err)
 	}
+	_ = s.sanitizeCorruptCards(ctx)
 	return nil
+}
+
+// sanitizeCorruptCards soft-deletes cards with inverted timestamps or absurd duration (>4h)
+// caused by legacy clock-derivation bugs or unexpected clock jumps.
+func (s *Store) sanitizeCorruptCards(ctx context.Context) error {
+	return s.Write(ctx, "sanitize corrupt cards", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx,
+			"UPDATE timeline_cards SET is_deleted = 1, updated_at = ? WHERE is_deleted = 0 AND (end_ts <= start_ts OR (end_ts - start_ts) > 14400)",
+			time.Now().Unix())
+		return err
+	})
 }

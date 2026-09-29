@@ -169,7 +169,10 @@ function cardStyle(): CSSProperties {
   transition:
     border-color var(--dg-motion-fast) ease-in-out,
     background var(--dg-motion-fast) ease-in-out,
-    transform var(--dg-motion-fast) ease-in-out;
+    /* The sink runs longer than the fill preview: the border/background snap in
+       to confirm the click instantly, while the scale eases down over a slower
+       beat so the press reads as a deliberate settle rather than a quick tap. */
+    transform 600ms var(--dg-ease-out);
 }
 
 .activity-card__rail {

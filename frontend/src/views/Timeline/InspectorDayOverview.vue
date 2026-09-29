@@ -11,6 +11,7 @@ import type { TimelineAction } from '@/stores/timeline'
 import GoalEditor from './GoalEditor.vue'
 import type { ReviewTotals } from './review'
 import { FALLBACK_CATEGORY_COLOR, safeCategoryColor } from './layout'
+import { failurePresentation } from './failurePresentation'
 import { buildDonutSectors, fullRingPath, type DonutSector, type DonutSlice } from './donut'
 
 /*
@@ -32,6 +33,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: [batchIDs: number[]]
+  stopRetries: [batchIDs: number[]]
   saveGoal: [goal: DayGoalDTO]
   reprocess: []
 }>()
@@ -46,6 +48,9 @@ const duration = useDurationFormat()
 const failuresWithBatches = computed(() =>
   props.day.failures.filter((failure) => failure.batchIds.length > 0),
 )
+const providerFailureCount = computed(() =>
+  failuresWithBatches.value.filter((failure) => failurePresentation(failure.kind).source === 'provider').length,
+)
 
 // A single retry submits every failed range's batches at once. The backend
 // requeues them to pending and the scheduler works through them one tick at a
@@ -55,7 +60,20 @@ const allFailedBatchIds = computed(() =>
   failuresWithBatches.value.flatMap((failure) => failure.batchIds),
 )
 
+// "Stop all" only targets the failures still on the auto-retry track — the
+// same predicate the failure detail pane uses to decide whether stopping does
+// anything. Batches whose kind needs attention (or already stopped) are left
+// out so the button hides once nothing is auto-retrying.
+const retryableFailedBatchIds = computed(() =>
+  failuresWithBatches.value
+    .filter((failure) => failure.retryable)
+    .flatMap((failure) => failure.batchIds),
+)
+
 const canRetry = computed(() => props.canWrite && props.actions.retryBatches)
+const canStopAll = computed(
+  () => props.canWrite && props.actions.stopRetries && retryableFailedBatchIds.value.length > 0,
+)
 
 interface CategoryTotal {
   category: CategoryDTO
@@ -305,6 +323,10 @@ const reviewMinutesTotal = computed(() =>
 
   <section v-if="failuresWithBatches.length > 0" class="inspector__section inspector__failures">
     <h3>{{ t('timeline.failure.title') }}</h3>
+    <p v-if="providerFailureCount > 0" class="inspector__failure-note" role="status">
+      {{ t('timeline.failure.providerSummary', { count: providerFailureCount }) }}
+      <RouterLink :to="{ name: 'settings', query: { section: 'providers' } }">{{ t('timeline.failure.openProviders') }}</RouterLink>
+    </p>
     <p class="inspector__failure-note">{{ t('timeline.failure.retryHint') }}</p>
     <button
       type="button"
@@ -314,6 +336,16 @@ const reviewMinutesTotal = computed(() =>
       @click="emit('retry', allFailedBatchIds)"
     >
       {{ props.pendingAction === 'retry-batches' ? t('timeline.failure.retrying') : t('timeline.failure.retryAll', { count: failuresWithBatches.length }) }}
+    </button>
+    <button
+      v-if="canStopAll"
+      type="button"
+      class="dg-button inspector__retry"
+      :disabled="props.pendingAction !== null"
+      :title="t('timeline.failure.stopAll')"
+      @click="emit('stopRetries', retryableFailedBatchIds)"
+    >
+      {{ props.pendingAction === 'stop-retries' ? t('timeline.failure.stopping') : t('timeline.failure.stopAll') }}
     </button>
   </section>
 

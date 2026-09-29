@@ -87,6 +87,33 @@ func TestListProviderModelsForDraft(t *testing.T) {
 	}
 }
 
+// A draft endpoint pasted as a full request URL (as the probe sibling tolerates)
+// must be normalized before listing, or the appended /models path doubles and
+// 404s. #12 regression.
+func TestListProviderModelsDraftNormalizesPastedRequestURL(t *testing.T) {
+	backend, _, _ := backendWithStoreAndSecrets(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Errorf("path = %q, want /v1/models", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"data": [{"id": "m"}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	result, err := backend.ListProviderModels(ProviderModelsRequestDTO{
+		Protocol: "openai",
+		Endpoint: server.URL + "/v1/chat/completions",
+		Secret:   "k",
+	})
+	if err != nil {
+		t.Fatalf("ListProviderModels: %v", err)
+	}
+	if !result.OK || len(result.Models) != 1 || result.Models[0] != "m" {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
 // A provider without a stored key is rejected before any request goes out.
 func TestListProviderModelsSavedWithoutKey(t *testing.T) {
 	backend, _, _ := backendWithStoreAndSecrets(t)

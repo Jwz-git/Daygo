@@ -102,6 +102,16 @@ func validateToolArguments(name string, arguments json.RawMessage) error {
 	})
 }
 
+// ValidateWriteArguments applies the same strict schema used for chat tools
+// before an external write reaches the shared executor.
+func ValidateWriteArguments(name string, arguments json.RawMessage) error {
+	spec, ok := toolByName(name)
+	if !ok || !spec.Write {
+		return fmt.Errorf("chat: unknown write tool %q", name)
+	}
+	return validateToolArguments(name, arguments)
+}
+
 // envelopeCorrection is appended to the conversation when a reply fails to
 // parse as an envelope, so the model gets one chance to fix its shape.
 const envelopeCorrection = "\n\n(System note: the previous output did not match the required JSON format. You must return exactly one JSON object: " +

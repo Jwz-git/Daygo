@@ -55,12 +55,13 @@ func TestGroupFramesHonorsImageCap(t *testing.T) {
 		}
 	}
 
-	// 0 and out-of-range caps fall back to the ai.MaxImages default.
-	if got := groupFrames(frames, 0); len(got) != 1 {
-		t.Fatalf("default cap produced %d groups, want 1", len(got))
+	// 0 and out-of-range caps fall back to the ai.MaxImages default (5), so
+	// 10 frames split into 5+5.
+	if got := groupFrames(frames, 0); len(got) != 2 {
+		t.Fatalf("default cap produced %d groups, want 2 (5+5)", len(got))
 	}
-	if got := groupFrames(frames, -1); len(got) != 1 {
-		t.Fatalf("negative cap produced %d groups, want 1", len(got))
+	if got := groupFrames(frames, -1); len(got) != 2 {
+		t.Fatalf("negative cap produced %d groups, want 2 (5+5)", len(got))
 	}
 }
 
@@ -379,6 +380,29 @@ func TestOngoingCardRulesEnforceTheFifteenMinuteFloor(t *testing.T) {
 	if strings.Contains(correction, "A short card is valid") ||
 		strings.Contains(correction, "merely to satisfy a duration preference") {
 		t.Fatalf("correction prompt still refuses the floor's merge:\n%s", correction)
+	}
+}
+
+func TestResolveCardSpansSurfacesDegenerateShells(t *testing.T) {
+	loc := time.Local
+	window := base.Add(time.Hour)
+	shells := []domain.CardShell{
+		{Start: "10:00 AM", End: "10:30 AM", Title: "good"},
+		{Start: "10:30 AM", End: "10:29 AM", Title: "inverted"},
+		{Start: "half past", End: "10:45 AM", Title: "unparseable"},
+	}
+	spans, issues := resolveCardSpans(shells, base, window, loc)
+	if len(spans) != 1 || spans[0].Title != "good" {
+		t.Fatalf("spans = %+v, want only the good card", spans)
+	}
+	if len(issues) != 2 {
+		t.Fatalf("issues = %v, want one for the inverted card and one for the unparseable card", issues)
+	}
+	if !strings.Contains(issues[0], "card 2 (inverted)") || !strings.Contains(issues[0], "must end after it starts") {
+		t.Fatalf("issue[0] = %q, want the inverted-card violation", issues[0])
+	}
+	if !strings.Contains(issues[1], "card 3 (unparseable)") || !strings.Contains(issues[1], "unparseable start") {
+		t.Fatalf("issue[1] = %q, want the unparseable-start violation", issues[1])
 	}
 }
 

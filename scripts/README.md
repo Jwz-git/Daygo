@@ -19,14 +19,23 @@ script owns a responsibility and which one a new contributor should reach for.
 | `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
 | `dev-linux.sh` | Linux `wails dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
 | `build-linux.sh` | Linux `wails build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
-| `package-macos.sh` | macOS packager: bootstrap → `wails build` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Ad-hoc signs by default; Developer ID + notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. | macOS release packaging |
+| `package-macos.sh` | macOS packager: bootstrap → `wails build` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Local default is ad-hoc; stable self-signed identity via `DAYGO_DEV_SIGN_IDENTITY`, Developer ID / notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. Release CI requires its pinned self-signed certificate. | macOS release packaging |
+| `dev-cert-macos.sh` | Creates a reusable local self-signed code-signing certificate; optional password-protected PKCS#12 export outside the repository. Does not notarize or build a release. | Explicit local identity preparation / CI certificate setup |
 | `package-windows.ps1` | Windows packager: bootstrap → Wails/NSIS materialisation → sign EXE + native DLL → repackage those final bytes → sign installer → emit SHA-256 acceptance manifest. The tracked `windows-installer/project.nsi` is required because stock Wails only installs the EXE. Supports `-InstallScope machine|user`; unsigned by default. Certificate file via `DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD`, or installed cert via `DAYGO_WIN_CERT_THUMBPRINT`. Windows-only; host run still required (see delivery module). | Windows release packaging |
 | `bootstrap-updaters.sh` | Downloads Sparkle 2.10.0 into ignored `build/deps`, verifies the pinned SHA-256, and exposes the framework plus signing tools. | macOS release build / appcast job |
 | `generate-appcast.py` | Builds the two-platform RSS appcast from already Ed25519-signed macOS and Windows assets. It never receives the private key. | protected GitHub `release` environment |
-| `windows-installer/project.nsi` | Wails-compatible NSIS project that installs `Daygo.exe` and the required `daygo_windows_native.dll` together. Copied into ignored `build/windows/installer/` at package time. | `package-windows.ps1` |
-| `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + `check-docs.py`. Skipped only when `python3` is missing (Python is for docs only). | CI runner, also local pre-commit |
+| `windows-installer/project.nsi` | Native Modern UI 2 installer with nine languages, optional desktop shortcut, dependency and in-use-file checks; no custom artwork. Installs `Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll`; uninstall removes only package-owned files and keeps user data. Includes are copied into ignored `build/windows/installer/` at package time. | `package-windows.ps1` |
+| `windows-installer/test_installer.py` | Anonymous fixtures using the pinned Wails helper: translation coverage, both scope compilations (`makensis -WX`), missing-DLL rejection, and Windows-only silent install/uninstall, WebView2 failure/postcondition and locked-file checks. Uses temporary folders and unique registry/product identities, never real Daygo data. | `gate.sh`, Windows installer fixture workflow |
+| `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + docs and installer fixture checks. Python checks skip when `python3` is missing; NSIS compilations skip without `makensis`, Windows execution skips on other hosts. | CI runner, also local pre-commit |
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
+| `sample-memory.py` | Read-only macOS fixed-PID RSS / physical-footprint sampler. Checks process start identity, marks missing or reused PIDs, creates CSV exclusively, and collects no activity content. | Manual memory comparisons; see testing strategy |
 | `probe/analysis.go` | Provider-agnostic diagnostic: runs the production transcription + card-generation pipeline against the user-configured provider, never writes the database. | Manual, when debugging AI integration |
+
+The 2026-09-26 user confirmation accepts all implemented functionality, long-term observation, and actual
+installation / upgrades under the existing identity, without per-case execution records. It does not establish
+Developer ID, notarization, or Authenticode certification. See the [acceptance record](../docs/09-roadmap.md#911-本轮验收记录与证据边界).
+Historical skipped / failed fixture results remain unchanged. `gofmt -l .` must produce no output; the gate's
+exit code alone does not verify formatting.
 
 ## Shared helpers — where logic lives
 
@@ -75,6 +84,34 @@ leave the embedded executable unsigned. The resulting `dist/windows-package.json
 for artifact identity only; the WD matrix still requires installed-file signature checks,
 interactive and silent install/uninstall, upgrade, and clean-machine startup.
 
+The installer follows the Windows UI language among the nine supported languages,
+with English as fallback. Custom strings live in `windows-installer/languages.nsh`
+because Vue is not running during installation. Success proceeds directly to the
+finish page; file details remain available. New desktop shortcuts are opt-in on
+that page; existing shortcuts are retained during an upgrade, and `/S` creates
+only the Start menu shortcut. Machine-scope setup never launches Daygo from its
+elevated token. User-scope setup offers launch only when not running as admin.
+The install scope, product identity and two-pass signing sequence are unchanged.
+
+Silent failure codes include 10 (required files inaccessible/in use), 20 (WebView2
+unavailable after bootstrap), and the Wails architecture/OS codes 65/64.
+Setup checks files before changing them and does not kill the resident agent.
+The access checks are not an atomic upgrade transaction: a concurrent launch or
+I/O failure can still interrupt extraction, which fails rather than offering
+Ignore for a required DLL. This needs the real WD-5 recovery check.
+
+For checks without a release build, install NSIS and run:
+
+```bash
+python3 scripts/windows-installer/test_installer.py
+```
+
+On Windows use `python` instead of `python3`. The separate Windows installer
+fixture workflow runs compilation, PowerShell parsing and anonymous `/S` cases;
+it does not build or publish a Daygo release. Manual WD-3 also needs all nine
+languages at 100%, 150% and 200% scaling, keyboard navigation, the two scope
+finish pages, optional shortcuts, and upgrade/uninstall while Daygo is resident.
+
 ## Naming
 
 - `probe/` collects one-off diagnostic tools. Add a new diagnostic as
@@ -112,21 +149,21 @@ interactive and silent install/uninstall, upgrade, and clean-machine startup.
 Anything that fits in `go run ./cmd/foo` or `npm run foo` does not belong
 here — the project's own build/test runners are the right home for it.
 
-## Protected release environment
+## Release appcast signing
 
-`.github/workflows/publish-release.yml` runs only after a GitHub Release is published and uses the protected
-`release` environment. Configure these environment secrets before the first formal release:
+`.github/workflows/publish-release.yml` builds missing installers for a published Release. A formal release then
+downloads both final assets, signs their bytes with Sparkle Ed25519, and uploads `appcast.xml`. The appcast job uses the
+protected `release` environment and requires `SPARKLE_ED25519_PRIVATE_KEY`; if the key or an asset is missing, the
+job fails without uploading an appcast. Prereleases skip it. Developer ID, notarization, and Authenticode certificates
+are not inputs to the appcast job.
 
 - `SPARKLE_ED25519_PRIVATE_KEY` — already generated; also retained in the local macOS keychain.
-- `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERT_PASSWORD`, `APPLE_API_KEY_P8_BASE64`,
-  `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` — Developer ID signing and notarization.
-- `WINDOWS_CERTIFICATE_PFX_BASE64`, `WINDOWS_CERT_PASSWORD` — Authenticode signing.
 
-For a published `vX.Y.Z` Release, the workflow uploads both platform assets. For a formal release only, it then signs
-their final bytes with Sparkle Ed25519 and uploads `appcast.xml` to that same Release. A prerelease skips the appcast
-job. A missing signing key or installer leaves a formal release's appcast absent. The `releases/latest` URL can return
-404 between publishing a formal Release and this final upload. After promoting a prerelease to formal, manually
-dispatch this workflow with its tag to generate the appcast; verify the asset exists before treating promotion as ready.
-The `release` environment retains the signing secret but has no required reviewer; the job runs automatically.
+The Ed25519 signature authenticates the update archive to Sparkle and WinSparkle. It does not give the macOS installer
+Apple Developer ID / Gatekeeper trust or the Windows installer Authenticode / SmartScreen reputation. Those platform
+identities still lack formal certificates. Actual installed-app upgrades were accepted by user confirmation on
+2026-09-26 without per-case records. The `releases/latest` URL can return 404
+between publishing a formal Release and uploading the appcast. After promoting a prerelease, manually dispatch the
+workflow with its tag and check that the appcast exists. Existing installers are reused by the prepare job.
 For an existing published Release whose original event was skipped or missed, use the workflow's manual dispatch with
 its `tag` input. The prepare job checks the live Release state before building.

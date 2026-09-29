@@ -71,6 +71,76 @@ type testClock struct {
 	now time.Time
 }
 
+func TestPauseMetadataPreservesUserDeadlineAcrossSystemHold(t *testing.T) {
+	events := make(chan Event, 16)
+	r, err := New(Config{Capture: fake.NewCapture(), Store: &testStore{}, Settings: settings.Snapshot{CaptureIntervalSeconds: 10, CaptureHeightPixels: 18}, Directory: t.TempDir(), OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+	defer r.Stop()
+	if err = r.Pause(15 * time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	info := r.PauseInfo()
+	if !info.UserPaused || info.Until == nil || info.SystemBlocked {
+		t.Fatalf("pause info=%+v", info)
+	}
+	original := *info.Until
+	*info.Until = time.Time{}
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenLocked})
+	info = r.PauseInfo()
+	if !info.SystemBlocked || info.Until == nil || !info.Until.Equal(original) {
+		t.Fatalf("system hold changed deadline=%+v", info)
+	}
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenUnlocked})
+	if err = r.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	if info = r.PauseInfo(); info.UserPaused || info.Until != nil {
+		t.Fatalf("resume kept pause=%+v", info)
+	}
+}
+
+func TestExpiredPausePublishesMetadataWhileSystemRemainsBlocked(t *testing.T) {
+	events := make(chan Event, 16)
+	r, err := New(Config{Capture: fake.NewCapture(), Store: &testStore{}, Settings: settings.Snapshot{CaptureIntervalSeconds: 10, CaptureHeightPixels: 18}, Directory: t.TempDir(), OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+	defer r.Stop()
+	if err = r.Pause(15 * time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenLocked})
+	for len(events) > 0 {
+		<-events
+	}
+	r.mu.Lock()
+	generation := r.resumeGeneration
+	r.mu.Unlock()
+	r.resumeAfterUserPause(generation)
+	info := r.PauseInfo()
+	if info.UserPaused || info.Until != nil || !info.SystemBlocked {
+		t.Fatalf("expired info=%+v", info)
+	}
+	select {
+	case event := <-events:
+		if event.State != StatePaused {
+			t.Fatalf("state=%q", event.State)
+		}
+	default:
+		t.Fatal("expired deadline was not published")
+	}
+}
+
 func (c *testClock) Now() time.Time {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -113,6 +183,9 @@ func TestRecorderPauseResumeAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitState(t, events, StateIdle)
+	if got := r.LastStopCause(); got != StopRequested {
+		t.Fatalf("stop cause = %q, want %q", got, StopRequested)
+	}
 	store.mu.Lock()
 	commits := store.commits
 	store.mu.Unlock()
@@ -122,6 +195,30 @@ func TestRecorderPauseResumeAndStop(t *testing.T) {
 	if _, err := os.Stat(dir + "/staging"); err != nil {
 		t.Fatal(err)
 	}
+}
+func TestStartPausedDoesNotTakeInitialFrame(t *testing.T) {
+	store := &testStore{}
+	events := make(chan Event, 8)
+	r, err := New(Config{Capture: fake.NewCapture(), Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: t.TempDir(), OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.StartPaused(context.Background(), 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	waitState(t, events, StatePaused)
+	store.mu.Lock()
+	commits := store.commits
+	store.mu.Unlock()
+	if commits != 0 {
+		t.Fatalf("paused start captured %d frames", commits)
+	}
+	if err := r.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+	waitForCommit(t, store)
 }
 func TestRecorderUpdateSettingsAffectsNextCapture(t *testing.T) {
 	dir := t.TempDir()
@@ -238,7 +335,7 @@ var _ platform.Capture = (*fake.Capture)(nil)
 
 // A capture error must not stop the loop: a resident recorder survives
 // transient failures (display switch, permission hiccup) and keeps capturing.
-// Only captureFailureLimit consecutive failures give up.
+// A longer failure run must also remain recoverable without user intervention.
 func TestRecorderSurvivesTransientCaptureErrors(t *testing.T) {
 	dir := t.TempDir()
 	store := &testStore{}
@@ -259,20 +356,26 @@ func TestRecorderSurvivesTransientCaptureErrors(t *testing.T) {
 		t.Fatalf("last error after recovery = %v, want nil", got)
 	}
 
-	// Beyond the limit the loop gives up: state returns to idle.
+	// Beyond the former failure limit the loop keeps trying and recovers.
 	capture.mu.Lock()
-	capture.failuresLeft = captureFailureLimit + 5
+	capture.failuresLeft = 4
 	capture.mu.Unlock()
-	waitStateIdle(t, r)
-	if got := r.LastError(); got == nil || got.Error() != "transient capture failure" {
-		t.Fatalf("last error after failure limit = %v", got)
+	waitForCommits(t, store, 2)
+	if got := r.State(); got != StateCapturing {
+		t.Fatalf("state after recovery = %q, want capturing", got)
+	}
+	if got := r.LastError(); got != nil {
+		t.Fatalf("last error after recovery = %v, want nil", got)
+	}
+	if got := r.LastStopCause(); got != "" {
+		t.Fatalf("stop cause while capturing = %q, want empty", got)
 	}
 }
 
 // waitForCommits blocks until the store has at least n commits.
 func waitForCommits(t *testing.T, s *testStore, n int) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
 		s.mu.Lock()
 		got := s.commits
@@ -283,18 +386,6 @@ func waitForCommits(t *testing.T, s *testStore, n int) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatalf("commits did not reach %d", n)
-}
-
-func waitStateIdle(t *testing.T, r *Recorder) {
-	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if r.State() == StateIdle {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("recorder did not reach idle after %d consecutive failures", captureFailureLimit)
 }
 
 // flakyCapture fails its next N captures, then succeeds.
@@ -365,6 +456,45 @@ func TestRecorderSegmentCaptureWithCloser(t *testing.T) {
 	waitState(t, events, StateIdle)
 }
 
+// #8 regression: a system blocker (sleep/lock/screensaver) arriving during a
+// timed user pause must not orphan the pause's auto-resume. The blocker must
+// not bump resumeGeneration; the timed pause still expires (clearing the user
+// hold without capturing an unavailable display), and when the blocker lifts
+// the recorder returns to capturing. Before the fix the sleep branch bumped the
+// generation, the pause timer no-op'd, userPaused stayed set, and the unblock
+// refused to re-arm — freezing the recorder in StatePaused forever.
+func TestRecorderTimedPauseSurvivesSystemBlocker(t *testing.T) {
+	dir := t.TempDir()
+	store := &testStore{}
+	events := make(chan Event, 32)
+	r, err := New(Config{Capture: fake.NewCapture(), Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: dir, Clock: &testClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	waitState(t, events, StateCapturing)
+
+	if err := r.Pause(60 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StatePaused)
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreensaverStart})
+
+	// The pause timer fires while blocked: it drops the user hold but must not
+	// resume onto an unavailable display, so the recorder stays paused.
+	time.Sleep(150 * time.Millisecond)
+	if state := r.State(); state != StatePaused {
+		t.Fatalf("state after timed pause expired while blocked = %q, want paused", state)
+	}
+
+	// Lifting the blocker re-arms the resume; the recorder returns to capturing.
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreensaverStop})
+	waitState(t, events, StateCapturing)
+}
+
 func TestRecorderTimedPauseAutoResumes(t *testing.T) {
 	dir := t.TempDir()
 	store := &testStore{}
@@ -390,4 +520,187 @@ func TestRecorderTimedPauseAutoResumes(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitState(t, events, StateIdle)
+}
+
+// slowCloser delays the second CloseActiveSegment (the run() teardown call) to
+// widen the window in which a pending resume timer can race the teardown. The
+// first call (from Pause) stays fast so the test reaches Stop() promptly.
+type slowCloser struct {
+	inner *fake.SegmentCapture
+	mu    sync.Mutex
+	calls int
+	delay time.Duration
+}
+
+type failingCloser struct {
+	*fake.SegmentCapture
+	err error
+}
+
+func (c *failingCloser) CloseActiveSegment(context.Context) error { return c.err }
+
+func TestStopReportsSegmentFinalizeFailure(t *testing.T) {
+	want := errors.New("fixture: finalize failed")
+	r, err := New(Config{Capture: &failingCloser{SegmentCapture: fake.NewSegmentCapture(), err: want}, Store: &testStore{}, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Stop(); !errors.Is(err, want) {
+		t.Fatalf("Stop error = %v, want finalize failure", err)
+	}
+	if err := r.Start(t.Context()); !errors.Is(err, want) {
+		t.Fatalf("Start after failed finalize = %v, want original failure", err)
+	}
+}
+
+func (s *slowCloser) Capture(ctx context.Context, req platform.CaptureRequest) (platform.CaptureResult, error) {
+	return s.inner.Capture(ctx, req)
+}
+
+func (s *slowCloser) CloseActiveSegment(ctx context.Context) error {
+	s.mu.Lock()
+	s.calls++
+	n := s.calls
+	s.mu.Unlock()
+	if n >= 2 {
+		time.Sleep(s.delay)
+	}
+	return s.inner.CloseActiveSegment(ctx)
+}
+
+// #17 regression: Stop() during a timed pause must cancel the pending
+// auto-resume timer. run()'s teardown finalizes the active segment (slow disk
+// I/O) before it sets StateIdle; if the resume timer fires in that window and
+// Stop did not bump resumeGeneration, it wins the lock while state is still
+// StatePaused and emits a spurious StateCapturing after the user asked to stop.
+func TestRecorderStopCancelsPendingResumeTimer(t *testing.T) {
+	dir := t.TempDir()
+	store := &testStore{}
+	events := make(chan Event, 32)
+	capture := &slowCloser{inner: fake.NewSegmentCapture(), delay: 200 * time.Millisecond}
+	r, err := New(Config{Capture: capture, Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: dir, Clock: &testClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StateCapturing)
+
+	// Arm a resume timer that will fire during Stop()'s teardown window.
+	if err := r.Pause(50 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, events, StatePaused)
+	if err := r.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	// Stop blocks until teardown (including the slow finalize) completes, well
+	// past the 50ms timer. Give any stray emit a moment to arrive, then assert
+	// no StateCapturing followed the pause we already consumed above.
+	time.Sleep(50 * time.Millisecond)
+	for {
+		select {
+		case e := <-events:
+			if e.State == StateCapturing {
+				t.Fatal("spurious StateCapturing emitted after Stop during teardown")
+			}
+		default:
+			return
+		}
+	}
+}
+
+// #9 regression: repeated capture failures must remain visible as errors while
+// the resident recorder retries; they must not masquerade as a user Stop().
+func TestRecorderFailureRemainsLive(t *testing.T) {
+	dir := t.TempDir()
+	store := &testStore{}
+	events := make(chan Event, 64)
+	capture := &flakyCapture{failuresLeft: 4}
+	r, err := New(Config{Capture: capture, Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: dir, Clock: &testClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, OnEvent: func(e Event) { events <- e }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	defer r.Stop()
+	deadline := time.NewTimer(12 * time.Second)
+	defer deadline.Stop()
+	for {
+		select {
+		case e := <-events:
+			if e.Err == nil {
+				continue
+			}
+			if e.State != StateCapturing {
+				t.Fatalf("failure event state = %q, want capturing", e.State)
+			}
+			if e.Err.Error() != "transient capture failure" {
+				t.Fatalf("failure event error = %v", e.Err)
+			}
+			waitForCommits(t, store, 1)
+			if got := r.State(); got != StateCapturing {
+				t.Fatalf("state after recovery = %q", got)
+			}
+			return
+		case <-deadline.C:
+			t.Fatal("recorder did not recover from repeated capture errors")
+		}
+	}
+}
+
+func TestUIVisibilityEventsPreserveRecorderStateAndCapture(t *testing.T) {
+	store := &testStore{}
+	r, err := New(Config{Capture: fake.NewCapture(), Store: store, Settings: settings.Snapshot{CaptureIntervalSeconds: 1, CaptureHeightPixels: 18}, Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []platform.SystemEventKind{platform.EventApplicationHidden, platform.EventApplicationUnhidden, platform.EventApplicationActivated}
+	for _, kind := range events {
+		r.HandleSystemEvent(platform.SystemEvent{Kind: kind})
+	}
+	if r.State() != StateIdle {
+		t.Fatal("UI events started an idle recorder")
+	}
+	if err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	waitForCommit(t, store)
+	store.mu.Lock()
+	before := store.commits
+	store.mu.Unlock()
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventApplicationHidden})
+	if r.State() != StateCapturing {
+		t.Fatal("app hide paused capturing")
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		store.mu.Lock()
+		after := store.commits
+		store.mu.Unlock()
+		if after > before {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("capture did not continue while UI was hidden")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventApplicationUnhidden})
+	if err := r.Pause(0); err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range events {
+		r.HandleSystemEvent(platform.SystemEvent{Kind: kind})
+	}
+	if r.State() != StatePaused {
+		t.Fatal("UI events resumed a paused recorder")
+	}
 }

@@ -40,12 +40,14 @@ function cellStyle(cell: DailyWorkflowCell, color: string) {
 }
 
 /*
- * Dayflow distraction track: when user has Distraction category and markers exist,
- * replace the regular Distraction row with the dedicated continuous distraction track.
+ * One distraction lane replaces the category squares whenever the day has a
+ * Distraction category or any embedded distraction markers. It remains as an
+ * empty track when there are no markers, so the Distraction row never falls
+ * back to a second square grid.
  */
 const showDistractionTrack = computed(
   () =>
-    props.presentation.hasDistractionCategory &&
+    props.presentation.hasDistractionCategory ||
     props.presentation.distractionMarkers.length > 0,
 )
 
@@ -201,7 +203,7 @@ const duration = useDurationFormat()
                 v-for="(cell, index) in row.cells"
                 :key="index"
                 class="workflow-cell"
-                :class="{ 'is-occupied': cell.occupancy > 0, 'has-distraction': cell.hasDistraction }"
+                :class="{ 'is-occupied': cell.occupancy > 0, 'has-distraction': !showDistractionTrack && cell.hasDistraction }"
                 :style="cellStyle(cell, row.colorHex)"
                 @mouseenter="onCellEnter($event, row, index)"
                 @mouseleave="onCellLeave"

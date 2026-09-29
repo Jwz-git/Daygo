@@ -3,7 +3,10 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"time"
+
+	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
 // CategoryMinutes is one row of the per-category minute aggregation: the
@@ -17,9 +20,9 @@ type CategoryMinutes struct {
 }
 
 // CategoryMinutesInRange aggregates non-deleted card minutes per category for
-// cards overlapping [from, to), using the same overlap predicate as
-// TotalMinutesTracked (docs/03 §3.5). Like that query it does not clip card
-// spans to the window. Categories without a categories row (stale names after
+// cards overlapping [from, to). Each card contributes only its intersection
+// with the window, so adjacent days or weeks never count the same minutes.
+// Categories without a categories row (stale names after
 // a rename race) still aggregate, with IsIdle false and an empty color.
 func (r *CardRepo) CategoryMinutesInRange(ctx context.Context, from, to time.Time) ([]CategoryMinutes, error) {
 	var out []CategoryMinutes
@@ -28,14 +31,16 @@ func (r *CardRepo) CategoryMinutesInRange(ctx context.Context, from, to time.Tim
 			SELECT c.category,
 			       COALESCE(cat.is_idle, 0),
 			       COALESCE(cat.color_hex, ''),
-			       SUM(CASE WHEN c.end_ts > c.start_ts THEN (c.end_ts - c.start_ts) ELSE 0 END) / 60.0
+			       SUM(MIN(c.end_ts, ?) - MAX(c.start_ts, ?)) / 60.0
 			FROM timeline_cards c
 			LEFT JOIN categories cat ON cat.name = c.category
-			WHERE ((c.start_ts < ? AND c.end_ts > ?) OR (c.start_ts >= ? AND c.start_ts < ?))
+			WHERE c.start_ts < ? AND c.end_ts > ?
 			  AND c.is_deleted = 0
+			  AND c.end_ts > c.start_ts
+			  AND (c.end_ts - c.start_ts) <= 14400
 			GROUP BY c.category, COALESCE(cat.is_idle, 0), COALESCE(cat.color_hex, '')
 			ORDER BY c.category`,
-			to.Unix(), from.Unix(), from.Unix(), to.Unix())
+			to.Unix(), from.Unix(), to.Unix(), from.Unix())
 		if err != nil {
 			return err
 		}
@@ -69,8 +74,8 @@ type CardSpan struct {
 	IsIdle   bool
 }
 
-// CardSpansInRange returns the non-deleted, positive-duration cards
-// overlapping [from, to), ordered by (day, start_ts). System placeholder
+// CardSpansInRange returns card intersections with [from, to), split at each
+// local 4 AM boundary and ordered by (day, start_ts). System placeholder
 // cards are included: callers (insight) own the exclusion policy. The
 // overlap predicate matches CategoryMinutesInRange.
 func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]CardSpan, error) {
@@ -80,11 +85,12 @@ func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]
 			SELECT c.day, c.start_ts, c.end_ts, c.category, COALESCE(cat.color_hex, ''), COALESCE(cat.is_idle, 0)
 			FROM timeline_cards c
 			LEFT JOIN categories cat ON cat.name = c.category
-			WHERE ((c.start_ts < ? AND c.end_ts > ?) OR (c.start_ts >= ? AND c.start_ts < ?))
+			WHERE c.start_ts < ? AND c.end_ts > ?
 			  AND c.is_deleted = 0
 			  AND c.end_ts > c.start_ts
+			  AND (c.end_ts - c.start_ts) <= 14400
 			ORDER BY c.day, c.start_ts`,
-			to.Unix(), from.Unix(), from.Unix(), to.Unix())
+			to.Unix(), from.Unix())
 		if err != nil {
 			return err
 		}
@@ -96,13 +102,33 @@ func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]
 				return err
 			}
 			row.IsIdle = isIdle != 0
-			out = append(out, row)
+			start := max(row.StartTs, from.Unix())
+			end := min(row.EndTs, to.Unix())
+			for start < end {
+				day := timeutil.LogicalDay(time.Unix(start, 0), r.store.location())
+				_, dayEnd, err := timeutil.DayWindow(day, r.store.location())
+				if err != nil {
+					return err
+				}
+				partEnd := min(end, dayEnd.Unix())
+				row.Day, row.StartTs, row.EndTs = day, start, partEnd
+				out = append(out, row)
+				start = partEnd
+			}
 		}
 		return rows.Err()
 	})
 	if err != nil {
 		return nil, err
 	}
+	// Query order is by persisted start day. A card crossing the boundary can
+	// place its second slice before a later card of the first day.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Day != out[j].Day {
+			return out[i].Day < out[j].Day
+		}
+		return out[i].StartTs < out[j].StartTs
+	})
 	return out, nil
 }
 

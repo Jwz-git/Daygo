@@ -117,12 +117,16 @@ export const useAppearanceStore = defineStore('appearance', () => {
     }
   }
 
-  function applyPreference(value: AppearanceSettingsDTO): void {
+  /**
+   * Awaits the locale's message chunk before resolving, so callers that gate the
+   * first paint on this (hydrate) cannot render against an unloaded table.
+   */
+  async function applyPreference(value: AppearanceSettingsDTO): Promise<void> {
     theme.value = value.theme
     language.value = value.language
     applyTheme()
     syncSystemWatch()
-    setLocale(locale.value)
+    await setLocale(locale.value)
   }
 
   function persistLocal(): void {
@@ -134,7 +138,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
 
   async function reloadBackend(): Promise<void> {
     const settings = await getSettings()
-    applyPreference(
+    await applyPreference(
       normalizeBackendAppearance(settings.appearance.theme, settings.appearance.language),
     )
   }
@@ -164,12 +168,12 @@ export const useAppearanceStore = defineStore('appearance', () => {
         if (stored.usedLegacyKey) removeKey(LEGACY_LANGUAGE_KEY)
       }
       persistence.value = 'backend'
-      applyPreference(
+      await applyPreference(
         normalizeBackendAppearance(settings.appearance.theme, settings.appearance.language),
       )
       startSettingsWatch()
     } catch (error) {
-      applyPreference(stored.value)
+      await applyPreference(stored.value)
       if (error instanceof Error && error.message === WAILS_UNAVAILABLE) {
         persistence.value = 'local'
         persistLocal()
@@ -183,7 +187,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
   async function setTheme(next: AppTheme): Promise<void> {
     if (next === theme.value || saving.value || persistence.value === 'unavailable') return
     if (persistence.value === 'local') {
-      applyPreference({ theme: next, language: language.value })
+      await applyPreference({ theme: next, language: language.value })
       persistLocal()
       return
     }
@@ -191,7 +195,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
     saving.value = true
     try {
       const settings = await updateSettings({ theme: next })
-      applyPreference(
+      await applyPreference(
         normalizeBackendAppearance(settings.appearance.theme, settings.appearance.language),
       )
     } catch {
@@ -204,7 +208,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
   async function setLanguage(next: LanguagePreference): Promise<void> {
     if (next === language.value || saving.value || persistence.value === 'unavailable') return
     if (persistence.value === 'local') {
-      applyPreference({ theme: theme.value, language: next })
+      await applyPreference({ theme: theme.value, language: next })
       persistLocal()
       return
     }
@@ -212,7 +216,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
     saving.value = true
     try {
       const settings = await updateSettings({ language: next })
-      applyPreference(
+      await applyPreference(
         normalizeBackendAppearance(settings.appearance.theme, settings.appearance.language),
       )
     } catch {

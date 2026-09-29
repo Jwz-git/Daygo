@@ -70,6 +70,38 @@ type System interface {
 	Events() <-chan SystemEvent
 }
 
+// Relauncher is an optional System capability: it re-launches the app after the
+// current process has exited. A System adapter opts in by implementing it; the
+// app layer type-asserts and degrades to a plain quit when it is absent.
+//
+// It exists for the permission-change restart: macOS caches a screen-recording
+// (TCC) grant at process launch, and Daygo is a resident agent whose ordinary
+// quit only hides the window. To make a fresh grant take effect the process must
+// fully terminate and come back, so the adapter schedules a relaunch that waits
+// for this process to exit before starting a new one (docs/decisions/
+// recording-screen-recording-permission.md).
+type Relauncher interface {
+	Relaunch(ctx context.Context) error
+}
+
+// StatusItemAvailability confirms that the native recovery entry point exists.
+// Unlike SetStatusItem (which may enqueue a repaint), this is an applied-state
+// query. It is only called by host lifecycle actions, never recorder callbacks.
+type StatusItemAvailability interface {
+	StatusItemAvailable(ctx context.Context) (bool, error)
+}
+
+// ApplicationMenuCopySink is implemented by hosts with a native main menu.
+type ApplicationMenuCopySink interface {
+	SetApplicationMenuLabels(ctx context.Context, labels ApplicationMenuLabels) error
+}
+
+// StatusMessagePresenter shows a localized message without blocking the system
+// event consumer. The host owns dismissal and closes it during teardown.
+type StatusMessagePresenter interface {
+	ShowStatusMessage(ctx context.Context, message StatusMessage) error
+}
+
 // Secrets is the system keychain. Get is for Go's provider client only; no
 // binding ever returns the value to the frontend.
 type Secrets interface {

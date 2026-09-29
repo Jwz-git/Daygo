@@ -14,6 +14,7 @@ extern void dgStatusItemAction(uint32_t action, void *userData);
 import "C"
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"sync"
@@ -32,6 +33,13 @@ func systemStart() error {
 	return nil
 }
 func systemStop() { C.dg_system_stop() }
+
+func relaunch() error {
+	if code := C.dg_relaunch(); code != 0 {
+		return fmt.Errorf("relaunch ABI failed: %d", int32(code))
+	}
+	return nil
+}
 
 func queryScreenRecordingPermission() (platform.PermissionState, error) {
 	switch code := C.dg_screen_recording_permission_query(); code {
@@ -145,6 +153,7 @@ func setStatusItem(state platform.StatusItemState) error {
 	defer C.free(unsafe.Pointer(primary))
 	native := C.dg_status_item_state_v1{
 		visible:                 C.uint32_t(boolToUint(state.Visible)),
+		icon:                    C.uint32_t(state.Icon),
 		pause_durations_enabled: C.uint32_t(boolToUint(state.PauseDurationsEnabled)),
 		primary_action_enabled:  C.uint32_t(boolToUint(state.PrimaryActionEnabled)),
 		title:                   title,
@@ -164,7 +173,32 @@ func setStatusItem(state platform.StatusItemState) error {
 	}
 	return nil
 }
-func stopStatusItem() { C.dg_status_item_stop() }
+func stopStatusItem()                    { C.dg_status_item_stop() }
+func statusItemAvailable() (bool, error) { return C.dg_status_item_is_available() == 1, nil }
+func setApplicationMenuLabels(labels platform.ApplicationMenuLabels) error {
+	encoded, err := json.Marshal(labels)
+	if err != nil {
+		return fmt.Errorf("encode application menu labels: %w", err)
+	}
+	value := C.CString(string(encoded))
+	defer C.free(unsafe.Pointer(value))
+	if code := C.dg_application_menu_labels_set(C.DG_SYSTEM_ABI_MAJOR, value); code != 0 {
+		return fmt.Errorf("application menu labels ABI failed: %d", int32(code))
+	}
+	return nil
+}
+func showStatusMessage(message platform.StatusMessage) error {
+	encoded, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("encode status message: %w", err)
+	}
+	value := C.CString(string(encoded))
+	defer C.free(unsafe.Pointer(value))
+	if code := C.dg_status_message_show(C.DG_SYSTEM_ABI_MAJOR, value); code != 0 {
+		return fmt.Errorf("status message ABI failed: %d", int32(code))
+	}
+	return nil
+}
 func boolToUint(v bool) uint32 {
 	if v {
 		return 1

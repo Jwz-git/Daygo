@@ -12,7 +12,10 @@ import {
 import {
   getPermissionState,
   openSystemSettings,
+  type PermissionState,
+  relaunchForPermission as requestPermissionRelaunch,
   requestScreenRecordingPermission,
+  setPermissionRestartArmed,
 } from '@/api/system'
 
 export type RecordingLifecycle = 'idle' | 'starting' | 'capturing' | 'paused'
@@ -39,6 +42,20 @@ export const useRecordingStore = defineStore('recording', () => {
   let requestVersion = 0
 
   /*
+   * Show or hide the grant-and-restart guidance, keeping the native
+   * permission-restart intent in sync. Arming while the guidance is up makes
+   * the next quit — Cmd+Q, Dock, or macOS's own "Quit & Reopen" prompt after
+   * the user flips the grant — a full terminate-and-relaunch rather than the
+   * resident agent's soft-quit-to-background. The native flag is process-local
+   * and resets on relaunch, so a failed sync (no Wails host, shell gone) is
+   * safe to ignore.
+   */
+  function setPermissionGuidance(required: boolean): void {
+    permissionRequired.value = required
+    setPermissionRestartArmed(required).catch(() => {})
+  }
+
+  /*
    * Gate a start on screen-recording authorization. Granted lets the start
    * through. Not granted fires the system prompt (a first-use dialog, or a
    * no-op once denied) and raises permissionRequired so the UI can point the
@@ -48,24 +65,28 @@ export const useRecordingStore = defineStore('recording', () => {
    * whether it can control capture.
    */
   async function ensureScreenRecordingPermission(): Promise<boolean> {
-    let granted: boolean
+    let permission: PermissionState
     try {
-      const state = await getPermissionState()
-      granted = state.screenRecording === 'granted'
+      permission = await getPermissionState()
     } catch {
       return true
     }
-    if (granted) {
-      permissionRequired.value = false
+    if (permission.screenRecording === 'granted') {
+      setPermissionGuidance(false)
       return true
     }
-    try {
-      await requestScreenRecordingPermission()
-    } catch {
-      // The prompt could not be shown; the guidance dialog still explains the
-      // manual path through System Settings.
+    // Only fire the OS prompt when the platform can still show it. Once the user
+    // has denied it, macOS silently ignores the request and the grant can only
+    // come from System Settings, so a request call would be a dead end.
+    if (permission.canRequest) {
+      try {
+        await requestScreenRecordingPermission()
+      } catch {
+        // The prompt could not be shown; the guidance dialog still explains the
+        // manual path through System Settings.
+      }
     }
-    permissionRequired.value = true
+    setPermissionGuidance(true)
     return false
   }
 
@@ -77,8 +98,21 @@ export const useRecordingStore = defineStore('recording', () => {
     }
   }
 
+  /*
+   * Fully quit and relaunch to apply a newly granted permission. On success the
+   * process exits and a fresh instance starts, so there is nothing to refresh;
+   * a failure (no desktop shell) surfaces through error.
+   */
+  async function relaunchForPermission(): Promise<void> {
+    try {
+      await requestPermissionRelaunch()
+    } catch (cause: unknown) {
+      error.value = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+
   function dismissPermissionPrompt(): void {
-    permissionRequired.value = false
+    setPermissionGuidance(false)
   }
 
   async function refresh(): Promise<void> {
@@ -108,14 +142,14 @@ export const useRecordingStore = defineStore('recording', () => {
     stopEvents = null
   }
 
-  async function perform(action: RecordingAction): Promise<void> {
+  async function perform(action: RecordingAction, minutes = 0): Promise<void> {
     if (pendingAction.value !== null || !canControl.value) return
     if (action === 'start' && !(await ensureScreenRecordingPermission())) return
     pendingAction.value = action
     error.value = null
     try {
       if (action === 'start') await setRecording(true)
-      if (action === 'pause') await pauseRecording()
+      if (action === 'pause') await pauseRecording(minutes)
       if (action === 'resume') await resumeRecording()
       if (action === 'stop') await setRecording(false)
       await refresh()
@@ -141,6 +175,7 @@ export const useRecordingStore = defineStore('recording', () => {
     stopListening,
     perform,
     openScreenRecordingSettings,
+    relaunchForPermission,
     dismissPermissionPrompt,
   }
 })

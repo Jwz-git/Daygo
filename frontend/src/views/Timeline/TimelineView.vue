@@ -27,6 +27,7 @@ import TimelineInspector from './TimelineInspector.vue'
 import TimelineStatePanel from './TimelineStatePanel.vue'
 import TimelineTrack from './TimelineTrack.vue'
 import TimelineWeekView from './TimelineWeekView.vue'
+import { cardRegenerationFailureKey } from './cardRegenerationFailure'
 import { buildWeekColumns } from './weekLayout'
 import { safeCategoryColor } from './layout'
 
@@ -54,9 +55,17 @@ const {
   pendingAction,
   pendingCardID,
   actionError,
+  failedAction,
+  failedCardID,
   actionAvailability,
 } = storeToRefs(timeline)
 const { locale, t } = useI18n()
+const cardReprocessFailureKey = computed(() =>
+  failedAction.value === 'reprocess-card' && failedCardID.value !== null && actionError.value !== null
+    ? cardRegenerationFailureKey(actionError.value)
+    : null,
+)
+const generalActionFailed = computed(() => actionError.value !== null && failedAction.value !== 'reprocess-card')
 const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
@@ -169,7 +178,7 @@ const reviewedIds = ref<ReadonlySet<number>>(new Set())
 
 const reviewQueue = computed<TimelineCardDTO[]>(() =>
   (day.value?.cards ?? []).filter(
-    (card) => !card.isIdle && card.category !== 'System' && !reviewedIds.value.has(card.id),
+    (card) => card.day === day.value?.day && !card.isIdle && card.category !== 'System' && !reviewedIds.value.has(card.id),
   ),
 )
 
@@ -513,10 +522,8 @@ onBeforeUnmount(() => {
           <span>{{ recording.lifecycle === 'paused' ? t('recording.action.resume') : t('recording.action.pause') }}</span>
         </button>
         <DevelopmentBadge v-if="usingDevelopmentFixture">{{ t('timeline.developmentFixture') }}</DevelopmentBadge>
-        <div v-if="day" class="day-meta">
-          <span>{{ t('timeline.meta.tracked', { count: day.trackedMinutes }) }}</span>
-          <i aria-hidden="true"></i>
-          <span v-if="localizedTimeZone">{{ localizedTimeZone }}</span>
+        <div v-if="day && localizedTimeZone" class="day-meta">
+          <span>{{ localizedTimeZone }}</span>
         </div>
       </template>
     </PageHeader>
@@ -552,7 +559,7 @@ onBeforeUnmount(() => {
       >
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /></svg>
       </button>
-      <span v-if="actionError !== null && selectedCard === null" class="filter-error" role="alert">
+      <span v-if="generalActionFailed && selectedCard === null" class="filter-error" role="alert">
         {{ t('timeline.actionFailed') }}
       </span>
     </div>
@@ -609,7 +616,8 @@ onBeforeUnmount(() => {
               :can-write="capabilities?.canWrite ?? false"
               :actions="actionAvailability"
               :pending-action="pendingAction"
-              :action-failed="actionError !== null"
+              :action-failed="generalActionFailed"
+              :card-reprocess-failure-key="selectedCard?.id === failedCardID ? cardReprocessFailureKey : null"
               :goal="daily.goal"
               :goal-unavailable="daily.goalUnavailable"
               :goal-failed="daily.goalError !== null"
@@ -620,6 +628,7 @@ onBeforeUnmount(() => {
               @delete="timeline.removeCard"
               @reprocess-card="timeline.reprocessCard"
               @retry="timeline.retryFailure"
+              @stop-retries="timeline.stopFailureRetries"
               @dismiss-failure="timeline.dismissFailure"
               @reprocess="reprocessCurrentDay"
               @save-goal="daily.saveGoal"
@@ -640,7 +649,8 @@ onBeforeUnmount(() => {
           :can-write="capabilities?.canWrite ?? false"
           :actions="actionAvailability"
           :pending-action="pendingAction"
-          :action-failed="actionError !== null"
+          :action-failed="generalActionFailed"
+          :card-reprocess-failure-key="weekSelection?.card.id === failedCardID ? cardReprocessFailureKey : null"
           :goal="daily.goal"
           :goal-unavailable="daily.goalUnavailable"
           :goal-failed="daily.goalError !== null"
@@ -651,6 +661,7 @@ onBeforeUnmount(() => {
           @delete="deleteWeekCard"
           @reprocess-card="reprocessWeekCard"
           @retry="timeline.retryFailure"
+          @stop-retries="timeline.stopFailureRetries"
           @dismiss-failure="timeline.dismissFailure"
           @reprocess="reprocessCurrentDay"
           @save-goal="daily.saveGoal"
@@ -733,13 +744,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-
-.day-meta i {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: currentColor;
-}
 
 .filter-bar {
   display: flex;

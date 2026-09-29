@@ -186,3 +186,31 @@ func TestNativeSegmentRolloverOnGeometryChange(t *testing.T) {
 		t.Fatalf("segment 2 probe failed: info=%+v err=%v", info2, err)
 	}
 }
+
+func TestNativeSegmentRepeatedSingleFrameDecode(t *testing.T) {
+	dir := t.TempDir()
+	if err := segmentCloseActive(); err != nil {
+		t.Fatal(err)
+	}
+	frame, err := testFrameAppendSynthetic(dir, 64, 48, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := segmentCloseActive(); err != nil {
+		t.Fatal(err)
+	}
+
+	media := NewMedia(dir)
+	for i := 0; i < 200; i++ {
+		data, err := media.DecodeFrame(context.Background(), platform.DecodeRequest{
+			SegmentPath: frame.SegmentPath,
+			FrameIndex:  0,
+		})
+		if err != nil {
+			t.Fatalf("decode %d: %v", i, err)
+		}
+		if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
+			t.Fatalf("decode %d returned invalid JPEG", i)
+		}
+	}
+}

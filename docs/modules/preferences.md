@@ -13,7 +13,36 @@
 
 ## 当前状态与证据
 
-> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+2026-09-27：模型测试与试用统一入口，旧固定探针不再由设置页触发。九语言文案、显式成功状态与输入变化清除旧结果已实现；验证与真实闭环边界见 [providers 执行册](providers.md)。
+
+2026-09-26 模型试用增量：设置供应商分区与模型行增加独立 `#/model-tests` 入口，导航仍归设置。
+九语言新增 modelPlayground 文案，布局在窄窗口折为单列；浏览器无 Wails 时明确不可发送。
+该增量不继承此前真实验收，Provider 请求 / 隐私与验证范围见 [providers 执行册](providers.md)。
+
+存储设置页增加 Windows 录制目录选择、确认、取消、中断和恢复入口；路径迁移与文件清理由 recording / data 实现。合并后前端 typecheck / build 与 169 项单测通过，真实 Wails 交互尚未验收。
+
+2026-09-26 Dock 重新启用报错修复：原生策略改为核对实际值，重复设置视为成功；
+非阻塞错误提示补齐 AppKit 布局，移除模板占位控件并使正文完整换行。
+设置 false → true → false → true 的匿名库保存 / 读回夹具、独立原生 / 匿名 `.app` smoke
+与完整门禁通过；本次增量的真实 Wails 开关 / 重启回归尚未执行，已安装应用未替换。
+复现输入、失败到通过的证据、门禁范围和回退见 [recording](recording.md)。
+
+2026-09-26：macOS 外观页新增“在 Dock 中显示 Daygo”开关，沿用既有 settings patch / 事件重拉。
+启动与持久化后真实消费者由 recording 宿主策略接入；关窗、软退出与该偏好独立，重开尊重保存值，
+菜单栏入口不可用时保留 Dock。新增菜单 / 操作反馈 / 开关文案覆盖全部九种语言，暂停恢复时刻的
+vue-i18n 占位符有逐语言夹具。Go 设置与策略夹具通过；真实 Wails 切换 / 重启交互于 09-26 用户确认已验收（无逐项记录），
+证据与门禁见 [recording](recording.md)。此前总表把尚未接入的 Dock 消费者列入 09-22 验收，已纠正。
+
+2026-09-26：新增 `GetUIVisibility` / `ui:visibility-changed` 与根组件统一可见性订阅。
+快照有事件 / 请求代次保护；普通失焦不隐藏。macOS 原生 hide / unhide 观察者由 System 生命周期
+持有，app 的窗口 order-out 独立保存状态，保留原退出策略。播放器隐藏时停时钟、解除预加载、
+移除媒体像素元素；路由、父页面、草稿与播放器意图保留。匿名真实 SFC 渲染夹具验证父页面
+不重新挂载、草稿 / 进度 / 倍率保留及播放 / 暂停恢复，另有快照竞态、资源所有权和 Go 生命周期夹具。
+Go recorder 夹具验证 UI 隐藏后仍产生捕获提交，UI 事件不启动 idle、不恢复 paused；
+这是 fake 捕获证据。强制重新链接的原生分段 / 事件映射 smoke、前端单测与类型检查及完整 `./scripts/gate.sh` 通过。
+真实 macOS 窗口 / 捕获连续性及长期观察于 09-26 用户确认已验收；未附全进程收益测量值，见 [长期流程](../08-testing-strategy.md#长期内存对照流程2026-09-26)。
+
+> **验收状态（2026-09-26）**：本模块所有已实现能力（含近期增量、长期观察与已实现的真实安装升级）经用户确认已验收，未附逐项运行记录。未实现能力、待定设计与正式证书缺失保持原状态；历史命令的失败、跳过或未运行不改写为通过。统一记录见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 实现进度：**部分实现**。settings-access、前端外壳、主题 / 语言设置和设置页面已落盘；外观设置已优先通过 `GetSettings` / `UpdateSettings` 接管，浏览器预览仍保留安全的 localStorage 回退。
 
@@ -25,12 +54,16 @@
 - `internal/app`：`GetSettings` / `UpdateSettings` 绑定与 `SettingsDTO` / `SettingsPatchDTO`；
   `UpdateSettings` 返回生效后的完整设置，`settings:changed` 只带改动键名且仅在提交后发出。
   事件经可注入的 `EventEmitter` 发布，绑定层测试不需要 Wails runtime。
-- `frontend`：路由、分组侧栏、浅 / 深 / 跟随系统主题、双语切换和按用户任务重组的设置分区；
+- `frontend`：路由、分组侧栏、浅 / 深 / 跟随系统主题、九语言切换和按用户任务重组的设置分区；
   设置分区写入查询参数，可从其他功能深链进入。界面使用 macOS 系统字体与低饱和蓝色强调层级，
   录制状态及控制已提升至全局外壳，截图测试仅从开发环境的存储与诊断分区进入。
+- Windows 外壳仅在该平台启用保留系统 resize / Aero decorations 的 frameless 窗口，并由前端
+  提供 36px 顶栏：左侧只显示 Daygo 图标，右侧提供最小化、最大化 / 还原和“关闭即隐藏”控制；
+  macOS 的隐藏标题栏和 Linux 原生窗口行为不变。
 
-未交付：前端所有 DTO 的生成类型替换、统一错误模型、localStorage 全量接管迁移，以及尚无产品消费者的启动项 / Dock / 遥测行为接入。
-`frontend/src/api/dto.ts` 仍保留时间线 / Provider 等尚未生成绑定的手写类型；主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。模型输出语言、识别增强和存储上限已通过生成绑定接入设置页。
+未交付：前端所有 DTO 的生成类型替换、统一错误模型、localStorage 全量接管迁移，以及遥测行为接入。
+启动项消费者已存在；本轮补齐 macOS Dock 消费者，均由 recording 维护。
+`frontend/src/api/dto.ts` 仍保留时间线 / Provider 等已有绑定的手写 DTO 子集，生成类型收口仍未完成；主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。模型输出语言、识别增强和存储上限已通过生成绑定接入设置页。
 
 **绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
 绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`（`Store` 还把 `storage.Store` 拉进了生成的
@@ -61,7 +94,7 @@ internal/app 拥有 Get/UpdateSettings 和 DTO；store / api 拥有取数与事�
 
 | 实验 | 输入与操作 | 预期结果 | 失败条件 / 证据 |
 |---|---|---|---|
-| 主题 / 语言 | 三态主题、系统变化、中文 / 英文 / 跟随系统，刷新 / 重启 | DOM 解析值和保存偏好正确，缺 key 类型失败 | 闪回旧偏好、跟随失效、文案绕过 i18n 失败 |
+| 主题 / 语言 | 三态主题、系统变化、九种语言 / 跟随系统，刷新 / 重启 | DOM 解析值和保存偏好正确，缺 key 类型失败 | 闪回旧偏好、跟随失效、文案绕过 i18n 失败 |
 | settings patch | 未提供、置空、越界值，按 05 调用 | 只改显式键，规范化后的值持久化，事件带键名 | 擅自覆盖其他功能设置或绕过规范失败 |
 | localStorage 接管 | 有效旧记录、错误信封、首次入库失败、重启读回 | 按功能切换单一来源，确认新值后停旧写，失败可恢复 | 双写、旧值丢失、密钥落盘失败 |
 | DTO / 错误 / 事件 | null、未知枚举、错误码、写操作与失效事件 | 生成 DTO 为类型来源，unknown 显式解析，写后事件重拉 | any 跨界、乐观写入、组件直连绑定失败 |
@@ -72,8 +105,8 @@ internal/app 拥有 Get/UpdateSettings 和 DTO；store / api 拥有取数与事�
 2. 以 settings-store fake 实现类型化访问与 patch；data repository 已就绪。
 3. 接生成绑定与 DTO、薄 wrapper、统一错误和事件消费；设置页已消费生成的 `SettingsDTO`，未实现的功能仍保持占位。
 4. 迁移外观 / 语言的存储来源，先通过一次 `UpdateSettings` 成功返回后删除旧 localStorage；数据库不可用时保留本地预览值且停止写入，避免双写。
-5. 接入模型输出语言、识别增强和存储上限的低风险设置 UI；启动项 / Dock / 遥测须等各自真实消费者就绪后再开放开关。
-6. 验收偏好闭环与双语言状态；新增大规模界面仍受 G-host 约束。
+5. 接入模型输出语言、识别增强和存储上限的设置 UI；启动项 / macOS Dock 消费者已接入，遥测仍须等实际消费者就绪后再开放开关。
+6. 验收偏好闭环与九语言状态；新增大规模界面仍受 G-host 约束，该门禁已于 2026-09-22 经用户实测验收（无逐项运行记录），大规模界面扩张已解锁。
 
 ## 验收、阻塞与回退
 
@@ -87,4 +120,14 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 
 ## 验证记录
 
+2026-09-23：补回 Windows 专用 `Frameless` 宿主配置，避免原生黑色标题栏与 Vue 顶栏同时显示。
+保留系统缩放边框、阴影及圆角，macOS / Linux 窗口策略不变。新增平台窗口配置回归测试；
+`CGO_ENABLED=0 go test ./internal/app`、`go vet ./internal/app`、Windows `go build ./...`、
+Linux / macOS `go build ./internal/app` 和 `python scripts/check-docs.py` 通过。
+真实窗口视觉、拖动、缩放和 DPI 仍需重启新版应用后验收。
+
 2026-09-10—12：前端 typecheck、unit、build 与 Vite 预览覆盖设置分区、深链、外观 / 语言、录制上限和诊断展示。真实 Wails 写入、重启及浅色 / 英文矩阵由用户于 2026-09-22 确认验收，未附逐项运行记录。
+
+| 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
+|---|---|---|---|
+| 2026-09-14 / 当前工作树 / Windows 11 amd64 | `CGO_ENABLED=0 go test ./...`、`go vet ./...`、`CGO_ENABLED=0 go build ./...`、`npm --prefix frontend ci`、前端 typecheck / 31 项 unit / build、`git diff --check` | 通过；Windows frameless 配置、平台解析和自绘标题栏均可编译，浏览器生产 bundle 生成成功 | 真实 Wails 窗口的拖动、缩放、DPI 和关闭隐藏仍需人工验收 |

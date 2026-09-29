@@ -4,24 +4,24 @@ export default {
   navigation: {
     label: 'Week navigation',
     current: 'This week',
-    backendRequired: 'Available when the weekly data binding is connected',
+    backendRequired: 'Switching weeks is unavailable right now',
   },
   meta: {
-    tracked: '{count} tracked minutes',
+    tracked: '{count} min recorded',
   },
   intro: {
     eyebrow: 'Weekly review',
     title: 'Where the week went',
-    description: 'Tracked time, focus rhythm, daily distribution, and category mix in one factual view—without inventing insights that do not exist yet.',
+    description: 'Your recorded time, focus rhythm, daily spread, and category mix for the week.',
   },
   overview: {
     eyebrow: 'Overview',
     title: 'Time and focus',
-    description: 'Focus excludes distraction and idle categories; tracked time excludes system placeholders. Values come from the backend weekly aggregate.',
-    focusAria: 'Focus accounts for {value} of tracked time',
+    description: 'Focus time excludes distraction and idle; recorded time excludes system placeholders.',
+    focusAria: 'Focus accounts for {value} of recorded time',
   },
   metric: {
-    tracked: 'Tracked time',
+    tracked: 'Recorded time',
     focused: 'Focus time',
     other: 'Other time',
     focusRate: 'Focus share',
@@ -30,8 +30,8 @@ export default {
     eyebrow: 'Composition',
     title: 'Category distribution',
     count: '{count} categories',
-    distributionAria: 'Share of tracked time by category this week',
-    total: 'Tracked',
+    distributionAria: 'Share of recorded time by category this week',
+    total: 'Total',
   },
   daily: {
     eyebrow: 'Pattern',
@@ -46,7 +46,7 @@ export default {
     focus: 'Focus',
     idle: 'Idle',
     chartAria: 'Focus and idle minutes per hour of day',
-    empty: 'No summarizable segments this week',
+    empty: 'Nothing to summarize this week yet',
   },
   insights: {
     title: 'This week at a glance',
@@ -62,21 +62,21 @@ export default {
   },
   state: {
     loading: {
-      title: 'Loading weekly data',
-      description: 'Tracked time, focus, and category composition will appear when the aggregate is ready.',
+      title: 'Loading this week',
+      description: 'Just a moment.',
     },
     unavailable: {
-      title: 'Weekly data is not available yet',
-      description: 'Production does not inject sample statistics. Real weekly data will appear after GetWeeklyDashboard is connected.',
+      title: 'Weekly view is unavailable right now',
+      description: 'Try again later, or restart Daygo.',
     },
     failure: {
-      title: 'Weekly data could not be loaded',
-      description: 'Existing statistics were not replaced. Try reading this week again.',
+      title: 'Couldn’t load this week',
+      description: 'Your data is unaffected. You can try again.',
     },
     empty: {
-      title: 'Nothing to summarize this week',
-      description: 'Weekly statistics will appear after timeline cards have been created and processed.',
+      title: 'Nothing recorded this week yet',
+      description: 'Your weekly review will appear here once Daygo has recorded and organized some activity.',
     },
   },
-  scopeNote: 'Charts are built from the weekly aggregate\'s per-day detail and segment data. App-level relationship and flow diagrams require separate data contracts.',
+  scopeNote: 'Based on your daily activity cards.',
 }

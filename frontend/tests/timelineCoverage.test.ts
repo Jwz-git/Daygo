@@ -214,6 +214,23 @@ test('an overlap trims the longer card and drops one that has no time left', () 
   ])
 })
 
+test('resolveDisplaySpans drops cards with inverted span or duration > 4 hours', () => {
+  // Card 1 has duration 23h59m (> 4h), Card 2 has inverted end <= start, Card 3 is normal 15m.
+  const cards = [
+    { id: 1, startTs: DAY_START + 600 * 60, endTs: DAY_START + (600 + 1439) * 60 },
+    { id: 2, startTs: DAY_START + 620 * 60, endTs: DAY_START + 610 * 60 },
+    { id: 3, startTs: DAY_START + 600 * 60, endTs: DAY_START + 615 * 60 },
+  ]
+  const result = resolveDisplaySpans(cards).map((card) => [
+    card.id,
+    (card.startTs - DAY_START) / 60,
+    (card.endTs - DAY_START) / 60,
+  ])
+  assert.deepEqual(result, [
+    [3, 600, 615],
+  ])
+})
+
 test('coverage keeps the order of the boxes it filters', () => {
   const ranges = [
     { top: 0, height: 10, id: 'a' },

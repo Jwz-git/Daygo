@@ -30,19 +30,6 @@ func (s mediaFrameSource) FrameBytes(ctx context.Context, segmentPath string, fr
 	})
 }
 
-// retryableFailureKind reports whether a failed batch is worth retrying. An
-// exhausted attempt count means the cooldown/requeue loop already gave up;
-// auth failures do not heal on their own (the user must fix the key), so the
-// UI should say "needs attention" rather than "will retry". no_provider is
-// the same story: nothing retries its way out of an empty chain.
-func retryableFailureKind(kind string, attempts int) bool {
-	switch kind {
-	case "auth", "invalid_request", "no_provider":
-		return false
-	}
-	return attempts < storage.MaxBatchAttempts
-}
-
 // analysisChainSource builds the provider chain from the routing setting and
 // the keychain, mirroring chat's rebuildChain wiring: factory client →
 // attempt observer (llm_calls audit) → retry, wrapped in an ai.Chain.
@@ -194,7 +181,7 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 				EndTs:     batch.End.Unix(),
 				Kind:      kind,
 				Message:   note,
-				Retryable: retryableFailureKind(kind, batch.Attempts),
+				Retryable: retryableFailure(kind, batch.Attempts),
 			})
 		},
 	})

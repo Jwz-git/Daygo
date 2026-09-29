@@ -77,14 +77,16 @@ func (b *Backend) updateCardDetailedSummary(ctx context.Context, cardID int64, t
 // data-maintenance concern) is intentionally dropped here.
 func (b *Backend) deleteCard(ctx context.Context, cardID int64) error {
 	store := b.store()
-	day, err := b.cardDay(ctx, cardID)
+	days, err := b.cardVisibleDays(ctx, cardID)
 	if err != nil {
 		return err
 	}
 	if _, err := store.Cards().SoftDeleteCard(ctx, cardID); err != nil {
 		return mapStorageError("delete card", err)
 	}
-	b.emitTimelineInvalidation(day)
+	for _, day := range days {
+		b.emitTimelineInvalidation(day)
+	}
 	return nil
 }
 

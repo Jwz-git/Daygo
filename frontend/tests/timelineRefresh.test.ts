@@ -75,3 +75,32 @@ test('silent window-return refresh keeps the loaded timeline visible', async () 
     globalThis.window = previousWindow
   }
 })
+
+test('failed card regeneration retains the card-scoped error until retry', async () => {
+  const previousWindow = globalThis.window
+  let shouldFail = true
+  globalThis.window = {
+    go: { app: { Backend: {
+      ReprocessCard: async () => {
+        if (shouldFail) throw new Error('daygo:provider_failed: diagnostic')
+      },
+    } } },
+  } as unknown as Window & typeof globalThis
+
+  try {
+    setActivePinia(createPinia())
+    const store = useTimelineStore()
+    assert.equal(await store.reprocessCard(7), false)
+    assert.equal(store.failedAction, 'reprocess-card')
+    assert.equal(store.failedCardID, 7)
+    assert.equal(store.pendingCardID, null)
+
+    shouldFail = false
+    assert.equal(await store.reprocessCard(7), true)
+    assert.equal(store.failedAction, null)
+    assert.equal(store.failedCardID, null)
+    assert.equal(store.actionError, null)
+  } finally {
+    globalThis.window = previousWindow
+  }
+})

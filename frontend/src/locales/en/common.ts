@@ -25,9 +25,15 @@ export default {
     collapse: 'Collapse options',
     noMatches: 'No matches',
   },
+  window: {
+    minimise: 'Minimise',
+    maximise: 'Maximise',
+    restore: 'Restore',
+    close: 'Close',
+  },
   fatal: {
     title: 'Something went wrong',
-    description: 'An error occurred and the page stopped rendering to avoid a blank screen. You can copy the details to report it, or reload the app.',
+    description: 'Something went wrong and this page stopped displaying. You can copy the details to report it, or reload.',
     reload: 'Reload',
     dismiss: 'Dismiss',
     copy: 'Copy details',

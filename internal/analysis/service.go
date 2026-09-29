@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"strings"
 	"sync"
@@ -191,9 +192,11 @@ func (s *Service) recordBatchSuccess(batchID int64) {
 func (s *Service) Run(ctx context.Context) {
 	now := s.cfg.Now()
 	if _, err := s.cfg.Store.AdoptStaleProcessing(ctx, now); err != nil {
-		// Adoption is best-effort at startup: a stale batch left in processing
-		// is adopted on a later run, never lost.
-		_ = err
+		// Adoption is best-effort at startup: a stale batch left in processing is
+		// adopted on a later run, never lost. Log rather than drop it — the store
+		// runs with no observer in production, so a bare _ = err would leave a real
+		// DB fault here with zero trace. The message carries no user data.
+		log.Printf("analysis: adopt stale processing batches: %v", err)
 	}
 
 	ticker := time.NewTicker(s.cfg.TickEvery)
@@ -440,6 +443,37 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	if err != nil {
 		return err
 	}
+	shells = foldShortOutputTail(shells, ownedFrom, batch.End, s.loc())
+
+	// A short activity next to a cross-category neighbour would persist as an
+	// unreadable fragment: the ownership gate (mergeOwnershipStart) refuses to
+	// merge across categories, and the 15-minute floor never applies to a card
+	// carrying the window's end (docs/04 §4.3.1). Two deterministic folds recover
+	// it, both taking the majority-time activity's identity (docs/04 §4.3.4): a
+	// short single-card output folds UP into its predecessor, and otherwise a
+	// short committed predecessor is absorbed DOWN into the first card. ownedFrom
+	// then starts at that predecessor so the rewrite owns and replaces it.
+	notifyFrom := batch.Start
+	if len(shells) > 0 {
+		anchor := ownedFrom.Add(batch.End.Sub(ownedFrom) / 2)
+		cStart, errStart := timeutil.ResolveClock(shells[0].Start, anchor, s.loc())
+		cEnd, errEnd := timeutil.ResolveClock(shells[0].End, anchor, s.loc())
+		if errStart == nil && errEnd == nil && cEnd.After(cStart) {
+			pred, ok := domain.TimelineCard{}, false
+			if len(shells) == 1 {
+				pred, ok = mergeableSingleCardPredecessor(cStart, cEnd, existing)
+			}
+			if !ok {
+				pred, ok = mergeableSmallPredecessor(cStart, cEnd, existing)
+			}
+			if ok {
+				shells[0] = buildMergedShell(pred, shells[0], cEnd.Sub(cStart))
+				ownedFrom = time.Unix(pred.StartTs, 0)
+				notifyFrom = ownedFrom
+			}
+		}
+	}
+
 	// The rewrite replaces everything from the span's start (the merged
 	// predecessor's start in ongoing mode) through the window end; cards
 	// before the span survive beside the rewrite. ownedFrom is that start after
@@ -453,13 +487,14 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	// the counter lives in storage.NoteSkippedCards. A shell the model
 	// resolved entirely outside the window is filtered before this point.
 	if len(result.SkippedCards) > 0 {
-		return fmt.Errorf("batch %d skipped %d unresolvable cards", batch.ID, len(result.SkippedCards))
+		return ai.NewError(ai.ErrorInvalidOutput,
+			fmt.Sprintf("batch %d skipped %d unresolvable cards", batch.ID, len(result.SkippedCards)), 0, nil)
 	}
 
 	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchSucceeded, "", "", s.cfg.Now()); err != nil {
 		return err
 	}
-	s.notifyDays(batch.Start, batch.End)
+	s.notifyDays(notifyFrom, batch.End)
 	return nil
 }
 
@@ -483,7 +518,7 @@ func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (tim
 	for i := len(existing) - 1; i >= 0; i-- {
 		card := existing[i]
 		if card.EndTs <= startUnix {
-			if startUnix-card.EndTs <= 300 {
+			if startUnix-card.EndTs <= int64(ongoingRewriteReachback.Seconds()) {
 				return time.Unix(card.StartTs, 0), true
 			}
 			break
@@ -492,35 +527,267 @@ func cardRewriteStart(existing []domain.TimelineCard, batchStart time.Time) (tim
 	return batchStart, false
 }
 
+// Three adjacency windows decide how far a rewrite reaches toward a
+// neighbouring card. They are deliberately different, not one stray magic
+// number:
+//   - ongoingRewriteReachback (5min): a sliding-window rewrite re-owns the
+//     nearest committed predecessor within this reach (cardRewriteStart).
+//     Permissive, because re-owning a same-window predecessor is safe.
+//   - maxShortCardMergeGap (4min): the deterministic short-single-card fold
+//     (mergeableSingleCardPredecessor). Stricter, because it merges identity
+//     across categories.
+//   - AdjacentIdleMergeGap (5min, rules.go): idle-into-idle merge on the idle
+//     fast path, a separate mechanism.
+//
+// shortSingleCardCeiling bounds both short-card folds (docs/04 §4.3.1): a
+// single-card batch output is always the window's last card, so the 15-minute
+// floor never constrains it and an isolated few-minute activity lands as a tiny
+// card. The ceiling caps whichever card may be folded — a short output folded
+// UP into a predecessor, or a short predecessor absorbed DOWN into a new card.
+const (
+	ongoingRewriteReachback = 5 * time.Minute
+	shortSingleCardCeiling  = 13 * time.Minute
+	maxShortCardMergeGap    = 4 * time.Minute
+)
+
+// adjacentMergeablePredecessor finds the committed card a short-card fold may
+// absorb across the batch boundary for a card spanning [cStart, cEnd]: the
+// nearest card ending at or before cStart, not Idle or System (neither absorbs
+// real activity into a category the user cannot see), ending within
+// maxShortCardMergeGap, with a combined span within maxCardDuration. Which side
+// must be short is the caller's gate; this enforces only the adjacency and
+// bounds both fold directions share (docs/04 §4.3.1).
+func adjacentMergeablePredecessor(cStart, cEnd time.Time, existing []domain.TimelineCard) (domain.TimelineCard, bool) {
+	var pred *domain.TimelineCard
+	for i := range existing {
+		card := &existing[i]
+		if card.EndTs > cStart.Unix() {
+			continue // not a preceding card
+		}
+		if pred == nil || card.EndTs > pred.EndTs {
+			pred = card
+		}
+	}
+	if pred == nil || pred.Category == "Idle" || pred.Category == "System" {
+		return domain.TimelineCard{}, false
+	}
+	if gap := cStart.Unix() - pred.EndTs; gap < 0 || gap > int64(maxShortCardMergeGap.Seconds()) {
+		return domain.TimelineCard{}, false
+	}
+	if cEnd.Unix()-pred.StartTs > int64(maxCardDuration.Seconds()) {
+		return domain.TimelineCard{}, false
+	}
+	return *pred, true
+}
+
+// mergeableSingleCardPredecessor reports the committed card a short single-card
+// output should fold UP into (docs/04 §4.3.1): the output itself must be shorter
+// than shortSingleCardCeiling. Because single-card mode only occurs with no card
+// within the ongoing merge window, a genuinely isolated fresh card fails the gap
+// check and stays alone; this fires for a short output right after a
+// cross-category neighbour.
+func mergeableSingleCardPredecessor(cStart, cEnd time.Time, existing []domain.TimelineCard) (domain.TimelineCard, bool) {
+	if cEnd.Sub(cStart) >= shortSingleCardCeiling {
+		return domain.TimelineCard{}, false
+	}
+	return adjacentMergeablePredecessor(cStart, cEnd, existing)
+}
+
+// mergeableSmallPredecessor reports a short committed predecessor a newly
+// generated card should absorb DOWN into itself — the mirror of
+// mergeableSingleCardPredecessor (docs/04 §4.3.1). Here the predecessor, not the
+// output, must be shorter than shortSingleCardCeiling, so a small cross-category
+// fragment the ownership gate refused to bury (mergeOwnershipStart leaves it
+// beside the rewrite) is recovered instead of surviving forever. The output may
+// be one card or the first of several; only that first card grows left.
+func mergeableSmallPredecessor(cStart, cEnd time.Time, existing []domain.TimelineCard) (domain.TimelineCard, bool) {
+	pred, ok := adjacentMergeablePredecessor(cStart, cEnd, existing)
+	if !ok {
+		return domain.TimelineCard{}, false
+	}
+	if time.Duration(pred.EndTs-pred.StartTs)*time.Second >= shortSingleCardCeiling {
+		return domain.TimelineCard{}, false
+	}
+	return pred, true
+}
+
+// foldShortOutputTail handles the case the validator deliberately exempts: a
+// short last card next to an earlier card in the same model output. The
+// committed-predecessor folds below only inspect the first output card, so
+// without this step an initial multi-card pass leaves a fragment that a later
+// single-card regeneration would fold into its predecessor.
+func foldShortOutputTail(shells []domain.CardShell, from, to time.Time, loc *time.Location) []domain.CardShell {
+	if len(shells) < 2 {
+		return shells
+	}
+	anchor := from.Add(to.Sub(from) / 2)
+	p := shells[len(shells)-2]
+	c := shells[len(shells)-1]
+	pStart, errPS := timeutil.ResolveClock(p.Start, anchor, loc)
+	pEnd, errPE := timeutil.ResolveClock(p.End, anchor, loc)
+	cStart, errCS := timeutil.ResolveClock(c.Start, anchor, loc)
+	cEnd, errCE := timeutil.ResolveClock(c.End, anchor, loc)
+	if errPS != nil || errPE != nil || errCS != nil || errCE != nil ||
+		!pEnd.After(pStart) || !cEnd.After(cStart) {
+		return shells
+	}
+	pred := domain.TimelineCard{
+		Start: p.Start, End: p.End, StartTs: pStart.Unix(), EndTs: pEnd.Unix(),
+		Category: p.Category, Subcategory: p.Subcategory, Title: p.Title,
+		Summary: p.Summary, DetailedSummary: p.DetailedSummary, Metadata: p.Metadata,
+	}
+	if _, ok := mergeableSingleCardPredecessor(cStart, cEnd, []domain.TimelineCard{pred}); !ok {
+		return shells
+	}
+	shells[len(shells)-2] = buildMergedShell(pred, c, cEnd.Sub(cStart))
+	return shells[:len(shells)-1]
+}
+
+// buildMergedShell fuses a card into an earlier committed predecessor across the
+// gap between them (both short-card fold directions, docs/04 §4.3.1). The card
+// covering the majority of the two activities' time (the gap belongs to neither)
+// owns the merged card's category and text; the span runs from the predecessor's
+// start to the later card's end, and both cards' activity points and
+// distractions are kept in order.
+func buildMergedShell(pred domain.TimelineCard, short domain.CardShell, shortDur time.Duration) domain.CardShell {
+	predDur := time.Duration(pred.EndTs-pred.StartTs) * time.Second
+	majorityPred := predDur >= shortDur
+	merged := domain.CardShell{Start: pred.Start, End: short.End}
+	if majorityPred {
+		merged.Category = pred.Category
+		merged.Subcategory = pred.Subcategory
+		merged.Title = pred.Title
+		merged.Summary = pred.Summary
+		merged.DetailedSummary = pred.DetailedSummary
+	} else {
+		merged.Category = short.Category
+		merged.Subcategory = short.Subcategory
+		merged.Title = short.Title
+		merged.Summary = short.Summary
+		merged.DetailedSummary = short.DetailedSummary
+	}
+	merged.Metadata = mergeCardMetadata(pred.Metadata, short.Metadata, majorityPred)
+	return merged
+}
+
+// mergeCardMetadata unions two cards' stored metadata for a fusion: the
+// majority card's appSites win, falling back to the other when it named none,
+// and both cards' activity points and distractions are kept, predecessor
+// first. The output is always the full shape so consumers stay null-safe.
+func mergeCardMetadata(predMeta, shortMeta string, majorityPred bool) string {
+	type metaShape struct {
+		AppSites       *appSitesMetadata     `json:"appSites"`
+		Distractions   []distractionMetadata `json:"distractions"`
+		ActivityPoints []cardActivityPoint   `json:"activityPoints"`
+	}
+	var pm, sm metaShape
+	_ = json.Unmarshal([]byte(predMeta), &pm)
+	_ = json.Unmarshal([]byte(shortMeta), &sm)
+
+	primary, fallback := pm.AppSites, sm.AppSites
+	if !majorityPred {
+		primary, fallback = sm.AppSites, pm.AppSites
+	}
+	appSites := primary
+	if appSites == nil || appSites.Primary == nil || *appSites.Primary == "" {
+		appSites = fallback
+	}
+
+	points := append(append([]cardActivityPoint{}, pm.ActivityPoints...), sm.ActivityPoints...)
+	distractions := append(append([]distractionMetadata{}, pm.Distractions...), sm.Distractions...)
+	out, _ := json.Marshal(map[string]any{
+		"appSites":       appSites,
+		"distractions":   distractions,
+		"activityPoints": points,
+	})
+	return string(out)
+}
+
 // commitIdleCard writes the Idle card directly, merging with a directly
 // preceding Idle card when close enough (docs/04 §4.4).
+//
+// A prior card's stored clock can overhang the idle window — the LLM's end
+// clock overshoots its last frame, or an ongoing card extends past the frame
+// partition. Absorbing that overhang into the Idle card would relabel real
+// activity as Idle and corrupt the daily/weekly category totals, and leaving
+// the rewrite start at the window edge makes ReplaceCardsInRange reject the
+// whole rewrite (the card starts before the owned span), which would fail the
+// idle batch on every retry. So the outside portion of a non-Idle overhang is
+// re-asserted beside the Idle card, and an Idle overhang is merged into it —
+// mirroring how the LLM path owns a straddling predecessor via
+// cardRewriteStart/mergeOwnershipStart.
 func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error {
-	replaceFrom := batch.Start
-	shell := domain.CardShell{
-		Start:    timeutil.FormatClock(batch.Start, s.loc()),
-		End:      timeutil.FormatClock(batch.End, s.loc()),
+	loc := s.loc()
+	wsUnix, weUnix := batch.Start.Unix(), batch.End.Unix()
+	idle := domain.CardShell{
+		Start:    timeutil.FormatClock(batch.Start, loc),
+		End:      timeutil.FormatClock(batch.End, loc),
 		Category: "Idle",
 		Title:    "Idle",
 		Summary:  "No user activity detected during this period.",
 	}
-	// Merge with a preceding Idle card within AdjacentIdleMergeGap. A read
-	// failure propagates: silently opening a new card next to a mergeable
-	// one would split the idle span on a transient storage error.
-	preceding, err := s.cfg.Cards.CardsInRange(ctx,
-		batch.Start.Add(-s.cfg.IdleRules.AdjacentIdleMergeGap-time.Minute), batch.Start)
+
+	// A read failure propagates: silently opening a new card next to a mergeable
+	// one, or missing an overhanging predecessor, would split the idle span or
+	// fail the rewrite on a transient storage error.
+	existing, err := s.cfg.Cards.CardsInRange(ctx, batch.Start.Add(-CardLookback), batch.End)
 	if err != nil {
 		return err
 	}
-	for _, card := range slices.Backward(preceding) {
-		if card.Category == "Idle" && card.EndTs <= batch.Start.Unix() &&
-			batch.Start.Unix()-card.EndTs <= int64(s.cfg.IdleRules.AdjacentIdleMergeGap.Seconds()) {
-			replaceFrom = time.Unix(card.StartTs, 0)
-			shell.Start = card.Start
+
+	replaceFrom := batch.Start
+	extendLeft := func(startTs int64, startClock string) {
+		if st := time.Unix(startTs, 0); st.Before(replaceFrom) {
+			replaceFrom = st
+			idle.Start = startClock
+		}
+	}
+
+	// Merge a preceding Idle card that ends at or before the window within the
+	// adjacency gap: the idle span is continuous, so it becomes one card.
+	gap := int64(s.cfg.IdleRules.AdjacentIdleMergeGap.Seconds())
+	for _, card := range slices.Backward(existing) {
+		if card.Category == "Idle" && card.EndTs <= wsUnix && wsUnix-card.EndTs <= gap {
+			extendLeft(card.StartTs, card.Start)
 			break
 		}
 	}
-	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End,
-		[]domain.CardShell{shell}, batch.ID); err != nil {
+
+	// Re-assert the outside portion of any card whose clock overhangs the idle
+	// window. A card entirely inside the window is absorbed by ReplaceCardsInRange
+	// as usual; only the parts before batch.Start or after batch.End must be kept.
+	clip := func(card domain.TimelineCard, start, end string) domain.CardShell {
+		return domain.CardShell{
+			Start: start, End: end,
+			Category: card.Category, Subcategory: card.Subcategory,
+			Title: card.Title, Summary: card.Summary,
+			DetailedSummary:  card.DetailedSummary,
+			VideoSummaryPath: card.VideoSummaryPath, Metadata: card.Metadata,
+		}
+	}
+	var preserved []domain.CardShell
+	for _, card := range existing {
+		if card.StartTs >= weUnix || card.EndTs <= wsUnix {
+			continue // no overlap with the idle window
+		}
+		if card.StartTs < wsUnix { // overhangs the left edge
+			if card.Category == "Idle" {
+				extendLeft(card.StartTs, card.Start)
+			} else {
+				preserved = append(preserved, clip(card, card.Start, timeutil.FormatClock(batch.Start, loc)))
+			}
+		}
+		if card.EndTs > weUnix { // overhangs the right edge
+			if card.Category == "Idle" {
+				idle.End = card.End
+			} else {
+				preserved = append(preserved, clip(card, timeutil.FormatClock(batch.End, loc), card.End))
+			}
+		}
+	}
+
+	shells := append(preserved, idle)
+	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End, shells, batch.ID); err != nil {
 		return err
 	}
 	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchSucceeded, "", "", s.cfg.Now()); err != nil {
@@ -831,13 +1098,24 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		// before the batch window keeps only the part the gate allowed, and
 		// validation checks the same start the rewrite will replace from.
 		ownedFrom = s.mergeOwnershipStart(shells, batch, existing)
+		anchor := batch.Start.Add(batch.End.Sub(batch.Start) / 2)
+		var validShells []domain.CardShell
 		for i := range shells {
-			shells[i] = s.clampToMergeFloor(shells[i], ownedFrom, batch)
-			s.inheritMergedAppSites(&shells[i], ownedFrom, batch, existing)
+			clamped := s.clampToMergeFloor(shells[i], ownedFrom, batch)
+			start, errS := timeutil.ResolveClock(clamped.Start, anchor, s.loc())
+			end, errE := timeutil.ResolveClock(clamped.End, anchor, s.loc())
+			if errS == nil && errE == nil && !end.After(start) {
+				// Clamping moved start past end because the shell was a refused
+				// predecessor that ended before or at floor. Drop it.
+				continue
+			}
+			s.inheritMergedAppSites(&clamped, ownedFrom, batch, existing)
+			validShells = append(validShells, clamped)
 		}
+		shells = validShells
 
-		spans := resolveCardSpans(shells, ownedFrom, batch.End, s.loc())
-		issues = validateCards(spans, ownedFrom, batch.End, requiresSingleCard)
+		spans, spanIssues := resolveCardSpans(shells, ownedFrom, batch.End, s.loc())
+		issues = append(spanIssues, validateCards(spans, ownedFrom, batch.End, requiresSingleCard)...)
 		// If the provider returned cards but every one was rejected before
 		// validation, "no cards returned" is false and unactionable. Preserve
 		// the rejected clocks and required span for the correction pass.
@@ -845,15 +1123,24 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 			issues = rejectedIssues
 		}
 		if len(issues) == 0 {
-			return shells, ownedFrom, nil
+			var resultShells []domain.CardShell
+			spanAnchor := ownedFrom.Add(batch.End.Sub(ownedFrom) / 2)
+			for _, shell := range shells {
+				start, errS := timeutil.ResolveClock(shell.Start, spanAnchor, s.loc())
+				end, errE := timeutil.ResolveClock(shell.End, spanAnchor, s.loc())
+				if errS == nil && errE == nil && end.After(start) {
+					resultShells = append(resultShells, shell)
+				}
+			}
+			return resultShells, ownedFrom, nil
 		}
-		// Activity points from before the owned span are dropped so a refused
 		// merge's points never duplicate inside the rewrite.
 		for i := range shells {
 			shells[i].Metadata = dropPreWindowPoints(shells[i].Metadata, ownedFrom, batch.Start.Add(batch.End.Sub(batch.Start)/2), s.loc())
 		}
 	}
-	return nil, ownedFrom, fmt.Errorf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; "))
+	return nil, ownedFrom, ai.NewError(ai.ErrorInvalidOutput,
+		fmt.Sprintf("cards failed validation after 3 attempts: %s", strings.Join(issues, "; ")), 0, nil)
 }
 
 // Failures of the single-card rewrite, kept distinguishable so the binding
@@ -897,8 +1184,20 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 	if err != nil {
 		return err
 	}
+
+	// The same lock the batch pipeline holds across read→generate→rewrite: a
+	// regeneration interleaving a neighbouring batch's rewrite of the same
+	// minutes would clobber one of the two (docs/04 §4.3.2).
+	s.cardsMu.Lock()
+	defer s.cardsMu.Unlock()
+
 	// A live batch over the same window will rewrite these cards when it lands,
-	// which would silently discard this regeneration's result.
+	// which would silently discard this regeneration's result. The check runs
+	// UNDER cardsMu: a batch that transitions to pending/processing between an
+	// unlocked check and acquiring the lock would not be seen, then rewrite the
+	// window after this call released the lock and clobber the regeneration.
+	// Holding the lock while we check and rewrite also blocks that batch's own
+	// rewrite until this one completes.
 	live, err := s.cfg.Store.ProcessingBatchesInRange(ctx, windowStart, windowEnd)
 	if err != nil {
 		return err
@@ -907,12 +1206,6 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 		return fmt.Errorf("%w: card window %s-%s is being analyzed by batch %d",
 			ErrWindowInAnalysis, formatFrameClock(windowStart), formatFrameClock(windowEnd), live[0].ID)
 	}
-
-	// The same lock the batch pipeline holds across read→generate→rewrite: a
-	// regeneration interleaving a neighbouring batch's rewrite of the same
-	// minutes would clobber one of the two (docs/04 §4.3.2).
-	s.cardsMu.Lock()
-	defer s.cardsMu.Unlock()
 
 	observations, err := s.cfg.Store.ObservationsInRange(ctx, windowStart, windowEnd)
 	if err != nil {
@@ -943,10 +1236,48 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 	if err != nil {
 		return err
 	}
-	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, windowStart, windowEnd, shells, *card.BatchID); err != nil {
+	shells = foldShortOutputTail(shells, windowStart, windowEnd, s.loc())
+
+	// Short-card folds apply here exactly as in the batch pipeline (docs/04
+	// §4.3.1): the regenerated window is the card's own span, so a single output
+	// card is its window's last card and the 15-minute floor never trims it — a
+	// few-minute regeneration would stay short and stranded, so it folds UP into
+	// an adjacent preceding card. Otherwise a short committed predecessor is
+	// absorbed DOWN into the first output card. Either fold extends the rewrite's
+	// left edge to own and replace that predecessor; skip it when a live batch
+	// overlaps the predecessor's span, since extending there would let that batch
+	// clobber the result when it lands.
+	replaceFrom, notifyFrom := windowStart, windowStart
+	if len(shells) > 0 {
+		anchor := windowStart.Add(windowEnd.Sub(windowStart) / 2)
+		cStart, errStart := timeutil.ResolveClock(shells[0].Start, anchor, s.loc())
+		cEnd, errEnd := timeutil.ResolveClock(shells[0].End, anchor, s.loc())
+		if errStart == nil && errEnd == nil && cEnd.After(cStart) {
+			pred, ok := domain.TimelineCard{}, false
+			if len(shells) == 1 {
+				pred, ok = mergeableSingleCardPredecessor(cStart, cEnd, existing)
+			}
+			if !ok {
+				pred, ok = mergeableSmallPredecessor(cStart, cEnd, existing)
+			}
+			if ok {
+				predStart := time.Unix(pred.StartTs, 0)
+				busy, lookupErr := s.cfg.Store.ProcessingBatchesInRange(ctx, predStart, windowStart)
+				if lookupErr != nil {
+					return lookupErr
+				}
+				if len(busy) == 0 {
+					shells[0] = buildMergedShell(pred, shells[0], cEnd.Sub(cStart))
+					replaceFrom, notifyFrom = predStart, predStart
+				}
+			}
+		}
+	}
+
+	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, windowEnd, shells, *card.BatchID); err != nil {
 		return err
 	}
-	s.notifyDays(windowStart, windowEnd)
+	s.notifyDays(notifyFrom, windowEnd)
 	return nil
 }
 
@@ -1029,12 +1360,22 @@ func (s *Service) generateScopedCards(ctx context.Context, chain *ai.Chain, card
 			}
 		}
 
-		spans := resolveCardSpans(shells, windowStart, windowEnd, s.loc())
-		issues = validateScopedCards(spans, windowStart, windowEnd)
+		spans, spanIssues := resolveCardSpans(shells, windowStart, windowEnd, s.loc())
+		issues = append(spanIssues, validateScopedCards(spans, windowStart, windowEnd)...)
 		if len(shells) == 0 && len(rejectedIssues) > 0 {
 			issues = rejectedIssues
 		}
 		if len(issues) == 0 {
+			var resultShells []domain.CardShell
+			spanAnchor := windowStart.Add(windowEnd.Sub(windowStart) / 2)
+			for _, shell := range shells {
+				start, errS := timeutil.ResolveClock(shell.Start, spanAnchor, s.loc())
+				end, errE := timeutil.ResolveClock(shell.End, spanAnchor, s.loc())
+				if errS == nil && errE == nil && end.After(start) {
+					resultShells = append(resultShells, shell)
+				}
+			}
+			shells = resultShells
 			pinScopedBoundaries(shells, card)
 			s.inheritScopedAppSites(shells, card, windowStart, windowEnd)
 			return shells, nil
@@ -1124,6 +1465,10 @@ func (s *Service) shellSpanIssue(shell domain.CardShell, spanStart, spanEnd time
 	if err != nil {
 		return fmt.Sprintf("has unparseable end time %q; use h:mm AM/PM inside %s-%s",
 			shell.End, formatFrameClock(spanStart), formatFrameClock(spanEnd))
+	}
+	if !end.After(start) {
+		return fmt.Sprintf("ends at %s before or at start at %s; cards must be chronological",
+			shell.End, shell.Start)
 	}
 	if !start.Before(spanEnd) || !end.After(spanStart) {
 		return fmt.Sprintf("spans %s-%s outside required rewrite window %s-%s; move it into that window",
@@ -1508,6 +1853,14 @@ func isRateLimitError(err error) bool {
 
 // failBatch records the failure with a user-facing kind and notifies.
 func (s *Service) failBatch(ctx context.Context, batch storage.Batch, err error) {
+	// A batch reaching any terminal failure never calls recordBatchSuccess, so
+	// drop its rate-limit tally here; otherwise a batch that was rate-limited
+	// and then failed (exhausted or for another reason) leaks its entry for the
+	// process lifetime, since batch IDs only ever grow.
+	s.queueMu.Lock()
+	delete(s.rateLimitCount, batch.ID)
+	s.queueMu.Unlock()
+
 	kind := failureKind(err)
 	note := "analysis failed"
 	if msg := err.Error(); msg != "" {

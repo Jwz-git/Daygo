@@ -4,7 +4,6 @@ package windows
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -12,7 +11,9 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
 
-var errSystemCapabilityUnavailable = errors.New("windows system capability is unavailable")
+// errSystemCapabilityUnavailable wraps the shared sentinel so callers can test
+// for it with errors.Is across platforms while the message stays Windows-specific.
+var errSystemCapabilityUnavailable = fmt.Errorf("windows system capability is unavailable: %w", platform.ErrCapabilityUnavailable)
 
 // System adapts the Windows event ABI to the cross-platform System port. This
 // slice implements power and session events only; unrelated methods fail

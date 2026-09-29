@@ -11,14 +11,13 @@ const (
 	EventGoalUpdated         EventName = "goal:updated"
 	EventSettingsChanged     EventName = "settings:changed"
 	EventRecordingState      EventName = "recording:state"
-	EventCapabilitiesChanged EventName = "capabilities:changed"
-	EventPermissionChanged   EventName = "permission:changed"
 	EventBatchProgress       EventName = "batch:progress"
 	EventBatchFailed         EventName = "batch:failed"
 	EventRecordingWarning    EventName = "recording:warning"
 	EventUpdateAvailable     EventName = "update:available"
 	EventChatUpdated         EventName = "chat:updated"
 	EventRecapUpdated        EventName = "recap:updated"
+	EventUIVisibilityChanged EventName = "ui:visibility-changed"
 )
 
 var eventNames = [...]EventName{
@@ -27,14 +26,13 @@ var eventNames = [...]EventName{
 	EventGoalUpdated,
 	EventSettingsChanged,
 	EventRecordingState,
-	EventCapabilitiesChanged,
-	EventPermissionChanged,
 	EventBatchProgress,
 	EventBatchFailed,
 	EventRecordingWarning,
 	EventUpdateAvailable,
 	EventChatUpdated,
 	EventRecapUpdated,
+	EventUIVisibilityChanged,
 }
 
 // EventNames returns a defensive copy of the complete event-name contract.

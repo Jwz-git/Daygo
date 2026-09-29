@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -38,15 +39,19 @@ type ReplaceResult struct {
 const cardColumns = `id, batch_id, day, start, end, start_ts, end_ts, category, subcategory,
 	title, summary, detailed_summary, video_summary_path, metadata, is_deleted, created_at, updated_at`
 
-// CardsForDay returns the non-deleted cards of one logical day, ordered by
-// start time. The day string is a logical day (4 AM boundary); callers obtain
-// it from timeutil, never from a calendar date.
+// CardsForDay returns cards overlapping one logical day, ordered by start time.
+// A card crossing 4 AM appears on both days with the same persisted ID; callers
+// clip its displayed span and totals to the requested window.
 func (r *CardRepo) CardsForDay(ctx context.Context, day string) ([]domain.TimelineCard, error) {
+	start, end, err := timeutil.DayWindow(day, r.store.location())
+	if err != nil {
+		return nil, fmt.Errorf("cards for day %q: %w", day, err)
+	}
 	var out []domain.TimelineCard
-	err := r.store.Read(ctx, "cards for day "+day, func(ctx context.Context, tx *sql.Tx) error {
+	err = r.store.Read(ctx, "cards for day "+day, func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
-			"SELECT "+cardColumns+" FROM timeline_cards WHERE day = ? AND is_deleted = 0 ORDER BY start_ts",
-			day)
+			"SELECT "+cardColumns+" FROM timeline_cards WHERE start_ts < ? AND end_ts > ? AND is_deleted = 0 AND end_ts > start_ts AND (end_ts - start_ts) <= 14400 ORDER BY start_ts, id",
+			end.Unix(), start.Unix())
 		if err != nil {
 			return err
 		}
@@ -76,6 +81,8 @@ func (r *CardRepo) CardsInRange(ctx context.Context, from, to time.Time) ([]doma
 			`SELECT `+cardColumns+` FROM timeline_cards
 			 WHERE ((start_ts < ? AND end_ts > ?) OR (start_ts >= ? AND start_ts < ?))
 			   AND is_deleted = 0
+			   AND end_ts > start_ts
+			   AND (end_ts - start_ts) <= 14400
 			 ORDER BY start_ts`,
 			to.Unix(), from.Unix(), from.Unix(), to.Unix())
 		if err != nil {
@@ -111,32 +118,6 @@ func (r *CardRepo) CardByID(ctx context.Context, id int64) (domain.TimelineCard,
 		return domain.TimelineCard{}, err
 	}
 	return card, nil
-}
-
-// CardsForBatch returns all non-deleted cards written by one batch.
-func (r *CardRepo) CardsForBatch(ctx context.Context, batchID int64) ([]domain.TimelineCard, error) {
-	var out []domain.TimelineCard
-	err := r.store.Read(ctx, "cards for batch", func(ctx context.Context, tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx,
-			"SELECT "+cardColumns+" FROM timeline_cards WHERE batch_id = ? AND is_deleted = 0 ORDER BY start_ts",
-			batchID)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = rows.Close() }()
-		for rows.Next() {
-			c, err := scanCard(rows)
-			if err != nil {
-				return err
-			}
-			out = append(out, c)
-		}
-		return rows.Err()
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 // ReplaceCardsInRange rewrites the cards of [from, to) with the pipeline's
@@ -188,8 +169,13 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 				result.SkippedCards = append(result.SkippedCards, shell)
 				continue
 			}
-			if endTs.Before(startTs) {
-				endTs = endTs.AddDate(0, 0, 1)
+			// Genuine cross-midnight cards already resolve onto adjacent days via
+			// the three-day anchor selection (docs/03 §3.5), so end is after start.
+			// A still-inverted end is degenerate model output (e.g. 4:30pm~4:29pm);
+			// rolling it a full day would persist a ~24h card, so skip and report it.
+			if !endTs.After(startTs) || endTs.Sub(startTs) > 4*time.Hour {
+				result.SkippedCards = append(result.SkippedCards, shell)
+				continue
 			}
 			if startTs.Before(effectiveFrom) {
 				effectiveFrom = startTs
@@ -340,27 +326,6 @@ func (r *CardRepo) SoftDeleteCard(ctx context.Context, id int64) (string, error)
 	return videoPath, nil
 }
 
-// TotalMinutesTracked sums card durations over [from, to), excluding the
-// System category (docs/modules/timeline: totals exclude System). The
-// denominator decision — whether idle categories count — belongs to the
-// caller composing totals, not to this sum.
-func (r *CardRepo) TotalMinutesTracked(ctx context.Context, from, to time.Time) (float64, error) {
-	var total sql.NullFloat64
-	err := r.store.Read(ctx, "total minutes tracked", func(ctx context.Context, tx *sql.Tx) error {
-		row := tx.QueryRowContext(ctx, `
-			SELECT SUM(CASE WHEN end_ts > start_ts THEN (end_ts - start_ts) ELSE 0 END) / 60.0
-			FROM timeline_cards
-			WHERE ((start_ts < ? AND end_ts > ?) OR (start_ts >= ? AND start_ts < ?))
-			  AND is_deleted = 0 AND category != 'System'`,
-			to.Unix(), from.Unix(), from.Unix(), to.Unix())
-		return row.Scan(&total)
-	})
-	if err != nil {
-		return 0, err
-	}
-	return total.Float64, nil
-}
-
 // CardDaysByCategory lists the distinct logical days holding live cards in
 // any of the named categories. The category rename path uses it to emit
 // timeline:updated for exactly the days whose cards were rewritten.
@@ -374,9 +339,10 @@ func (r *CardRepo) CardDaysByCategory(ctx context.Context, names []string) ([]st
 		args[i] = name
 	}
 	var days []string
+	seen := map[string]bool{}
 	err := r.store.Read(ctx, "card days by category", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
-			"SELECT DISTINCT day FROM timeline_cards WHERE is_deleted = 0 AND category IN ("+placeholders+")",
+			"SELECT day, start_ts, end_ts FROM timeline_cards WHERE is_deleted = 0 AND category IN ("+placeholders+")",
 			args...)
 		if err != nil {
 			return err
@@ -384,16 +350,28 @@ func (r *CardRepo) CardDaysByCategory(ctx context.Context, names []string) ([]st
 		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var day string
-			if err := rows.Scan(&day); err != nil {
+			var startTs, endTs int64
+			if err := rows.Scan(&day, &startTs, &endTs); err != nil {
 				return err
 			}
-			days = append(days, day)
+			if !seen[day] {
+				seen[day] = true
+				days = append(days, day)
+			}
+			if endTs > startTs {
+				last := timeutil.LogicalDay(time.Unix(endTs-1, 0), r.store.location())
+				if !seen[last] {
+					seen[last] = true
+					days = append(days, last)
+				}
+			}
 		}
 		return rows.Err()
 	})
 	if err != nil {
 		return nil, err
 	}
+	sort.Strings(days)
 	return days, nil
 }
 

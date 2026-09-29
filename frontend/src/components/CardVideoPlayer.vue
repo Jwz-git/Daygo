@@ -3,10 +3,13 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CardMediaFrameDTO } from '@/api/dto'
+import { FramePreloader, frameSrc, thumbnailSrc } from '@/lib/framePreloader'
+import { PlaybackScheduler } from '@/lib/playbackScheduler'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 /*
  * Card playback over the frames the recorder actually stored — discrete
- * screenshots, no video codec (the encoding decision is still pending).
+ * screenshots decoded from finalized HEVC segments.
  * Playback advances a virtual clock at `rate` × real time and shows the last
  * frame captured before it; the scrubber maps to that clock. Hovering reveals
  * the rate badge (cycles 20x → 40x → 60x → 120x); the expand button opens the
@@ -27,6 +30,7 @@ const props = withDefaults(defineProps<{
 })
 
 const { t, locale } = useI18n()
+const uiVisibility = useUIVisibilityStore()
 
 const RATES = [20, 40, 60, 120] as const
 
@@ -58,7 +62,7 @@ const span = computed(() => {
 })
 const currentFrame = computed(() => props.frames[frameIndex.value] ?? null)
 
-const frameSrc = (id: number): string => `/media/frame?id=${id}`
+const preloader = new FramePreloader()
 
 function cycleRate(): void {
   rateIndex.value = (rateIndex.value + 1) % RATES.length
@@ -126,29 +130,22 @@ function startScrub(event: PointerEvent): void {
    the lightbox copy; the virtual clock, not the <img>, is the state. */
 const clockStart = computed(() => props.frames[0]?.capturedAt ?? 0)
 let virtualTs = clockStart.value
-let lastTick = 0
-let rafID: number | null = null
-
-function tick(now: number): void {
-  rafID = null
-  if (lastTick !== 0) {
-    virtualTs += ((now - lastTick) / 1000) * rate.value
-    if (virtualTs >= clockStart.value + span.value) {
-      virtualTs = clockStart.value + span.value
-      playing.value = false
-    }
-    setProgress(virtualTs - clockStart.value)
+const scheduler = new PlaybackScheduler((seconds) => {
+  virtualTs += seconds * rate.value
+  if (virtualTs >= clockStart.value + span.value) {
+    virtualTs = clockStart.value + span.value
+    playing.value = false
+    scheduler.setPlaying(false)
   }
-  lastTick = playing.value ? now : 0
-  if (playing.value) rafID = requestAnimationFrame(tick)
-}
+  setProgress(virtualTs - clockStart.value)
+})
 
 function startPlayback(): void {
   started.value = true
   if (virtualTs >= clockStart.value + span.value) virtualTs = clockStart.value
   playing.value = true
-  lastTick = 0
-  rafID = requestAnimationFrame(tick)
+  scheduler.setPlaying(true)
+  warmNextFrames()
 }
 
 function togglePlay(): void {
@@ -160,15 +157,16 @@ function togglePlay(): void {
   startPlayback()
 }
 
-watch(playing, (value) => {
-  if (!value && rafID !== null) {
-    cancelAnimationFrame(rafID)
-    rafID = null
-  }
-})
+watch(playing, (value) => scheduler.setPlaying(value), { flush: 'sync' })
+watch(() => uiVisibility.visible, (visible) => {
+  scheduler.setVisible(visible)
+  if (!visible) preloader.clear()
+  else warmNextFrames()
+}, { immediate: true, flush: 'sync' })
 
 // A new card means a fresh clock.
 watch(() => props.frames, () => {
+  preloader.clear()
   playing.value = false
   started.value = false
   virtualTs = clockStart.value
@@ -188,15 +186,12 @@ const currentClock = computed(() =>
 )
 
 /* Warm the next few frames so stepping stays instant. */
-watch(frameIndex, (index) => {
-  for (let offset = 1; offset <= 3; offset += 1) {
-    const next = props.frames[index + offset]
-    if (next !== undefined) {
-      const image = new Image()
-      image.src = frameSrc(next.id)
-    }
+function warmNextFrames(): void {
+  if (uiVisibility.visible && started.value) {
+    preloader.update(props.frames.slice(frameIndex.value + 1, frameIndex.value + 4).map((frame) => frame.id))
   }
-})
+}
+watch(frameIndex, warmNextFrames)
 
 /* Evenly sampled thumbnails for the lightbox filmstrip. */
 const STRIP_COUNT = 14
@@ -220,7 +215,8 @@ watch(expanded, (value) => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown)
-  if (rafID !== null) cancelAnimationFrame(rafID)
+  preloader.clear()
+  scheduler.dispose()
 })
 </script>
 
@@ -228,6 +224,7 @@ onBeforeUnmount(() => {
   <div class="player" :class="{ 'is-hovered': hovered, 'is-empty': frames.length === 0 }" @mouseenter="hovered = true" @mouseleave="hovered = false">
     <template v-if="frames.length > 0">
       <img
+        v-if="uiVisibility.visible"
         class="player__frame"
         :src="frameSrc(displayFrame!.id)"
         :alt="title"
@@ -272,7 +269,7 @@ onBeforeUnmount(() => {
 
   <Teleport to="body">
     <Transition name="drop">
-      <div v-if="expanded && frames.length > 0" class="lightbox" @click.self="expanded = false">
+      <div v-if="expanded && frames.length > 0" class="lightbox" :style="uiVisibility.visible ? undefined : { display: 'none' }" @click.self="expanded = false">
       <div class="lightbox__panel" role="dialog" :aria-label="title">
         <header class="lightbox__head">
           <div class="lightbox__meta">
@@ -283,7 +280,7 @@ onBeforeUnmount(() => {
         </header>
 
         <div class="lightbox__stage" @click="togglePlay">
-          <img class="lightbox__frame" :src="frameSrc(displayFrame!.id)" :alt="title" draggable="false">
+          <img v-if="uiVisibility.visible" class="lightbox__frame" :src="frameSrc(displayFrame!.id)" :alt="title" draggable="false">
           <button
             v-if="!playing"
             type="button"
@@ -312,10 +309,10 @@ onBeforeUnmount(() => {
             @pointerdown="startScrub"
           >
             <img
-              v-for="frame in stripFrames"
+              v-for="frame in uiVisibility.visible ? stripFrames : []"
               :key="frame.id"
               class="filmstrip__thumb"
-              :src="frameSrc(frame.id)"
+              :src="thumbnailSrc(frame.id)"
               alt=""
               loading="lazy"
               draggable="false"

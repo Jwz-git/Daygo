@@ -7,10 +7,10 @@ export default {
   clear: {
     title: '数据清理',
     action: '清理历史数据',
-    confirm: '将删除全部截图、批次、观测与时间线卡片（保留 Provider 与设置）。确定继续吗？',
+    confirm: '将删除全部截图和时间线记录（AI 服务与设置会保留）。确定继续吗？',
     pending: '正在清理…',
-    unavailable: '清理绑定尚未交付或当前实例只读',
-    note: '测试专用：一键清空录制与分析历史，Provider 等配置不受影响。',
-    failed: '操作未完成，数据没有被改写。',
+    unavailable: '暂时无法清理',
+    note: '清空所有录制和整理记录，AI 服务等设置不受影响。',
+    failed: '清理失败，数据没有改动。',
   },
 }

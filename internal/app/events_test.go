@@ -9,14 +9,13 @@ func TestEventNameContract(t *testing.T) {
 		"goal:updated",
 		"settings:changed",
 		"recording:state",
-		"capabilities:changed",
-		"permission:changed",
 		"batch:progress",
 		"batch:failed",
 		"recording:warning",
 		"update:available",
 		"chat:updated",
 		"recap:updated",
+		"ui:visibility-changed",
 	}
 
 	got := EventNames()

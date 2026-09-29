@@ -2,8 +2,42 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/core'
+import bash from 'highlight.js/lib/languages/bash'
+import css from 'highlight.js/lib/languages/css'
+import diff from 'highlight.js/lib/languages/diff'
+import go from 'highlight.js/lib/languages/go'
+import javascript from 'highlight.js/lib/languages/javascript'
+import json from 'highlight.js/lib/languages/json'
+import markdown from 'highlight.js/lib/languages/markdown'
+import python from 'highlight.js/lib/languages/python'
+import shell from 'highlight.js/lib/languages/shell'
+import sql from 'highlight.js/lib/languages/sql'
+import typescript from 'highlight.js/lib/languages/typescript'
+import xml from 'highlight.js/lib/languages/xml'
+import yaml from 'highlight.js/lib/languages/yaml'
 import DOMPurify from 'dompurify'
+
+// Register only the languages chat realistically renders. The full
+// highlight.js build bundles ~190 languages (~1MB); registering a subset keeps
+// the Chat chunk small. An unlisted fence falls back to plaintext below.
+for (const [name, lang] of [
+  ['bash', bash],
+  ['css', css],
+  ['diff', diff],
+  ['go', go],
+  ['javascript', javascript],
+  ['json', json],
+  ['markdown', markdown],
+  ['python', python],
+  ['shell', shell],
+  ['sql', sql],
+  ['typescript', typescript],
+  ['xml', xml],
+  ['yaml', yaml],
+] as const) {
+  hljs.registerLanguage(name, lang)
+}
 
 const props = defineProps<{
   content: string
@@ -295,6 +329,17 @@ function onAssistantClick(e: MouseEvent): void {
 .cb__md :deep(ol) {
   margin: 0 0 12px;
   padding-left: 22px;
+}
+
+/* The global reset (styles/reset.css) strips list-style; restore markers here
+   so assistant bullet and numbered lists still read as lists. */
+.cb__md :deep(ul) { list-style: disc; }
+.cb__md :deep(ul ul) { list-style: circle; }
+.cb__md :deep(ol) { list-style: decimal; }
+
+/* GFM task-list items carry their own checkbox — drop the redundant marker. */
+.cb__md :deep(li:has(> input[type="checkbox"])) {
+  list-style: none;
 }
 
 .cb__md :deep(li) {

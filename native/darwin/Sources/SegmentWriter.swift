@@ -87,17 +87,23 @@ final class SegmentWriter: @unchecked Sendable {
         let frameIndex = current.frameCount
         let presentationTime = CMTime(value: CMTimeValue(frameIndex), timescale: 1)
 
-        let pixelBuffer = try createPixelBuffer(from: image, pool: current.adaptor.pixelBufferPool, width: width, height: height)
+        // Each frame allocates a full-resolution CVPixelBuffer (IOSurface-backed)
+        // and a CGContext to draw the CGImage into it. Drain them per frame so a
+        // long-running capture loop does not accumulate these multi-MB buffers
+        // until the async task's thread happens to pop its autorelease pool.
+        try autoreleasepool {
+            let pixelBuffer = try createPixelBuffer(from: image, pool: current.adaptor.pixelBufferPool, width: width, height: height)
 
-        var retry = 0
-        while !current.input.isReadyForMoreMediaData && retry < 200 {
-            Thread.sleep(forTimeInterval: 0.005)
-            retry += 1
-        }
+            var retry = 0
+            while !current.input.isReadyForMoreMediaData && retry < 200 {
+                Thread.sleep(forTimeInterval: 0.005)
+                retry += 1
+            }
 
-        guard current.adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
-            let err = current.writer.error as? NSError
-            throw ScreenshotFailure.native(Int64(err?.code ?? Int(EIO)))
+            guard current.adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
+                let err = current.writer.error as? NSError
+                throw ScreenshotFailure.native(Int64(err?.code ?? Int(EIO)))
+            }
         }
 
         current.frameCount += 1
@@ -194,7 +200,15 @@ final class SegmentWriter: @unchecked Sendable {
             }
         }
 
-        _ = box.wait(until: .distantFuture)
+        // finishSegment runs while the SegmentWriter lock is held (segment
+        // rollover in append), so an unbounded wait on a stuck HEVC finalize
+        // wedges every later capture. Bound it: a timeout leaves the segment
+        // unfinished — possibly unreadable per docs/03 — but keeps the recorder
+        // alive and releases the lock.
+        guard box.wait(until: DispatchTime.now() + .seconds(10)) else {
+            captureDiagnostic("segment.finalize.timeout")
+            throw ScreenshotFailure.timeout
+        }
         switch box.take() {
         case .success:
             break

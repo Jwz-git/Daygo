@@ -348,6 +348,21 @@ func (r *AnalysisRepo) RetryBatches(ctx context.Context, ids []int64, now time.T
 		[]any{BatchPending, now.Unix()})
 }
 
+// StopRetries stops the named failed batches from auto-requeueing. It caps
+// their attempt counter at MaxBatchAttempts, which is exactly the state a
+// batch reaches when the cooldown loop gives up on its own: RequeueFailed then
+// skips it (attempts is not < MaxBatchAttempts) and the failure panel reports
+// it as not auto-retrying. The batch stays failed and visible; a later
+// RetryBatches still overrides this by resetting attempts to 0, so stopping is
+// reversible by the same explicit action that requeues any other failure. It
+// returns the affected batches so the caller can emit invalidation for their
+// days.
+func (r *AnalysisRepo) StopRetries(ctx context.Context, ids []int64, now time.Time) ([]Batch, error) {
+	return r.updateFailedBatches(ctx, "analysis stop retries", ids,
+		`UPDATE analysis_batches SET attempts = ?, updated_at = ? WHERE id = ?`,
+		[]any{MaxBatchAttempts, now.Unix()})
+}
+
 // ReprocessDay requeues every terminal batch of one logical day for
 // re-analysis: succeeded, failed and failed_empty batches whose start falls
 // in [from, to) go back to pending with the failure info cleared and the
@@ -397,70 +412,6 @@ func (r *AnalysisRepo) ReprocessDay(ctx context.Context, from, to time.Time, now
 			WHERE id IN (`+strings.Join(batchIDPlaceholders(len(ids)), ", ")+`)`,
 			append([]any{BatchPending, now.Unix()}, batchIDArgs(ids)...)...); err != nil {
 			return wrap("reprocess day", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// ReprocessBatches requeues the named terminal batches for re-analysis. Same
-// rules as ReprocessDay, scoped to ids instead of a day window: succeeded,
-// failed and failed_empty batches go back to pending with the failure info
-// cleared and the attempt counter reset; dismissed, skipped and in-flight
-// (pending / processing) batches are left as they are. Returns the batches
-// actually requeued so the caller can emit invalidation for their days; an id
-// that names no reprocessable batch is silently skipped.
-//
-// No production caller today: the timeline's per-card regenerate rewrites the
-// card's own window instead of requeueing its batch (analysis.RegenerateCard).
-// Day-level reprocessing uses ReprocessDay. The pipeline fixtures still drive
-// the sliding-window reprocess path through this method.
-func (r *AnalysisRepo) ReprocessBatches(ctx context.Context, ids []int64, now time.Time) ([]Batch, error) {
-	if r == nil || r.store == nil {
-		return nil, fmt.Errorf("analysis: store unavailable")
-	}
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	var out []Batch
-	err := r.store.Write(ctx, "analysis reprocess batches", func(ctx context.Context, tx *sql.Tx) error {
-		placeholders := strings.Join(batchIDPlaceholders(len(ids)), ", ")
-		selectArgs := append([]any{BatchSucceeded, BatchFailed, BatchFailedEmpty}, batchIDArgs(ids)...)
-		rows, err := tx.QueryContext(ctx, `
-			SELECT id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at
-			FROM analysis_batches
-			WHERE status IN (?, ?, ?) AND is_deleted = 0 AND id IN (`+placeholders+`)
-			ORDER BY start_ts`, selectArgs...)
-		if err != nil {
-			return wrap("select reprocessable batches", err)
-		}
-		var matched []int64
-		for rows.Next() {
-			b, err := scanBatch(rows)
-			if err != nil {
-				_ = rows.Close()
-				return err
-			}
-			matched = append(matched, b.ID)
-			out = append(out, b)
-		}
-		if err := rows.Err(); err != nil {
-			_ = rows.Close()
-			return wrap("select reprocessable batches", err)
-		}
-		_ = rows.Close()
-		if len(matched) == 0 {
-			return nil
-		}
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE analysis_batches
-			SET status = ?, failure_kind = NULL, failure_note = NULL, attempts = 0, updated_at = ?
-			WHERE id IN (`+strings.Join(batchIDPlaceholders(len(matched)), ", ")+`)`,
-			append([]any{BatchPending, now.Unix()}, batchIDArgs(matched)...)...); err != nil {
-			return wrap("reprocess batches", err)
 		}
 		return nil
 	})

@@ -334,6 +334,81 @@ func TestEmptyLanguageSentinelIsPreserved(t *testing.T) {
 	}
 }
 
+// normalizeLanguage must agree with normalizeLocale in
+// frontend/src/i18n/locales.ts key for key: the frontend renders whatever this
+// folds to, so a divergence shows one language while storing another. The table
+// below is deliberately the same table as frontend/tests/i18nLocales.test.ts.
+func TestNormalizeLanguageFoldsBCP47Tags(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		// Chinese: script beats region, and a bare tag is Simplified.
+		{"zh", "zh-CN"},
+		{"zh-CN", "zh-CN"},
+		{"zh-Hans", "zh-CN"},
+		{"zh-Hans-CN", "zh-CN"},
+		{"zh-SG", "zh-CN"},
+		{"zh_CN", "zh-CN"},
+		{"zh-Hant", "zh-Hant"},
+		{"zh-Hant-CN", "zh-Hant"},
+		{"zh-TW", "zh-Hant"},
+		{"zh-HK", "zh-Hant"},
+		{"zh-MO", "zh-Hant"},
+		{"zh_tw", "zh-Hant"},
+		// Other shipped languages, region and case insensitively.
+		{"en", "en"},
+		{"en-US", "en"},
+		{"EN-gb", "en"},
+		{"ja", "ja"},
+		{"ja-JP", "ja"},
+		{"ko", "ko"},
+		{"ko-KR", "ko"},
+		{"de", "de"},
+		{"de-AT", "de"},
+		{"de-CH", "de"},
+		{"fr", "fr"},
+		{"fr-CA", "fr"},
+		{"es", "es"},
+		{"es-ES", "es"},
+		{"es-MX", "es"},
+		{"es-419", "es"},
+		// Portuguese picks a region for its tag: every region ships pt-BR.
+		{"pt", "pt-BR"},
+		{"pt-BR", "pt-BR"},
+		{"pt-PT", "pt-BR"},
+		{"pt-AO", "pt-BR"},
+		// Unshipped languages fall back to the branded default rather than
+		// being folded onto a neighbour that merely shares a prefix.
+		{"frr", DefaultLanguage},
+		{"it", DefaultLanguage},
+		{"nl-NL", DefaultLanguage},
+		{"jv", DefaultLanguage},
+		{"klingon", DefaultLanguage},
+		// The empty sentinel is preserved and is the only value that means
+		// "follow the system".
+		{"", ""},
+		{"   ", ""},
+	}
+
+	for _, tc := range cases {
+		if got := normalizeLanguage(tc.in); got != tc.want {
+			t.Errorf("normalizeLanguage(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// Every shipped locale must survive a round trip through storage: a value this
+// package folds to something else would silently change the user's UI language
+// on the next Load.
+func TestShippedLanguagesRoundTrip(t *testing.T) {
+	for _, locale := range []string{"zh-CN", "zh-Hant", "en", "ja", "ko", "de", "fr", "es", "pt-BR"} {
+		if got := normalizeLanguage(locale); got != locale {
+			t.Errorf("normalizeLanguage(%q) = %q, want it unchanged", locale, got)
+		}
+	}
+}
+
 // outputLanguage is independent of the interface language and has its own empty
 // default. Conflating the two would make the card language follow the UI.
 func TestOutputLanguageIsIndependent(t *testing.T) {

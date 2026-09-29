@@ -55,8 +55,8 @@ func (r *ReviewRepo) SetVerdict(ctx context.Context, cardID int64, verdict strin
 		var day string
 		var minutes int
 		err := tx.QueryRowContext(ctx,
-			// minutes mirror the binding's cardDurationMinutes: the span in
-			// whole minutes (truncated), matching how the UI displays it.
+			// minutes mirror TimelineCard.DurationMinutes: the span in whole
+			// minutes (truncated), matching how the UI displays it.
 			`SELECT day, CAST((end_ts - start_ts) / 60 AS INTEGER) FROM timeline_cards
 			 WHERE id = ? AND is_deleted = 0`, cardID,
 		).Scan(&day, &minutes)

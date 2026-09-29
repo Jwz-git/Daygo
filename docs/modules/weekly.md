@@ -13,13 +13,13 @@
 
 ## 当前状态与证据
 
-> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+> **验收状态（2026-09-26）**：本模块所有已实现能力（含近期增量、长期观察与已实现的真实安装升级）经用户确认已验收，未附逐项运行记录。未实现能力、待定设计与正式证书缺失保持原状态；历史命令的失败、跳过或未运行不改写为通过。统一记录见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 实现进度与验证状态以 [09 §9.1](../09-roadmap.md#91-模块总表) weekly 行为准。当前能力快照：
 
 - 边界与聚合：`timeutil.WeekStart` / `WeekWindow`（周一 4 点对齐，
-  decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`（与
-  `TotalMinutesTracked` 同一重叠谓词 + categories join 取 is_idle）、
+  decisions/weekly-boundary-monday）、`storage.CategoryMinutesInRange`（03 §3.5
+  的窗口交集重叠谓词 + categories join 取 is_idle）、
   `internal/insight.AggregateWeekly`（tracked 排 System、focus 排 isIdle 与 Distraction、share
   分母 0 为 0、minutes DESC）、`DayContextDTO.weekStart`（前端初始周不自算）。
 - 绑定与前端：`GetWeeklyDashboard`（非周一拒绝，含按日明细 `WeeklyDayDTO` 与洞察
@@ -34,7 +34,7 @@
 |---|---|---|
 | timeline: time / cards | 固定卡片、分类与周窗口的聚合 fixture | 周边界和卡片 / 分类查询独立验收 |
 | data: db-core | repository fake 验证只读查询 | 真实库读取正确；无需维护界面完成 |
-| preferences: ui-bridge | DTO / store / 错误与空态 fixture | 生成绑定、事件重拉与 G-host |
+| preferences: ui-bridge | DTO / store / 错误与空态 fixture | 生成绑定、事件重拉与 G-host（G-host 已于 2026-09-22 经用户实测验收，无逐项运行记录） |
 
 internal/insight 负责只读周聚合；数据库查询只在 internal/storage，周边界只在 timeutil。
 周边界已决定：周一起始、凌晨 4 点逻辑日对齐（[decisions/weekly-boundary-monday](../decisions/weekly-boundary-monday.md)）。
@@ -57,8 +57,8 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 2. 实现只读 repository 查询与 insight 聚合，完成 08 行为 7 和属性测试。
 3. 已决定现有聚合 DTO 的首屏形态：专注比例环、三项时长和分类比例 / 排行；不增加公共字段。
    更丰富的热力图、应用关系或流向图若进入范围，先更新 05 和双侧契约再实现。
-4. 接周绑定、store 失效重拉、UI 与双语言空 / 错误 / 加载态。
-5. 用真实 cards 独立验收；跨周一的长期证据另行累计，无须等 daily 或完整分析 UI。
+4. 接周绑定、store 失效重拉、UI 与九语言空 / 错误 / 加载态。
+5. 用真实 cards 独立验收；跨周一的长期证据另行累计，无须等 daily 或完整分析 UI。真实卡片周独立验收与跨周一长期观察已于 2026-09-22 经用户实测验收（无逐项运行记录）。
 
 ## 验收、阻塞与回退
 
@@ -71,4 +71,11 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 
 ## 验证记录
 
+2026-09-23：跨午夜 23:50–00:10 匿名周节律夹具通过，00:00 后的 10 分钟归入下一时钟小时；前端 `test:unit`、`typecheck`、`build` 及完整门禁通过。
+
+2026-09-23：日分布图改为左侧日期、共享小时轴与网格线、右侧每日时长。前端单测、
+`typecheck` 和 `build` 通过；本次只验证构建与现有交互测试，窄窗口实际视觉布局仍需在应用内复核。
+
 2026-09-11—20：Go 的周边界属性测试、存储与聚合夹具覆盖空周、System / Idle / Distraction 排除、非周一拒绝及 DST / 半小时 / 45 分钟时区；前端 typecheck / build 和 Vite 匿名数据预览覆盖深浅主题、双语言与窄窗口。2026-09-20 修正 Distraction 误计为专注。真实卡片周与跨周观察由用户于 2026-09-22 确认验收，未附逐项运行记录。
+
+2026-09-23：匿名周一 03:30–04:30 卡片夹具验证前后两周各计 30 分钟，日明细各有一个无重叠时间片；`go test ./internal/app ./internal/storage ./internal/insight` 通过。真实历史库尚未单独复核。

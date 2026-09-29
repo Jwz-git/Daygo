@@ -32,15 +32,36 @@ const (
 // connection-layer guarantee in docs/07 §7.5. mode=ro is the first half: it
 // opens the file with SQLITE_OPEN_READONLY, so the refusal survives even if a
 // caller later resets query_only.
+//
+// A read-write instance opens write transactions with BEGIN IMMEDIATE via
+// _txlock: the driver applies it only to non-read-only transactions, so
+// Store.Write takes the write lock at BEGIN while Store.Read (ReadOnly:true)
+// stays deferred. A deferred write transaction that reads before it writes
+// takes a WAL read snapshot and then fails to upgrade to writer with
+// SQLITE_BUSY_SNAPSHOT, which SQLite does NOT retry through busy_timeout;
+// IMMEDIATE moves the contention to BEGIN where busy_timeout applies, which is
+// what makes "no busy-lock storms" (DB-8) a property of the configuration.
 func pragmaDSN(path string, mode Mode) string {
 	params := fmt.Sprintf(
 		"?_pragma=journal_mode(%s)&_pragma=synchronous(%s)&_pragma=busy_timeout(%d)&_pragma=foreign_keys(%d)",
 		pragmaJournalMode, pragmaSynchronous, pragmaBusyTimeout, boolInt(pragmaForeignKeys),
 	)
+	uri := "file:" + escapeURIPath(path)
 	if mode == ModeReadOnly {
-		return "file:" + path + params + "&mode=ro&_pragma=query_only(1)"
+		return uri + params + "&mode=ro&_pragma=query_only(1)"
 	}
-	return "file:" + path + params
+	return uri + params + "&_txlock=immediate"
+}
+
+// escapeURIPath percent-encodes the characters SQLite's file: URI parser treats
+// specially, so a filesystem path containing a literal '%', '?' or '#' resolves
+// to that exact file. Without this a directory segment shaped like "%20" would
+// be percent-decoded to a space and open a different database (or fail to open),
+// and a '?' would be misread as the start of the query string. '/' stays a path
+// separator. The single-pass replacer never re-scans its own output, so the
+// '%' it introduces is not re-encoded.
+func escapeURIPath(path string) string {
+	return strings.NewReplacer("%", "%25", "?", "%3F", "#", "%23").Replace(path)
 }
 
 // verifyPragmas reads the applied settings back and asserts they took effect

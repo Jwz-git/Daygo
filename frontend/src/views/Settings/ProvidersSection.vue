@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { ProviderDTO, ProviderProtocol, ProviderTestResult } from '@/api/dto'
-import { testProvider } from '@/api/providers'
+import type { ProviderDTO, ProviderProtocol } from '@/api/dto'
 import { useProvidersStore } from '@/stores/providers'
 
 import ProviderForm from './ProviderForm.vue'
@@ -15,44 +14,13 @@ import ProviderRoutingChain from './ProviderRoutingChain.vue'
  * separate components. Editing goes through the form's exposed handle so a
  * card's Edit button can populate the draft.
  */
-const { t, te } = useI18n()
+const { t } = useI18n()
 const store = useProvidersStore()
 
 void store.hydrate()
 
-/** Join a provider id and a model into a per-model test key. */
-const SEP = ''
-
 const form = ref<InstanceType<typeof ProviderForm> | null>(null)
 const pendingRemoveId = ref<string | null>(null)
-
-/** The (provider, model) currently probing, and the per-model probe results. */
-const testingKey = ref<string | null>(null)
-const testResults = reactive<Record<string, ProviderTestResult>>({})
-
-async function runSavedTest(provider: ProviderDTO, model: string): Promise<void> {
-  if (testingKey.value !== null) return
-  const key = provider.id + SEP + model
-  testingKey.value = key
-  delete testResults[key]
-  try {
-    testResults[key] = await testProvider(provider.id, model)
-  } catch {
-    // A thrown binding error (not a probe result) leaves the row silent.
-  } finally {
-    testingKey.value = null
-  }
-}
-
-function testKey(provider: ProviderDTO, model: string): string {
-  return provider.id + SEP + model
-}
-
-function testFailureText(result: ProviderTestResult): string {
-  const key = `settings.providers.test.error.${result.errorCode}`
-  const known = te(key) ? t(key) : ''
-  return known === '' ? result.message : known
-}
 
 function protocolLabel(protocol: ProviderProtocol): string {
   return t(`settings.providers.protocol.${protocol}`)
@@ -78,6 +46,7 @@ async function confirmRemove(id: string): Promise<void> {
   <header class="providers-head">
     <h2 class="providers-head__title">{{ t('settings.providers.title') }}</h2>
     <p class="providers-head__hint">{{ t('settings.providers.description') }}</p>
+    <RouterLink class="dg-button" :to="{ name: 'model-playground' }">{{ t('modelPlayground.title') }}</RouterLink>
   </header>
 
   <!-- Add/edit form (the add button lives here); kept above the list. -->
@@ -133,36 +102,7 @@ async function confirmRemove(id: string): Promise<void> {
               <ul class="model-list">
                 <li v-for="model in provider.models" :key="model" class="model-list__item">
                   <span class="model-list__name">{{ model }}</span>
-                  <button
-                    type="button"
-                    class="dg-button dg-button--tiny"
-                    :disabled="!provider.hasSecret || testingKey !== null"
-                    :aria-label="t('settings.providers.test.runModel', { model })"
-                    @click="runSavedTest(provider, model)"
-                  >
-                    <span v-if="testingKey === testKey(provider, model)">
-                      {{ t('settings.providers.test.running') }}
-                    </span>
-                    <span v-else>{{ t('settings.providers.test.run') }}</span>
-                  </button>
-                  <span
-                    v-if="testResults[testKey(provider, model)]?.ok"
-                    class="model-list__result model-list__result--ok"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {{ t('settings.providers.test.passShort', {
-                      latency: testResults[testKey(provider, model)]?.latencyMs ?? 0,
-                    }) }}
-                  </span>
-                  <span
-                    v-else-if="testResults[testKey(provider, model)]"
-                    class="model-list__result model-list__result--err"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {{ testFailureText(testResults[testKey(provider, model)]!) }}
-                  </span>
+                  <RouterLink class="dg-button dg-button--tiny" :to="{ name: 'model-playground', query: { providerId: provider.id, model } }">{{ t('modelPlayground.title') }}</RouterLink>
                 </li>
               </ul>
             </dd>

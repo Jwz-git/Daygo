@@ -21,6 +21,19 @@ import (
 
 type State string
 
+// StopCause identifies why a running recorder entered idle. It contains no
+// paths, screen content, or native error text.
+type StopCause string
+
+const (
+	StopRequested StopCause = "requested"
+	StopShutdown  StopCause = "shutdown"
+	StopUpdate    StopCause = "update"
+	StopFailure   StopCause = "capture_failure"
+	StopContext   StopCause = "context_cancelled"
+	StopMigration StopCause = "storage_migration"
+)
+
 const (
 	StateIdle      State = "idle"
 	StateStarting  State = "starting"
@@ -66,10 +79,14 @@ type Recorder struct {
 	settingsChanged  chan struct{}
 	lastFrameAt      *time.Time
 	lastError        error
+	pauseUntil       *time.Time
+	shutdownErr      error
+	lastStopCause    StopCause
 	systemBlockers   map[platform.SystemEventKind]struct{}
 	resumeGeneration uint64
 	lastSegmentPath  string
 	lastSegmentSize  int64
+	startPaused      bool
 }
 
 func New(cfg Config) (*Recorder, error) {
@@ -117,10 +134,80 @@ func (r *Recorder) LastError() error {
 	defer r.mu.Unlock()
 	return r.lastError
 }
+
+type PauseInfo struct {
+	UserPaused    bool
+	SystemBlocked bool
+	Until         *time.Time
+}
+
+func (r *Recorder) PauseInfo() PauseInfo {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	info := PauseInfo{UserPaused: r.userPaused, SystemBlocked: len(r.systemBlockers) != 0}
+	if r.pauseUntil != nil {
+		value := *r.pauseUntil
+		info.Until = &value
+	}
+	return info
+}
+
+func (r *Recorder) LastStopCause() StopCause {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastStopCause
+}
 func (r *Recorder) Start(ctx context.Context) error {
+	return r.start(ctx, false, 0)
+}
+
+// StartPaused restores a user pause after a directory migration without
+// taking a frame in the old or new location before the pause is effective.
+func (r *Recorder) StartPaused(ctx context.Context, remaining time.Duration) error {
+	return r.start(ctx, true, remaining)
+}
+
+func (r *Recorder) PauseUntil() time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.pauseUntil == nil {
+		return time.Time{}
+	}
+	return *r.pauseUntil
+}
+
+func (r *Recorder) UserPaused() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.userPaused
+}
+
+// SetDirectory switches the root only after Stop has joined the capture loop.
+// Reusing the recorder preserves system blockers accumulated during the move.
+func (r *Recorder) SetDirectory(directory string) error {
+	if !filepath.IsAbs(directory) {
+		return fmt.Errorf("recorder: directory must be absolute")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.state != StateIdle || r.done != nil && r.cancel != nil {
+		return fmt.Errorf("recorder: directory change requires idle state")
+	}
+	r.cfg.Directory = directory
+	return nil
+}
+
+func (r *Recorder) start(ctx context.Context, paused bool, remaining time.Duration) error {
 	r.mu.Lock()
 	if r.state != StateIdle {
-		return fmt.Errorf("recorder: cannot start from %s", r.state)
+		state := r.state
+		r.mu.Unlock()
+		return fmt.Errorf("recorder: cannot start from %s", state)
+	}
+	if r.shutdownErr != nil {
+		err := r.shutdownErr
+		r.mu.Unlock()
+		return fmt.Errorf("recorder: previous segment finalization failed: %w", err)
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
@@ -128,24 +215,52 @@ func (r *Recorder) Start(ctx context.Context) error {
 	r.state = StateStarting
 	r.userPaused = false
 	r.lastError = nil
+	r.pauseUntil = nil
+	r.shutdownErr = nil
+	r.lastStopCause = ""
+	r.startPaused = paused
+	r.userPaused = paused
+	if paused && remaining > 0 {
+		until := r.cfg.Clock.Now().Add(remaining)
+		r.pauseUntil = &until
+	}
 	r.resumeGeneration++
+	generation := r.resumeGeneration
 	r.mu.Unlock()
 	r.emit(StateStarting, nil)
 	go r.run(runCtx)
+	if paused && remaining > 0 {
+		time.AfterFunc(remaining, func() { r.resumeAfterUserPause(generation) })
+	}
 	return nil
 }
 func (r *Recorder) Stop() error {
+	return r.StopWithCause(StopRequested)
+}
+
+func (r *Recorder) StopWithCause(cause StopCause) error {
 	r.mu.Lock()
 	if r.state == StateIdle {
-		return nil
+		err := r.shutdownErr
+		r.mu.Unlock()
+		return err
 	}
 	cancel := r.cancel
 	done := r.done
 	r.lastError = nil
+	r.pauseUntil = nil
+	r.userPaused = false
+	// Bump the resume generation so any pending user-pause or system-event
+	// timer no-ops when it fires: the state guard alone loses the race where
+	// the timer wins the lock before run()'s deferred teardown sets StateIdle.
+	r.resumeGeneration++
+	r.lastStopCause = cause
 	r.mu.Unlock()
 	cancel()
 	<-done
-	return nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.shutdownErr
 }
 
 // Pause stops capture at the user's request. A positive duration schedules an
@@ -160,24 +275,40 @@ func (r *Recorder) Pause(duration time.Duration) error {
 		return fmt.Errorf("recorder: cannot pause from %s", r.state)
 	}
 	r.userPaused = true
+	r.pauseUntil = nil
 	r.state = StatePaused
 	r.resumeGeneration++
 	generation := r.resumeGeneration
 	r.mu.Unlock()
 	if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
-		_ = closer.CloseActiveSegment(context.Background())
+		if err := closer.CloseActiveSegment(context.Background()); err != nil {
+			return fmt.Errorf("recorder: close segment on pause: %w", err)
+		}
 		r.mu.Lock()
 		activePath := r.lastSegmentPath
 		activeSize := r.lastSegmentSize
+		r.mu.Unlock()
+		if activePath != "" {
+			if err := r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize); err != nil {
+				return fmt.Errorf("recorder: amortize segment on pause: %w", err)
+			}
+		}
+		r.mu.Lock()
 		r.lastSegmentPath = ""
 		r.lastSegmentSize = 0
 		r.mu.Unlock()
-		if activePath != "" {
-			_ = r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize)
-		}
 	}
 	if duration > 0 {
-		time.AfterFunc(duration, func() { r.resumeAfterUserPause(generation) })
+		r.mu.Lock()
+		current := r.resumeGeneration == generation && r.state == StatePaused && r.userPaused
+		if current {
+			until := r.cfg.Clock.Now().Add(duration)
+			r.pauseUntil = &until
+		}
+		r.mu.Unlock()
+		if current {
+			time.AfterFunc(duration, func() { r.resumeAfterUserPause(generation) })
+		}
 	}
 	r.emit(StatePaused, nil)
 	return nil
@@ -195,8 +326,10 @@ func (r *Recorder) resumeAfterUserPause(generation uint64) {
 		return
 	}
 	r.userPaused = false
+	r.pauseUntil = nil
 	if len(r.systemBlockers) != 0 {
 		r.mu.Unlock()
+		r.emit(StatePaused, nil)
 		return
 	}
 	r.state = StateCapturing
@@ -214,6 +347,7 @@ func (r *Recorder) Resume() error {
 		return fmt.Errorf("recorder: cannot resume while system capture is blocked")
 	}
 	r.userPaused = false
+	r.pauseUntil = nil
 	r.state = StateCapturing
 	r.resumeGeneration++
 	r.mu.Unlock()
@@ -249,19 +383,32 @@ func (r *Recorder) HandleSystemEvent(event platform.SystemEvent) {
 	case platform.EventSleep, platform.EventScreenLocked, platform.EventScreensaverStart:
 		r.mu.Lock()
 		r.systemBlockers[event.Kind] = struct{}{}
-		r.resumeGeneration++
+		// A blocker does NOT bump resumeGeneration: it is not a resume decision,
+		// only a hold. A stale system-event resume timer already no-ops here via
+		// its len(systemBlockers) != 0 guard, and bumping would instead orphan a
+		// pending timed user-pause timer — its resumeAfterUserPause would then
+		// find a stale generation, never clear userPaused, and the wake branch
+		// below would refuse to re-arm, freezing a timed pause forever.
 		if r.state == StateCapturing {
 			r.state = StatePaused
 			r.mu.Unlock()
 			r.emit(StatePaused, nil)
 		} else {
+			paused := r.state == StatePaused
 			r.mu.Unlock()
+			if paused {
+				r.emit(StatePaused, nil)
+			}
 		}
 	case platform.EventWake, platform.EventScreenUnlocked, platform.EventScreensaverStop:
 		r.mu.Lock()
 		delete(r.systemBlockers, blockingEventFor(event.Kind))
 		if r.userPaused || r.state != StatePaused || len(r.systemBlockers) != 0 {
+			paused := r.state == StatePaused
 			r.mu.Unlock()
+			if paused {
+				r.emit(StatePaused, nil)
+			}
 			return
 		}
 		delay := 5 * time.Second
@@ -307,18 +454,34 @@ func (r *Recorder) run(ctx context.Context) {
 	defer close(r.done)
 	defer func() {
 		if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
-			_ = closer.CloseActiveSegment(context.Background())
-			r.mu.Lock()
-			activePath := r.lastSegmentPath
-			activeSize := r.lastSegmentSize
-			r.lastSegmentPath = ""
-			r.lastSegmentSize = 0
-			r.mu.Unlock()
-			if activePath != "" {
-				_ = r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize)
+			if err := closer.CloseActiveSegment(context.Background()); err != nil {
+				r.mu.Lock()
+				r.shutdownErr = fmt.Errorf("recorder: finalize active segment: %w", err)
+				r.mu.Unlock()
+			} else {
+				r.mu.Lock()
+				activePath := r.lastSegmentPath
+				activeSize := r.lastSegmentSize
+				r.lastSegmentPath = ""
+				r.lastSegmentSize = 0
+				r.mu.Unlock()
+				if activePath != "" {
+					if err := r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize); err != nil {
+						r.mu.Lock()
+						r.shutdownErr = fmt.Errorf("recorder: account for finalized segment: %w", err)
+						r.mu.Unlock()
+					}
+				}
 			}
 		}
 		r.mu.Lock()
+		if r.lastStopCause == "" {
+			if r.lastError != nil {
+				r.lastStopCause = StopFailure
+			} else if ctx.Err() != nil {
+				r.lastStopCause = StopContext
+			}
+		}
 		r.cancel = nil
 		r.state = StateIdle
 		r.mu.Unlock()
@@ -330,7 +493,8 @@ func (r *Recorder) run(ctx context.Context) {
 	}
 	r.mu.Lock()
 	blocked := len(r.systemBlockers) != 0
-	if blocked {
+	startPaused := r.startPaused
+	if blocked || startPaused {
 		r.state = StatePaused
 	} else {
 		r.state = StateCapturing
@@ -341,34 +505,11 @@ func (r *Recorder) run(ctx context.Context) {
 	current := r.captureSettings()
 	ticker := time.NewTicker(time.Duration(current.CaptureIntervalSeconds) * time.Second)
 	defer ticker.Stop()
-	if !blocked {
+	if !blocked && !startPaused {
 		if err := r.capture(ctx); err != nil && ctx.Err() == nil {
-			// The initial capture gets the same tolerance as the loop: emit
-			// and continue rather than aborting a resident recorder.
 			r.fail(err)
-			consecutiveFailures := 1
-			for consecutiveFailures < captureFailureLimit {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(captureRetryDelay):
-				}
-				if err := r.capture(ctx); err != nil {
-					if ctx.Err() != nil {
-						return
-					}
-					r.fail(err)
-					consecutiveFailures++
-					continue
-				}
-				break
-			}
-			if consecutiveFailures >= captureFailureLimit {
-				return
-			}
 		}
 	}
-	consecutiveFailures := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -387,14 +528,9 @@ func (r *Recorder) run(ctx context.Context) {
 				if ctx.Err() != nil {
 					return
 				}
-				// One failed frame is not a reason to stop a resident
-				// recorder: emit the error and keep the loop alive. Only
-				// captureFailureLimit consecutive failures give up.
+				// Keep the resident recorder alive through sustained errors. An
+				// error event and LastError expose the failure until a frame lands.
 				r.fail(err)
-				consecutiveFailures++
-				if consecutiveFailures >= captureFailureLimit {
-					return
-				}
 				select {
 				case <-ctx.Done():
 					return
@@ -402,17 +538,9 @@ func (r *Recorder) run(ctx context.Context) {
 				}
 				continue
 			}
-			consecutiveFailures = 0
 		}
 	}
 }
-
-// captureFailureLimit is how many consecutive single-capture failures the
-// loop tolerates before giving up. A display switch, a transient permission
-// hiccup, or a failed placeholder write fails one frame; stopping the whole
-// recorder on the first of those would silently end recording for a resident
-// agent. Three in a row with no success between them means something real.
-const captureFailureLimit = 3
 
 // captureRetryDelay is the pause after a failed capture before the next
 // ticker-driven attempt (the ticker itself stays on its interval).
@@ -482,7 +610,15 @@ func (r *Recorder) capture(ctx context.Context) error {
 		r.mu.Unlock()
 
 		if rolledPath != "" {
-			_ = r.cfg.Store.AmortizeSegment(ctx, rolledPath, rolledSize)
+			if err := r.cfg.Store.AmortizeSegment(ctx, rolledPath, rolledSize); err != nil {
+				// Mirror the finalize path: a disk-accounting failure must not abort
+				// the capture loop, but it also must not vanish, or per-frame size
+				// amortization drifts silently. Surface it through shutdownErr like
+				// the active-segment case above.
+				r.mu.Lock()
+				r.shutdownErr = fmt.Errorf("recorder: account for rolled segment: %w", err)
+				r.mu.Unlock()
+			}
 		}
 
 		if err := r.cfg.Store.Commit(ctx, id, frameDelta); err != nil {

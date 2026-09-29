@@ -136,13 +136,10 @@ onBeforeUnmount(() => weekly.stopListening())
 
 .weekly-intro span {
   display: inline-block;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: var(--dg-weekly-tag-fill);
   color: var(--dg-weekly-tag-text);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 

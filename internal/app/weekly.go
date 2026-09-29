@@ -64,7 +64,7 @@ func (b *Backend) GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, erro
 		}
 		return WeeklyDashboardDTO{}, apperr.E(apperr.DatabaseError, "weekly requires a database", nil)
 	}
-	loc := b.clock.Now().Location()
+	loc := store.Location()
 	start, end, err := timeutil.WeekWindow(weekStart, loc)
 	if err != nil {
 		return WeeklyDashboardDTO{}, apperr.E(apperr.InvalidArgument, "weekStart must be a Monday in yyyy-MM-dd form", err)

@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 17`）有十七张表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 19`）有十八张业务表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -10,7 +10,8 @@
 > `idx_batch_screenshots_screenshot`）；`analysis_batches.attempts`（v9）、批次软删除列（v10）、
 > `providers.max_images`（v11）、首次启动分类种子（v12）、`daily_standup_entries`（v13）、
 > `card_reviews`（v14）、`pending_captures.frame_index`（v15）、分段截图大小均摊（v16），
-> 以及 `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）。本文其余表
+> `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）、`card_ratings`（v18），
+> 以及移除 `journal_entries.summary`（v19，保留用户输入）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -22,16 +23,19 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
 
 ## 3.1 磁盘布局
 
+Windows 可通过设置迁移 `recordings/` 整棵目录；SQLite、备份和锁仍留在应用数据目录。`screenshots.segment_path` 保持相对录制根目录。迁移状态和恢复门禁见[Windows 录制目录迁移](decisions/recording-directory-windows.md)。macOS 仍使用以下固定布局。
+
 ```text
 ~/Library/Application Support/Daygo/
 ├── daygo.sqlite (+ -wal, -shm)   业务数据库                        ★
 ├── daygo.sqlite.lock             写入锁（flock / LockFileEx）       ★
 ├── capture.lock                  捕获所有者锁，与写入锁相互独立      ★
-├── recordings/staging/           Capture 原子 JPEG，提交分段后删除
-├── recordings/segments/          已关闭的不可变分段
-├── timelapses/<yyyy-MM-dd>/      每张卡片的时间压缩视频
+├── recordings/staging/           legacy JPEG 与旧 pending 兼容路径
+├── recordings/segments/          活跃帧段与已收尾不可变段             ★
+├── timelapses/<yyyy-MM-dd>/      每张卡片的时间压缩视频（目标，未实现）
 ├── backups/daygo-<UTC>-<seq>.db  每日数据库副本，保留 7 份           ★
-└── agent.sock                    外部写入通道（推迟到 v1.1）
+├── agent.sock                    外部写入通道，0600（v1 不交付）      ★
+└── agent-writes.log              外部成功写入来源审计，0600           ★
 ```
 
 ★ 已落盘。目录本身以 `0700` 创建。两把锁是独立文件而不是库内的行，这样只读实例
@@ -64,6 +68,12 @@ app_settings repository 归 data，类型化访问归 preferences；没有第二
 2. 实现必须覆盖 DST 切换日、半小时时区（如 `Asia/Kolkata`）和 45 分钟时区
    （如 `Asia/Kathmandu`）。这些是夹具测试的必测项。
 3. 逻辑日窗口是**左闭右开** `[dayStartTs, dayEndTs)`。
+
+跨凌晨 4 点的活动仍是一张卡片：`timeline_cards.day` 永远是开始时刻所属的逻辑日，
+卡片 ID、审阅与编辑归属不变。日视图按卡片与当天窗口的**交集**展示，前后两日可看到
+同一 ID 的不同时间片；显示用的 `startTs` / `endTs` 和时长裁剪到当天窗口，原始时钟串及
+数据库时间戳不改。日、周总量只累计各自窗口内的分钟；周明细按 4 点边界拆为两个时间片。
+边界时刻只属于后一天，故两侧时间片无重叠、无缺口。
 
 ## 3.3 表结构
 
@@ -174,7 +184,8 @@ CREATE INDEX idx_llm_calls_batch ON llm_calls (batch_id, purpose, attempt_no);
 **只有一个成功终态。** 不设置语义重复的第二个成功值。
 `attempts` 在每次进入 `failed` / `failed_empty` 时自增；达到 `MaxBatchAttempts`（5）后
 `RequeueFailed` 拒绝重新入队——确定性失败（帧文件丢失、时钟串不可解析）不应在冷却时钟上
-无限重复消耗 LLM 调用。手动 `RetryBatches` 绑定会显式重置该计数。
+无限重复消耗 LLM 调用。手动 `RetryBatches` 绑定会显式重置该计数；反向地，`StopRetries`
+把该计数封顶到 `MaxBatchAttempts`，让用户主动停止一个批次的自动重试而不删除它。
 
 ### 3.3.2 时间线
 
@@ -241,7 +252,7 @@ CREATE TABLE categories (
 
 ```sql
 -- daily_standup_entries（v13 已落盘）保存已生成的日报；
--- LLM 生成与调度尚未实现，不应与存储能力混为一谈。
+-- 手动 GenerateDailyRecap 与后台补生成均已实现，触发规则见 05 §5.5.1。
 CREATE TABLE daily_standup_entries (
   standup_day      TEXT PRIMARY KEY,   -- 日历日 yyyy-MM-dd
   highlights_title TEXT NOT NULL,
@@ -410,11 +421,14 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 
 ## 3.4 帧与分段
 
-像素**不进入 SQLite BLOB**。`Capture` 输出的逐帧 JPEG 只在 `recordings/staging/` 短期存在；
-积累到轮换边界后由 `Media` 批量构建不可变分段，成功提交后删除 staging。只有已完整发布并完成
-结构化提交的帧才写入 `screenshots`，按 `(segment_path, frame_index)` 寻址。完整状态机与崩溃
-窗口见[图片存储决策](decisions/recording-image-storage.md)。
-容器与编码格式**待定设计**，但必须满足：
+像素**不进入 SQLite BLOB**。macOS 每次离散捕获直接追加当前 HEVC / MP4 帧段；Windows
+按运行时探测选择 HEVC / H.264 的 MP4 段或单帧 JPEG 段。Go 通过 pending 意图提交
+`screenshots`，按 `(segment_path, frame_index)` 寻址；活跃 MP4 段在收尾前不交给分析读取。
+旧 `recordings/staging/` JPEG 保留兼容读路径，不执行一次性转码。现行编码与恢复边界见
+[HEVC 分段决策](decisions/recording-frame-segments-hevc.md)及
+[Windows 编码决策](decisions/recording-windows-segment-codec.md)；
+[图片存储决策](decisions/recording-image-storage.md)保留公共所有权约束及已被取代的 staging 方案。
+分段必须满足以下要求（Windows 单帧 JPEG 段只有 `frame_index=0`）：
 
 | # | 要求 | 原因 |
 |---|------|------|
@@ -447,15 +461,19 @@ resolveClock(h, m):
 
 startTs = resolveClock(startHour, startMinute)
 endTs   = resolveClock(endHour,   endMinute)
-if endTs < startTs: endTs += 24h                // 跨午夜
+if endTs <= startTs: skip card                  // 退化输出，见要点 2
 day     = 由 startTs 按凌晨 4 点边界得出
 ```
 
 四个各自独立的要点，缺一不可：
 
 1. **在前后共三天中选最近的候选。** 临近午夜时把 `"11:50 PM"` 直接解析到 anchor 当日
-   是错的；±1 天候选修正这一点。
-2. **`end < start` 表示跨午夜**，加一天。
+   是错的；±1 天候选修正这一点。真正的跨午夜卡（如 `"11:50 PM"`~`"12:10 AM"`）经此选择
+   后 start 落在前一天、end 落在当日，`endTs` 自然晚于 `startTs`，无需再加一天。
+2. **解析后 `end <= start` 属退化输出，不是跨午夜。** 三天候选已把合法跨午夜分到相邻两天；
+   仍然反转（如 `4:30pm`~`4:29pm`）只可能是模型错误。此时**不得**给 `endTs` 加一天——那会
+   持久化一张约 24h 的怪卡。校验层（`resolveCardSpans`）将其作为校正提示反馈给模型重试，
+   存储层（`ReplaceCardsInRange`）把它计入 `SkippedCards`，一律不落库。
 3. **`day` 用凌晨 4 点边界算**，不是日历日期。
 4. 全过程依赖宿主时区，必须在 DST 切换和非整点偏移时区中验证——这是基于属性的测试的
    首要候选（[08 §8.3](08-testing-strategy.md#83-行为测试)）。

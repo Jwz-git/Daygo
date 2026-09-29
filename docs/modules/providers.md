@@ -17,7 +17,34 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
-> **验收状态**：已实现能力于 2026-09-22 经用户确认已验收；无逐项运行记录。未实现能力见 [09 §9.1](../09-roadmap.md#91-模块总表)。
+2026-09-27 默认输入增量（基于 `c1a054f` 工作树，Windows amd64）：进入模型测试与试用页时，预填随包内置的 Daygo 软件图标 PNG 和当前界面的本地化描述提示词（简体中文为「请描述这张图片的内容」）。图标以打包内联 data URL 同时用于预览和请求字节，无需联网加载；用户可移除或替换图片、编辑文字。仅点击发送才调用模型，重新进入页面恢复默认值；切换语言不覆盖正在编辑的文字。
+验证：`npm --prefix frontend run test:unit` 186/186；`npm --prefix frontend run build`（含 vue-tsc）通过；检查构建产物内联图片与源 PNG 字节完全一致。新增匿名夹具先于实现覆盖 PNG 格式 / 大小 / 像素及九语言默认提示词。真实桌面发送未运行；回退仅需恢复页面默认值，不涉及数据迁移。
+
+
+2026-09-27 测试与试用合并（`6c080c0` + `54b3044` 待提交合并工作树，Windows amd64）：
+根据用户反馈，旧探针要求固定图像识别与严格 JSON，而试用只要求非空文字，两者判定不同。
+产品设置入口统一为「模型测试与试用」，逐模型跳转携带 providerId / model，所有发送走 `TryProvider`。
+移除表单草稿探针；先保存配置再从模型列表测试，不自动保存或自动发请求。
+实际回复即本次测试结果，明确成功状态；输入或模型变化清空旧结果。九语言同步。
+旧 Go 探针绑定保留兼容，没有产品页面入口；不把收到回复提升为图片理解 / 结构化能力认证。
+用户确认现有试用能正常返回，但未提供模型、协议或逐项记录，合并后桌面闭环仍待实测。
+验收夹具先于实现添加：设置页面不得调用旧探针，模型入口保留选择参数。
+`npm --prefix frontend run test:unit`：185/185；`npm --prefix frontend run typecheck`：通过。
+`npm --prefix frontend run build`：通过；本次路径 `git diff --check`：通过。
+文档检查在匿名工作树快照运行（仅将不可读的 CLAUDE.md 链接物化为 AGENTS.md），55 个 Markdown、0 问题；原文件未改。
+本次仅前端与文档变更，Go 行为未改。回退可单独恢复本次入口、文案和结果清除逻辑，不涉及数据迁移。
+
+
+2026-09-26 新增「模型试用」页面（本条在当日历史用户验收之后，真实闭环待验收）：
+设置页及各模型行可进入独立页面，选择已保存模型，上传 / 拖入 / 粘贴一张 PNG/JPEG 并预览，
+编辑文字后显式发送；支持纯文字或单张图片。`TryProvider` 复用三协议客户端与系统密钥，
+单次、无回退、无历史、非流式返回实际文本；展示模型 / 耗时和本地化失败，支持复制回复。
+上限为 5 MiB / 2000 万像素 / 16000 字符 / 2048 输出 tokens / 30 秒。
+内容只在内存中保留，卸载清空并忽略迟到结果；仅 `llm_calls` attempt 元数据落库，因此要求持锁读写实例。
+回复以转义纯文本呈现；后续统一测试入口的行为以上述 09-27 记录为准。
+契约和 DTO 见 [05 Provider](../05-interface-contract.md#provider)。
+
+> **验收状态（2026-09-26）**：本模块所有已实现能力（含近期增量、长期观察与已实现的真实安装升级）经用户确认已验收，未附逐项运行记录。未实现能力、待定设计与正式证书缺失保持原状态；历史命令的失败、跳过或未运行不改写为通过。统一记录见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 实现进度：部分实现。Go 侧已落地：三协议客户端、重试 / 回退链（`ai.Chain`，循环降级）、
 连接探针、迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 经
@@ -47,7 +74,7 @@ Provider CRUD / 路由链 / 密钥 / `TestProvider(id, model)` 绑定
 （openai / openai_responses / anthropic，经 `internal/ai` factory 统一构造）、路由、取消、
 重试与回退装饰器，以及内嵌匿名图片的连接探针（`ai.TestConnection`：固定文本 + PNG +
 严格 schema，单次调用，验证文本 / 图片 / 结构化输出三种能力）。图片仅接受
-JPEG / PNG / WebP，最多 20 张、单张 5 MiB、原始总量 20 MiB；调用记录只存 attempt 元数据，
+JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB；调用记录只存 attempt 元数据，
 不存 endpoint、正文、图片、密钥或费用。
 协议客户端归 internal/ai；上层任务通过消费者接口调用，不导入另一服务的内部实现。
 providers repository 在 internal/storage；Secrets.Get 只供 Go 客户端取密钥，
@@ -81,7 +108,7 @@ llm.outputLanguage、llm.recognitionEnhancementEnabled 的字段规则和设置�
    提供 provider-client 给 timeline / daily，不等这两个模块完成。
 4. 接完整 Provider 绑定、事件与 store；按功能迁移无密钥旧配置，确认持久化再切换数据源。
    旧内存密钥不批量写盘，用户通过显式保存完成钥匙串接入。
-5. 验证真实连接与设置重启闭环，补空态、失败态、加载态和两种语言。
+5. 验证真实连接与设置重启闭环，补空态、失败态、加载态和九种语言。
 
 ## 验收、阻塞与回退
 
@@ -97,6 +124,66 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-09-29 Qwen3-VL 配置修复复测（`939a75b` 工作树，Windows amd64 + WSL Ubuntu）**：
+  官方 `qwen3-vl:8b-instruct` 已下载，模型元数据确认 renderer / parser 为 `qwen3-vl-instruct`，
+  能力不含 thinking。保留原 Thinking 模型；LiteLLM 外部别名仍为 `qwen3-vl-8b`，
+  仅将其上游改为 `ollama_chat/qwen3-vl:8b-instruct`，保留 `num_ctx: 8192`。
+  已验证其余 YAML 字段不变，修改前在配置所在目录生成权限 `0600` 的备份，重启服务生效。
+  `CGO_ENABLED=0 DAYGO_ANONYMOUS_PROBE=1 DAYGO_PROBE_INSTRUCT_DIRECT=1 go test ./internal/analysis -run '^TestLocalAnonymousProbe$' -v -count=1`
+  直连通过：转录 12.011 秒、卡片 4.727 秒。移除 `DAYGO_PROBE_INSTRUCT_DIRECT` 后同一测试经
+  已保存 Provider / LiteLLM 别名再次通过：转录 9.018 秒、卡片 3.528 秒，各返回一项；
+  两阶段均 `finish_reason=stop`、推理字段为空，严格 Schema、非空标题 / 摘要、既有分类和
+  匿名 10:00–10:15 时间窗检查通过。Ollama `/api/ps` 确认实际上下文为 8192。
+  输入为仓库匿名 PNG，转录结果映射到固定匿名窗口；真实截图、既有失败批次重试、Wails
+  展示及长期稳定性未在本次复测，不将此匿名真实 Provider 验证提升为完整 G-loop 验收。
+  Daygo 生产代码、输出预算和校验规则未改。回退：恢复修改前 YAML 并重启 LiteLLM；原模型保留，
+  不回滚或删除用户数据库。文档在隔离快照中运行 `scripts/check-docs.py`（仅将不可读的
+  CLAUDE.md 链接物化为 AGENTS.md 文本）：56 篇 Markdown、0 问题。限定文档路径的
+  `git -c core.whitespace=cr-at-eol diff --check` 通过（保留 providers.md 已入库的 CRLF）。
+
+- **2026-09-27—28 本地 Qwen3-VL / LiteLLM 排查（`058ea03` 工作树，Windows amd64 + WSL Ubuntu，Ollama 0.32.11）**：
+  模型试用成功不等于分析可用。只读调用元数据显示转录失败为 `invalid_output`；匿名图标配合
+  生产转录提示词 / Schema 复现 HTTP 200、空正文。上游 `ollama/qwen3-vl:8b` 改为
+  `ollama_chat/qwen3-vl:8b` 后转录可以通过，但匿名卡片请求在 4096 上下文下出现
+  2797 输入 + 1299 输出、`finish_reason=length`、正文为空。设 `num_ctx: 8192` 后实际加载值
+  已核验；随后卡片仍耗尽 4096 输出预算，只有推理内容。模型元数据显示 renderer / parser 为
+  `qwen3-vl-thinking`；`reasoning_effort: none` 实测仍返回空正文和推理字段，已撤回该尝试。
+  因而不能把适配路径修改或扩大上下文单独记录为修复完成，也不能将推理字段当成最终卡片。
+  后续验证目标为官方 `qwen3-vl:8b-instruct`，保留原模型和外部模型别名；结果见上方 09-29 记录。
+  显式启用的 `TestLocalAnonymousProbe` 使用仓库内匿名 PNG、生产提示词和严格 Schema，
+  只读配置与系统密钥，密钥仅在内存中用于已配置服务，不发送真实截图、不写用户数据库。
+  此记录不提升 G-loop / 长期观察验收；Daygo 代码、输出预算和校验契约未修改。
+
+- **2026-09-26—27 模型试用（基于 `ab8624b` 的 test 工作树，Windows amd64）**：新增匿名 HTTP 夹具覆盖三协议实际图文
+  请求 / 原始文本返回、无 schema / 单次调用、非法模型零请求、MIME 不一致 / 非图片 / 超限输入拒绝、
+  错误不回显正文。前端夹具覆盖重复发送闸门、清理后的迟到结果丢弃、上传大小 / 类型及回复 HTML 转义。
+  本次实现使用 PNG/JPEG 子集；WebP、流式、持久化历史、在途取消和批量对比未实现。
+  `CGO_ENABLED=0 go test ./internal/...`、`go vet ./...`、`CGO_ENABLED=0 go build ./...` 和
+  `GOOS=linux/darwin/windows CGO_ENABLED=0 go build ./internal/...` 通过；交叉构建不代表目标平台运行。
+  最终补充取消 / 像素上限 / 密钥回显夹具后，`CGO_ENABLED=0 go test ./internal/app ./internal/ai/...`
+  再次通过。`npm --prefix frontend run test:unit` 174 项通过；typecheck / build 通过；
+  `gofmt -l` 本次 Go 文件无输出；限定本次路径的 `git diff --check` 通过。
+  浏览器预览以仓库内匿名 PNG 为输入，图片预览及文字编辑符合预期；无 Wails 时发送按钮禁用，
+  没有用模拟成功替代真实回复。新增真实 Provider / Wails 真机闭环未运行，不继承历史验收。
+  完整 `scripts/gate.sh` 的 Go / 前端 / 三平台构建段通过，末尾 Python 入口未完成，因此不记录为
+  整体通过。初次五项 Agent 夹具因硬编码 `/tmp` 不存在失败，准备临时 `E:\tmp` 后原样全量通过，
+  无修改这五项预期。直接 `python scripts/check-docs.py` 因现有 CLAUDE.md 链接不可读失败；
+  `git archive HEAD` 的临时快照覆盖本次 docs，并仅在快照内将 CLAUDE.md 按 HEAD 目标 AGENTS.md
+  展开为文本后，原检查器检查 54 个 Markdown、0 问题。用户工作区链接保持不变。
+  `python scripts/windows-installer/test_installer.py`：2 项源契约通过，7 项因缺 makensis 跳过。
+  本轮夹具设计修正：Anthropic 根端点预期路径从 `/messages` 改为 `/v1/messages`，依据现有 SDK
+  适配和 `TestGenerateMapsMultimodalStructuredRequest`；取消夹具先读完 HTTP 请求体再观察断连，
+  保持“宿主取消必须终止在途请求”的预期不变。
+  **09-27 合并复核**：模型试用提交 `6c080c0` 与远端 `54b3044` 合并，两个文档插入冲突保留双方段落。
+  合并工作树上原门禁的全部 Go 测试、vet、本机构建、三平台核心交叉构建、前端 184 项单测、
+  typecheck / build 通过；Python 阶段仍未完成。文档临时快照改用 `git archive origin/test` 加本次
+  docs 覆盖，55 个 Markdown、0 问题；完整脚本不标通过。浏览器 600px 视口验证单列，
+  document scrollWidth 等于 viewport 600px。临时快照清理后，合并检出的 Go 文件仅因 CRLF 被 gofmt
+  列出；恢复标准换行后 `gofmt -l .` 无输出，Git 中没有额外 Go 内容差异。
+  回退：撤回本次页面、入口和 TryProvider 绑定；无 schema 迁移，不删除既有配置 / 密钥。
+
+- **2026-09-23 回归修复**：默认 Anthropic 端点及草稿模型列表的端点规范化由 Go 夹具验证；`./scripts/gate.sh` 通过。真实 Provider 网络调用未在本次重跑。
 
 - **Go 与存储（2026-09-10—20）**：`go test ./internal/ai/... ./internal/app/...`、`go vet`、`CGO_ENABLED=0 go build ./...` 及匿名 TLS 夹具覆盖三协议、连接探针、重试 / 回退、错误脱敏、路由与多模型迁移。macOS 钥匙串有一次真实 smoke；Windows 与 Linux 适配器已落盘。
 - **前端**：typecheck、构建和匿名配置交互覆盖 Provider 表单、模型列表、逐模型连接测试与有序回退链。

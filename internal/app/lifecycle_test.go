@@ -2,12 +2,20 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/fake"
 )
+
+type failedRelaunchSystem struct {
+	*fake.System
+	err error
+}
+
+func (s *failedRelaunchSystem) Relaunch(context.Context) error { return s.err }
 
 func TestApplicationActivationRoutesToWindowAction(t *testing.T) {
 	sys := fake.NewSystem()
@@ -145,5 +153,68 @@ func TestBackgroundTransitionsNilSystem(t *testing.T) {
 	}
 	if err := b.exitBackground(context.Background()); err != nil {
 		t.Fatalf("exitBackground with nil system must be a no-op: %v", err)
+	}
+}
+
+func TestPermissionRestartDefaultsDisarmed(t *testing.T) {
+	b := NewBackend(fake.NewSystem(), nil)
+	if b.permissionRestartArmed() {
+		t.Fatal("a fresh backend must not arm the permission restart; an ordinary Cmd+Q soft-quits")
+	}
+}
+
+func TestArmAndDisarmPermissionRestart(t *testing.T) {
+	b := NewBackend(fake.NewSystem(), nil)
+	if err := b.SetPermissionRestartArmed(true); err != nil {
+		t.Fatalf("SetPermissionRestartArmed(true): %v", err)
+	}
+	if !b.permissionRestartArmed() {
+		t.Fatal("arming must let the next quit terminate and relaunch")
+	}
+	if err := b.SetPermissionRestartArmed(false); err != nil {
+		t.Fatalf("SetPermissionRestartArmed(false): %v", err)
+	}
+	if b.permissionRestartArmed() {
+		t.Fatal("disarming must return the next quit to a background soft-quit")
+	}
+}
+
+func TestBeginPermissionRestartSchedulesRelaunch(t *testing.T) {
+	sys := fake.NewSystem()
+	b := NewBackend(sys, nil)
+	if err := b.beginPermissionRestart(); err != nil {
+		t.Fatal(err)
+	}
+	if got := sys.Relaunches(); got != 1 {
+		t.Fatalf("beginPermissionRestart must schedule exactly one relaunch, got %d", got)
+	}
+}
+
+func TestBeginPermissionRestartWithoutRelauncherFails(t *testing.T) {
+	b := NewBackend(nil, nil)
+	if err := b.beginPermissionRestart(); err == nil {
+		t.Fatal("missing relauncher must prevent quit")
+	}
+}
+
+func TestRelaunchForPermissionPreservesProcessOnRelaunchFailure(t *testing.T) {
+	want := errors.New("fixture: relaunch failed")
+	b := NewBackend(&failedRelaunchSystem{System: fake.NewSystem(), err: want}, nil)
+	quit := false
+	b.setShutdownRequester(func() { quit = true })
+	if err := b.RelaunchForPermission(); !errors.Is(err, want) {
+		t.Fatalf("RelaunchForPermission error = %v", err)
+	}
+	if quit {
+		t.Fatal("failed relaunch must not terminate the process")
+	}
+}
+
+func TestRelaunchForPermissionWithoutShellIsUnavailable(t *testing.T) {
+	// Without a desktop shell (no shutdown requester installed) the binding must
+	// report native_unavailable rather than pretend it restarted.
+	b := NewBackend(fake.NewSystem(), nil)
+	if err := b.RelaunchForPermission(); err == nil {
+		t.Fatal("RelaunchForPermission without a shell must fail rather than silently no-op")
 	}
 }

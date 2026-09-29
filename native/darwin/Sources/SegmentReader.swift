@@ -88,6 +88,10 @@ final class SegmentReader: @unchecked Sendable {
             let err = reader.error as? NSError
             throw ScreenshotFailure.native(Int64(err?.code ?? Int(EIO)))
         }
+        // A frame read stops after one sample, before AVAssetReader reaches its
+        // natural end. Explicitly tear down its CoreMedia decode pipeline on
+        // every return path, including JPEG encoding and missing-frame errors.
+        defer { reader.cancelReading() }
 
         guard let sampleBuffer = trackOutput.copyNextSampleBuffer(),
               let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {

@@ -4,7 +4,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define DG_STATUS_ITEM_ABI_MAJOR 2u
+#define DG_STATUS_ITEM_ABI_MAJOR 3u
+enum { DG_STATUS_ICON_INACTIVE=0, DG_STATUS_ICON_BUSY=1, DG_STATUS_ICON_ACTIVE=2, DG_STATUS_ICON_PAUSED=3, DG_STATUS_ICON_WARNING=4 };
 typedef void (*dg_status_item_action_callback_v1)(uint32_t action, void *user_data);
 enum {
   DG_STATUS_ITEM_OPEN = 1,
@@ -22,7 +23,8 @@ enum {
 };
 typedef struct dg_status_item_state_v1 {
   uint32_t visible;
-  /* When set, render pause_menu_label as a submenu of the four pause_* items.
+  uint32_t icon;
+  /* When set, render the four pause_* items (macOS inline, Windows submenu).
      When clear, render primary_action_label as a single item. */
   uint32_t pause_durations_enabled;
   /* Enables the single primary action (disabled while starting). */
@@ -44,6 +46,9 @@ int32_t dg_status_item_set(uint32_t requested_abi_major,
                            dg_status_item_action_callback_v1 callback,
                            void *user_data);
 void dg_status_item_stop(void);
+/* macOS applied-state query: 1 installed/visible, 0 unavailable. Unlike repaint,
+   this waits for the main thread. Do not call from recorder event callbacks. */
+int32_t dg_status_item_is_available(void);
 #ifdef __cplusplus
 }
 #endif

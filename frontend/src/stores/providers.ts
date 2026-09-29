@@ -15,7 +15,6 @@ import {
   getProviderRouting,
   listProviders,
   setProviderRouting,
-  setProviderSecret,
   updateProvider,
 } from '@/api/providers'
 import { asMember, asRecordArray, asString, asText } from '@/storage/decode'
@@ -26,7 +25,7 @@ import { readRecord, removeKey } from '@/storage/local'
 export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
   openai: 'https://api.openai.com/v1',
   openai_responses: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com/v1',
+  anthropic: 'https://api.anthropic.com',
 }
 
 export type ProviderField = 'displayName' | 'endpoint' | 'models' | 'maxImages'
@@ -119,7 +118,7 @@ function validate(draft: ProviderDraft): { ok: true } | { ok: false; errors: Pro
     errors.endpoint = 'invalidUrl'
   }
 
-  if (!Number.isInteger(draft.maxImages) || draft.maxImages < 0 || draft.maxImages > 20) {
+  if (!Number.isInteger(draft.maxImages) || draft.maxImages < 0 || draft.maxImages > 5) {
     errors.maxImages = 'range'
   }
 
@@ -305,13 +304,6 @@ export const useProvidersStore = defineStore('providers', () => {
     await refresh()
   }
 
-  /** Save a key without touching other fields (the secret-entry row). */
-  async function saveSecret(id: string, secret: string): Promise<void> {
-    if (secret.trim() === '') return
-    await setProviderSecret(id, secret.trim())
-    await refresh()
-  }
-
   return {
     providers,
     routing,
@@ -323,6 +315,5 @@ export const useProvidersStore = defineStore('providers', () => {
     remove,
     setChain,
     clearSecret,
-    saveSecret,
   }
 })
