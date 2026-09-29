@@ -98,7 +98,7 @@ cd Daygo
 更多设计规格、架构分层与贡献约束见 [docs/README.md](docs/README.md) 与 [AGENTS.md](AGENTS.md)。
 
 遇到问题欢迎提 [Issue](https://github.com/Jwz-git/Daygo/issues)——请不要附带真实截图、API Key、数据库或其他敏感信息。
-
+你的创意可以会被重视。
 ## 许可证
 
 本项目基于 [MIT License](LICENSE) 开源。
