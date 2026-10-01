@@ -103,6 +103,15 @@
   /* selected segment: solid, like the switch knob, so the label stays crisp */
   --dg-segment-thumb: #ffffff;
 
+  /* header capsule controls (period nav, filter chips): a neutral grey
+     wash, with the selected chip inverted to solid label colour */
+  --dg-capsule-fill: rgba(118, 118, 128, 0.1);
+  --dg-capsule-hover: rgba(118, 118, 128, 0.17);
+  --dg-capsule-text: #3a3a3c;
+  --dg-capsule-selected-fill: #1d1d1f;
+  --dg-capsule-selected-text: #ffffff;
+  --dg-segment-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+
   /* text fields, selects (→ inputFill / inputBorder) */
   --dg-input-fill: rgba(255, 255, 255, 0.76);
   --dg-input-fill-hover: rgba(255, 255, 255, 0.94);

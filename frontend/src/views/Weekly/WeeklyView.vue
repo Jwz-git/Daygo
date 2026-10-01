@@ -53,7 +53,7 @@ onBeforeUnmount(() => weekly.stopListening())
 
 <template>
   <div class="page weekly-page">
-    <PageHeader :title="dateTitle">
+    <PageHeader :title="dateTitle" hide-title>
       <template #lead>
         <PeriodNav
           :label="t('weekly.navigation.label')"
@@ -65,6 +65,7 @@ onBeforeUnmount(() => weekly.stopListening())
           @navigate="(offset) => weekly.navigate(offset)"
           @current="weekly.load()"
         />
+        <h1 class="dg-page-date dg-display">{{ dateTitle }}</h1>
       </template>
 
       <template #trail>

@@ -97,7 +97,7 @@ onBeforeUnmount(() => daily.stopListening())
 
 <template>
   <div class="page daily-page">
-    <PageHeader :title="dateTitle">
+    <PageHeader :title="dateTitle" hide-title>
       <template #lead>
         <PeriodNav
           :label="t('daily.navigation.label')"
@@ -110,6 +110,7 @@ onBeforeUnmount(() => daily.stopListening())
           @navigate="navigate"
           @current="goToToday"
         />
+        <h1 class="dg-page-date dg-display">{{ dateTitle }}</h1>
       </template>
 
       <template #trail>

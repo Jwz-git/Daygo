@@ -499,7 +499,7 @@ onBeforeUnmount(() => {
               {{ t(`timeline.mode.${mode}`) }}
             </button>
           </div>
-          <h1 class="timeline-date dg-display">{{ dateTitle }}</h1>
+          <h1 class="timeline-date dg-page-date dg-display">{{ dateTitle }}</h1>
         </div>
       </template>
 
@@ -759,24 +759,24 @@ onBeforeUnmount(() => {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 7px;
-  min-height: 30px;
-  padding: 5px 12px;
-  border: 1px solid var(--dg-timeline-card-border);
-  border-radius: 7px;
-  background: var(--dg-timeline-card-fill);
-  color: var(--dg-text-primary);
-  font-size: 11px;
-  font-weight: 600;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 11px;
+  border: none;
+  border-radius: 999px;
+  background: var(--dg-capsule-fill);
+  color: var(--dg-capsule-text);
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
   transition: background var(--dg-motion-fast) ease, border-color var(--dg-motion-fast) ease;
 }
 
-.filter-chip:hover { background: var(--dg-timeline-card-hover); }
+.filter-chip:hover { background: var(--dg-capsule-hover); }
 .filter-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .filter-chip.is-selected {
-  border-color: color-mix(in srgb, var(--dg-accent) 45%, transparent);
-  background: var(--dg-timeline-card-selected);
+  background: var(--dg-capsule-selected-fill);
+  color: var(--dg-capsule-selected-text);
 }
 .filter-chip i { width: 7px; height: 7px; border-radius: 50%; }
 .filter-bar__spacer { flex: 1; }
@@ -786,8 +786,9 @@ onBeforeUnmount(() => {
 
 /* Pencil entry to the category wizard. */
 .filter-edit {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
+  background: transparent;
   justify-content: center;
   padding: 0;
 }
@@ -797,7 +798,7 @@ onBeforeUnmount(() => {
 .filter-edit:not(:disabled):focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .filter-edit svg { width: 14px; height: 14px; }
 .filter-manage:not(:disabled) { color: var(--dg-text-secondary); cursor: pointer; }
-.filter-manage:not(:disabled):hover { background: var(--dg-hover-fill); color: var(--dg-text-primary); }
+.filter-manage:not(:disabled):hover { background: var(--dg-capsule-hover); color: var(--dg-text-primary); }
 .filter-manage:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .filter-error { flex: none; color: var(--dg-danger); font-size: 10px; white-space: nowrap; }
 
@@ -939,48 +940,43 @@ onBeforeUnmount(() => {
 
 .tool-button {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   place-items: center;
   border: none;
-  border-radius: 9px;
-  background: var(--dg-control-fill);
+  border-radius: 7px;
+  background: transparent;
   color: var(--dg-text-secondary);
   cursor: pointer;
   transition: background var(--dg-motion-fast) ease, transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
-.tool-button:hover { background: var(--dg-control-fill-hover); color: var(--dg-text-primary); }
+.tool-button:hover { background: var(--dg-capsule-hover); color: var(--dg-text-primary); }
 .tool-button:active { transform: scale(0.96); }
 .tool-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .tool-button svg { width: 16px; height: 16px; }
 
 /* In-header date, sitting right of the controls like the reference. */
 .timeline-date {
-  margin: 0 0 0 6px;
-  overflow: hidden;
-  color: var(--dg-text-primary);
-  font-size: 24px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-left: 8px;
 }
 
 .mode-toggle {
   display: inline-flex;
-  padding: 3px;
-  border-radius: 9px;
-  background: var(--dg-control-fill);
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--dg-capsule-fill);
 }
 
 .mode-toggle__item {
   min-width: 44px;
-  padding: 5px 12px;
+  padding: 2px 12px;
   border: none;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  font-weight: 550;
+  color: var(--dg-text-primary);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   transition:
     background var(--dg-motion-fast) ease,
@@ -992,10 +988,9 @@ onBeforeUnmount(() => {
 .mode-toggle__item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 
 .mode-toggle__item.is-active {
-  background: var(--dg-popover-fill, var(--dg-surface));
+  background: var(--dg-segment-thumb);
   color: var(--dg-text-primary);
-  font-weight: 600;
-  box-shadow: var(--dg-shadow-sm);
+  box-shadow: var(--dg-segment-thumb-shadow);
 }
 
 /* Warm pill echoing the reference recording control; kept local because no

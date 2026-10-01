@@ -53,6 +53,19 @@ body {
   letter-spacing: var(--dg-font-display-tracking);
 }
 
+/* The date that titles a period page (timeline, daily, weekly). It follows
+   the period navigation in the header, so all three pages read the same. */
+.dg-page-date {
+  margin: 0;
+  overflow: hidden;
+  color: var(--dg-text-primary);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dg-reading {
   font-family: var(--dg-font-reading);
 }

@@ -35,7 +35,7 @@ const { t } = useI18n()
       :disabled="!props.canBackward"
       @click="emit('navigate', -1)"
     >
-      ‹
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>
     </button>
     <button
       type="button"
@@ -45,11 +45,11 @@ const { t } = useI18n()
       :disabled="!props.canForward"
       @click="emit('navigate', 1)"
     >
-      ›
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>
     </button>
     <button
       type="button"
-      class="dg-chip dg-chip--filled"
+      class="period-nav__current"
       :disabled="props.currentDisabled"
       @click="emit('current')"
     >
@@ -59,10 +59,15 @@ const { t } = useI18n()
 </template>
 
 <style scoped>
+/* One quiet capsule holding the step arrows and the jump-to-current action. */
 .period-nav {
-  display: flex;
+  display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 5px;
+  height: 28px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: var(--dg-capsule-fill);
   /* Header slots turn the surrounding region into a window-drag surface; the
      nav itself must remain clickable, so opt out at the root and let the
      buttons below inherit no-drag. */
@@ -70,29 +75,58 @@ const { t } = useI18n()
   --wails-draggable: no-drag;
 }
 
-.period-nav__arrow {
+.period-nav__arrow,
+.period-nav__current {
   display: grid;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  color: var(--dg-text-secondary);
-  font-size: 25px;
-  line-height: 1;
+  height: 24px;
+  border-radius: 999px;
+  color: var(--dg-text-primary);
   place-items: center;
+  transition: background var(--dg-motion-fast) ease;
 }
 
-.period-nav__arrow:not(:disabled):hover {
-  background: var(--dg-hover-fill);
+.period-nav__arrow {
+  width: 26px;
 }
 
-.period-nav__arrow:focus-visible {
+.period-nav__arrow svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.period-nav__current {
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.period-nav__arrow:not(:disabled):hover,
+.period-nav__current:not(:disabled):hover {
+  background: var(--dg-capsule-hover);
+}
+
+.period-nav__arrow:focus-visible,
+.period-nav__current:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
-.period-nav__arrow:disabled {
+.period-nav__arrow:disabled,
+.period-nav__current:disabled {
   color: var(--dg-text-muted);
   cursor: default;
-  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .period-nav__arrow,
+  .period-nav__current {
+    transition: none;
+  }
 }
 </style>
