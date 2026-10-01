@@ -38,4 +38,4 @@ export function onRecordingState(callback: (state: string) => void): () => void 
     const state = (value as RecordingEventPayload).state
     if (typeof state === 'string') callback(state)
   }, -1) ?? (() => undefined)
-} 
+}

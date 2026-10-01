@@ -1,7 +1,10 @@
 import { SetNativeUiLabels } from '../../wailsjs/go/app/Backend'
 import { app } from '../../wailsjs/go/models'
 
-export type NativeUiLabels = Omit<app.NativeUiLabelsDTO, 'convertValues'>
+export type NativeUiLabels = Omit<app.NativeUiLabelsDTO, 'convertValues'> & {
+  journalReminderTitle: string
+  journalReminderBody: string
+}
 
 /**
  * Pushes the localized copy for native surfaces the webview cannot reach — the

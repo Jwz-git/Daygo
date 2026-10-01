@@ -125,6 +125,36 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 
 ## 验证记录
 
+- **2026-09-29 Qwen3-VL 配置修复复测（`939a75b` 工作树，Windows amd64 + WSL Ubuntu）**：
+  官方 `qwen3-vl:8b-instruct` 已下载，模型元数据确认 renderer / parser 为 `qwen3-vl-instruct`，
+  能力不含 thinking。保留原 Thinking 模型；LiteLLM 外部别名仍为 `qwen3-vl-8b`，
+  仅将其上游改为 `ollama_chat/qwen3-vl:8b-instruct`，保留 `num_ctx: 8192`。
+  已验证其余 YAML 字段不变，修改前在配置所在目录生成权限 `0600` 的备份，重启服务生效。
+  `CGO_ENABLED=0 DAYGO_ANONYMOUS_PROBE=1 DAYGO_PROBE_INSTRUCT_DIRECT=1 go test ./internal/analysis -run '^TestLocalAnonymousProbe$' -v -count=1`
+  直连通过：转录 12.011 秒、卡片 4.727 秒。移除 `DAYGO_PROBE_INSTRUCT_DIRECT` 后同一测试经
+  已保存 Provider / LiteLLM 别名再次通过：转录 9.018 秒、卡片 3.528 秒，各返回一项；
+  两阶段均 `finish_reason=stop`、推理字段为空，严格 Schema、非空标题 / 摘要、既有分类和
+  匿名 10:00–10:15 时间窗检查通过。Ollama `/api/ps` 确认实际上下文为 8192。
+  输入为仓库匿名 PNG，转录结果映射到固定匿名窗口；真实截图、既有失败批次重试、Wails
+  展示及长期稳定性未在本次复测，不将此匿名真实 Provider 验证提升为完整 G-loop 验收。
+  Daygo 生产代码、输出预算和校验规则未改。回退：恢复修改前 YAML 并重启 LiteLLM；原模型保留，
+  不回滚或删除用户数据库。文档在隔离快照中运行 `scripts/check-docs.py`（仅将不可读的
+  CLAUDE.md 链接物化为 AGENTS.md 文本）：56 篇 Markdown、0 问题。限定文档路径的
+  `git -c core.whitespace=cr-at-eol diff --check` 通过（保留 providers.md 已入库的 CRLF）。
+
+- **2026-09-27—28 本地 Qwen3-VL / LiteLLM 排查（`058ea03` 工作树，Windows amd64 + WSL Ubuntu，Ollama 0.32.11）**：
+  模型试用成功不等于分析可用。只读调用元数据显示转录失败为 `invalid_output`；匿名图标配合
+  生产转录提示词 / Schema 复现 HTTP 200、空正文。上游 `ollama/qwen3-vl:8b` 改为
+  `ollama_chat/qwen3-vl:8b` 后转录可以通过，但匿名卡片请求在 4096 上下文下出现
+  2797 输入 + 1299 输出、`finish_reason=length`、正文为空。设 `num_ctx: 8192` 后实际加载值
+  已核验；随后卡片仍耗尽 4096 输出预算，只有推理内容。模型元数据显示 renderer / parser 为
+  `qwen3-vl-thinking`；`reasoning_effort: none` 实测仍返回空正文和推理字段，已撤回该尝试。
+  因而不能把适配路径修改或扩大上下文单独记录为修复完成，也不能将推理字段当成最终卡片。
+  后续验证目标为官方 `qwen3-vl:8b-instruct`，保留原模型和外部模型别名；结果见上方 09-29 记录。
+  显式启用的 `TestLocalAnonymousProbe` 使用仓库内匿名 PNG、生产提示词和严格 Schema，
+  只读配置与系统密钥，密钥仅在内存中用于已配置服务，不发送真实截图、不写用户数据库。
+  此记录不提升 G-loop / 长期观察验收；Daygo 代码、输出预算和校验契约未修改。
+
 - **2026-09-26—27 模型试用（基于 `ab8624b` 的 test 工作树，Windows amd64）**：新增匿名 HTTP 夹具覆盖三协议实际图文
   请求 / 原始文本返回、无 schema / 单次调用、非法模型零请求、MIME 不一致 / 非图片 / 超限输入拒绝、
   错误不回显正文。前端夹具覆盖重复发送闸门、清理后的迟到结果丢弃、上传大小 / 类型及回复 HTML 转义。

@@ -6,6 +6,10 @@
 
 ## 9.1 模块总表
 
+2026-09-29：LiteLLM 中既有 Qwen3-VL 别名已改用 `ollama_chat/qwen3-vl:8b-instruct`、8192 上下文；匿名生产转录 / 卡片两阶段经实际 Provider 验证通过。真实截图、历史批次重试和 Wails 闭环未在本次复测；详见 [providers 验证记录](modules/providers.md#验证记录)，不提升模块或长期观察验收。
+
+2026-09-28：本地 Qwen3-VL 经 LiteLLM 的转录 / 卡片排查发现上游适配路径、上下文及推理输出预算问题；配置实验与证据边界见 [providers 验证记录](modules/providers.md#验证记录)。不修改 Daygo 输出校验契约，不提升模块或 G-loop 验收状态。
+
 2026-09-27：模型测试与试用统一入口，旧固定探针不再由设置页触发。九语言文案、显式成功状态与输入变化清除旧结果已实现；验证与真实闭环边界见 [providers 执行册](modules/providers.md)。
 
 2026-09-26 历史验收之后的增量：providers 新增模型试用独立页面与 `TryProvider` 图文请求绑定，
