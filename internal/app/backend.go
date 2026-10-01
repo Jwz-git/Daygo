@@ -111,10 +111,7 @@ type Backend struct {
 	// changed makes no platform call (docs/decisions/notifications-journal-reminder.md).
 	reminderMu sync.Mutex
 	reminder   journalReminderState
-	// backgrounded is true between a soft-quit and the next restore: the window
-	// is ordered out and the activation policy is accessory. It is the single
-	// condition an activation uses to decide whether the window needs bringing
-	// back (restoreOnActivation).
+	// backgrounded tracks a soft quit independently of the saved Dock preference.
 	backgroundMu      sync.Mutex
 	backgrounded      bool
 	activationApplied bool
@@ -520,13 +517,7 @@ func (b *Backend) beginPermissionRestart() error {
 	return nil
 }
 
-// enterBackground drops the app to accessory (no Dock icon) for a soft-quit.
-// The status item stays as the only way back. It is a no-op without a platform
-// System (headless construction).
-//
-// The policy is pushed only on the transition, and the flag is set even when
-// that push fails: the caller has already ordered the window out by then, so an
-// activation must still be able to bring it back.
+// enterBackground marks a soft quit even if the Dock policy cannot be applied.
 func (b *Backend) enterBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
 	defer b.backgroundMu.Unlock()
@@ -534,26 +525,13 @@ func (b *Backend) enterBackground(ctx context.Context) error {
 	return b.applyDockPolicyLocked(ctx, true)
 }
 
-// exitBackground restores the configured foreground policy when the user
-// reopens the window from the status item (regular by default).
-//
-// The app launches regular (Wails sets NSApplicationActivationPolicyRegular in
-// applicationWillFinishLaunching), so an app that never left the foreground is
-// already there: pushing regular again would re-order its windows while the
-// system is still activating it, which is what made a Mission Control
-// activation show the window for a frame and then lose it.
+// exitBackground clears the soft-quit intent before restoring the saved Dock policy.
 func (b *Backend) exitBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
 	defer b.backgroundMu.Unlock()
-	if b.system == nil {
-		b.backgrounded = false
-		return nil
-	}
-	if err := b.applyDockPolicyLocked(ctx, false); err != nil {
-		return err
-	}
+	// The caller shows the window even if restoring the Dock policy fails.
 	b.backgrounded = false
-	return nil
+	return b.applyDockPolicyLocked(ctx, false)
 }
 
 // The preference and soft-quit are separate: an accessory app can have a visible
@@ -608,16 +586,7 @@ func (b *Backend) loadDockPreference(ctx context.Context) {
 	}
 }
 
-// restoreOnActivation runs show only when a soft-quit left the app in the
-// background with its window ordered out — the one state a system activation
-// has to undo.
-//
-// Every other activation is the system bringing the app forward on its own (Dock
-// icon, Cmd-Tab, Mission Control), and macOS has already restored the window:
-// window-close hides the app via [NSApp hide], which unhides its windows for
-// free. Re-showing the window there fights that transition rather than helping
-// it. Skipping it also breaks the loop where showWindow's own
-// activateIgnoringOtherApps calls re-post didBecomeActive.
+// restoreOnActivation handles only pending soft quits; ordinary activation is owned by AppKit.
 func (b *Backend) restoreOnActivation(show func()) {
 	if show == nil || !b.needsWindowRestore() {
 		return
@@ -625,8 +594,7 @@ func (b *Backend) restoreOnActivation(show func()) {
 	show()
 }
 
-// needsWindowRestore reports whether a soft-quit is still in effect, i.e. the
-// window was ordered out and the Dock icon dropped.
+// needsWindowRestore reports whether a soft quit is still pending.
 func (b *Backend) needsWindowRestore() bool {
 	b.backgroundMu.Lock()
 	defer b.backgroundMu.Unlock()

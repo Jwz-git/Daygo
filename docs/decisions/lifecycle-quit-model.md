@@ -71,7 +71,9 @@ Go 侧（`internal/app`，可在 `CGO_ENABLED=0` / Linux 下测试）：
   再 `runtime.Quit`。Wails v2.15.0 没有 reopen 回调，所以原生 `System` 观察该通知，经
   `System.Events` 把激活意图交给 app 层；平台层本身不操作 Wails 窗口。
 - 两个状态转换都是**幂等**的：成功应用的同一策略不重复下发；失败策略不记录成功，后续显式
-  重开重试。`Backend.backgrounded` 独立记录窗口被 order out，即使策略失败也置位。
+  重开重试。`Backend.backgrounded` 独立记录窗口被 order out，即使进入后台时策略失败也置位。
+  重开会清除此标记，即使 Dock 策略恢复失败也不保留它，因为调用方仍会显示窗口；
+  后续普通激活不重复 Show，策略失败仍由下一次显式重开重试。
 
 **为什么激活路径必须设这道闸**（此前缺失，表现为窗口闪一下就消失）：
 

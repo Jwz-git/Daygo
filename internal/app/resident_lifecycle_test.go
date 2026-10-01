@@ -71,6 +71,40 @@ func TestFailedActivationPolicyCanBeRetried(t *testing.T) {
 	}
 }
 
+func TestReopenAfterDockPolicyFailureDoesNotRepeatOnActivation(t *testing.T) {
+	sys := &residentSystemFixture{System: fake.NewSystem(), available: true}
+	b := NewBackend(sys, nil)
+	ctx := context.Background()
+	if err := b.enterBackground(ctx); err != nil {
+		t.Fatal(err)
+	}
+	want := errors.New("fixture: policy refused")
+	sys.policyErr = want
+	shown := 0
+	show := func() {
+		if err := b.exitBackground(ctx); !errors.Is(err, want) {
+			t.Fatalf("restore policy error = %v, want %v", err, want)
+		}
+		shown++
+	}
+	b.restoreOnActivation(show)
+	b.restoreOnActivation(show)
+	b.restoreOnActivation(show)
+	if shown != 1 || b.needsWindowRestore() {
+		t.Fatalf("visible reopen must not repeat on activation: shown=%d, backgrounded=%v", shown, b.needsWindowRestore())
+	}
+	if len(sys.policies) != 2 {
+		t.Fatalf("policy attempts = %d, want soft quit and one restore", len(sys.policies))
+	}
+	sys.policyErr = nil
+	if err := b.exitBackground(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sys.ActivationPolicy(); got != platform.ActivationRegular || len(sys.policies) != 3 {
+		t.Fatalf("explicit reopen must retry failed Dock policy: policy=%q, attempts=%d", got, len(sys.policies))
+	}
+}
+
 func TestNormalQuitPreservesProcessAfterFinalizeFailure(t *testing.T) {
 	b := NewBackend(nil, nil)
 	b.requestQuit()
