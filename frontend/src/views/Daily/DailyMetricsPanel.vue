@@ -59,12 +59,19 @@ const items = computed(() => [
   gap: 4px;
   min-width: 0;
   padding: 14px 16px;
-  border-left: 1px solid var(--dg-card-border);
+  border-left: 0.5px solid var(--dg-separator);
 }
 
 .metric:first-child { border-left: 0; }
-.metric span { color: var(--dg-text-tertiary); font-size: 11px; }
-.metric strong { color: var(--dg-text-primary); font-size: 17px; font-weight: 630; }
+.metric span { color: var(--dg-text-secondary); font-size: var(--dg-text-footnote); }
+.metric strong {
+  color: var(--dg-text-primary);
+  font-family: var(--dg-font-display);
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--dg-font-display-tracking);
+}
 
 @media (max-width: 840px) {
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -369,8 +369,8 @@ watch(() => props.saving, (isSaving, was) => {
   gap: 24px;
 }
 
-.section-heading h2 { color: var(--dg-text-primary); font-size: 18px; font-weight: 650; line-height: 1.25; }
-.section-heading p { margin-top: 3px; color: var(--dg-text-tertiary); font-size: 12px; }
+.section-heading h2 { color: var(--dg-text-primary); font-size: var(--dg-text-title2); font-weight: 650; line-height: 1.25; }
+.section-heading p { margin-top: 2px; color: var(--dg-text-secondary); font-size: var(--dg-text-callout); }
 .recap-actions { display: flex; flex: none; gap: 7px; }
 
 .recap-card {
@@ -385,13 +385,13 @@ watch(() => props.saving, (isSaving, was) => {
   padding: 21px 24px 24px;
 }
 
-.recap-column + .recap-column { border-left: 1px solid var(--dg-card-border); }
+.recap-column + .recap-column { border-left: 0.5px solid var(--dg-separator); }
 
 .recap-index {
   display: block;
   margin-bottom: 16px;
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -432,13 +432,13 @@ watch(() => props.saving, (isSaving, was) => {
   align-items: start;
   gap: 10px;
   padding: 17px 24px 19px;
-  border-top: 1px solid var(--dg-card-border);
+  border-top: 0.5px solid var(--dg-separator);
   background: var(--dg-daily-footer-fill);
 }
 
 .recap-blockers .recap-index { margin: 3px 0 0; }
 .recap-blockers p { margin-top: 3px; color: var(--dg-text-secondary); font-size: 12px; }
-.generated-at { align-self: center; color: var(--dg-text-muted); font-size: 10px; white-space: nowrap; }
+.generated-at { align-self: center; color: var(--dg-text-tertiary); font-size: 11px; white-space: nowrap; }
 
 .recap-state {
   display: flex;
@@ -497,7 +497,7 @@ watch(() => props.saving, (isSaving, was) => {
   .recap-actions { align-self: stretch; }
   .recap-actions .dg-button { flex: 1; }
   .recap-card { grid-template-columns: minmax(0, 1fr); }
-  .recap-column + .recap-column { border-top: 1px solid var(--dg-card-border); border-left: 0; }
+  .recap-column + .recap-column { border-top: 0.5px solid var(--dg-separator); border-left: 0; }
   .recap-blockers { grid-template-columns: 28px minmax(0, 1fr); }
   .generated-at { display: none; }
 }

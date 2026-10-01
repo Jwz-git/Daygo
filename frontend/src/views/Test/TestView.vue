@@ -183,6 +183,6 @@ async function clearHistory(): Promise<void> {
   background: color-mix(in srgb, var(--dg-danger) 9%, transparent);
 }
 
-.tool-note { color: var(--dg-text-muted); font-size: 10px; }
+.tool-note { color: var(--dg-text-tertiary); font-size: 11px; }
 .tool-error { color: var(--dg-danger); font-size: 11px; }
 </style>

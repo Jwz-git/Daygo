@@ -205,7 +205,7 @@ function submit(): void {
 
 .goal-category-group { display: grid; gap: 6px; }
 
-.goal-category-label { color: var(--dg-text-muted); font-size: 10px; font-weight: 600; }
+.goal-category-label { color: var(--dg-text-tertiary); font-size: 11px; font-weight: 600; }
 
 .goal-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 

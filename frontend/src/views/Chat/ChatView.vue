@@ -201,25 +201,42 @@ onMounted(() => {
 
 /* ---- glass panel ---- */
 
-.panel {
+/* The conversation sits directly on the window canvas like every other
+   page; the glass level's sheet would read as a card wrapping the window. */
+.layout > .panel {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  /* Match the shell panel's corner so the covered frame never peeks
-     through at the corners. */
-  border-radius: var(--dg-panel-radius);
-  padding: 0 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  padding: 0 var(--dg-page-padding);
+}
+
+.layout > .panel::before {
+  display: none;
 }
 
 .panel__head {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 0 8px;
+  gap: 6px;
+  padding: 18px 0 10px;
   flex: none;
-  border-bottom: 1px solid var(--dg-card-border);
+  border-bottom: 0.5px solid var(--dg-separator);
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
+}
+
+.panel__head > *,
+.panel__headRow > * {
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 
 .panel__headRow {
@@ -244,26 +261,26 @@ onMounted(() => {
 
 .panel__foot {
   flex: none;
-  padding: 4px 4px 8px;
+  padding: 6px 4px 16px;
 }
 
 /* ---- header toggle button (in panel head) ---- */
 .header-toggle {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 8px;
-  background: var(--dg-track-fill);
+  border: none;
+  border-radius: 7px;
+  background: transparent;
   color: var(--dg-text-secondary);
   cursor: pointer;
   transition: background var(--dg-motion-base) ease, color var(--dg-motion-base) ease;
 }
 
 .header-toggle:hover {
-  background: var(--dg-control-fill);
+  background: var(--dg-hover-fill-strong);
   color: var(--dg-text-primary);
 }
 

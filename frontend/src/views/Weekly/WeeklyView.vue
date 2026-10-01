@@ -109,7 +109,7 @@ onBeforeUnmount(() => weekly.stopListening())
 
 <style scoped>
 
-.week-meta { color: var(--dg-text-muted); font-size: 10px; white-space: nowrap; }
+.week-meta { color: var(--dg-text-tertiary); font-size: var(--dg-text-footnote); white-space: nowrap; }
 
 .weekly-body {
   flex: 1;
@@ -120,50 +120,47 @@ onBeforeUnmount(() => weekly.stopListening())
 .weekly-content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   width: 100%;
   max-width: var(--dg-weekly-content-max);
   margin: 0 auto;
 }
 
+/* Title over its explanation, left-aligned — same rhythm as the daily page. */
 .weekly-intro {
-  display: grid;
-  grid-template-columns: minmax(260px, 0.85fr) minmax(300px, 1.15fr);
-  align-items: end;
-  gap: 32px;
-  padding: 4px 2px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px;
 }
 
 .weekly-intro span {
-  display: inline-block;
+  display: block;
   color: var(--dg-weekly-tag-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: var(--dg-text-callout);
+  font-weight: 600;
 }
 
 .weekly-intro h2 {
-  margin-top: 8px;
+  margin-top: 2px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
-  font-size: 30px;
-  font-weight: 400;
-  letter-spacing: 0;
+  font-family: var(--dg-font-display);
+  font-size: var(--dg-text-title1);
+  font-weight: 700;
+  letter-spacing: var(--dg-font-display-tracking);
 }
 
-.weekly-intro p { color: var(--dg-text-tertiary); font-size: 12px; line-height: 1.55; }
+.weekly-intro p { color: var(--dg-text-secondary); font-size: var(--dg-text-body); line-height: 1.5; }
 
 .weekly-scope-note {
   padding: 0 2px 6px;
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: var(--dg-text-footnote);
   line-height: 1.5;
 }
 
 @media (max-width: 760px) {
   .week-meta { display: none; }
   .weekly-body { padding-right: 16px; padding-left: 16px; }
-  .weekly-intro { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 }
 </style>

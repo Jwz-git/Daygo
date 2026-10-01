@@ -211,8 +211,8 @@ onBeforeUnmount(() => {
 
 .calendar__weekday {
   padding: 3px 0;
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
   text-align: center;
 }
 

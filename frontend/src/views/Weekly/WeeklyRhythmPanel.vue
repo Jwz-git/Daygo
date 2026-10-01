@@ -99,18 +99,16 @@ const dayWidthStyle = (bar: { total: number }) => ({
 .rhythm__header p {
   display: inline-block;
   color: var(--dg-weekly-tag-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: var(--dg-text-callout);
+  font-weight: 600;
 }
 
 .rhythm__header h2 {
-  margin-top: 7px;
+  margin-top: 2px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
-  font-size: 24px;
-  font-weight: 400;
+  font-family: var(--dg-font-display);
+  font-size: var(--dg-text-title2);
+  font-weight: 650;
   letter-spacing: 0;
 }
 
@@ -156,7 +154,8 @@ const dayWidthStyle = (bar: { total: number }) => ({
 
 .rhythm__column--peak .rhythm__hour { color: var(--dg-accent-text); font-weight: 650; }
 
-.rhythm__bar { display: block; width: 100%; border-radius: 2px 2px 0 0; }
+/* Screen Time–style columns: narrower than their slot, fully rounded caps. */
+.rhythm__bar { display: block; width: 62%; margin: 0 auto; border-radius: 4px; }
 
 .rhythm__bar--focus { flex: 10000; background: var(--dg-weekly-focus); }
 .rhythm__bar--idle { flex: 1 1 auto; min-height: 2px; background: var(--dg-weekly-series-6); opacity: 0.55; }
@@ -166,8 +165,8 @@ const dayWidthStyle = (bar: { total: number }) => ({
   top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  color: var(--dg-text-muted);
-  font-size: 9px;
+  color: var(--dg-text-tertiary);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -192,6 +191,6 @@ const dayWidthStyle = (bar: { total: number }) => ({
 
 @media (max-width: 640px) {
   .rhythm__legend { display: none; }
-  .rhythm__hour { font-size: 8px; }
+  .rhythm__hour { font-size: 10px; }
 }
 </style>

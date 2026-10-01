@@ -30,7 +30,7 @@ const props = defineProps<{
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
   height: var(--dg-rail-item-size);
   color: var(--dg-text-secondary);
@@ -69,9 +69,9 @@ const props = defineProps<{
 
 .rail-item__label {
   font-size: var(--dg-rail-label-size);
-  font-weight: 520;
+  font-weight: 500;
   line-height: 1.1;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   transition: color var(--dg-motion-fast) ease;
 }
 
@@ -85,6 +85,15 @@ const props = defineProps<{
 
 .rail-item.is-active {
   color: var(--dg-text-primary);
+}
+
+/* The selected glyph takes the accent, the way a source-list symbol does. */
+.rail-item.is-active .rail-item__icon {
+  color: var(--dg-accent);
+}
+
+.rail-item.is-active .rail-item__label {
+  font-weight: 600;
 }
 
 .rail-item.is-active .rail-item__glyph {

@@ -41,7 +41,9 @@ const props = defineProps<{ title: string; hideTitle?: boolean }>()
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 26px var(--dg-page-padding) 18px;
+  /* The top band lines up with the traffic lights in the floating sidebar. */
+  min-height: 64px;
+  padding: 18px var(--dg-page-padding) 12px;
   -webkit-app-region: drag;
   --wails-draggable: drag;
 }
@@ -61,8 +63,9 @@ const props = defineProps<{ title: string; hideTitle?: boolean }>()
 
 .page-header__title {
   color: var(--dg-text-primary);
-  font-size: 25px;
-  line-height: 1.08;
+  font-size: var(--dg-text-large-title);
+  font-weight: 700;
+  line-height: 1.1;
   white-space: nowrap;
 }
 

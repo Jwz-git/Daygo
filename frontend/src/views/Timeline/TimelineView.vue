@@ -739,8 +739,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: var(--dg-text-footnote);
   white-space: nowrap;
 }
 
@@ -749,8 +749,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 7px;
-  min-height: 43px;
-  padding: 0 var(--dg-page-padding) 13px;
+  min-height: 38px;
+  padding: 0 var(--dg-page-padding) 10px;
   overflow-x: auto;
 }
 
@@ -759,24 +759,24 @@ onBeforeUnmount(() => {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 7px;
-  min-height: 30px;
-  padding: 5px 12px;
-  border: 1px solid var(--dg-timeline-card-border);
-  border-radius: 7px;
-  background: var(--dg-timeline-card-fill);
-  color: var(--dg-text-primary);
-  font-size: 11px;
-  font-weight: 600;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 11px;
+  border: none;
+  border-radius: 999px;
+  background: var(--dg-chip-fill);
+  color: var(--dg-chip-text);
+  font-size: var(--dg-text-callout);
+  font-weight: 500;
   white-space: nowrap;
   transition: background var(--dg-motion-fast) ease, border-color var(--dg-motion-fast) ease;
 }
 
-.filter-chip:hover { background: var(--dg-timeline-card-hover); }
+.filter-chip:hover { background: var(--dg-hover-fill-strong); }
 .filter-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .filter-chip.is-selected {
-  border-color: color-mix(in srgb, var(--dg-accent) 45%, transparent);
-  background: var(--dg-timeline-card-selected);
+  background: var(--dg-text-primary);
+  color: var(--dg-window-bg);
 }
 .filter-chip i { width: 7px; height: 7px; border-radius: 50%; }
 .filter-bar__spacer { flex: 1; }
@@ -786,8 +786,9 @@ onBeforeUnmount(() => {
 
 /* Pencil entry to the category wizard. */
 .filter-edit {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
+  background: transparent;
   justify-content: center;
   padding: 0;
 }
@@ -873,26 +874,24 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  height: 40px;
-  padding: 0 18px 0 8px;
-  border: none;
+  height: 38px;
+  padding: 0 16px 0 6px;
+  border: 0.5px solid var(--lg-border-dense);
   border-radius: 999px;
-  /* Opaque stops: both gradients mix over the opaque window base. */
-  background: linear-gradient(
-    100deg,
-    color-mix(in srgb, var(--dg-accent) 34%, var(--dg-window-bg)),
-    color-mix(in srgb, #e8804a 32%, var(--dg-window-bg))
-  );
+  /* Floating toolbar capsule: dense glass over the track. */
+  background: var(--dg-popover-fill);
+  -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+  backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
   color: var(--dg-text-primary);
-  font-size: 12px;
+  font-size: var(--dg-text-body);
   font-weight: 600;
   transform: translateX(-50%);
   cursor: pointer;
-  box-shadow: var(--dg-shadow-sm);
+  box-shadow: var(--dg-popover-shadow);
   transition: transform var(--dg-motion-base) var(--dg-ease-glide), box-shadow var(--dg-motion-fast) ease;
 }
 
-.review-fab:hover:not(:disabled) { transform: translateX(-50%) scale(1.03); }
+.review-fab:hover:not(:disabled) { transform: translateX(-50%) scale(1.02); }
 .review-fab:active:not(:disabled) { transform: translateX(-50%) scale(0.97); }
 .review-fab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .review-fab:disabled { opacity: 0.5; cursor: default; }
@@ -904,9 +903,9 @@ onBeforeUnmount(() => {
   height: 26px;
   padding: 0 9px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--dg-accent) 62%, #ffffff);
+  background: var(--dg-accent);
   color: #ffffff;
-  font-size: 12px;
+  font-size: var(--dg-text-callout);
 }
 
 .review-fab__badge svg { width: 11px; height: 11px; }
@@ -939,48 +938,48 @@ onBeforeUnmount(() => {
 
 .tool-button {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   place-items: center;
   border: none;
-  border-radius: 9px;
-  background: var(--dg-control-fill);
+  border-radius: 7px;
+  background: transparent;
   color: var(--dg-text-secondary);
   cursor: pointer;
   transition: background var(--dg-motion-fast) ease, transform var(--dg-motion-base) var(--dg-ease-glide);
 }
 
-.tool-button:hover { background: var(--dg-control-fill-hover); color: var(--dg-text-primary); }
+.tool-button:hover { background: var(--dg-hover-fill-strong); color: var(--dg-text-primary); }
 .tool-button:active { transform: scale(0.96); }
 .tool-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .tool-button svg { width: 16px; height: 16px; }
 
 /* In-header date, sitting right of the controls like the reference. */
 .timeline-date {
-  margin: 0 0 0 6px;
+  margin: 0 0 0 8px;
   overflow: hidden;
   color: var(--dg-text-primary);
-  font-size: 24px;
+  font-size: var(--dg-text-title1);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mode-toggle {
   display: inline-flex;
-  padding: 3px;
-  border-radius: 9px;
-  background: var(--dg-control-fill);
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--dg-track-fill);
 }
 
 .mode-toggle__item {
   min-width: 44px;
-  padding: 5px 12px;
+  padding: 2px 12px;
   border: none;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  font-weight: 550;
+  color: var(--dg-text-primary);
+  font-size: var(--dg-text-body);
+  font-weight: 500;
   cursor: pointer;
   transition:
     background var(--dg-motion-fast) ease,
@@ -992,10 +991,9 @@ onBeforeUnmount(() => {
 .mode-toggle__item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 
 .mode-toggle__item.is-active {
-  background: var(--dg-popover-fill, var(--dg-surface));
+  background: var(--dg-segment-thumb);
   color: var(--dg-text-primary);
-  font-weight: 600;
-  box-shadow: var(--dg-shadow-sm);
+  box-shadow: var(--dg-segment-thumb-shadow);
 }
 
 /* Warm pill echoing the reference recording control; kept local because no
@@ -1003,14 +1001,14 @@ onBeforeUnmount(() => {
 .pause-pill {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 15px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 13px;
   border: none;
   border-radius: 999px;
-  background: rgba(232, 128, 74, 0.2);
-  color: #b25a22;
-  font-size: 12px;
+  background: rgba(255, 149, 0, 0.14);
+  color: #b25000;
+  font-size: var(--dg-text-callout);
   font-weight: 600;
   cursor: pointer;
   transition: background var(--dg-motion-fast) ease, transform var(--dg-motion-base) var(--dg-ease-glide);
@@ -1038,17 +1036,17 @@ onBeforeUnmount(() => {
     bottom: 12px;
     display: block;
     width: min(var(--dg-inspector-width), calc(100% - 24px));
-    border: 1px solid var(--dg-panel-border);
+    border: 0.5px solid var(--lg-border-dense);
     border-radius: var(--dg-panel-radius);
-    background: var(--dg-glass-fallback);
-    box-shadow: var(--dg-glass-shadow);
+    background: var(--dg-surface);
+    box-shadow: var(--dg-popover-shadow);
   }
 
   /* Mirrors the .dg-panel glass in base.css; kept local because the class
      itself cannot be conditional on this breakpoint. */
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .timeline-body__inspector.has-selection {
-      background: var(--dg-glass-tint);
+      background: var(--lg-tint-glass);
       -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
       backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
     }
@@ -1070,26 +1068,25 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 36px;
+  height: 34px;
   padding: 0 14px;
-  border: 1px solid var(--dg-timeline-grid);
-  border-radius: 8px;
-  /* Opaque: mixed over the window base so the track never shows through. */
-  background: color-mix(in srgb, var(--dg-accent) 7%, var(--dg-window-bg));
-  color: var(--dg-text-secondary);
-  font-size: 12px;
+  border: 0.5px solid var(--lg-border-dense);
+  border-radius: 999px;
+  background: var(--dg-popover-fill);
+  -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+  backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
+  color: var(--dg-text-primary);
+  font-size: var(--dg-text-callout);
   font-weight: 500;
   cursor: pointer;
   transition: all var(--dg-motion-fast) ease;
-  box-shadow: var(--dg-shadow-sm);
+  box-shadow: var(--dg-popover-shadow);
 }
 
 .copy-fab svg { width: 15px; height: 15px; }
 
 .copy-fab:hover:not(:disabled) {
-  border-color: var(--dg-accent);
   color: var(--dg-accent);
-  background: var(--dg-accent-subtle);
 }
 
 .copy-fab:active:not(:disabled) { transform: scale(0.97); }
@@ -1119,8 +1116,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .modal-panel {

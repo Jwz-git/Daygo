@@ -655,8 +655,8 @@ const hasConversations = computed(() => grouped.value.length > 0)
 .drawer__group-label {
   margin: 0 0 6px;
   padding: 0 4px;
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -706,7 +706,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
 .drawer__title {
   display: block;
   color: var(--dg-text-primary);
-  font-size: 12.5px;
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -807,7 +807,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
 .memory__hint {
   margin: 0;
   color: var(--dg-text-muted);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -817,7 +817,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
   min-height: 0;
   padding: 10px 12px;
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.55;
   resize: none;
   overflow-y: auto;
@@ -837,7 +837,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
   align-items: center;
   gap: 4px;
   color: var(--dg-accent-text);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -922,7 +922,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
   border: 1px solid var(--dg-chip-border);
   background: var(--dg-track-fill);
   color: var(--dg-text-secondary);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition:

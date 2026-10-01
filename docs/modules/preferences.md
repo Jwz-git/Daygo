@@ -120,6 +120,17 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 
 ## 验证记录
 
+2026-10-02：前端视觉系统改为 macOS 原生语汇。窗口改为不透明中性画布，玻璃只保留在悬浮侧栏、
+弹层与浮动胶囊；令牌对齐 macOS 系统色（labelColor 系列、systemBlue、分组背景、分隔线）并新增
+HIG 字号阶；补齐此前被引用却未定义的 `--dg-shadow-sm/lg`、`--dg-accent-subtle/bg`、
+`--dg-surface-raised/sunken`，以及浅色缺失的 `--dg-danger-text`、`--dg-accent-fill`。
+设置行合并为 System Settings 式圆角分组（依赖 CSS `:has()`，WebKit ≥ 15.4 / Chromium ≥ 105）；
+时间线卡片改为分类着色的日历块，周报衬线数字改为 SF 等宽数字，8–10px 弱色标签统一提升至 11px 次级色。
+验证：`./scripts/gate.sh` 通过（gofmt 无输出、183 项前端 unit、typecheck、build、check-docs；
+NSIS 夹具因缺 makensis 跳过）；Vite 预览（匿名夹具）在 1280×820 浅 / 深色与 880×620 浅色下
+截图检查时间线、日报、周报、设置各分区与对话页。限制：未在真实 Wails WKWebView / WebView2 中运行，
+红绿灯与悬浮侧栏顶部留白的对齐、Windows 自绘标题栏下的侧栏、九语言长文案下的分组行换行均未验收。
+
 2026-09-23：补回 Windows 专用 `Frameless` 宿主配置，避免原生黑色标题栏与 Vue 顶栏同时显示。
 保留系统缩放边框、阴影及圆角，macOS / Linux 窗口策略不变。新增平台窗口配置回归测试；
 `CGO_ENABLED=0 go test ./internal/app`、`go vet ./internal/app`、Windows `go build ./...`、

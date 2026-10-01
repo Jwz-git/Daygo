@@ -281,7 +281,7 @@ const duration = useDurationFormat()
 
 .section-heading h2 {
   color: var(--dg-text-primary);
-  font-size: 18px;
+  font-size: var(--dg-text-title2);
   font-weight: 650;
   line-height: 1.25;
 }
@@ -320,8 +320,8 @@ const duration = useDurationFormat()
 .workflow-axis span {
   position: absolute;
   bottom: 6px;
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
   line-height: 1;
   white-space: nowrap;
   transform: translateX(-50%);
@@ -439,7 +439,7 @@ const duration = useDurationFormat()
   min-height: 47px;
   padding: 10px 20px;
   overflow-x: auto;
-  border-top: 1px solid var(--dg-card-border);
+  border-top: 0.5px solid var(--dg-separator);
   background: var(--dg-daily-footer-fill);
   white-space: nowrap;
 }

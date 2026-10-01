@@ -202,22 +202,20 @@ function runTitle(dayName: string, run: DailyRun): string {
 .daily__header p {
   display: inline-block;
   color: var(--dg-weekly-tag-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: var(--dg-text-callout);
+  font-weight: 600;
 }
 
 .daily__header h2 {
-  margin-top: 7px;
+  margin-top: 2px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
-  font-size: 24px;
-  font-weight: 400;
+  font-family: var(--dg-font-display);
+  font-size: var(--dg-text-title2);
+  font-weight: 650;
   letter-spacing: 0;
 }
 
-.daily__header > span { color: var(--dg-text-muted); font-size: 10px; }
+.daily__header > span { color: var(--dg-text-tertiary); font-size: 11px; }
 
 .daily__chart {
   --label-w: 40px;
@@ -236,7 +234,7 @@ function runTitle(dayName: string, run: DailyRun): string {
   bottom: 0;
   transform: translateX(-50%);
   color: var(--dg-text-muted);
-  font-size: 9px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -335,12 +333,12 @@ function runTitle(dayName: string, run: DailyRun): string {
   align-items: center;
   justify-content: center;
   color: var(--dg-text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .daily__total {
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;

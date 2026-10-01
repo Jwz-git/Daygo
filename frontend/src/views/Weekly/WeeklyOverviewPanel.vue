@@ -63,29 +63,26 @@ const ringStyle = computed(() => ({
 .overview { overflow: hidden; }
 
 .overview__header {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.2fr);
-  align-items: end;
-  gap: 32px;
-  padding: 24px 26px 20px;
-  border-bottom: 1px solid var(--dg-card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 24px 16px;
+  border-bottom: 0.5px solid var(--dg-separator);
 }
 
 .overview__eyebrow {
   display: inline-block;
   color: var(--dg-weekly-tag-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: var(--dg-text-callout);
+  font-weight: 600;
 }
 
 .overview h2 {
-  margin-top: 7px;
+  margin-top: 2px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
-  font-size: 24px;
-  font-weight: 400;
+  font-family: var(--dg-font-display);
+  font-size: var(--dg-text-title2);
+  font-weight: 650;
   letter-spacing: 0;
 }
 
@@ -114,7 +111,7 @@ const ringStyle = computed(() => ({
     var(--dg-weekly-ring-track) var(--weekly-focus-angle) 360deg
   );
   /* The outer glow is the ring's light spilling onto the glass beneath it. */
-  box-shadow: inset 0 0 0 1px var(--dg-card-border), 0 0 36px var(--dg-weekly-ring-glow);
+  box-shadow: none;
   place-items: center;
 }
 
@@ -122,7 +119,7 @@ const ringStyle = computed(() => ({
   display: grid;
   width: 116px;
   height: 116px;
-  border: 1px solid var(--dg-card-border);
+  border: 0.5px solid var(--dg-separator);
   border-radius: 50%;
   background: var(--dg-weekly-ring-center);
   place-content: center;
@@ -131,23 +128,24 @@ const ringStyle = computed(() => ({
 
 .focus-ring strong {
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
+  font-family: var(--dg-font-display);
   font-size: 38px;
-  font-weight: 400;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: 0;
 }
 
 .focus-ring span {
   margin-top: 1px;
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
 }
 
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid var(--dg-card-border);
+  border: 0.5px solid var(--dg-separator);
   border-radius: 8px;
   background: var(--dg-weekly-summary-fill);
 }
@@ -157,32 +155,32 @@ const ringStyle = computed(() => ({
   padding: 22px 18px;
 }
 
-.metrics div + div { border-left: 1px solid var(--dg-card-border); }
+.metrics div + div { border-left: 0.5px solid var(--dg-separator); }
 
 .metrics dt {
-  color: var(--dg-text-muted);
-  font-size: 10px;
+  color: var(--dg-text-tertiary);
+  font-size: 11px;
   font-weight: 600;
 }
 
 .metrics dd {
   margin-top: 6px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
+  font-family: var(--dg-font-display);
   font-size: 23px;
-  font-weight: 400;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   white-space: nowrap;
 }
 
 @media (max-width: 760px) {
-  .overview__header { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .overview__body { grid-template-columns: minmax(0, 1fr); gap: 26px; }
   .metrics { width: 100%; }
 }
 
 @media (max-width: 520px) {
   .metrics { grid-template-columns: minmax(0, 1fr); }
-  .metrics div + div { border-top: 1px solid var(--dg-card-border); border-left: 0; }
+  .metrics div + div { border-top: 0.5px solid var(--dg-separator); border-left: 0; }
 }
 </style>

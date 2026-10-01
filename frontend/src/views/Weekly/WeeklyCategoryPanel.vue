@@ -135,18 +135,16 @@ function sliceColor(category: WeeklyCategoryPresentation): string {
 .categories__header p {
   display: inline-block;
   color: var(--dg-weekly-tag-text);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: var(--dg-text-callout);
+  font-weight: 600;
 }
 
 .categories__header h2 {
-  margin-top: 7px;
+  margin-top: 2px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
-  font-size: 24px;
-  font-weight: 400;
+  font-family: var(--dg-font-display);
+  font-size: var(--dg-text-title2);
+  font-weight: 650;
   letter-spacing: 0;
 }
 
@@ -201,9 +199,10 @@ function sliceColor(category: WeeklyCategoryPresentation): string {
 .donut__center strong {
   max-width: 100px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
+  font-family: var(--dg-font-display);
   font-size: 17px;
-  font-weight: 400;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   line-height: 1.12;
   letter-spacing: 0;
 }
@@ -211,7 +210,7 @@ function sliceColor(category: WeeklyCategoryPresentation): string {
 .donut__center span {
   margin-top: 2px;
   color: var(--dg-text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .category-list { list-style: none; }
@@ -225,7 +224,7 @@ function sliceColor(category: WeeklyCategoryPresentation): string {
   border-top: 1px solid var(--dg-card-border);
 }
 
-.category-list__rank { color: var(--dg-text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.category-list__rank { color: var(--dg-text-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }
 
 .category-list__dot {
   width: 7px;
