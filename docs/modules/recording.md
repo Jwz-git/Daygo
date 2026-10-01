@@ -25,6 +25,30 @@ Windows 端可从设置页迁移全部历史录制到空目录；录制停写、
 
 ## 当前状态与证据
 
+2026-10-01 软退出后重新激活增量（基于 `06317e7` 的未提交工作树）：重开窗口时即使 Dock
+策略恢复失败，也清除软退出恢复标记；普通激活不再重复 Show，下一次显式重开仍重试策略。
+匿名 Go 夹具 `TestReopenAfterDockPolicyFailureDoesNotRepeatOnActivation` 先于实现添加：
+输入为软退出成功、恢复策略失败、连续三次激活；期望仅显示一次，失败策略不缓存成功。
+旧实现实际 `shown=3, backgrounded=true`，修复后定向测试与
+`CGO_ENABLED=0 go test ./internal/app -count=1` 通过，既有期望未改。
+Darwin 25.0.0 / arm64 验证：`CGO_ENABLED=0 go test ./internal/...`、
+`CGO_ENABLED=0 go build ./...`、`go vet ./...`，以及 Linux / Darwin / Windows 的
+`CGO_ENABLED=0 go build ./internal/...` 交叉构建通过（不代表目标平台运行）。
+`go test -race ./internal/app -run 'Test(ReopenAfterDockPolicyFailure|ActivationRestores|BackgroundTransitions|FailedActivationPolicy|ExplicitReopen|UnavailableStatusItem|DockPreference)' -count=1`
+通过；链接器输出 `LC_DYSYMTAB` 警告，未阻止测试。
+`python3 scripts/check-docs.py` 通过，改动 Go 文件的 `gofmt -l` 无输出。
+`git diff --check` 将本文件原有 CRLF 格式的新行报作行尾空白；保留原格式后，
+`git -c core.whitespace=cr-at-eol diff --check` 通过，未修改 Git 配置。
+未跑完整 `gate.sh`、前端或真实宿主门禁。
+
+用户报告红叉关窗 → Dock 软退出 → 重开 → 切换其他应用 → 调度台选中窗口时闪现回后台。
+当前只证明上述失败分支存在，未取得其现场策略失败证据；用户随后明确反馈“并没有修复成功”，
+原始闪现问题保持未解决，不将该分支修正记录为本问题修复成功。
+匿名 Swift 窗口探针未获得真实激活（`isActive` 始终 false），不计为调度台验证。
+真实 Wails 完整操作序列、Dock 偏好重启读回及 IT-14 十分钟捕获回归待补；未启动或替换
+已安装 Daygo、未读取用户录制数据，G-host 历史验收不覆盖此增量。
+回退只需还原本次 `exitBackground`、回归夹具及对应文档；无 schema、偏好或原生 ABI 变更。
+
 2026-09-26 Dock 重新启用报错与反馈布局修复（本次增量）：用户报告关闭后正常、重新启用
 弹出截断正文、英文占位复选框和空按钮。macOS 26.0.1 / arm64、基于 `ff573bf` 的修复工作树：
 匿名 AppKit 宿主实测重复设置当前激活策略返回 false、实际策略保持目标值；旧桥将其误判为 -2。

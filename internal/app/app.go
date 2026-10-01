@@ -273,16 +273,12 @@ func Run() error {
 			backend.setStatusUpdater(updateStatus)
 			updateStatus(backend.recorderState())
 			backend.loadDockPreference(ctx)
-			// showWindow restores the window on an explicit user request: the
-			// status-bar "open" item. The application is unhidden before the
-			// window is ordered front because a soft-quit orders the window
-			// itself out, which unhiding the app does not undo.
+			// Mixing application hiding with window order-out can lose focus in Mission Control.
 			showWindow := func() {
 				if err := backend.exitBackground(ctx); err != nil {
 					log.Printf("restore dock icon on reopen unavailable: %v", err)
 				}
 				runtime.Show(ctx)
-				runtime.WindowShow(ctx)
 				backend.setWindowHidden(false)
 			}
 			reportActionError := func(err error) {
@@ -352,7 +348,6 @@ func Run() error {
 					log.Printf("quit cancelled: recording finalization failed: %s", recordingFailureReason(err))
 					_ = backend.exitBackground(ctx)
 					runtime.Show(ctx)
-					runtime.WindowShow(ctx)
 					backend.setWindowHidden(false)
 					labels := backend.statusLabels.get()
 					choice, _ := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{Type: runtime.WarningDialog, Title: labels.ActionFailedTitle, Message: labels.QuitFailed, Buttons: []string{labels.KeepOpen, labels.QuitAnyway}, DefaultButton: labels.KeepOpen, CancelButton: labels.KeepOpen})
@@ -377,7 +372,7 @@ func Run() error {
 				return false
 			}
 			backend.setWindowHidden(true)
-			runtime.WindowHide(ctx)
+			runtime.Hide(ctx)
 			if err := backend.enterBackground(ctx); err != nil {
 				log.Printf("drop dock icon on background quit unavailable: %v", err)
 			}
