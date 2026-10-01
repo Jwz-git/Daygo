@@ -183,7 +183,7 @@ onBeforeUnmount(() => daily.stopListening())
 
 <style scoped>
 
-.day-meta { color: var(--dg-text-tertiary); font-size: var(--dg-text-footnote); white-space: nowrap; }
+.day-meta { color: var(--dg-text-muted); font-size: 10px; white-space: nowrap; }
 
 .daily-body {
   flex: 1;
@@ -194,41 +194,42 @@ onBeforeUnmount(() => daily.stopListening())
 .daily-content {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 20px;
   width: 100%;
   max-width: var(--dg-daily-content-max);
   margin: 0 auto;
 }
 
-/* Title over its one-line explanation, left-aligned: a description floated
-   to the far right of the heading reads as two unrelated fragments. */
 .daily-intro {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 2px;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(300px, 1.15fr);
+  align-items: end;
+  gap: 32px;
+  padding: 4px 2px 2px;
 }
 
 .daily-intro span {
-  display: block;
-  color: var(--dg-text-tertiary);
-  font-size: var(--dg-text-callout);
-  font-weight: 600;
+  display: inline-block;
+  color: var(--dg-accent-text);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .daily-intro h2 {
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-display);
-  font-size: var(--dg-text-title1);
-  font-weight: 700;
-  letter-spacing: var(--dg-font-display-tracking);
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
 }
 
-.daily-intro p { color: var(--dg-text-secondary); font-size: var(--dg-text-body); line-height: 1.5; }
+.daily-intro p { color: var(--dg-text-tertiary); font-size: 12px; line-height: 1.55; }
 
 @media (max-width: 760px) {
   .day-meta { display: none; }
   .daily-body { padding-right: 16px; padding-left: 16px; }
+  .daily-intro { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 }
 </style>

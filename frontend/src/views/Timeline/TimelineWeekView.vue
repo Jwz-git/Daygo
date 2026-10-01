@@ -266,8 +266,8 @@ onBeforeUnmount(() => {
   position: absolute;
   right: 8px;
   transform: translateY(-50%);
-  color: var(--dg-text-tertiary);
-  font-size: 11px;
+  color: var(--dg-text-muted);
+  font-size: 10px;
   white-space: nowrap;
 }
 
@@ -290,8 +290,8 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 120px;
   margin: 0;
-  color: var(--dg-text-tertiary);
-  font-size: 11px;
+  color: var(--dg-text-muted);
+  font-size: 10px;
   text-align: center;
 }
 

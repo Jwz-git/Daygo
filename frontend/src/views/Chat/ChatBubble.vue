@@ -426,7 +426,7 @@ function onAssistantClick(e: MouseEvent): void {
 
 .cb__md :deep(.cb-code__lang) {
   color: rgb(255 255 255 / 0.45);
-  font-size: 11px;
+  font-size: 10.5px;
   text-transform: lowercase;
   letter-spacing: 0.04em;
   font-family: var(--dg-font-mono);
@@ -438,7 +438,7 @@ function onAssistantClick(e: MouseEvent): void {
   border-radius: 4px;
   background: rgb(255 255 255 / 0.06);
   color: rgb(255 255 255 / 0.7);
-  font-size: 11px;
+  font-size: 10.5px;
   cursor: pointer;
   transition: background var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
 }
@@ -453,7 +453,7 @@ function onAssistantClick(e: MouseEvent): void {
   padding: 12px 14px;
   overflow-x: auto;
   font-family: var(--dg-font-mono);
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.55;
 }
 
@@ -521,7 +521,7 @@ function onAssistantClick(e: MouseEvent): void {
 
 .cb__time {
   color: var(--dg-text-muted);
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 0.01em;
 }
 
@@ -534,7 +534,7 @@ function onAssistantClick(e: MouseEvent): void {
   border-radius: 4px;
   background: transparent;
   color: var(--dg-text-tertiary);
-  font-size: 11px;
+  font-size: 10.5px;
   cursor: pointer;
   transition:
     background var(--dg-motion-fast) ease,

@@ -97,7 +97,7 @@ const cards = computed(() => [
 .insights__label {
   overflow: hidden;
   color: var(--dg-text-tertiary);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -108,10 +108,9 @@ const cards = computed(() => [
 .insights__value {
   overflow: hidden;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-display);
+  font-family: var(--dg-font-serif);
   font-size: 22px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-weight: 400;
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -119,8 +118,8 @@ const cards = computed(() => [
 
 .insights__detail {
   overflow: hidden;
-  color: var(--dg-text-tertiary);
-  font-size: 11px;
+  color: var(--dg-text-muted);
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -201,51 +201,34 @@ const effectiveModel = computed(() => {
 
 /* ---- composer ---- */
 
-/* Messages-style field: one rounded container holding the text and an
-   inline round send button, rather than a bare input next to a square. */
 .composer {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 8px;
   flex: none;
-  padding: 4px 4px 4px 6px;
-  border-radius: 20px;
-  background: var(--dg-group-fill);
-  box-shadow: var(--dg-group-shadow), inset 0 0 0 0.5px var(--dg-separator-strong);
-  transition: box-shadow var(--dg-motion-base) var(--dg-ease-out);
-}
-
-.composer:focus-within {
-  box-shadow: var(--dg-group-shadow), inset 0 0 0 0.5px var(--dg-separator-strong), 0 0 0 3.5px var(--dg-focus-ring);
-}
-
-.composer .composer__input,
-.composer .composer__input:hover,
-.composer .composer__input:focus-visible {
-  background-color: transparent;
-  box-shadow: none;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--dg-card-border);
 }
 
 .composer__input {
   flex: 1;
-  min-height: 30px;
+  min-height: 36px;
   max-height: 140px;
   resize: none;
-  font-size: var(--dg-text-body);
+  font-size: 13px;
   line-height: 1.5;
-  padding: 5px 8px;
+  padding: 8px 12px;
 }
 
 .composer__send {
   flex: none;
-  width: 30px;
-  min-height: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: 8px;
 }
 
 .composer__send:disabled {
@@ -254,14 +237,14 @@ const effectiveModel = computed(() => {
 
 .composer__cancel {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  border: none;
+  border-radius: 8px;
+  border: 1px solid var(--dg-chip-border);
   background: var(--dg-track-fill);
   color: var(--dg-text-secondary);
 }

@@ -90,62 +90,20 @@ function destination(item: RailItem): RouteLocationRaw {
   /* Above .panel so the recording popover can overlay the main content:
      the popover's own z-index is trapped inside this stacking context. */
   z-index: 3;
-  isolation: isolate;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   width: var(--dg-rail-width);
-  margin: var(--dg-window-padding) 0 var(--dg-window-padding) var(--dg-window-padding);
-  /* Clears the traffic lights, which sit inside the floating pane on macOS. */
-  padding: 46px 0 12px;
-  border: 0.5px solid var(--dg-sidebar-border);
-  border-radius: var(--dg-sidebar-radius);
-  background: var(--dg-glass-fallback);
-  box-shadow: var(--dg-glass-shadow);
+  padding: 48px 0 24px;
   -webkit-app-region: drag;
   --wails-draggable: drag;
-}
-
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .rail {
-    background: var(--dg-sidebar-fill);
-    -webkit-backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
-    backdrop-filter: blur(var(--dg-glass-blur)) saturate(var(--dg-glass-saturation));
-  }
-}
-
-/* Specular top light: the one cue that the pane is a material, not a box. */
-.rail::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--dg-glass-sheen);
-  pointer-events: none;
-}
-
-/* Windows has its own title bar row; nothing to clear at the top. */
-:root[data-dg-platform='windows'] .rail {
-  padding-top: 14px;
-}
-
-@media (forced-colors: active) {
-  .rail {
-    border: 1px solid CanvasText;
-    background: Canvas;
-  }
-
-  .rail::before {
-    display: none;
-  }
 }
 
 .rail__list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 10px;
   width: 100%;
   -webkit-app-region: no-drag;
   --wails-draggable: no-drag;

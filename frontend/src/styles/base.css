@@ -9,9 +9,8 @@
 }
 
 body {
-  font-size: var(--dg-text-body);
-  line-height: 1.45;
-  font-feature-settings: 'kern';
+  font-size: 14px;
+  line-height: 1.5;
   background: var(--dg-window-bg);
 }
 
@@ -44,33 +43,8 @@ body {
 @keyframes dg-page-enter {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(10px);
   }
-}
-
-/* Numbers that change or line up (durations, counts, clock times) never
-   jitter: SF's tabular figures, the way native tables render them. */
-.dg-numeric {
-  font-variant-numeric: tabular-nums;
-}
-
-/*
- * Grouped container — the System Settings rounded group. Rows inside are
- * separated by inset hairlines (.dg-group > * + *), not by gaps or cards.
- */
-.dg-group {
-  border-radius: var(--dg-group-radius);
-  background: var(--dg-group-fill);
-  box-shadow: var(--dg-group-shadow), inset 0 0 0 0.5px var(--dg-group-border);
-}
-
-/* Section heading above a group: small, secondary, sentence case. */
-.dg-section-label {
-  margin: 0 0 6px;
-  padding: 0 4px;
-  color: var(--dg-text-secondary);
-  font-size: var(--dg-text-callout);
-  font-weight: 600;
 }
 
 .dg-display {
@@ -243,16 +217,16 @@ body {
 
 .dg-input {
   width: 100%;
-  min-height: 28px;
-  padding: 4px 9px;
+  min-height: 34px;
+  padding: 7px 10px;
   border: none;
   border-radius: 7px;
   /* Longhand, not the `background` shorthand: a <select> layers its chevron in
      background-image, and the shorthand here (and on :hover) would wipe it. */
   background-color: var(--dg-input-fill);
-  box-shadow: var(--dg-input-shadow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   color: var(--dg-text-primary);
-  font-size: var(--dg-text-body);
+  font-size: 13px;
   transition:
     background-color var(--dg-motion-fast) ease,
     box-shadow var(--dg-motion-base) var(--dg-ease-out);
@@ -264,7 +238,7 @@ body {
 
 .dg-input:focus-visible {
   outline: none;
-  box-shadow: var(--dg-input-shadow), 0 0 0 3.5px var(--dg-focus-ring);
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .dg-input[aria-invalid='true'] {
@@ -282,10 +256,10 @@ body {
 select.dg-input {
   -webkit-appearance: none;
   appearance: none;
-  padding-right: 28px;
+  padding-right: 30px;
   background-image: var(--dg-select-chevron);
   background-repeat: no-repeat;
-  background-position: right 8px center;
+  background-position: right 11px center;
   background-size: 12px 12px;
 }
 
@@ -365,23 +339,15 @@ input[type='number']::-webkit-outer-spin-button {
   }
 }
 
-/* Also applied to <RouterLink>/<a>: the inline-flex box and the cleared
-   underline keep a link-button identical to a <button>. */
 .dg-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  text-decoration: none;
-  min-height: 28px;
-  padding: 4px 14px;
+  min-height: 32px;
+  padding: 6px 14px;
   border: none;
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--dg-button-secondary-fill);
-  box-shadow: var(--dg-button-secondary-shadow);
   color: var(--dg-button-secondary-text);
-  font-size: var(--dg-text-body);
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 550;
   white-space: nowrap;
   transition:
     background var(--dg-motion-fast) ease,
@@ -401,13 +367,13 @@ input[type='number']::-webkit-outer-spin-button {
 /* The press compresses the button slightly; the glide easing on transform
    gives the release its soft spring back. */
 .dg-button:not(:disabled):active {
-  filter: brightness(0.94);
+  background: var(--dg-track-fill);
+  box-shadow: inset 0 1px 2px rgba(20, 16, 25, 0.08);
   transform: scale(0.97);
 }
 
 .dg-button--primary {
   background: var(--dg-button-primary-fill);
-  box-shadow: var(--dg-button-primary-shadow);
   color: var(--dg-button-primary-text);
 }
 
@@ -419,22 +385,22 @@ input[type='number']::-webkit-outer-spin-button {
    would read as the button losing its role mid-click. */
 .dg-button--primary:not(:disabled):active {
   background: var(--dg-button-primary-hover);
+  box-shadow: inset 0 2px 4px rgba(15, 34, 60, 0.22);
 }
 
 .dg-button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3.5px var(--dg-focus-ring);
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .dg-chip {
-  min-height: 26px;
-  padding: 3px 11px;
+  min-height: 30px;
+  padding: 5px 12px;
   border: 1px solid var(--dg-chip-border);
   border-radius: 999px;
   background: var(--dg-chip-fill);
-  color: var(--dg-chip-text);
-  font-size: var(--dg-text-callout);
-  font-weight: 500;
+  color: var(--dg-text-secondary);
+  font-size: 12px;
   transition:
     background var(--dg-motion-fast) ease,
     border-color var(--dg-motion-fast) ease,
@@ -444,7 +410,7 @@ input[type='number']::-webkit-outer-spin-button {
 .dg-chip--filled {
   border-color: transparent;
   background: var(--dg-control-fill);
-  color: var(--dg-accent-text);
+  color: var(--dg-text-primary);
 }
 
 .dg-chip:disabled {
@@ -453,10 +419,6 @@ input[type='number']::-webkit-outer-spin-button {
 }
 
 .dg-chip:not(:disabled):hover {
-  background: var(--dg-hover-fill-strong);
-}
-
-.dg-chip--filled:not(:disabled):hover {
   background: var(--dg-control-fill-hover);
 }
 
@@ -487,16 +449,4 @@ input[type='number']::-webkit-outer-spin-button {
   .dg-chip:not(:disabled):active {
     transform: none;
   }
-}
-
-/*
- * Settings pane rhythm: blocks are separated by a section gap, but adjacent
- * setting rows touch so they render as one rounded group (SettingRow.vue).
- */
-.dg-settings-pane > * + * {
-  margin-top: 20px;
-}
-
-.dg-settings-pane > .dg-setting-row + .dg-setting-row {
-  margin-top: 0;
 }

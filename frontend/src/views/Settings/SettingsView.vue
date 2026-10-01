@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
+import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import PageHeader from '@/components/PageHeader.vue'
 
 import AgentAccessSection from './AgentAccessSection.vue'
@@ -91,7 +92,7 @@ watch(active, () => void nextTick(measurePill))
     <PageHeader :title="t('settings.title')" />
 
     <div class="body">
-      <nav class="nav" :aria-label="t('settings.title')">
+      <LiquidGlassSurface intensity="glass" as="nav" class="nav" :aria-label="t('settings.title')">
         <ul ref="navListEl">
           <span
             class="nav__pill"
@@ -116,12 +117,12 @@ watch(active, () => void nextTick(measurePill))
             </button>
           </li>
         </ul>
-      </nav>
+      </LiquidGlassSurface>
 
       <div class="content dg-scroll">
         <div class="content__inner">
           <Transition name="pane" mode="out-in">
-            <div class="pane dg-settings-pane" :key="active">
+            <div class="pane" :key="active">
               <template v-if="active === 'general'">
                 <AppearanceSection />
                 <UpdateSection />
@@ -148,23 +149,25 @@ watch(active, () => void nextTick(measurePill))
 .body {
   display: grid;
   grid-template-columns: var(--dg-settings-nav-width) minmax(0, 1fr);
-  gap: 28px;
+  gap: 24px;
   flex: 1;
   min-height: 0;
-  padding: 4px var(--dg-page-padding) 0;
+  padding: 0 var(--dg-page-padding) var(--dg-page-padding);
 }
 
-/* A plain source list on the canvas, like System Settings' sidebar list:
-   no container chrome, only the selection pill. */
 .nav {
   align-self: start;
+  /* The glass level's 24px radius reads bulbous on a tall narrow nav; keep
+     the panel radius this view was designed with. */
+  border-radius: var(--dg-panel-radius);
+  padding: 7px;
 }
 
 .nav ul {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
 }
 
 .nav__pill {
@@ -172,7 +175,7 @@ watch(active, () => void nextTick(measurePill))
   top: 0;
   left: 0;
   z-index: 0;
-  border-radius: 7px;
+  border-radius: 5px;
   background: var(--dg-nav-active-fill);
   /* Same specular top edge as every raised glass surface. */
   box-shadow: var(--dg-nav-active-shadow);
@@ -190,11 +193,11 @@ watch(active, () => void nextTick(measurePill))
   position: relative;
   z-index: 1;
   width: 100%;
-  min-height: 30px;
-  padding: 5px 10px;
-  border-radius: 7px;
-  color: var(--dg-text-primary);
-  font-size: var(--dg-text-body);
+  min-height: 44px;
+  padding: 9px 11px;
+  border-radius: 5px;
+  color: var(--dg-text-secondary);
+  font-size: 13px;
   font-weight: 500;
   text-align: left;
   transition:
@@ -215,7 +218,7 @@ watch(active, () => void nextTick(measurePill))
 
 .nav__item.is-active {
   color: var(--dg-nav-active-text);
-  font-weight: 600;
+  font-weight: 620;
 }
 
 .nav__item:focus-visible {
@@ -228,12 +231,10 @@ watch(active, () => void nextTick(measurePill))
  * small upward settle. mode="out-in" keeps both from sharing the layout, which
  * would otherwise stack two full panes for a frame.
  */
-/* Rows join into groups (see SettingRow); everything else is spaced as a
-   separate block. The spacing lives in base.css under .dg-settings-pane
-   because it has to reach the rows' own root elements. */
 .pane {
   display: flex;
   flex-direction: column;
+  gap: 14px;
 }
 
 .pane-enter-active,
@@ -258,7 +259,7 @@ watch(active, () => void nextTick(measurePill))
 
 .content__inner {
   max-width: var(--dg-settings-content-max);
-  padding: 2px 4px var(--dg-page-padding) 0;
+  padding: 2px 4px 12px 0;
 }
 
 @media (max-width: 860px) {
@@ -268,6 +269,7 @@ watch(active, () => void nextTick(measurePill))
   }
 
   .nav {
+    padding: 6px;
     overflow-x: auto;
   }
 

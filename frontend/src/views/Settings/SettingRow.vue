@@ -4,7 +4,7 @@ defineProps<{ title: string; hint?: string }>()
 </script>
 
 <template>
-  <section class="row dg-setting-row">
+  <section class="row">
     <div class="row__text">
       <h2 class="row__title">{{ title }}</h2>
       <p v-if="hint" class="row__hint">{{ hint }}</p>
@@ -16,55 +16,13 @@ defineProps<{ title: string; hint?: string }>()
 </template>
 
 <style scoped>
-/*
- * A row is one line of a System Settings–style group. Consecutive rows join
- * into a single rounded container: the first of a run takes the top corners,
- * the last the bottom ones, and the rows between are split by an inset
- * hairline. Run detection lives in CSS so sections keep emitting plain rows.
- */
 .row {
-  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(128px, auto);
   align-items: center;
-  gap: 16px;
-  min-height: 44px;
-  padding: 10px 14px;
-  background: var(--dg-group-fill);
-  box-shadow: inset 0.5px 0 0 var(--dg-group-border), inset -0.5px 0 0 var(--dg-group-border);
-}
-
-.row:not(.row + .row) {
-  border-top-left-radius: var(--dg-group-radius);
-  border-top-right-radius: var(--dg-group-radius);
-  box-shadow:
-    inset 0.5px 0 0 var(--dg-group-border),
-    inset -0.5px 0 0 var(--dg-group-border),
-    inset 0 0.5px 0 var(--dg-group-border);
-}
-
-.row:not(:has(+ .row)) {
-  border-bottom-left-radius: var(--dg-group-radius);
-  border-bottom-right-radius: var(--dg-group-radius);
-  box-shadow:
-    inset 0.5px 0 0 var(--dg-group-border),
-    inset -0.5px 0 0 var(--dg-group-border),
-    inset 0 -0.5px 0 var(--dg-group-border),
-    0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-.row:not(.row + .row):not(:has(+ .row)) {
-  box-shadow: var(--dg-group-shadow), inset 0 0 0 0.5px var(--dg-group-border);
-}
-
-/* Inset separator between joined rows, aligned with the text column. */
-.row + .row::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 14px;
-  border-top: 0.5px solid var(--dg-separator);
-  content: '';
+  gap: 18px;
+  padding: 15px 2px;
+  border-bottom: 1px solid var(--dg-timeline-grid);
 }
 
 .row__text {
@@ -73,15 +31,14 @@ defineProps<{ title: string; hint?: string }>()
 
 .row__title {
   color: var(--dg-text-primary);
-  font-size: var(--dg-text-body);
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .row__hint {
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--dg-text-secondary);
-  font-size: var(--dg-text-callout);
-  line-height: 1.4;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
@@ -102,10 +59,9 @@ defineProps<{ title: string; hint?: string }>()
   }
 }
 
-@media (forced-colors: active) {
+@media (prefers-reduced-motion: reduce) {
   .row {
-    border: 1px solid CanvasText;
-    background: Canvas;
+    transition: none;
   }
 }
 </style>

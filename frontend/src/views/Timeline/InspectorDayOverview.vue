@@ -246,7 +246,7 @@ const reviewMinutesTotal = computed(() =>
       <path class="donut__volume" :d="OVERLAY_RING" fill="url(#donut-volume)" />
       <path class="donut__sheen" :d="OVERLAY_RING" fill="url(#donut-sheen)" />
       <!-- Contact shadow at the hole, then the raised white center disk. -->
-      <circle class="donut__inner-shade" cx="102.5" cy="102.5" r="102.5" fill="url(#donut-inner-shade)" />
+      <circle cx="102.5" cy="102.5" r="102.5" fill="url(#donut-inner-shade)" />
       <circle class="donut__center-disk" cx="102.5" cy="102.5" r="73" />
     </svg>
     <div class="donut__center">
@@ -367,12 +367,13 @@ const reviewMinutesTotal = computed(() =>
 /* Match the selected-card header: the eyebrow uses the card pane's larger type
    scale so the inspector reads as one component across its panes. The title
    shares .inspector__title--card from the shell. */
-.inspector__heading .inspector__eyebrow { font-size: var(--dg-text-callout); }
+.inspector__heading .inspector__eyebrow { font-size: 13px; }
 
 .goal-state {
   padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--dg-surface-sunken);
+  border: 1px solid var(--dg-timeline-grid);
+  border-radius: 8px;
+  background: var(--dg-track-fill);
 }
 
 .goal-state span { color: var(--dg-text-secondary); font-size: 11px; }
@@ -396,14 +397,18 @@ const reviewMinutesTotal = computed(() =>
   animation: donut-rise var(--dg-motion-slow) var(--dg-ease-glide) both;
 }
 
-/* Flat, Screen Time–style ring: solid wedges on a quiet track. Faux volume
-   and gloss read as skeuomorphic chrome next to native charts. */
 .donut__base {
-  fill: var(--dg-weekly-ring-track);
+  fill: #ececf1;
+  filter: drop-shadow(0 6px 16px rgba(45, 50, 80, 0.2));
+}
+
+:root[data-dg-appearance='dark'] .donut__base {
+  fill: #24242a;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5));
 }
 
 .donut__sector {
-  fill-opacity: 1;
+  fill-opacity: 0.86;
   /* Pin the hover scale to the ring centre. Without an explicit box WebKit
      pivots around each wedge's own bounding box, so the active sector drifts
      off the ring instead of lifting in place. */
@@ -429,11 +434,14 @@ const reviewMinutesTotal = computed(() =>
 /* Volume + gloss overlays sit above the wedges but must not eat pointer
    events aimed at them. soft-light keeps the wedge hue while shaping light. */
 .donut__volume,
-.donut__sheen,
-.donut__inner-shade {
-  display: none;
+.donut__sheen {
   pointer-events: none;
+  mix-blend-mode: soft-light;
 }
+
+.donut__sheen { mix-blend-mode: screen; opacity: 0.7; }
+
+:root[data-dg-appearance='dark'] .donut__sheen { opacity: 0.4; }
 
 .donut-stop--crown { stop-color: rgba(255, 255, 255, 0.6); }
 .donut-stop--fade { stop-color: rgba(255, 255, 255, 0); }
@@ -447,7 +455,12 @@ const reviewMinutesTotal = computed(() =>
 :root[data-dg-appearance='dark'] .donut-stop--rim { stop-color: rgba(0, 0, 0, 0.34); }
 
 .donut__center-disk {
-  fill: var(--lg-tint-glass);
+  fill: var(--dg-surface, #ffffff);
+  filter: drop-shadow(0 1px 3px rgba(45, 50, 80, 0.14));
+}
+
+:root[data-dg-appearance='dark'] .donut__center-disk {
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.45));
 }
 
 @keyframes donut-rise {
@@ -479,17 +492,18 @@ const reviewMinutesTotal = computed(() =>
 }
 
 .donut__total-label {
-  color: var(--dg-text-tertiary);
-  font-size: var(--dg-text-footnote);
-  font-weight: 500;
+  color: var(--dg-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .donut__center strong {
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-display);
-  font-size: 19px;
-  font-weight: 600;
-  letter-spacing: var(--dg-font-display-tracking);
+  font-family: var(--dg-font-reading);
+  font-size: 18px;
+  font-weight: 450;
   line-height: 1.22;
   font-variant-numeric: tabular-nums;
 }

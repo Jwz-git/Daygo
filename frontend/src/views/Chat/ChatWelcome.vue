@@ -52,10 +52,8 @@ const emit = defineEmits<{
 .welcome__title {
   margin: 0;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-display);
-  font-size: var(--dg-text-title1);
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: var(--dg-font-display-tracking);
 }
 
 .welcome__subtitle {
@@ -68,33 +66,31 @@ const emit = defineEmits<{
 .welcome__hints {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  margin: 8px 0 0;
-  padding: 0;
-  overflow: hidden;
+  gap: 8px;
+  margin: 0;
+  padding: 16px 20px;
   list-style: none;
-  border-radius: var(--dg-group-radius);
-  background: var(--dg-group-fill);
-  box-shadow: var(--dg-group-shadow), inset 0 0 0 0.5px var(--dg-group-border);
+  border: 1px solid var(--dg-card-border);
+  border-radius: 10px;
+  background: var(--dg-card-fill);
   max-width: 360px;
   width: 100%;
   text-align: left;
 }
 
 .welcome__hints li { list-style: none; }
-.welcome__hints li + li { border-top: 0.5px solid var(--dg-separator); }
 
 .welcome__hint {
   display: block;
   width: 100%;
-  padding: 10px 14px;
-  border: none;
-  border-radius: 0;
-  color: var(--dg-accent-text);
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--dg-text-secondary);
   font: inherit;
-  font-size: var(--dg-text-body);
+  font-size: 13px;
   text-align: left;
-  background: transparent;
+  background: var(--dg-track-fill);
   cursor: pointer;
   transition:
     background var(--dg-motion-base) ease,
@@ -103,11 +99,14 @@ const emit = defineEmits<{
 }
 
 .welcome__hint:hover {
-  background: var(--dg-hover-fill);
+  border-color: var(--dg-accent);
+  color: var(--dg-text-primary);
+  background: var(--dg-control-fill);
 }
 
 .welcome__hint:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 3px var(--dg-focus-ring);
+  border-color: var(--dg-accent);
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 </style>

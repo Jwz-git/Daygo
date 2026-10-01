@@ -29,19 +29,19 @@ defineProps<{ title: string; hint?: string }>()
   gap: 4px;
 }
 
-.group__head {
-  padding: 0 4px;
-}
-
 .group__title {
   color: var(--dg-text-primary);
-  font-size: var(--dg-text-headline);
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 650;
 }
 
 .group__hint {
   color: var(--dg-text-secondary);
-  font-size: var(--dg-text-callout);
-  max-width: 60ch;
+  font-size: 12px;
+  max-width: 56ch;
+}
+
+.group__rows :deep(.row:last-child) {
+  border-bottom: none;
 }
 </style>

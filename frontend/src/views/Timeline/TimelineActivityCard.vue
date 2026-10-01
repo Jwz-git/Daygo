@@ -85,14 +85,10 @@ function cardStyle(): CSSProperties {
   /* Icon and text hang from the card top, not centered. */
   align-items: flex-start;
   gap: 9px;
-  padding: 4px 10px 4px 13px;
+  padding: 5px 12px 5px 14px;
   overflow: hidden;
-  /* Calendar-style event block: the category tints the fill, a solid bar
-     carries the hue at full strength, and the surface stays opaque so the
-     grid lines never show through the text. */
-  border: none;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--timeline-category) 13%, var(--dg-timeline-card-fill));
+  border: 1px solid var(--dg-timeline-card-border);
+  background: var(--dg-timeline-card-fill);
   box-shadow: var(--dg-timeline-card-shadow);
   text-align: left;
   transition:
@@ -128,8 +124,10 @@ function cardStyle(): CSSProperties {
 /* Hover grows the card slightly; :active below presses it back in. */
 .activity-card:hover {
   z-index: 5;
-  background: color-mix(in srgb, var(--timeline-category) 19%, var(--dg-timeline-card-hover));
+  border-color: color-mix(in srgb, var(--timeline-category) 40%, var(--dg-timeline-card-border));
+  background: var(--dg-timeline-card-hover);
   box-shadow: var(--dg-timeline-card-shadow-hover);
+  transform: scale(1.008);
 }
 
 .activity-card:focus-visible {
@@ -138,21 +136,13 @@ function cardStyle(): CSSProperties {
   box-shadow: 0 0 0 3px var(--dg-focus-ring), var(--dg-timeline-card-shadow);
 }
 
-/* Selection fills the block with its own hue, as Calendar does, and the
-   text flips to white for contrast on the saturated fill. */
 .activity-card.is-selected {
   z-index: 4;
-  background: color-mix(in srgb, var(--timeline-category) 88%, #000000);
-  box-shadow: var(--dg-timeline-card-shadow-hover);
-}
-
-.activity-card.is-selected .activity-card__title,
-.activity-card.is-selected .activity-card__time {
-  color: #ffffff;
-}
-
-.activity-card.is-selected .activity-card__rail {
-  background: rgba(255, 255, 255, 0.7);
+  border-color: color-mix(in srgb, var(--timeline-category) 52%, var(--dg-timeline-card-border));
+  background: var(--dg-timeline-card-selected);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--timeline-category) 15%, transparent),
+    var(--dg-timeline-card-shadow);
 }
 
 /* A card whose window is being analyzed again. The tint is the one the track's
@@ -170,7 +160,12 @@ function cardStyle(): CSSProperties {
    state the click is about to lock in. */
 .activity-card:active {
   z-index: 6;
-  transform: scale(0.99);
+  border-color: color-mix(in srgb, var(--timeline-category) 52%, var(--dg-timeline-card-border));
+  background: var(--dg-timeline-card-selected);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--timeline-category) 15%, transparent),
+    inset 0 1px 3px rgba(20, 16, 25, 0.1);
+  transform: scale(0.985);
   transition:
     border-color var(--dg-motion-fast) ease-in-out,
     background var(--dg-motion-fast) ease-in-out,
@@ -182,9 +177,9 @@ function cardStyle(): CSSProperties {
 
 .activity-card__rail {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 4px;
+  top: 6px;
+  bottom: 6px;
+  left: 5px;
   width: 3px;
   border-radius: 99px;
   background: var(--timeline-category);
@@ -199,10 +194,10 @@ function cardStyle(): CSSProperties {
 
 .activity-card__title {
   overflow: hidden;
-  color: color-mix(in srgb, var(--timeline-category) 38%, var(--dg-text-primary));
-  font-size: var(--dg-text-body);
-  font-weight: 600;
-  line-height: 22px;
+  color: var(--dg-text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -220,10 +215,10 @@ function cardStyle(): CSSProperties {
 
 .activity-card__time {
   flex: none;
-  color: color-mix(in srgb, var(--timeline-category) 30%, var(--dg-card-time));
-  font-size: var(--dg-text-footnote);
+  color: var(--dg-card-time);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-  line-height: 22px;
+  line-height: 18px;
   white-space: nowrap;
 }
 

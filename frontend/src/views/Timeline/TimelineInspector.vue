@@ -121,14 +121,14 @@ const { t } = useI18n()
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 0.5px solid var(--dg-separator);
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--dg-timeline-grid);
 }
 
 .inspector :deep(.inspector__eyebrow) {
-  margin-bottom: 3px;
-  color: var(--dg-text-tertiary);
-  font-size: var(--dg-text-footnote);
+  margin-bottom: 5px;
+  color: var(--dg-accent-text);
+  font-size: 10px;
   font-weight: 600;
 }
 
@@ -136,15 +136,15 @@ const { t } = useI18n()
 
 .inspector :deep(.inspector__title) {
   color: var(--dg-text-primary);
-  font-size: var(--dg-text-title1);
-  line-height: 1.15;
+  font-size: 26px;
+  line-height: 1.1;
 }
 
 .inspector :deep(.inspector__title--card) {
   color: var(--dg-text-primary);
-  font-size: 19px;
-  font-weight: 650;
-  line-height: 1.3;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .inspector :deep(.inspector__close) {
@@ -173,13 +173,13 @@ const { t } = useI18n()
 
 .inspector :deep(.card-time span) { width: 7px; height: 7px; border-radius: 50%; }
 
-.inspector :deep(.inspector__section) { padding: 16px 0; border-top: 0.5px solid var(--dg-separator); }
+.inspector :deep(.inspector__section) { padding: 16px 0; border-top: 1px solid var(--dg-timeline-grid); }
 .inspector :deep(.inspector__section:first-of-type) { border-top: 0; }
-.inspector :deep(.inspector__section h3) { margin-bottom: 6px; color: var(--dg-text-secondary); font-size: var(--dg-text-callout); font-weight: 600; }
+.inspector :deep(.inspector__section h3) { margin-bottom: 6px; color: var(--dg-text-primary); font-size: 11px; font-weight: 650; }
 .inspector :deep(.inspector__section p) { color: var(--dg-text-primary); font-size: 13px; font-weight: 500; line-height: 1.65; }
 
-.inspector :deep(.inspector__actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 16px; border-top: 0.5px solid var(--dg-separator); }
-.inspector :deep(.inspector__readonly) { width: 100%; color: var(--dg-text-tertiary); font-size: var(--dg-text-footnote); }
+.inspector :deep(.inspector__actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 18px; border-top: 1px solid var(--dg-timeline-grid); }
+.inspector :deep(.inspector__readonly) { width: 100%; color: var(--dg-text-muted); font-size: 10px; }
 .inspector :deep(.inspector__confirm) { width: 100%; color: var(--dg-text-secondary); font-size: 11px; }
 
 .inspector :deep(.inspector__failure-note) { margin-top: 8px; color: var(--dg-text-muted); font-size: 11px; }

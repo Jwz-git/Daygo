@@ -230,11 +230,6 @@ async function confirmRemove(id: string): Promise<void> {
 </template>
 
 <style scoped>
-.providers-head > .dg-button {
-  align-self: flex-start;
-  margin-top: 6px;
-}
-
 /* Section intro (shared group-head shape) */
 .providers-head {
   display: flex;
@@ -347,7 +342,7 @@ async function confirmRemove(id: string): Promise<void> {
 
 .badge--protocol {
   text-transform: uppercase;
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.04em;
 }
 

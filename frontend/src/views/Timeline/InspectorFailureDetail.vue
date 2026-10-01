@@ -198,8 +198,8 @@ watch(
   border: 1px solid var(--dg-timeline-grid);
   border-radius: 6px;
   background: var(--dg-track-fill);
-  color: var(--dg-text-tertiary);
-  font-size: 11px;
+  color: var(--dg-text-muted);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 

@@ -130,7 +130,7 @@ function submit(): void {
 
 .section-heading h2 {
   color: var(--dg-text-primary);
-  font-size: var(--dg-text-title2);
+  font-size: 15px;
   font-weight: 650;
 }
 
@@ -156,15 +156,17 @@ function submit(): void {
   padding: 18px 20px 20px;
 }
 
-.journal-group + .journal-group { border-left: 0.5px solid var(--dg-separator); }
+.journal-group + .journal-group { border-left: 1px solid var(--dg-card-border); }
 
 .journal-group__label {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--dg-text-secondary);
-  font-size: var(--dg-text-callout);
-  font-weight: 600;
+  color: var(--dg-text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
 .journal-group__label::before {
@@ -187,12 +189,12 @@ function submit(): void {
 
 .journal-field textarea {
   resize: none;
-  border: 1px solid transparent;
+  border: 1px solid var(--dg-input-border);
   border-radius: 9px;
-  background: var(--dg-surface-sunken);
+  background: var(--dg-input-fill);
   color: var(--dg-text-primary);
   font: inherit;
-  font-size: var(--dg-text-body);
+  font-size: 12px;
   line-height: 1.6;
   padding: 10px 12px;
   transition:
@@ -203,11 +205,11 @@ function submit(): void {
 
 .journal-field textarea::placeholder { color: var(--dg-text-muted); }
 
-.journal-field textarea:hover { background: var(--dg-track-fill); }
+.journal-field textarea:hover { background: var(--dg-input-fill-hover); }
 
 .journal-field textarea:focus-visible {
   outline: none;
-  background: var(--dg-input-fill);
+  background: var(--dg-input-fill-hover);
   border-color: var(--dg-accent, var(--dg-focus-ring));
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
