@@ -52,13 +52,16 @@ interface TileType {
   detail: number
   delta: number
   gap: number
+  /** Vertical padding (Dayflow's per-tier padding). */
   padding: number
+  /** Horizontal padding, wider than Dayflow's so names keep clear of the tile edges. */
+  paddingX: number
 }
 
 const TILE_TYPES: Record<'large' | 'medium' | 'compact', TileType> = {
-  large: { name: 25, detail: 12, delta: 10.5, gap: 4, padding: 12 },
-  medium: { name: 20, detail: 11.5, delta: 10, gap: 3, padding: 10 },
-  compact: { name: 16, detail: 10.5, delta: 9.5, gap: 2, padding: 6 },
+  large: { name: 25, detail: 12, delta: 10.5, gap: 4, padding: 12, paddingX: 22 },
+  medium: { name: 20, detail: 11.5, delta: 10, gap: 3, padding: 10, paddingX: 16 },
+  compact: { name: 16, detail: 10.5, delta: 9.5, gap: 2, padding: 6, paddingX: 10 },
 }
 
 interface TilePlacement {
@@ -220,7 +223,7 @@ function changeLabel(minutes: number | null): string | null {
           '--tm-detail': `${detailSize(tile)}px`,
           '--tm-delta': `${tile.type.delta}px`,
           gap: `${tile.type.gap}px`,
-          padding: `${tile.type.padding}px`,
+          padding: `${tile.type.padding}px ${tile.type.paddingX}px`,
         }"
         @pointermove="pointer.move($event, tile)"
         @pointerleave="pointer.leave"
