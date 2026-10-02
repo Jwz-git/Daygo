@@ -153,6 +153,11 @@ const SHARED_WORDING = new Set([
   'minutes',
   'pixels',
   'images',
+  // Dayflow's compact duration units, kept in English in every language at
+  // the user's request ("{hours}hr {minutes}m" reduces to 'hr m').
+  'hr',
+  'hr m',
+  'm',
   // Ordinary words that coincide across languages.
   'Cause',
   'Chat',

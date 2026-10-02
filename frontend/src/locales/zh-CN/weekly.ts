@@ -110,6 +110,10 @@ export default {
       title: '各分类最常用的应用',
       empty: '本周还没有应用数据',
       aria: '各分类中使用时间最长的应用',
+      // Dayflow's compact units ("6hr 4m", "+ 152m"), kept in English on purpose.
+      hoursMinutes: '{hours}hr {minutes}m',
+      hours: '{hours}hr',
+      minutes: '{minutes}m',
     },
     sankey: {
       title: '分类与应用的时间流向',

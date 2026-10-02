@@ -368,8 +368,8 @@ function slot(x: number, labelY: number, labelHeight: number, width: number): Re
   align-items: center;
   gap: 5px;
   color: var(--dg-wk-text-secondary);
-  font-size: clamp(10px, 1.06cqw, 12px);
-  font-weight: 500;
+  font-size: clamp(9.5px, 0.92cqw, 11px);
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -395,7 +395,12 @@ function slot(x: number, labelY: number, labelHeight: number, width: number): Re
 
 .sk__label--app .sk__meta {
   flex: none;
-  font-size: clamp(9.5px, 1.02cqw, 11.5px);
+  font-size: clamp(9px, 0.88cqw, 10.5px);
+}
+
+/* The dark theme's secondary text is near white; keep the figures grey. */
+:root[data-dg-appearance='dark'] .sk__meta {
+  color: var(--dg-wk-text-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

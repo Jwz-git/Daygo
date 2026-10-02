@@ -110,6 +110,10 @@ export default {
       title: '카테고리별 가장 많이 쓴 앱',
       empty: '이번 주 앱 데이터가 아직 없습니다',
       aria: '카테고리마다 가장 오래 쓴 앱',
+      // Dayflow's compact units ("6hr 4m", "+ 152m"), kept in English on purpose.
+      hoursMinutes: '{hours}hr {minutes}m',
+      hours: '{hours}hr',
+      minutes: '{minutes}m',
     },
     sankey: {
       title: '카테고리와 앱 사이의 시간 흐름',

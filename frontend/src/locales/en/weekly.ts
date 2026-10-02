@@ -110,6 +110,10 @@ export default {
       title: 'Most used per category',
       empty: 'No app data this week yet',
       aria: 'Apps with the most time in each category',
+      // Dayflow's compact units ("6hr 4m", "+ 152m"), kept in English on purpose.
+      hoursMinutes: '{hours}hr {minutes}m',
+      hours: '{hours}hr',
+      minutes: '{minutes}m',
     },
     sankey: {
       title: 'Time between categories and apps',

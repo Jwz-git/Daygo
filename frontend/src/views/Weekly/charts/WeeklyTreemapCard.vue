@@ -56,9 +56,9 @@ interface TileType {
 }
 
 const TILE_TYPES: Record<'large' | 'medium' | 'compact', TileType> = {
-  large: { name: 23, detail: 13.5, delta: 12.5, gap: 4, padding: 12 },
-  medium: { name: 18.5, detail: 13, delta: 12, gap: 3, padding: 10 },
-  compact: { name: 15, detail: 11.5, delta: 11, gap: 2, padding: 6 },
+  large: { name: 25, detail: 12, delta: 10.5, gap: 4, padding: 12 },
+  medium: { name: 20, detail: 11.5, delta: 10, gap: 3, padding: 10 },
+  compact: { name: 16, detail: 10.5, delta: 9.5, gap: 2, padding: 6 },
 }
 
 interface TilePlacement {
@@ -101,13 +101,18 @@ function tileType(rect: Rect): TileType {
   return TILE_TYPES.compact
 }
 
-function tileMode(rect: Rect, app: WeeklyTreemapApp): TileMode {
+// A mode is used only when its lines fit the tile at this tier's sizes:
+// name row, time, and in full mode the change badge.
+function tileMode(rect: Rect, app: WeeklyTreemapApp, type: TileType): TileMode {
   const width = rect.width * scale.value
   const height = rect.height * scale.value
-  const hasIcon = app.sites.length > 0
-  const fullHeight = changeLabel(app.changeMinutes) !== null ? (hasIcon ? 100 : 80) : (hasIcon ? 76 : 62)
+  const nameRow = (size: number): number => Math.max(14, size * 1.2) * 1.15
+  const time = type.detail * 1.35
+  const badge = changeLabel(app.changeMinutes) !== null ? type.gap + type.delta * 1.3 + 2 : 0
+  const fullHeight = type.padding * 2 + nameRow(type.name) + type.gap + time + badge
+  const compactHeight = type.padding * 2 + nameRow(Math.max(type.name - 2, 12)) + type.gap + time
   if (width >= 96 && height >= fullHeight) return 'full'
-  if (width >= 64 && height >= 46) return 'compact'
+  if (width >= 64 && height >= compactHeight) return 'compact'
   return 'labelOnly'
 }
 
@@ -139,7 +144,7 @@ const layout = computed(() =>
         .map(({ item: app, rect: tile }) => ({
           app,
           rect: tile,
-          mode: tileMode(tile, app),
+          mode: tileMode(tile, app, tileType(tile)),
           type: tileType(tile),
           id: `${category.name}\u0000${app.key}`,
           color: category.colorHex,
@@ -157,6 +162,22 @@ const hoveredId = computed(() => pointer.hovered.value?.id ?? null)
 
 function shareOfCategory(tile: TilePlacement): string {
   return `${Math.round((tile.app.minutes / Math.max(1, tile.category.minutes)) * 100)}%`
+}
+
+// Dayflow's weeklyTreemapDurationString: "6hr 4m", "6hr" or "46m".
+function compactDuration(minutes: number): string {
+  const total = Math.max(0, Math.round(minutes))
+  const hours = Math.floor(total / 60)
+  const rest = total % 60
+  if (hours > 0 && rest > 0) return t('weekly.charts.treemap.hoursMinutes', { hours, minutes: rest })
+  if (hours > 0) return t('weekly.charts.treemap.hours', { hours })
+  return t('weekly.charts.treemap.minutes', { minutes: rest })
+}
+
+// Dayflow's change badge always counts minutes: "+ 152m", "- 30m".
+function changeBadge(minutes: number | null): string | null {
+  if (minutes === null || minutes === 0) return null
+  return `${minutes > 0 ? '+' : '-'} ${t('weekly.charts.treemap.minutes', { minutes: Math.abs(Math.round(minutes)) })}`
 }
 
 function changeLabel(minutes: number | null): string | null {
@@ -184,7 +205,7 @@ function changeLabel(minutes: number | null): string | null {
       >
         <header class="tm__header">
           <span>{{ labels.category(entry.category.name) }}</span>
-          <b v-if="!narrowShell(entry.rect)">{{ formatDuration(entry.category.minutes) }}</b>
+          <b v-if="!narrowShell(entry.rect)">{{ compactDuration(entry.category.minutes) }}</b>
         </header>
       </section>
       <div
@@ -208,17 +229,17 @@ function changeLabel(minutes: number | null): string | null {
           <AppSiteIcon
             v-if="tile.app.sites.length > 0"
             :sites="tile.app.sites"
-            :size="Math.max(12, Math.round(nameSize(tile) * 1.15))"
+            :size="Math.max(14, Math.round(nameSize(tile) * 1.2))"
             :accent="tile.color"
           />
           <span class="tm__name">{{ labels.app(tile.app.key, tile.app.name) }}</span>
         </span>
-        <span v-if="tile.mode !== 'labelOnly'" class="tm__time">{{ formatDuration(tile.app.minutes) }}</span>
+        <span v-if="tile.mode !== 'labelOnly'" class="tm__time">{{ compactDuration(tile.app.minutes) }}</span>
         <span
           v-if="tile.mode === 'full' && changeLabel(tile.app.changeMinutes)"
           class="tm__change"
           :class="(tile.app.changeMinutes ?? 0) > 0 ? 'is-up' : 'is-down'"
-        >{{ changeLabel(tile.app.changeMinutes) }}</span>
+        >{{ changeBadge(tile.app.changeMinutes) }}</span>
       </div>
       <WeeklyChartTooltip :visible="pointer.hovered.value !== null" :x="pointer.x.value" :y="pointer.y.value">
         <template v-if="pointer.hovered.value">
@@ -347,7 +368,10 @@ function changeLabel(minutes: number | null): string | null {
   flex: none;
 }
 
-/* Dayflow keeps the Instrument Serif name; only its size grows here. */
+/*
+ * Dayflow keeps the Instrument Serif name. The face ships one weight, so it
+ * is thickened with a hairline stroke rather than a synthesised bold.
+ */
 .tm__name {
   min-width: 0;
   overflow: hidden;
@@ -355,6 +379,7 @@ function changeLabel(minutes: number | null): string | null {
   font-family: var(--dg-font-serif);
   font-size: var(--tm-name);
   font-weight: 400;
+  -webkit-text-stroke: 0.45px currentColor;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -371,17 +396,17 @@ function changeLabel(minutes: number | null): string | null {
 .tm__time {
   color: var(--dg-wk-text);
   font-size: var(--tm-detail);
-  font-weight: 600;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
 /* Dayflow's change badge: monospaced figures on a tinted pill. */
 .tm__change {
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: var(--tm-delta);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .tm__change.is-up { background: #d1eae4; color: #089041; }

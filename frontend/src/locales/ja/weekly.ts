@@ -110,6 +110,10 @@ export default {
       title: 'カテゴリ別のよく使うアプリ',
       empty: '今週のアプリデータはまだありません',
       aria: '各カテゴリで最も長く使ったアプリ',
+      // Dayflow's compact units ("6hr 4m", "+ 152m"), kept in English on purpose.
+      hoursMinutes: '{hours}hr {minutes}m',
+      hours: '{hours}hr',
+      minutes: '{minutes}m',
     },
     sankey: {
       title: 'カテゴリとアプリの時間の流れ',

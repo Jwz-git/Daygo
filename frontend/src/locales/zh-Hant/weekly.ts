@@ -110,6 +110,10 @@ export default {
       title: '各分類最常用的應用程式',
       empty: '本週還沒有應用程式資料',
       aria: '各分類中使用時間最長的應用程式',
+      // Dayflow's compact units ("6hr 4m", "+ 152m"), kept in English on purpose.
+      hoursMinutes: '{hours}hr {minutes}m',
+      hours: '{hours}hr',
+      minutes: '{minutes}m',
     },
     sankey: {
       title: '分類與應用程式的時間流向',
