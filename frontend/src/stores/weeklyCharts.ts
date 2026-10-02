@@ -96,7 +96,10 @@ function appIdentity(segment: WeeklySegmentDTO): { key: string; name: string; si
   if (value === undefined) return { key: OTHER_KEY, name: '', sites: [] }
   const identity = resolveAppSiteIdentity(value)
   if (identity.kind !== 'generic') {
-    return { key: `brand:${identity.kind}`, name: BRAND_NAMES[identity.kind] ?? identity.label, sites }
+    // A localized name ("终端", "哔哩哔哩") reads better as written than as the
+    // brand's English name; Latin forms ("github.com") use the brand name.
+    const written = /^[\x20-\x7e]+$/.test(identity.label) ? null : identity.label
+    return { key: `brand:${identity.kind}`, name: written ?? BRAND_NAMES[identity.kind] ?? identity.label, sites }
   }
   const key = (identity.host ?? identity.label).toLocaleLowerCase('en-US')
   // The icon resolver turns a dotless name into "<name>.com"; show the name

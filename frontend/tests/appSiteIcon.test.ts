@@ -86,3 +86,25 @@ test('normalizes single-word site names without dot to .com domain', () => {
   assert.equal(displayHost('bilibili'), 'bilibili.com')
 })
 
+
+test('localized names of bundled system apps reach their marks', () => {
+  assert.equal(resolveAppSiteIdentity('终端').kind, 'terminal')
+  assert.equal(resolveAppSiteIdentity('終端機').kind, 'terminal')
+  assert.equal(resolveAppSiteIdentity('信息').kind, 'messages')
+  assert.equal(resolveAppSiteIdentity('訊息').kind, 'messages')
+  assert.equal(resolveAppSiteIdentity('备忘录').kind, 'notes')
+  assert.equal(resolveAppSiteIdentity('備忘錄').kind, 'notes')
+  assert.equal(resolveAppSiteIdentity('訪達').kind, 'finder')
+  // Exact names only: a page title that merely contains the word is not the app.
+  assert.equal(resolveAppSiteIdentity('信息安全周报').kind, 'generic')
+})
+
+test('dotless non-Latin names are not guessed as .com sites', () => {
+  // "终端" became 终端.com (xn--suzt2f.com), a parked domain whose favicon
+  // replaced the Terminal icon. Latin single words keep Dayflow's .com rule.
+  assert.equal(hostOf('终端'), null)
+  assert.equal(displayHost('终端'), null)
+  assert.equal(hostOf('微信'), null)
+  assert.equal(hostOf('pinterest'), 'pinterest.com')
+  assert.notEqual(hostOf('知乎.com'), null, 'a written-out domain still resolves')
+})

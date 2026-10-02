@@ -210,3 +210,11 @@ test('site names drop their domain suffix; plain app names stay as written', () 
   // Grouping keys still use the full host, so two sites never merge by name.
   assert.equal(sites[0].appKey, 'app:developer.mozilla.org')
 })
+
+test('brands keep a localized name as written and unify Latin forms', () => {
+  const named = weeklyChartFacts(week([[
+    segment(at(14, 9, 0), at(14, 9, 10), 'Coding', '终端'),
+    segment(at(14, 9, 10), at(14, 9, 20), 'Coding', 'github.com'),
+  ]]))
+  assert.deepEqual(named.map((fact) => [fact.appKey, fact.appName]), [['brand:terminal', '终端'], ['brand:github', 'GitHub']])
+})

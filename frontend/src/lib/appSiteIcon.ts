@@ -134,6 +134,9 @@ export function displayHost(value: string): string | null {
   if (trimmed === '' || /\s/.test(trimmed)) return null
 
   if (!trimmed.includes('.')) {
+    // Only Latin single words are guessed as sites ("pinterest"); a dotless
+    // non-Latin name ("终端") is an app name, and its .com is someone else's domain.
+    if (!/^[\x21-\x7e]+$/.test(trimmed)) return null
     trimmed = `${trimmed}.com`
   }
 
@@ -200,7 +203,15 @@ function monogramFor(value: string, host: string | null): string {
 const exactAppNames: ReadonlyMap<string, Exclude<AppSiteIconKind, 'generic'>> = new Map([
   ['finder', 'finder'],
   ['finder.app', 'finder'],
+  // macOS's own Chinese names for the bundled system apps.
   ['访达', 'finder'],
+  ['訪達', 'finder'],
+  ['终端', 'terminal'],
+  ['終端機', 'terminal'],
+  ['信息', 'messages'],
+  ['訊息', 'messages'],
+  ['备忘录', 'notes'],
+  ['備忘錄', 'notes'],
 ])
 
 export function resolveAppSiteIdentity(value: string): AppSiteIdentity {

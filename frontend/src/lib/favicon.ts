@@ -33,6 +33,8 @@ export function hostOf(site: string): string | null {
   let trimmed = site.trim()
   if (trimmed === '' || /\s/.test(trimmed)) return null
   if (!trimmed.includes('.')) {
+    // Same rule as displayHost: never guess a .com for a non-Latin app name.
+    if (!/^[\x21-\x7e]+$/.test(trimmed)) return null
     trimmed = `${trimmed}.com`
   }
   const candidate = trimmed.includes('://') ? trimmed : `https://${trimmed}`
