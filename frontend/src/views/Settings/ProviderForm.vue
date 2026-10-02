@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -279,9 +280,7 @@ function onProtocolChange(event: Event): void {
               :aria-label="t('settings.providers.form.removeModel')"
               @click="removeModelRow(index)"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
+              <DgIcon name="minus" :size="14" />
             </button>
           </li>
         </ul>

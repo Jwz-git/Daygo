@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 /*
  * ConversationTitle — display a chat conversation title with an inline rename
  * affordance.
@@ -151,15 +152,7 @@ const { t } = useI18n()
         :title="t('chat.rename')"
         @click="beginEdit"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path
-            d="M11.5 2.5l2 2-7.5 7.5H4v-2l7.5-7.5zM10.5 1.5l2.5 2.5 1-1a1 1 0 0 0-1.4-1.4l-1 1-.1-.1z"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        <DgIcon name="pencil" :size="14" />
       </button>
     </div>
 

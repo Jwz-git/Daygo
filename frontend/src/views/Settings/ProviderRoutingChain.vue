@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -119,9 +120,7 @@ function onAddChange(event: Event): void {
             :aria-label="t('settings.providers.routing.moveUp')"
             @click="moveEntry(index, -1)"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <polyline points="18 15 12 9 6 15" />
-            </svg>
+            <DgIcon name="chevronUp" :size="14" />
           </button>
           <button
             type="button"
@@ -130,9 +129,7 @@ function onAddChange(event: Event): void {
             :aria-label="t('settings.providers.routing.moveDown')"
             @click="moveEntry(index, 1)"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+            <DgIcon name="chevronDown" :size="14" />
           </button>
           <button
             type="button"
@@ -140,9 +137,7 @@ function onAddChange(event: Event): void {
             :aria-label="t('settings.providers.routing.removeEntry')"
             @click="removeEntry(index)"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <DgIcon name="minus" :size="14" />
           </button>
         </span>
       </li>

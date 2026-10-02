@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -357,7 +358,7 @@ const reviewMinutesTotal = computed(() =>
       :title="props.canWrite ? t('timeline.reprocess.action') : t('timeline.inspector.actionsUnavailable')"
       @click="emit('reprocess')"
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true" class="reprocess-icon"><path d="M13.65 2.35A8 8 0 1 0 16 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 2l3 0 0 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <DgIcon class="reprocess-icon" name="refresh" :size="14" />
       {{ t('timeline.reprocess.action') }}
     </button>
   </section>

@@ -1,14 +1,8 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
 import { computed } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 
-import IconCaptureTest from '@/components/icons/IconCaptureTest.vue'
-import IconChat from '@/components/icons/IconChat.vue'
-import IconDaily from '@/components/icons/IconDaily.vue'
-import IconSettings from '@/components/icons/IconSettings.vue'
-import IconTimeline from '@/components/icons/IconTimeline.vue'
-import IconWeekly from '@/components/icons/IconWeekly.vue'
+import type { IconName } from '@/components/icons/glyphs'
 import { calendarDayQuery } from '@/lib/calendarDate'
 import { useTestToolsStore } from '@/stores/testTools'
 
@@ -19,7 +13,7 @@ interface RailItem {
   readonly navKey: string
   readonly to: RouteLocationRaw
   readonly labelKey: string
-  readonly icon: Component
+  readonly icon: IconName
 }
 
 /*
@@ -28,13 +22,13 @@ interface RailItem {
  * other way round.
  */
 const mainItems: readonly RailItem[] = [
-  { navKey: 'timeline', to: { name: 'timeline' }, labelKey: 'nav.timeline', icon: IconTimeline },
-  { navKey: 'daily', to: { name: 'daily' }, labelKey: 'nav.daily', icon: IconDaily },
-  { navKey: 'weekly', to: { name: 'weekly' }, labelKey: 'nav.weekly', icon: IconWeekly },
-  { navKey: 'chat', to: { name: 'chat' }, labelKey: 'nav.chat', icon: IconChat },
+  { navKey: 'timeline', to: { name: 'timeline' }, labelKey: 'nav.timeline', icon: 'timeline' },
+  { navKey: 'daily', to: { name: 'daily' }, labelKey: 'nav.daily', icon: 'daily' },
+  { navKey: 'weekly', to: { name: 'weekly' }, labelKey: 'nav.weekly', icon: 'weekly' },
+  { navKey: 'chat', to: { name: 'chat' }, labelKey: 'nav.chat', icon: 'chat' },
 ]
 const utilityItems: readonly RailItem[] = [
-  { navKey: 'settings', to: { name: 'settings' }, labelKey: 'nav.settings', icon: IconSettings },
+  { navKey: 'settings', to: { name: 'settings' }, labelKey: 'nav.settings', icon: 'settings' },
 ]
 
 const route = useRoute()
@@ -69,7 +63,7 @@ function destination(item: RailItem): RouteLocationRaw {
         v-if="testToolsVisible"
         :to="{ name: 'test' }"
         :label="$t('nav.test')"
-        :icon="IconCaptureTest"
+        icon="camera"
         :active="route.meta.navKey === 'test'"
       />
       <SideRailItem

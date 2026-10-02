@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -115,9 +116,7 @@ const effectiveModel = computed(() => {
       :aria-label="t('chat.composer.send')"
     >
       <!-- Paper plane icon -->
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M14 2L2 7l5 2 2 5 5-12z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      <DgIcon name="send" :size="16" />
     </button>
     <button
       v-else
@@ -126,9 +125,7 @@ const effectiveModel = computed(() => {
       :aria-label="t('chat.composer.cancel')"
       @click="cancel"
     >
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
+      <DgIcon name="close" :size="14" />
     </button>
   </form>
 </template>

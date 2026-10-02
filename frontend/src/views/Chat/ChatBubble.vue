@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
@@ -146,10 +147,7 @@ function onAssistantClick(e: MouseEvent): void {
     <!-- Assistant avatar / role label (only on assistant messages) -->
     <div v-if="role === 'assistant'" class="cb__head" aria-hidden="true">
       <span class="cb__avatar">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M8 1.5l5.5 3v3.5c0 3.5-2.4 6.4-5.5 7-3.1-.6-5.5-3.5-5.5-7V4.5l5.5-3z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-          <circle cx="8" cy="6.5" r="1.4" fill="currentColor"/>
-        </svg>
+        <DgIcon name="sparkle" :size="14" />
       </span>
       <span class="cb__role">{{ t('chat.bubble.roleAssistant') }}</span>
     </div>
@@ -177,13 +175,8 @@ function onAssistantClick(e: MouseEvent): void {
         :aria-label="copied ? t('chat.bubble.copied') : t('chat.bubble.copy')"
         @click="copyContent"
       >
-        <svg v-if="copied" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <DgIcon v-if="copied" name="check" :size="12" />
+        <DgIcon v-else name="copy" :size="12" />
         <span class="cb__copy-text">{{ copied ? t('chat.bubble.copied') : t('chat.bubble.copy') }}</span>
       </button>
     </div>

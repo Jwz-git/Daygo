@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -467,14 +468,7 @@ onBeforeUnmount(() => {
               :aria-expanded="showCalendar"
               @click="showCalendar = !showCalendar"
             >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <rect x="2" y="3.2" width="12" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.4" />
-                <path d="M2 6.4h12" stroke="currentColor" stroke-width="1.4" />
-                <path d="M5.4 1.6v2.6M10.6 1.6v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                <circle cx="5.6" cy="9.6" r="1" fill="currentColor" />
-                <circle cx="8" cy="9.6" r="1" fill="currentColor" />
-                <circle cx="10.4" cy="9.6" r="1" fill="currentColor" />
-              </svg>
+              <DgIcon name="calendar" :size="16" />
             </button>
             <Transition name="calendar-pop">
               <CalendarPopover
@@ -512,13 +506,8 @@ onBeforeUnmount(() => {
           :title="recording.lifecycle === 'paused' ? t('recording.action.resume') : t('recording.action.pause')"
           @click="recording.perform(recording.lifecycle === 'paused' ? 'resume' : 'pause')"
         >
-          <svg v-if="recording.lifecycle !== 'paused'" viewBox="0 0 12 12" aria-hidden="true">
-            <rect x="2.6" y="2" width="2.6" height="8" rx="1" fill="currentColor" />
-            <rect x="6.8" y="2" width="2.6" height="8" rx="1" fill="currentColor" />
-          </svg>
-          <svg v-else viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M3.5 2.2v7.6L10 6Z" fill="currentColor" />
-          </svg>
+          <DgIcon v-if="recording.lifecycle !== 'paused'" name="pause" :size="11" />
+          <DgIcon v-else name="play" :size="11" />
           <span>{{ recording.lifecycle === 'paused' ? t('recording.action.resume') : t('recording.action.pause') }}</span>
         </button>
         <DevelopmentBadge v-if="usingDevelopmentFixture">{{ t('timeline.developmentFixture') }}</DevelopmentBadge>
@@ -557,7 +546,7 @@ onBeforeUnmount(() => {
         :disabled="!actionAvailability.manageCategories"
         @click="showCategoryManager = true"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /></svg>
+        <DgIcon name="pencil" :size="14" />
       </button>
       <span v-if="generalActionFailed && selectedCard === null" class="filter-error" role="alert">
         {{ t('timeline.actionFailed') }}
@@ -680,9 +669,9 @@ onBeforeUnmount(() => {
       :title="t('timeline.copy.action')"
       @click="copyTimeline"
     >
-      <svg v-if="copyState === 'idle'" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h7a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2 4h9a1 1 0 0 1 1 1v7H2V5a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-      <svg v-else-if="copyState === 'copied'" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8l3.5 3.5L13 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <svg v-else viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <DgIcon v-if="copyState === 'idle'" name="copy" :size="15" />
+      <DgIcon v-else-if="copyState === 'copied'" name="check" :size="15" />
+      <DgIcon v-else name="close" :size="15" />
       <span>{{ copyState === 'copied' ? t('timeline.copy.copied') : copyState === 'failed' ? t('timeline.copy.failed') : t('timeline.copy.action') }}</span>
     </button>
 
@@ -697,7 +686,7 @@ onBeforeUnmount(() => {
       @click="showReview = true"
     >
       <span class="review-fab__badge" aria-hidden="true">
-        <svg viewBox="0 0 12 12"><path d="M2.5 1.5h5l2 2v7h-7Z" fill="none" stroke="currentColor" stroke-width="1.2" /></svg>
+        <DgIcon name="document" :size="11" />
         <b>{{ reviewQueue.length }}</b>
       </span>
       <span>{{ t('timeline.review.action') }}</span>

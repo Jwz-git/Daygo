@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { useI18n } from 'vue-i18n'
 
 /*
@@ -35,7 +36,7 @@ const { t } = useI18n()
       :disabled="!props.canBackward"
       @click="emit('navigate', -1)"
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>
+      <DgIcon name="chevronLeft" :size="14" />
     </button>
     <button
       type="button"
@@ -45,7 +46,7 @@ const { t } = useI18n()
       :disabled="!props.canForward"
       @click="emit('navigate', 1)"
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>
+      <DgIcon name="chevronRight" :size="14" />
     </button>
     <button
       type="button"
@@ -92,11 +93,6 @@ const { t } = useI18n()
 .period-nav__arrow svg {
   width: 14px;
   height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .period-nav__current {

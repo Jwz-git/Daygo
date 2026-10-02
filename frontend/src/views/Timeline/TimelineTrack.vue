@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -220,11 +221,7 @@ onBeforeUnmount(() => {
           :style="{ top: `${block.top}px`, height: `${block.height}px` }"
           role="status"
         >
-          <svg viewBox="0 0 14 14" aria-hidden="true">
-            <rect x="1" y="8" width="3" height="3" rx="0.8" fill="currentColor" opacity="0.55" />
-            <rect x="5.5" y="5" width="3" height="6" rx="0.8" fill="currentColor" opacity="0.8" />
-            <rect x="10" y="2.5" width="3" height="8.5" rx="0.8" fill="currentColor" />
-          </svg>
+          <DgIcon name="bars" :size="13" />
           <span>{{ t('timeline.generating') }}</span>
         </div>
 

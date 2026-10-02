@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -305,10 +306,7 @@ function labelOf(application: ApplicationDTO): string {
             {{ labelOf(application).slice(0, 1).toUpperCase() }}
           </span>
           <span v-if="blockedIdSet.has(application.id)" class="app-tile__badge" aria-hidden="true">
-            <svg viewBox="0 0 12 12" width="8" height="8" fill="none">
-              <rect x="2.4" y="5.2" width="7.2" height="5" rx="1" fill="currentColor" />
-              <path d="M4 5V3.6a2 2 0 1 1 4 0V5" stroke="currentColor" stroke-width="1.4" />
-            </svg>
+            <DgIcon name="lock" :size="8" />
           </span>
         </span>
         <span class="app-tile__name">{{ labelOf(application) }}</span>
@@ -366,10 +364,7 @@ function labelOf(application: ApplicationDTO): string {
             {{ labelOf(application).slice(0, 1).toUpperCase() }}
           </span>
           <span class="app-tile__badge" aria-hidden="true">
-            <svg viewBox="0 0 12 12" width="8" height="8" fill="none">
-              <rect x="2.4" y="5.2" width="7.2" height="5" rx="1" fill="currentColor" />
-              <path d="M4 5V3.6a2 2 0 1 1 4 0V5" stroke="currentColor" stroke-width="1.4" />
-            </svg>
+            <DgIcon name="lock" :size="8" />
           </span>
         </span>
         <span class="app-tile__name">{{ labelOf(application) }}</span>

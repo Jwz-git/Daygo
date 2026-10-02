@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -241,7 +242,7 @@ onBeforeUnmount(() => {
         :aria-label="t('timeline.player.play')"
         @click="togglePlay"
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.4v13.2L19 12Z" fill="currentColor" /></svg>
+        <DgIcon name="play" :size="28" />
       </button>
 
       <button
@@ -250,7 +251,7 @@ onBeforeUnmount(() => {
         :aria-label="t('timeline.player.expand')"
         @click="openExpanded"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2H2v4M10 14h4v-4M2 10v4h4M14 6V2h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <DgIcon name="expand" :size="13" />
       </button>
 
       <button type="button" class="player__rate" :aria-label="t('timeline.player.rate')" @click="cycleRate">
@@ -263,7 +264,7 @@ onBeforeUnmount(() => {
     </template>
 
     <div v-else class="player__placeholder" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="M8 5.4v13.2L19 12Z" fill="currentColor" /></svg>
+      <DgIcon name="play" :size="40" />
     </div>
   </div>
 
@@ -276,7 +277,7 @@ onBeforeUnmount(() => {
             <h2>{{ title }}</h2>
             <span>{{ timeLabel }}</span>
           </div>
-          <button type="button" class="lightbox__close" :aria-label="t('timeline.player.close')" @click="expanded = false">×</button>
+          <button type="button" class="lightbox__close" :aria-label="t('timeline.player.close')" @click="expanded = false"><DgIcon name="close" :size="14" /></button>
         </header>
 
         <div class="lightbox__stage" @click="togglePlay">
@@ -288,7 +289,7 @@ onBeforeUnmount(() => {
             :aria-label="t('timeline.player.play')"
             @click.stop="togglePlay"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.4v13.2L19 12Z" fill="currentColor" /></svg>
+            <DgIcon name="play" :size="28" />
           </button>
           <span class="lightbox__clock">{{ currentClock }}</span>
           <button
@@ -322,8 +323,8 @@ onBeforeUnmount(() => {
           </div>
           <div class="lightbox__controls">
             <button type="button" class="lightbox__play" :aria-label="playing ? t('timeline.player.pause') : t('timeline.player.play')" @click="togglePlay">
-              <svg v-if="!playing" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.4v13.2L19 12Z" fill="currentColor" /></svg>
-              <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor" /><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor" /></svg>
+              <DgIcon v-if="!playing" name="play" :size="16" />
+              <DgIcon v-else name="pause" :size="16" />
             </button>
             <span class="lightbox__clock-chip">{{ currentClock }}</span>
           </div>

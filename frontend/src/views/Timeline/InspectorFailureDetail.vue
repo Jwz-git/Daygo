@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -65,7 +66,7 @@ watch(
       :aria-label="t('timeline.inspector.close')"
       @click="emit('close')"
     >
-      ×
+      <DgIcon name="close" :size="14" />
     </button>
   </header>
 

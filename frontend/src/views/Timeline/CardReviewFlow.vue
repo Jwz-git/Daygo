@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
+import type { IconName } from '@/components/icons/glyphs'
 import {
   computed,
   onBeforeUnmount,
@@ -113,10 +115,10 @@ function ratingTitle(rating: 'distraction' | 'neutral' | 'focus'): string {
   return t('timeline.review.focus')
 }
 
-function ratingIcon(rating: 'distraction' | 'neutral' | 'focus'): string {
-  if (rating === 'distraction') return '◀'
-  if (rating === 'neutral') return '▲'
-  return '▶'
+function ratingIcon(rating: 'distraction' | 'neutral' | 'focus'): IconName {
+  if (rating === 'distraction') return 'arrowLeft'
+  if (rating === 'neutral') return 'arrowUp'
+  return 'arrowRight'
 }
 
 /* Cache media frames per card ID so the leaving card's video does not flash blank
@@ -485,7 +487,7 @@ function totalsSnapshot(): ReviewTotals {
 <template>
   <div class="review" role="dialog" :aria-label="t('timeline.review.title')">
     <!-- Window-level close, clear of the card so nothing overlaps it. -->
-    <button type="button" class="review__close" :aria-label="t('timeline.inspector.close')" @click="emit('close')">×</button>
+    <button type="button" class="review__close" :aria-label="t('timeline.inspector.close')" @click="emit('close')"><DgIcon name="close" :size="14" /></button>
 
     <div class="review__stack">
       <!-- Underneath card (next in queue) -->
@@ -569,7 +571,7 @@ function totalsSnapshot(): ReviewTotals {
           :class="`review__badge--${activeOverlayRating}`"
         >
           <div class="review__badge-content">
-            <span class="review__badge-icon">{{ ratingIcon(activeOverlayRating) }}</span>
+            <span class="review__badge-icon"><DgIcon :name="ratingIcon(activeOverlayRating)" :size="36" /></span>
             <span class="review__badge-title">{{ ratingTitle(activeOverlayRating) }}</span>
           </div>
         </div>
@@ -611,19 +613,19 @@ function totalsSnapshot(): ReviewTotals {
       <p v-if="saveFailed" class="review__error" role="alert">{{ t('timeline.review.saveFailed') }}</p>
       <div class="review__actions">
         <button type="button" class="review__judge" :disabled="saving || history.length === 0" @click="undo">
-          <span class="review__judge-icon review__judge-icon--undo">↺</span>
+          <span class="review__judge-icon review__judge-icon--undo"><DgIcon name="undo" :size="16" /></span>
           {{ t('timeline.review.undo') }}
         </button>
         <button type="button" class="review__judge" :disabled="saving || isAnimatingOut" @click="judge('distraction')">
-          <span class="review__judge-icon review__judge-icon--distraction">◀</span>
+          <span class="review__judge-icon review__judge-icon--distraction"><DgIcon name="arrowLeft" :size="16" /></span>
           {{ t('timeline.review.distraction') }}
         </button>
         <button type="button" class="review__judge" :disabled="saving || isAnimatingOut" @click="judge('neutral')">
-          <span class="review__judge-icon review__judge-icon--neutral">▲</span>
+          <span class="review__judge-icon review__judge-icon--neutral"><DgIcon name="arrowUp" :size="16" /></span>
           {{ t('timeline.review.neutral') }}
         </button>
         <button type="button" class="review__judge" :disabled="saving || isAnimatingOut" @click="judge('focus')">
-          <span class="review__judge-icon review__judge-icon--focus">▶</span>
+          <span class="review__judge-icon review__judge-icon--focus"><DgIcon name="arrowRight" :size="16" /></span>
           {{ t('timeline.review.focus') }}
         </button>
       </div>

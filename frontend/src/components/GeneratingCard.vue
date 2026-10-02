@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -18,7 +19,7 @@ const paused = computed(() => props.state === 'paused')
 <template>
   <div class="gen-card" :class="{ 'is-paused': paused }" role="status">
     <span v-if="paused" class="gen-card__hold" aria-hidden="true">
-      <svg viewBox="0 0 12 12"><rect x="2.8" y="2.2" width="2.4" height="7.6" rx="1" fill="currentColor" /><rect x="6.8" y="2.2" width="2.4" height="7.6" rx="1" fill="currentColor" /></svg>
+      <DgIcon name="pause" :size="10" />
     </span>
     <span v-else class="gen-card__icon" aria-hidden="true">
       <i

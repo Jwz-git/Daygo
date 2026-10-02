@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -254,9 +255,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
             :aria-label="t('chat.hideSidebar')"
             @click="emit('close')"
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-            </svg>
+            <DgIcon name="close" :size="14" />
           </button>
         </header>
 
@@ -273,9 +272,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
               class="drawer__new"
               @click="perform(store.newConversation); emit('close')"
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-              </svg>
+              <DgIcon name="plus" :size="14" />
               <span>{{ t('chat.drawer.newChat') }}</span>
             </button>
 
@@ -343,9 +340,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
                           :disabled="renamingBusy"
                           @click="renamingId = null; renameError = ''"
                         >
-                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                          </svg>
+                          <DgIcon name="close" :size="12" />
                         </button>
                       </div>
                       <div v-else class="drawer__row-actions">
@@ -356,9 +351,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
                           :title="t('chat.rename')"
                           @click="startRename(conv.id)"
                         >
-                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path d="M11.5 2.5l2 2-7.5 7.5H4v-2l7.5-7.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                          </svg>
+                          <DgIcon name="pencil" :size="12" />
                         </button>
                         <button
                           v-if="pendingRemoveId !== conv.id"
@@ -367,9 +360,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
                           :aria-label="t('chat.deleteConversation')"
                           @click="pendingRemoveId = conv.id"
                         >
-                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path d="M3 4h10M6 4V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1M12 4v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                          </svg>
+                          <DgIcon name="trash" :size="12" />
                         </button>
                       </div>
                     </li>
@@ -401,9 +392,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
             <footer class="memory__foot">
               <Transition name="saved-pop">
                 <span v-if="memorySaved" class="memory__saved">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
+                  <DgIcon name="check" :size="12" />
                   {{ t('chat.memory.saved') }}
                 </span>
               </Transition>

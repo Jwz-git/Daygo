@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -132,11 +133,11 @@ onBeforeUnmount(() => {
   <div ref="rootEl" class="calendar" role="dialog" :aria-label="t('timeline.calendar.open')">
     <div class="calendar__head">
       <button type="button" class="calendar__nav" :title="t('timeline.calendar.prevMonth')" @click="shiftMonth(-1)">
-        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2.5 4 6l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <DgIcon name="chevronLeft" :size="11" />
       </button>
       <span class="calendar__month">{{ monthTitle }}</span>
       <button type="button" class="calendar__nav" :title="t('timeline.calendar.nextMonth')" @click="shiftMonth(1)">
-        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <DgIcon name="chevronRight" :size="11" />
       </button>
     </div>
     <div class="calendar__grid">

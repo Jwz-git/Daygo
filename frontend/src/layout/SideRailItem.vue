@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
 import { RouterLink, type RouteLocationRaw } from 'vue-router'
+
+import DgIcon from '@/components/DgIcon.vue'
+import type { IconName } from '@/components/icons/glyphs'
 
 const props = defineProps<{
   to: RouteLocationRaw
   label: string
-  icon: Component
+  icon: IconName
   active: boolean
 }>()
 </script>
@@ -18,7 +20,7 @@ const props = defineProps<{
     :aria-current="props.active ? 'page' : undefined"
   >
     <span class="rail-item__glyph">
-      <component :is="props.icon" class="rail-item__icon" />
+      <DgIcon :name="props.icon" :size="18" class="rail-item__icon" />
     </span>
     <span class="rail-item__label">{{ props.label }}</span>
   </RouterLink>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { useI18n } from 'vue-i18n'
 
 const { tm, rt } = useI18n()
@@ -12,12 +13,7 @@ const emit = defineEmits<{
   <div class="welcome">
     <!-- Illustration / icon -->
     <div class="welcome__icon" aria-hidden="true">
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <rect width="48" height="48" rx="12" fill="color-mix(in srgb, var(--dg-accent) 12%, transparent)"/>
-        <path d="M14 20c0-2.2 1.8-4 4-4h12c2.2 0 4 1.8 4 4v8c0 2.2-1.8 4-4 4H18c-2.2 0-4-1.8-4-4v-8z" stroke="var(--dg-accent-text)" stroke-width="2" fill="none"/>
-        <path d="M19 32h10M24 32v-8" stroke="var(--dg-accent-text)" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="24" cy="16" r="2" fill="var(--dg-accent-text)"/>
-      </svg>
+      <DgIcon name="chat" :size="26" />
     </div>
 
     <h2 class="welcome__title">{{ $t('chat.welcome.title') }}</h2>
@@ -45,8 +41,15 @@ const emit = defineEmits<{
   text-align: center;
 }
 
+/* A tinted tile around the chat glyph, in the accent family. */
 .welcome__icon {
-  opacity: 0.8;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--dg-accent) 12%, transparent);
+  color: var(--dg-accent-text);
+  place-items: center;
 }
 
 .welcome__title {

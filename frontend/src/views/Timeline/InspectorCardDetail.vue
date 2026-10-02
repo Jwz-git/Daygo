@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -158,10 +159,6 @@ async function setVerdict(next: ReviewVerdict): Promise<void> {
  * summary, so nothing outside this pane needs re-fetching.
  */
 const RATINGS: readonly SummaryRating[] = ['up', 'down']
-const RATING_GLYPHS: Record<SummaryRating, string> = {
-  up: 'M5 7.5V13m0-5.5L7.8 3c.9 0 1.5.7 1.4 1.6L9 7h3.4c.9 0 1.5.8 1.3 1.6l-.9 3.6c-.1.5-.6.9-1.2.9H5M5 7.5H2.5V13H5',
-  down: 'M5 8.5V3m0 5.5L7.8 13c.9 0 1.5-.7 1.4-1.6L9 9h3.4c.9 0 1.5-.8 1.3-1.6l-.9-3.6C12.7 3.9 12.2 3.5 11.6 3.5H5M5 8.5H2.5V3H5',
-}
 const RATING_COLORS: Record<SummaryRating, string> = {
   // The pane's existing good/bad language: teal for "this was right", danger
   // for "this was wrong". A thumbs-down is negative feedback, not an error.
@@ -348,7 +345,7 @@ watch(
           :aria-label="t('timeline.inspector.editCategory')"
           @click="beginEditing('category')"
         >
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <DgIcon name="pencil" :size="12" />
         </button>
       </p>
 
@@ -374,7 +371,7 @@ watch(
           :aria-label="t('timeline.inspector.editTitle')"
           @click="beginEditing('title')"
         >
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <DgIcon name="pencil" :size="12" />
         </button>
       </h2>
     </div>
@@ -385,7 +382,7 @@ watch(
       :aria-label="t('timeline.inspector.close')"
       @click="emit('close')"
     >
-      ×
+      <DgIcon name="close" :size="14" />
     </button>
   </header>
 
@@ -414,7 +411,7 @@ watch(
         :aria-label="t('timeline.inspector.editSummary')"
         @click="beginEditing('summary')"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        <DgIcon name="pencil" :size="12" />
       </button>
     </h3>
     <div v-if="editingField === 'summary'" class="field-editor">
@@ -443,7 +440,7 @@ watch(
         :aria-label="t('timeline.inspector.editDetailedSummary')"
         @click="beginEditing('detailedSummary')"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        <DgIcon name="pencil" :size="12" />
       </button>
     </h3>
     <div v-if="editingField === 'detailedSummary'" class="field-editor">
@@ -573,7 +570,7 @@ watch(
         :title="canReprocess ? t('timeline.reprocess.card') : t('timeline.reprocess.cardUnavailable')"
         @click="confirmingReprocess = true"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true" class="reprocess-icon"><path d="M13.65 2.35A8 8 0 1 0 16 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 2l3 0 0 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <DgIcon class="reprocess-icon" name="refresh" :size="14" />
         {{ props.pendingAction === 'reprocess-card' ? t('timeline.reprocess.cardRunning') : t('timeline.reprocess.card') }}
       </button>
       <button
@@ -623,9 +620,7 @@ watch(
         :title="ratingLabel(option)"
         @click="setRating(option)"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path :d="RATING_GLYPHS[option]" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
-        </svg>
+        <DgIcon :name="option === 'up' ? 'thumbsUp' : 'thumbsDown'" :size="14" />
       </button>
     </div>
     <p v-if="ratingFailed" class="inspector__error" role="alert">{{ t('timeline.inspector.ratingSaveFailed') }}</p>

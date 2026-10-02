@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -116,9 +117,7 @@ onMounted(() => {
               :aria-label="t('chat.showSidebar')"
               @click="openDrawer"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
+              <DgIcon name="menu" :size="18" />
             </button>
           </div>
           <ChatContextBar />

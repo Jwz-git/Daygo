@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -233,7 +234,7 @@ async function finish(): Promise<void> {
 
 <template>
   <div class="wizard" role="dialog" :aria-label="t('timeline.manage2.title')">
-    <button type="button" class="wizard__close" :aria-label="t('timeline.inspector.close')" @click="emit('close')">×</button>
+    <button type="button" class="wizard__close" :aria-label="t('timeline.inspector.close')" @click="emit('close')"><DgIcon name="close" :size="14" /></button>
 
     <div class="wizard__side">
       <p class="wizard__step">{{ t('timeline.manage2.stepOf', { current: step, total: 2 }) }}</p>
@@ -241,11 +242,11 @@ async function finish(): Promise<void> {
 
       <template v-if="step === 1">
         <p class="wizard__hint">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4" /><path d="M5.5 8h5M8 5.5v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
+          <DgIcon name="plusCircle" :size="16" />
           {{ t('timeline.manage2.hint1') }}
         </p>
         <p class="wizard__hint">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.4" /><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
+          <DgIcon name="list" :size="16" />
           {{ t('timeline.manage2.hint2') }}
         </p>
         <p class="wizard__note">{{ t('timeline.manage2.optionalNote') }}</p>
@@ -306,10 +307,10 @@ async function finish(): Promise<void> {
             </div>
             <div class="wizard-row__actions">
               <button type="button" class="wizard-row__icon" :aria-label="t('timeline.inspector.editTitle')" @click="beginEdit(index)">
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.7a2.4 2.4 0 0 1 3.4 3.4l-8.3 8.3-4.3 1 1-4.3 8.2-8.4Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /></svg>
+                <DgIcon name="pencil" :size="14" />
               </button>
               <button type="button" class="wizard-row__icon wizard-row__icon--danger" :aria-label="t('timeline.manage2.deleteTitle')" @click="removeCategory(index)">
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M6.5 4V2.8h3V4M4.5 4l.6 9h5.8l.6-9M6.7 6.5v4.5M9.3 6.5v4.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" /></svg>
+                <DgIcon name="trash" :size="14" />
               </button>
             </div>
           </template>
@@ -344,11 +345,11 @@ async function finish(): Promise<void> {
       <button v-if="step === 2" type="button" class="dg-button" @click="toBack">{{ t('timeline.manage2.back') }}</button>
       <button v-if="step === 1" type="button" class="wizard__primary" @click="toNext">
         {{ t('timeline.manage2.next') }}
-        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <DgIcon name="chevronRight" :size="11" />
       </button>
       <button v-else type="button" class="wizard__primary" :disabled="saving || !canWrite" @click="finish">
         {{ saving ? t('timeline.failure.retrying') : t('timeline.manage2.finish') }}
-        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        <DgIcon name="chevronRight" :size="11" />
       </button>
     </footer>
   </div>

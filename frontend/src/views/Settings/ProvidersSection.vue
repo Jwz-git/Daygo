@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -82,20 +83,14 @@ async function confirmRemove(id: string): Promise<void> {
         <dl class="provider-card__meta">
           <div class="meta-row">
             <dt class="meta-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
+              <DgIcon name="link" :size="12" />
               {{ t('settings.providers.form.endpoint') }}
             </dt>
             <dd class="meta-value meta-value--mono">{{ provider.endpoint }}</dd>
           </div>
           <div class="meta-row meta-row--models">
             <dt class="meta-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-              </svg>
+              <DgIcon name="sparkle" :size="12" />
               {{ t('settings.providers.form.models') }}
             </dt>
             <dd class="meta-value">
@@ -109,11 +104,7 @@ async function confirmRemove(id: string): Promise<void> {
           </div>
           <div v-if="provider.maxImages > 0" class="meta-row">
             <dt class="meta-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
-              </svg>
+              <DgIcon name="image" :size="12" />
               {{ t('settings.providers.form.maxImages') }}
             </dt>
             <dd class="meta-value">
@@ -122,24 +113,16 @@ async function confirmRemove(id: string): Promise<void> {
           </div>
           <div class="meta-row">
             <dt class="meta-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
+              <DgIcon name="lock" :size="12" />
               {{ t('settings.providers.form.apiKey') }}
             </dt>
             <dd class="meta-value meta-value--key">
               <span v-if="provider.hasSecret" class="key-status key-status--configured">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
+                <DgIcon name="check" :size="10" />
                 {{ t('settings.providers.secret.configured') }}
               </span>
               <span v-else class="key-status key-status--missing">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
+                <DgIcon name="close" :size="10" />
                 {{ t('settings.providers.secret.missing') }}
               </span>
             </dd>
@@ -164,10 +147,7 @@ async function confirmRemove(id: string): Promise<void> {
         <!-- Card Actions -->
         <footer v-else class="provider-card__actions">
           <button type="button" class="dg-button dg-button--secondary" @click="form?.openEdit(provider)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
+            <DgIcon name="pencil" :size="14" />
             {{ t('common.action.edit') }}
           </button>
           <button
@@ -176,11 +156,7 @@ async function confirmRemove(id: string): Promise<void> {
             class="dg-button dg-button--ghost"
             @click="store.clearSecret(provider.id)"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
+            <DgIcon name="signOut" :size="14" />
             {{ t('settings.providers.secret.clear') }}
           </button>
           <button
@@ -188,10 +164,7 @@ async function confirmRemove(id: string): Promise<void> {
             class="dg-button dg-button--ghost dg-button--danger-ghost"
             @click="pendingRemoveId = provider.id"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
+            <DgIcon name="trash" :size="14" />
             {{ t('common.action.delete') }}
           </button>
         </footer>
@@ -202,11 +175,7 @@ async function confirmRemove(id: string): Promise<void> {
   <!-- Empty State: its own copy, not the section description. -->
   <div v-else class="empty-state">
     <div class="empty-state__icon" aria-hidden="true">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
-      </svg>
+      <DgIcon name="layers" :size="48" />
     </div>
     <h3 class="empty-state__title">{{ t('settings.providers.empty') }}</h3>
     <p class="empty-state__hint">{{ t('settings.providers.emptyHint') }}</p>
@@ -218,9 +187,7 @@ async function confirmRemove(id: string): Promise<void> {
   <!-- Keychain Notice -->
   <section class="keychain-notice">
     <div class="keychain-notice__icon" aria-hidden="true">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-      </svg>
+      <DgIcon name="key" :size="16" />
     </div>
     <div class="keychain-notice__text">
       <h3 class="keychain-notice__title">{{ t('settings.providers.secret.keychainTitle') }}</h3>
