@@ -7,12 +7,23 @@ import { getDailyContext, DailyUnavailableError } from '@/api/daily'
 import { onTimelineUpdated } from '@/api/timeline'
 import { getWeeklyDashboard, hasWeeklyBinding, WeeklyUnavailableError } from '@/api/weekly'
 import { shiftWeekStart } from '@/lib/calendarDate'
+import {
+  buildContextCharts,
+  buildHeatmap,
+  buildSankey,
+  buildTreemap,
+  buildWorkflow,
+  weeklyChartFacts,
+} from '@/stores/weeklyCharts'
 import { buildWeeklyPresentation } from '@/stores/weeklyPresentation'
 
 export type WeeklyState = 'loading' | 'unavailable' | 'failure' | 'empty' | 'populated'
 
 export const useWeeklyStore = defineStore('weekly', () => {
   const dashboard = ref<WeeklyDashboardDTO | null>(null)
+  // The week before, for the treemap's per-app change only; null when it is
+  // unavailable, which simply hides the change badges.
+  const previousDashboard = ref<WeeklyDashboardDTO | null>(null)
   const loading = ref(true)
   const unavailable = ref(false)
   const error = ref<unknown>(null)
@@ -32,6 +43,20 @@ export const useWeeklyStore = defineStore('weekly', () => {
   const presentation = computed(() =>
     dashboard.value === null ? null : buildWeeklyPresentation(dashboard.value),
   )
+
+  // Dayflow's weekly charts, computed from the same payload (stores/weeklyCharts).
+  const charts = computed(() => {
+    if (dashboard.value === null) return null
+    const facts = weeklyChartFacts(dashboard.value)
+    const previousFacts = previousDashboard.value === null ? [] : weeklyChartFacts(previousDashboard.value)
+    return {
+      workflow: buildWorkflow(facts),
+      heatmap: buildHeatmap(facts),
+      context: buildContextCharts(facts),
+      treemap: buildTreemap(facts, previousFacts),
+      sankey: buildSankey(facts),
+    }
+  })
   const navigationAvailable = computed(
     () => hasWeeklyBinding() && dashboard.value !== null && !loading.value,
   )
@@ -68,6 +93,7 @@ export const useWeeklyStore = defineStore('weekly', () => {
       const nextDashboard = await getWeeklyDashboard(weekStart)
       if (version !== requestVersion) return
       dashboard.value = nextDashboard
+      void loadPreviousWeek(nextDashboard.weekStart, version)
       if (requestedWeekStart === '') currentWeekStart.value = nextDashboard.weekStart
     } catch (cause: unknown) {
       if (version !== requestVersion) return
@@ -79,6 +105,7 @@ export const useWeeklyStore = defineStore('weekly', () => {
           dashboard.value = null
         } else {
           dashboard.value = fixture.dashboard
+          previousDashboard.value = null
           currentWeekStart.value = fixture.dashboard.weekStart
           usingDevelopmentFixture.value = true
         }
@@ -87,6 +114,20 @@ export const useWeeklyStore = defineStore('weekly', () => {
       }
     } finally {
       if (version === requestVersion) loading.value = false
+    }
+  }
+
+  // Best effort: a failure only removes the treemap's change badges, it is
+  // never surfaced as a page error.
+  async function loadPreviousWeek(weekStart: string, version: number): Promise<void> {
+    previousDashboard.value = null
+    const target = shiftWeekStart(weekStart, -1)
+    if (target === null) return
+    try {
+      const previous = await getWeeklyDashboard(target)
+      if (version === requestVersion) previousDashboard.value = previous
+    } catch {
+      if (version === requestVersion) previousDashboard.value = null
     }
   }
 
@@ -118,6 +159,7 @@ export const useWeeklyStore = defineStore('weekly', () => {
     currentWeekStart,
     state,
     presentation,
+    charts,
     navigationAvailable,
     canNavigateForward,
     load,
