@@ -85,6 +85,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground`、`GetUIVisibility` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
 | timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`StopRetries`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试、停止自动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
+| daily / weekly | `GetTokenUsage` | 全部已记录模型尝试的只读用量；逻辑日按小时、周按逻辑日，统一缓存口径并提示未报告数量 |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`SetPermissionRestartArmed`、`RelaunchForPermission`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；`SetPermissionRestartArmed` / `RelaunchForPermission` 承载授权后的完全退出 + 自动重启（见权限组说明）；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
@@ -509,6 +510,7 @@ type ProviderPlaygroundResultDTO struct {
 | `SaveJournalDay(entry JournalDayDTO) error` | daily | 日记 repository / 写入锁 | 写·幂等 | `journal:updated` | `invalid_argument` |
 | `GetDayGoal(day string) (DayGoalDTO, error)` | daily | time / 目标 repository | 读 | — | `invalid_argument` |
 | `SaveDayGoal(goal DayGoalDTO) error` | daily | 目标 / 分类 / 写入锁 | 写·幂等 | `goal:updated` | `invalid_argument` |
+| `GetTokenUsage(period, day string) (TokenUsageDTO, error)` | daily / weekly | time / llm_calls | 读 | — | `invalid_argument` `database_error` |
 | `GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, error)` | weekly | time 周边界 / cards | 读 | — | `invalid_argument` |
 
 `GetDailyRecap` 的参数是**日历日**而不是逻辑日（见 §5.3.2）。这是唯一的例外，字段名
@@ -558,6 +560,21 @@ type ProviderPlaygroundResultDTO struct {
 更新弹窗中**属于我们的**那句文案（本实例不是捕获所有者，因此拒绝安装）由前端经
 `SetNativeUiLabels` 下发（§5.5.1），适配器经 `UpdateCopySink` 接收；Sparkle 与 WinSparkle
 自己的对话框文案不由本应用提供，跟随系统语言。
+
+Token 用量只读绑定：`GetTokenUsage(period, day)`，period 为 `day` 或 `week`；
+day 必须为 yyyy-MM-dd，week 还须周一，否则 `invalid_argument`。读库失败为 `database_error`。
+返回 `TokenUsageDTO { period, timeZone, buckets }`；buckets 按时间递增且为空时补零，
+每项 `TokenUsageBucketDTO { startTs, endTs, inputTokens, outputTokens, calls, unknownCalls }`，
+数值均为整数。day 按凌晨 4 点逻辑日分实际小时（DST 可为 23/25 桶），
+week 为周一 4 点至下周一 4 点，分七个逻辑日。前端不推导边界。
+按 `llm_calls.started_at` 的左闭右开范围读取全部已记录尝试（包括失败、重试、测试），
+不限定目的或当前报告生成任务。输入统一含缓存：Anthropic 加缓存读/写，
+OpenAI 输入已含缓存不再加；输出独立相加。NULL 不伪造估算，
+任一 input/output 未报告的调用计入 unknownCalls；合计仅含已知部分。
+这不是价格或账单接口。不暴露 provider 密钥、请求、屏幕或文件路径。
+日报后与周报末尾的卡片共用此绑定，默认折线，可切柱状/扇形；
+扇形展示输入/输出占比。每分钟在组件存活期间重拉，卸载取消计时；
+失败仅影响用量卡片，不影响报告。
 
 ### 5.5.2 DTO 目录
 

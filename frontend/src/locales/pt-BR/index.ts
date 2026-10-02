@@ -1,3 +1,4 @@
+import tokenUsage from './tokenUsage'
 import captureTest from './captureTest'
 import modelPlayground from './modelPlayground'
 import chat from './chat'
@@ -11,4 +12,4 @@ import timeline from './timeline'
 import weekly from './weekly'
 import recording from './recording'
 
-export default { common, nav, native, recording, timeline, daily, weekly, chat, settings, captureTest, test, modelPlayground }
+export default { tokenUsage, common, nav, native, recording, timeline, daily, weekly, chat, settings, captureTest, test, modelPlayground }

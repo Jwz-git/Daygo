@@ -125,3 +125,23 @@ Slack 各跨两个分类。验证：`sankeyLayout` 夹具 6 项（含原版规�
 2026-09-11—20：Go 的周边界属性测试、存储与聚合夹具覆盖空周、System / Idle / Distraction 排除、非周一拒绝及 DST / 半小时 / 45 分钟时区；前端 typecheck / build 和 Vite 匿名数据预览覆盖深浅主题、双语言与窄窗口。2026-09-20 修正 Distraction 误计为专注。真实卡片周与跨周观察由用户于 2026-09-22 确认验收，未附逐项运行记录。
 
 2026-09-23：匿名周一 03:30–04:30 卡片夹具验证前后两周各计 30 分钟，日明细各有一个无重叠时间片；`go test ./internal/app ./internal/storage ./internal/insight` 通过。真实历史库尚未单独复核。
+
+
+2026-10-02（test 分支，Token 用量增量）：新增只读 `GetTokenUsage` 与报告后用量卡片，
+默认折线，可切柱状/扇形。每日按凌晨 4 点逻辑日分小时，每周分七个逻辑日；
+统计全部已记录调用（含重试/测试），输入统一含缓存，未报告用量单独提示。
+无 schema 或 AI 调用变更。契约见 [05](../05-interface-contract.md)。
+夹具覆盖左右边界、缓存语义、未知调用、空数据、绑定参数与图表求和。
+本次增量真实 Wails/Provider、DST 图表显示尚未验收，历史确认不覆盖。
+回退：撤销本次提交即可，原始 `llm_calls` 数据保留。
+
+验证证据（2026-10-02，test 未提交工作树，macOS arm64）：`./scripts/gate.sh` 通过，
+`gofmt -l .` 无输出，Go 内部测试 / vet / 无 cgo 构建、三平台核心交叉构建通过，
+前端 unit 209 项通过、typecheck / build 通过；文档 57 篇无问题。
+Windows 安装器 9 项中 5 项因需 Windows 主机跳过，未记为通过。
+首次门禁仅因新增方法尚未进入绑定白名单失败；本次显式扩充
+`contractBindings` 为允许 `GetTokenUsage`，与 05 方法表同步，随后重跑通过。
+匿名浏览器夹具（Chrome headless，1300px / 760px）检查日报 / 周报三种图表、
+深色、空数据、读取失败和重试入口，截图无裁切，pageerror 为 0；
+输入/输出总数与夹具相符。夹具不是生产样例，不读取真实用户数据库。
+DST、半小时 / 45 分钟时区由 Go 夹具验证；目标平台真实 Wails / Provider 对照未运行。

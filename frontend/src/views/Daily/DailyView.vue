@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
+import TokenUsageCard from '@/components/TokenUsageCard.vue'
 import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PeriodNav from '@/components/PeriodNav.vue'
@@ -169,6 +170,7 @@ onBeforeUnmount(() => daily.stopListening())
             @regenerate="daily.regenerateRecap"
             @save="daily.saveRecap"
           />
+          <TokenUsageCard period="day" :day="context.day" />
           <DailyJournalPanel
             :journal="journal"
             :unavailable="journalUnavailable"

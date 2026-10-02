@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import TokenUsageCard from '@/components/TokenUsageCard.vue'
 import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PeriodNav from '@/components/PeriodNav.vue'
@@ -114,6 +115,7 @@ onBeforeUnmount(() => weekly.stopListening())
 
           <p class="weekly-scope-note">{{ t('weekly.scopeNote') }}</p>
         </template>
+        <TokenUsageCard v-if="dashboard" period="week" :day="dashboard.weekStart" />
       </div>
     </main>
   </div>
