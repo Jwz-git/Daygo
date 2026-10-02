@@ -79,4 +79,43 @@ export default {
     },
   },
   scopeNote: 'Calculé à partir de vos cartes d’activité quotidiennes.',
+  charts: {
+    distribution: {
+      title: 'Répartition de la semaine',
+      total: 'Total',
+      aria: 'Part du temps par catégorie cette semaine',
+    },
+    context: {
+      title: 'Changements de contexte et distractions',
+      shifts: 'Changements de contexte',
+      distractions: 'Distractions',
+      distribution: 'Au fil de la journée (10:00–18:00)',
+      comparison: 'Par jour',
+      insight: '{day} a connu le plus d’interruptions : {shifts} changements de contexte et {distracted} distractions.',
+      insightNone: 'Aucun schéma notable de changements ou de distractions cette semaine.',
+      aria: 'Changements de contexte et distractions par jour',
+    },
+    workflow: {
+      title: 'Votre flux de travail cette semaine',
+      total: 'Total de la semaine',
+      aria: 'Catégorie principale pour chaque moment de chaque jour',
+    },
+    heatmap: {
+      title: 'Carte de chaleur concentration / distraction',
+      focused: 'Travail concentré',
+      distracted: 'Distrait',
+      aria: 'Degré de concentration ou de distraction à chaque moment de chaque jour',
+    },
+    treemap: {
+      title: 'Les plus utilisées par catégorie',
+      empty: 'Pas encore de données d’applications cette semaine',
+      aria: 'Applications avec le plus de temps dans chaque catégorie',
+    },
+    sankey: {
+      title: 'Temps entre catégories et applications',
+      aria: 'Comment le temps de la semaine a circulé des catégories vers les applications',
+    },
+    otherApp: 'Autres',
+    otherCategory: 'Autres',
+  },
 }

@@ -147,6 +147,21 @@
   --dg-daily-idle-fill: rgba(199, 199, 204, 0.10);
   --dg-daily-idle-line: rgba(199, 199, 204, 0.34);
 
+  --dg-wk-card-fill: rgba(127, 122, 148, 0.1);
+  --dg-wk-card-border: #4e4e4e;
+  --dg-wk-title: #ff9a64;
+  --dg-wk-text: #ffffff;
+  --dg-wk-text-secondary: #dddddd;
+  --dg-wk-text-muted: #b4b4b4;
+  --dg-wk-footer: rgba(127, 122, 148, 0.1);
+  --dg-wk-divider: #4e4e4e;
+  --dg-wk-axis: #dddddd;
+  --dg-wk-axis-soft: rgba(255, 255, 255, 0.25);
+  --dg-wk-empty-cell: rgba(255, 255, 255, 0.08);
+  --dg-wk-solid: #272a3c;
+  --dg-wk-row-fill: rgba(255, 255, 255, 0.08);
+  --dg-wk-donut-shadow: rgba(0, 0, 0, 0.35);
+
   --dg-weekly-focus: #59a6ff;
   --dg-weekly-ring-track: rgba(255, 255, 255, 0.2);
   --dg-weekly-ring-center: #2b2d44;

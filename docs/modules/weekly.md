@@ -71,6 +71,15 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 
 ## 验证记录
 
+2026-10-02（`frontend-lab` 分支）：周报加入 Dayflow 原版的 6 张图（周分布环形图、上下文切换与分心对比、
+本周工作流、专注与分心热力图、各分类最常用应用矩形树图、分类与应用桑基图），Daygo 原有区块排在其后。
+后端 `WeeklySegmentDTO` 增加 `appSites` 与 `distractions`（Go 以 `timeutil.ResolveClock` 解析并裁剪到时段）；
+前端 `stores/weeklyCharts.ts` 移植 Dayflow `WeeklyDashboardBuilder` 的汇总算法，应用身份复用时间线的
+`lib/appSiteIcon`，分心仅依据 Distraction 分类与卡片分心区间（不沿用原版的英文标题匹配）；矩形树图的
+周环比额外读取上一周周报，失败时仅隐藏变化值。验证：insight / storage / app 夹具、`weeklyCharts` 与
+`chartLayout` 前端夹具、typecheck、unit、build 通过；Vite 预览（匿名夹具）用无界面 Chrome 截图检查 6 张图。
+限制：未在真实 Wails 窗口与真实一周数据下检查；深色外观、窄窗口与九语言长文案未逐项目检。
+
 2026-09-23：跨午夜 23:50–00:10 匿名周节律夹具通过，00:00 后的 10 分钟归入下一时钟小时；前端 `test:unit`、`typecheck`、`build` 及完整门禁通过。
 
 2026-09-23：日分布图改为左侧日期、共享小时轴与网格线、右侧每日时长。前端单测、

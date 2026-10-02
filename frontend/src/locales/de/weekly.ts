@@ -79,4 +79,43 @@ export default {
     },
   },
   scopeNote: 'Basiert auf deinen täglichen Aktivitätskarten.',
+  charts: {
+    distribution: {
+      title: 'Wochenverteilung',
+      total: 'Gesamt',
+      aria: 'Zeitanteil pro Kategorie in dieser Woche',
+    },
+    context: {
+      title: 'Kontextwechsel und Ablenkungen',
+      shifts: 'Kontextwechsel',
+      distractions: 'Ablenkungen',
+      distribution: 'Über den Tag (10:00–18:00)',
+      comparison: 'Pro Tag',
+      insight: '{day} hatte die meisten Unterbrechungen: {shifts} Kontextwechsel und {distracted} Ablenkungen.',
+      insightNone: 'Diese Woche gab es kein auffälliges Muster aus Wechseln oder Ablenkungen.',
+      aria: 'Kontextwechsel und Ablenkungen pro Tag',
+    },
+    workflow: {
+      title: 'Dein Arbeitsfluss diese Woche',
+      total: 'Wochensumme',
+      aria: 'Hauptkategorie für jeden Abschnitt jedes Tages',
+    },
+    heatmap: {
+      title: 'Heatmap für Fokus und Ablenkung',
+      focused: 'Fokussierte Arbeit',
+      distracted: 'Abgelenkt',
+      aria: 'Wie fokussiert oder abgelenkt jeder Abschnitt jedes Tages war',
+    },
+    treemap: {
+      title: 'Meistgenutzt pro Kategorie',
+      empty: 'Diese Woche gibt es noch keine App-Daten',
+      aria: 'Apps mit der meisten Zeit in jeder Kategorie',
+    },
+    sankey: {
+      title: 'Zeit zwischen Kategorien und Apps',
+      aria: 'Wie die Zeit dieser Woche von Kategorien in Apps floss',
+    },
+    otherApp: 'Sonstige',
+    otherCategory: 'Sonstige',
+  },
 }

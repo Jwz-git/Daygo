@@ -217,6 +217,22 @@
   --dg-weekly-series-5: #57949b;
   --dg-weekly-series-6: #a8834f;
 
+  /* Dayflow weekly charts (WeeklyPalette in Weekly/WeeklyView.swift, MIT). */
+  --dg-wk-card-fill: rgba(255, 255, 255, 0.46);
+  --dg-wk-card-border: #ebe6e3;
+  --dg-wk-title: #ff9a64;
+  --dg-wk-text: #333333;
+  --dg-wk-text-secondary: #777777;
+  --dg-wk-text-muted: #a5a5a5;
+  --dg-wk-footer: #faf7f5;
+  --dg-wk-divider: #e5dfd9;
+  --dg-wk-axis: rgba(90, 83, 76, 0.9);
+  --dg-wk-axis-soft: #c9c2bc;
+  --dg-wk-empty-cell: rgba(152, 152, 152, 0.1);
+  --dg-wk-solid: #ffffff;
+  --dg-wk-row-fill: #f2f2f2;
+  --dg-wk-donut-shadow: rgba(99, 71, 56, 0.35);
+
   /* motion */
   --dg-motion-fast: 100ms;
   --dg-motion-base: 160ms;

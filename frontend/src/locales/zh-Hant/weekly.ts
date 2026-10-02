@@ -79,4 +79,43 @@ export default {
     },
   },
   scopeNote: '統計基於每天的活動卡片。',
+  charts: {
+    distribution: {
+      title: '本週分布',
+      total: '總計',
+      aria: '本週各分類時長占比',
+    },
+    context: {
+      title: '情境切換與分心對比',
+      shifts: '情境切換',
+      distractions: '分心',
+      distribution: '時段分布（10:00–18:00）',
+      comparison: '每日對比',
+      insight: '{day}被打斷最多：{shifts} 次切換，{distracted} 次分心。',
+      insightNone: '本週沒有發現明顯的切換或分心。',
+      aria: '每天的情境切換與分心次數',
+    },
+    workflow: {
+      title: '本週工作流',
+      total: '本週合計',
+      aria: '每天各時段的主要分類',
+    },
+    heatmap: {
+      title: '專注與分心熱力圖',
+      focused: '專注工作',
+      distracted: '分心',
+      aria: '每天各時段的專注與分心程度',
+    },
+    treemap: {
+      title: '各分類最常用的應用程式',
+      empty: '本週還沒有應用程式資料',
+      aria: '各分類中使用時間最長的應用程式',
+    },
+    sankey: {
+      title: '分類與應用程式的時間流向',
+      aria: '本週時間從分類流向應用程式',
+    },
+    otherApp: '其他',
+    otherCategory: '其他',
+  },
 }

@@ -79,4 +79,43 @@ export default {
     },
   },
   scopeNote: '毎日の活動カードに基づく集計です。',
+  charts: {
+    distribution: {
+      title: '今週の内訳',
+      total: '合計',
+      aria: '今週のカテゴリ別の時間の割合',
+    },
+    context: {
+      title: 'コンテキスト切り替えと注意散漫',
+      shifts: 'コンテキスト切り替え',
+      distractions: '注意散漫',
+      distribution: '時間帯の分布（10:00–18:00）',
+      comparison: '日別の比較',
+      insight: '{day}が最も中断されました：切り替え {shifts} 回、注意散漫 {distracted} 回。',
+      insightNone: '今週は目立った切り替えや注意散漫はありませんでした。',
+      aria: '日ごとのコンテキスト切り替えと注意散漫の回数',
+    },
+    workflow: {
+      title: '今週のワークフロー',
+      total: '今週の合計',
+      aria: '各日の時間帯ごとの主なカテゴリ',
+    },
+    heatmap: {
+      title: '集中と注意散漫のヒートマップ',
+      focused: '集中作業',
+      distracted: '注意散漫',
+      aria: '各日の時間帯ごとの集中と注意散漫の度合い',
+    },
+    treemap: {
+      title: 'カテゴリ別のよく使うアプリ',
+      empty: '今週のアプリデータはまだありません',
+      aria: '各カテゴリで最も長く使ったアプリ',
+    },
+    sankey: {
+      title: 'カテゴリとアプリの時間の流れ',
+      aria: '今週の時間がカテゴリからアプリへどう流れたか',
+    },
+    otherApp: 'その他',
+    otherCategory: 'その他',
+  },
 }

@@ -15,12 +15,19 @@ import WeeklyInsightsPanel from './WeeklyInsightsPanel.vue'
 import WeeklyOverviewPanel from './WeeklyOverviewPanel.vue'
 import WeeklyRhythmPanel from './WeeklyRhythmPanel.vue'
 import WeeklyStatePanel from './WeeklyStatePanel.vue'
+import WeeklyContextCard from './charts/WeeklyContextCard.vue'
+import WeeklyDistributionCard from './charts/WeeklyDistributionCard.vue'
+import WeeklyHeatmapCard from './charts/WeeklyHeatmapCard.vue'
+import WeeklySankeyCard from './charts/WeeklySankeyCard.vue'
+import WeeklyTreemapCard from './charts/WeeklyTreemapCard.vue'
+import WeeklyWorkflowCard from './charts/WeeklyWorkflowCard.vue'
 
 const weekly = useWeeklyStore()
 const {
   dashboard,
   state,
   presentation,
+  charts,
   usingDevelopmentFixture,
   navigationAvailable,
   canNavigateForward,
@@ -42,6 +49,9 @@ const dateTitle = computed(() => {
   const end = format.format(new Date(`${endKey}T12:00:00Z`))
   return `${start} – ${end}`
 })
+
+// Logical-day strings of the week, Monday first, for the charts' weekday labels.
+const weekDays = computed(() => dashboard.value?.days.map((day) => day.day) ?? [])
 
 onMounted(() => {
   weekly.startEvents()
@@ -94,6 +104,19 @@ onBeforeUnmount(() => weekly.stopListening())
             </div>
             <p>{{ t('weekly.intro.description') }}</p>
           </div>
+
+          <!-- Dayflow's weekly charts first, in Dayflow's order; Daygo's own
+               panels follow. -->
+          <template v-if="charts">
+            <div class="weekly-top-row">
+              <WeeklyDistributionCard :presentation="presentation" :days="weekDays" />
+              <WeeklyContextCard :snapshot="charts.context" :days="weekDays" />
+            </div>
+            <WeeklyWorkflowCard :snapshot="charts.workflow" :days="weekDays" />
+            <WeeklyHeatmapCard :snapshot="charts.heatmap" :days="weekDays" />
+            <WeeklyTreemapCard :categories="charts.treemap" :days="weekDays" />
+            <WeeklySankeyCard :snapshot="charts.sankey" :week-label="dateTitle" :days="weekDays" />
+          </template>
 
           <WeeklyOverviewPanel :presentation="presentation" />
           <WeeklyCategoryPanel :presentation="presentation" />
@@ -160,6 +183,17 @@ onBeforeUnmount(() => weekly.stopListening())
   color: var(--dg-text-muted);
   font-size: 10px;
   line-height: 1.5;
+}
+
+/* Dayflow pairs the distribution donut with the context charts in one row. */
+.weekly-top-row {
+  display: grid;
+  grid-template-columns: minmax(380px, 1fr) minmax(0, 1.9fr);
+  gap: 20px;
+}
+
+@media (max-width: 1000px) {
+  .weekly-top-row { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 760px) {

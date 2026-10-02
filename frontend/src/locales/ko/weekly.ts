@@ -79,4 +79,43 @@ export default {
     },
   },
   scopeNote: '매일의 활동 카드를 기준으로 집계합니다.',
+  charts: {
+    distribution: {
+      title: '이번 주 분포',
+      total: '합계',
+      aria: '이번 주 카테고리별 시간 비율',
+    },
+    context: {
+      title: '맥락 전환과 산만함 비교',
+      shifts: '맥락 전환',
+      distractions: '산만함',
+      distribution: '시간대 분포(10:00–18:00)',
+      comparison: '일별 비교',
+      insight: '{day}에 가장 많이 끊겼습니다: 전환 {shifts}회, 산만함 {distracted}회.',
+      insightNone: '이번 주에는 눈에 띄는 전환이나 산만함이 없었습니다.',
+      aria: '일별 맥락 전환과 산만함 횟수',
+    },
+    workflow: {
+      title: '이번 주 워크플로',
+      total: '이번 주 합계',
+      aria: '매일 시간대별 주요 카테고리',
+    },
+    heatmap: {
+      title: '집중과 산만함 히트맵',
+      focused: '집중 작업',
+      distracted: '산만함',
+      aria: '매일 시간대별 집중과 산만함 정도',
+    },
+    treemap: {
+      title: '카테고리별 가장 많이 쓴 앱',
+      empty: '이번 주 앱 데이터가 아직 없습니다',
+      aria: '카테고리마다 가장 오래 쓴 앱',
+    },
+    sankey: {
+      title: '카테고리와 앱 사이의 시간 흐름',
+      aria: '이번 주 시간이 카테고리에서 앱으로 흐른 모습',
+    },
+    otherApp: '기타',
+    otherCategory: '기타',
+  },
 }

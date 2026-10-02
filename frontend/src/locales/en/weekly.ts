@@ -79,4 +79,43 @@ export default {
     },
   },
   scopeNote: 'Based on your daily activity cards.',
+  charts: {
+    distribution: {
+      title: 'Weekly distribution',
+      total: 'Total',
+      aria: 'Share of time per category this week',
+    },
+    context: {
+      title: 'Context shifts and distractions',
+      shifts: 'Context shifts',
+      distractions: 'Distractions',
+      distribution: 'Through the day (10:00–18:00)',
+      comparison: 'Per day',
+      insight: '{day} had the most interruptions: {shifts} context shifts and {distracted} distractions.',
+      insightNone: 'No context shift or distraction pattern this week.',
+      aria: 'Context shifts and distractions per day',
+    },
+    workflow: {
+      title: 'Your workflow this week',
+      total: 'Week total',
+      aria: 'Main category for each part of each day',
+    },
+    heatmap: {
+      title: 'Focus and distraction heat map',
+      focused: 'Focused work',
+      distracted: 'Distracted',
+      aria: 'How focused or distracted each part of each day was',
+    },
+    treemap: {
+      title: 'Most used per category',
+      empty: 'No app data this week yet',
+      aria: 'Apps with the most time in each category',
+    },
+    sankey: {
+      title: 'Time between categories and apps',
+      aria: 'How this week’s time flowed from categories into apps',
+    },
+    otherApp: 'Other',
+    otherCategory: 'Other',
+  },
 }

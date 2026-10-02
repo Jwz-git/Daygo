@@ -79,4 +79,43 @@ export default {
     },
   },
   scopeNote: '统计基于每天的活动卡片。',
+  charts: {
+    distribution: {
+      title: '本周分布',
+      total: '总计',
+      aria: '本周各分类时长占比',
+    },
+    context: {
+      title: '上下文切换与分心对比',
+      shifts: '上下文切换',
+      distractions: '分心',
+      distribution: '时段分布（10:00–18:00）',
+      comparison: '每日对比',
+      insight: '{day}被打断最多：{shifts} 次切换，{distracted} 次分心。',
+      insightNone: '本周没有发现明显的切换或分心。',
+      aria: '每天的上下文切换与分心次数',
+    },
+    workflow: {
+      title: '本周工作流',
+      total: '本周合计',
+      aria: '每天各时段的主要分类',
+    },
+    heatmap: {
+      title: '专注与分心热力图',
+      focused: '专注工作',
+      distracted: '分心',
+      aria: '每天各时段的专注与分心程度',
+    },
+    treemap: {
+      title: '各分类最常用的应用',
+      empty: '本周还没有应用数据',
+      aria: '各分类中使用时间最长的应用',
+    },
+    sankey: {
+      title: '分类与应用的时间流向',
+      aria: '本周时间从分类流向应用',
+    },
+    otherApp: '其他',
+    otherCategory: '其他',
+  },
 }
