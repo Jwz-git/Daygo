@@ -13,12 +13,11 @@ import (
 func TestListProviderModelsForSavedProvider(t *testing.T) {
 	backend, _, fake := backendWithStoreAndSecrets(t)
 
-	id, err := backend.AddProvider(validProviderInput())
+	withKey := validProviderInput()
+	withKey.Secret = "sk-models-key"
+	id, err := backend.AddProvider(withKey)
 	if err != nil {
 		t.Fatalf("AddProvider: %v", err)
-	}
-	if err := backend.SetProviderSecret(id, "sk-models-key"); err != nil {
-		t.Fatalf("SetProviderSecret: %v", err)
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

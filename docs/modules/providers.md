@@ -47,11 +47,12 @@ anthropic 三种协议。
 > **验收状态（2026-09-26）**：本模块所有已实现能力（含近期增量、长期观察与已实现的真实安装升级）经用户确认已验收，未附逐项运行记录。未实现能力、待定设计与正式证书缺失保持原状态；历史命令的失败、跳过或未运行不改写为通过。统一记录见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 实现进度：部分实现。Go 侧已落地：三协议客户端、重试 / 回退链（`ai.Chain`，循环降级）、
-连接探针、迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 经
+迁移 v4 的 `providers` 表与 `ProviderRepo`、Secrets 端口（macOS 经
 `security` CLI、Windows 经 Credential Manager、Linux 经 Secret Service / `secret-tool`，以及 fake）、
-Provider CRUD / 路由链 / 密钥 / `TestProvider(id, model)` 绑定
-（主要在 `internal/app/providers.go`），以及分置于 `providers_models.go` 和 `provider_probe.go` 的
-模型列表与草稿连接探针。单供应商多模型已落地（v17：`providers.model` → `models` JSON 数组，
+Provider CRUD / 路由链 / 密钥绑定（主要在 `internal/app/providers.go`），以及
+`providers_models.go` 的模型列表与 `provider_playground.go` 的模型测试与试用（`TryProvider`）。
+旧连接探针 `TestProvider` / `TestProviderConnection`（含 `ai.TestConnection`）与无调用方的
+`SetProviderSecret` 于 2026-10-02 移除。单供应商多模型已落地（v17：`providers.model` → `models` JSON 数组，
 上限 20）：路由链条目改为「供应商 + 模型」对，`ai.Chain` 按 `providerID + "\x1f" + model`
 复合键独立计数，钥匙串与 `llm_calls.provider_id` 仍用裸供应商 ID
 （decisions/providers-multi-model）。设置层 `providers.routing` 为有序对链，兼容旧的裸 id
@@ -72,8 +73,7 @@ Provider CRUD / 路由链 / 密钥 / `TestProvider(id, model)` 绑定
 
 输出 provider-client，包含文本 / 内存图片输入、JSON Schema 结构化输出、三种原生协议适配
 （openai / openai_responses / anthropic，经 `internal/ai` factory 统一构造）、路由、取消、
-重试与回退装饰器，以及内嵌匿名图片的连接探针（`ai.TestConnection`：固定文本 + PNG +
-严格 schema，单次调用，验证文本 / 图片 / 结构化输出三种能力）。图片仅接受
+重试与回退装饰器。图片仅接受
 JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB；调用记录只存 attempt 元数据，
 不存 endpoint、正文、图片、密钥或费用。
 协议客户端归 internal/ai；上层任务通过消费者接口调用，不导入另一服务的内部实现。
@@ -93,7 +93,7 @@ llm.outputLanguage 的字段规则和设置交互；回退链跨回合
 | 配置往返 | 匿名配置、链重复 / 不存在、空密钥与显式删除 | 规范化后落库，空密钥保持不变，删除只能显式触发 | 重启丢配置、错误路由、误清密钥失败 |
 | 密钥边界 | 测试专用临时密钥写入 / 删除，重启并检查 hasSecret | 值只在钥匙串 / Go 客户端；UI 仅布尔值 | DTO、日志、错误、localStorage 出现密钥立即阻塞 |
 | 协议 / 重试 | 匿名 HTTP 服务器返回成功、限流、超时、错误体；取消任务 | 请求符合各协议，错误脱敏，重试有界并传播取消 | 重试失控、请求目的地错误、后台任务无法结束失败 |
-| 真实连接 | 用户指定 Provider 与模型，显式运行 TestProvider | 一次实际测试调用，结果及耗时可见，不回显 payload | fake 成功不可替代此项；网络失败不谎报可用 |
+| 真实连接 | 用户指定 Provider 与模型，在模型测试与试用页显式运行 TryProvider | 一次实际测试调用，结果及耗时可见，不回显 payload | fake 成功不可替代此项；网络失败不谎报可用 |
 | 身份 | 与 delivery 运行重启 / 同签名升级矩阵 | 密钥归属与读取稳定，授权行为符合记录 | 仅编译成功不解除 G-native |
 
 ## 实现切片与集成

@@ -250,10 +250,7 @@ export default {
     test: {
       run: 'Test',
       running: 'Testing…',
-      runModel: 'Test model {model}',
-      passShort: 'Connected · {latency} ms',
       model: 'Test model',
-      modelDefault: 'Default ({model})',
       passed: 'Connected · {model} · {latency} ms',
       error: {
         authentication: 'The key is invalid or has expired',

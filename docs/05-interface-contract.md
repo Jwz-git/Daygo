@@ -89,7 +89,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | data | `GetDiagnostics` | 真实数据库统计；无数据源的字段经 `unavailable` 说明原因 |
 | recording | `GetRecordingState`、`SetRecording`、`PauseRecording`、`ResumeRecording`、`GetRecordingDirectory`、`SetStatusItemLabels`、`SetNativeUiLabels`、`GetPermissionState`、`RequestScreenRecordingPermission`、`OpenSystemSettings`、`SetPermissionRestartArmed`、`RelaunchForPermission`、`PickApplication`、`GetBlockedApplications`、`DescribeApplications`、`ListInstalledApplications`、`GetPrivacyCompatibility` | recorder 使用当前平台 Capture、正式 settings 与 CaptureStore；Windows 无 macOS TCC 提示时只对录制状态报告 `granted`；`SetPermissionRestartArmed` / `RelaunchForPermission` 承载授权后的完全退出 + 自动重启（见权限组说明）；隐私名单读取 `privacy.blockedApplicationIds`，名称与图标由 `ApplicationInspector` 解析，未解析到的条目只回 ID；`ListInstalledApplications` 供隐私页应用网格枚举（只含 ID 与名称，不含图标，图标经 `DescribeApplications` 按批解析；平台无枚举能力时返回 `native_unavailable`，前端保留 picker 兜底）；Windows 设置页同时显示真实系统 build 与 26100 隐私能力门禁 |
 | recording（联调） | `CaptureTest`、`OpenCaptureTestFolder`、`PollSystemEvents` | 直接调用平台 `Capture` 或排空系统事件广播缓冲；均不接 recorder / storage / config。`PollSystemEvents` 是共享广播缓冲的排空口（recorder 与测试页都要观察全部原生事件，直接消费会互相抢），**会消费缓冲**，正式产品页面不得调用 |
-| providers | `TestProviderConnection`、`ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`SetProviderSecret / DeleteProviderSecret`、`TestProvider`、`ListProviderModels`、`TryProvider` | 真实读写 `providers` 表与路由链；密钥经 Secrets 端口进钥匙串；`TestProvider` 从钥匙串取密钥发真实探针；模型列表单次请求无缓存；`TryProvider` 单次发送用户图文并返回文本，只保存 attempt 元数据 |
+| providers | `ListProviders / AddProvider / UpdateProvider / DeleteProvider`、`GetProviderRouting / SetProviderRouting`、`DeleteProviderSecret`、`ListProviderModels`、`TryProvider` | 真实读写 `providers` 表与路由链；密钥随新增 / 更新经 Secrets 端口进钥匙串；模型列表单次请求无缓存；`TryProvider` 单次发送用户图文并返回文本，只保存 attempt 元数据 |
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
@@ -448,27 +448,16 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 | `DeleteProvider(id string) error` | providers | Provider repository / settings-access；连带剪除路由链、钥匙串条目与会话级 provider 绑定 | 写·幂等 | `settings:changed` | `not_found` |
 | `GetProviderRouting() (ProviderRoutingDTO, error)` | providers | settings-access | 读 | — | — |
 | `SetProviderRouting(r ProviderRoutingDTO) error` | providers | Provider repository（逐对校验 providerId 存在、model 属于该 provider 或为空，按对去重） | 写·幂等 | `settings:changed` | `invalid_argument` |
-| `SetProviderSecret(id string, secret string) error` | providers | Secrets / Provider repository | 写·幂等 | — | `not_found` `invalid_argument` `native_unavailable` |
 | `DeleteProviderSecret(id string) error` | providers | Secrets（删不存在的条目不是错误） | 写·幂等 | — | `invalid_argument` `native_unavailable` |
-| `TestProvider(id string, model string) (ProviderTestResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥或 model 不属于该 provider）`provider_failed`（结果行） |
 | `ListProviderModels(req ProviderModelsRequestDTO) (ProviderModelsResultDTO, error)` | providers | provider-client / Secrets | 读·有网络副作用 | — | `invalid_argument`（无密钥）`native_unavailable` |
-| `TestProviderConnection(draft ProviderTestDraftDTO) (ProviderTestResultDTO, error)` | providers | provider-client | 读·有网络副作用 | — | `invalid_argument` |
 | `TryProvider(req ProviderPlaygroundRequestDTO) (ProviderPlaygroundResultDTO, error)` | providers | 已保存 Provider / Secrets / 持锁读写实例 | 写 attempt 元数据·有网络副作用 | — | `invalid_argument` `not_found` `not_capture_owner` `native_unavailable` `database_error`；网络失败在结果中分类 |
 
-以下两个旧探针绑定保留兼容，但自 2026-09-27 起不再由产品设置页面调用；用户测试统一走 `TryProvider`：
-
-- `TestProviderConnection` 测的是**表单里还没保存的草稿**，密钥随调用传入、只进 Go 内存，
-  不落盘、不进日志、不回显。该旧草稿探针已从表单移除，配置需先保存再进入可视化测试。
-- `TestProvider` 测的是**已保存的 provider**，密钥由 Go 从钥匙串取，调用方给 id 与要测的
-  model（空 model 回退到该 provider 的首个模型）。无已存密钥、或 model 不属于该 provider 时
-  返回 `invalid_argument`，不发探针。
-
-两者都只发一次探针（30 秒上限、不重试、不回退），**失败是返回值而不是 error**：
-`ok=false` 加分类后的错误码。旧探针的通过标准见
-§5.6.4 第 6 条——仅 HTTP 2xx 不算通过。
+旧的固定探针绑定 `TestProvider` / `TestProviderConnection` 自 2026-09-27 起已无产品入口，
+与同样无调用方的 `SetProviderSecret` 一起于 2026-10-02 移除；用户测试统一走 `TryProvider`，
+密钥随 `AddProvider` / `UpdateProvider` 的 `secret` 字段写入钥匙串。
 
 **密钥只写不读。** 没有任何绑定方法返回密钥内容；前端只能通过 `ProviderDTO.hasSecret`
-知道是否已配置。`TestProvider` 的返回里也不得回显密钥或完整请求体。
+知道是否已配置。`TryProvider` / `ListProviderModels` 的返回里也不得回显密钥或完整请求体。
 
 2026-09-27 默认输入增量：进入模型测试与试用页时，预填随包内置的 Daygo 软件图标 PNG 和当前界面的本地化描述提示词（简体中文为「请描述这张图片的内容」）。图标以打包内联 data URL 同时用于预览和请求字节，无需联网加载；用户可移除或替换图片、编辑文字。仅点击发送才调用模型，重新进入页面恢复默认值；切换语言不覆盖正在编辑的文字。
 
@@ -915,38 +904,6 @@ type ProviderModelsResultDTO struct {
     Message   string   `json:"message"`
 }
 
-// TestProvider 的返回（针对已保存的 provider）。与 TestProviderConnection 的
-// ProviderTestResultDTO 同形（见下）；两者共用该类型。
-type ProviderTestDTO struct {
-    OK        bool    `json:"ok"`
-    LatencyMs int     `json:"latencyMs"`
-    Model     *string `json:"model"`
-    Message   string  `json:"message"` // 已脱敏，不含请求体
-    Code      *string `json:"code"`    // 失败时对应 §5.4.1 的 code
-}
-
-// TestProviderConnection 的入参（已实现）。Secret 只为本次调用跨界，
-// 不写数据库、不写钥匙串、不进日志、不回显。
-type ProviderTestDraftDTO struct {
-    Protocol string `json:"protocol"`
-    Endpoint string `json:"endpoint"`
-    Model    string `json:"model"`
-    Secret   string `json:"secret"`
-}
-
-// TestProviderConnection 的返回（已实现）。失败是结果而不是 error：
-// ErrorCode 取自 internal/ai 的错误分类（authentication / rate_limited /
-// timeout / unavailable / invalid_request / unsupported_feature /
-// invalid_output / canceled），与 §5.4.1 的绑定错误码是两套独立集合。
-type ProviderTestResultDTO struct {
-    OK           bool     `json:"ok"`
-    Model        string   `json:"model"`        // provider 实际使用的模型
-    LatencyMs    int64    `json:"latencyMs"`
-    Capabilities []string `json:"capabilities"` // text | image | structured_output
-    ErrorCode    string   `json:"errorCode"`
-    Message      string   `json:"message"`      // 已脱敏的固定文案，不含响应正文
-}
-
 // ---------- 洞察 ----------
 
 type DailyRecapDTO struct {
@@ -1177,7 +1134,7 @@ frontend/
    错误文案按 §5.4 的错误码映射，不本地化后端 `Message`。
 7. **localStorage 只能经 `storage/`。** 绑定就绪前的本地偏好以带版本信封的记录存放，
    key 表集中在 `storage/keys.ts`，域名与 `SettingsDTO` 的分组对齐，绑定接管时不必搬 key。
-   **密钥不得进入该层**：provider 密钥经 `SetProviderSecret` 写入系统钥匙串，在此之前只
+   **密钥不得进入该层**：provider 密钥经 `AddProvider` / `UpdateProvider` 的 `secret` 字段写入系统钥匙串，在此之前只
    驻留进程内存，`hasSecret` 由内存派生而不从磁盘读回。
 
 ---
@@ -1200,7 +1157,7 @@ frontend/
 
   已落盘的取值与此表一致：`storage` 的 `readTimeout` / `writeTimeout` 为 5 s / 10 s，
   在调用方未给 deadline 时自动套用；`internal/app` 的权限调用 3 s、设置读写 10 s、诊断 5 s。
-  连接探针是例外——`ai.TestConnection` 自带 30 秒上限（§5.6.4 第 6 条），
+  模型测试是例外——`TryProvider` 自带 30 秒上限（§5.6.4 第 6 条），
   它是用户主动触发的一次网络往返，不受数据库超时约束。
 
 - 错误一律 `%w` 包装并携带操作与对象上下文；**禁止字符串匹配判断错误类型**。绑定层用
@@ -1286,12 +1243,9 @@ type ReplaceResult struct {
 5. 每次真实 HTTP attempt 必须记录 `llm_calls` 脱敏元数据：批次 / purpose、序号、provider、
    协议、模型、时间 / 耗时、结果 / 错误、HTTP 状态和可选 usage。禁止保存 endpoint、正文、图片、
    密钥和费用；匿名人工 fixture 才是解析器黄金测试输入。
-6. `TestProvider` 只向指定 provider 的指定 model（空则回退到首个模型）发起一次 30 秒内的
-   连接探针，不重试、不 fallback，不发送业务正文。探针包含固定指令文本、内嵌匿名 PNG 和严格
-   JSON Schema：模型必须回显固定 probe token 并正确识别图片特征才算通过，仅 HTTP 2xx 不构成
-   成功；返回实际模型、延迟与已验证能力（文本 / 图片 / 结构化输出）。探针经 `TestProviderConnection`
-   绑定保留兼容，但两个旧探针均无产品 UI 入口。草稿密钥仅为本次调用进入 Go 内存，不落盘、
-   不进日志。产品测试使用上述 `TryProvider`，以非空文字回复为成功标准，不验证结构化输出能力。
+6. 产品测试只使用上述 `TryProvider`：单次调用、30 秒上限、不重试、不 fallback，以非空文字
+   回复为成功标准，不验证结构化输出能力。原固定探针（内嵌匿名 PNG + 严格 JSON Schema 的
+   `ai.TestConnection` 及其 `TestProvider` / `TestProviderConnection` 绑定）已于 2026-10-02 移除。
    HTTP endpoint 允许使用，仅提示明文传输风险，不强制 HTTPS。
 7. 转录可并行，**但卡片的 读取 → 生成 → 改写 序列必须按重叠范围串行化**。
 8. `context` 取消必须中止在途 HTTP 与退避；被取消的批次保持 `processing`，下次启动重新拾取。

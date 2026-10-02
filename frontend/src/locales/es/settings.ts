@@ -250,10 +250,7 @@ export default {
     test: {
       run: 'Probar',
       running: 'Probando…',
-      runModel: 'Probar el modelo {model}',
-      passShort: 'Conectado · {latency} ms',
       model: 'Probar modelo',
-      modelDefault: 'Predeterminado ({model})',
       passed: 'Conectado · {model} · {latency} ms',
       error: {
         authentication: 'La clave no es válida o ha caducado',

@@ -250,10 +250,7 @@ export default {
     test: {
       run: 'Testen',
       running: 'Test läuft…',
-      runModel: 'Modell {model} testen',
-      passShort: 'Verbunden · {latency} ms',
       model: 'Modell testen',
-      modelDefault: 'Standard ({model})',
       passed: 'Verbunden · {model} · {latency} ms',
       error: {
         authentication: 'Der Schlüssel ist ungültig oder abgelaufen',

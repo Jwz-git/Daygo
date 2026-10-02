@@ -65,7 +65,7 @@ flowchart LR
 | 前端可见性 | 只有 `ProviderDTO.hasSecret` 布尔值 |
 | 绑定就绪前 | 只驻留进程内存；`hasSecret` 由内存派生，**不从磁盘读回**，这样重启后不会谎称"已配置" |
 | localStorage | **禁止**。`frontend/src/storage/` 是全应用唯一的 localStorage 调用方，且明文写着密钥不得进入该层 |
-| 日志与错误 | 绝不出现。`TestProvider` 的返回不得回显密钥或完整请求体 |
+| 日志与错误 | 绝不出现。`TryProvider` / `ListProviderModels` 的返回不得回显密钥或完整请求体 |
 | 仓库 | 绝不写入被 Git 跟踪的文件、夹具、日志或快照 |
 
 清空密钥只能经 `DeleteProviderSecret`。`ProviderInputDTO.Secret` 为空串表示"保持不变"——

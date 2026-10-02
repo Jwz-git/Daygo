@@ -120,8 +120,11 @@ func TestProviderSecretLifecycle(t *testing.T) {
 		t.Fatal("HasSecret true before any key was stored")
 	}
 
-	if err := backend.SetProviderSecret(id, "sk-fixture-key"); err != nil {
-		t.Fatalf("SetProviderSecret: %v", err)
+	// The settings form stores a key through UpdateProvider's secret field.
+	withKey := validProviderInput()
+	withKey.Secret = "sk-fixture-key"
+	if err := backend.UpdateProvider(id, withKey); err != nil {
+		t.Fatalf("UpdateProvider with secret: %v", err)
 	}
 	stored, err := fake.Get(ctx, id)
 	if err != nil || stored != "sk-fixture-key" {
@@ -279,21 +282,6 @@ func TestProviderOperationsWithoutStoreFail(t *testing.T) {
 		if !asAppErr(err, &appErr) || appErr.Code != apperr.DatabaseError {
 			t.Fatalf("ListProviders error = %v, want database_error", err)
 		}
-	}
-}
-
-// TestProvider without a stored key is invalid_argument, not a probe attempt.
-func TestProviderWithoutKeyIsRejected(t *testing.T) {
-	backend, _, _ := backendWithStoreAndSecrets(t)
-
-	id, err := backend.AddProvider(validProviderInput())
-	if err != nil {
-		t.Fatalf("AddProvider: %v", err)
-	}
-	_, err = backend.TestProvider(id, "")
-	var appErr *apperr.Error
-	if !asAppErr(err, &appErr) || appErr.Code != apperr.InvalidArgument {
-		t.Fatalf("TestProvider without key = %v, want invalid_argument", err)
 	}
 }
 

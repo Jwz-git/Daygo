@@ -250,10 +250,7 @@ export default {
     test: {
       run: '测试',
       running: '测试中…',
-      runModel: '测试模型 {model}',
-      passShort: '连接正常 · {latency} ms',
       model: '测试模型',
-      modelDefault: '默认（{model}）',
       passed: '连接正常 · {model} · {latency} ms',
       error: {
         authentication: '密钥无效或已过期',

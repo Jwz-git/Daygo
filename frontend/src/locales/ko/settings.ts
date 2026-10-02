@@ -250,10 +250,7 @@ export default {
     test: {
       run: '테스트',
       running: '테스트하는 중…',
-      runModel: '모델 {model} 테스트',
-      passShort: '연결됨 · {latency} ms',
       model: '모델 테스트',
-      modelDefault: '기본값({model})',
       passed: '연결됨 · {model} · {latency} ms',
       error: {
         authentication: '키가 유효하지 않거나 만료되었습니다',

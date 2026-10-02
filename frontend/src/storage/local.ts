@@ -9,8 +9,8 @@ import { isRecord } from './decode'
  * Funnelling every read and write through here keeps that swap to the store
  * bodies plus this file, and keeps the key table auditable in one place.
  *
- * Nothing here may hold a credential. Provider API keys go to the Keychain via
- * SetProviderSecret once that binding exists — see stores/providers.ts.
+ * Nothing here may hold a credential. Provider API keys go to the Keychain
+ * through AddProvider / UpdateProvider's secret field — see stores/providers.ts.
  */
 
 /**

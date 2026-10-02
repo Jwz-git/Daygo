@@ -4,20 +4,17 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	daygoai "github.com/Jwz-git/Daygo/internal/ai"
-	"github.com/Jwz-git/Daygo/internal/ai/factory"
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
 
-// providersTimeout bounds one provider CRUD operation. The probe inside
-// TestProvider keeps its own 30-second deadline.
+// providersTimeout bounds one provider CRUD operation.
 const providersTimeout = 10 * time.Second
 
 // providerStore returns the provider repository, or an error explaining why
@@ -387,33 +384,6 @@ func (b *Backend) SetProviderRouting(r ProviderRoutingDTO) error {
 	return nil
 }
 
-// SetProviderSecret stores or replaces one provider's key.
-func (b *Backend) SetProviderSecret(id string, secret string) error {
-	repo, err := b.providerStore()
-	if err != nil {
-		return err
-	}
-	if err := b.providerSecrets(); err != nil {
-		return err
-	}
-	if strings.TrimSpace(id) == "" {
-		return apperr.E(apperr.InvalidArgument, "provider id is required", nil)
-	}
-	if strings.TrimSpace(secret) == "" {
-		return apperr.E(apperr.InvalidArgument, "secret must not be empty; use DeleteProviderSecret to clear", nil)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
-	defer cancel()
-	if _, err := repo.Get(ctx, id); err != nil {
-		return mapStorageError("get provider", err)
-	}
-	if err := b.secrets.Set(ctx, id, secret); err != nil {
-		return apperr.E(apperr.NativeUnavailable, "storing the api key failed", nil)
-	}
-	return nil
-}
-
 // DeleteProviderSecret removes one provider's key. Removing an absent key is
 // not an error: the caller's desired end state is "no key stored".
 func (b *Backend) DeleteProviderSecret(id string) error {
@@ -429,67 +399,6 @@ func (b *Backend) DeleteProviderSecret(id string) error {
 		return apperr.E(apperr.NativeUnavailable, "deleting the stored api key failed", nil)
 	}
 	return nil
-}
-
-// TestProvider runs the connection probe against a saved provider and one of
-// its models: the secret comes from the keychain by provider id, never from the
-// call. An empty model tests the provider's first configured model.
-func (b *Backend) TestProvider(id string, model string) (ProviderTestResultDTO, error) {
-	repo, err := b.providerStore()
-	if err != nil {
-		return ProviderTestResultDTO{}, err
-	}
-	if err := b.providerSecrets(); err != nil {
-		return ProviderTestResultDTO{}, err
-	}
-	if strings.TrimSpace(id) == "" {
-		return ProviderTestResultDTO{}, apperr.E(apperr.InvalidArgument, "provider id is required", nil)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
-	defer cancel()
-	row, err := repo.Get(ctx, id)
-	if err != nil {
-		return ProviderTestResultDTO{}, mapStorageError("get provider", err)
-	}
-	tested, err := resolveTestModel(row.Models, model)
-	if err != nil {
-		return ProviderTestResultDTO{}, err
-	}
-	secret, err := b.secrets.Get(ctx, id)
-	if err != nil {
-		if secrets.IsNotFound(err) {
-			return ProviderTestResultDTO{}, apperr.E(apperr.InvalidArgument, "no api key stored for this provider", nil)
-		}
-		return ProviderTestResultDTO{}, apperr.E(apperr.NativeUnavailable, "reading the stored api key failed", nil)
-	}
-
-	// No client timeout: the 30-second probe deadline in ai.TestConnection
-	// governs the whole exchange.
-	provider, err := factory.NewClient(&http.Client{}, factory.Config{
-		Protocol: daygoai.Protocol(row.Protocol),
-		Endpoint: row.Endpoint,
-		Model:    tested,
-		Secret:   secret,
-	})
-	if err != nil {
-		return testFailure(err), nil
-	}
-	result, err := daygoai.TestConnection(context.Background(), provider)
-	if err != nil {
-		return testFailure(err), nil
-	}
-
-	capabilities := make([]string, len(result.Capabilities))
-	for index, capability := range result.Capabilities {
-		capabilities[index] = string(capability)
-	}
-	return ProviderTestResultDTO{
-		OK:           true,
-		Model:        result.Model,
-		LatencyMs:    result.Latency.Milliseconds(),
-		Capabilities: capabilities,
-	}, nil
 }
 
 // loadRouting reads the current chain through the typed settings layer.
@@ -511,7 +420,8 @@ func (b *Backend) saveRouting(ctx context.Context, chain []settings.RoutingEntry
 	return nil
 }
 
-// resolveTestModel picks the model a saved-provider probe runs against: the
+// resolveTestModel picks the model a saved-provider call (the model
+// playground) runs against: the
 // requested one when the provider has it, the first configured model when the
 // request is empty. A provider always has at least one model (validation
 // guarantees it), so an empty list is a defensive error, not a normal state.

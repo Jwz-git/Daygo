@@ -6,8 +6,6 @@ import {
   ListProviderModels,
   ListProviders,
   SetProviderRouting,
-  SetProviderSecret,
-  TestProvider,
   UpdateProvider,
 } from '../../wailsjs/go/app/Backend'
 
@@ -18,8 +16,6 @@ import type {
   ProviderModelsResult,
   ProviderProtocol,
   ProviderRoutingDTO,
-  ProviderTestDraft,
-  ProviderTestResult,
 } from '@/api/dto'
 import { canUseDevelopmentTestData } from '@/api/developmentFixtures'
 
@@ -147,18 +143,6 @@ export async function setProviderRouting(routing: ProviderRoutingDTO): Promise<v
   throw new Error(WAILS_UNAVAILABLE)
 }
 
-export async function setProviderSecret(id: string, secret: string): Promise<void> {
-  if (hasBridge()) return SetProviderSecret(id, secret)
-  if (import.meta.env.DEV && canUseDevelopmentTestData()) {
-    const state = devState()
-    state.providers = state.providers.map((provider) =>
-      provider.id === id ? { ...provider, hasSecret: true } : provider,
-    )
-    return
-  }
-  throw new Error(WAILS_UNAVAILABLE)
-}
-
 export async function deleteProviderSecret(id: string): Promise<void> {
   if (hasBridge()) return DeleteProviderSecret(id)
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
@@ -168,16 +152,6 @@ export async function deleteProviderSecret(id: string): Promise<void> {
     )
     return
   }
-  throw new Error(WAILS_UNAVAILABLE)
-}
-
-/**
- * Probe a saved provider; its key comes from the keychain, not this call. An
- * empty `model` lets the backend fall back to the provider's first configured
- * model (resolveTestModel); a specific model probes that one.
- */
-export async function testProvider(id: string, model = ''): Promise<ProviderTestResult> {
-  if (hasBridge()) return (await TestProvider(id, model)) as unknown as ProviderTestResult
   throw new Error(WAILS_UNAVAILABLE)
 }
 
@@ -200,4 +174,4 @@ export async function listProviderModels(
   throw new Error(WAILS_UNAVAILABLE)
 }
 
-export type { ProviderProtocol, ProviderTestDraft, ProviderTestResult }
+export type { ProviderProtocol }

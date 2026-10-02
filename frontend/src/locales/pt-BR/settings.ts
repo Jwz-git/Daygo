@@ -250,10 +250,7 @@ export default {
     test: {
       run: 'Testar',
       running: 'Testando…',
-      runModel: 'Testar o modelo {model}',
-      passShort: 'Conectado · {latency} ms',
       model: 'Testar modelo',
-      modelDefault: 'Padrão ({model})',
       passed: 'Conectado · {model} · {latency} ms',
       error: {
         authentication: 'A chave é inválida ou expirou',

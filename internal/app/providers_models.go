@@ -11,8 +11,8 @@ import (
 
 // ProviderModelsRequestDTO addresses either a saved provider (ProviderID
 // non-empty — the secret then comes from the keychain) or an unsaved draft
-// (Protocol/Endpoint/Secret — the TestProviderConnection pattern, the draft
-// secret only lives in Go memory for this call).
+// (Protocol/Endpoint/Secret — the draft secret only lives in Go memory for
+// this call).
 type ProviderModelsRequestDTO struct {
 	ProviderID string `json:"providerId"`
 	Protocol   string `json:"protocol"`
@@ -63,9 +63,9 @@ func (b *Backend) ListProviderModels(req ProviderModelsRequestDTO) (ProviderMode
 		secret = stored
 	} else {
 		protocol = daygoai.Protocol(strings.TrimSpace(req.Protocol))
-		// Strip a pasted request-path suffix exactly as the sibling
-		// TestProviderConnection probe does; otherwise the same draft input that
-		// passes the probe would double the path here and 404.
+		// Strip a pasted request-path suffix exactly as AddProvider /
+		// UpdateProvider do; otherwise a draft that saves fine would double the
+		// path here and 404.
 		normalized, err := normalizeTestEndpoint(req.Endpoint)
 		if err != nil {
 			return ProviderModelsResultDTO{}, apperr.E(apperr.InvalidArgument, "endpoint must be a full http:// or https:// address", err)

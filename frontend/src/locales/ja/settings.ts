@@ -250,10 +250,7 @@ export default {
     test: {
       run: 'テスト',
       running: 'テスト中…',
-      runModel: 'モデル {model} をテスト',
-      passShort: '接続しました · {latency} ms',
       model: 'モデルのテスト',
-      modelDefault: 'デフォルト（{model}）',
       passed: '接続しました · {model} · {latency} ms',
       error: {
         authentication: 'キーが無効か、有効期限が切れています',

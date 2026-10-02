@@ -189,27 +189,6 @@ export interface ProviderModelsResult {
   message: string
 }
 
-/**
- * Draft for one connection probe. The secret crosses the Wails boundary for
- * this call only and is never persisted, logged or echoed back.
- */
-export interface ProviderTestDraft {
-  protocol: ProviderProtocol
-  endpoint: string
-  model: string
-  secret: string
-}
-
-/** One probe outcome. A failed probe is a result, not an exception. */
-export interface ProviderTestResult {
-  ok: boolean
-  model: string
-  latencyMs: number
-  capabilities: string[]
-  errorCode: string
-  message: string
-}
-
 // Timeline DTOs mirror docs/05-interface-contract.md §5.5.2. They stay
 // hand-written only until these target bindings exist and Wails can generate
 // the same shapes into api/generated/models.ts.
