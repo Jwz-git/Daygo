@@ -160,6 +160,7 @@ const tiles = computed(() => layout.value.flatMap((entry) => entry.tiles))
 
 // Dayflow's treemap hover card: the hovered tile lifts, the rest recede.
 const pointer = useChartPointer<TilePlacement>()
+
 watch(pointer.container, observe)
 const hoveredId = computed(() => pointer.hovered.value?.id ?? null)
 
@@ -274,12 +275,18 @@ function changeLabel(minutes: number | null): string | null {
   font-size: 12px;
 }
 
+/*
+ * No strokes: category frames and app tiles separate by a soft shadow tinted
+ * with their own colour (a light contact plus a wider diffuse drop).
+ */
 .tm__shell {
   position: absolute;
   box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--tm-color) 75%, transparent);
   border-radius: 4px;
   background: color-mix(in srgb, var(--tm-color) 25%, transparent);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 8px 20px -10px color-mix(in srgb, var(--tm-color) 60%, rgba(0, 0, 0, 0.3));
 }
 
 .tm__header {
@@ -318,9 +325,11 @@ function changeLabel(minutes: number | null): string | null {
   gap: 4px;
   padding: 6px;
   overflow: hidden;
-  border: 1px solid var(--tm-color);
   border-radius: 4px;
   background: color-mix(in srgb, var(--tm-color) 42%, transparent);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 6px 14px -6px color-mix(in srgb, var(--tm-color) 75%, rgba(0, 0, 0, 0.35));
   color: var(--dg-wk-text);
   text-align: center;
   cursor: default;
@@ -333,8 +342,8 @@ function changeLabel(minutes: number | null): string | null {
 
 /* Other tiles recede by their fill only; their text stays readable. */
 .tm.has-hover .tm__tile:not(.is-hovered) {
-  border-color: color-mix(in srgb, var(--tm-color) 45%, transparent);
   background: color-mix(in srgb, var(--tm-color) 20%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .tm__tile > * {
@@ -348,8 +357,23 @@ function changeLabel(minutes: number | null): string | null {
 .tm__tile.is-hovered {
   z-index: 2;
   background: color-mix(in srgb, var(--tm-color) 58%, transparent);
-  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--tm-color) 80%, transparent);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 14px 28px -12px color-mix(in srgb, var(--tm-color) 85%, rgba(0, 0, 0, 0.4));
   transform: scale(1.025);
+}
+
+/* On the dark card a colour-tinted drop barely shows; use a deeper neutral one. */
+:root[data-dg-appearance='dark'] .tm__shell {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), 0 10px 22px -10px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-dg-appearance='dark'] .tm__tile {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 16px -6px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-dg-appearance='dark'] .tm__tile.is-hovered {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 16px 30px -12px rgba(0, 0, 0, 0.6);
 }
 
 @media (prefers-reduced-motion: reduce) {
