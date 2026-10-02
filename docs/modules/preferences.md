@@ -120,6 +120,13 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 
 ## 验证记录
 
+2026-10-02：恢复「模型输出语言」设置入口。`OutputLanguageSection` 在 2026-09-13 的提交 `6a7911a`
+（对话界面改动）中被从 `SettingsView` 移除且未在说明中提及；后端仍按 `llm.outputLanguage` 生成卡片，
+但用户无法修改，只能跟随界面语言。现重新挂载到「AI 服务」分区。新增前端夹具
+`every settings section component is mounted`：要求每个 `*Section.vue` 至少被一个设置视图引用，
+撤掉修复时该夹具失败并指出 `OutputLanguageSection.vue`。验证：前端 typecheck、184 项 unit 通过；
+Vite 预览（匿名夹具）确认该行出现在 AI 服务分区。真实 Wails 内的保存与重启读回未单独复验。
+
 2026-09-23：补回 Windows 专用 `Frameless` 宿主配置，避免原生黑色标题栏与 Vue 顶栏同时显示。
 保留系统缩放边框、阴影及圆角，macOS / Linux 窗口策略不变。新增平台窗口配置回归测试；
 `CGO_ENABLED=0 go test ./internal/app`、`go vet ./internal/app`、Windows `go build ./...`、

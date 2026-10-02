@@ -8,6 +8,7 @@ import PageHeader from '@/components/PageHeader.vue'
 
 import AgentAccessSection from './AgentAccessSection.vue'
 import AppearanceSection from './AppearanceSection.vue'
+import OutputLanguageSection from './OutputLanguageSection.vue'
 import PrivacySection from './PrivacySection.vue'
 import ProvidersSection from './ProvidersSection.vue'
 import StorageSection from './StorageSection.vue'
@@ -132,6 +133,7 @@ watch(active, () => void nextTick(measurePill))
               </template>
               <template v-else-if="active === 'providers'">
                 <ProvidersSection />
+                <OutputLanguageSection />
               </template>
               <template v-else-if="active === 'storage'">
                 <StorageSection />
