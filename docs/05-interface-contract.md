@@ -979,6 +979,18 @@ type WeeklySegmentDTO struct {
     EndTs    int64  `json:"endTs"`
     Category string `json:"category"`
     IsIdle   bool   `json:"isIdle"`
+    // 卡片 metadata 中的原始应用 / 站点对，形状同 TimelineCardDTO.appSites；两者皆无时为 null。
+    // 显示名与图标由前端按时间线卡片同一套规则派生（应用矩形树图 / 桑基图使用）。
+    AppSites     *AppSitesDTO        `json:"appSites"`
+    // 卡片分心区间，Go 以 timeutil.ResolveClock（三日候选，锚点为时段起点；结束时刻以已解析的
+    // 起点为锚）解析为时刻并裁剪到本时段；无法解析、倒置或与本时段不重叠的条目丢弃。无则为 []。
+    Distractions []WeeklyIntervalDTO `json:"distractions"`
+}
+
+// 半开区间 [startTs, endTs)，Unix 秒。
+type WeeklyIntervalDTO struct {
+    StartTs int64 `json:"startTs"`
+    EndTs   int64 `json:"endTs"`
 }
 
 // 无数据用零值表达：空字符串、PeakHour -1；不是 "unknown"。

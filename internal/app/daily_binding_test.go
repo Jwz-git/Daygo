@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -251,4 +253,56 @@ func TestJournalAndGoalWritesRefuseReadOnly(t *testing.T) {
 
 	assertAppCode(t, backend.SaveJournalDay(JournalDayDTO{Day: "2026-09-12"}), apperr.NotCaptureOwner)
 	assertAppCode(t, backend.SaveDayGoal(DayGoalDTO{Day: "2026-09-12"}), apperr.NotCaptureOwner)
+}
+
+// Weekly segments carry the card's app/site pair and its distraction
+// intervals as instants, so the app treemap / sankey and the focus heatmap
+// can be drawn from the weekly payload alone. A card without them encodes
+// appSites as null and distractions as an empty array.
+func TestGetWeeklyDashboardSegmentAppsAndDistractions(t *testing.T) {
+	backend, _ := backendWithStore(t)
+	store := backend.store()
+	ctx := context.Background()
+	if err := store.Write(ctx, "seed batch", func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO analysis_batches (id, start_ts, end_ts, status, created_at, updated_at) VALUES (1, 0, 0, 'succeeded', 0, 0)`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	loc := store.Location()
+	from := time.Date(2026, 9, 9, 10, 0, 0, 0, loc)
+	if _, err := store.Cards().ReplaceCardsInRange(ctx, from, from.Add(time.Hour), []domain.CardShell{
+		{
+			Start: "10:00 AM", End: "10:30 AM", Category: "Coding", Title: "review", Summary: "s",
+			Metadata: `{"appSites":{"primary":"github.com"},"distractions":[{"startTime":"10:10 AM","endTime":"10:15 AM","title":"feed"}]}`,
+		},
+		{Start: "10:30 AM", End: "11:00 AM", Category: "Writing", Title: "notes", Summary: "s"},
+	}, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	dto, err := backend.GetWeeklyDashboard("2026-09-07")
+	if err != nil {
+		t.Fatalf("GetWeeklyDashboard: %v", err)
+	}
+	segments := dto.Days[2].Segments
+	if len(segments) != 2 {
+		t.Fatalf("wednesday segments = %+v, want 2", segments)
+	}
+	review := segments[0]
+	if review.AppSites == nil || review.AppSites.Primary == nil || *review.AppSites.Primary != "github.com" || review.AppSites.Secondary != nil {
+		t.Fatalf("review appSites = %+v, want primary github.com only", review.AppSites)
+	}
+	want := WeeklyIntervalDTO{StartTs: from.Add(10 * time.Minute).Unix(), EndTs: from.Add(15 * time.Minute).Unix()}
+	if len(review.Distractions) != 1 || review.Distractions[0] != want {
+		t.Fatalf("review distractions = %+v, want %+v", review.Distractions, want)
+	}
+
+	encoded, err := json.Marshal(segments[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"appSites":null`) || !strings.Contains(string(encoded), `"distractions":[]`) {
+		t.Fatalf("plain segment JSON = %s, want appSites null and distractions []", encoded)
+	}
 }

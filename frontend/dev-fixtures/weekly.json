@@ -85,73 +85,137 @@
             "startTs": 1788742800,
             "endTs": 1788748500,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "linear.app",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1788744700,
+                "endTs": 1788745300
+              }
+            ]
           },
           {
             "startTs": 1788750000,
             "endTs": 1788757200,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Figma",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788762600,
             "endTs": 1788767400,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "notion.so",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788769800,
             "endTs": 1788772800,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "linear.app",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788749100,
             "endTs": 1788752700,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "github.com",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788757200,
             "endTs": 1788762000,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Terminal",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788767700,
             "endTs": 1788769500,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Visual Studio Code",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788746400,
             "endTs": 1788748800,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Zoom",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788778800,
             "endTs": 1788781500,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Slack",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788784200,
             "endTs": 1788787800,
             "category": "学习",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "developer.mozilla.org",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1788785400,
+                "endTs": 1788786000
+              }
+            ]
           },
           {
             "startTs": 1788755400,
             "endTs": 1788756600,
             "category": "Idle",
-            "isIdle": true
+            "isIdle": true,
+            "appSites": null,
+            "distractions": []
           },
           {
             "startTs": 1788775200,
             "endTs": 1788776700,
             "category": "Idle",
-            "isIdle": true
+            "isIdle": true,
+            "appSites": null,
+            "distractions": []
           }
         ]
       },
@@ -196,55 +260,107 @@
             "startTs": 1788831000,
             "endTs": 1788837600,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Visual Studio Code",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1788833200,
+                "endTs": 1788833800
+              }
+            ]
           },
           {
             "startTs": 1788845400,
             "endTs": 1788852600,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "github.com",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788852600,
             "endTs": 1788858000,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Terminal",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788838200,
             "endTs": 1788844500,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "linear.app",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1788840300,
+                "endTs": 1788840900
+              }
+            ]
           },
           {
             "startTs": 1788858600,
             "endTs": 1788862800,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Figma",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788829800,
             "endTs": 1788830700,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Zoom",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788856800,
             "endTs": 1788858000,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Slack",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788867600,
             "endTs": 1788870600,
             "category": "学习",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "developer.mozilla.org",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788842400,
             "endTs": 1788844200,
             "category": "Idle",
-            "isIdle": true
+            "isIdle": true,
+            "appSites": null,
+            "distractions": []
           }
         ]
       },
@@ -283,43 +399,85 @@
             "startTs": 1788915600,
             "endTs": 1788923400,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "linear.app",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1788918200,
+                "endTs": 1788918800
+              }
+            ]
           },
           {
             "startTs": 1788933600,
             "endTs": 1788940200,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Figma",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788942000,
             "endTs": 1788947100,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "notion.so",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788924000,
             "endTs": 1788928200,
             "category": "学习",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "youtube.com",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1788925400,
+                "endTs": 1788926000
+              }
+            ]
           },
           {
             "startTs": 1788953400,
             "endTs": 1788958200,
             "category": "学习",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "developer.mozilla.org",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788930000,
             "endTs": 1788932100,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Slack",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1788928200,
             "endTs": 1788929700,
             "category": "Idle",
-            "isIdle": true
+            "isIdle": true,
+            "appSites": null,
+            "distractions": []
           }
         ]
       },
@@ -364,55 +522,102 @@
             "startTs": 1789004400,
             "endTs": 1789010400,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "github.com",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789016400,
             "endTs": 1789024800,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Terminal",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789025400,
             "endTs": 1789029000,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Visual Studio Code",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1789026600,
+                "endTs": 1789027200
+              }
+            ]
           },
           {
             "startTs": 1789011000,
             "endTs": 1789016400,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Figma",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789029600,
             "endTs": 1789034100,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "notion.so",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789009800,
             "endTs": 1789011000,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Zoom",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789034400,
             "endTs": 1789036500,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Slack",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789041600,
             "endTs": 1789044900,
             "category": "个人",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Safari",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789015200,
             "endTs": 1789016400,
             "category": "Idle",
-            "isIdle": true
+            "isIdle": true,
+            "appSites": null,
+            "distractions": []
           }
         ]
       },
@@ -457,55 +662,99 @@
             "startTs": 1789089600,
             "endTs": 1789096800,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Figma",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789104600,
             "endTs": 1789110600,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "notion.so",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789111800,
             "endTs": 1789115400,
             "category": "项目工作",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "linear.app",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1789113000,
+                "endTs": 1789113600
+              }
+            ]
           },
           {
             "startTs": 1789098000,
             "endTs": 1789102200,
             "category": "开发",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "github.com",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789094400,
             "endTs": 1789096200,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Zoom",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789117200,
             "endTs": 1789119600,
             "category": "沟通",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Slack",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789124400,
             "endTs": 1789127100,
             "category": "学习",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "developer.mozilla.org",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789101000,
             "endTs": 1789102800,
             "category": "Idle",
-            "isIdle": true
+            "isIdle": true,
+            "appSites": null,
+            "distractions": []
           },
           {
             "startTs": 1789123200,
             "endTs": 1789124400,
             "category": "Idle",
-            "isIdle": true
+            "isIdle": true,
+            "appSites": null,
+            "distractions": []
           }
         ]
       },
@@ -538,25 +787,42 @@
             "startTs": 1789178400,
             "endTs": 1789183200,
             "category": "个人",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Messages",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789196400,
             "endTs": 1789200000,
             "category": "个人",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Safari",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789201800,
             "endTs": 1789204500,
             "category": "学习",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "youtube.com",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789184400,
             "endTs": 1789185600,
             "category": "Idle",
-            "isIdle": true
+            "isIdle": true,
+            "appSites": null,
+            "distractions": []
           }
         ]
       },
@@ -583,19 +849,39 @@
             "startTs": 1789266600,
             "endTs": 1789269600,
             "category": "个人",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Messages",
+              "secondary": null
+            },
+            "distractions": []
           },
           {
             "startTs": 1789279200,
             "endTs": 1789283400,
             "category": "个人",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "Safari",
+              "secondary": null
+            },
+            "distractions": [
+              {
+                "startTs": 1789280600,
+                "endTs": 1789281200
+              }
+            ]
           },
           {
             "startTs": 1789286400,
             "endTs": 1789288800,
             "category": "学习",
-            "isIdle": false
+            "isIdle": false,
+            "appSites": {
+              "primary": "youtube.com",
+              "secondary": null
+            },
+            "distractions": []
           }
         ]
       }

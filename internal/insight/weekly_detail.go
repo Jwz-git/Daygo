@@ -1,6 +1,7 @@
 package insight
 
 import (
+	"encoding/json"
 	"sort"
 	"time"
 
@@ -9,12 +10,25 @@ import (
 )
 
 // WeeklySegment is one non-System card span as delivered to the weekly detail
-// charts. Idle spans are kept: the focus heatmap needs them.
+// charts. Idle spans are kept: the focus heatmap needs them. AppPrimary /
+// AppSecondary are the card's raw app/site pair (empty when absent); the
+// client derives the display identity from them, the same way the timeline
+// does for card icons. Distractions are the card's distraction intervals
+// resolved to instants and clamped to this span.
 type WeeklySegment struct {
-	StartTs  int64
-	EndTs    int64
-	Category string
-	IsIdle   bool
+	StartTs      int64
+	EndTs        int64
+	Category     string
+	IsIdle       bool
+	AppPrimary   string
+	AppSecondary string
+	Distractions []WeeklyInterval
+}
+
+// WeeklyInterval is a half-open [StartTs, EndTs) range in Unix seconds.
+type WeeklyInterval struct {
+	StartTs int64
+	EndTs   int64
 }
 
 // WeeklyDay is one logical day of the week: totals, per-category minutes and
@@ -105,11 +119,15 @@ func BuildWeeklyDetail(spans []storage.CardSpan, weekStart string, loc *time.Loc
 		accum := &accums[index]
 		accum.tracked += minutes
 		accum.byName[span.Category] += minutes
+		primary, secondary, distractions := segmentMetadata(span, loc)
 		accum.segments = append(accum.segments, WeeklySegment{
-			StartTs:  span.StartTs,
-			EndTs:    span.EndTs,
-			Category: span.Category,
-			IsIdle:   span.IsIdle,
+			StartTs:      span.StartTs,
+			EndTs:        span.EndTs,
+			Category:     span.Category,
+			IsIdle:       span.IsIdle,
+			AppPrimary:   primary,
+			AppSecondary: secondary,
+			Distractions: distractions,
 		})
 
 		if isWeeklyFocus(span.Category, span.IsIdle) {
@@ -181,4 +199,61 @@ func addSpanHours(startTs, endTs int64, loc *time.Location, hours *[24]float64) 
 		hours[current.Hour()] += float64(segmentEnd-at) / 60
 		at = segmentEnd
 	}
+}
+
+// spanMetadata is the subset of a card's metadata JSON the weekly charts read
+// (docs/05 §5.5.2). Fields that fail to decode are treated as absent.
+type spanMetadata struct {
+	AppSites *struct {
+		Primary   *string `json:"primary"`
+		Secondary *string `json:"secondary"`
+	} `json:"appSites"`
+	Distractions []struct {
+		StartTime string `json:"startTime"`
+		EndTime   string `json:"endTime"`
+	} `json:"distractions"`
+}
+
+// segmentMetadata extracts the app/site pair and the distraction intervals of
+// one span. Each distraction's clock strings resolve against the span start
+// with timeutil.ResolveClock (the docs/03 §3.5 three-day rule), the end
+// against the resolved start so a 23:50–00:10 entry stays one interval. The
+// interval is clamped to the span: a card split at the 4 AM boundary keeps
+// each part's own share, and an entry that does not overlap the span, does
+// not parse or is inverted is dropped — there is no instant to invent for it.
+func segmentMetadata(span storage.CardSpan, loc *time.Location) (primary, secondary string, distractions []WeeklyInterval) {
+	distractions = []WeeklyInterval{}
+	if span.Metadata == "" {
+		return "", "", distractions
+	}
+	var meta spanMetadata
+	if err := json.Unmarshal([]byte(span.Metadata), &meta); err != nil {
+		return "", "", distractions
+	}
+	if meta.AppSites != nil {
+		if meta.AppSites.Primary != nil {
+			primary = *meta.AppSites.Primary
+		}
+		if meta.AppSites.Secondary != nil {
+			secondary = *meta.AppSites.Secondary
+		}
+	}
+	anchor := time.Unix(span.StartTs, 0)
+	for _, entry := range meta.Distractions {
+		start, err := timeutil.ResolveClock(entry.StartTime, anchor, loc)
+		if err != nil {
+			continue
+		}
+		end, err := timeutil.ResolveClock(entry.EndTime, start, loc)
+		if err != nil {
+			continue
+		}
+		from := max(start.Unix(), span.StartTs)
+		to := min(end.Unix(), span.EndTs)
+		if to <= from {
+			continue
+		}
+		distractions = append(distractions, WeeklyInterval{StartTs: from, EndTs: to})
+	}
+	return primary, secondary, distractions
 }

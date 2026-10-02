@@ -182,8 +182,10 @@ func TestCardSpansInRange(t *testing.T) {
 	loc := store.location()
 
 	from, to := window(loc, 10, 0, 11, 0)
+	coding := shell("10:00 AM", "10:30 AM", "Coding", "coding")
+	coding.Metadata = `{"appSites":{"primary":"github.com"}}`
 	if _, err := store.Cards().ReplaceCardsInRange(ctx, from, to, []domain.CardShell{
-		shell("10:00 AM", "10:30 AM", "Coding", "coding"),
+		coding,
 		shell("10:30 AM", "11:00 AM", "Idle", "idle"),
 	}, 1); err != nil {
 		t.Fatalf("replace: %v", err)
@@ -212,6 +214,11 @@ func TestCardSpansInRange(t *testing.T) {
 	}
 	if c := byCategory["Coding"]; c.IsIdle || c.ColorHex != "#000000" {
 		t.Fatalf("coding span = %+v, want isIdle=false and seeded color", c)
+	}
+	// The weekly app and distraction charts read the card's raw metadata from
+	// the span; storage passes it through uninterpreted.
+	if c := byCategory["Coding"]; c.Metadata != `{"appSites":{"primary":"github.com"}}` {
+		t.Fatalf("coding metadata = %q, want the stored JSON", c.Metadata)
 	}
 	if i := byCategory["Idle"]; !i.IsIdle || i.ColorHex == "" {
 		t.Fatalf("idle span = %+v, want isIdle=true and built-in color", i)

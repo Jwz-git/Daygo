@@ -119,3 +119,73 @@ func TestAddSpanHoursHalfHourZone(t *testing.T) {
 		t.Fatalf("hours[10]=%v hours[11]=%v, want 45/0", hours[10], hours[11])
 	}
 }
+
+// Segments carry what the weekly app and distraction charts need from the
+// card metadata (docs/05 §5.5.2 metadata shape): the raw app/site pair and
+// the card's distraction intervals resolved to instants. Clock strings
+// resolve against the span (the timeutil.ResolveClock three-day rule), are
+// clamped to the span, and an entry that cannot be placed is dropped rather
+// than invented.
+func TestBuildWeeklyDetailSegmentMetadata(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	at := func(day, hour, minute int) int64 {
+		return time.Date(2026, 9, day, hour, minute, 0, 0, loc).Unix()
+	}
+	spans := []storage.CardSpan{
+		{
+			Day: "2026-09-07", StartTs: at(7, 10, 0), EndTs: at(7, 11, 0), Category: "Coding",
+			Metadata: `{"appSites":{"primary":"github.com","secondary":"Visual Studio Code"},` +
+				`"distractions":[` +
+				`{"startTime":"10:15 AM","endTime":"10:25 AM","title":"news"},` +
+				`{"startTime":"10:55 AM","endTime":"11:20 AM","title":"runs past the card"},` +
+				`{"startTime":"not a clock","endTime":"10:40 AM","title":"unparseable"},` +
+				`{"startTime":"3:00 PM","endTime":"3:10 PM","title":"outside the card"}]}`,
+		},
+		{
+			Day: "2026-09-07", StartTs: at(7, 23, 30), EndTs: at(8, 0, 30), Category: "Reading",
+			Metadata: `{"appSites":{"secondary":"YouTube"},` +
+				`"distractions":[{"startTime":"11:50 PM","endTime":"12:10 AM","title":"crosses midnight"}]}`,
+		},
+		{Day: "2026-09-08", StartTs: at(8, 9, 0), EndTs: at(8, 10, 0), Category: "Writing", Metadata: `{not json`},
+		{Day: "2026-09-08", StartTs: at(8, 13, 0), EndTs: at(8, 14, 0), Category: "Writing"},
+	}
+	detail := BuildWeeklyDetail(spans, "2026-09-07", loc)
+
+	monday := detail.Days[0].Segments
+	if len(monday) != 2 {
+		t.Fatalf("monday segments = %+v, want 2", monday)
+	}
+	coding := monday[0]
+	if coding.AppPrimary != "github.com" || coding.AppSecondary != "Visual Studio Code" {
+		t.Fatalf("coding apps = %q / %q", coding.AppPrimary, coding.AppSecondary)
+	}
+	wantCoding := []WeeklyInterval{
+		{StartTs: at(7, 10, 15), EndTs: at(7, 10, 25)},
+		{StartTs: at(7, 10, 55), EndTs: at(7, 11, 0)}, // clamped to the card end
+	}
+	if len(coding.Distractions) != len(wantCoding) {
+		t.Fatalf("coding distractions = %+v, want %+v", coding.Distractions, wantCoding)
+	}
+	for i, want := range wantCoding {
+		if coding.Distractions[i] != want {
+			t.Fatalf("coding distraction %d = %+v, want %+v", i, coding.Distractions[i], want)
+		}
+	}
+
+	reading := monday[1]
+	if reading.AppPrimary != "" || reading.AppSecondary != "YouTube" {
+		t.Fatalf("reading apps = %q / %q, want secondary only", reading.AppPrimary, reading.AppSecondary)
+	}
+	if len(reading.Distractions) != 1 || reading.Distractions[0] != (WeeklyInterval{StartTs: at(7, 23, 50), EndTs: at(8, 0, 10)}) {
+		t.Fatalf("cross-midnight distraction = %+v", reading.Distractions)
+	}
+
+	for _, segment := range detail.Days[1].Segments {
+		if segment.AppPrimary != "" || segment.AppSecondary != "" || len(segment.Distractions) != 0 {
+			t.Fatalf("segment without usable metadata = %+v, want empty app and distractions", segment)
+		}
+		if segment.Distractions == nil {
+			t.Fatal("distractions must be an empty slice, not nil, so the DTO encodes []")
+		}
+	}
+}

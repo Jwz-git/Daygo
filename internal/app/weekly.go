@@ -40,6 +40,18 @@ type WeeklySegmentDTO struct {
 	EndTs    int64  `json:"endTs"`
 	Category string `json:"category"`
 	IsIdle   bool   `json:"isIdle"`
+	// The card's raw app/site pair, as on TimelineCardDTO; nil when the card
+	// carries neither. The client derives the display identity from it.
+	AppSites *AppSitesDTO `json:"appSites"`
+	// The card's distraction intervals resolved to instants and clamped to
+	// this segment; empty when there are none.
+	Distractions []WeeklyIntervalDTO `json:"distractions"`
+}
+
+// WeeklyIntervalDTO is a half-open [startTs, endTs) range in Unix seconds.
+type WeeklyIntervalDTO struct {
+	StartTs int64 `json:"startTs"`
+	EndTs   int64 `json:"endTs"`
 }
 
 type WeeklyInsightsDTO struct {
@@ -118,12 +130,21 @@ func (b *Backend) GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, erro
 			})
 		}
 		for _, segment := range day.Segments {
-			dayDTO.Segments = append(dayDTO.Segments, WeeklySegmentDTO{
-				StartTs:  segment.StartTs,
-				EndTs:    segment.EndTs,
-				Category: segment.Category,
-				IsIdle:   segment.IsIdle,
-			})
+			segmentDTO := WeeklySegmentDTO{
+				StartTs:      segment.StartTs,
+				EndTs:        segment.EndTs,
+				Category:     segment.Category,
+				IsIdle:       segment.IsIdle,
+				AppSites:     weeklyAppSites(segment.AppPrimary, segment.AppSecondary),
+				Distractions: make([]WeeklyIntervalDTO, 0, len(segment.Distractions)),
+			}
+			for _, interval := range segment.Distractions {
+				segmentDTO.Distractions = append(segmentDTO.Distractions, WeeklyIntervalDTO{
+					StartTs: interval.StartTs,
+					EndTs:   interval.EndTs,
+				})
+			}
+			dayDTO.Segments = append(dayDTO.Segments, segmentDTO)
 		}
 		dto.Days = append(dto.Days, dayDTO)
 	}
@@ -139,4 +160,20 @@ func (b *Backend) GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, erro
 		AvgDailyFocusMinutes: ins.AvgDailyFocusMinutes,
 	}
 	return dto, nil
+}
+
+// weeklyAppSites maps the insight segment's raw pair onto the timeline's
+// AppSitesDTO shape: an empty side is nil, and a card with neither is nil.
+func weeklyAppSites(primary, secondary string) *AppSitesDTO {
+	if primary == "" && secondary == "" {
+		return nil
+	}
+	sites := &AppSitesDTO{}
+	if primary != "" {
+		sites.Primary = &primary
+	}
+	if secondary != "" {
+		sites.Secondary = &secondary
+	}
+	return sites
 }

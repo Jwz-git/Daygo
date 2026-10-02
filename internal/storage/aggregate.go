@@ -63,8 +63,10 @@ func (r *CardRepo) CategoryMinutesInRange(ctx context.Context, from, to time.Tim
 }
 
 // CardSpan is one non-deleted card's time span with the category flags the
-// weekly detail charts need: the card's logical day, its timestamps, and the
-// category name and color resolved against the categories table.
+// weekly detail charts need: the card's logical day, its timestamps, the
+// category name and color resolved against the categories table, and the
+// card's raw metadata JSON (app/site pair, distractions). Storage does not
+// interpret metadata; insight owns that.
 type CardSpan struct {
 	Day      string
 	StartTs  int64
@@ -72,6 +74,7 @@ type CardSpan struct {
 	Category string
 	ColorHex string
 	IsIdle   bool
+	Metadata string
 }
 
 // CardSpansInRange returns card intersections with [from, to), split at each
@@ -82,7 +85,8 @@ func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]
 	var out []CardSpan
 	err := r.store.Read(ctx, "card spans in range", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `
-			SELECT c.day, c.start_ts, c.end_ts, c.category, COALESCE(cat.color_hex, ''), COALESCE(cat.is_idle, 0)
+			SELECT c.day, c.start_ts, c.end_ts, c.category, COALESCE(cat.color_hex, ''), COALESCE(cat.is_idle, 0),
+			       COALESCE(c.metadata, '')
 			FROM timeline_cards c
 			LEFT JOIN categories cat ON cat.name = c.category
 			WHERE c.start_ts < ? AND c.end_ts > ?
@@ -98,7 +102,7 @@ func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]
 		for rows.Next() {
 			var row CardSpan
 			var isIdle int
-			if err := rows.Scan(&row.Day, &row.StartTs, &row.EndTs, &row.Category, &row.ColorHex, &isIdle); err != nil {
+			if err := rows.Scan(&row.Day, &row.StartTs, &row.EndTs, &row.Category, &row.ColorHex, &isIdle, &row.Metadata); err != nil {
 				return err
 			}
 			row.IsIdle = isIdle != 0

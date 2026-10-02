@@ -363,6 +363,16 @@ export interface WeeklySegmentDTO {
   endTs: number
   category: string
   isIdle: boolean
+  /** The card's raw app/site pair (same shape as on timeline cards); null when absent. */
+  appSites: AppSitesDTO | null
+  /** The card's distraction intervals, resolved by Go and clamped to this segment. */
+  distractions: WeeklyIntervalDTO[]
+}
+
+/** Half-open [startTs, endTs) range in Unix seconds. */
+export interface WeeklyIntervalDTO {
+  startTs: number
+  endTs: number
 }
 
 export interface WeeklyDayDTO {
