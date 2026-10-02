@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
@@ -10,7 +11,11 @@ import (
 )
 
 // recordingEmitter captures events so a test can assert what was published.
+// Emit may run on timer goroutines (timeline invalidations are debounced per
+// day with time.AfterFunc), so access is locked: two days firing at once
+// otherwise race on the slice and one event is lost.
 type recordingEmitter struct {
+	mu     sync.Mutex
 	events []recordedEvent
 }
 
@@ -20,10 +25,14 @@ type recordedEvent struct {
 }
 
 func (e *recordingEmitter) Emit(name EventName, payload any) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.events = append(e.events, recordedEvent{name: name, payload: payload})
 }
 
 func (e *recordingEmitter) count(name EventName) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	total := 0
 	for _, event := range e.events {
 		if event.name == name {
