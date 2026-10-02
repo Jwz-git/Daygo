@@ -162,7 +162,6 @@ function isSettingsFixture(value: unknown): value is SettingsDTO {
     typeof value.appearance.theme === 'string' &&
     typeof value.appearance.language === 'string' &&
     typeof value.llm.outputLanguage === 'string' &&
-    typeof value.llm.recognitionEnhancementEnabled === 'boolean' &&
     typeof value.notifications.journalReminderEnabled === 'boolean' &&
     typeof value.notifications.journalReminderTime === 'string' &&
     typeof value.system.launchAtLogin === 'boolean' &&
@@ -202,9 +201,6 @@ export function applyDevelopmentSettingsPatch(
     next.storage.recordingsLimitBytes = patch.recordingsLimitBytes
   }
   if (patch.outputLanguage !== undefined) next.llm.outputLanguage = patch.outputLanguage
-  if (patch.recognitionEnhancementEnabled !== undefined) {
-    next.llm.recognitionEnhancementEnabled = patch.recognitionEnhancementEnabled
-  }
   if (patch.launchAtLogin !== undefined) next.system.launchAtLogin = patch.launchAtLogin
   if (patch.showDockIcon !== undefined) next.system.showDockIcon = patch.showDockIcon
   if (patch.agentEditsEnabled !== undefined) next.system.agentEditsEnabled = patch.agentEditsEnabled

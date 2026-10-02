@@ -23,12 +23,6 @@ export type AppTheme = (typeof APP_THEMES)[number]
 export interface LLMSettingsDTO {
   /** BCP 47; "" follows the interface language. */
   outputLanguage: string
-  /**
-   * Recognition enhancement: each image is split in memory into four
-   * overlapping tiles before it is sent, so small text survives provider-side
-   * downscaling. Off sends the original image unchanged. Increases usage.
-   */
-  recognitionEnhancementEnabled: boolean
 }
 
 /**
@@ -103,7 +97,6 @@ export interface SettingsPatch {
   theme?: AppTheme
   language?: LanguagePreference
   outputLanguage?: string
-  recognitionEnhancementEnabled?: boolean
   journalReminderEnabled?: boolean
   journalReminderTime?: string
   launchAtLogin?: boolean

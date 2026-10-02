@@ -40,7 +40,6 @@ const (
 	KeyTelemetryCrashReportingOptIn = "telemetry.crashReportingOptIn"
 	KeyProvidersRouting             = "providers.routing"
 	KeyLLMOutputLanguage            = "llm.outputLanguage"
-	KeyLLMRecognitionEnhancement    = "llm.recognitionEnhancementEnabled"
 	KeyChatMemory                   = "chat.memory"
 	KeyChatEditMode                 = "chat.editMode"
 )
@@ -67,7 +66,6 @@ func AllKeys() []string {
 		KeyTelemetryCrashReportingOptIn,
 		KeyProvidersRouting,
 		KeyLLMOutputLanguage,
-		KeyLLMRecognitionEnhancement,
 		KeyChatMemory,
 		KeyChatEditMode,
 	}
@@ -109,7 +107,6 @@ const (
 	DefaultAnalyticsOptIn         = false
 	DefaultCrashReportingOptIn    = false
 	DefaultOutputLanguage         = ""
-	DefaultRecognitionEnhancement = false
 	DefaultChatMemory             = ""
 	DefaultChatEditMode           = ChatEditModeReadonly
 )
@@ -162,7 +159,6 @@ type Snapshot struct {
 	CrashReportingOptIn    bool
 	ProvidersRouting       Routing
 	OutputLanguage         string
-	RecognitionEnhancement bool
 	ChatMemory             string
 	ChatEditMode           string
 }
@@ -247,7 +243,6 @@ type Patch struct {
 	Theme                  *string
 	Language               *string
 	OutputLanguage         *string
-	RecognitionEnhancement *bool
 	LaunchAtLogin          *bool
 	ShowDockIcon           *bool
 	AgentEditsEnabled      *bool
@@ -363,11 +358,6 @@ func (s *Settings) encodePatch(p Patch) (map[string]string, []string, error) {
 			return nil, nil, err
 		}
 	}
-	if p.RecognitionEnhancement != nil {
-		if err := put(KeyLLMRecognitionEnhancement, *p.RecognitionEnhancement); err != nil {
-			return nil, nil, err
-		}
-	}
 	if p.LaunchAtLogin != nil {
 		if err := put(KeySystemLaunchAtLogin, *p.LaunchAtLogin); err != nil {
 			return nil, nil, err
@@ -431,7 +421,6 @@ func (s *Settings) snapshotFrom(raw map[string]string) Snapshot {
 		CrashReportingOptIn:    decodeBool(raw[KeyTelemetryCrashReportingOptIn], DefaultCrashReportingOptIn),
 		ProvidersRouting:       decodeRouting(raw[KeyProvidersRouting]),
 		OutputLanguage:         normalizeLanguage(decodeString(raw[KeyLLMOutputLanguage], DefaultOutputLanguage)),
-		RecognitionEnhancement: decodeBool(raw[KeyLLMRecognitionEnhancement], DefaultRecognitionEnhancement),
 		ChatMemory:             normalizeChatMemory(decodeString(raw[KeyChatMemory], DefaultChatMemory)),
 		ChatEditMode:           normalizeChatEditMode(decodeString(raw[KeyChatEditMode], DefaultChatEditMode)),
 	}
@@ -619,8 +608,6 @@ func defaultFor(key string) string {
 		return `{"chain":[]}`
 	case KeyLLMOutputLanguage:
 		return encodeScalar(DefaultOutputLanguage)
-	case KeyLLMRecognitionEnhancement:
-		return encodeScalar(DefaultRecognitionEnhancement)
 	case KeyChatMemory:
 		return encodeScalar(DefaultChatMemory)
 	case KeyChatEditMode:

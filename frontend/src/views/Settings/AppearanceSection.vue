@@ -7,7 +7,6 @@ import { SYSTEM_LANGUAGE, type LanguagePreference } from '@/i18n/locales'
 import { useAppearanceStore } from '@/stores/appearance'
 import { useTestToolsStore } from '@/stores/testTools'
 
-import RecognitionSection from './RecognitionSection.vue'
 import SettingRow from './SettingRow.vue'
 import SwitchControl from './SwitchControl.vue'
 import { useSettingsSection } from './useSettingsSection'
@@ -188,8 +187,6 @@ function onLanguageChange(event: Event): void {
     </SettingRow>
     <p v-if="testToolsFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
   </template>
-
-  <RecognitionSection />
 </template>
 
 <style scoped>

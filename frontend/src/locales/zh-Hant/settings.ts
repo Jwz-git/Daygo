@@ -119,11 +119,6 @@ export default {
     outputError: '儲存失敗，已還原原設定。',
     saving: '儲存中…',
   },
-  recognition: {
-    title: '增強辨識',
-    hint: '把每張截圖放大分塊後一起交給 AI，能更準確辨識小字，但會消耗更多用量。開啟後，可能需要在 AI 服務設定中調高「單次最多圖片數」。',
-    unavailable: '暫時無法修改',
-  },
   storage: {
     diagnostics: {
       title: '診斷',
@@ -210,7 +205,7 @@ export default {
       addModel: '加入模型',
       removeModel: '移除這個模型',
       maxImages: '單次最多圖片數',
-      maxImagesHint: '0 表示使用預設值（5 張）。如果服務限制更嚴格請調小；開啟增強辨識後可以適度調大。',
+      maxImagesHint: '0 表示使用預設值（5 張）。如果服務限制更嚴格請調小。',
       maxImagesValue: '{count} 張',
       modelPlaceholder: {
         openai: '例如：gpt-4o-mini',

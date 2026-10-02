@@ -477,7 +477,7 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 参数须属于当前配置，不能指定任意 endpoint 或传入密钥。输入为用户主动选择的一张 PNG/JPEG
 （原始字节最多 5 MiB、最多 2000 万像素；校验 base64、图片头与声明 MIME 一致性）和 / 或文字
 （最多 16000 个 Unicode 字符，空白文本不单独构成请求）。图片以纯 base64 跨界，不接受路径 / URL。
-固定模型单次调用，不附带聊天历史、不重试、不回退、不应用识别增强、不强制 JSON Schema；
+固定模型单次调用，不附带聊天历史、不重试、不回退、不强制 JSON Schema；
 操作 context 最长 30 秒，输出上限 2048 tokens；非流式返回。`ok` 仅表示收到非空文本，不代表质量合格。
 只有读写且拥有捕获锁的实例允许调用，`llm_calls` 沿用 attempt 元数据记录，不保存输入 / 回复 / 图片。
 回复正文只返回试用页面，由 Vue 转义为纯文本，不执行 HTML、远程图片或工具；防止供应商直接回显
@@ -796,8 +796,7 @@ type AppearanceSettingsDTO struct {
 // LLMSettingsDTO 与 AppearanceSettingsDTO.Language 是两个独立设置：
 // 前者决定模型生成的卡片标题与摘要用什么语言，后者只影响界面文案。
 type LLMSettingsDTO struct {
-    OutputLanguage                string `json:"outputLanguage"`                // BCP 47；空串表示跟随界面语言
-    RecognitionEnhancementEnabled bool   `json:"recognitionEnhancementEnabled"` // 识别图片切四片并附原图发送；默认 false
+    OutputLanguage string `json:"outputLanguage"` // BCP 47；空串表示跟随界面语言
 }
 
 // ChatSettingsDTO.ChatMemory 是全局聊天记忆（decisions/chat-session-model）：
@@ -837,7 +836,6 @@ type SettingsPatchDTO struct {
     Theme                  *string   `json:"theme"`
     Language               *string   `json:"language"`
     OutputLanguage         *string   `json:"outputLanguage"`
-    RecognitionEnhancement *bool     `json:"recognitionEnhancementEnabled"`
     ChatMemory             *string   `json:"chatMemory"`
     LaunchAtLogin          *bool     `json:"launchAtLogin"`
     ShowDockIcon           *bool     `json:"showDockIcon"`

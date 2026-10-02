@@ -13,8 +13,7 @@
     "recordingsLimitBytes": 0
   },
   "llm": {
-    "outputLanguage": "",
-    "recognitionEnhancementEnabled": false
+    "outputLanguage": ""
   },
   "appearance": {
     "theme": "system",

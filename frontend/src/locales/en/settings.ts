@@ -119,11 +119,6 @@ export default {
     outputError: 'Couldn’t save. Your previous setting was restored.',
     saving: 'Saving…',
   },
-  recognition: {
-    title: 'Enhanced recognition',
-    hint: 'Sends zoomed-in sections of each screenshot to AI along with the full image, so small text is read more accurately. Uses more of your AI quota. You may need to raise “Max images per request” in AI service settings.',
-    unavailable: 'Can’t change this right now',
-  },
   storage: {
     limit: 'Storage limit',
     limitHint: '0 means no limit. When the limit is reached, the oldest recordings are deleted automatically; anything still in use is kept.',
@@ -210,7 +205,7 @@ export default {
       addModel: 'Add model',
       removeModel: 'Remove this model',
       maxImages: 'Max images per request',
-      maxImagesHint: '0 uses the default (5). Lower it if your service is stricter; raise it if you use enhanced recognition.',
+      maxImagesHint: '0 uses the default (5). Lower it if your service is stricter.',
       maxImagesValue: '{count} images',
       modelPlaceholder: {
         openai: 'e.g. gpt-4o-mini',

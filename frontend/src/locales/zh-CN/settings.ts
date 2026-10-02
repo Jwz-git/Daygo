@@ -119,11 +119,6 @@ export default {
     outputError: '保存失败，已恢复原设置。',
     saving: '保存中…',
   },
-  recognition: {
-    title: '增强识别',
-    hint: '把每张截图放大分块后一起交给 AI，能更准确地识别小字，但会消耗更多用量。开启后，可能需要在 AI 服务设置中调高「单次最多图片数」。',
-    unavailable: '暂时无法修改',
-  },
   storage: {
     limit: '存储空间上限',
     limitHint: '0 表示不限制。超出后会自动删除最早的录制内容，正在使用的部分不受影响。',
@@ -210,7 +205,7 @@ export default {
       addModel: '添加模型',
       removeModel: '移除该模型',
       maxImages: '单次最多图片数',
-      maxImagesHint: '0 表示使用默认值（5 张）。如果服务限制更严格请调小；开启增强识别后可以适当调大。',
+      maxImagesHint: '0 表示使用默认值（5 张）。如果服务限制更严格请调小。',
       maxImagesValue: '{count} 张',
       modelPlaceholder: {
         openai: '例如：gpt-4o-mini',

@@ -96,7 +96,6 @@ func TestLoadDefaultsOnEmptyDatabase(t *testing.T) {
 		CrashReportingOptIn:    DefaultCrashReportingOptIn,
 		ProvidersRouting:       Routing{Chain: []RoutingEntry{}},
 		OutputLanguage:         DefaultOutputLanguage,
-		RecognitionEnhancement: DefaultRecognitionEnhancement,
 		ChatMemory:             DefaultChatMemory,
 		ChatEditMode:           DefaultChatEditMode,
 	}
@@ -427,30 +426,28 @@ func TestOutputLanguageIsIndependent(t *testing.T) {
 	}
 }
 
-func TestRecognitionEnhancementIsIndependentAndPersistent(t *testing.T) {
+// A database written before recognition enhancement was removed still holds
+// its row. Load must ignore it: the snapshot equals the defaults and the stale
+// key never reappears in the known key set.
+func TestLegacyRecognitionEnhancementRowIsIgnored(t *testing.T) {
 	repo := newFakeRepo()
-	s := New(repo)
+	repo.values["llm.recognitionEnhancementEnabled"] = "true"
 
-	snapshot, changed, err := s.Apply(context.Background(), Patch{RecognitionEnhancement: ptr(true)})
-	if err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-	if !snapshot.RecognitionEnhancement {
-		t.Fatal("recognition enhancement remained disabled")
-	}
-	if len(changed) != 1 || changed[0] != KeyLLMRecognitionEnhancement {
-		t.Fatalf("changed = %v, want recognition enhancement key", changed)
-	}
-	if repo.values[KeyLLMRecognitionEnhancement] != "true" {
-		t.Fatalf("stored value = %q, want true", repo.values[KeyLLMRecognitionEnhancement])
-	}
-
-	reloaded, err := New(repo).Load(context.Background())
+	got, err := New(repo).Load(context.Background())
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if !reloaded.RecognitionEnhancement {
-		t.Fatal("recognition enhancement was not read back")
+	want, err := New(newFakeRepo()).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load defaults: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("legacy row changed the snapshot:\ngot  %+v\nwant %+v", got, want)
+	}
+	for _, key := range AllKeys() {
+		if key == "llm.recognitionEnhancementEnabled" {
+			t.Fatal("removed key is still listed in AllKeys")
+		}
 	}
 }
 

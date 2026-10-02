@@ -142,8 +142,7 @@ func settingsToDTO(s settings.Snapshot) SettingsDTO {
 			Language: s.Language,
 		},
 		LLM: LLMSettingsDTO{
-			OutputLanguage:                s.OutputLanguage,
-			RecognitionEnhancementEnabled: s.RecognitionEnhancement,
+			OutputLanguage: s.OutputLanguage,
 		},
 		Chat: ChatSettingsDTO{
 			Memory:   s.ChatMemory,
@@ -176,7 +175,6 @@ func patchFromDTO(p SettingsPatchDTO) settings.Patch {
 		Theme:                  p.Theme,
 		Language:               p.Language,
 		OutputLanguage:         p.OutputLanguage,
-		RecognitionEnhancement: p.RecognitionEnhancementEnabled,
 		ChatMemory:             p.ChatMemory,
 		ChatEditMode:           p.ChatEditMode,
 		LaunchAtLogin:          p.LaunchAtLogin,

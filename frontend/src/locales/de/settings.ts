@@ -119,11 +119,6 @@ export default {
     outputError: 'Sichern fehlgeschlagen. Deine vorherige Einstellung wurde wiederhergestellt.',
     saving: 'Wird gesichert…',
   },
-  recognition: {
-    title: 'Verbesserte Erkennung',
-    hint: 'Sendet vergrößerte Ausschnitte jedes Screenshots zusammen mit dem vollständigen Bild an die KI, damit kleine Schrift genauer gelesen wird. Verbraucht mehr KI-Kontingent. Möglicherweise musst du in den Einstellungen der KI-Dienste „Max. Bilder pro Anfrage“ erhöhen.',
-    unavailable: 'Das lässt sich derzeit nicht ändern',
-  },
   storage: {
     diagnostics: {
       title: 'Diagnose',
@@ -210,7 +205,7 @@ export default {
       addModel: 'Modell hinzufügen',
       removeModel: 'Dieses Modell entfernen',
       maxImages: 'Max. Bilder pro Anfrage',
-      maxImagesHint: '0 verwendet den Standardwert (5). Verringere den Wert, wenn dein Dienst strenger ist; erhöhe ihn, wenn du die verbesserte Erkennung nutzt.',
+      maxImagesHint: '0 verwendet den Standardwert (5). Verringere den Wert, wenn dein Dienst strenger ist.',
       maxImagesValue: '{count} Bilder',
       modelPlaceholder: {
         openai: 'z. B. gpt-4o-mini',

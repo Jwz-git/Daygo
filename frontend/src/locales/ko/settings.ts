@@ -119,11 +119,6 @@ export default {
     outputError: '저장하지 못했습니다. 이전 설정으로 되돌렸습니다.',
     saving: '저장하는 중…',
   },
-  recognition: {
-    title: '고급 인식',
-    hint: '스크린샷을 확대해 나눈 조각을 원본과 함께 AI에 보내 작은 글씨도 더 정확하게 읽습니다. AI 사용량이 늘어납니다. AI 서비스 설정에서 「요청당 최대 이미지 수」를 높여야 할 수 있습니다.',
-    unavailable: '지금은 변경할 수 없습니다',
-  },
   storage: {
     diagnostics: {
       title: '진단',
@@ -210,7 +205,7 @@ export default {
       addModel: '모델 추가',
       removeModel: '이 모델 삭제',
       maxImages: '요청당 최대 이미지 수',
-      maxImagesHint: '0이면 기본값(5장)을 씁니다. 서비스 제한이 더 엄격하면 낮추고, 고급 인식을 켰다면 높이세요.',
+      maxImagesHint: '0이면 기본값(5장)을 씁니다. 서비스 제한이 더 엄격하면 낮추세요.',
       maxImagesValue: '{count}장',
       modelPlaceholder: {
         openai: '예: gpt-4o-mini',

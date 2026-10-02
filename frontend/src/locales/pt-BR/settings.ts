@@ -119,11 +119,6 @@ export default {
     outputError: 'Não foi possível salvar. A configuração anterior foi restaurada.',
     saving: 'Salvando…',
   },
-  recognition: {
-    title: 'Reconhecimento aprimorado',
-    hint: 'Envia trechos ampliados de cada captura de tela para a IA junto com a imagem inteira, para que textos pequenos sejam lidos com mais precisão. Consome mais da sua cota de IA. Talvez seja preciso aumentar “Máximo de imagens por requisição” nas configurações do serviço de IA.',
-    unavailable: 'Não é possível mudar isso agora',
-  },
   storage: {
     diagnostics: {
       title: 'Diagnóstico',
@@ -210,7 +205,7 @@ export default {
       addModel: 'Adicionar modelo',
       removeModel: 'Remover este modelo',
       maxImages: 'Máximo de imagens por requisição',
-      maxImagesHint: '0 usa o padrão (5). Diminua se o seu serviço for mais restrito; aumente se você usar o reconhecimento aprimorado.',
+      maxImagesHint: '0 usa o padrão (5). Diminua se o seu serviço for mais restrito.',
       maxImagesValue: '{count} imagens',
       modelPlaceholder: {
         openai: 'por exemplo: gpt-4o-mini',

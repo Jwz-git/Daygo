@@ -79,14 +79,12 @@ JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB；调用�
 协议客户端归 internal/ai；上层任务通过消费者接口调用，不导入另一服务的内部实现。
 providers repository 在 internal/storage；Secrets.Get 只供 Go 客户端取密钥，
 任何绑定均不返回密钥。settings-access 由 preferences 维护，本模块拥有 providers.routing、
-llm.outputLanguage、llm.recognitionEnhancementEnabled 的字段规则和设置交互；回退链跨回合
+llm.outputLanguage 的字段规则和设置交互；回退链跨回合
 行为由消费方（chat / 分析流水线）集成验证。
 
-识别增强（`ai.GenerateRecognition`，由 `llm.recognitionEnhancementEnabled` 控制，默认关）：
-开启时识别用途的每张图片在内存中切成 2×2 四张重叠分片（每片约半幅加交叉覆盖），四片
-之后附上未改动的原图一起发送，分片仅存在于单次请求生命周期、返回后清零，不落盘不入库；
-关闭时请求原样透传。timeline 转录阶段已通过 `GenerateRecognition` 接入该开关；卡片生成仍走
-普通文本请求。分析分组同时按回退链中最小图片上限限制请求规模。
+分析分组按回退链中最小图片上限限制请求规模。识别增强（`ai.GenerateRecognition` 与
+`llm.recognitionEnhancementEnabled`）于 2026-10-02 移除：设置页开关可保存，但转录阶段从未调用
+该函数，开关无实际效果（此前本节「已接入」的描述与代码不符）。
 
 ## 实验与失败条件
 

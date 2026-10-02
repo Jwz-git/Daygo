@@ -394,7 +394,6 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 | `telemetry.crashReportingOptIn` | bool | `false` |
 | `providers.routing` | `{"chain": [{"providerId","model"}, …]}`（有序，`chain[0]` 为主，按对去重，上限 8；`model` 为空跟随该 provider 的首个模型） | `{"chain":[]}` |
 | `llm.outputLanguage` | string（空串=跟随界面语言） | `""` |
-| `llm.recognitionEnhancementEnabled` | bool | `false` |
 | `chat.memory` | string（全局聊天记忆，自由文本） | `""` |
 | `chat.editMode` | string（`readonly` \| `edits`） | `"readonly"` |
 
@@ -414,10 +413,8 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 `llm.outputLanguage` 与 `appearance.language` 是**两个独立设置**：前者决定模型生成的卡片
 标题与摘要用什么语言，后者只影响界面文案。不得复用同一个字段。
 
-`llm.recognitionEnhancementEnabled` 开启后，识别用途的每张图片在发送前于内存中切为
-四张带交叉覆盖的分片，四片之后附上未改动的原图一并发送（见
-[04 §4.3.4](04-data-flow.md#434-提示词与输出解析)），分片与原图均不额外落盘；默认关闭，
-因为开启会提高 token 用量。
+曾有的 `llm.recognitionEnhancementEnabled`（识别图片切片）从未接入分析流水线，已于
+2026-10-02 移除。旧库中残留的该行不迁移删除：读取时按未知键忽略，不影响快照与默认值。
 
 ## 3.4 帧与分段
 

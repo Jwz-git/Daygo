@@ -48,8 +48,7 @@ type AppearanceSettingsDTO struct {
 // decides what language the model writes card titles and summaries in, the
 // other only affects interface text.
 type LLMSettingsDTO struct {
-	OutputLanguage                string `json:"outputLanguage"`
-	RecognitionEnhancementEnabled bool   `json:"recognitionEnhancementEnabled"`
+	OutputLanguage string `json:"outputLanguage"`
 }
 
 type SystemSettingsDTO struct {
@@ -81,22 +80,21 @@ type TelemetrySettingsDTO struct {
 // bool or string could not distinguish "leave it" from "set it to false/empty"
 // (docs/05 §5.5.1).
 type SettingsPatchDTO struct {
-	IntervalSeconds               *int      `json:"intervalSeconds"`
-	CaptureHeight                 *int      `json:"captureHeight"`
-	BlockedApplicationIDs         *[]string `json:"blockedApplicationIds"`
-	RecordingsLimitBytes          *int64    `json:"recordingsLimitBytes"`
-	JournalReminderEnabled        *bool     `json:"journalReminderEnabled"`
-	JournalReminderTime           *string   `json:"journalReminderTime"`
-	Theme                         *string   `json:"theme"`
-	Language                      *string   `json:"language"`
-	OutputLanguage                *string   `json:"outputLanguage"`
-	RecognitionEnhancementEnabled *bool     `json:"recognitionEnhancementEnabled"`
-	ChatMemory                    *string   `json:"chatMemory"`
-	ChatEditMode                  *string   `json:"chatEditMode"`
-	LaunchAtLogin                 *bool     `json:"launchAtLogin"`
-	ShowDockIcon                  *bool     `json:"showDockIcon"`
-	AgentEditsEnabled             *bool     `json:"agentEditsEnabled"`
-	TestToolsEnabled              *bool     `json:"testToolsEnabled"`
-	AnalyticsOptIn                *bool     `json:"analyticsOptIn"`
-	CrashReportingOptIn           *bool     `json:"crashReportingOptIn"`
+	IntervalSeconds        *int      `json:"intervalSeconds"`
+	CaptureHeight          *int      `json:"captureHeight"`
+	BlockedApplicationIDs  *[]string `json:"blockedApplicationIds"`
+	RecordingsLimitBytes   *int64    `json:"recordingsLimitBytes"`
+	JournalReminderEnabled *bool     `json:"journalReminderEnabled"`
+	JournalReminderTime    *string   `json:"journalReminderTime"`
+	Theme                  *string   `json:"theme"`
+	Language               *string   `json:"language"`
+	OutputLanguage         *string   `json:"outputLanguage"`
+	ChatMemory             *string   `json:"chatMemory"`
+	ChatEditMode           *string   `json:"chatEditMode"`
+	LaunchAtLogin          *bool     `json:"launchAtLogin"`
+	ShowDockIcon           *bool     `json:"showDockIcon"`
+	AgentEditsEnabled      *bool     `json:"agentEditsEnabled"`
+	TestToolsEnabled       *bool     `json:"testToolsEnabled"`
+	AnalyticsOptIn         *bool     `json:"analyticsOptIn"`
+	CrashReportingOptIn    *bool     `json:"crashReportingOptIn"`
 }

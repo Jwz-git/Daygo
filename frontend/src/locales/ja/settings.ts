@@ -119,11 +119,6 @@ export default {
     outputError: '保存できませんでした。以前の設定に戻しました。',
     saving: '保存中…',
   },
-  recognition: {
-    title: '高精度認識',
-    hint: 'スクリーンショットを拡大して分割した画像を元の画像と一緒に AI へ送るため、小さい文字も正確に読み取れます。AI の利用量が増えます。「AI サービス」の設定で「1 リクエストあたりの最大画像数」を上げる必要がある場合があります。',
-    unavailable: '現在は変更できません',
-  },
   storage: {
     diagnostics: {
       title: '診断',
@@ -210,7 +205,7 @@ export default {
       addModel: 'モデルを追加',
       removeModel: 'このモデルを削除',
       maxImages: '1 リクエストあたりの最大画像数',
-      maxImagesHint: '0 は既定値（5 枚）を使います。サービス側の制限が厳しい場合は小さく、高精度認識を使う場合は大きめにしてください。',
+      maxImagesHint: '0 は既定値（5 枚）を使います。サービス側の制限が厳しい場合は小さくしてください。',
       maxImagesValue: '{count} 枚',
       modelPlaceholder: {
         openai: '例：gpt-4o-mini',

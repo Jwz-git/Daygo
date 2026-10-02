@@ -119,11 +119,6 @@ export default {
     outputError: 'Échec de l’enregistrement. Votre réglage précédent a été rétabli.',
     saving: 'Enregistrement…',
   },
-  recognition: {
-    title: 'Reconnaissance renforcée',
-    hint: 'Envoie à l’IA des sections agrandies de chaque capture d’écran accompagnées de l’image complète, pour lire plus précisément les petits textes. Consomme davantage de votre quota d’IA. Vous devrez peut-être augmenter « Nombre maximal d’images par requête » dans les réglages du service d’IA.',
-    unavailable: 'Modification impossible pour le moment',
-  },
   storage: {
     diagnostics: {
       title: 'Diagnostic',
@@ -210,7 +205,7 @@ export default {
       addModel: 'Ajouter un modèle',
       removeModel: 'Supprimer ce modèle',
       maxImages: 'Nombre maximal d’images par requête',
-      maxImagesHint: '0 utilise la valeur par défaut (5). Réduisez-la si votre service est plus strict ; augmentez-la si vous utilisez la reconnaissance renforcée.',
+      maxImagesHint: '0 utilise la valeur par défaut (5). Réduisez-la si votre service est plus strict.',
       maxImagesValue: '{count} images',
       modelPlaceholder: {
         openai: 'ex. : gpt-4o-mini',
