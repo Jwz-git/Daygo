@@ -170,7 +170,6 @@ onBeforeUnmount(() => daily.stopListening())
             @regenerate="daily.regenerateRecap"
             @save="daily.saveRecap"
           />
-          <TokenUsageCard period="day" :day="context.day" />
           <DailyJournalPanel
             :journal="journal"
             :unavailable="journalUnavailable"
@@ -178,6 +177,7 @@ onBeforeUnmount(() => daily.stopListening())
             :saving="journalSaving"
             @save="daily.saveJournal"
           />
+          <TokenUsageCard period="day" :day="context.day" />
         </template>
       </div>
     </main>

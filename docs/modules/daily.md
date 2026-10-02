@@ -161,3 +161,11 @@ typecheck / build、文档检查）；Windows 安装器 5 项仍跳过。
 Chrome headless 用后端 timeZone=Local 的匿名夹具检查日报 / 周报三种图表、
 深色 / 760px、空 / 失败状态，pageerror 为 0。这不是修复后真实 Wails 验收，
 真实窗口仍需重看。回退本次修复会重新暴露 Local 崩溃，不涉及数据迁移。
+
+
+2026-10-02（test 工作树，Token 图位置）：按用户要求将 Token 用量卡片放到
+日记面板之后，成为每日页面最后一项；周报原已在末尾。
+验证环境 macOS arm64：前端 typecheck / build、文档检查、git diff --check 通过；
+Chrome headless 匿名 Local 时区夹具断言 daily / weekly 的 Token 卡片均为
+内容容器最后一个元素，pageerror 为 0。真实 Wails 位置未单独验收。
+回退本次提交即可恢复原顺序，无数据影响。
