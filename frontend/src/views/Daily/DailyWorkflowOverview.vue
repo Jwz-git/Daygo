@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type {
@@ -20,16 +20,73 @@ const props = defineProps<{
 
 const { locale, t } = useI18n()
 
-const gridStyle = computed(() => ({
-  minWidth: `${Math.max(680, props.presentation.slotCount * 20)}px`,
-}))
+/*
+ * Dayflow's baseline is an 18px cell + 2px gap (a 20px step). Here the step
+ * grows with the card so a wide window fills the row instead of leaving it
+ * half empty: 20–38px per slot, Dayflow's 9:1 cell-to-gap ratio, and labels
+ * and axis scale with it up to 1.2×. Below the minimum the grid scrolls.
+ * Cells, axis and the distraction track share one width so hour ticks land
+ * on cell boundaries.
+ */
+const MIN_STEP = 20
+const MAX_STEP = 38
+const LABEL_COLUMN = 112
+const LABEL_GAP = 13
+const SCROLL_PADDING = 40
 
-// Dayflow baseline: 18px cell + 2px gap. Cells, axis and the distraction
-// track all share this exact width so hour ticks land on cell boundaries.
-const gridWidth = computed(() => props.presentation.slotCount * 20 - 2)
+// The card's width never depends on the grid inside it, so observing it
+// cannot feed back into itself; the update still waits a frame, and sub-pixel
+// changes are ignored.
+const cardEl = ref<HTMLElement | null>(null)
+const viewportWidth = ref(0)
+let resizeObserver: ResizeObserver | null = null
+let resizeFrame = 0
+watch(cardEl, (element) => {
+  resizeObserver?.disconnect()
+  if (element === null || typeof ResizeObserver === 'undefined') return
+  resizeObserver = new ResizeObserver(([entry]) => {
+    const width = entry?.contentRect.width ?? 0
+    cancelAnimationFrame(resizeFrame)
+    resizeFrame = requestAnimationFrame(() => {
+      if (Math.abs(width - viewportWidth.value) >= 1) viewportWidth.value = width
+    })
+  })
+  resizeObserver.observe(element)
+})
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  cancelAnimationFrame(resizeFrame)
+})
+
+const step = computed(() => {
+  const slots = Math.max(1, props.presentation.slotCount)
+  const available = viewportWidth.value - SCROLL_PADDING - LABEL_COLUMN * textScale(MIN_STEP) - LABEL_GAP
+  // Label width depends on the scale, so solve once with the provisional step.
+  const provisional = Math.min(MAX_STEP, Math.max(MIN_STEP, available / slots))
+  const fitted = (viewportWidth.value - SCROLL_PADDING - LABEL_COLUMN * textScale(provisional) - LABEL_GAP) / slots
+  return Math.min(MAX_STEP, Math.max(MIN_STEP, fitted))
+})
+function textScale(value: number): number {
+  return Math.min(1.2, value / MIN_STEP)
+}
+const cellSize = computed(() => step.value * 0.9)
+const cellGap = computed(() => step.value * 0.1)
+const gridWidth = computed(() => props.presentation.slotCount * step.value - cellGap.value)
+
+const gridStyle = computed(() => {
+  const scale = textScale(step.value)
+  return {
+    minWidth: `${Math.max(680, props.presentation.slotCount * MIN_STEP)}px`,
+    gridTemplateColumns: `${LABEL_COLUMN * scale}px minmax(0, 1fr)`,
+    rowGap: `${cellGap.value}px`,
+    '--daily-cell': `${cellSize.value}px`,
+    '--daily-text-scale': `${scale}`,
+  }
+})
 
 const cellGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${props.presentation.slotCount}, 18px)`,
+  gridTemplateColumns: `repeat(${props.presentation.slotCount}, ${cellSize.value}px)`,
+  gap: `${cellGap.value}px`,
   width: `${gridWidth.value}px`,
 }))
 
@@ -171,7 +228,7 @@ const duration = useDurationFormat()
       <span class="slot-note">{{ t('daily.workflow.slotNote') }}</span>
     </header>
 
-    <div class="workflow-card dg-card">
+    <div ref="cardEl" class="workflow-card dg-card">
       <div v-if="presentation.rows.length === 0" class="workflow-empty">
         {{ t('daily.workflow.empty') }}
       </div>
@@ -309,11 +366,11 @@ const duration = useDurationFormat()
   align-items: center;
 }
 
-.workflow-axis-label { height: 22px; }
+.workflow-axis-label { height: calc(22px * var(--daily-text-scale, 1)); }
 
 .workflow-axis {
   position: relative;
-  height: 22px;
+  height: calc(22px * var(--daily-text-scale, 1));
   border-bottom: 1px solid var(--dg-daily-grid-line);
 }
 
@@ -321,7 +378,7 @@ const duration = useDurationFormat()
   position: absolute;
   bottom: 6px;
   color: var(--dg-text-muted);
-  font-size: 10px;
+  font-size: calc(10px * var(--daily-text-scale, 1));
   line-height: 1;
   white-space: nowrap;
   transform: translateX(-50%);
@@ -337,7 +394,7 @@ const duration = useDurationFormat()
   gap: 7px;
   min-width: 0;
   color: var(--dg-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px * var(--daily-text-scale, 1));
   text-align: right;
 }
 
@@ -362,11 +419,11 @@ const duration = useDurationFormat()
 
 .workflow-cell {
   position: relative;
-  width: 18px;
-  height: 18px;
+  width: var(--daily-cell, 18px);
+  height: var(--daily-cell, 18px);
   border: none;
-  /* Dayflow corner radius: 2.5px on the 18px square. */
-  border-radius: 2.5px;
+  /* Dayflow corner radius: 2.5px on the 18px square, scaled with the cell. */
+  border-radius: calc(var(--daily-cell, 18px) * 0.14);
   background: var(--dg-daily-cell-empty);
 }
 
@@ -377,7 +434,7 @@ const duration = useDurationFormat()
 /* Dedicated distraction marker row under the category rows. */
 .workflow-distraction-track {
   position: relative;
-  height: 10px;
+  height: calc(10px * var(--daily-text-scale, 1));
   border-radius: 2px;
   background: var(--dg-daily-distraction-track, var(--dg-track-fill));
 }
@@ -385,7 +442,7 @@ const duration = useDurationFormat()
 .workflow-distraction-track span {
   position: absolute;
   top: 0;
-  height: 10px;
+  height: 100%;
   border-radius: 2px;
   background: #ff653b;
   cursor: pointer;
