@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import DgIcon from '@/components/DgIcon.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -219,10 +218,8 @@ onBeforeUnmount(() => {
           :key="`processing-${block.range.startTs}-${block.range.endTs}`"
           class="range range--processing"
           :style="{ top: `${block.top}px`, height: `${block.height}px` }"
-          role="status"
         >
-          <DgIcon name="bars" :size="13" />
-          <span>{{ t('timeline.generating') }}</span>
+          <GeneratingCard class="range__status" state="capturing" :label="t('timeline.generating')" />
         </div>
 
         <button
@@ -332,20 +329,15 @@ onBeforeUnmount(() => {
   font-size: 11px;
 }
 
+/* A batch being analysed renders the same status card as "recording now"
+   (Dayflow draws both as one timelineStatusCard); the range only positions
+   it and lets it fill the block's height. */
 .range--processing {
-  gap: 9px;
-  border: none;
-  border-radius: 8px;
-  background: linear-gradient(
-    100deg,
-    color-mix(in srgb, var(--dg-accent) 30%, transparent),
-    color-mix(in srgb, #e8804a 24%, transparent)
-  );
-  color: var(--dg-text-primary);
-  font-weight: 550;
+  align-items: stretch;
+  padding: 0;
 }
 
-.range--processing svg { flex: none; width: 13px; height: 13px; }
+.range__status { flex: 1; }
 
 .range--failure {
   justify-content: space-between;

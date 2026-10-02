@@ -149,11 +149,7 @@ function cardStyle(): CSSProperties {
    generating block uses, so a stale card and an empty window read as the same
    state; it rides on background-image so hover and selection keep the surface. */
 .activity-card.is-regenerating {
-  background-image: linear-gradient(
-    100deg,
-    color-mix(in srgb, var(--dg-accent) 20%, transparent),
-    color-mix(in srgb, #e8804a 16%, transparent)
-  );
+  background-image: var(--dg-status-generating);
 }
 
 /* The press sinks the card into the track; the fill previews the selected

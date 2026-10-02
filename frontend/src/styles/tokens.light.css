@@ -177,6 +177,15 @@
   --dg-timeline-processing-border: rgba(103, 128, 177, 0.16);
   --dg-timeline-frame-fill: rgba(94, 84, 99, 0.055);
 
+  /* Timeline status cards (Dayflow's generatingGradient / pausedCardGradient,
+     DayflowTheme.swift, MIT): one shape for "generating", "recording now"
+     and "paused", laid over the solid panel colour. */
+  --dg-status-generating: linear-gradient(90deg, rgba(50, 135, 255, 0.55), rgba(255, 165, 153, 0.36));
+  --dg-status-generating-text: #ffffff;
+  --dg-status-paused: linear-gradient(90deg, #f7e6d5 13%, #dadee4 100%);
+  --dg-status-paused-text: #888d95;
+  --dg-status-paused-border: rgba(208, 208, 208, 0.6);
+
   /* daily workflow */
   --dg-daily-grid-line: #ebe6e3;
   --dg-daily-cell-empty: rgba(152, 152, 152, 0.1);

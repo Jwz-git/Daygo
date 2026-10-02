@@ -128,6 +128,12 @@
   --dg-timeline-processing-border: rgba(255, 255, 255, 0.09);
   --dg-timeline-frame-fill: rgba(255, 255, 255, 0.04);
 
+  --dg-status-generating: linear-gradient(90deg, rgba(50, 135, 255, 0.55), rgba(255, 165, 153, 0.36));
+  --dg-status-generating-text: #ffffff;
+  --dg-status-paused: linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+  --dg-status-paused-text: #dddddd;
+  --dg-status-paused-border: rgba(153, 153, 153, 0.6);
+
   --dg-daily-grid-line: #4e4e4e;
   --dg-daily-cell-empty: rgba(255, 255, 255, 0.08);
   --dg-daily-cell-border: transparent;
