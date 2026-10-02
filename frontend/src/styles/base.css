@@ -59,8 +59,11 @@ body {
   margin: 0;
   overflow: hidden;
   color: var(--dg-text-primary);
-  font-size: 22px;
-  font-weight: 700;
+  /* Dayflow titles every period page in Instrument Serif 26. */
+  font-family: var(--dg-font-page-title);
+  font-size: 26px;
+  font-weight: var(--dg-page-title-weight);
+  letter-spacing: 0;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -90,18 +93,12 @@ body {
   box-shadow: var(--dg-glass-shadow);
 }
 
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .dg-panel {
-    background: var(--lg-tint-glass);
-    -webkit-backdrop-filter:
-      blur(var(--lg-blur-glass))
-      saturate(var(--lg-saturation-glass));
-    backdrop-filter:
-      blur(var(--lg-blur-glass))
-      saturate(var(--lg-saturation-glass));
-    box-shadow: var(--lg-shadow-glass);
-    border-color: var(--lg-border-glass);
-  }
+/* Dayflow's main panel is a translucent sheet, not frosted glass: the warm
+   window gradient shows straight through the 55% fill, with a white edge and
+   an inner glow (DayflowTheme.panelFill / panelBorder / panelInnerGlow). */
+.dg-panel {
+  background: var(--dg-panel-fill);
+  box-shadow: var(--dg-panel-shadow);
 }
 
 .dg-panel::before {
@@ -110,7 +107,7 @@ body {
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: var(--lg-sheen);
+  background: var(--dg-glass-sheen);
   pointer-events: none;
 }
 
@@ -358,6 +355,7 @@ input[type='number']::-webkit-outer-spin-button {
   border: none;
   border-radius: 8px;
   background: var(--dg-button-secondary-fill);
+  box-shadow: inset 0 0 0 1px var(--dg-button-secondary-border);
   color: var(--dg-button-secondary-text);
   font-size: 13px;
   font-weight: 550;
@@ -387,6 +385,7 @@ input[type='number']::-webkit-outer-spin-button {
 
 .dg-button--primary {
   background: var(--dg-button-primary-fill);
+  box-shadow: var(--dg-button-primary-shadow);
   color: var(--dg-button-primary-text);
 }
 

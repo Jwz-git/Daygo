@@ -19,65 +19,49 @@
 :root[data-dg-appearance='dark'] {
   color-scheme: dark;
 
-  --dg-window-bg: #141417;
+  --dg-window-bg: #31334a;
   --dg-titlebar-border: rgba(255, 255, 255, 0.07);
-  --dg-window-gradient: radial-gradient(
-      120% 90% at 6% -14%,
-      rgba(255, 255, 255, 0.06),
-      transparent 52%
-    ),
-    radial-gradient(95% 85% at 108% -16%, rgba(80, 115, 200, 0.18), transparent 60%),
-    radial-gradient(130% 110% at 112% 118%, rgba(60, 120, 220, 0.16), transparent 62%),
-    radial-gradient(85% 75% at -14% 112%, rgba(120, 90, 180, 0.12), transparent 58%),
-    radial-gradient(70% 60% at 50% -5%, rgba(50, 80, 160, 0.10), transparent 45%),
-    linear-gradient(168deg, #1c1c20 0%, #161619 55%, #111114 100%);
+  --dg-window-gradient: linear-gradient(75deg, rgb(48, 60, 91) 21%, rgb(49, 51, 72) 53%, rgb(59, 41, 75) 105%);
 
-  --dg-panel-fill: rgba(26, 26, 29, 0.94);
-  --dg-panel-border: rgba(255, 255, 255, 0.08);
-  --dg-panel-shadow: 0 1px 4px rgba(0, 0, 0, 0.32);
+  --dg-panel-fill: linear-gradient(140deg, rgba(39, 41, 58, 0.8) 9%, rgba(32, 39, 51, 0.8) 80%);
+  --dg-panel-border: #414141;
+  --dg-panel-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
   /* Same role as in the light palette: the raised surface behind content,
      kept a step above the glass panels so it still reads as lifted. */
-  --dg-surface: #232329;
+  --dg-surface: #272a3c;
 
   /*
    * Liquid-glass surfaces (.dg-panel, the rail selection, popovers). Colour
    * half only — blur and saturation are geometry and stay in tokens.light.css.
    */
-  --dg-glass-tint: rgba(24, 24, 27, 0.6);
-  --dg-glass-fallback: #1d1d20;
-  --dg-glass-shadow:
-    0 32px 72px -28px rgba(0, 0, 0, 0.62),
-    0 14px 34px -16px rgba(0, 0, 0, 0.42),
-    0 1px 2px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.045);
-  --dg-glass-sheen:
-    radial-gradient(120% 90% at 12% -8%, rgba(255, 255, 255, 0.1), transparent 46%),
-    linear-gradient(200deg, rgba(255, 255, 255, 0.05), transparent 32%, transparent 72%, rgba(255, 255, 255, 0.035) 100%);
+  --dg-glass-tint: rgba(39, 41, 58, 0.8);
+  --dg-glass-fallback: #272a3c;
+  --dg-glass-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
+  --dg-glass-sheen: none;
 
-  --dg-text-primary: #edecf0;
-  --dg-text-secondary: #a7a5af;
-  --dg-text-tertiary: #94929c;
-  --dg-text-muted: #888693;
+  --dg-text-primary: #ffffff;
+  --dg-text-secondary: #dddddd;
+  --dg-text-tertiary: #b3b3b3;
+  --dg-text-muted: #b4b4b4;
 
-  --dg-accent: #4b8df0;
-  --dg-accent-strong: #5e9cf8;
-  --dg-accent-text: #6ba6f5;
-  --dg-focus-ring: rgba(75, 141, 240, 0.32);
-  --dg-control-fill: rgba(75, 141, 240, 0.16);
-  --dg-control-fill-hover: rgba(75, 141, 240, 0.24);
-  --dg-nav-active-fill: rgba(255, 255, 255, 0.08);
-  --dg-nav-active-text: #edecf0;
-  --dg-nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --dg-danger: #e5484d;
+  --dg-accent: #f3854b;
+  --dg-accent-strong: #f77952;
+  --dg-accent-text: #f77952;
+  --dg-focus-ring: rgba(243, 133, 75, 0.38);
+  --dg-control-fill: rgba(226, 160, 121, 0.4);
+  --dg-control-fill-hover: rgba(226, 160, 121, 0.52);
+  --dg-nav-active-fill: linear-gradient(180deg, rgba(116, 114, 255, 0.3), rgba(167, 167, 167, 0.05));
+  --dg-nav-active-text: #ffffff;
+  --dg-nav-active-shadow: inset 0 0 6px rgba(255, 255, 255, 0.2), 0 0 0 0.6px #848484;
+  --dg-danger: #ff7053;
   --dg-success: #46a758;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
   --dg-warning: #e3b25e;
 
-  --dg-hover-fill: rgba(255, 255, 255, 0.055);
-  --dg-hover-fill-strong: rgba(255, 255, 255, 0.09);
+  --dg-hover-fill: rgba(255, 255, 255, 0.06);
+  --dg-hover-fill-strong: rgba(255, 255, 255, 0.1);
 
-  --dg-track-fill: rgba(0, 0, 0, 0.32);
+  --dg-track-fill: rgba(0, 0, 0, 0.35);
 
   --dg-capsule-fill: rgba(118, 118, 128, 0.24);
   --dg-capsule-hover: rgba(118, 118, 128, 0.34);
@@ -86,9 +70,9 @@
   --dg-capsule-selected-text: #1c1c1e;
   --dg-segment-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
 
-  --dg-input-fill: rgba(255, 255, 255, 0.05);
-  --dg-input-fill-hover: rgba(255, 255, 255, 0.08);
-  --dg-input-border: rgba(255, 255, 255, 0.09);
+  --dg-input-fill: rgba(255, 255, 255, 0.1);
+  --dg-input-fill-hover: rgba(255, 255, 255, 0.14);
+  --dg-input-border: #666666;
   --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%23a7a5af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
   /* switch; the white knob and its checkmark sibling token are
@@ -99,40 +83,37 @@
   /* a white thumb would swallow the light label text, so dark lifts one step */
   --dg-segment-thumb: #4a4852;
 
-  --dg-chip-fill: rgba(255, 255, 255, 0.065);
-  --dg-chip-border: rgba(255, 255, 255, 0.1);
-  --dg-chip-text: #d6d4db;
+  --dg-chip-fill: rgba(255, 255, 255, 0.15);
+  --dg-chip-border: #888888;
+  --dg-chip-text: #ffffff;
 
-  --dg-button-primary-fill: linear-gradient(180deg, #5d9af4 0%, #3f80e8 100%);
-  --dg-button-primary-hover: linear-gradient(180deg, #6ba6f6 0%, #4b8df0 100%);
-  --dg-button-primary-border: rgba(126, 175, 245, 0.36);
+  --dg-button-primary-fill: #d1653e;
+  --dg-button-primary-hover: #dc7048;
+  --dg-button-primary-border: #ea9265;
   --dg-button-primary-text: #ffffff;
-  --dg-button-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  --dg-button-secondary-fill: #2a2a2e;
-  --dg-button-secondary-hover: #333338;
-  --dg-button-secondary-border: rgba(255, 255, 255, 0.09);
-  --dg-button-secondary-text: #d6d4db;
+  --dg-button-primary-shadow: inset 0 0 6px rgba(255, 135, 77, 0.9), 0 0 0 1px #ea9265;
+  --dg-button-secondary-fill: rgba(104, 109, 138, 0.4);
+  --dg-button-secondary-hover: rgba(104, 109, 138, 0.55);
+  --dg-button-secondary-border: #777777;
+  --dg-button-secondary-text: #dddddd;
 
-  --dg-danger-fill: rgba(229, 72, 77, 0.13);
+  --dg-danger-fill: rgba(255, 89, 80, 0.22);
   --dg-danger-text: #ff8589;
   --dg-accent-fill: rgba(75, 141, 240, 0.16);
 
-  --dg-rail-selection-fill: rgba(255, 255, 255, 0.09);
-  --dg-rail-selection-border: rgba(255, 255, 255, 0.13);
-  --dg-rail-selection-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
-  --dg-popover-fill: rgba(38, 38, 41, 0.98);
-  --dg-popover-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --dg-rail-selection-fill: linear-gradient(180deg, rgba(116, 114, 255, 0.3), rgba(167, 167, 167, 0.05));
+  --dg-rail-selection-border: #848484;
+  --dg-rail-selection-shadow: inset 0 0 6px rgba(255, 255, 255, 0.2);
+  --dg-popover-fill: rgba(39, 41, 58, 0.92);
+  --dg-popover-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 0 1px #585858;
 
-  --dg-card-fill: rgba(255, 255, 255, 0.05);
-  --dg-card-border: rgba(255, 255, 255, 0.09);
-  --dg-card-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --dg-card-fill: rgba(255, 255, 255, 0.12);
+  --dg-card-border: #717171;
+  --dg-card-shadow: inset 0 0 6px rgba(255, 255, 255, 0.12);
   --dg-card-time: #888693;
 
-  --dg-timeline-grid: rgba(255, 255, 255, 0.055);
-  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.1);
+  --dg-timeline-grid: rgba(255, 255, 255, 0.18);
+  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.24);
   --dg-timeline-card-fill: #232329;
   --dg-timeline-card-hover: #2b2b33;
   --dg-timeline-card-selected: #26304a;
@@ -140,19 +121,19 @@
   --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   --dg-timeline-card-shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.09);
-  --dg-timeline-inspector-fill: rgba(0, 0, 0, 0.12);
+  --dg-timeline-inspector-fill: rgba(102, 108, 161, 0.18);
   --dg-timeline-empty-fill: rgba(0, 0, 0, 0.1);
   --dg-timeline-placeholder: rgba(255, 255, 255, 0.13);
   --dg-timeline-processing-fill: rgba(255, 255, 255, 0.04);
   --dg-timeline-processing-border: rgba(255, 255, 255, 0.09);
   --dg-timeline-frame-fill: rgba(255, 255, 255, 0.04);
 
-  --dg-daily-grid-line: rgba(255, 255, 255, 0.09);
-  --dg-daily-cell-empty: rgba(255, 255, 255, 0.04);
-  --dg-daily-cell-border: rgba(255, 255, 255, 0.03);
+  --dg-daily-grid-line: #4e4e4e;
+  --dg-daily-cell-empty: rgba(255, 255, 255, 0.08);
+  --dg-daily-cell-border: transparent;
   --dg-daily-distraction: #ff8278;
-  --dg-daily-distraction-track: rgba(255, 101, 59, 0.10);
-  --dg-daily-footer-fill: rgba(0, 0, 0, 0.16);
+  --dg-daily-distraction-track: rgba(0, 0, 0, 0.2);
+  --dg-daily-footer-fill: rgba(171, 168, 185, 0.2);
   /* weekly daily-timeline lane: recessed groove, hairline between abutting
      runs of different categories, and the quiet idle hatch. */
   --dg-daily-track-groove: inset 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.03);
@@ -160,15 +141,15 @@
   --dg-daily-idle-fill: rgba(199, 199, 204, 0.10);
   --dg-daily-idle-line: rgba(199, 199, 204, 0.34);
 
-  --dg-weekly-focus: #4b8df0;
-  --dg-weekly-ring-track: rgba(255, 255, 255, 0.08);
-  --dg-weekly-ring-center: rgba(33, 33, 36, 0.98);
+  --dg-weekly-focus: #59a6ff;
+  --dg-weekly-ring-track: rgba(255, 255, 255, 0.2);
+  --dg-weekly-ring-center: #2b2d44;
   --dg-weekly-ring-glow: rgba(75, 141, 240, 0.22);
-  --dg-weekly-summary-fill: rgba(0, 0, 0, 0.15);
+  --dg-weekly-summary-fill: rgba(171, 168, 185, 0.2);
   --dg-weekly-bar-track: rgba(255, 255, 255, 0.055);
   /* Eyebrow/tag chip: soft accent wash behind uppercase section labels. */
-  --dg-weekly-tag-fill: rgba(75, 141, 240, 0.14);
-  --dg-weekly-tag-text: #7fb0f7;
+  --dg-weekly-tag-fill: transparent;
+  --dg-weekly-tag-text: #f77952;
   --dg-weekly-series-1: #6d9bc3;
   --dg-weekly-series-2: #f08a5d;
   --dg-weekly-series-3: #69a58d;

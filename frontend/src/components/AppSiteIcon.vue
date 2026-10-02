@@ -323,7 +323,7 @@ const iconStyle = computed<CSSProperties>(() => ({
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--dg-timeline-card-border) 86%, transparent);
   border-radius: 5px;
-  background: color-mix(in srgb, var(--dg-panel-fill) 88%, var(--dg-track-fill));
+  background: color-mix(in srgb, var(--dg-surface) 88%, var(--dg-track-fill));
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
   color: var(--dg-text-primary);
   place-items: center;
@@ -393,7 +393,7 @@ const iconStyle = computed<CSSProperties>(() => ({
 .slack-mark i:nth-child(4) { bottom: 18%; left: 8%; background: #e01e5a; }
 
 .app-site-icon--generic {
-  background: color-mix(in srgb, var(--app-site-accent) 14%, var(--dg-panel-fill));
+  background: color-mix(in srgb, var(--app-site-accent) 14%, var(--dg-surface));
   color: color-mix(in srgb, var(--app-site-accent) 72%, var(--dg-text-primary));
 }
 .app-site-icon__monogram { font-size: 46%; font-weight: 720; letter-spacing: -.02em; line-height: 1; }

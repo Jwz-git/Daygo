@@ -15,16 +15,13 @@
 
 /* ─── Level 1: Air ──────────────────────────────────────────────────────── */
 :root {
-  --lg-tint-air: rgb(255 255 255 / 0.10);
-  --lg-border-air: rgb(255 255 255 / 0.22);
+  --lg-tint-air: rgba(255, 255, 255, 0.75);
+  --lg-border-air: #f2eeec;
   --lg-highlight-air: rgb(255 255 255 / 0.28);
   /* Graded lift: one soft ambient clear of the surface plus a tight contact,
      capped with a specular top rim. Reads as a card that floats a millimetre
      off the glass rather than a flat tinted rectangle. */
-  --lg-shadow-air:
-    0 12px 26px -14px rgb(15 23 42 / 0.18),
-    0 2px 6px -2px rgb(15 23 42 / 0.10),
-    inset 0 1px 0 rgb(255 255 255 / 0.5);
+  --lg-shadow-air: 0 2px 10px rgba(0, 0, 0, 0.05);
   --lg-blur-air: 14px;
   --lg-saturation-air: 130%;
   --lg-radius-air: 16px;
@@ -32,19 +29,14 @@
 
 /* ─── Level 2: Glass ─────────────────────────────────────────────────────── */
 :root {
-  --lg-tint-glass: rgb(255 255 255 / 0.14);
-  --lg-border-glass: rgb(255 255 255 / 0.34);
+  --lg-tint-glass: rgba(255, 255, 255, 0.6);
+  --lg-border-glass: #ececec;
   --lg-highlight-glass: rgb(255 255 255 / 0.48);
   /* The primary-slab elevation: a broad soft ambient, a mid diffusion, a tight
      contact line, then the specular top rim + refracting lip. Applied to
      .dg-panel in the backdrop-filter path, so the main surface finally carries
      the same layered depth the opaque fallback always had. */
-  --lg-shadow-glass:
-    0 32px 72px -28px rgb(15 23 42 / 0.28),
-    0 14px 34px -16px rgb(15 23 42 / 0.15),
-    0 1px 2px rgb(15 23 42 / 0.07),
-    inset 0 1px 0 rgb(255 255 255 / 0.6),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.28);
+  --lg-shadow-glass: 0 0 10px rgba(0, 0, 0, 0.05);
   --lg-blur-glass: 22px;
   --lg-saturation-glass: 145%;
   --lg-radius-glass: 18px;
@@ -52,18 +44,13 @@
 
 /* ─── Level 3: Dense Glass ─────────────────────────────────────────────── */
 :root {
-  --lg-tint-dense: rgb(255 255 255 / 0.22);
-  --lg-border-dense: rgb(255 255 255 / 0.42);
+  --lg-tint-dense: rgba(250, 245, 242, 0.86);
+  --lg-border-dense: #e8e0de;
   --lg-highlight-dense: rgb(255 255 255 / 0.58);
   /* Floating layers (menus, modals) sit highest, so the ambient is deepest;
      the specular rim stays crisp to keep the material reading over any
      content beneath it. */
-  --lg-shadow-dense:
-    0 28px 70px -24px rgb(15 23 42 / 0.36),
-    0 10px 26px -10px rgb(15 23 42 / 0.20),
-    0 1px 2px rgb(15 23 42 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.55),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.3);
+  --lg-shadow-dense: 0 18px 44px rgba(80, 52, 36, 0.14), 0 2px 8px rgba(80, 52, 36, 0.08);
   --lg-blur-dense: 36px;
   --lg-saturation-dense: 180%;
   --lg-radius-dense: 18px;
@@ -77,77 +64,36 @@
    * mask-composite: exclude punches the content-box area back to transparency
    * so the border radius is respected and no ring appears inside the text.
    */
-  --lg-sheen:
-    linear-gradient(
-      135deg,
-      rgb(255 255 255 / 0.42) 0%,
-      transparent 38%,
-      transparent 68%,
-      rgb(255 255 255 / 0.08) 100%
-    ),
-    radial-gradient(
-      circle at 85% 110%,
-      rgb(255 255 255 / 0.16) 0%,
-      transparent 44%
-    );
+  --lg-sheen: none;
 
   /* Pointer-tracking specular — mask follows --lg-mouse-x / --lg-mouse-y */
-  --lg-highlight:
-    linear-gradient(135deg, rgb(255 255 255 / 0.52), transparent 42%),
-    radial-gradient(circle at 80% 115%, rgb(255 255 255 / 0.22), transparent 46%);
+  --lg-highlight: none;
 }
 
 /* ─── Dark appearance overrides ─────────────────────────────────────────── */
 :root[data-dg-appearance='dark'] {
   /* Air */
-  --lg-tint-air: rgb(14 14 18 / 0.50);
-  --lg-border-air: rgb(255 255 255 / 0.09);
+  --lg-tint-air: rgba(255, 255, 255, 0.12);
+  --lg-border-air: #717171;
   --lg-highlight-air: rgb(255 255 255 / 0.10);
-  --lg-shadow-air:
-    0 12px 26px -14px rgb(0 0 0 / 0.5),
-    0 2px 6px -2px rgb(0 0 0 / 0.34),
-    inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --lg-shadow-air: inset 0 0 6px rgba(255, 255, 255, 0.12);
 
   /* Glass */
-  --lg-tint-glass: rgb(18 18 22 / 0.62);
-  --lg-border-glass: rgb(255 255 255 / 0.14);
+  --lg-tint-glass: rgba(102, 108, 161, 0.18);
+  --lg-border-glass: #4e4e4e;
   --lg-highlight-glass: rgb(255 255 255 / 0.18);
-  --lg-shadow-glass:
-    0 32px 72px -28px rgb(0 0 0 / 0.66),
-    0 14px 34px -16px rgb(0 0 0 / 0.46),
-    0 1px 2px rgb(0 0 0 / 0.4),
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.05);
+  --lg-shadow-glass: 0 0 10px rgba(0, 0, 0, 0.2);
 
   /* Dense Glass */
-  --lg-tint-dense: rgb(28 28 34 / 0.72);
-  --lg-border-dense: rgb(255 255 255 / 0.22);
+  --lg-tint-dense: rgba(39, 41, 58, 0.92);
+  --lg-border-dense: #585858;
   --lg-highlight-dense: rgb(255 255 255 / 0.28);
-  --lg-shadow-dense:
-    0 28px 70px -24px rgb(0 0 0 / 0.7),
-    0 10px 26px -10px rgb(0 0 0 / 0.48),
-    0 1px 2px rgb(0 0 0 / 0.44),
-    inset 0 1px 0 rgb(255 255 255 / 0.12),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --lg-shadow-dense: 0 18px 44px rgba(0, 0, 0, 0.5);
 
   /* Sheen — dimmer on dark */
-  --lg-sheen:
-    linear-gradient(
-      135deg,
-      rgb(255 255 255 / 0.18) 0%,
-      transparent 38%,
-      transparent 68%,
-      rgb(255 255 255 / 0.04) 100%
-    ),
-    radial-gradient(
-      circle at 85% 110%,
-      rgb(255 255 255 / 0.06) 0%,
-      transparent 44%
-    );
+  --lg-sheen: none;
 
-  --lg-highlight:
-    linear-gradient(135deg, rgb(255 255 255 / 0.32), transparent 42%),
-    radial-gradient(circle at 80% 115%, rgb(255 255 255 / 0.12), transparent 46%);
+  --lg-highlight: none;
 }
 
 /* ─── CSS utility classes for each level ────────────────────────────────── */

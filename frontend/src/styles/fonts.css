@@ -1,4 +1,18 @@
-/* Bundled reading faces. Controls use the native macOS UI stack below. */
+/*
+ * Bundled faces, matching Dayflow's type system (both SIL Open Font License):
+ * Figtree for the interface, Instrument Serif for page and section titles.
+ * Neither carries CJK glyphs, so Chinese, Japanese and Korean fall through to
+ * the per-script system face in --dg-font-cjk, as they do in Dayflow itself.
+ */
+
+/* Interface face. One variable file covers every weight the UI uses. */
+@font-face {
+  font-family: 'Figtree';
+  src: url('../assets/fonts/Figtree-Variable.ttf') format('truetype');
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* Editorial serif for large display numerals (weekly hero totals). */
 @font-face {
@@ -18,17 +32,22 @@
    */
   --dg-font-cjk: 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', sans-serif;
   --dg-font-ui:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--dg-font-cjk),
+    'Figtree', -apple-system, BlinkMacSystemFont, var(--dg-font-cjk),
     'Helvetica Neue', sans-serif;
   --dg-font-mono:
     ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
   --dg-font-display:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Display', var(--dg-font-cjk),
+    'Figtree', -apple-system, BlinkMacSystemFont, var(--dg-font-cjk),
     'Helvetica Neue', sans-serif;
   --dg-font-display-weight: 650;
   --dg-font-display-tracking: -0.02em;
   --dg-font-reading: var(--dg-font-cjk);
-  --dg-font-serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino', 'Georgia', serif;
+  /* CJK falls back to the sans system face, not a system serif: a Songti
+     title beside Instrument Serif Latin reads as a font-loading error. */
+  --dg-font-serif: 'Instrument Serif', var(--dg-font-cjk), serif;
+  /* Period-page titles (the date beside the navigation). */
+  --dg-font-page-title: var(--dg-font-serif);
+  --dg-page-title-weight: 400;
 }
 
 :root[data-dg-lang-script='hans'] {
@@ -61,4 +80,9 @@
 :root[data-dg-lang-script='jpan'],
 :root[data-dg-lang-script='kore'] {
   --dg-font-display-tracking: -0.01em;
+  /* Instrument Serif has no CJK glyphs; a date such as 9月11日 would mix serif
+     numerals ("11" reads as "ll") with sans ideographs. Set it in the sans
+     face instead, one weight up so it still carries as a title. */
+  --dg-font-page-title: var(--dg-font-display);
+  --dg-page-title-weight: 600;
 }
