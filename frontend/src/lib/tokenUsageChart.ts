@@ -27,3 +27,11 @@ export function tokenUsageFormatter(locale: string, period: 'day' | 'week', zone
     timeZone: safeTimeZone(zone),
   })
 }
+
+// Both chart modes share the same horizontal time slots. Reject axis margins
+// and empty data so hovering labels never selects an unrelated bucket.
+export function tokenUsageHoverIndex(x: number, y: number, count: number): number | null {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || count <= 0 ||
+      x < 52 || x > 748 || y < 40 || y > 210) return null
+  return Math.min(count - 1, Math.floor((x - 52) / 696 * count))
+}

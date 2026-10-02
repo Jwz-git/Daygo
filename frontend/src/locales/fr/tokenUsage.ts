@@ -15,5 +15,6 @@ export default {
   "noReported": "La consommation de jetons déclarée sur cette période est de 0",
   "composition": "Répartition entre entrée et sortie",
   "pieLabel": "Entrée {input}, sortie {output}",
-  "note": "Selon le début des appels, y compris les essais et tentatives répétées. Le cache est inclus dans l’entrée sans doublon ; ces données ne constituent pas une facture."
+  "note": "Selon le début des appels, y compris les essais et tentatives répétées. Le cache est inclus dans l’entrée sans doublon ; ces données ne constituent pas une facture.",
+  "total": "Somme"
 }

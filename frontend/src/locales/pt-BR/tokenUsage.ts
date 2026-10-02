@@ -15,5 +15,6 @@ export default {
   "noReported": "O uso de tokens informado neste período soma 0",
   "composition": "Proporção de entrada e saída",
   "pieLabel": "Entrada {input}, saída {output}",
-  "note": "Por horário de início da chamada, incluindo novas tentativas e testes. A entrada inclui cache sem duplicação; o uso informado não é uma fatura."
+  "note": "Por horário de início da chamada, incluindo novas tentativas e testes. A entrada inclui cache sem duplicação; o uso informado não é uma fatura.",
+  "total": "Soma"
 }

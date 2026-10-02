@@ -15,5 +15,6 @@ export default {
   "noReported": "Der gemeldete Tokenverbrauch für diesen Zeitraum beträgt 0",
   "composition": "Anteil von Eingabe und Ausgabe",
   "pieLabel": "Eingabe {input}, Ausgabe {output}",
-  "note": "Nach Aufrufbeginn, einschließlich Wiederholungen und Tests. Eingabe enthält Cache ohne Doppelzählung; gemeldeter Verbrauch ist keine Abrechnung."
+  "note": "Nach Aufrufbeginn, einschließlich Wiederholungen und Tests. Eingabe enthält Cache ohne Doppelzählung; gemeldeter Verbrauch ist keine Abrechnung.",
+  "total": "Gesamt"
 }

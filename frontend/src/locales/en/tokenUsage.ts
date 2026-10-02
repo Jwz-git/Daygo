@@ -15,5 +15,6 @@ export default {
   "noReported": "Reported token usage totals 0 for this period",
   "composition": "Input and output share",
   "pieLabel": "Input {input}, output {output}",
-  "note": "Grouped by call start time, including retries and tests. Input includes cache without double counting; reported usage is not a billing statement."
+  "note": "Grouped by call start time, including retries and tests. Input includes cache without double counting; reported usage is not a billing statement.",
+  "total": "Total"
 }

@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTokenUsage } from '@/stores/tokenUsage'
-import { tokenUsageFormatter, tokenUsagePoints, tokenUsageTotals } from '@/lib/tokenUsageChart'
+import { tokenUsageFormatter, tokenUsageHoverIndex, tokenUsagePoints, tokenUsageTotals } from '@/lib/tokenUsageChart'
+
+import { safeTimeZone } from '@/lib/timeZone'
+import { svgPoint, useChartPointer } from '@/views/Weekly/charts/useChartPointer'
+import WeeklyChartTooltip from '@/views/Weekly/charts/WeeklyChartTooltip.vue'
 
 const props = defineProps<{ period: 'day' | 'week'; day: string }>()
 const { t, locale } = useI18n()
@@ -17,6 +21,29 @@ const path = (points: { x: number; y: number }[]) => points.map(p => `${p.x},${p
 const number = (value: number) => new Intl.NumberFormat(locale.value).format(value)
 const formatter = computed(() => tokenUsageFormatter(locale.value, props.period, usage.value?.timeZone))
 const label = (ts: number) => formatter.value.format(new Date(ts * 1000))
+const { container, hovered, x: tipX, y: tipY, move, leave } = useChartPointer<number>()
+const selected = computed(() => hovered.value === null ? null : buckets.value[hovered.value] ?? null)
+const selectedInput = computed(() => hovered.value === null ? null : input.value[hovered.value] ?? null)
+const selectedOutput = computed(() => hovered.value === null ? null : output.value[hovered.value] ?? null)
+const selectedX = computed(() => hovered.value === null ? 0 : input.value[hovered.value]?.x ?? 0)
+const intervalFormatter = computed(() => new Intl.DateTimeFormat(locale.value, {
+  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  timeZoneName: 'short', timeZone: safeTimeZone(usage.value?.timeZone),
+}))
+const intervalLabel = computed(() => {
+  const bucket = selected.value
+  if (!bucket) return ''
+  return intervalFormatter.value.format(new Date(bucket.startTs * 1000)) + ' – ' +
+    intervalFormatter.value.format(new Date(bucket.endTs * 1000))
+})
+function hover(event: PointerEvent): void {
+  const point = svgPoint(event)
+  const index = point ? tokenUsageHoverIndex(point.x, point.y, buckets.value.length) : null
+  if (index === null) leave()
+  else move(event, index)
+}
+watch([kind, buckets], leave)
+
 const pie = computed(() => {
   const total = totals.value.input + totals.value.output
   const angle = total ? totals.value.input / total * 360 : 0
@@ -50,28 +77,44 @@ const pie = computed(() => {
         <div class="pie" :style="pie" role="img" :aria-label="t('tokenUsage.pieLabel', { input: number(totals.input), output: number(totals.output) })" />
         <p>{{ t('tokenUsage.composition') }}</p>
       </div>
-      <svg v-else class="chart" viewBox="0 0 780 250" role="img" :aria-label="t('tokenUsage.title')">
-        <g v-for="tick in [0, 0.5, 1]" :key="tick">
-          <line x1="52" x2="748" :y1="210 - tick * 170" :y2="210 - tick * 170" class="grid" />
-          <text x="44" :y="214 - tick * 170" text-anchor="end">{{ number(Math.round(max * tick)) }}</text>
-        </g>
-        <template v-if="kind === 'line'">
-          <polyline :points="path(input)" class="input-line" />
-          <polyline :points="path(output)" class="output-line" />
-        </template>
-        <g v-for="(bucket, i) in buckets" :key="bucket.startTs">
-          <title>{{ label(bucket.startTs) }} — {{ t('tokenUsage.input') }}: {{ number(bucket.inputTokens) }}; {{ t('tokenUsage.output') }}: {{ number(bucket.outputTokens) }}; {{ t('tokenUsage.calls', { count: number(bucket.calls) }) }}</title>
-          <template v-if="kind === 'bar'">
-            <rect :x="input[i]!.x - 696 / buckets.length * 0.32" :y="input[i]!.y" :width="696 / buckets.length * 0.28" :height="input[i]!.height" class="input-fill" rx="2" />
-            <rect :x="output[i]!.x + 696 / buckets.length * 0.04" :y="output[i]!.y" :width="696 / buckets.length * 0.28" :height="output[i]!.height" class="output-fill" rx="2" />
+      <div v-else ref="container" class="chart-area">
+        <svg class="chart" viewBox="0 0 780 250" role="img" :aria-label="t('tokenUsage.title')" @pointermove="hover" @pointerleave="leave" @pointercancel="leave">
+          <g v-for="tick in [0, 0.5, 1]" :key="tick">
+            <line x1="52" x2="748" :y1="210 - tick * 170" :y2="210 - tick * 170" class="grid" />
+            <text x="44" :y="214 - tick * 170" text-anchor="end">{{ number(Math.round(max * tick)) }}</text>
+          </g>
+          <template v-if="kind === 'line'">
+            <polyline :points="path(input)" class="input-line" />
+            <polyline :points="path(output)" class="output-line" />
           </template>
-          <template v-else>
-            <circle :cx="input[i]!.x" :cy="input[i]!.y" r="4" class="input-fill" />
-            <circle :cx="output[i]!.x" :cy="output[i]!.y" r="4" class="output-fill" />
+          <g v-for="(bucket, i) in buckets" :key="bucket.startTs">
+            <template v-if="kind === 'bar'">
+              <rect :x="input[i]!.x - 696 / buckets.length * 0.32" :y="input[i]!.y" :width="696 / buckets.length * 0.28" :height="input[i]!.height" class="input-fill" rx="2" />
+              <rect :x="output[i]!.x + 696 / buckets.length * 0.04" :y="output[i]!.y" :width="696 / buckets.length * 0.28" :height="output[i]!.height" class="output-fill" rx="2" />
+            </template>
+            <template v-else>
+              <circle :cx="input[i]!.x" :cy="input[i]!.y" r="4" class="input-fill" />
+              <circle :cx="output[i]!.x" :cy="output[i]!.y" r="4" class="output-fill" />
+            </template>
+            <text v-if="period === 'week' || i % 4 === 0 || i === buckets.length - 1" :x="input[i]!.x" y="235" text-anchor="middle">{{ label(bucket.startTs) }}</text>
+          </g>
+          <g v-if="selected" class="hover-marker">
+            <line :x1="selectedX" :x2="selectedX" y1="40" y2="210" class="hover-line" vector-effect="non-scaling-stroke" />
+            <circle v-if="kind === 'line' && selectedInput" :cx="selectedX" :cy="selectedInput.y" r="6" class="input-fill hover-point" />
+            <circle v-if="kind === 'line' && selectedOutput" :cx="selectedX" :cy="selectedOutput.y" r="6" class="output-fill hover-point" />
+          </g>
+        </svg>
+        <WeeklyChartTooltip :visible="selected !== null" :x="tipX" :y="tipY">
+          <template v-if="selected">
+            <b>{{ intervalLabel }}</b>
+            <span class="input">{{ t('tokenUsage.input') }} · {{ number(selected.inputTokens) }}</span>
+            <span class="output">{{ t('tokenUsage.output') }} · {{ number(selected.outputTokens) }}</span>
+            <span>{{ t('tokenUsage.total') }} · {{ number(selected.inputTokens + selected.outputTokens) }}</span>
+            <span>{{ t('tokenUsage.calls', { count: number(selected.calls) }) }}</span>
+            <span v-if="selected.unknownCalls">{{ t('tokenUsage.unknown', { count: number(selected.unknownCalls) }) }}</span>
           </template>
-          <text v-if="period === 'week' || i % 4 === 0 || i === buckets.length - 1" :x="input[i]!.x" y="235" text-anchor="middle">{{ label(bucket.startTs) }}</text>
-        </g>
-      </svg>
+        </WeeklyChartTooltip>
+      </div>
       <p class="note">{{ t('tokenUsage.note') }}</p>
     </template>
   </section>
@@ -86,6 +129,10 @@ select { max-width: 150px; padding: 6px 10px; background: var(--dg-wk-card-fill)
 .totals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 18px; margin-top: 24px; font-size: 12px; }
 .totals strong { font-size: 30px; font-weight: 500; }
 .input { color: var(--dg-accent-text); } .output { color: #6b8e9a; }
+.chart-area { position: relative; min-width: 0; }
+.hover-marker { pointer-events: none; }
+.hover-line { stroke: var(--dg-text-tertiary); stroke-width: 1; }
+.hover-point { stroke: var(--dg-wk-card-fill); stroke-width: 2; }
 .chart { width: 100%; min-height: 180px; margin-top: 12px; overflow: visible; }
 .chart text { fill: var(--dg-text-muted); font-size: 11px; }
 .grid { stroke: var(--dg-wk-divider); }
