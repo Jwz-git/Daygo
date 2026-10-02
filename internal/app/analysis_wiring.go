@@ -189,6 +189,12 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 		return nil, err
 	}
 	b.setAnalysis(service)
-	go service.Run(ctx)
+	runCtx, cancel := context.WithCancel(ctx)
+	b.timelineTaskMu.Lock()
+	b.analysisCancel = cancel
+	b.analysisDone = make(chan struct{})
+	done := b.analysisDone
+	b.timelineTaskMu.Unlock()
+	go func() { defer close(done); service.Run(runCtx) }()
 	return service, nil
 }

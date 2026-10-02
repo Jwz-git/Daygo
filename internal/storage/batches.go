@@ -731,3 +731,30 @@ func scanObservation(row scanner) (Observation, error) {
 	o.Metadata = metadata.String
 	return o, nil
 }
+
+// CancelManualBatches restores unfinished manual queues after their writers
+// have stopped. It never rewrites cards or successful results. Failed tasks are
+// capped so the automatic cooldown cannot resume canceled manual work.
+func (r *AnalysisRepo) CancelManualBatches(ctx context.Context, originals []Batch, now time.Time) error {
+	if r == nil || r.store == nil {
+		return fmt.Errorf("analysis: store unavailable")
+	}
+	return r.store.Write(ctx, "analysis cancel manual batches", func(ctx context.Context, tx *sql.Tx) error {
+		for _, b := range originals {
+			if b.Status != BatchSucceeded && b.Status != BatchFailed && b.Status != BatchFailedEmpty {
+				return newError(KindConstraint, "cancel manual batches: invalid original status")
+			}
+			attempts := b.Attempts
+			if b.Status == BatchFailed || b.Status == BatchFailedEmpty {
+				attempts = MaxBatchAttempts
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE analysis_batches SET status = ?, failure_kind = ?, failure_note = ?, attempts = ?, updated_at = ? WHERE id = ? AND status IN (?, ?) AND is_deleted = 0`, b.Status, b.FailureKind, b.FailureNote, attempts, now.Unix(), b.ID, BatchPending, BatchProcessing); err != nil {
+				return wrap("restore manual batch", err)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE analysis_batches SET attempts = ? WHERE id = ? AND status IN (?, ?) AND is_deleted = 0`, MaxBatchAttempts, b.ID, BatchFailed, BatchFailedEmpty); err != nil {
+				return wrap("stop manual batch retries", err)
+			}
+		}
+		return nil
+	})
+}

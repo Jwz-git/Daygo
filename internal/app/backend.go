@@ -165,8 +165,16 @@ type Backend struct {
 	// batch, so the binding needs the same service the scheduler owns. It stays
 	// nil in headless construction and on a read-only instance, where no
 	// pipeline runs (analysis_wiring.go).
-	analysisMu sync.RWMutex
-	analysis   *analysis.Service
+	timelineTaskMu     sync.Mutex
+	timelineClosing    bool
+	timelineTaskCtx    context.Context
+	timelineTaskCancel context.CancelFunc
+	timelineTaskWG     sync.WaitGroup
+	manualBatches      map[int64]storage.Batch
+	analysisCancel     context.CancelFunc
+	analysisDone       chan struct{}
+	analysisMu         sync.RWMutex
+	analysis           *analysis.Service
 
 	// timelineEvents tracks pending merged timeline:updated emits, one timer
 	// per day within the 200 ms merge window (docs/05 §5.5.3).
@@ -792,6 +800,7 @@ func (b *Backend) permissionState(op string, query func(ctx context.Context) (pl
 }
 
 func (b *Backend) shutdown() {
+	b.stopTimelineTasks()
 	_ = b.CancelRecordingDirectoryMove()
 	b.moveMu.RLock()
 	defer b.moveMu.RUnlock()

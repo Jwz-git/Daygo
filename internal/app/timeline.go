@@ -488,6 +488,12 @@ func categoryDTOsToDomain(rows []CategoryDTO) ([]domain.Category, error) {
 // up on its next tick and progress arrives as batch:progress /
 // timeline:updated events.
 func (b *Backend) RetryBatches(batchIDs []int64) error {
+	b.timelineTaskMu.Lock()
+	defer b.timelineTaskMu.Unlock()
+	if b.timelineClosing {
+		return apperr.E(apperr.Canceled, "analysis is shutting down", nil)
+	}
+
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
@@ -504,6 +510,7 @@ func (b *Backend) RetryBatches(batchIDs []int64) error {
 	if err != nil {
 		return mapStorageError("retry batches", err)
 	}
+	b.rememberManualBatches(batches)
 	for _, batch := range batches {
 		b.emitTimelineInvalidation(timeutil.LogicalDay(batch.Start, b.clock.Now().Location()))
 	}
@@ -546,6 +553,12 @@ func (b *Backend) StopRetries(batchIDs []int64) error {
 // up on its next tick and progress arrives as batch:progress /
 // timeline:updated events.
 func (b *Backend) ReprocessDay(day string) error {
+	b.timelineTaskMu.Lock()
+	defer b.timelineTaskMu.Unlock()
+	if b.timelineClosing {
+		return apperr.E(apperr.Canceled, "analysis is shutting down", nil)
+	}
+
 	if err := b.requireTimelineWrite(); err != nil {
 		return err
 	}
@@ -567,6 +580,7 @@ func (b *Backend) ReprocessDay(day string) error {
 	if err != nil {
 		return mapStorageError("reprocess day", err)
 	}
+	b.rememberManualBatches(requeued)
 	if len(requeued) > 0 {
 		b.emitTimelineInvalidation(timeutil.LogicalDay(start, loc))
 	}
@@ -599,8 +613,11 @@ func (b *Backend) ReprocessCard(cardID int64) error {
 		return apperr.E(apperr.DatabaseError, "reprocess card requires a database", nil)
 	}
 	pipeline := b.analysisService()
-	ctx, cancel := context.WithTimeout(context.Background(), cardRegenerationTimeout)
-	defer cancel()
+	ctx, finish, err := b.beginCardTask()
+	if err != nil {
+		return err
+	}
+	defer finish()
 	card, err := store.Cards().CardByID(ctx, cardID)
 	if err != nil {
 		return mapStorageError("reprocess card", err)

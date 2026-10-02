@@ -305,6 +305,11 @@ export function toApiError(e: unknown): ApiError {
 - `RetryBatches` / `ReprocessDay` 立即返回，结果经 `timeline:updated` / `batch:failed` 通知后重新拉取（`batch:progress` 规划中，当前不发送）：
   `RetryBatches` 重置 `attempts` 并清空失败信息后回到 `pending`；调用方传入的
   id 里只要有一个不是失败终态的批次，整个调用返回 `invalid_argument` 且不落任何改动。
+- 真正退出（状态栏退出、更新重启、系统退出）取消本次进程的手动 `RetryBatches` /
+  `ReprocessDay` / `ReprocessCard` 任务。先取消请求并等待写入任务结束，再恢复未完成手动批次的
+  原终态；失败批次封顶 `attempts`，下次启动不会自动继续。已成功结果保留，未完成任务不改卡片。
+  关闭窗口 / 软退出继续后台任务。手动批次原状态只保存在本次进程内存，强杀 / 崩溃仍沿用
+  `processing` 启动恢复；自动新分析批次也沿用恢复规则。退出恢复写入失败时记录诊断，不能保证取消持久化。
 - `StopRetries` 是 `RetryBatches` 的反向操作：把失败批次的 `attempts` 封顶到
   `MaxBatchAttempts`（不改状态、不删行、不发 LLM 调用），于是冷却重排（`RequeueFailed`）
   跳过它、失败面板不再宣称「将自动重试」。批次保持失败终态且可见，之后 `RetryBatches`
