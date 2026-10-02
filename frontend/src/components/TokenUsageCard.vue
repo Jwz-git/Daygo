@@ -2,7 +2,7 @@
 import { computed, ref, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTokenUsage } from '@/stores/tokenUsage'
-import { tokenUsagePoints, tokenUsageTotals } from '@/lib/tokenUsageChart'
+import { tokenUsageFormatter, tokenUsagePoints, tokenUsageTotals } from '@/lib/tokenUsageChart'
 
 const props = defineProps<{ period: 'day' | 'week'; day: string }>()
 const { t, locale } = useI18n()
@@ -15,10 +15,8 @@ const output = computed(() => tokenUsagePoints(buckets.value, 'outputTokens'))
 const max = computed(() => Math.max(1, ...buckets.value.map(b => Math.max(b.inputTokens, b.outputTokens))))
 const path = (points: { x: number; y: number }[]) => points.map(p => `${p.x},${p.y}`).join(' ')
 const number = (value: number) => new Intl.NumberFormat(locale.value).format(value)
-const label = (ts: number) => new Intl.DateTimeFormat(locale.value, {
-  ...(props.period === 'day' ? { hour: '2-digit' as const, minute: '2-digit' as const } : { month: 'short' as const, day: 'numeric' as const }),
-  timeZone: usage.value?.timeZone,
-}).format(new Date(ts * 1000))
+const formatter = computed(() => tokenUsageFormatter(locale.value, props.period, usage.value?.timeZone))
+const label = (ts: number) => formatter.value.format(new Date(ts * 1000))
 const pie = computed(() => {
   const total = totals.value.input + totals.value.output
   const angle = total ? totals.value.input / total * 360 : 0

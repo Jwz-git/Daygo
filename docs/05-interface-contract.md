@@ -563,7 +563,9 @@ type ProviderPlaygroundResultDTO struct {
 
 Token 用量只读绑定：`GetTokenUsage(period, day)`，period 为 `day` 或 `week`；
 day 必须为 yyyy-MM-dd，week 还须周一，否则 `invalid_argument`。读库失败为 `database_error`。
-返回 `TokenUsageDTO { period, timeZone, buckets }`；buckets 按时间递增且为空时补零，
+返回 `TokenUsageDTO { period, timeZone, buckets }`；timeZone 经 `timeutil.ZoneName` 输出
+浏览器可接受的 IANA 标识（不返回 Go 的 Local）；前端仍经 `safeTimeZone` 校验，
+无法识别时用桌面运行环境本地时区。buckets 按时间递增且为空时补零，
 每项 `TokenUsageBucketDTO { startTs, endTs, inputTokens, outputTokens, calls, unknownCalls }`，
 数值均为整数。day 按凌晨 4 点逻辑日分实际小时（DST 可为 23/25 桶），
 week 为周一 4 点至下周一 4 点，分七个逻辑日。前端不推导边界。

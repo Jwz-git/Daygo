@@ -30,6 +30,9 @@ func TestGetTokenUsageContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if dto.TimeZone != timeutil.ZoneName(loc) {
+		t.Fatalf("timeZone = %q, want Intl-compatible %q", dto.TimeZone, timeutil.ZoneName(loc))
+	}
 	if len(dto.Buckets) != 24 || dto.Buckets[0].InputTokens != 100 || dto.Buckets[1].InputTokens != 100 || dto.Buckets[23].Calls != 0 {
 		t.Fatalf("dto=%+v", dto)
 	}

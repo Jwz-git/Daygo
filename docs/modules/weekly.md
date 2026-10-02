@@ -145,3 +145,19 @@ Windows 安装器 9 项中 5 项因需 Windows 主机跳过，未记为通过。
 深色、空数据、读取失败和重试入口，截图无裁切，pageerror 为 0；
 输入/输出总数与夹具相符。夹具不是生产样例，不读取真实用户数据库。
 DST、半小时 / 45 分钟时区由 Go 夹具验证；目标平台真实 Wails / Provider 对照未运行。
+
+
+2026-10-02（test 分支，Token 图时区修复）：用户真实 Wails 报告
+`invalid time zone: Local`。前次匿名浏览器只使用 Asia/Shanghai，未覆盖宿主的
+Go `Local`；因此前次检查不能证明该输入可渲染。新增 Go 绑定回归夹具在修复前
+复现失败（Local / 期望 Asia/Shanghai），后端改用 `timeutil.ZoneName`；
+前端日期 formatter 复用 `safeTimeZone`，拒绝 Local / 畸形时区时回退本机时区。
+新增前端夹具覆盖日 / 周标签的 Local、无效、空、缺失及合法 IANA 值，保持同一时间戳。
+这是格式化修复，统计边界和数据不变；无既有夹具期望修改。
+
+修复验证（2026-10-02，macOS arm64，test 工作树）：`./scripts/gate.sh` 通过
+（Go 测试 / vet / 无 cgo 构建、三平台核心交叉构建、gofmt 无输出、前端 210 项 unit /
+typecheck / build、文档检查）；Windows 安装器 5 项仍跳过。
+Chrome headless 用后端 timeZone=Local 的匿名夹具检查日报 / 周报三种图表、
+深色 / 760px、空 / 失败状态，pageerror 为 0。这不是修复后真实 Wails 验收，
+真实窗口仍需重看。回退本次修复会重新暴露 Local 崩溃，不涉及数据迁移。

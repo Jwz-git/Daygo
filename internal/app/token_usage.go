@@ -44,7 +44,7 @@ func (b *Backend) GetTokenUsage(period, day string) (TokenUsageDTO, error) {
 	if err != nil {
 		return TokenUsageDTO{}, apperr.E(apperr.InvalidArgument, "invalid token usage date", err)
 	}
-	dto := TokenUsageDTO{Period: period, TimeZone: loc.String(), Buckets: make([]TokenUsageBucketDTO, 0)}
+	dto := TokenUsageDTO{Period: period, TimeZone: timeutil.ZoneName(loc), Buckets: make([]TokenUsageBucketDTO, 0)}
 	for at := start; at.Before(end); {
 		next := at.Add(time.Hour)
 		if period == "week" {

@@ -1,3 +1,4 @@
+import { safeTimeZone } from '@/lib/timeZone'
 import type { TokenUsageBucket } from '@/api/tokenUsage'
 
 export function tokenUsageTotals(buckets: TokenUsageBucket[]) {
@@ -15,4 +16,14 @@ export function tokenUsagePoints(buckets: TokenUsageBucket[], field: 'inputToken
     y: 210 - b[field] / max * 170,
     height: b[field] / max * 170,
   }))
+}
+
+// Go's Local and malformed identifiers must never reach Intl directly.
+export function tokenUsageFormatter(locale: string, period: 'day' | 'week', zone: string | undefined) {
+  return new Intl.DateTimeFormat(locale, {
+    ...(period === 'day'
+      ? { hour: '2-digit' as const, minute: '2-digit' as const }
+      : { month: 'short' as const, day: 'numeric' as const }),
+    timeZone: safeTimeZone(zone),
+  })
 }
