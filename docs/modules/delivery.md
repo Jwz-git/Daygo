@@ -129,6 +129,20 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
+2026-10-02（macOS「安装并重启」不重启）：用户反馈点击 Sparkle 的「Install and Relaunch」后应用
+不重启，手动从状态栏退出后才完成重启。根因：macOS 适配层的 `SetInstallCallbacks` 丢弃了
+`requestShutdown`，Sparkle 代理也未实现决策 §4 指定的 `updaterWillRelaunchApplication:`；
+Sparkle 随后的 `-[NSApp terminate:]` 经 Wails 进入 `OnBeforeClose`，`quitAllowed()` 为 false，
+被当作 Cmd+Q 软退出只隐藏窗口，进程不退出，安装器一直等待。修复：新增可选端口
+`UpdateRelaunchAuthorizer`，Sparkle 在 `updaterWillRelaunchApplication:` 时经 cgo 回调
+`authorizeUpdateRelaunch`，只把这一次终止标为真退出并解除待执行的授权重启（避免与 Sparkle 重启
+各起一个实例），不额外触发第二次退出；Windows WinSparkle 的 `requestShutdown` 路径不变。
+验证：先写失败夹具 `TestUpdateRelaunchAuthorizesRealQuit`（修复前失败，修复后通过）、
+`CGO_ENABLED=0 go test ./internal/app`、`go vet`；以固定哈希的 Sparkle 2.10.0 执行
+`go build / go vet -tags daygo_updater ./internal/platform/darwin ./internal/platform/factory ./internal/app`
+通过。限制：未发布真实新版本做端到端升级，Sparkle 回调顺序、录制收尾与锁移交仍需 macOS
+真机升级验收。
+
 2026-09-26（Windows 安装界面优化）：NSIS 模板迁移到 Modern UI 2，增加九种语言的安装器
 文案（独立于 Vue，跟随 Windows 界面语言，英文回退），不增加自定义图片。安装详情默认收起但
 可展开，成功直接进入完成页；新增桌面快捷方式为完成页可选项，静默安装不创建新的桌面快捷方式，

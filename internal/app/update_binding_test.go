@@ -26,6 +26,16 @@ type coordinatedUpdater struct {
 
 func (u *coordinatedUpdater) SetInstallCancelled(cancel func()) { u.cancel = cancel }
 
+// relaunchingUpdater models an updater framework that ends the process itself
+// to relaunch (Sparkle calls -[NSApp terminate:]) instead of asking the app to
+// shut down.
+type relaunchingUpdater struct {
+	coordinatedUpdater
+	authorize func()
+}
+
+func (u *relaunchingUpdater) SetRelaunchAuthorizer(authorize func()) { u.authorize = authorize }
+
 func (u *coordinatedUpdater) SetInstallCallbacks(canInstall func() bool, prepare func() error, shutdown func()) {
 	u.canInstall = canInstall
 	u.prepare = prepare
@@ -186,6 +196,39 @@ func TestUpdateCancellationReleasesRecordingStartGate(t *testing.T) {
 	updater.cancel()
 	if b.updatePrepared.Load() {
 		t.Fatal("cancelled update must release recording start gate")
+	}
+}
+
+// Sparkle's "Install and Relaunch" terminates the app through the same path as
+// Cmd+Q. Unless the relaunch is authorized first, the resident-agent soft quit
+// swallows it: the process stays alive and the installer waits until the user
+// quits from the status item. The authorizer must turn that one termination
+// into a real quit, and must disarm a pending permission relaunch so the
+// updater's relaunch is the only new instance.
+func TestUpdateRelaunchAuthorizesRealQuit(t *testing.T) {
+	updater := &relaunchingUpdater{coordinatedUpdater: coordinatedUpdater{Updater: fake.NewUpdater()}}
+	b := newBackend(fixedClock{}, nil, nil, true, true)
+	b.setUpdater(updater)
+	shutdownRequested := false
+	b.configureUpdateInstall(func() { shutdownRequested = true })
+	if updater.authorize == nil {
+		t.Fatal("an updater that relaunches by itself must receive a relaunch authorizer")
+	}
+	b.armPermissionRestart()
+	if b.quitAllowed() {
+		t.Fatal("quit must not be allowed before the updater relaunches")
+	}
+
+	updater.authorize()
+
+	if !b.quitAllowed() {
+		t.Fatal("updater relaunch must let the following termination through OnBeforeClose")
+	}
+	if b.permissionRestartArmed() {
+		t.Fatal("updater relaunch must disarm the permission relaunch to avoid a second instance")
+	}
+	if shutdownRequested {
+		t.Fatal("authorizing must not start a second termination; the updater terminates the app itself")
 	}
 }
 

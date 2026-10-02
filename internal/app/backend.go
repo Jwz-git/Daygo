@@ -432,6 +432,18 @@ func (b *Backend) setActivationAction(handler func()) {
 // every other quit path leaves the flag false and soft-quits to background.
 func (b *Backend) requestQuit() { b.allowQuit.Store(true) }
 
+// authorizeUpdateRelaunch runs just before the updater terminates the app to
+// install and relaunch. Without it OnBeforeClose treats that termination as a
+// Cmd+Q soft quit and keeps the process alive, so the installer waits until the
+// user quits from the status item. The updater relaunches the new build itself,
+// so a pending permission relaunch is disarmed to avoid a second instance. It
+// only marks the quit as allowed: the updater's own termination request is the
+// single path that ends the process.
+func (b *Backend) authorizeUpdateRelaunch() {
+	b.disarmPermissionRestart()
+	b.requestQuit()
+}
+
 // quitAllowed reports whether a real termination was requested.
 func (b *Backend) quitAllowed() bool { return b.allowQuit.Load() }
 
@@ -830,6 +842,9 @@ func (b *Backend) configureUpdateInstall(requestShutdown func()) {
 		},
 		requestShutdown,
 	)
+	if authorizer, ok := b.updater.(platform.UpdateRelaunchAuthorizer); ok {
+		authorizer.SetRelaunchAuthorizer(b.authorizeUpdateRelaunch)
+	}
 	if sink, ok := b.updater.(interface{ SetInstallCancelled(func()) }); ok {
 		sink.SetInstallCancelled(func() {
 			if !b.updatePrepared.Swap(false) {

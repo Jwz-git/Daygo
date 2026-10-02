@@ -125,6 +125,16 @@ type UpdateInstallCoordinator interface {
 	SetInstallCallbacks(canInstall func() bool, prepare func() error, requestShutdown func())
 }
 
+// UpdateRelaunchAuthorizer is implemented by updaters whose framework ends the
+// process itself to install and relaunch (Sparkle calls -[NSApp terminate:])
+// rather than asking the app to shut down. Daygo turns an ordinary termination
+// request into a soft quit, so the adapter calls authorize immediately before
+// that termination; the app then lets exactly that request end the process.
+// Callbacks may arrive on the main thread and must not block.
+type UpdateRelaunchAuthorizer interface {
+	SetRelaunchAuthorizer(authorize func())
+}
+
 // UpdateCopySink receives the localized copy a platform updater shows in its
 // own dialogs. The adapter holds no locale: the frontend pushes the translated
 // bundle (docs/05 §5.5.1) and the app layer forwards it. Adapters whose update

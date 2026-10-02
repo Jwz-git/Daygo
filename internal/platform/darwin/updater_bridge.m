@@ -8,6 +8,7 @@ extern void dgGoUpdaterFound(char *version);
 extern int32_t dgGoUpdaterCanInstall(void);
 extern int32_t dgGoUpdaterPrepare(void);
 extern void dgGoUpdaterCancelled(void);
+extern void dgGoUpdaterWillRelaunch(void);
 
 /* Localized by the frontend and pushed through Go (docs/05 §5.5.1): no copy of
    our own lives here, and when the push has not happened yet Sparkle falls back
@@ -42,6 +43,13 @@ static NSString *installRefusedMessage;
     if (choice == SPUUserUpdateChoiceSkip || (choice == SPUUserUpdateChoiceDismiss && state.stage != SPUUserUpdateStageInstalling)) {
         dgGoUpdaterCancelled();
     }
+}
+/* Sparkle calls -[NSApp terminate:] right after this. Daygo turns ordinary
+   termination into a soft quit (hide), which would leave the installer waiting
+   for a process that never exits; Go marks this one termination as a real
+   quit before it arrives. */
+- (void)updaterWillRelaunchApplication:(SPUUpdater *)updater {
+    dgGoUpdaterWillRelaunch();
 }
 - (void)updater:(SPUUpdater *)updater didAbortWithError:(NSError *)error {
     dgGoUpdaterCancelled();

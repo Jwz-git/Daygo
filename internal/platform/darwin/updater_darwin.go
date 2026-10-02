@@ -27,6 +27,7 @@ type Updater struct {
 	canInstall func() bool
 	prepare    func() error
 	cancel     func()
+	relaunch   func()
 	closeOnce  sync.Once
 	startOnce  sync.Once
 }
@@ -37,6 +38,7 @@ var activeUpdaterMu sync.RWMutex
 var _ platform.Updater = (*Updater)(nil)
 var _ platform.UpdateInstallCoordinator = (*Updater)(nil)
 var _ platform.UpdateCopySink = (*Updater)(nil)
+var _ platform.UpdateRelaunchAuthorizer = (*Updater)(nil)
 
 func NewUpdater() (*Updater, error) {
 	u := &Updater{events: make(chan platform.UpdaterEvent, 8)}
@@ -91,12 +93,25 @@ func (u *Updater) SetAutomaticChecks(ctx context.Context, enabled bool) error {
 	return nil
 }
 func (u *Updater) Events() <-chan platform.UpdaterEvent { return u.events }
+
+// SetInstallCallbacks ignores requestShutdown: Sparkle terminates the app itself
+// once the installer is ready, so the shutdown is authorized through
+// SetRelaunchAuthorizer instead of being requested a second time.
 func (u *Updater) SetInstallCallbacks(can func() bool, prepare func() error, _ func()) {
 	u.mu.Lock()
 	u.canInstall = can
 	u.prepare = prepare
 	u.mu.Unlock()
 	u.startOnce.Do(func() { C.dg_updater_activate() })
+}
+
+// SetRelaunchAuthorizer implements platform.UpdateRelaunchAuthorizer. The
+// delegate's -updaterWillRelaunchApplication: calls it right before Sparkle's
+// -[NSApp terminate:].
+func (u *Updater) SetRelaunchAuthorizer(authorize func()) {
+	u.mu.Lock()
+	u.relaunch = authorize
+	u.mu.Unlock()
 }
 
 func (u *Updater) SetInstallCancelled(cancel func()) {
@@ -203,5 +218,21 @@ func dgGoUpdaterCancelled() {
 	u.mu.RUnlock()
 	if cancel != nil {
 		cancel()
+	}
+}
+
+//export dgGoUpdaterWillRelaunch
+func dgGoUpdaterWillRelaunch() {
+	activeUpdaterMu.RLock()
+	u := activeUpdater
+	activeUpdaterMu.RUnlock()
+	if u == nil {
+		return
+	}
+	u.mu.RLock()
+	relaunch := u.relaunch
+	u.mu.RUnlock()
+	if relaunch != nil {
+		relaunch()
 	}
 }
