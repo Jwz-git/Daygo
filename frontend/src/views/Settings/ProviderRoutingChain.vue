@@ -98,54 +98,57 @@ function onAddChange(event: Event): void {
 </script>
 
 <template>
-  <section class="routing dg-card">
-    <h2 class="routing__title">{{ t('settings.providers.routing.title') }}</h2>
-    <p class="routing__hint">{{ t('settings.providers.routing.description') }}</p>
+  <section class="routing">
+    <div class="routing__head">
+      <h3 class="routing__title">{{ t('settings.providers.routing.title') }}</h3>
+      <p class="routing__hint">{{ t('settings.providers.routing.description') }}</p>
+    </div>
 
-    <ol v-if="chainRows.length > 0" class="routing__chain">
+    <TransitionGroup v-if="chainRows.length > 0" name="reorder" tag="ol" class="routing__chain">
       <li v-for="(row, index) in chainRows" :key="row.key" class="routing__entry">
-        <span class="routing__position">{{ index + 1 }}</span>
+        <span class="routing__position" :class="{ 'is-primary': index === 0 }">{{ index + 1 }}</span>
         <span class="routing__name">
           {{ row.provider.displayName }}
           <span class="routing__model">{{ row.model }}</span>
         </span>
-        <span v-if="index === 0" class="badge badge--accent">
-          {{ t('settings.providers.routing.primaryBadge') }}
-        </span>
+        <span v-if="index === 0" class="badge">{{ t('settings.providers.routing.primaryBadge') }}</span>
         <span class="routing__move">
           <button
             type="button"
-            class="dg-button dg-button--icon"
+            class="icon-button"
             :disabled="index === 0"
             :aria-label="t('settings.providers.routing.moveUp')"
+            :title="t('settings.providers.routing.moveUp')"
             @click="moveEntry(index, -1)"
           >
             <DgIcon name="chevronUp" :size="14" />
           </button>
           <button
             type="button"
-            class="dg-button dg-button--icon"
+            class="icon-button"
             :disabled="index === chainRows.length - 1"
             :aria-label="t('settings.providers.routing.moveDown')"
+            :title="t('settings.providers.routing.moveDown')"
             @click="moveEntry(index, 1)"
           >
             <DgIcon name="chevronDown" :size="14" />
           </button>
           <button
             type="button"
-            class="dg-button dg-button--icon"
+            class="icon-button icon-button--danger"
             :aria-label="t('settings.providers.routing.removeEntry')"
+            :title="t('settings.providers.routing.removeEntry')"
             @click="removeEntry(index)"
           >
             <DgIcon name="minus" :size="14" />
           </button>
         </span>
       </li>
-    </ol>
+    </TransitionGroup>
     <p v-else class="routing__empty">{{ t('settings.providers.routing.none') }}</p>
 
     <label v-if="addOptions.length > 0" class="routing__add">
-      <span class="dg-field-label">{{ t('settings.providers.routing.addEntry') }}</span>
+      <span class="routing__add-label">{{ t('settings.providers.routing.addEntry') }}</span>
       <select class="dg-input" value="" @change="onAddChange">
         <option value="">{{ t('settings.providers.routing.pickEntry') }}</option>
         <option v-for="option in addOptions" :key="option.value" :value="option.value">
@@ -160,25 +163,31 @@ function onAddChange(event: Event): void {
 .routing {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 17px 18px;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.routing__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .routing__title {
   color: var(--dg-text-primary);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 650;
 }
 
 .routing__hint {
-  color: var(--dg-text-muted);
+  max-width: 56ch;
+  color: var(--dg-text-secondary);
   font-size: 12px;
 }
 
 .routing__chain {
   display: flex;
   flex-direction: column;
-  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -187,80 +196,124 @@ function onAddChange(event: Event): void {
 .routing__entry {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 6px;
+  gap: 10px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--dg-timeline-grid);
 }
 
 .routing__position {
+  display: inline-grid;
   flex: none;
-  width: 18px;
-  color: var(--dg-text-muted);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--dg-track-fill);
+  color: var(--dg-text-secondary);
   font-size: 11px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  text-align: center;
+  place-items: center;
+}
+
+.routing__position.is-primary {
+  background: var(--dg-accent);
+  color: #ffffff;
 }
 
 .routing__name {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
   color: var(--dg-text-primary);
   font-size: 13px;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .routing__model {
+  margin-left: 4px;
+  color: var(--dg-text-secondary);
+}
+
+.badge {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--dg-accent);
   color: var(--dg-accent-text);
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 650;
 }
 
 .routing__move {
   display: flex;
-  gap: 4px;
+  flex: none;
+  gap: 2px;
 }
 
-.dg-button--icon {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  padding: 4px 0;
+.icon-button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dg-text-muted);
+  cursor: pointer;
+  place-items: center;
+  transition: background-color var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
 }
 
-.dg-button--icon svg {
-  flex: none;
+.icon-button:not(:disabled):hover {
+  background: var(--dg-hover-fill);
+  color: var(--dg-text-primary);
+}
+
+.icon-button--danger:not(:disabled):hover {
+  background: var(--dg-danger-fill);
+  color: var(--dg-danger);
+}
+
+.icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.icon-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .routing__empty {
+  padding: 10px 2px;
   color: var(--dg-text-muted);
   font-size: 12px;
 }
 
 .routing__add {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 260px);
+  align-items: center;
+  gap: 12px;
+  padding: 6px 2px 0;
 }
 
-.badge {
-  flex: none;
-  padding: 3px 8px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 999px;
-  background: var(--dg-chip-fill);
-  color: var(--dg-chip-text);
-  font-size: 10px;
-  font-weight: 620;
-  letter-spacing: 0.02em;
+.routing__add-label {
+  color: var(--dg-text-secondary);
+  font-size: 12px;
 }
 
-.badge--accent {
-  border-color: transparent;
-  background: var(--dg-control-fill);
-  color: var(--dg-accent-text);
+/* Moving an entry glides it to its new place. */
+.reorder-move {
+  transition: transform var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+@media (max-width: 620px) {
+  .routing__add { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reorder-move { transition: none; }
 }
 </style>

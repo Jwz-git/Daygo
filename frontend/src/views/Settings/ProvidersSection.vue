@@ -10,17 +10,18 @@ import ProviderForm from './ProviderForm.vue'
 import ProviderRoutingChain from './ProviderRoutingChain.vue'
 
 /*
- * The section owns the saved-provider cards; the add/edit form
- * (ProviderForm) and the routing chain editor (ProviderRoutingChain) are
- * separate components. Editing goes through the form's exposed handle so a
- * card's Edit button can populate the draft.
+ * AI services, laid out like the other settings sections: a title row with
+ * the page actions, then flat rows with hairline separators. One service is
+ * one row; adding opens the form above the list, editing opens it in place of
+ * the row. Models are chips that open the model test page for that pair.
  */
 const { t } = useI18n()
 const store = useProvidersStore()
 
 void store.hydrate()
 
-const form = ref<InstanceType<typeof ProviderForm> | null>(null)
+/** 'new' while adding, a provider id while editing, null when closed. */
+const editing = ref<'new' | string | null>(null)
 const pendingRemoveId = ref<string | null>(null)
 
 function protocolLabel(protocol: ProviderProtocol): string {
@@ -35,594 +36,456 @@ function isFallback(provider: ProviderDTO): boolean {
   return store.routing.chain.some((entry) => entry.providerId === provider.id) && !isPrimary(provider)
 }
 
+function startEdit(provider: ProviderDTO): void {
+  pendingRemoveId.value = null
+  editing.value = provider.id
+}
+
 async function confirmRemove(id: string): Promise<void> {
   await store.remove(id)
   pendingRemoveId.value = null
-  form.value?.closeIfEditing(id)
+  if (editing.value === id) editing.value = null
 }
 </script>
 
 <template>
-  <!-- Section intro: a shared h2 + hint, matching the other settings groups. -->
-  <header class="providers-head">
-    <h2 class="providers-head__title">{{ t('settings.providers.title') }}</h2>
-    <p class="providers-head__hint">{{ t('settings.providers.description') }}</p>
-    <RouterLink class="dg-button" :to="{ name: 'model-playground' }">{{ t('modelPlayground.title') }}</RouterLink>
+  <header class="head">
+    <div class="head__text">
+      <h2 class="head__title">{{ t('settings.providers.title') }}</h2>
+      <p class="head__hint">{{ t('settings.providers.description') }}</p>
+    </div>
+    <div class="head__actions">
+      <RouterLink class="dg-button dg-button--small" :to="{ name: 'model-playground' }">
+        {{ t('modelPlayground.title') }}
+      </RouterLink>
+      <button
+        type="button"
+        class="dg-button dg-button--primary dg-button--small"
+        :disabled="editing === 'new'"
+        @click="editing = 'new'"
+      >
+        <DgIcon name="plus" :size="13" />
+        {{ t('settings.providers.add') }}
+      </button>
+    </div>
   </header>
 
-  <!-- Add/edit form (the add button lives here); kept above the list. -->
-  <ProviderForm ref="form" />
+  <Transition name="fold">
+    <ProviderForm v-if="editing === 'new'" :provider="null" @done="editing = null" />
+  </Transition>
 
-  <!-- Provider Cards -->
-  <section v-if="!store.isEmpty" class="providers-list">
-    <TransitionGroup name="card" tag="div" class="providers-list__grid">
-      <article
-        v-for="provider in store.providers"
-        :key="provider.id"
-        class="provider-card dg-card"
-        :class="{
-          'provider-card--primary': isPrimary(provider),
-          'provider-card--pending-remove': pendingRemoveId === provider.id,
-        }"
-      >
-        <!-- Card Header -->
-        <header class="provider-card__header">
-          <h3 class="provider-card__name">{{ provider.displayName }}</h3>
-          <div class="provider-card__badges">
+  <ul v-if="!store.isEmpty" class="services">
+    <li v-for="provider in store.providers" :key="provider.id" class="service">
+      <ProviderForm v-if="editing === provider.id" :provider="provider" @done="editing = null" />
+
+      <template v-else>
+        <div class="service__main">
+          <div class="service__title-row">
+            <h3 class="service__name">{{ provider.displayName }}</h3>
             <span v-if="isPrimary(provider)" class="badge badge--primary">
               {{ t('settings.providers.routing.primaryBadge') }}
             </span>
             <span v-else-if="isFallback(provider)" class="badge badge--fallback">
               {{ t('settings.providers.routing.fallbackBadge') }}
             </span>
-            <span class="badge badge--protocol">{{ protocolLabel(provider.protocol) }}</span>
+            <span class="service__protocol">{{ protocolLabel(provider.protocol) }}</span>
           </div>
-        </header>
 
-        <!-- Card Meta -->
-        <dl class="provider-card__meta">
-          <div class="meta-row">
-            <dt class="meta-label">
-              <DgIcon name="link" :size="12" />
-              {{ t('settings.providers.form.endpoint') }}
-            </dt>
-            <dd class="meta-value meta-value--mono">{{ provider.endpoint }}</dd>
-          </div>
-          <div class="meta-row meta-row--models">
-            <dt class="meta-label">
-              <DgIcon name="sparkle" :size="12" />
-              {{ t('settings.providers.form.models') }}
-            </dt>
-            <dd class="meta-value">
-              <ul class="model-list">
-                <li v-for="model in provider.models" :key="model" class="model-list__item">
-                  <span class="model-list__name">{{ model }}</span>
-                  <RouterLink class="dg-button dg-button--tiny" :to="{ name: 'model-playground', query: { providerId: provider.id, model } }">{{ t('modelPlayground.title') }}</RouterLink>
-                </li>
-              </ul>
-            </dd>
-          </div>
-          <div v-if="provider.maxImages > 0" class="meta-row">
-            <dt class="meta-label">
-              <DgIcon name="image" :size="12" />
-              {{ t('settings.providers.form.maxImages') }}
-            </dt>
-            <dd class="meta-value">
-              {{ t('settings.providers.form.maxImagesValue', { count: provider.maxImages }) }}
-            </dd>
-          </div>
-          <div class="meta-row">
-            <dt class="meta-label">
-              <DgIcon name="lock" :size="12" />
-              {{ t('settings.providers.form.apiKey') }}
-            </dt>
-            <dd class="meta-value meta-value--key">
-              <span v-if="provider.hasSecret" class="key-status key-status--configured">
-                <DgIcon name="check" :size="10" />
-                {{ t('settings.providers.secret.configured') }}
-              </span>
-              <span v-else class="key-status key-status--missing">
-                <DgIcon name="close" :size="10" />
-                {{ t('settings.providers.secret.missing') }}
-              </span>
-            </dd>
-          </div>
-        </dl>
-
-        <!-- Remove Confirmation -->
-        <div v-if="pendingRemoveId === provider.id" class="provider-card__confirm">
-          <p class="confirm-text">
-            {{ t('settings.providers.removeConfirm', { name: provider.displayName }) }}
+          <p class="service__meta">
+            <span class="service__endpoint">{{ provider.endpoint }}</span>
+            <span
+              class="service__key"
+              :class="provider.hasSecret ? 'is-configured' : 'is-missing'"
+            >
+              <DgIcon :name="provider.hasSecret ? 'lock' : 'close'" :size="11" />
+              {{ provider.hasSecret ? t('settings.providers.secret.configured') : t('settings.providers.secret.missing') }}
+            </span>
+            <span v-if="provider.maxImages > 0" class="service__images">
+              {{ t('settings.providers.form.maxImages') }} {{ t('settings.providers.form.maxImagesValue', { count: provider.maxImages }) }}
+            </span>
           </p>
-          <div class="confirm-actions">
-            <button type="button" class="dg-button dg-button--secondary" @click="pendingRemoveId = null">
+
+          <!-- Each model chip opens the model test page for this pair. -->
+          <ul class="service__models" :aria-label="t('settings.providers.form.models')">
+            <li v-for="model in provider.models" :key="model">
+              <RouterLink
+                class="model-chip"
+                :to="{ name: 'model-playground', query: { providerId: provider.id, model } }"
+                :title="t('modelPlayground.title')"
+              >
+                {{ model }}
+                <DgIcon name="arrowRight" :size="10" />
+              </RouterLink>
+            </li>
+          </ul>
+
+          <div v-if="pendingRemoveId === provider.id" class="service__confirm" role="alert">
+            <span>{{ t('settings.providers.removeConfirm', { name: provider.displayName }) }}</span>
+            <button type="button" class="dg-button dg-button--small" @click="pendingRemoveId = null">
               {{ t('common.action.cancel') }}
             </button>
-            <button type="button" class="dg-button dg-button--danger" @click="confirmRemove(provider.id)">
+            <button type="button" class="dg-button dg-button--small dg-button--danger" @click="confirmRemove(provider.id)">
               {{ t('common.action.delete') }}
             </button>
           </div>
         </div>
 
-        <!-- Card Actions -->
-        <footer v-else class="provider-card__actions">
-          <button type="button" class="dg-button dg-button--secondary" @click="form?.openEdit(provider)">
-            <DgIcon name="pencil" :size="14" />
+        <div v-if="pendingRemoveId !== provider.id" class="service__actions">
+          <button type="button" class="dg-button dg-button--small" @click="startEdit(provider)">
             {{ t('common.action.edit') }}
           </button>
           <button
             v-if="provider.hasSecret"
             type="button"
-            class="dg-button dg-button--ghost"
+            class="icon-button"
+            :title="t('settings.providers.secret.clear')"
+            :aria-label="t('settings.providers.secret.clear')"
             @click="store.clearSecret(provider.id)"
           >
-            <DgIcon name="signOut" :size="14" />
-            {{ t('settings.providers.secret.clear') }}
+            <DgIcon name="key" :size="14" />
           </button>
           <button
             type="button"
-            class="dg-button dg-button--ghost dg-button--danger-ghost"
+            class="icon-button icon-button--danger"
+            :title="t('common.action.delete')"
+            :aria-label="t('common.action.delete')"
             @click="pendingRemoveId = provider.id"
           >
             <DgIcon name="trash" :size="14" />
-            {{ t('common.action.delete') }}
           </button>
-        </footer>
-      </article>
-    </TransitionGroup>
-  </section>
+        </div>
+      </template>
+    </li>
+  </ul>
 
-  <!-- Empty State: its own copy, not the section description. -->
-  <div v-else class="empty-state">
-    <div class="empty-state__icon" aria-hidden="true">
-      <DgIcon name="layers" :size="48" />
-    </div>
-    <h3 class="empty-state__title">{{ t('settings.providers.empty') }}</h3>
-    <p class="empty-state__hint">{{ t('settings.providers.emptyHint') }}</p>
+  <div v-else-if="editing !== 'new'" class="empty">
+    <p class="empty__title">{{ t('settings.providers.empty') }}</p>
+    <p class="empty__hint">{{ t('settings.providers.emptyHint') }}</p>
   </div>
 
-  <!-- Routing Chain -->
   <ProviderRoutingChain v-if="!store.isEmpty" />
 
-  <!-- Keychain Notice -->
-  <section class="keychain-notice">
-    <div class="keychain-notice__icon" aria-hidden="true">
-      <DgIcon name="key" :size="16" />
-    </div>
-    <div class="keychain-notice__text">
-      <h3 class="keychain-notice__title">{{ t('settings.providers.secret.keychainTitle') }}</h3>
-      <p class="keychain-notice__body">{{ t('settings.providers.secret.keychain') }}</p>
-    </div>
-  </section>
+  <p class="keychain">
+    <DgIcon name="lock" :size="12" />
+    <span><b>{{ t('settings.providers.secret.keychainTitle') }}</b> · {{ t('settings.providers.secret.keychain') }}</span>
+  </p>
 </template>
 
 <style scoped>
-/* Section intro (shared group-head shape) */
-.providers-head {
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.head__text {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
-.providers-head__title {
+.head__title {
   color: var(--dg-text-primary);
   font-size: 15px;
   font-weight: 650;
 }
 
-.providers-head__hint {
+.head__hint {
+  max-width: 56ch;
   color: var(--dg-text-secondary);
   font-size: 12px;
-  max-width: 56ch;
 }
 
-/* Providers List */
-.providers-list {
+.head__actions {
   display: flex;
-  flex-direction: column;
-}
-
-.providers-list__grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Provider Card */
-.provider-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px 20px;
-  transition:
-    border-color var(--dg-motion-base) ease,
-    box-shadow var(--dg-motion-base) ease;
-}
-
-.provider-card:hover {
-  border-color: var(--dg-chip-border);
-}
-
-.provider-card--primary {
-  border-color: var(--dg-accent);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--dg-accent) 6%, var(--dg-card-fill)) 0%,
-    var(--dg-card-fill) 100%
-  );
-}
-
-.provider-card--pending-remove {
-  border-color: var(--dg-danger);
-  background: var(--dg-danger-fill);
-}
-
-/* Card Header */
-.provider-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.provider-card__name {
-  margin: 0;
-  color: var(--dg-text-primary);
-  font-size: 15px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.provider-card__badges {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-/* Badges */
-.badge {
   flex: none;
-  padding: 3px 8px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 999px;
-  background: var(--dg-chip-fill);
-  color: var(--dg-chip-text);
-  font-size: 10px;
-  font-weight: 620;
-  letter-spacing: 0.02em;
+  gap: 8px;
 }
 
-.badge--primary {
-  border-color: transparent;
-  background: var(--dg-accent);
+.dg-button--small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 11px;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.dg-button--danger {
+  background: var(--dg-danger);
+  box-shadow: none;
   color: #ffffff;
 }
 
-.badge--fallback {
-  border-color: var(--dg-accent);
-  background: var(--dg-control-fill);
-  color: var(--dg-accent-text);
+.dg-button--danger:not(:disabled):hover {
+  background: color-mix(in srgb, var(--dg-danger) 86%, #ffffff);
 }
 
-.badge--protocol {
-  text-transform: uppercase;
-  font-size: 9px;
-  letter-spacing: 0.04em;
-}
-
-/* Meta Info */
-.provider-card__meta {
+/* Services: flat rows with hairlines, like SettingRow. */
+.services {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--dg-track-fill);
-}
-
-.meta-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px 12px;
-  align-items: start;
-}
-
-.meta-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--dg-text-muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.meta-label svg {
-  flex: none;
-  opacity: 0.7;
-}
-
-.meta-value {
-  margin: 0;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.meta-value--mono {
-  font-family: var(--dg-font-mono);
-  font-size: 11px;
-  color: var(--dg-text-secondary);
-}
-
-.meta-row--models {
-  align-items: start;
-}
-
-.model-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.model-list__item {
+.service {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 15px 2px;
+  border-bottom: 1px solid var(--dg-timeline-grid);
+}
+
+.service:last-child {
+  border-bottom: none;
+}
+
+.service > .form {
+  flex: 1;
+}
+
+.service__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.service__title-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
 }
 
-.model-list__name {
-  color: var(--dg-accent-text);
-  font-weight: 500;
-  font-size: 12px;
-  overflow-wrap: anywhere;
+.service__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dg-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dg-button--tiny {
+.service__protocol {
   flex: none;
-  padding: 2px 8px;
+  color: var(--dg-text-muted);
   font-size: 11px;
 }
 
-.model-list__result {
-  font-size: 11px;
+.badge {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 650;
 }
 
-.model-list__result--ok {
-  color: var(--dg-success);
+.badge--primary {
+  background: var(--dg-accent);
+  color: #ffffff;
 }
 
-.model-list__result--err {
-  color: var(--dg-danger);
+.badge--fallback {
+  box-shadow: inset 0 0 0 1px var(--dg-accent);
+  color: var(--dg-accent-text);
 }
 
-.meta-value--key {
+.service__meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 4px 12px;
+  color: var(--dg-text-secondary);
+  font-size: 12px;
 }
 
-.key-status {
+.service__endpoint {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--dg-font-mono);
+  font-size: 11px;
+}
+
+.service__key {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.service__key.is-configured { color: var(--dg-success); }
+.service__key.is-missing { color: var(--dg-warning); }
+
+.service__images {
+  flex: none;
+  color: var(--dg-text-muted);
+}
+
+.service__models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.key-status svg {
-  flex: none;
-}
-
-.key-status--configured {
-  background: color-mix(in srgb, var(--dg-success) 15%, transparent);
-  color: var(--dg-success);
-}
-
-.key-status--missing {
-  background: color-mix(in srgb, var(--dg-warning) 15%, transparent);
-  color: var(--dg-warning);
-}
-
-/* Confirm Remove */
-.provider-card__confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--dg-danger-fill);
-}
-
-.confirm-text {
-  margin: 0;
-  color: var(--dg-danger-text);
-  font-size: 13px;
-}
-
-.confirm-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* Card Actions */
-.provider-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.provider-card__actions .dg-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.provider-card__actions .dg-button svg {
-  flex: none;
-}
-
-/* Button Variants */
-.dg-button--danger {
-  background: var(--dg-danger);
-  border-color: var(--dg-danger);
-  color: #ffffff;
-}
-
-.dg-button--danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--dg-danger) 85%, white);
-}
-
-.dg-button--ghost {
-  background: transparent;
-  border-color: transparent;
+  border-radius: 6px;
+  background: var(--dg-track-fill);
   color: var(--dg-text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+  transition: background-color var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
 }
 
-.dg-button--ghost:hover:not(:disabled) {
+.model-chip :deep(svg) {
+  opacity: 0;
+  transition: opacity var(--dg-motion-fast) ease;
+}
+
+.model-chip:hover {
+  background: var(--dg-hover-fill);
+  color: var(--dg-accent-text);
+}
+
+.model-chip:hover :deep(svg),
+.model-chip:focus-visible :deep(svg) {
+  opacity: 1;
+}
+
+.model-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+.service__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.service__actions .dg-button {
+  margin-right: 4px;
+}
+
+.icon-button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dg-text-muted);
+  cursor: pointer;
+  place-items: center;
+  transition: background-color var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
+}
+
+.icon-button:hover {
   background: var(--dg-hover-fill);
   color: var(--dg-text-primary);
 }
 
-.dg-button--danger-ghost {
+.icon-button--danger:hover {
+  background: var(--dg-danger-fill);
   color: var(--dg-danger);
 }
 
-.dg-button--danger-ghost:hover:not(:disabled) {
-  background: var(--dg-danger-fill);
+.icon-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
-/* Empty State */
-.empty-state {
+.service__confirm {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 48px 24px;
-  border: 1px dashed var(--dg-chip-border);
-  border-radius: var(--dg-card-radius);
-  background: var(--dg-track-fill);
-  text-align: center;
-}
-
-.empty-state__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
-  background: var(--dg-control-fill);
-  color: var(--dg-text-muted);
-  opacity: 0.6;
-}
-
-.empty-state__title {
-  margin: 0;
-  color: var(--dg-text-primary);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.empty-state__hint {
-  margin: 0;
-  color: var(--dg-text-muted);
-  font-size: 13px;
-}
-
-/* Keychain Notice */
-.keychain-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: var(--dg-card-radius);
-  background: var(--dg-track-fill);
-}
-
-.keychain-notice__icon {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 8px 10px;
   border-radius: 8px;
-  background: var(--dg-chip-fill);
-  color: var(--dg-accent);
-}
-
-.keychain-notice__text {
-  flex: 1;
-  min-width: 0;
-}
-
-.keychain-notice__title {
-  margin: 0;
-  color: var(--dg-text-primary);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.keychain-notice__body {
-  margin: 4px 0 0;
-  color: var(--dg-text-secondary);
+  background: var(--dg-danger-fill);
+  color: var(--dg-danger);
   font-size: 12px;
 }
 
-/* Card Transitions */
-.card-enter-active,
-.card-leave-active {
-  transition:
-    opacity var(--dg-motion-base) ease,
-    transform var(--dg-motion-base) var(--dg-ease-glide);
+.service__confirm span {
+  flex: 1;
+  min-width: 12em;
 }
 
-.card-enter-from {
+.empty {
+  padding: 28px 16px;
+  border: 1px dashed var(--dg-timeline-grid);
+  border-radius: var(--dg-card-radius);
+  text-align: center;
+}
+
+.empty__title {
+  color: var(--dg-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.empty__hint {
+  margin-top: 4px;
+  color: var(--dg-text-muted);
+  font-size: 12px;
+}
+
+.keychain {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--dg-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.keychain :deep(svg) {
+  flex: none;
+  transform: translateY(1px);
+}
+
+.keychain b {
+  color: var(--dg-text-secondary);
+  font-weight: 600;
+}
+
+.fold-enter-active,
+.fold-leave-active {
+  transition: opacity var(--dg-motion-base) ease, transform var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+.fold-enter-from,
+.fold-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-6px);
 }
 
-.card-leave-to {
-  opacity: 0;
-  transform: translateX(8px);
-}
-
-/* Responsive */
 @media (max-width: 620px) {
-  .provider-card__header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .provider-card__badges {
-    margin-top: 4px;
-  }
-
-  .provider-card__actions {
-    flex-direction: column;
-  }
-
-  .provider-card__actions .dg-button {
-    width: 100%;
-    justify-content: center;
-  }
+  .head { flex-direction: column; }
+  .service { flex-direction: column; }
+  .service__actions { align-self: flex-end; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card-enter-active,
-  .card-leave-active {
-    transition: none;
-  }
+  .fold-enter-active,
+  .fold-leave-active { transition: none; }
 }
 </style>

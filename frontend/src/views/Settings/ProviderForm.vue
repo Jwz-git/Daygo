@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import ComboBox from '@/components/ComboBox.vue'
@@ -25,18 +25,20 @@ import {
 
 /*
  * The add/edit form owns the full draft lifecycle: the draft, its validation
- * errors and the model listing. The section opens
- * it through the exposed openEdit/closeIfEditing; the add button lives here
- * because it toggles with the form.
+ * errors and the model listing. The section mounts it at the top of the list
+ * to add a service (provider = null) or in place of a service's row to edit
+ * it, and drops it on `done`; the typed key never outlives the component.
  */
+const props = defineProps<{ provider: ProviderDTO | null }>()
+const emit = defineEmits<{ done: [] }>()
+
 const { t, te } = useI18n()
 const store = useProvidersStore()
 
-const formOpen = ref(false)
 /** null while adding, a provider id while editing. */
-const editingId = ref<string | null>(null)
+const editingId = computed(() => props.provider?.id ?? null)
 const errors = ref<ProviderErrors>({})
-const draft = reactive<ProviderDraft>(emptyDraft())
+const draft = reactive<ProviderDraft>(props.provider === null ? emptyDraft() : draftOf(props.provider))
 
 const nameInput = ref<HTMLInputElement | null>(null)
 
@@ -101,10 +103,25 @@ watch(draft, () => {
   }
 })
 
+/*
+ * A saved service with its key in the keychain can list models without the
+ * key being typed again: while the draft still points at the saved protocol
+ * and address and no new key is entered, the request names the provider and
+ * Go reads the stored key (ListProviderModels' providerId form).
+ */
+const usesStoredKey = computed(() => {
+  const saved = props.provider
+  return saved !== null
+    && saved.hasSecret
+    && draft.secret.trim() === ''
+    && draft.protocol === saved.protocol
+    && draft.endpoint.trim() === saved.endpoint
+})
+
 const canFetchModels = computed(
   () =>
     draft.endpoint.trim() !== '' &&
-    draft.secret.trim() !== '',
+    (draft.secret.trim() !== '' || usesStoredKey.value),
 )
 
 function modelsFailureText(result: ProviderModelsResult): string {
@@ -117,11 +134,11 @@ async function fetchModels(): Promise<void> {
   if (modelsState.value.phase === 'fetching' || !canFetchModels.value) return
   modelsState.value = { phase: 'fetching' }
   try {
-    const result = await listProviderModels({
-      protocol: draft.protocol,
-      endpoint: draft.endpoint.trim(),
-      secret: draft.secret.trim(),
-    })
+    const result = await listProviderModels(
+      usesStoredKey.value && props.provider !== null
+        ? { providerId: props.provider.id }
+        : { protocol: draft.protocol, endpoint: draft.endpoint.trim(), secret: draft.secret.trim() },
+    )
     modelsState.value = { phase: 'done', result }
     if (result.ok) applyFetchedModels(result.models)
   } catch {
@@ -146,41 +163,13 @@ function errorText(field: ProviderField): string {
   return code === undefined ? '' : t(`settings.providers.error.${code}`)
 }
 
-function resetDraft(next: ProviderDraft): void {
-  Object.assign(draft, next)
-}
-
-function openAdd(): void {
-  resetDraft(emptyDraft())
-  editingId.value = null
-  errors.value = {}
-  formOpen.value = true
-  void nextTick(() => nameInput.value?.focus())
-}
-
-function openEdit(provider: ProviderDTO): void {
-  resetDraft(draftOf(provider))
-  editingId.value = provider.id
-  errors.value = {}
-  formOpen.value = true
-  void nextTick(() => nameInput.value?.focus())
-}
+onMounted(() => nameInput.value?.focus())
 
 /** Also the only place the typed key leaves component state. */
 function closeForm(): void {
-  resetDraft(emptyDraft())
-  editingId.value = null
-  errors.value = {}
-  formOpen.value = false
-  modelsState.value = { phase: 'idle' }
+  Object.assign(draft, emptyDraft())
+  emit('done')
 }
-
-/** A removed provider cannot stay open in the editor. */
-function closeIfEditing(id: string): void {
-  if (editingId.value === id) closeForm()
-}
-
-defineExpose({ openEdit, closeIfEditing })
 
 async function submit(): Promise<void> {
   const id = editingId.value
@@ -206,14 +195,10 @@ function onProtocolChange(event: Event): void {
 </script>
 
 <template>
-  <form v-if="formOpen" class="form dg-card" @submit.prevent="submit">
-    <h2 class="form__title">
-      {{
-        editingId === null
-          ? t('settings.providers.form.addTitle')
-          : t('settings.providers.form.editTitle')
-      }}
-    </h2>
+  <form class="form" @submit.prevent="submit">
+    <h3 class="form__title">
+      {{ editingId === null ? t('settings.providers.form.addTitle') : t('settings.providers.form.editTitle') }}
+    </h3>
 
     <div class="form__grid">
       <label class="form__cell">
@@ -226,15 +211,11 @@ function onProtocolChange(event: Event): void {
           :placeholder="t('settings.providers.form.namePlaceholder')"
           :aria-invalid="errors.displayName ? 'true' : undefined"
         />
-        <p v-if="errors.displayName" class="form__error">
-          {{ errorText('displayName') }}
-        </p>
+        <p v-if="errors.displayName" class="form__error">{{ errorText('displayName') }}</p>
       </label>
 
       <label class="form__cell">
-        <span class="dg-field-label">
-          {{ t('settings.providers.protocol.label') }}
-        </span>
+        <span class="dg-field-label">{{ t('settings.providers.protocol.label') }}</span>
         <select class="dg-input" :value="draft.protocol" @change="onProtocolChange">
           <option v-for="option in PROVIDER_PROTOCOLS" :key="option" :value="option">
             {{ protocolLabel(option) }}
@@ -243,12 +224,10 @@ function onProtocolChange(event: Event): void {
       </label>
 
       <label class="form__cell form__cell--wide">
-        <span class="dg-field-label">
-          {{ t('settings.providers.form.endpoint') }}
-        </span>
+        <span class="dg-field-label">{{ t('settings.providers.form.endpoint') }}</span>
         <input
           v-model="draft.endpoint"
-          class="dg-input"
+          class="dg-input dg-input--mono"
           type="url"
           inputmode="url"
           spellcheck="false"
@@ -256,13 +235,42 @@ function onProtocolChange(event: Event): void {
           :aria-invalid="errors.endpoint ? 'true' : undefined"
         />
         <p v-if="errors.endpoint" class="form__error">{{ errorText('endpoint') }}</p>
-        <p v-else-if="isPlainHttp" class="form__warning">
-          {{ t('settings.providers.form.httpWarning') }}
-        </p>
+        <p v-else-if="isPlainHttp" class="form__warning">{{ t('settings.providers.form.httpWarning') }}</p>
+      </label>
+
+      <!-- The key sits before the models: fetching the model list needs it. -->
+      <label class="form__cell form__cell--wide">
+        <span class="dg-field-label">{{ t('settings.providers.form.apiKey') }}</span>
+        <input
+          v-model="draft.secret"
+          class="dg-input"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          :placeholder="t('settings.providers.form.apiKeyPlaceholder')"
+        />
+        <p v-if="editingId !== null" class="form__hint">{{ t('settings.providers.form.apiKeyKeepHint') }}</p>
       </label>
 
       <div class="form__cell form__cell--wide">
-        <span class="dg-field-label">{{ t('settings.providers.form.models') }}</span>
+        <div class="form__label-row">
+          <span class="dg-field-label">{{ t('settings.providers.form.models') }}</span>
+          <span class="form__inline-actions">
+            <button type="button" class="link-button" :disabled="!canAddModel" @click="addModelRow">
+              <DgIcon name="plus" :size="12" />
+              {{ t('settings.providers.form.addModel') }}
+            </button>
+            <button
+              type="button"
+              class="link-button"
+              :disabled="!canFetchModels || modelsState.phase === 'fetching'"
+              @click="fetchModels"
+            >
+              <DgIcon name="refresh" :size="12" />
+              {{ t('settings.providers.models.fetch') }}
+            </button>
+          </span>
+        </div>
         <ul class="model-list">
           <li v-for="(model, index) in draft.models" :key="index" class="model-list__row">
             <ComboBox
@@ -275,33 +283,16 @@ function onProtocolChange(event: Event): void {
             />
             <button
               type="button"
-              class="dg-button dg-button--icon"
+              class="icon-button"
               :disabled="draft.models.length === 1 && model.trim() === ''"
               :aria-label="t('settings.providers.form.removeModel')"
+              :title="t('settings.providers.form.removeModel')"
               @click="removeModelRow(index)"
             >
               <DgIcon name="minus" :size="14" />
             </button>
           </li>
         </ul>
-        <div class="model-list__actions">
-          <button
-            type="button"
-            class="dg-button"
-            :disabled="!canAddModel"
-            @click="addModelRow"
-          >
-            {{ t('settings.providers.form.addModel') }}
-          </button>
-          <button
-            type="button"
-            class="dg-button"
-            :disabled="!canFetchModels || modelsState.phase === 'fetching'"
-            @click="fetchModels"
-          >
-            {{ t('settings.providers.models.fetch') }}
-          </button>
-        </div>
         <p v-if="errors.models" class="form__error">{{ errorText('models') }}</p>
         <p v-else-if="modelsState.phase === 'fetching'" class="form__hint" role="status" aria-live="polite">
           {{ t('settings.providers.models.fetching') }}
@@ -326,9 +317,7 @@ function onProtocolChange(event: Event): void {
       </div>
 
       <label class="form__cell">
-        <span class="dg-field-label">
-          {{ t('settings.providers.form.maxImages') }}
-        </span>
+        <span class="dg-field-label">{{ t('settings.providers.form.maxImages') }}</span>
         <input
           v-model.number="draft.maxImages"
           class="dg-input"
@@ -338,54 +327,31 @@ function onProtocolChange(event: Event): void {
           step="1"
           :aria-invalid="errors.maxImages ? 'true' : undefined"
         />
-        <p v-if="errors.maxImages" class="form__error">
-          {{ errorText('maxImages') }}
-        </p>
-        <p v-else class="form__hint">
-          {{ t('settings.providers.form.maxImagesHint') }}
-        </p>
-      </label>
-
-      <label class="form__cell">
-        <span class="dg-field-label">{{ t('settings.providers.form.apiKey') }}</span>
-        <div class="form__key-row">
-          <input
-            v-model="draft.secret"
-            class="dg-input"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            :placeholder="t('settings.providers.form.apiKeyPlaceholder')"
-          />
-        </div>
-        <p v-if="editingId !== null" class="form__hint">
-          {{ t('settings.providers.form.apiKeyKeepHint') }}
-        </p>
-        <p class="form__hint">{{ t('modelPlayground.saveFirst') }}</p>
+        <p v-if="errors.maxImages" class="form__error">{{ errorText('maxImages') }}</p>
+        <p v-else class="form__hint">{{ t('settings.providers.form.maxImagesHint') }}</p>
       </label>
     </div>
 
-    <div class="form__actions">
-      <button type="button" class="dg-button" @click="closeForm">
-        {{ t('common.action.cancel') }}
-      </button>
-      <button type="submit" class="dg-button dg-button--primary">
-        {{ t('common.action.save') }}
-      </button>
-    </div>
+    <footer class="form__footer">
+      <p class="form__hint">{{ t('modelPlayground.saveFirst') }}</p>
+      <span class="form__actions">
+        <button type="button" class="dg-button" @click="closeForm">{{ t('common.action.cancel') }}</button>
+        <button type="submit" class="dg-button dg-button--primary">{{ t('common.action.save') }}</button>
+      </span>
+    </footer>
   </form>
-
-  <button v-else type="button" class="dg-button dg-button--primary add" @click="openAdd">
-    {{ t('settings.providers.add') }}
-  </button>
 </template>
 
 <style scoped>
 .form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 17px 18px;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--dg-card-border);
+  border-radius: var(--dg-card-radius);
+  background: var(--dg-card-fill);
+  box-shadow: var(--dg-card-shadow);
 }
 
 .form__title {
@@ -397,37 +363,64 @@ function onProtocolChange(event: Event): void {
 .form__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px 12px;
+}
+
+.form__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
 }
 
 .form__cell--wide {
   grid-column: 1 / -1;
 }
 
-.form__error,
-.form__hint,
-.form__warning {
-  margin-top: 4px;
-  font-size: 11px;
+.dg-input--mono {
+  font-family: var(--dg-font-mono);
+  font-size: 12px;
 }
 
-.form__error {
-  color: var(--dg-danger);
-}
-
-.form__warning {
-  color: var(--dg-warning);
-}
-
-.form__key-row {
+.form__label-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
-.form__key-row .dg-input,
-.form__key-row .combo {
-  flex: 1;
-  min-width: 0;
+.form__inline-actions {
+  display: inline-flex;
+  gap: 12px;
+}
+
+/* Quiet text actions inside the form, so only Save reads as a button. */
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--dg-accent-text);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.link-button:disabled {
+  color: var(--dg-text-muted);
+  cursor: default;
+}
+
+.link-button:not(:disabled):hover {
+  text-decoration: underline;
+}
+
+.link-button:focus-visible {
+  border-radius: 4px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .model-list {
@@ -442,7 +435,7 @@ function onProtocolChange(event: Event): void {
 .model-list__row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .model-list__combo {
@@ -450,49 +443,64 @@ function onProtocolChange(event: Event): void {
   min-width: 0;
 }
 
-.model-list__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.dg-button--icon {
+.icon-button {
+  display: inline-grid;
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-}
-
-.form__test-model {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.form__test-ok {
-  color: var(--dg-accent-text);
-}
-
-.form__hint {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: var(--dg-text-muted);
+  cursor: pointer;
+  place-items: center;
+}
+
+.icon-button:not(:disabled):hover {
+  background: var(--dg-hover-fill);
+  color: var(--dg-text-primary);
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.icon-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+.form__error,
+.form__hint,
+.form__warning {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.form__error { color: var(--dg-danger); }
+.form__warning { color: var(--dg-warning); }
+.form__hint { color: var(--dg-text-muted); }
+
+.form__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dg-timeline-grid);
 }
 
 .form__actions {
-  display: flex;
-  justify-content: flex-end;
+  display: inline-flex;
+  flex: none;
   gap: 8px;
 }
 
-.add {
-  align-self: flex-start;
-}
-
 @media (max-width: 620px) {
-  .form__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  .form__grid { grid-template-columns: minmax(0, 1fr); }
+  .form__footer { flex-direction: column; align-items: stretch; }
+  .form__actions { justify-content: flex-end; }
 }
 </style>
