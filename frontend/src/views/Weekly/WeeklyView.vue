@@ -9,11 +9,6 @@ import PeriodNav from '@/components/PeriodNav.vue'
 import { shiftCalendarDate } from '@/lib/calendarDate'
 import { useWeeklyStore } from '@/stores/weekly'
 
-import WeeklyCategoryPanel from './WeeklyCategoryPanel.vue'
-import WeeklyDailyTimelinePanel from './WeeklyDailyTimelinePanel.vue'
-import WeeklyInsightsPanel from './WeeklyInsightsPanel.vue'
-import WeeklyOverviewPanel from './WeeklyOverviewPanel.vue'
-import WeeklyRhythmPanel from './WeeklyRhythmPanel.vue'
 import WeeklyStatePanel from './WeeklyStatePanel.vue'
 import WeeklyContextCard from './charts/WeeklyContextCard.vue'
 import WeeklyDistributionCard from './charts/WeeklyDistributionCard.vue'
@@ -105,8 +100,7 @@ onBeforeUnmount(() => weekly.stopListening())
             <p>{{ t('weekly.intro.description') }}</p>
           </div>
 
-          <!-- Dayflow's weekly charts first, in Dayflow's order; Daygo's own
-               panels follow. -->
+          <!-- Dayflow's weekly charts, in Dayflow's order. -->
           <template v-if="charts">
             <div class="weekly-top-row">
               <WeeklyDistributionCard :presentation="presentation" :days="weekDays" />
@@ -117,12 +111,6 @@ onBeforeUnmount(() => weekly.stopListening())
             <WeeklyTreemapCard :categories="charts.treemap" :days="weekDays" />
             <WeeklySankeyCard :snapshot="charts.sankey" :week-label="dateTitle" :days="weekDays" />
           </template>
-
-          <WeeklyOverviewPanel :presentation="presentation" />
-          <WeeklyCategoryPanel :presentation="presentation" />
-          <WeeklyDailyTimelinePanel :presentation="presentation" />
-          <WeeklyRhythmPanel :presentation="presentation" />
-          <WeeklyInsightsPanel :presentation="presentation" />
 
           <p class="weekly-scope-note">{{ t('weekly.scopeNote') }}</p>
         </template>

@@ -24,8 +24,10 @@
   分母 0 为 0、minutes DESC）、`DayContextDTO.weekStart`（前端初始周不自算）。
 - 绑定与前端：`GetWeeklyDashboard`（非周一拒绝，含按日明细 `WeeklyDayDTO` 与洞察
   `WeeklyInsightsDTO`）、页面容器、weekly store、薄 API wrapper、加载 / 不可用 /
-  失败 / 空 / 有数据状态、专注概览、分类分布、洞察与节奏面板；开发服务器专用
-  匿名聚合夹具。组件不直接调用 Wails；`timeline:updated` 只触发重新拉取。
+  失败 / 空 / 有数据状态与 Dayflow 原版六张图（分布环形图、上下文切换对比、工作流、
+  热力图、矩形树图、桑基图；2026-10-02 起页面只保留这六张，原有的专注概览、分类分布、
+  按日时间线、节奏与洞察面板已移除，`WeeklyInsightsDTO` / `WeeklyDayDTO` 仍由绑定返回）；
+  开发服务器专用匿名聚合夹具。组件不直接调用 Wails；`timeline:updated` 只触发重新拉取。
 - 跨周观察与真实卡片周由用户于 2026-09-22 确认验收，未附逐项运行记录。
 
 ## 能力与跨层职责
@@ -70,6 +72,11 @@ app 提供 GetWeeklyDashboard，store 查询并响应时间线 / 分类失效事
 时区规则回归先撤销该能力变更，不能用改 fixture 期望掩盖问题。
 
 ## 验证记录
+
+2026-10-02（`frontend-lab` 分支，移除原有面板）：周报末尾的专注概览、分类分布、按日时间线、节奏与洞察 5 个面板及其
+专用文案（9 个语言包的 overview / metric / categories / daily / rhythm / insights 组）删除，页面只保留 Dayflow 六张图与
+统计范围说明。`stores/weeklyPresentation` 中仅服务这些面板的字段暂未清理（仍有夹具测试），环形图继续读取其
+`categories`。验证：typecheck、unit（208 项）、build 通过；匿名夹具页面只渲染六张图卡片。
 
 2026-10-02（`frontend-lab` 分支，树图字号与桑基图数字）：树图应用名与图标加大（衬线体单一字重，用 0.45px 描边加粗而非
 合成粗体），时长改细、比应用名小，并按原版 `weeklyTreemapDurationString` 用英文单位（"6hr 4m"），周环比标签按原版
