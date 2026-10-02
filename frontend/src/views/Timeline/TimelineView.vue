@@ -155,6 +155,12 @@ const generating = computed<GenState>(() => {
   return 'off'
 })
 
+// Clicking the paused card resumes recording, like the header's pause pill.
+function resumeRecording(): void {
+  if (recording.lifecycle !== 'paused' || recording.pendingAction !== null) return
+  void recording.perform('resume')
+}
+
 function selectDayFromWeek(dayKey: string): void {
   if (dayKey === '') return
   void router.push({ name: 'timeline', query: { ...route.query, day: dayKey } })
@@ -553,25 +559,65 @@ onBeforeUnmount(() => {
       </span>
     </div>
 
-    <div
-      class="timeline-body"
-      :class="{ 'is-week-collapsed': viewMode === 'week' && weekSelection === null }"
-    >
-      <Transition name="mode" mode="out-in">
-        <TimelineWeekView
+    <!--
+      Day and week each own their full layout and share one grid cell, so the
+      switch crossfades both at once (Dayflow: day scales 0.95 ↔ 1, week
+      1.05 ↔ 1, 240ms ease-out-quart) and neither pane is ever squeezed into
+      the other's columns mid-switch.
+    -->
+    <div class="timeline-body">
+      <Transition name="mode-week">
+        <div
           v-if="viewMode === 'week'"
           key="week"
-          class="timeline-body__week"
-          :day-keys="weekKeys"
-          :columns="weekColumns"
-          :selected-day="context?.day ?? ''"
-          :selected-card-id="weekSelection?.card.id ?? null"
-          :week-loading="weekLoading"
-          :generating="generating"
-          @anchor-day="selectDayFromWeek"
-          @select-card="openWeekCard"
-        />
-        <div v-else key="day" class="timeline-body__day">
+          class="timeline-body__week-pane"
+          :class="{ 'has-inspector': weekSelection !== null }"
+        >
+          <TimelineWeekView
+            class="timeline-body__week"
+            :day-keys="weekKeys"
+            :columns="weekColumns"
+            :selected-day="context?.day ?? ''"
+            :selected-card-id="weekSelection?.card.id ?? null"
+            :week-loading="weekLoading"
+            :generating="generating"
+            @anchor-day="selectDayFromWeek"
+            @select-card="openWeekCard"
+          />
+          <Transition name="inspector">
+            <TimelineInspector
+              v-if="weekSelection !== null"
+              class="timeline-body__inspector"
+              :day="weekSelection.day"
+              :time-zone="context?.timeZone ?? 'UTC'"
+              :card="weekSelection.card"
+              :failure="null"
+              :can-write="capabilities?.canWrite ?? false"
+              :actions="actionAvailability"
+              :pending-action="pendingAction"
+              :action-failed="generalActionFailed"
+              :card-reprocess-failure-key="weekSelection?.card.id === failedCardID ? cardReprocessFailureKey : null"
+              :goal="daily.goal"
+              :goal-unavailable="daily.goalUnavailable"
+              :goal-failed="daily.goalError !== null"
+              :goal-saving="daily.goalSaving"
+              :review-totals="reviewTotals"
+              @close="closeWeekCard"
+              @save-edits="saveWeekEdits"
+              @delete="deleteWeekCard"
+              @reprocess-card="reprocessWeekCard"
+              @retry="timeline.retryFailure"
+              @stop-retries="timeline.stopFailureRetries"
+              @dismiss-failure="timeline.dismissFailure"
+              @reprocess="reprocessCurrentDay"
+              @save-goal="daily.saveGoal"
+              @verdict-changed="onVerdictChanged"
+            />
+          </Transition>
+        </div>
+      </Transition>
+      <Transition name="mode-day">
+        <div v-if="viewMode === 'day'" key="day" class="timeline-body__day">
           <TimelineStatePanel
             v-if="!hasTrack"
             class="timeline-body__state"
@@ -591,6 +637,7 @@ onBeforeUnmount(() => {
               :selected-failure-ts="selectedFailureTs"
               :regenerating-card-i-d="pendingCardID"
               :generating="generating"
+              @resume="resumeRecording"
               @select="timeline.selectCard"
               @select-failure="timeline.selectFailure"
               @clear="timeline.selectCard(null)"
@@ -623,74 +670,52 @@ onBeforeUnmount(() => {
               @save-goal="daily.saveGoal"
               @verdict-changed="onVerdictChanged"
             />
+
+            <!--
+              Timeline footer (Dayflow MainView.timelineFooter): the review
+              badge centred under the track while cards await review, the
+              secondary "copy timeline" button at the track's bottom right.
+              Living inside the day pane, both fade with the mode switch.
+            -->
+            <div class="timeline-footer">
+              <Transition name="footer-pop">
+                <button
+                  v-if="reviewQueue.length > 0"
+                  type="button"
+                  class="review-badge"
+                  :title="t('timeline.review.title')"
+                  :aria-label="`${reviewQueue.length} · ${t('timeline.review.action')}`"
+                  @click="showReview = true"
+                >
+                  <span class="review-badge__stack" aria-hidden="true">
+                    <i class="review-badge__back"></i>
+                    <i class="review-badge__front">{{ reviewQueue.length }}</i>
+                  </span>
+                  <span>{{ t('timeline.review.action') }}</span>
+                </button>
+              </Transition>
+              <button
+                type="button"
+                class="copy-button"
+                :class="{ 'is-copied': copyState === 'copied', 'is-failed': copyState === 'failed' }"
+                :disabled="cards.length === 0"
+                :title="t('timeline.copy.action')"
+                @click="copyTimeline"
+              >
+                <Transition name="copy-swap" mode="out-in">
+                  <span :key="copyState" class="copy-button__content">
+                    <DgIcon v-if="copyState === 'idle'" name="copy" :size="12" />
+                    <DgIcon v-else-if="copyState === 'copied'" name="check" :size="12" />
+                    <DgIcon v-else name="close" :size="12" />
+                    {{ copyState === 'copied' ? t('timeline.copy.copied') : copyState === 'failed' ? t('timeline.copy.failed') : t('timeline.copy.action') }}
+                  </span>
+                </Transition>
+              </button>
+            </div>
           </template>
         </div>
       </Transition>
-
-      <Transition name="inspector">
-        <TimelineInspector
-          v-if="viewMode === 'week' && weekSelection !== null"
-          class="timeline-body__inspector"
-          :day="weekSelection.day"
-          :time-zone="context?.timeZone ?? 'UTC'"
-          :card="weekSelection.card"
-          :failure="null"
-          :can-write="capabilities?.canWrite ?? false"
-          :actions="actionAvailability"
-          :pending-action="pendingAction"
-          :action-failed="generalActionFailed"
-          :card-reprocess-failure-key="weekSelection?.card.id === failedCardID ? cardReprocessFailureKey : null"
-          :goal="daily.goal"
-          :goal-unavailable="daily.goalUnavailable"
-          :goal-failed="daily.goalError !== null"
-          :goal-saving="daily.goalSaving"
-          :review-totals="reviewTotals"
-          @close="closeWeekCard"
-          @save-edits="saveWeekEdits"
-          @delete="deleteWeekCard"
-          @reprocess-card="reprocessWeekCard"
-          @retry="timeline.retryFailure"
-          @stop-retries="timeline.stopFailureRetries"
-          @dismiss-failure="timeline.dismissFailure"
-          @reprocess="reprocessCurrentDay"
-          @save-goal="daily.saveGoal"
-          @verdict-changed="onVerdictChanged"
-        />
-      </Transition>
     </div>
-
-    <!-- Fixed bottom-left copy button (day view only) -->
-    <button
-      v-if="hasTrack && viewMode === 'day'"
-      type="button"
-      class="copy-fab"
-      :class="{ 'is-copied': copyState === 'copied', 'is-failed': copyState === 'failed' }"
-      :disabled="cards.length === 0"
-      :title="t('timeline.copy.action')"
-      @click="copyTimeline"
-    >
-      <DgIcon v-if="copyState === 'idle'" name="copy" :size="15" />
-      <DgIcon v-else-if="copyState === 'copied'" name="check" :size="15" />
-      <DgIcon v-else name="close" :size="15" />
-      <span>{{ copyState === 'copied' ? t('timeline.copy.copied') : copyState === 'failed' ? t('timeline.copy.failed') : t('timeline.copy.action') }}</span>
-    </button>
-
-    <!-- Review entry: gradient pill mirroring the reference, with the
-         remaining-card count badge. -->
-    <button
-      v-if="hasTrack && viewMode === 'day'"
-      type="button"
-      class="review-fab"
-      :disabled="reviewQueue.length === 0"
-      :title="t('timeline.review.title')"
-      @click="showReview = true"
-    >
-      <span class="review-fab__badge" aria-hidden="true">
-        <DgIcon name="document" :size="11" />
-        <b>{{ reviewQueue.length }}</b>
-      </span>
-      <span>{{ t('timeline.review.action') }}</span>
-    </button>
 
     <!-- Category manager wizard -->
     <Teleport to="body">
@@ -794,27 +819,40 @@ onBeforeUnmount(() => {
 .timeline-body {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--dg-inspector-width);
-  gap: var(--dg-inspector-gap);
+  /* One stacking cell: the day and week panes overlap while they crossfade. */
+  grid-template-areas: 'pane';
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   padding: 0 var(--dg-page-padding) var(--dg-page-padding);
-  /* The week grid grows over the inspector when no card is selected and
-     shrinks back on selection; grid-template-columns animates in the engines
-     that support it and jumps elsewhere. */
-  transition: grid-template-columns var(--dg-motion-slow) var(--dg-ease-glide);
 }
 
-.timeline-body.is-week-collapsed {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.timeline-body__day {
+.timeline-body__day,
+.timeline-body__week-pane {
   display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
+  grid-area: pane;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) var(--dg-inspector-width);
+  gap: var(--dg-inspector-gap);
   min-width: 0;
   min-height: 0;
+}
+
+/* The week grid grows over the inspector when no card is selected and
+   shrinks back on selection; grid-template-columns animates in the engines
+   that support it and jumps elsewhere. */
+.timeline-body__week-pane {
+  grid-template-columns: minmax(0, 1fr) 0px;
+  column-gap: 0px;
+  transition:
+    grid-template-columns var(--dg-motion-slow) var(--dg-ease-glide),
+    column-gap var(--dg-motion-slow) var(--dg-ease-glide);
+}
+
+.timeline-body__week-pane.has-inspector {
+  grid-template-columns: minmax(0, 1fr) var(--dg-inspector-width);
+  column-gap: var(--dg-inspector-gap);
 }
 
 .timeline-body__week { min-width: 0; min-height: 0; }
@@ -822,22 +860,57 @@ onBeforeUnmount(() => {
 .timeline-body__track,
 .timeline-body__inspector { min-width: 0; }
 
-/* Day/week switch: scale + fade out, then the incoming mode settles back. */
-.mode-enter-active,
-.mode-leave-active {
+/* Explicit cells: the footer overlays the track's cell. */
+.timeline-body__day > .timeline-body__track { grid-row: 1; grid-column: 1; }
+.timeline-body__day > .timeline-body__inspector { grid-row: 1; grid-column: 2; }
+
+/*
+ * Day/week switch, after Dayflow's MainView: both panes animate at once.
+ * Day is the zoomed-in view (grows 0.95 → 1 as it arrives, shrinks back as
+ * it leaves); week is the zoomed-out one (settles 1.05 → 1, grows away).
+ * ease-out-quart over 240ms; the arriving pane sits on top.
+ */
+.mode-day-enter-active,
+.mode-day-leave-active,
+.mode-week-enter-active,
+.mode-week-leave-active {
   transition:
-    opacity 190ms ease,
-    transform 260ms var(--dg-ease-glide);
+    opacity 240ms cubic-bezier(0.165, 0.84, 0.44, 1),
+    transform 240ms cubic-bezier(0.165, 0.84, 0.44, 1);
 }
 
-.mode-enter-from {
+.mode-day-enter-active,
+.mode-week-enter-active { z-index: 1; }
+
+.mode-day-leave-active,
+.mode-week-leave-active { z-index: 0; pointer-events: none; }
+
+.mode-day-enter-from,
+.mode-day-leave-to {
   opacity: 0;
-  transform: scale(0.975) translateY(4px);
+  transform: scale(0.95);
 }
 
-.mode-leave-to {
+.mode-week-enter-from,
+.mode-week-leave-to {
   opacity: 0;
-  transform: scale(0.98);
+  transform: scale(1.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-day-enter-active,
+  .mode-day-leave-active,
+  .mode-week-enter-active,
+  .mode-week-leave-active {
+    transition: opacity 80ms linear;
+  }
+
+  .mode-day-enter-from,
+  .mode-day-leave-to,
+  .mode-week-enter-from,
+  .mode-week-leave-to {
+    transform: none;
+  }
 }
 
 /* Inspector pane sliding open / closed. */
@@ -853,54 +926,6 @@ onBeforeUnmount(() => {
   opacity: 0;
   transform: scale(0.985) translateX(14px);
 }
-
-/* Review entry pill, centered at the bottom like the reference. */
-.review-fab {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  z-index: 10;
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  height: 40px;
-  padding: 0 18px 0 8px;
-  border: none;
-  border-radius: 999px;
-  /* Opaque stops: both gradients mix over the opaque window base. */
-  background: linear-gradient(
-    100deg,
-    color-mix(in srgb, var(--dg-accent) 34%, var(--dg-window-bg)),
-    color-mix(in srgb, #e8804a 32%, var(--dg-window-bg))
-  );
-  color: var(--dg-text-primary);
-  font-size: 12px;
-  font-weight: 600;
-  transform: translateX(-50%);
-  cursor: pointer;
-  box-shadow: var(--dg-shadow-sm);
-  transition: transform var(--dg-motion-base) var(--dg-ease-glide), box-shadow var(--dg-motion-fast) ease;
-}
-
-.review-fab:hover:not(:disabled) { transform: translateX(-50%) scale(1.03); }
-.review-fab:active:not(:disabled) { transform: translateX(-50%) scale(0.97); }
-.review-fab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
-.review-fab:disabled { opacity: 0.5; cursor: default; }
-
-.review-fab__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--dg-accent) 62%, #ffffff);
-  color: #ffffff;
-  font-size: 12px;
-}
-
-.review-fab__badge svg { width: 11px; height: 11px; }
-.review-fab__badge b { font-weight: 650; font-variant-numeric: tabular-nums; }
 
 .header-tools {
   display: flex;
@@ -1012,7 +1037,9 @@ onBeforeUnmount(() => {
 .pause-pill:disabled { opacity: 0.55; cursor: default; }
 
 @media (max-width: 1000px) {
-  .timeline-body { grid-template-columns: minmax(0, 1fr); }
+  .timeline-body__day,
+  .timeline-body__week-pane,
+  .timeline-body__week-pane.has-inspector { grid-template-columns: minmax(0, 1fr); column-gap: 0px; }
   .timeline-body__inspector { display: none; }
   .timeline-body__inspector.has-selection {
     position: absolute;
@@ -1045,54 +1072,145 @@ onBeforeUnmount(() => {
   .filter-bar { padding-right: 16px; padding-left: 16px; }
 }
 
-/* Fixed bottom-left copy button */
-.copy-fab {
-  position: fixed;
-  bottom: 24px;
-  left: 24px;
-  z-index: 10;
+/*
+ * Timeline footer, after Dayflow's MainView.timelineFooter: an overlay on
+ * the track's grid cell, 24px in and 17px up. Only the buttons take clicks.
+ */
+.timeline-footer {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  grid-row: 1;
+  grid-column: 1;
+  align-items: flex-end;
+  justify-content: flex-end;
+  align-self: end;
+  padding: 0 24px 17px;
+  pointer-events: none;
+}
+
+.timeline-footer > * { pointer-events: auto; }
+
+/* Dayflow's copyTimelineButton: the theme's secondary button, 26pt tall. */
+.copy-button {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--dg-timeline-grid);
-  border-radius: 8px;
-  /* Opaque: mixed over the window base so the track never shows through. */
-  background: color-mix(in srgb, var(--dg-accent) 7%, var(--dg-window-bg));
-  color: var(--dg-text-secondary);
-  font-size: 12px;
+  justify-content: center;
+  min-width: 122px;
+  height: 26px;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 1px solid var(--dg-button-secondary-border);
+  border-radius: 7px;
+  background: var(--dg-button-secondary-fill);
+  color: var(--dg-button-secondary-text);
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--dg-motion-fast) ease;
-  box-shadow: var(--dg-shadow-sm);
+  transition: transform 300ms cubic-bezier(0.34, 1.4, 0.64, 1), background-color var(--dg-motion-fast) ease;
 }
 
-.copy-fab svg { width: 15px; height: 15px; }
-
-.copy-fab:hover:not(:disabled) {
-  border-color: var(--dg-accent);
-  color: var(--dg-accent);
-  background: var(--dg-accent-subtle);
+:root[data-dg-appearance='dark'] .copy-button {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
-.copy-fab:active:not(:disabled) { transform: scale(0.97); }
+.copy-button:hover:not(:disabled) { transform: scale(1.02); background: var(--dg-button-secondary-hover); }
+.copy-button:active:not(:disabled) { transform: scale(0.97); transition-duration: 120ms; }
+.copy-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.copy-button:disabled { opacity: 0.5; cursor: default; }
+.copy-button.is-copied { color: var(--dg-success); }
+.copy-button.is-failed { color: var(--dg-danger); }
 
-.copy-fab.is-copied {
-  border-color: color-mix(in srgb, var(--dg-success) 40%, transparent);
-  color: var(--dg-success);
-  background: color-mix(in srgb, var(--dg-success) 9%, transparent);
+.copy-button__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 
-.copy-fab.is-failed {
-  border-color: color-mix(in srgb, var(--dg-danger) 40%, transparent);
-  color: var(--dg-danger);
-  background: color-mix(in srgb, var(--dg-danger) 9%, transparent);
+/* Copy state swap: slide up and fade, never scale the letterforms. */
+.copy-swap-enter-active,
+.copy-swap-leave-active { transition: opacity 140ms ease, transform 200ms cubic-bezier(0.165, 0.84, 0.44, 1); }
+.copy-swap-enter-from { opacity: 0; transform: translateY(8px); }
+.copy-swap-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* Dayflow's CardsToReviewBadge: orange-to-lavender pill with a stacked-cards count. */
+.review-badge {
+  position: absolute;
+  bottom: 17px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 10px 12px;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(to bottom right, #ff9970 5%, #bdabff 95%);
+  box-shadow: inset 0 0 0 1.5px #ffd9d4, 0 2px 3px #e8c9b3;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: transform 300ms cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
-.copy-fab:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+:root[data-dg-appearance='dark'] .review-badge { box-shadow: inset 0 0 0 1.5px #ffd9d4, 0 2px 4px rgba(0, 0, 0, 0.35); }
+
+.review-badge:hover { transform: translateX(-50%) scale(1.02); }
+.review-badge:active { transform: translateX(-50%) scale(0.97); transition-duration: 120ms; }
+.review-badge:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px #ffd9d4, 0 0 0 3px var(--dg-focus-ring); }
+
+.review-badge__stack {
+  position: relative;
+  flex: none;
+  width: 21px;
+  height: 20px;
+}
+
+.review-badge__back,
+.review-badge__front {
+  position: absolute;
+  bottom: 0;
+  border-radius: 3.5px;
+  background: #ffffff;
+}
+
+.review-badge__back {
+  left: 0.5px;
+  width: 14px;
+  height: 15.75px;
+  transform: rotate(-11.64deg);
+}
+
+.review-badge__front {
+  left: 7px;
+  display: grid;
+  width: 14px;
+  height: 18px;
+  box-shadow: 0 0 0 1.25px #f79c82;
+  color: #fa997d;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  place-items: center;
+}
+
+.footer-pop-enter-active,
+.footer-pop-leave-active { transition: opacity 200ms ease, transform 260ms cubic-bezier(0.165, 0.84, 0.44, 1); }
+.footer-pop-enter-from,
+.footer-pop-leave-to { opacity: 0; transform: translateX(-50%) translateY(10px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .copy-button,
+  .review-badge,
+  .copy-swap-enter-active,
+  .copy-swap-leave-active,
+  .footer-pop-enter-active,
+  .footer-pop-leave-active { transition: none; }
 }
 
 /* Category manager modal */

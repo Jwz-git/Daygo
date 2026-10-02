@@ -47,6 +47,8 @@ const emit = defineEmits<{
   select: [id: number]
   selectFailure: [startTs: number]
   clear: []
+  /** The paused status card was clicked: resume recording (Dayflow handlePausedStatusCardTap). */
+  resume: []
 }>()
 const { locale, t } = useI18n()
 const scroller = ref<HTMLElement | null>(null)
@@ -194,6 +196,35 @@ onMounted(() => {
   void revealRelevantTime()
 })
 watch(() => props.context.day, () => void revealRelevantTime())
+
+/*
+ * Dayflow's staggered entrance (CanvasTimelineDataView): when a day's cards
+ * first appear, each fades in from 12px to the right on a soft spring, 30ms
+ * after the one above it, starting 50ms after layout. Refreshes of a day
+ * already shown stay still. Driven by the Web Animations API on the existing
+ * card elements, so the cards' own styles and hover transitions are untouched.
+ */
+const eventsLayer = ref<HTMLElement | null>(null)
+let enteredDay: string | null = null
+async function playEntrance(): Promise<void> {
+  const day = props.context.day
+  if (enteredDay === day || props.cards.length === 0) return
+  enteredDay = day
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  await nextTick()
+  const cards = eventsLayer.value?.querySelectorAll<HTMLElement>(':scope > .activity-card') ?? []
+  cards.forEach((card, index) => {
+    card.animate?.(
+      [
+        { opacity: 0, transform: 'translateX(12px)' },
+        { opacity: 1, transform: 'translateX(0)' },
+      ],
+      { duration: 450, delay: 50 + index * 30, easing: 'cubic-bezier(0.25, 1.1, 0.4, 1)', fill: 'backwards' },
+    )
+  })
+}
+watch(() => [props.context.day, props.cards.length] as const, () => void playEntrance(), { immediate: true })
+
 onBeforeUnmount(() => {
   if (nowTimer !== null) window.clearInterval(nowTimer)
 })
@@ -212,7 +243,7 @@ onBeforeUnmount(() => {
         <span aria-hidden="true"></span>
       </div>
 
-      <div class="timeline-track__events">
+      <div ref="eventsLayer" class="timeline-track__events">
         <div
           v-for="block in visibleProcessing"
           :key="`processing-${block.range.startTs}-${block.range.endTs}`"
@@ -258,6 +289,11 @@ onBeforeUnmount(() => {
         <GeneratingCard
           v-if="props.generating !== 'off' && nowPosition !== null"
           :state="props.generating"
+          :class="{ 'is-resumable': props.generating === 'paused' }"
+          :tabindex="props.generating === 'paused' ? 0 : undefined"
+          :aria-label="props.generating === 'paused' ? t('recording.action.resume') : undefined"
+          @click.stop="props.generating === 'paused' && emit('resume')"
+          @keydown.enter.prevent="props.generating === 'paused' && emit('resume')"
           :style="{
             top: `${nowPosition + 6}px`,
             right: '14px',
@@ -271,6 +307,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Only the paused card takes clicks: it resumes recording, as in Dayflow. */
+.is-resumable {
+  cursor: pointer;
+}
+
+.is-resumable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
 .timeline-track {
   min-height: 0;
   padding-top: 7px;
