@@ -6,7 +6,6 @@ export default {
 
   title: 'Chat',
   newConversation: 'Neuer Chat',
-  conversations: 'Unterhaltungen',
   showSidebar: 'Seitenleiste einblenden',
   hideSidebar: 'Seitenleiste ausblenden',
   emptyConversations: 'Noch keine Unterhaltungen. Sende eine Nachricht, um eine zu beginnen.',

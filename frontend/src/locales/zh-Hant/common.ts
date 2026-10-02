@@ -17,9 +17,6 @@ export default {
     hours: '{count} 小時',
     hoursMinutes: '{hours} 小時 {minutes} 分鐘',
   },
-  placeholder: {
-    planned: '規劃中',
-  },
   combo: {
     expand: '展開選項',
     collapse: '收合選項',

@@ -6,7 +6,6 @@ export default {
 
   title: '채팅',
   newConversation: '새 채팅',
-  conversations: '채팅 목록',
   showSidebar: '사이드바 표시',
   hideSidebar: '사이드바 숨기기',
   emptyConversations: '아직 채팅이 없습니다. 메시지를 보내 시작하세요.',

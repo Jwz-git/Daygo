@@ -6,7 +6,6 @@ export default {
 
   title: '对话',
   newConversation: '新对话',
-  conversations: '对话列表',
   showSidebar: '显示侧栏',
   hideSidebar: '隐藏侧栏',
   emptyConversations: '还没有对话。发送第一条消息开始。',

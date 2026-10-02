@@ -17,9 +17,6 @@ export default {
     hours: '{count} h',
     hoursMinutes: '{hours} h {minutes} min',
   },
-  placeholder: {
-    planned: 'Planejado',
-  },
   combo: {
     expand: 'Expandir as opções',
     collapse: 'Recolher as opções',

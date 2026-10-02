@@ -6,7 +6,6 @@ export default {
 
   title: "Chat",
   newConversation: "New chat",
-  conversations: "Conversations",
   showSidebar: "Show sidebar",
   hideSidebar: "Hide sidebar",
   emptyConversations: "No conversations yet. Send a message to start one.",

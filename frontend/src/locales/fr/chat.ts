@@ -6,7 +6,6 @@ export default {
 
   title: 'Discussion',
   newConversation: 'Nouvelle discussion',
-  conversations: 'Discussions',
   showSidebar: 'Afficher le panneau latéral',
   hideSidebar: 'Masquer le panneau latéral',
   emptyConversations: 'Aucune discussion pour le moment. Envoyez un message pour en démarrer une.',

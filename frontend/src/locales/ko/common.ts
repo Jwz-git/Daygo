@@ -17,9 +17,6 @@ export default {
     hours: '{count}시간',
     hoursMinutes: '{hours}시간 {minutes}분',
   },
-  placeholder: {
-    planned: '예정',
-  },
   combo: {
     expand: '선택지 펼치기',
     collapse: '선택지 접기',

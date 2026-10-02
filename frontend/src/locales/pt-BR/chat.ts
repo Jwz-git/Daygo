@@ -6,7 +6,6 @@ export default {
 
   title: 'Conversa',
   newConversation: 'Nova conversa',
-  conversations: 'Conversas',
   showSidebar: 'Mostrar a barra lateral',
   hideSidebar: 'Ocultar a barra lateral',
   emptyConversations: 'Nenhuma conversa ainda. Envie uma mensagem para começar.',

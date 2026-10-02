@@ -17,9 +17,6 @@ export default {
     hours: '{count} 時間',
     hoursMinutes: '{hours} 時間 {minutes} 分',
   },
-  placeholder: {
-    planned: '予定',
-  },
   combo: {
     expand: '選択肢を開く',
     collapse: '選択肢を閉じる',

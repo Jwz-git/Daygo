@@ -6,7 +6,6 @@ export default {
 
   title: 'チャット',
   newConversation: '新しいチャット',
-  conversations: 'チャット一覧',
   showSidebar: 'サイドバーを表示',
   hideSidebar: 'サイドバーを隠す',
   emptyConversations: 'まだチャットがありません。メッセージを送って始めましょう。',

@@ -18,10 +18,8 @@ import { SETTINGS_SECTIONS, settingsSectionFromQuery, type SettingsSection } fro
 const { t } = useI18n()
 
 /*
- * A section is either implemented or a planned placeholder. The implemented
- * ones are routed explicitly in the template; every other key renders a
- * PlannedNotice. There is no account section: v1 has no account system by
- * design.
+ * Every section is routed explicitly in the template. There is no account
+ * section: v1 has no account system by design.
  *
  * storage / privacy / agentAccess consume the real GetSettings /
  * UpdateSettings bindings. Each section reads the committed setting after a

@@ -17,9 +17,6 @@ export default {
     hours: '{count} 小时',
     hoursMinutes: '{hours} 小时 {minutes} 分钟',
   },
-  placeholder: {
-    planned: '规划中',
-  },
   combo: {
     expand: '展开选项',
     collapse: '收起选项',
