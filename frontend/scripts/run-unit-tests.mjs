@@ -24,6 +24,9 @@ try {
     platform: 'node',
     target: 'node20',
     logLevel: 'silent',
+    // Components import image assets (the Dayflow icon artwork); inline them
+    // as data URLs the way Vite does for small files.
+    loader: { '.png': 'dataurl', '.svg': 'dataurl' },
     plugins: [{
       name: 'vue-component-fixtures',
       setup(builder) {
