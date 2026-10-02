@@ -197,3 +197,16 @@ test('an app used under two categories is one node fed by two links', () => {
     [['Coding', 'brand:github', 60], ['Writing', 'brand:github', 30]],
   )
 })
+
+test('site names drop their domain suffix; plain app names stay as written', () => {
+  const sites = weeklyChartFacts(week([[
+    segment(at(14, 9, 0), at(14, 9, 10), 'Coding', 'developer.mozilla.org'),
+    segment(at(14, 9, 10), at(14, 9, 20), 'Coding', 'course.hdu.edu.cn'),
+    segment(at(14, 9, 20), at(14, 9, 30), 'Coding', 'www.example.com'),
+    segment(at(14, 9, 30), at(14, 9, 40), 'Coding', 'Zoom'),
+    segment(at(14, 9, 40), at(14, 9, 50), 'Coding', 'Clash Verge'),
+  ]]))
+  assert.deepEqual(sites.map((fact) => fact.appName), ['developer.mozilla', 'course.hdu', 'example', 'Zoom', 'Clash Verge'])
+  // Grouping keys still use the full host, so two sites never merge by name.
+  assert.equal(sites[0].appKey, 'app:developer.mozilla.org')
+})

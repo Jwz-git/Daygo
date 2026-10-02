@@ -59,9 +59,9 @@ interface TileType {
 }
 
 const TILE_TYPES: Record<'large' | 'medium' | 'compact', TileType> = {
-  large: { name: 25, detail: 12, delta: 10.5, gap: 4, padding: 12, paddingX: 22 },
-  medium: { name: 20, detail: 11.5, delta: 10, gap: 3, padding: 10, paddingX: 16 },
-  compact: { name: 16, detail: 10.5, delta: 9.5, gap: 2, padding: 6, paddingX: 10 },
+  large: { name: 22, detail: 12, delta: 10.5, gap: 4, padding: 12, paddingX: 22 },
+  medium: { name: 18, detail: 11.5, delta: 10, gap: 3, padding: 10, paddingX: 16 },
+  compact: { name: 14.5, detail: 10.5, delta: 9.5, gap: 2, padding: 6, paddingX: 10 },
 }
 
 interface TilePlacement {
@@ -109,7 +109,7 @@ function tileType(rect: Rect): TileType {
 function tileMode(rect: Rect, app: WeeklyTreemapApp, type: TileType): TileMode {
   const width = rect.width * scale.value
   const height = rect.height * scale.value
-  const nameRow = (size: number): number => Math.max(14, size * 1.2) * 1.15
+  const nameRow = (size: number): number => Math.max(13, size * 1.1) * 1.15
   const time = type.detail * 1.35
   const badge = changeLabel(app.changeMinutes) !== null ? type.gap + type.delta * 1.3 + 2 : 0
   const fullHeight = type.padding * 2 + nameRow(type.name) + type.gap + time + badge
@@ -232,7 +232,7 @@ function changeLabel(minutes: number | null): string | null {
           <AppSiteIcon
             v-if="tile.app.sites.length > 0"
             :sites="tile.app.sites"
-            :size="Math.max(14, Math.round(nameSize(tile) * 1.2))"
+            :size="Math.max(13, Math.round(nameSize(tile) * 1.1))"
             :accent="tile.color"
           />
           <span class="tm__name">{{ labels.app(tile.app.key, tile.app.name) }}</span>

@@ -98,7 +98,22 @@ function appIdentity(segment: WeeklySegmentDTO): { key: string; name: string; si
     return { key: `brand:${identity.kind}`, name: BRAND_NAMES[identity.kind] ?? identity.label, sites }
   }
   const key = (identity.host ?? identity.label).toLocaleLowerCase('en-US')
-  return { key: `app:${key}`, name: identity.host ?? identity.label, sites }
+  // The icon resolver turns a dotless name into "<name>.com"; show the name
+  // as written then, and a real site without its public suffix.
+  const name = identity.host !== null && identity.label.includes('.') ? siteName(identity.host) : identity.label
+  return { key: `app:${key}`, name, sites }
+}
+
+// Second-level labels that belong to the suffix ("hdu.edu.cn" → "hdu").
+const SECOND_LEVEL_SUFFIXES = new Set(['ac', 'co', 'com', 'edu', 'gov', 'net', 'org'])
+
+/** "developer.mozilla.org" → "developer.mozilla", "course.hdu.edu.cn" → "course.hdu". */
+function siteName(host: string): string {
+  const labels = host.replace(/^www\./, '').split('.')
+  if (labels.length < 2) return host
+  labels.pop()
+  if (labels.length >= 2 && SECOND_LEVEL_SUFFIXES.has(labels[labels.length - 1])) labels.pop()
+  return labels.join('.')
 }
 
 /** Folds a weekly payload into one fact per non-System segment. */
