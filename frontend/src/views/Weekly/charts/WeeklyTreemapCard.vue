@@ -72,17 +72,26 @@ interface TilePlacement {
 }
 
 // Rendered pixels per design unit, tracked from the container's width.
+// Updates wait a frame so a layout pass never loops back into the observer.
 const scale = ref(1)
 let observer: ResizeObserver | null = null
+let frame = 0
 function observe(element: HTMLElement | null): void {
   observer?.disconnect()
   if (element === null || typeof ResizeObserver === 'undefined') return
   observer = new ResizeObserver(([entry]) => {
-    if (entry) scale.value = entry.contentRect.width / WIDTH || 1
+    const next = (entry?.contentRect.width ?? 0) / WIDTH || 1
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => {
+      if (Math.abs(next - scale.value) > 0.001) scale.value = next
+    })
   })
   observer.observe(element)
 }
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  cancelAnimationFrame(frame)
+})
 
 function tileType(rect: Rect): TileType {
   const width = rect.width * scale.value
