@@ -25,6 +25,13 @@ export function useWeeklyChartLabels(days: () => string[]) {
     return new Intl.DateTimeFormat(locale.value, { hour: 'numeric', timeZone: 'UTC' }).format(date)
   }
 
+  // "09:15"-style clock time for tooltips, in the user's locale.
+  function clock(minute: number): string {
+    const normalized = ((Math.round(minute) % 1440) + 1440) % 1440
+    const date = new Date(Date.UTC(2026, 0, 5, Math.floor(normalized / 60), normalized % 60))
+    return new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(date)
+  }
+
   function category(name: string): string {
     return name === WEEKLY_OTHER_KEY ? t('weekly.charts.otherCategory') : categoryLabel(name, t)
   }
@@ -33,5 +40,5 @@ export function useWeeklyChartLabels(days: () => string[]) {
     return key === WEEKLY_OTHER_KEY || name === '' ? t('weekly.charts.otherApp') : name
   }
 
-  return { weekday, hour, category, app }
+  return { weekday, hour, clock, category, app }
 }

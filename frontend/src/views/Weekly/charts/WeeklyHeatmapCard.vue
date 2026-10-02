@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { hourTicks, type WeeklyHeatmapSnapshot } from '@/stores/weeklyCharts'
 
 import WeeklyChartCard from './WeeklyChartCard.vue'
+import WeeklyChartTooltip from './WeeklyChartTooltip.vue'
+import { svgPoint, useChartPointer } from './useChartPointer'
 import { useWeeklyChartLabels } from './useWeeklyChartLabels'
 
 /*
@@ -12,6 +14,7 @@ import { useWeeklyChartLabels } from './useWeeklyChartLabels'
  * row per day, one cell per 5 minutes, coloured from the bucket score:
  * negative runs soft lavender to blue (focused), positive soft peach to
  * orange (distracted), near zero stays the neutral empty-cell colour.
+ * Hovering a cell outlines it, recedes the other days and names the slot.
  */
 const props = defineProps<{ snapshot: WeeklyHeatmapSnapshot; days: string[] }>()
 
@@ -38,8 +41,8 @@ function cellColor(score: number): string | null {
 const CELL_WIDTH = 6
 const CELL_HEIGHT = 12
 const ROW_GAP = 2
-const LABEL_WIDTH = 30
-const AXIS_HEIGHT = 18
+const LABEL_WIDTH = 36
+const AXIS_HEIGHT = 20
 
 const columns = computed(() => props.snapshot.rows[0]?.length ?? 0)
 const width = computed(() => LABEL_WIDTH + columns.value * CELL_WIDTH)
@@ -51,6 +54,35 @@ const ticks = computed(() =>
     x: LABEL_WIDTH + ((minute - props.snapshot.start) / props.snapshot.bucketMinutes) * CELL_WIDTH,
   })),
 )
+
+interface HoveredBucket {
+  day: number
+  bucket: number
+  score: number
+}
+
+const pointer = useChartPointer<HoveredBucket>()
+
+// One listener on the svg, mapped to the grid, so gaps between cells never flicker.
+function onPointerMove(event: PointerEvent): void {
+  const point = svgPoint(event)
+  const day = point === null ? -1 : Math.floor(point.y / (CELL_HEIGHT + ROW_GAP))
+  const bucket = point === null ? -1 : Math.floor((point.x - LABEL_WIDTH) / CELL_WIDTH)
+  const score = props.snapshot.rows[day]?.[bucket]
+  if (score !== undefined) pointer.move(event, { day, bucket, score })
+  else pointer.leave()
+}
+
+function bucketRange(bucket: number): string {
+  const start = props.snapshot.start + bucket * props.snapshot.bucketMinutes
+  return `${labels.clock(start)} – ${labels.clock(start + props.snapshot.bucketMinutes)}`
+}
+
+function scoreLabel(score: number): string {
+  if (Math.abs(score) < NEUTRAL_THRESHOLD) return t('weekly.charts.tooltip.noRecord')
+  const kind = score < 0 ? t('weekly.charts.heatmap.focused') : t('weekly.charts.heatmap.distracted')
+  return `${kind} · ${Math.round(Math.min(1, Math.abs(score)) * 100)}%`
+}
 </script>
 
 <template>
@@ -60,35 +92,70 @@ const ticks = computed(() =>
       <i class="hm__legend-bar"></i>
       <span>{{ t('weekly.charts.heatmap.distracted') }}</span>
     </div>
-    <div class="hm" role="img" :aria-label="t('weekly.charts.heatmap.aria')">
-      <svg :viewBox="`0 0 ${width} ${height}`" aria-hidden="true" preserveAspectRatio="xMinYMin meet">
-        <g v-for="(row, dayIndex) in snapshot.rows" :key="`row-${dayIndex}`">
-          <text
-            class="hm__label"
-            :x="LABEL_WIDTH - 6"
-            :y="dayIndex * (CELL_HEIGHT + ROW_GAP) + CELL_HEIGHT - 3"
-            text-anchor="end"
-          >{{ labels.weekday(dayIndex) }}</text>
+    <div
+      :ref="(el) => { pointer.container.value = el as HTMLElement | null }"
+      class="hm"
+      :class="{ 'has-cell': pointer.hovered.value !== null }"
+      role="img"
+      :aria-label="t('weekly.charts.heatmap.aria')"
+    >
+      <div class="hm__scroll">
+        <svg
+          :viewBox="`0 0 ${width} ${height}`"
+          aria-hidden="true"
+          preserveAspectRatio="xMinYMin meet"
+          @pointermove="onPointerMove"
+          @pointerleave="pointer.leave"
+        >
+          <g
+            v-for="(row, dayIndex) in snapshot.rows"
+            :key="`row-${dayIndex}`"
+            class="hm__row"
+            :class="{ 'is-current': pointer.hovered.value?.day === dayIndex }"
+          >
+            <text
+              class="hm__label"
+              :x="LABEL_WIDTH - 6"
+              :y="dayIndex * (CELL_HEIGHT + ROW_GAP) + CELL_HEIGHT - 3"
+              text-anchor="end"
+            >{{ labels.weekday(dayIndex) }}</text>
+            <rect
+              v-for="(score, bucket) in row"
+              :key="bucket"
+              :x="LABEL_WIDTH + bucket * CELL_WIDTH"
+              :y="dayIndex * (CELL_HEIGHT + ROW_GAP)"
+              :width="CELL_WIDTH - 0.5"
+              :height="CELL_HEIGHT"
+              :class="{ 'hm__cell--neutral': cellColor(score) === null }"
+              :fill="cellColor(score) ?? undefined"
+            />
+          </g>
           <rect
-            v-for="(score, bucket) in row"
-            :key="bucket"
-            :x="LABEL_WIDTH + bucket * CELL_WIDTH"
-            :y="dayIndex * (CELL_HEIGHT + ROW_GAP)"
-            :width="CELL_WIDTH - 0.5"
-            :height="CELL_HEIGHT"
-            :class="{ 'hm__cell--neutral': cellColor(score) === null }"
-            :fill="cellColor(score) ?? undefined"
+            v-if="pointer.hovered.value"
+            class="hm__cursor"
+            :style="{
+              transform: `translate(${LABEL_WIDTH + pointer.hovered.value.bucket * CELL_WIDTH - 1}px, ${pointer.hovered.value.day * (CELL_HEIGHT + ROW_GAP) - 1}px)`,
+            }"
+            :width="CELL_WIDTH + 1.5"
+            :height="CELL_HEIGHT + 2"
+            rx="1.5"
           />
-        </g>
-        <text
-          v-for="tick in ticks"
-          :key="`tick-${tick.minute}`"
-          class="hm__label"
-          :x="tick.x"
-          :y="7 * (CELL_HEIGHT + ROW_GAP) + 12"
-          text-anchor="middle"
-        >{{ labels.hour(tick.minute) }}</text>
-      </svg>
+          <text
+            v-for="tick in ticks"
+            :key="`tick-${tick.minute}`"
+            class="hm__label"
+            :x="tick.x"
+            :y="7 * (CELL_HEIGHT + ROW_GAP) + 14"
+            text-anchor="middle"
+          >{{ labels.hour(tick.minute) }}</text>
+        </svg>
+      </div>
+      <WeeklyChartTooltip :visible="pointer.hovered.value !== null" :x="pointer.x.value" :y="pointer.y.value">
+        <template v-if="pointer.hovered.value">
+          <b>{{ labels.weekday(pointer.hovered.value.day, 'long') }} · {{ bucketRange(pointer.hovered.value.bucket) }}</b>
+          <span>{{ scoreLabel(pointer.hovered.value.score) }}</span>
+        </template>
+      </WeeklyChartTooltip>
     </div>
   </WeeklyChartCard>
 </template>
@@ -101,7 +168,8 @@ const ticks = computed(() =>
   gap: 8px;
   margin: -34px 0 14px;
   color: var(--dg-wk-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .hm__legend-bar {
@@ -112,7 +180,27 @@ const ticks = computed(() =>
 }
 
 .hm {
+  position: relative;
+}
+
+.hm__scroll {
   overflow-x: auto;
+}
+
+.hm__row {
+  transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hm.has-cell .hm__row:not(.is-current) {
+  opacity: 0.5;
+}
+
+.hm__cursor {
+  fill: none;
+  stroke: var(--dg-wk-text);
+  stroke-width: 1.2;
+  pointer-events: none;
+  transition: transform 90ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .hm svg {
@@ -128,7 +216,18 @@ const ticks = computed(() =>
 
 .hm__label {
   fill: var(--dg-wk-text-secondary);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.hm__row.is-current .hm__label {
+  fill: var(--dg-wk-text);
+  font-weight: 650;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm__row,
+  .hm__cursor { transition: none; }
 }
 
 @media (max-width: 760px) {

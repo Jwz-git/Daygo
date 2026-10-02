@@ -52,7 +52,7 @@ defineProps<{ title: string }>()
   border-top: 1px solid var(--dg-wk-divider);
   background: var(--dg-wk-footer);
   color: var(--dg-wk-text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
 }
 </style>

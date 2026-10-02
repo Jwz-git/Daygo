@@ -231,6 +231,7 @@
   --dg-wk-empty-cell: rgba(152, 152, 152, 0.1);
   --dg-wk-solid: #ffffff;
   --dg-wk-row-fill: #f2f2f2;
+  --dg-wk-tooltip: rgba(255, 255, 255, 0.96);
   --dg-wk-donut-shadow: rgba(99, 71, 56, 0.35);
 
   /* motion */
