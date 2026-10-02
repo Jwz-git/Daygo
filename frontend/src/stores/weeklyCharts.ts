@@ -475,13 +475,62 @@ export interface WeeklySankeySnapshot {
   links: Array<{ from: string; to: string; minutes: number }>
 }
 
-function topBuckets(nodes: WeeklySankeyNode[], maxVisible: number): { nodes: WeeklySankeyNode[]; visible: Set<string> } {
+// Dayflow's WeeklyDashboardBuilder.appColorHex: a brand colour when the app
+// name contains a known needle, otherwise a palette slot from the djb2 hash of
+// the name (Swift Int arithmetic, so 64-bit wrapping). One deliberate change:
+// "x" must be the whole name or a domain label, so "Firefox" is not painted
+// as X.
+const APP_COLOR_NEEDLES: Array<[RegExp, string]> = [
+  [/chatgpt/, '#333333'],
+  [/claude/, '#D97757'],
+  [/codex/, '#111111'],
+  [/cursor/, '#111111'],
+  [/xcode/, '#4085FD'],
+  [/dayflow|daygo/, '#FF7A2F'],
+  [/figma/, '#FF7262'],
+  [/slack/, '#36C5F0'],
+  [/zoom/, '#4085FD'],
+  [/meet/, '#34A853'],
+  [/youtube/, '#FF0000'],
+  [/reddit/, '#FF613C'],
+  [/(^|[^a-z0-9])x([^a-z0-9]|$)|twitter/, '#111111'],
+  [/substack/, '#FF6E3E'],
+  [/notion/, '#111111'],
+  [/linear/, '#5E6AD2'],
+  [/github/, '#24292F'],
+  [/safari/, '#2E8BFF'],
+  [/chrome/, '#4285F4'],
+  [/calendar/, '#A29993'],
+  [/mail/, '#4F8EF7'],
+  [/messages/, '#38D06E'],
+  [/other/, '#D9D9D9'],
+]
+const APP_COLOR_PALETTE = ['#93BCFF', '#DE9DFC', '#6CDACD', '#FFA189', '#FFC6B7', OTHER_COLOR]
+const APP_OTHER_COLOR = '#D9D9D9'
+
+export function sankeyAppColor(name: string): string {
+  const lowered = name.toLowerCase()
+  const match = APP_COLOR_NEEDLES.find(([needle]) => needle.test(lowered))
+  if (match !== undefined) return match[1]
+  let hash = 5381n
+  for (const byte of new TextEncoder().encode(name)) {
+    hash = BigInt.asIntN(64, (hash << 5n) + hash + BigInt(byte))
+  }
+  const index = Number((hash < 0n ? -hash : hash) % BigInt(APP_COLOR_PALETTE.length))
+  return APP_COLOR_PALETTE[index]
+}
+
+function topBuckets(
+  nodes: WeeklySankeyNode[],
+  maxVisible: number,
+  otherColor: string,
+): { nodes: WeeklySankeyNode[]; visible: Set<string> } {
   const sorted = [...nodes].sort((left, right) => right.minutes - left.minutes || left.name.localeCompare(right.name))
   if (sorted.length <= maxVisible) return { nodes: sorted, visible: new Set(sorted.map((node) => node.key)) }
   const kept = sorted.slice(0, maxVisible - 1).filter((node) => node.key !== OTHER_KEY)
   const otherMinutes = sorted.filter((node) => !kept.includes(node)).reduce((sum, node) => sum + node.minutes, 0)
   return {
-    nodes: [...kept, { key: OTHER_KEY, name: '', colorHex: OTHER_COLOR, minutes: otherMinutes, sites: [] }],
+    nodes: [...kept, { key: OTHER_KEY, name: '', colorHex: otherColor, minutes: otherMinutes, sites: [] }],
     visible: new Set(kept.map((node) => node.key)),
   }
 }
@@ -497,13 +546,17 @@ export function buildSankey(facts: WeeklyChartFact[]): WeeklySankeySnapshot {
     category.minutes += fact.minutes
     categoryNodes.set(fact.category, category)
     const app = appNodes.get(fact.appKey) ?? {
-      key: fact.appKey, name: fact.appName, colorHex: fact.colorHex, minutes: 0, sites: fact.appSites,
+      key: fact.appKey,
+      name: fact.appName,
+      colorHex: fact.appKey === OTHER_KEY ? APP_OTHER_COLOR : sankeyAppColor(fact.appName),
+      minutes: 0,
+      sites: fact.appSites,
     }
     app.minutes += fact.minutes
     appNodes.set(fact.appKey, app)
   }
-  const categories = topBuckets([...categoryNodes.values()], 6)
-  const apps = topBuckets([...appNodes.values()], 10)
+  const categories = topBuckets([...categoryNodes.values()], 6, OTHER_COLOR)
+  const apps = topBuckets([...appNodes.values()], 10, APP_OTHER_COLOR)
   const links = new Map<string, number>()
   for (const fact of shown) {
     const from = categories.visible.has(fact.category) ? fact.category : OTHER_KEY

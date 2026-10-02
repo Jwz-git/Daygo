@@ -428,7 +428,7 @@
             "category": "项目工作",
             "isIdle": false,
             "appSites": {
-              "primary": "notion.so",
+              "primary": "github.com",
               "secondary": null
             },
             "distractions": []
@@ -573,7 +573,7 @@
             "category": "项目工作",
             "isIdle": false,
             "appSites": {
-              "primary": "notion.so",
+              "primary": "Slack",
               "secondary": null
             },
             "distractions": []
@@ -735,7 +735,7 @@
             "category": "学习",
             "isIdle": false,
             "appSites": {
-              "primary": "developer.mozilla.org",
+              "primary": "Visual Studio Code",
               "secondary": null
             },
             "distractions": []
@@ -800,7 +800,7 @@
             "category": "个人",
             "isIdle": false,
             "appSites": {
-              "primary": "Safari",
+              "primary": "youtube.com",
               "secondary": null
             },
             "distractions": []

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { ribbonPath, squarify, stackColumn } from '../src/lib/chartLayout'
+import { squarify } from '../src/lib/chartLayout'
 
 const bounds = { x: 10, y: 20, width: 600, height: 400 }
 
@@ -40,13 +40,4 @@ test('squarify gaps separate tiles but not the outer edge', () => {
   assert.equal(left.x + left.width + 4, right.x, 'a 4px gap between the two tiles')
   assert.equal(right.x + right.width, 200, 'the last tile reaches the edge')
   assert.equal(left.height, 100)
-})
-
-test('stackColumn shares height by minutes with gaps between nodes', () => {
-  const stacked = stackColumn([{ key: 'a', minutes: 30 }, { key: 'b', minutes: 10 }], 0, 108, 8)
-  assert.deepEqual(stacked, [{ key: 'a', y: 0, height: 75 }, { key: 'b', y: 83, height: 25 }])
-})
-
-test('ribbonPath closes a band between two columns', () => {
-  assert.equal(ribbonPath(0, 0, 10, 100, 50, 10), 'M0,0 C50,0 50,50 100,50 L100,60 C50,60 50,10 0,10 Z')
 })

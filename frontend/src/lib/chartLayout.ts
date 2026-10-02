@@ -1,7 +1,7 @@
 /*
- * Geometry for the weekly treemap and sankey, kept free of Vue so it can be
- * tested directly. Mirrors Dayflow's SquarifiedTreemapLayout and its sankey
- * column stacking (Views/UI/Weekly/Sections, MIT).
+ * Geometry for the weekly treemap, kept free of Vue so it can be tested
+ * directly. Mirrors Dayflow's SquarifiedTreemapLayout (Views/UI/Weekly/Sections,
+ * MIT). The sankey's geometry lives in lib/sankeyLayout.
  */
 
 export interface Rect {
@@ -84,44 +84,4 @@ export function squarify<T>(items: T[], value: (item: T) => number, bounds: Rect
     if (Math.abs(placement.rect.y + placement.rect.height + gap - bottom) < 0.5) placement.rect.height += gap
   }
   return placements
-}
-
-export interface StackedNode {
-  key: string
-  y: number
-  height: number
-}
-
-/**
- * Stacks nodes in one sankey column: heights proportional to minutes within
- * [top, bottom], separated by `gap`, each at least `minHeight` tall.
- */
-export function stackColumn(
-  nodes: Array<{ key: string; minutes: number }>,
-  top: number,
-  bottom: number,
-  gap: number,
-  minHeight = 2,
-): StackedNode[] {
-  const total = nodes.reduce((sum, node) => sum + Math.max(0, node.minutes), 0)
-  const usable = Math.max(0, bottom - top - gap * Math.max(0, nodes.length - 1))
-  let cursor = top
-  return nodes.map((node) => {
-    const height = total > 0 ? Math.max(minHeight, (Math.max(0, node.minutes) / total) * usable) : minHeight
-    const placed = { key: node.key, y: cursor, height }
-    cursor += height + gap
-    return placed
-  })
-}
-
-/** Closed path of a ribbon from a band on the left column to one on the right. */
-export function ribbonPath(x0: number, y0: number, h0: number, x1: number, y1: number, h1: number): string {
-  const mid = (x0 + x1) / 2
-  return [
-    `M${x0},${y0}`,
-    `C${mid},${y0} ${mid},${y1} ${x1},${y1}`,
-    `L${x1},${y1 + h1}`,
-    `C${mid},${y1 + h1} ${mid},${y0 + h0} ${x0},${y0 + h0}`,
-    'Z',
-  ].join(' ')
 }

@@ -41,14 +41,31 @@ function percentStyle(rect: Rect): Record<string, string> {
   }
 }
 
-// How much a tile shows depends on its rendered size, not its design-space
-// size, so a narrow window drops the icon and change before text overflows.
-type TileDetail = 'full' | 'medium' | 'compact'
+// Dayflow's leaf rules, judged on the rendered size so a narrow window drops
+// detail before text overflows: a typography tier (WeeklyTreemapLeafTypography)
+// and a presentation mode (WeeklyTreemapLeafPresentationMode). Sizes are one
+// step larger than Dayflow's 20 / 16 / 13 serif names for this window.
+type TileMode = 'full' | 'compact' | 'labelOnly'
+
+interface TileType {
+  name: number
+  detail: number
+  delta: number
+  gap: number
+  padding: number
+}
+
+const TILE_TYPES: Record<'large' | 'medium' | 'compact', TileType> = {
+  large: { name: 23, detail: 13.5, delta: 12.5, gap: 4, padding: 12 },
+  medium: { name: 18.5, detail: 13, delta: 12, gap: 3, padding: 10 },
+  compact: { name: 15, detail: 11.5, delta: 11, gap: 2, padding: 6 },
+}
 
 interface TilePlacement {
   app: WeeklyTreemapApp
   rect: Rect
-  detail: TileDetail
+  mode: TileMode
+  type: TileType
   id: string
   color: string
   category: WeeklyTreemapCategory
@@ -67,12 +84,33 @@ function observe(element: HTMLElement | null): void {
 }
 onBeforeUnmount(() => observer?.disconnect())
 
-function tileDetail(rect: Rect): TileDetail {
+function tileType(rect: Rect): TileType {
   const width = rect.width * scale.value
   const height = rect.height * scale.value
-  if (width >= 110 && height >= 92) return 'full'
-  if (width >= 76 && height >= 50) return 'medium'
-  return 'compact'
+  if (width >= 160 && height >= 110) return TILE_TYPES.large
+  if (width >= 90 && height >= 54) return TILE_TYPES.medium
+  return TILE_TYPES.compact
+}
+
+function tileMode(rect: Rect, app: WeeklyTreemapApp): TileMode {
+  const width = rect.width * scale.value
+  const height = rect.height * scale.value
+  const hasIcon = app.sites.length > 0
+  const fullHeight = changeLabel(app.changeMinutes) !== null ? (hasIcon ? 100 : 80) : (hasIcon ? 76 : 62)
+  if (width >= 96 && height >= fullHeight) return 'full'
+  if (width >= 64 && height >= 46) return 'compact'
+  return 'labelOnly'
+}
+
+// Name size per mode, as Dayflow shrinks compact and label-only tiles.
+function nameSize(tile: TilePlacement): number {
+  if (tile.mode === 'full') return tile.type.name
+  if (tile.mode === 'compact') return Math.max(tile.type.name - 2, 12)
+  return Math.max(tile.type.name - 3, 11)
+}
+
+function detailSize(tile: TilePlacement): number {
+  return tile.mode === 'full' ? tile.type.detail : Math.max(tile.type.detail - 1, 11)
 }
 
 function narrowShell(rect: Rect): boolean {
@@ -92,7 +130,8 @@ const layout = computed(() =>
         .map(({ item: app, rect: tile }) => ({
           app,
           rect: tile,
-          detail: tileDetail(tile),
+          mode: tileMode(tile, app),
+          type: tileType(tile),
           id: `${category.name}\u0000${app.key}`,
           color: category.colorHex,
           category,
@@ -143,16 +182,31 @@ function changeLabel(minutes: number | null): string | null {
         v-for="tile in tiles"
         :key="tile.id"
         class="tm__tile"
-        :class="{ 'is-compact': tile.detail === 'compact', 'is-hovered': hoveredId === tile.id }"
-        :style="{ ...percentStyle(tile.rect), '--tm-color': tile.color }"
+        :class="{ 'is-hovered': hoveredId === tile.id }"
+        :style="{
+          ...percentStyle(tile.rect),
+          '--tm-color': tile.color,
+          '--tm-name': `${nameSize(tile)}px`,
+          '--tm-detail': `${detailSize(tile)}px`,
+          '--tm-delta': `${tile.type.delta}px`,
+          gap: `${tile.type.gap}px`,
+          padding: `${tile.type.padding}px`,
+        }"
         @pointermove="pointer.move($event, tile)"
         @pointerleave="pointer.leave"
       >
-        <AppSiteIcon v-if="tile.detail === 'full' && tile.app.sites.length > 0" :sites="tile.app.sites" :size="20" :accent="tile.color" />
-        <span class="tm__name">{{ labels.app(tile.app.key, tile.app.name) }}</span>
-        <span v-if="tile.detail !== 'compact'" class="tm__time">{{ formatDuration(tile.app.minutes) }}</span>
+        <span class="tm__name-row">
+          <AppSiteIcon
+            v-if="tile.app.sites.length > 0"
+            :sites="tile.app.sites"
+            :size="Math.max(12, Math.round(nameSize(tile) * 1.15))"
+            :accent="tile.color"
+          />
+          <span class="tm__name">{{ labels.app(tile.app.key, tile.app.name) }}</span>
+        </span>
+        <span v-if="tile.mode !== 'labelOnly'" class="tm__time">{{ formatDuration(tile.app.minutes) }}</span>
         <span
-          v-if="tile.detail === 'full' && changeLabel(tile.app.changeMinutes)"
+          v-if="tile.mode === 'full' && changeLabel(tile.app.changeMinutes)"
           class="tm__change"
           :class="(tile.app.changeMinutes ?? 0) > 0 ? 'is-up' : 'is-down'"
         >{{ changeLabel(tile.app.changeMinutes) }}</span>
@@ -271,22 +325,30 @@ function changeLabel(minutes: number | null): string | null {
   .tm__tile.is-hovered { transform: none; }
 }
 
-.tm__name {
+.tm__name-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   max-width: 100%;
-  overflow: hidden;
-  color: var(--dg-wk-text);
-  font-family: var(--dg-font-ui);
-  font-size: 15.5px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
 }
 
-.tm__tile.is-compact .tm__name {
-  font-size: 12px;
-  font-weight: 650;
+.tm__name-row > :not(.tm__name) {
+  flex: none;
+}
+
+/* Dayflow keeps the Instrument Serif name; only its size grows here. */
+.tm__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dg-wk-text);
+  font-family: var(--dg-font-serif);
+  font-size: var(--tm-name);
+  font-weight: 400;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tm__time,
@@ -298,21 +360,24 @@ function changeLabel(minutes: number | null): string | null {
 }
 
 .tm__time {
-  color: color-mix(in srgb, var(--dg-wk-text) 78%, transparent);
-  font-size: 13px;
+  color: var(--dg-wk-text);
+  font-size: var(--tm-detail);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
+/* Dayflow's change badge: monospaced figures on a tinted pill. */
 .tm__change {
-  font-size: 12.5px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: var(--tm-delta);
+  font-weight: 600;
 }
 
-.tm__change.is-up { color: #1f8a57; }
-.tm__change.is-down { color: #d8432c; }
+.tm__change.is-up { background: #d1eae4; color: #089041; }
+.tm__change.is-down { background: #fae0d8; color: #e25922; }
 
-:root[data-dg-appearance='dark'] .tm__change.is-up { color: #5fd49a; }
-:root[data-dg-appearance='dark'] .tm__change.is-down { color: #ff8a73; }
+:root[data-dg-appearance='dark'] .tm__change.is-up { background: #58927f; color: #e0fbee; }
+:root[data-dg-appearance='dark'] .tm__change.is-down { background: #ca6d59; color: #fce3e1; }
 </style>

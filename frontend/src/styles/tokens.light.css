@@ -232,6 +232,8 @@
   --dg-wk-solid: #ffffff;
   --dg-wk-row-fill: #f2f2f2;
   --dg-wk-tooltip: rgba(255, 255, 255, 0.96);
+  /* Dayflow's warm sankey washes are tuned for this light card. */
+  --dg-wk-sankey-underlay: 1;
   --dg-wk-donut-shadow: rgba(99, 71, 56, 0.35);
 
   /* motion */

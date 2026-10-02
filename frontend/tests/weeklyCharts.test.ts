@@ -10,6 +10,7 @@ import {
   buildTreemap,
   buildWorkflow,
   logicalMinute,
+  sankeyAppColor,
   weeklyChartFacts,
 } from '../src/stores/weeklyCharts'
 
@@ -158,4 +159,41 @@ test('sankey links categories to apps and conserves minutes', () => {
   const github = sankey.links.find((link) => link.from === 'Coding' && link.to === 'brand:github')
   assert.equal(github?.minutes, 90)
   assert.deepEqual(sankey.apps.map((app) => app.key), ['brand:github', 'brand:vscode', 'brand:youtube', 'other'])
+})
+
+// Golden values from Dayflow's own WeeklyDashboardBuilder.appColorHex, run in
+// Swift (brand needles first, then the djb2 hash over the name's UTF-8 bytes).
+test('sankey app colours follow Dayflow per app, not per category', () => {
+  assert.equal(sankeyAppColor('GitHub'), '#24292F')
+  assert.equal(sankeyAppColor('YouTube'), '#FF0000')
+  assert.equal(sankeyAppColor('Claude'), '#D97757')
+  assert.equal(sankeyAppColor('Code'), '#6CDACD')
+  assert.equal(sankeyAppColor('Visual Studio Code'), '#FFC6B7')
+  assert.equal(sankeyAppColor('linear.app'), '#5E6AD2', 'brand needle wins before the hash')
+  assert.equal(sankeyAppColor('developer.mozilla.org'), '#DE9DFC')
+  assert.equal(sankeyAppColor('bilibili'), '#FFA189')
+  assert.equal(sankeyAppColor('Wechat'), '#BFB6AE')
+  assert.equal(sankeyAppColor('微信'), '#6CDACD')
+  // Deliberate difference: Dayflow matches "x" anywhere, painting Firefox black.
+  assert.equal(sankeyAppColor('X'), '#111111')
+  assert.notEqual(sankeyAppColor('Firefox'), '#111111')
+
+  const sankey = buildSankey(facts)
+  const color = new Map(sankey.apps.map((app) => [app.key, app.colorHex]))
+  assert.equal(color.get('brand:github'), '#24292F')
+  assert.equal(color.get('brand:youtube'), '#FF0000')
+  assert.equal(color.get('other'), '#D9D9D9')
+})
+
+test('an app used under two categories is one node fed by two links', () => {
+  const crossed = weeklyChartFacts(week([[
+    segment(at(14, 10, 0), at(14, 11, 0), 'Coding', 'github.com'),
+    segment(at(14, 11, 0), at(14, 11, 30), 'Writing', 'github.com'),
+  ]]))
+  const sankey = buildSankey(crossed)
+  assert.deepEqual(sankey.apps.map((app) => [app.key, app.minutes]), [['brand:github', 90]])
+  assert.deepEqual(
+    sankey.links.map((link) => [link.from, link.to, link.minutes]).sort(),
+    [['Coding', 'brand:github', 60], ['Writing', 'brand:github', 30]],
+  )
 })

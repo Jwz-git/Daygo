@@ -3,8 +3,17 @@ import { computed, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
-import { ribbonPath, stackColumn } from '@/lib/chartLayout'
 import { useDurationFormat } from '@/lib/duration'
+import {
+  SANKEY_BAR_WIDTH,
+  SANKEY_COLUMNS,
+  SANKEY_HEIGHT,
+  SANKEY_WIDTH,
+  sankeyGradientStops,
+  sankeyLayout,
+  sankeyRibbonPath,
+  type SankeyFlow,
+} from '@/lib/sankeyLayout'
 import type { WeeklySankeySnapshot } from '@/stores/weeklyCharts'
 
 import WeeklyChartCard from './WeeklyChartCard.vue'
@@ -13,223 +22,128 @@ import { useChartPointer } from './useChartPointer'
 import { useWeeklyChartLabels } from './useWeeklyChartLabels'
 
 /*
- * "Weekly breakdown" (Dayflow WeeklySankeySection): the week flows from one
- * source bar into category bars, then into app bars. Ribbons fade from a warm
- * neutral into the target colour. As in Dayflow, hovering a node or a ribbon
- * lights its whole path and lets the rest recede; clicking pins it.
+ * "Weekly breakdown" (Dayflow WeeklySankeyCard): the week opens outwards from
+ * a short source bar into taller category bars and the tallest app column,
+ * each app in its own colour and fed by every category it was used under.
+ * Geometry lives in lib/sankeyLayout. As in Dayflow, hovering a node or a
+ * ribbon (which stands for its target) keeps its connections and recedes the
+ * rest; clicking pins it, clicking empty space unpins.
  *
- * Ribbons within a bar are stacked in the order of the bars they connect to,
- * which keeps crossings to the ones the data actually forces. Gradient ids are
- * positional: category names may contain spaces ("Focus Work"), which broke
- * url(#…) references and painted the ribbons black.
+ * Gradient ids are positional and scoped to this instance: names may contain
+ * spaces ("Focus Work"), which once broke url(#…) and painted ribbons black.
  */
 const props = defineProps<{ snapshot: WeeklySankeySnapshot; weekLabel: string; days: string[] }>()
 
-// Gradient ids are positional and scoped to this instance, never built from names.
 const gradientPrefix = `sk-${useId()}`
-
 const { t } = useI18n()
 const formatDuration = useDurationFormat()
 const labels = useWeeklyChartLabels(() => props.days)
 
-const WIDTH = 900
-const HEIGHT = 400
-const TOP = 10
-const BOTTOM = HEIGHT - 10
-const BAR = 9
-const SOURCE_X = 4
-const CATEGORY_X = 330
-const APP_X = 650
-const COMPACT_LABEL_HEIGHT = 28
+const SOURCE_ID = 'source'
+const categoryId = (key: string): string => `c:${key}`
+const appId = (key: string): string => `a:${key}`
 
-const total = computed(() => Math.max(1, props.snapshot.total))
 const categoryNodes = computed(() => new Map(props.snapshot.categories.map((node) => [node.key, node])))
 const appNodes = computed(() => new Map(props.snapshot.apps.map((node) => [node.key, node])))
+const total = computed(() => Math.max(1, props.snapshot.total))
 
-// App bars take the colour of the category that feeds them most.
-const appColors = computed(() => {
-  const best = new Map<string, { minutes: number; color: string }>()
-  for (const link of props.snapshot.links) {
-    const current = best.get(link.to)
-    if (current === undefined || link.minutes > current.minutes) {
-      best.set(link.to, { minutes: link.minutes, color: categoryNodes.value.get(link.from)?.colorHex ?? '#BFB6AE' })
-    }
+const layout = computed(() => sankeyLayout(props.snapshot.categories, props.snapshot.apps, props.snapshot.links))
+
+// Flows with namespaced endpoints, in Dayflow's terms: source → category → app.
+const flows = computed(() =>
+  layout.value.flows.map((flow) => ({
+    ...flow,
+    fromId: flow.kind === 'source' ? SOURCE_ID : categoryId(flow.from),
+    toId: flow.kind === 'source' ? categoryId(flow.to) : appId(flow.to),
+    path: sankeyRibbonPath(flow.x0, flow.y0Top, flow.y0Bottom, flow.x1, flow.y1Top, flow.y1Bottom, flow.tension),
+    stops: sankeyGradientStops(flow),
+  })),
+)
+
+// Warm washes under each pair of columns.
+const underlays = computed(() => {
+  const { categories, apps, source } = layout.value
+  if (categories.length === 0 || apps.length === 0) return null
+  const categoryTop = Math.min(...categories.map((band) => band.y))
+  const categoryBottom = Math.max(...categories.map((band) => band.y + band.height))
+  const appTop = Math.min(...apps.map((band) => band.y))
+  const appBottom = Math.max(...apps.map((band) => band.y + band.height))
+  const categoryX = SANKEY_COLUMNS.categories.x
+  return {
+    left: sankeyRibbonPath(source.x + SANKEY_BAR_WIDTH, source.y, source.y + source.height, categoryX, categoryTop, categoryBottom, 0.15),
+    right: sankeyRibbonPath(categoryX + SANKEY_BAR_WIDTH, categoryTop, categoryBottom, SANKEY_COLUMNS.apps.x, appTop, appBottom, 0.22),
   }
-  return new Map([...best.entries()].map(([key, value]) => [key, value.color]))
 })
 
-interface Ribbon {
-  id: string
-  kind: 'source' | 'link'
-  from: string
-  to: string
-  minutes: number
-  path: string
-  color: string
-  strength: number
+// ---- Interaction (Dayflow WeeklySankeyCard.activeNodeID) -------------------
+
+interface Hover {
+  node: string
+  flow: SankeyFlow | null
 }
 
-const layout = computed(() => {
-  const categories = stackColumn(props.snapshot.categories, TOP, BOTTOM, 10)
-  const apps = stackColumn(props.snapshot.apps, TOP, BOTTOM, 7)
-  const categoryByKey = new Map(categories.map((node) => [node.key, node]))
-  const appByKey = new Map(apps.map((node) => [node.key, node]))
-  const categoryOrder = new Map(categories.map((node, index) => [node.key, index]))
-  const appOrder = new Map(apps.map((node, index) => [node.key, index]))
-  const ribbons: Ribbon[] = []
+const pointer = useChartPointer<Hover>()
+const pinned = ref<string | null>(null)
+const active = computed(() => pinned.value ?? pointer.hovered.value?.node ?? null)
 
-  let sourceCursor = TOP
-  const unit = (BOTTOM - TOP) / total.value
-  props.snapshot.categories.forEach((node) => {
-    const target = categoryByKey.get(node.key)
-    if (target === undefined) return
-    const height = node.minutes * unit
-    ribbons.push({
-      id: `r${ribbons.length}`,
-      kind: 'source',
-      from: '',
-      to: node.key,
-      minutes: node.minutes,
-      path: ribbonPath(SOURCE_X + BAR, sourceCursor, height, CATEGORY_X, target.y, target.height),
-      color: node.colorHex,
-      strength: Math.sqrt(node.minutes / total.value),
-    })
-    sourceCursor += height
-  })
-
-  // Out of a category: ordered by the target app's position. Into an app:
-  // ordered by the source category's position.
-  const links = props.snapshot.links.filter((link) => categoryByKey.has(link.from) && appByKey.has(link.to))
-  const outCursor = new Map<string, number>()
-  const startOf = new Map<string, number>()
-  const outgoing = [...links].sort((a, b) =>
-    (categoryOrder.get(a.from)! - categoryOrder.get(b.from)!) || (appOrder.get(a.to)! - appOrder.get(b.to)!))
-  for (const link of outgoing) {
-    const node = categoryByKey.get(link.from)!
-    const offset = outCursor.get(link.from) ?? node.y
-    outCursor.set(link.from, offset + (link.minutes / Math.max(1, categoryNodes.value.get(link.from)!.minutes)) * node.height)
-    startOf.set(`${link.from}\u0000${link.to}`, offset)
-  }
-  const incoming = [...links].sort((a, b) =>
-    (appOrder.get(a.to)! - appOrder.get(b.to)!) || (categoryOrder.get(a.from)! - categoryOrder.get(b.from)!))
-  const inCursor = new Map<string, number>()
-  const maxLink = Math.max(1, ...links.map((link) => link.minutes))
-  for (const link of incoming) {
-    const from = categoryByKey.get(link.from)!
-    const to = appByKey.get(link.to)!
-    const fromHeight = (link.minutes / Math.max(1, categoryNodes.value.get(link.from)!.minutes)) * from.height
-    const toHeight = (link.minutes / Math.max(1, appNodes.value.get(link.to)!.minutes)) * to.height
-    const y0 = startOf.get(`${link.from}\u0000${link.to}`)!
-    const y1 = inCursor.get(link.to) ?? to.y
-    inCursor.set(link.to, y1 + toHeight)
-    ribbons.push({
-      id: `r${ribbons.length}`,
-      kind: 'link',
-      from: link.from,
-      to: link.to,
-      minutes: link.minutes,
-      path: ribbonPath(CATEGORY_X + BAR, y0, fromHeight, APP_X, y1, toHeight),
-      color: appColors.value.get(link.to) ?? categoryNodes.value.get(link.from)!.colorHex,
-      strength: Math.sqrt(link.minutes / maxLink),
-    })
-  }
-  return { categories, apps, ribbons }
-})
-
-// ---- Interaction ---------------------------------------------------------
-
-type Focus =
-  | { type: 'source' }
-  | { type: 'category'; key: string }
-  | { type: 'app'; key: string }
-  | { type: 'link'; from: string; to: string }
-
-const pointer = useChartPointer<Focus>()
-const pinned = ref<Focus | null>(null)
-const focus = computed<Focus | null>(() => pinned.value ?? pointer.hovered.value)
-
-function sameFocus(a: Focus | null, b: Focus | null): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
+function flowRelated(fromId: string, toId: string): boolean {
+  const current = active.value
+  if (current === null || current === SOURCE_ID) return true
+  return fromId === current || toId === current
 }
 
-function ribbonFocus(ribbon: Ribbon): Focus {
-  return ribbon.kind === 'source' ? { type: 'category', key: ribbon.to } : { type: 'link', from: ribbon.from, to: ribbon.to }
+function nodeRelated(id: string): boolean {
+  const current = active.value
+  if (current === null || current === SOURCE_ID || id === current) return true
+  return flows.value.some((flow) =>
+    (flow.fromId === current && flow.toId === id)
+    || (flow.toId === current && flow.fromId === id)
+    || (flow.fromId === SOURCE_ID && flow.toId === current && id === SOURCE_ID))
 }
 
-// Which ribbons, categories and apps belong to the focused path.
-const lit = computed(() => {
-  const current = focus.value
-  if (current === null) return null
-  const ribbons = new Set<string>()
-  const categories = new Set<string>()
-  const apps = new Set<string>()
-  for (const ribbon of layout.value.ribbons) {
-    let on = false
-    if (current.type === 'source') on = true
-    else if (current.type === 'category') on = ribbon.kind === 'source' ? ribbon.to === current.key : ribbon.from === current.key
-    else if (current.type === 'app') {
-      on = ribbon.kind === 'link'
-        ? ribbon.to === current.key
-        : props.snapshot.links.some((link) => link.from === ribbon.to && link.to === current.key)
-    } else {
-      on = ribbon.kind === 'link' ? ribbon.from === current.from && ribbon.to === current.to : ribbon.to === current.from
-    }
-    if (!on) continue
-    ribbons.add(ribbon.id)
-    if (ribbon.kind === 'source') categories.add(ribbon.to)
-    else {
-      categories.add(ribbon.from)
-      apps.add(ribbon.to)
-    }
-  }
-  return { ribbons, categories, apps }
-})
-
-function stateOf(set: 'ribbons' | 'categories' | 'apps', key: string): string {
-  if (lit.value === null) return ''
-  return lit.value[set].has(key) ? 'is-lit' : 'is-dim'
-}
-
-function toggle(target: Focus): void {
-  pinned.value = sameFocus(pinned.value, target) ? null : target
+function toggle(id: string): void {
+  pinned.value = pinned.value === id ? null : id
 }
 
 function share(minutes: number, of = total.value): string {
-  return `${Math.round((minutes / Math.max(1, of)) * 100)}%`
+  if (of <= 0) return '0%'
+  return `${Math.max(1, Math.round((minutes / of) * 100))}%`
 }
 
 const tooltip = computed(() => {
   const current = pointer.hovered.value
   if (current === null) return null
-  if (current.type === 'source') return { title: props.weekLabel, lines: [formatDuration(props.snapshot.total)] }
-  if (current.type === 'category') {
-    const node = categoryNodes.value.get(current.key)
-    if (node === undefined) return null
-    return { title: labels.category(node.key), lines: [`${formatDuration(node.minutes)} · ${share(node.minutes)}`] }
+  const flow = current.flow
+  if (flow !== null && flow.kind === 'link') {
+    const from = categoryNodes.value.get(flow.from)
+    const to = appNodes.value.get(flow.to)
+    if (from === undefined || to === undefined) return null
+    return {
+      title: `${labels.category(from.key)} → ${labels.app(to.key, to.name)}`,
+      lines: [
+        formatDuration(flow.minutes),
+        t('weekly.charts.tooltip.share', { name: labels.category(from.key), value: share(flow.minutes, from.minutes) }),
+      ],
+    }
   }
-  if (current.type === 'app') {
-    const node = appNodes.value.get(current.key)
-    if (node === undefined) return null
-    return { title: labels.app(node.key, node.name), lines: [`${formatDuration(node.minutes)} · ${share(node.minutes)}`] }
+  if (current.node === SOURCE_ID) return { title: props.weekLabel, lines: [formatDuration(props.snapshot.total)] }
+  const key = current.node.slice(2)
+  if (current.node.startsWith('c:')) {
+    const node = categoryNodes.value.get(key)
+    return node ? { title: labels.category(node.key), lines: [`${formatDuration(node.minutes)} · ${share(node.minutes)}`] } : null
   }
-  const link = props.snapshot.links.find((entry) => entry.from === current.from && entry.to === current.to)
-  const from = categoryNodes.value.get(current.from)
-  const to = appNodes.value.get(current.to)
-  if (link === undefined || from === undefined || to === undefined) return null
-  return {
-    title: `${labels.category(from.key)} → ${labels.app(to.key, to.name)}`,
-    lines: [
-      formatDuration(link.minutes),
-      t('weekly.charts.tooltip.share', { name: labels.category(from.key), value: share(link.minutes, from.minutes) }),
-    ],
-  }
+  const node = appNodes.value.get(key)
+  return node ? { title: labels.app(node.key, node.name), lines: [`${formatDuration(node.minutes)} · ${share(node.minutes)}`] } : null
 })
 
-function nodeTop(y: number, height: number): string {
-  return `${((y + height / 2) / HEIGHT) * 100}%`
-}
-function columnLeft(x: number): string {
-  return `${((x + BAR + 10) / WIDTH) * 100}%`
+// Labels are centred on their slot (top + half the slot height), so their
+// text never has to fit a fixed box when the chart is narrow.
+function slot(x: number, labelY: number, labelHeight: number, width: number): Record<string, string> {
+  return {
+    left: `${(x / SANKEY_WIDTH) * 100}%`,
+    top: `${((labelY + labelHeight / 2) / SANKEY_HEIGHT) * 100}%`,
+    maxWidth: `${(width / SANKEY_WIDTH) * 100}%`,
+  }
 }
 </script>
 
@@ -238,117 +152,140 @@ function columnLeft(x: number): string {
     <div
       :ref="(el) => { pointer.container.value = el as HTMLElement | null }"
       class="sk"
+      :class="{ 'has-focus': active !== null }"
       role="img"
       :aria-label="t('weekly.charts.sankey.aria')"
       :title="t('weekly.charts.tooltip.pinHint')"
       @click="pinned = null"
     >
-      <svg :viewBox="`0 0 ${WIDTH} ${HEIGHT}`" preserveAspectRatio="none" aria-hidden="true">
+      <svg :viewBox="`0 0 ${SANKEY_WIDTH} ${SANKEY_HEIGHT}`" preserveAspectRatio="none" aria-hidden="true">
         <defs>
-          <template v-for="ribbon in layout.ribbons" :key="`grad-${ribbon.id}`">
-            <linearGradient :id="`${gradientPrefix}-${ribbon.id}`" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0" stop-color="#E3D8CF" stop-opacity="0.2" />
-              <stop offset="0.55" :stop-color="ribbon.color" :stop-opacity="Math.min(0.14, ribbon.strength * 0.45)" />
-              <stop offset="1" :stop-color="ribbon.color" :stop-opacity="Math.max(0.14, Math.min(0.38, ribbon.strength * 1.1))" />
-            </linearGradient>
-            <linearGradient :id="`${gradientPrefix}-${ribbon.id}-lit`" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0" :stop-color="ribbon.color" stop-opacity="0.22" />
-              <stop offset="1" :stop-color="ribbon.color" stop-opacity="0.62" />
-            </linearGradient>
-          </template>
+          <linearGradient :id="`${gradientPrefix}-ul`" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0" stop-color="#E6DBD1" stop-opacity="0.48" />
+            <stop offset="0.42" stop-color="#EFE9E3" stop-opacity="0.34" />
+            <stop offset="0.76" stop-color="#F4EEE9" stop-opacity="0.2" />
+            <stop offset="1" stop-color="#F7F2ED" stop-opacity="0.08" />
+          </linearGradient>
+          <linearGradient :id="`${gradientPrefix}-ur`" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0" stop-color="#EFE7E0" stop-opacity="0.08" />
+            <stop offset="0.46" stop-color="#F4EEE9" stop-opacity="0.11" />
+            <stop offset="1" stop-color="#EFE7E0" stop-opacity="0.07" />
+          </linearGradient>
+          <linearGradient
+            v-for="flow in flows"
+            :id="`${gradientPrefix}-${flow.id}`"
+            :key="`grad-${flow.id}`"
+            gradientUnits="userSpaceOnUse"
+            :x1="flow.x0"
+            :x2="flow.x1"
+            y1="0"
+            y2="0"
+          >
+            <stop v-for="stop in flow.stops" :key="stop.offset" :offset="stop.offset" :stop-color="stop.color" :stop-opacity="stop.opacity" />
+          </linearGradient>
         </defs>
-        <g
-          v-for="ribbon in layout.ribbons"
-          :key="ribbon.id"
-          class="sk__ribbon"
-          :class="stateOf('ribbons', ribbon.id)"
-          @pointermove="pointer.move($event, ribbonFocus(ribbon))"
-          @pointerleave="pointer.leave"
-          @click.stop="toggle(ribbonFocus(ribbon))"
-        >
-          <path :d="ribbon.path" :fill="`url(#${gradientPrefix}-${ribbon.id})`" />
-          <path class="sk__ribbon-lit" :d="ribbon.path" :fill="`url(#${gradientPrefix}-${ribbon.id}-lit)`" />
+
+        <g v-if="underlays" class="sk__underlay">
+          <path :d="underlays.left" :fill="`url(#${gradientPrefix}-ul)`" />
+          <path :d="underlays.right" :fill="`url(#${gradientPrefix}-ur)`" opacity="0.72" />
         </g>
-        <rect
-          class="sk__bar sk__source"
-          :x="SOURCE_X"
-          :y="TOP"
-          :width="BAR"
-          :height="BOTTOM - TOP"
-          rx="2"
-          @pointermove="pointer.move($event, { type: 'source' })"
+
+        <path
+          v-for="flow in flows"
+          :key="flow.id"
+          class="sk__ribbon"
+          :class="{ 'is-dim': !flowRelated(flow.fromId, flow.toId) }"
+          :d="flow.path"
+          :fill="`url(#${gradientPrefix}-${flow.id})`"
+          @pointermove="pointer.move($event, { node: flow.toId, flow })"
           @pointerleave="pointer.leave"
-          @click.stop="toggle({ type: 'source' })"
+          @click.stop="toggle(flow.toId)"
+        />
+
+        <rect
+          class="sk__bar"
+          :class="{ 'is-dim': !nodeRelated(SOURCE_ID) }"
+          :x="layout.source.x"
+          :y="layout.source.y"
+          :width="SANKEY_BAR_WIDTH"
+          :height="layout.source.height"
+          :fill="layout.source.colorHex"
+          @pointermove="pointer.move($event, { node: SOURCE_ID, flow: null })"
+          @pointerleave="pointer.leave"
+          @click.stop="toggle(SOURCE_ID)"
         />
         <rect
-          v-for="node in layout.categories"
-          :key="`cat-${node.key}`"
+          v-for="band in layout.categories"
+          :key="`cat-${band.key}`"
           class="sk__bar"
-          :class="stateOf('categories', node.key)"
-          :x="CATEGORY_X"
-          :y="node.y"
-          :width="BAR"
-          :height="node.height"
-          rx="2"
-          :fill="categoryNodes.get(node.key)?.colorHex"
-          @pointermove="pointer.move($event, { type: 'category', key: node.key })"
+          :class="{ 'is-dim': !nodeRelated(categoryId(band.key)) }"
+          :x="band.x"
+          :y="band.y"
+          :width="SANKEY_BAR_WIDTH"
+          :height="band.height"
+          :fill="band.colorHex"
+          @pointermove="pointer.move($event, { node: categoryId(band.key), flow: null })"
           @pointerleave="pointer.leave"
-          @click.stop="toggle({ type: 'category', key: node.key })"
+          @click.stop="toggle(categoryId(band.key))"
         />
         <rect
-          v-for="node in layout.apps"
-          :key="`app-${node.key}`"
+          v-for="band in layout.apps"
+          :key="`app-${band.key}`"
           class="sk__bar"
-          :class="stateOf('apps', node.key)"
-          :x="APP_X"
-          :y="node.y"
-          :width="BAR"
-          :height="node.height"
-          rx="2"
-          :fill="appColors.get(node.key) ?? '#BFB6AE'"
-          @pointermove="pointer.move($event, { type: 'app', key: node.key })"
+          :class="{ 'is-dim': !nodeRelated(appId(band.key)) }"
+          :x="band.x"
+          :y="band.y"
+          :width="SANKEY_BAR_WIDTH"
+          :height="band.height"
+          :fill="band.colorHex"
+          @pointermove="pointer.move($event, { node: appId(band.key), flow: null })"
           @pointerleave="pointer.leave"
-          @click.stop="toggle({ type: 'app', key: node.key })"
+          @click.stop="toggle(appId(band.key))"
         />
       </svg>
 
-      <div class="sk__label sk__label--source" :style="{ top: '50%', left: columnLeft(SOURCE_X) }">
-        <b>{{ weekLabel }}</b>
-        <span>{{ formatDuration(snapshot.total) }}</span>
-      </div>
       <div
-        v-for="node in layout.categories"
-        :key="`label-cat-${node.key}`"
-        class="sk__label sk__label--node"
-        :class="stateOf('categories', node.key)"
-        :style="{ top: nodeTop(node.y, node.height), left: columnLeft(CATEGORY_X) }"
-        @pointermove="pointer.move($event, { type: 'category', key: node.key })"
+        class="sk__label"
+        :class="{ 'is-dim': !nodeRelated(SOURCE_ID) }"
+        :style="slot(SANKEY_COLUMNS.source.labelX, layout.source.labelY, SANKEY_COLUMNS.source.labelHeight, 220)"
+        @pointermove="pointer.move($event, { node: SOURCE_ID, flow: null })"
         @pointerleave="pointer.leave"
-        @click.stop="toggle({ type: 'category', key: node.key })"
+        @click.stop="toggle(SOURCE_ID)"
       >
-        <b>{{ labels.category(node.key) }}</b>
-        <span>{{ formatDuration(categoryNodes.get(node.key)?.minutes ?? 0) }} · {{ share(categoryNodes.get(node.key)?.minutes ?? 0) }}</span>
+        <b>{{ weekLabel }}</b>
+        <span class="sk__meta">{{ formatDuration(snapshot.total) }}<i></i>100%</span>
       </div>
       <div
-        v-for="node in layout.apps"
-        :key="`label-app-${node.key}`"
-        class="sk__label sk__label--node sk__label--app"
-        :class="[stateOf('apps', node.key), { 'is-compact': node.height < COMPACT_LABEL_HEIGHT }]"
-        :style="{ top: nodeTop(node.y, node.height), left: columnLeft(APP_X) }"
-        @pointermove="pointer.move($event, { type: 'app', key: node.key })"
+        v-for="band in layout.categories"
+        :key="`label-cat-${band.key}`"
+        class="sk__label"
+        :class="{ 'is-dim': !nodeRelated(categoryId(band.key)) }"
+        :style="slot(SANKEY_COLUMNS.categories.labelX, band.labelY, SANKEY_COLUMNS.categories.labelHeight, 260)"
+        @pointermove="pointer.move($event, { node: categoryId(band.key), flow: null })"
         @pointerleave="pointer.leave"
-        @click.stop="toggle({ type: 'app', key: node.key })"
+        @click.stop="toggle(categoryId(band.key))"
+      >
+        <b>{{ labels.category(band.key) }}</b>
+        <span class="sk__meta">{{ formatDuration(band.minutes) }}<i></i>{{ share(band.minutes) }}</span>
+      </div>
+      <div
+        v-for="band in layout.apps"
+        :key="`label-app-${band.key}`"
+        class="sk__label sk__label--app"
+        :class="{ 'is-dim': !nodeRelated(appId(band.key)) }"
+        :style="slot(SANKEY_COLUMNS.apps.labelX, band.labelY, SANKEY_COLUMNS.apps.labelHeight, SANKEY_WIDTH - SANKEY_COLUMNS.apps.labelX)"
+        @pointermove="pointer.move($event, { node: appId(band.key), flow: null })"
+        @pointerleave="pointer.leave"
+        @click.stop="toggle(appId(band.key))"
       >
         <AppSiteIcon
-          v-if="(appNodes.get(node.key)?.sites.length ?? 0) > 0"
-          :sites="appNodes.get(node.key)!.sites"
-          :size="18"
-          :accent="appColors.get(node.key)"
+          v-if="(appNodes.get(band.key)?.sites.length ?? 0) > 0"
+          :sites="appNodes.get(band.key)!.sites"
+          :size="15"
+          :accent="band.colorHex"
         />
-        <span class="sk__app-text">
-          <b>{{ labels.app(node.key, appNodes.get(node.key)?.name ?? '') }}</b>
-          <span>{{ formatDuration(appNodes.get(node.key)?.minutes ?? 0) }} · {{ share(appNodes.get(node.key)?.minutes ?? 0) }}</span>
-        </span>
+        <b>{{ labels.app(band.key, appNodes.get(band.key)?.name ?? '') }}</b>
+        <span class="sk__meta">{{ formatDuration(band.minutes) }}<i></i>{{ share(band.minutes) }}</span>
       </div>
 
       <WeeklyChartTooltip :visible="tooltip !== null" :x="pointer.x.value" :y="pointer.y.value">
@@ -364,9 +301,10 @@ function columnLeft(x: number): string {
 <style scoped>
 .sk {
   position: relative;
+  container-type: inline-size;
   width: 100%;
-  aspect-ratio: 900 / 400;
-  min-height: 320px;
+  aspect-ratio: 1748 / 933;
+  min-height: 360px;
 }
 
 .sk svg {
@@ -376,86 +314,92 @@ function columnLeft(x: number): string {
   height: 100%;
 }
 
+.sk__underlay {
+  opacity: var(--dg-wk-sankey-underlay);
+  pointer-events: none;
+}
+
+.sk__ribbon,
+.sk__bar,
+.sk__label {
+  transition: opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .sk__ribbon {
   cursor: pointer;
-  transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.sk__ribbon-lit {
-  opacity: 0;
-  transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+.sk__ribbon.is-dim {
+  opacity: 0.12;
 }
-
-.sk__ribbon.is-lit .sk__ribbon-lit { opacity: 1; }
-.sk__ribbon.is-dim { opacity: 0.12; }
 
 .sk__bar {
   cursor: pointer;
-  transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.sk__bar.is-dim { opacity: 0.3; }
-
-.sk__source {
-  fill: #d6c6b8;
+.sk__bar.is-dim,
+.sk__label.is-dim {
+  opacity: 0.25;
 }
 
 .sk__label {
   position: absolute;
   display: flex;
   flex-direction: column;
-  max-width: 22%;
-  transform: translateY(-50%);
-  transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.sk__label--node {
+  gap: 2px;
+  min-width: 0;
   cursor: pointer;
+  transform: translateY(-50%);
 }
-
-.sk__label.is-dim { opacity: 0.35; }
 
 .sk__label b {
   overflow: hidden;
   color: var(--dg-wk-text);
-  font-size: 13.5px;
-  font-weight: 650;
-  line-height: 1.3;
+  /* Scales with the chart: 13.5px on a full-width card, never below 11px. */
+  font-size: clamp(11px, 1.2cqw, 13.5px);
+  font-weight: 600;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sk__label span {
+.sk__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--dg-wk-text-secondary);
-  font-size: 12px;
+  font-size: clamp(10px, 1.06cqw, 12px);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
+/* Dayflow's hairline between the duration and the share. */
+.sk__meta i {
+  width: 1px;
+  height: 11px;
+  background: var(--dg-wk-divider);
+}
+
 .sk__label--app {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  max-width: 28%;
-}
-
-.sk__app-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-/* Thin bars: name and duration on one line so neighbours never overlap. */
-.sk__label--app.is-compact .sk__app-text {
-  flex-direction: row;
-  align-items: baseline;
+  justify-content: flex-start;
   gap: 6px;
+}
+
+.sk__label--app b {
+  flex: 0 1 auto;
+  min-width: 2.5em;
+}
+
+.sk__label--app .sk__meta {
+  flex: none;
+  font-size: clamp(9.5px, 1.02cqw, 11.5px);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sk__ribbon,
-  .sk__ribbon-lit,
   .sk__bar,
   .sk__label {
     transition: none;
