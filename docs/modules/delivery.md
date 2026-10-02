@@ -129,6 +129,22 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
+2026-10-02（macOS，`test` 未提交工作树，配套网页）：新增
+[网页部署工作流](../../.github/workflows/deploy-web.yml)，正式 Release 发布后检出对应 tag 的
+`web/`，独立构建并通过 Pages artifact 部署；草稿、预发布、普通 push 不部署。
+删除本地强制推送 `gh-pages` 的入口；配置与回退见 [网页说明](../../web/README.md)。
+本次不发布 Release；代码按用户要求提交到 `test` 并将 `main` 快进到同一提交。
+GitHub Pages 设置、环境 tag 放行及真实部署仍未验证，
+不提升 G-native 或应用安装升级验收状态。
+本机命令：`npm --prefix web ci`、`npm --prefix web run build`、
+`python3 scripts/check-docs.py`（57 个 Markdown、0 处问题）和 `git diff --check` 通过；
+构建 HTML 的脚本与 favicon 为相对路径。首次 `actionlint` 下载未完成而停止；改用
+`GOPROXY=https://proxy.golang.org` 后，`actionlint v1.7.12` 检查网页工作流通过。
+正式 / 预发布事件分流与 Pages 部署未在 GitHub Actions 实跑。
+提交前 `./scripts/gate.sh` 通过（208 项前端测试、类型检查、构建、Go 检查、三平台核心
+交叉构建及文档检查）；安装器夹具 4 项通过、5 项因需要 Windows 跳过。
+macOS 构建仍出现原生库目标 14.0 与链接目标 11.0 的版本警告。
+
 2026-10-02（macOS「安装并重启」不重启）：用户反馈点击 Sparkle 的「Install and Relaunch」后应用
 不重启，手动从状态栏退出后才完成重启。根因：macOS 适配层的 `SetInstallCallbacks` 丢弃了
 `requestShutdown`，Sparkle 代理也未实现决策 §4 指定的 `updaterWillRelaunchApplication:`；
