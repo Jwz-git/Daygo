@@ -15,6 +15,7 @@ import claudeImage from '@/assets/favicons/claude.png'
 import chatgptImage from '@/assets/favicons/chatgpt.svg'
 import chromeImage from '@/assets/favicons/chrome.png'
 import discordImage from '@/assets/favicons/discord.png'
+import finderImage from '@/assets/favicons/finder.png'
 import geminiImage from '@/assets/favicons/gemini.png'
 import ghosttyImage from '@/assets/favicons/ghostty.png'
 import githubImage from '@/assets/favicons/github.png'
@@ -34,6 +35,7 @@ const BRAND_IMAGES: Partial<Record<AppSiteIconKind, string>> = {
   chrome: chromeImage,
   discord: discordImage,
   gemini: geminiImage,
+  finder: finderImage,
   ghostty: ghosttyImage,
   github: githubImage,
   iterm2: iterm2Image,

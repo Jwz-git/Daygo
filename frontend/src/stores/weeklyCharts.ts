@@ -58,6 +58,7 @@ const BRAND_NAMES: Partial<Record<AppSiteIconKind, string>> = {
   daygo: 'Daygo',
   discord: 'Discord',
   figma: 'Figma',
+  finder: 'Finder',
   github: 'GitHub',
   'google-docs': 'Google Docs',
   messages: 'Messages',

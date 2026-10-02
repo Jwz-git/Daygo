@@ -34,6 +34,17 @@ test('maps known applications and sites using only local rules', () => {
   assert.equal(resolveAppSiteIdentity('google studio').kind, 'gemini')
 })
 
+test('Finder is the system app, never the website finder.com', () => {
+  // A dotless name normalizes to "<name>.com" for favicons, which turned the
+  // macOS Finder into finder.com. Only the exact app names map to the brand.
+  assert.equal(resolveAppSiteIdentity('Finder').kind, 'finder')
+  assert.equal(resolveAppSiteIdentity('finder').kind, 'finder')
+  assert.equal(resolveAppSiteIdentity('Finder.app').kind, 'finder')
+  assert.equal(resolveAppSiteIdentity('访达').kind, 'finder')
+  assert.equal(resolveAppSiteIdentity('finder.com').kind, 'generic')
+  assert.equal(resolveAppSiteIdentity('Path Finder').kind, 'generic')
+})
+
 test('keeps unknown domains visible through a stable monogram fallback', () => {
   assert.deepEqual(resolveAppSiteIdentity('planning.example'), {
     kind: 'generic',

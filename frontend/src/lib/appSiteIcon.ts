@@ -11,6 +11,7 @@ export type AppSiteIconKind =
   | 'daygo'
   | 'discord'
   | 'figma'
+  | 'finder'
   | 'github'
   | 'google-docs'
   | 'messages'
@@ -190,8 +191,24 @@ function monogramFor(value: string, host: string | null): string {
   return Array.from(words[0] ?? '?').slice(0, 2).join('').toUpperCase()
 }
 
+/*
+ * System apps whose bare name would otherwise read as a website: a dotless
+ * name normalizes to "<name>.com" (Dayflow's normalizedHost), which turned the
+ * macOS Finder into finder.com. Matched on the exact app name only, so a real
+ * finder.com visit or "Path Finder" keeps its own identity.
+ */
+const exactAppNames: ReadonlyMap<string, Exclude<AppSiteIconKind, 'generic'>> = new Map([
+  ['finder', 'finder'],
+  ['finder.app', 'finder'],
+  ['访达', 'finder'],
+])
+
 export function resolveAppSiteIdentity(value: string): AppSiteIdentity {
   const label = nonEmpty(value) ?? '?'
+  const exact = exactAppNames.get(label.toLocaleLowerCase('en-US'))
+  if (exact !== undefined) {
+    return { kind: exact, label, host: null, monogram: monogramFor(label, null) }
+  }
   const host = displayHost(label)
   const lookup = `${label} ${host ?? ''}`.toLocaleLowerCase('en-US')
   const kind = brandRules.find((rule) => rule.matches.some((pattern) => lookup.includes(pattern)))
