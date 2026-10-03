@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { openCaptureTestFolder } from '@/api/captureTest'
+import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 import { CAPTURE_HEIGHTS, CAPTURE_INTERVAL_SECONDS } from '@/api/dto'
 import {
   getRecordingDirectory,
@@ -20,6 +21,8 @@ const state = ref<RecordingState | null>(null)
 const directory = ref('')
 const intervalSeconds = ref(10)
 const targetHeight = ref(720)
+const intervalOptions: DgSelectOption<number>[] = CAPTURE_INTERVAL_SECONDS.map((value) => ({ value, label: String(value) }))
+const heightOptions: DgSelectOption<number>[] = CAPTURE_HEIGHTS.map((value) => ({ value, label: String(value) }))
 const durationSeconds = ref(60)
 const blockedApplicationCount = ref(0)
 const capturesObserved = ref(0)
@@ -154,15 +157,11 @@ onBeforeUnmount(() => {
     <div class="grid">
       <label class="field">
         <span class="dg-field-label">{{ t('captureTest.intervalSeconds') }}</span>
-        <select v-model.number="intervalSeconds" class="dg-input" :disabled="running">
-          <option v-for="value in CAPTURE_INTERVAL_SECONDS" :key="value" :value="value">{{ value }}</option>
-        </select>
+        <DgSelect v-model="intervalSeconds" :options="intervalOptions" :disabled="running" />
       </label>
       <label class="field">
         <span class="dg-field-label">{{ t('captureTest.targetHeight') }}</span>
-        <select v-model.number="targetHeight" class="dg-input" :disabled="running">
-          <option v-for="value in CAPTURE_HEIGHTS" :key="value" :value="value">{{ value }}</option>
-        </select>
+        <DgSelect v-model="targetHeight" :options="heightOptions" :disabled="running" />
       </label>
       <label class="field">
         <span class="dg-field-label">{{ t('captureTest.durationSeconds') }}</span>

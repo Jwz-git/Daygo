@@ -10,6 +10,7 @@ import { clearCardRating, clearCardReview, getCardRating, getCardVerdict, saveCa
 import type { ReviewVerdict, SummaryRating } from './review'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import CardVideoPlayer from '@/components/CardVideoPlayer.vue'
+import DgSelect, { type DgSelectHandle, type DgSelectOption } from '@/components/DgSelect.vue'
 import { appSiteValues } from '@/lib/appSiteIcon'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { useDurationFormat } from '@/lib/duration'
@@ -62,7 +63,7 @@ const draft = ref('')
 const titleInput = ref<HTMLTextAreaElement | null>(null)
 const summaryInput = ref<HTMLTextAreaElement | null>(null)
 const detailedInput = ref<HTMLTextAreaElement | null>(null)
-const categoryInput = ref<HTMLSelectElement | null>(null)
+const categoryInput = ref<DgSelectHandle | null>(null)
 
 const selectedColor = computed(() => {
   const category = props.day.categories.find((entry) => entry.name === props.card.category)
@@ -225,6 +226,14 @@ const categoryOptions = computed(() => {
   return names
 })
 
+const categorySelectOptions = computed<DgSelectOption[]>(() =>
+  categoryOptions.value.map((name) => ({
+    value: name,
+    label: categoryLabel(name, t),
+    color: safeCategoryColor(props.day.categories.find((category) => category.name === name)?.colorHex ?? ''),
+  })),
+)
+
 function fieldEditable(field: Field): boolean {
   if (!props.canWrite) return false
   if (props.pendingAction !== null) return false
@@ -256,6 +265,8 @@ async function beginEditing(field: Field): Promise<void> {
     : field === 'summary' ? summaryInput.value
     : detailedInput.value
   input?.focus()
+  // The category picker opens straight away: a pick commits, a dismiss cancels.
+  if (field === 'category') void categoryInput.value?.open()
   if (field === 'title') {
     growTitle()
     titleInput.value?.select()
@@ -319,22 +330,13 @@ watch(
   <header class="inspector__header">
     <div class="inspector__heading">
       <div v-if="editingField === 'category'" class="field-editor field-editor--category">
-        <select
+        <DgSelect
           ref="categoryInput"
           v-model="draft"
-          class="dg-input"
-          @keydown.esc="cancelEditing"
-          @change="submitEditing"
-          @blur="submitEditing"
-        >
-          <option
-            v-for="name in categoryOptions"
-            :key="name"
-            :value="name"
-          >
-            {{ categoryLabel(name, t) }}
-          </option>
-        </select>
+          :options="categorySelectOptions"
+          :aria-label="t('timeline.inspector.editCategory')"
+          @close="(picked) => (picked ? submitEditing() : cancelEditing())"
+        />
       </div>
       <p v-else class="inspector__eyebrow">
         <span>{{ localizedCategory }}</span>

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
+import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { useModelPlayground } from '@/stores/modelPlayground'
 import ModelReply from './ModelReply.vue'
@@ -12,6 +13,12 @@ const state = useModelPlayground()
 const { providerId, provider, model, text, imageURL, imageError, reading, accessError, textTooLong,
   canSend, busy, result, error } = state
 const copyStatus = ref('')
+const providerOptions = computed<DgSelectOption[]>(() =>
+  state.providers.providers.map((item) => ({ value: item.id, label: item.displayName })),
+)
+const modelOptions = computed<DgSelectOption[]>(() =>
+  (provider.value?.models ?? []).map((item) => ({ value: item, label: item })),
+)
 void state.initialize(route.query.providerId, route.query.model)
 
 const failure = computed(() => {
@@ -53,16 +60,10 @@ async function copy(): Promise<void> {
       <p v-if="accessError" role="alert">{{ t(`modelPlayground.${accessError}`) }}</p>
       <div class="playground-selectors">
         <label>{{ t('modelPlayground.provider') }}
-          <select v-model="providerId" class="dg-input" :disabled="busy">
-            <option value="" disabled>{{ t('modelPlayground.select') }}</option>
-            <option v-for="item in state.providers.providers" :key="item.id" :value="item.id">{{ item.displayName }}</option>
-          </select>
+          <DgSelect v-model="providerId" :options="providerOptions" :placeholder="t('modelPlayground.select')" :disabled="busy" />
         </label>
         <label>{{ t('modelPlayground.model') }}
-          <select v-model="model" class="dg-input" :disabled="busy || !provider">
-            <option value="" disabled>{{ t('modelPlayground.select') }}</option>
-            <option v-for="item in provider?.models ?? []" :key="item" :value="item">{{ item }}</option>
-          </select>
+          <DgSelect v-model="model" :options="modelOptions" :placeholder="t('modelPlayground.select')" :disabled="busy || !provider" />
         </label>
       </div>
       <p v-if="provider && !provider.hasSecret" role="status">{{ t('modelPlayground.missingSecret') }}</p>

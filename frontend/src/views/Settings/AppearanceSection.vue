@@ -7,6 +7,8 @@ import { SYSTEM_LANGUAGE, type LanguagePreference } from '@/i18n/locales'
 import { useAppearanceStore } from '@/stores/appearance'
 import { useTestToolsStore } from '@/stores/testTools'
 
+import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
+
 import SettingRow from './SettingRow.vue'
 import SwitchControl from './SwitchControl.vue'
 import { useSettingsSection } from './useSettingsSection'
@@ -85,15 +87,13 @@ function languageLabel(preference: LanguagePreference): string {
     : LANGUAGE_LABELS[preference]
 }
 
-function onThemeChange(event: Event): void {
-  const value = (event.target as HTMLSelectElement).value as AppTheme
-  void appearance.setTheme(value)
-}
+const themeOptions = computed<DgSelectOption<AppTheme>[]>(() =>
+  appearance.themes.map((option) => ({ value: option, label: themeLabel(option) })),
+)
 
-function onLanguageChange(event: Event): void {
-  const value = (event.target as HTMLSelectElement).value as LanguagePreference
-  void appearance.setLanguage(value)
-}
+const languageOptions = computed<DgSelectOption<LanguagePreference>[]>(() =>
+  appearance.languages.map((option) => ({ value: option, label: languageLabel(option) })),
+)
 </script>
 
 <template>
@@ -101,34 +101,28 @@ function onLanguageChange(event: Event): void {
     :title="t('settings.appearance.theme')"
     :hint="appearance.persistence === 'unavailable' ? t('settings.appearance.persistenceUnavailable') : t('settings.appearance.themeDescription')"
   >
-    <select
-      class="dg-input select"
-      :value="appearance.theme"
+    <DgSelect
+      class="select"
+      :model-value="appearance.theme"
+      :options="themeOptions"
       :disabled="appearance.persistence === 'unavailable' || appearance.saving"
       :aria-label="t('settings.appearance.theme')"
-      @change="onThemeChange"
-    >
-      <option v-for="option in appearance.themes" :key="option" :value="option">
-        {{ themeLabel(option) }}
-      </option>
-    </select>
+      @update:model-value="(value) => void appearance.setTheme(value)"
+    />
   </SettingRow>
 
   <SettingRow
     :title="t('settings.language.interface')"
     :hint="t('settings.language.interfaceDescription')"
   >
-    <select
-      class="dg-input select"
-      :value="appearance.language"
+    <DgSelect
+      class="select"
+      :model-value="appearance.language"
+      :options="languageOptions"
       :disabled="appearance.persistence === 'unavailable' || appearance.saving"
       :aria-label="t('settings.language.interface')"
-      @change="onLanguageChange"
-    >
-      <option v-for="option in appearance.languages" :key="option" :value="option">
-        {{ languageLabel(option) }}
-      </option>
-    </select>
+      @update:model-value="(value) => void appearance.setLanguage(value)"
+    />
   </SettingRow>
 
   <SettingRow

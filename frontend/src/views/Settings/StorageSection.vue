@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { CAPTURE_HEIGHTS, CAPTURE_INTERVAL_SECONDS } from '@/api/dto'
 import { getDiagnostics, type DiagnosticsDTO } from '@/api/diagnostics'
 import { cancelRecordingDirectoryMove, getRecordingDirectory, getRecordingDirectoryMigration, moveRecordingDirectory, pickRecordingDirectory } from '@/api/recording'
+import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
+
 import SettingRow from './SettingRow.vue'
 import { useSettingsSection } from './useSettingsSection'
 
@@ -124,12 +126,20 @@ async function chooseDirectory(): Promise<void> {
 
 function cancelMove(): void { void cancelRecordingDirectoryMove() }
 
-function onIntervalChange(event: Event): void {
-  void persist({ intervalSeconds: Number((event.target as HTMLSelectElement).value) })
+const intervalOptions = computed<DgSelectOption<number>[]>(() =>
+  CAPTURE_INTERVAL_SECONDS.map((seconds) => ({ value: seconds, label: t('settings.storage.intervalOption', { seconds }) })),
+)
+
+const heightOptions = computed<DgSelectOption<number>[]>(() =>
+  CAPTURE_HEIGHTS.map((height) => ({ value: height, label: t(`settings.storage.heightOption.${height}`) })),
+)
+
+function onIntervalChange(seconds: number): void {
+  void persist({ intervalSeconds: seconds })
 }
 
-function onHeightChange(event: Event): void {
-  void persist({ captureHeight: Number((event.target as HTMLSelectElement).value) })
+function onHeightChange(height: number): void {
+  void persist({ captureHeight: height })
 }
 
 function onUnlimitedToggle(event: Event): void {
@@ -161,34 +171,28 @@ function onLimitChange(event: Event): void {
     :title="t('settings.storage.interval')"
     :hint="t('settings.storage.intervalHint')"
   >
-    <select
-      class="dg-input select"
-      :value="intervalSeconds"
+    <DgSelect
+      class="select"
+      :model-value="intervalSeconds"
+      :options="intervalOptions"
       :disabled="state !== 'ready'"
       :aria-label="t('settings.storage.interval')"
-      @change="onIntervalChange"
-    >
-      <option v-for="seconds in CAPTURE_INTERVAL_SECONDS" :key="seconds" :value="seconds">
-        {{ t('settings.storage.intervalOption', { seconds }) }}
-      </option>
-    </select>
+      @update:model-value="onIntervalChange"
+    />
   </SettingRow>
 
   <SettingRow
     :title="t('settings.storage.height')"
     :hint="t('settings.storage.heightHint')"
   >
-    <select
-      class="dg-input select"
-      :value="captureHeight"
+    <DgSelect
+      class="select"
+      :model-value="captureHeight"
+      :options="heightOptions"
       :disabled="state !== 'ready'"
       :aria-label="t('settings.storage.height')"
-      @change="onHeightChange"
-    >
-      <option v-for="height in CAPTURE_HEIGHTS" :key="height" :value="height">
-        {{ t(`settings.storage.heightOption.${height}`) }}
-      </option>
-    </select>
+      @update:model-value="onHeightChange"
+    />
   </SettingRow>
   </SettingGroup>
 
