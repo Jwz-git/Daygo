@@ -111,6 +111,12 @@ type Backend struct {
 	// changed makes no platform call (docs/decisions/notifications-journal-reminder.md).
 	reminderMu sync.Mutex
 	reminder   journalReminderState
+	// planReminder is the last reconciled plan notification state, guarded by
+	// planReminderMu; planNudge wakes the loop after a plan write
+	// (plan_reminder.go).
+	planReminderMu sync.Mutex
+	planReminder   planReminderState
+	planNudge      chan struct{}
 	// backgrounded tracks a soft quit independently of the saved Dock preference.
 	backgroundMu      sync.Mutex
 	backgrounded      bool
@@ -276,6 +282,7 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 		canWrite:       canWrite,
 		isCaptureOwner: isCaptureOwner,
 		emitter:        nopEmitter{},
+		planNudge:      make(chan struct{}, 1),
 	}
 	// Seed the menu bar before the frontend pushes a localized bundle: the
 	// status item is created during OnStartup, ahead of the first webview paint.

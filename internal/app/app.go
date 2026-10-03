@@ -202,6 +202,9 @@ func Run() error {
 		// Only the capture owner schedules notifications, so it is launched from
 		// this RW-only block alongside the analysis pipeline and the backfill.
 		go backend.runJournalReminder(ctx)
+
+		// Plan start notifications and distraction alerts, same ownership rule.
+		go backend.runPlanReminder(ctx)
 	}
 	// Start the updater only after storage ownership is known. Sparkle and
 	// WinSparkle may schedule a check immediately; an early update must not see

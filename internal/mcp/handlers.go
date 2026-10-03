@@ -107,6 +107,9 @@ func (s *Server) callRead(ctx context.Context, name string, args json.RawMessage
 	case toolCategories:
 		res, err := s.reader.Categories(ctx)
 		return marshalOrFault(res, err)
+	case toolPlan:
+		res, err := s.reader.Plan(ctx, stringArg(args, "day"))
+		return marshalOrFault(res, err)
 	}
 	return errText(agentread.CodeInternal, "unknown read tool"), true
 }

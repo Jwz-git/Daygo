@@ -45,6 +45,15 @@ func renderText(w io.Writer, result any) {
 		for _, c := range r.Categories {
 			fmt.Fprintf(w, "  %-16s %.0fm  %.0f%%\n", c.Name, c.Minutes, c.Share*100)
 		}
+	case agentread.PlanResult:
+		fmt.Fprintf(w, "%s  plan (%d blocks)\n", r.Day, len(r.Blocks))
+		for _, b := range r.Blocks {
+			category := ""
+			if b.Category != "" {
+				category = "  [" + b.Category + "]"
+			}
+			fmt.Fprintf(w, "  %d  %s–%s  %-7s %s%s\n", b.ID, b.Start, b.End, b.Status, b.Title, category)
+		}
 	case agentread.CategoriesResult:
 		for _, c := range r.Categories {
 			fmt.Fprintf(w, "  %-16s system=%t idle=%t\n", c.Name, c.IsSystem, c.IsIdle)

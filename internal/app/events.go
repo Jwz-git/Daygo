@@ -18,6 +18,7 @@ const (
 	EventChatUpdated         EventName = "chat:updated"
 	EventRecapUpdated        EventName = "recap:updated"
 	EventUIVisibilityChanged EventName = "ui:visibility-changed"
+	EventPlanUpdated         EventName = "plan:updated"
 )
 
 var eventNames = [...]EventName{
@@ -33,6 +34,7 @@ var eventNames = [...]EventName{
 	EventChatUpdated,
 	EventRecapUpdated,
 	EventUIVisibilityChanged,
+	EventPlanUpdated,
 }
 
 // EventNames returns a defensive copy of the complete event-name contract.

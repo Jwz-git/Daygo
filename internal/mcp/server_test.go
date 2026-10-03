@@ -40,6 +40,10 @@ func (f fakeReader) Categories(_ context.Context) (agentread.CategoriesResult, e
 	return agentread.CategoriesResult{SchemaVersion: 1, Categories: []agentread.Category{}}, nil
 }
 
+func (f fakeReader) Plan(_ context.Context, day string) (agentread.PlanResult, error) {
+	return agentread.PlanResult{SchemaVersion: 1, Day: day, Blocks: []agentread.PlanBlock{}}, nil
+}
+
 type fakeWriter struct {
 	gotOp     string
 	gotSource string
@@ -140,8 +144,9 @@ func TestToolFacesAreSameSource(t *testing.T) {
 			t.Errorf("read tool %q must not be exposed over MCP", r)
 		}
 	}
-	if len(reads) != 5 {
-		t.Fatalf("read tools = %v, want the five §5.9.3 reads", reads)
+	// The plan read joined the five original §5.9.3 reads with the plan module.
+	if len(reads) != 6 {
+		t.Fatalf("read tools = %v, want the six §5.9.3 reads", reads)
 	}
 }
 

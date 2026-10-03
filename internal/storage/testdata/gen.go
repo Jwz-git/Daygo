@@ -85,6 +85,9 @@ func main() {
 	if err := writeV18(outDir); err != nil {
 		log.Fatalf("v18-card-ratings.db: %v", err)
 	}
+	if err := writeV19(outDir); err != nil {
+		log.Fatalf("v19-journal-no-summary.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -995,6 +998,50 @@ func writeV18(outDir string) error {
 		`INSERT INTO journal_entries (day, intentions, notes, goals, reflections, summary, status, updated_at)
 		 VALUES ('2026-09-16', 'fixture intentions', 'fixture notes', NULL, NULL, 'fixture ai summary', 'intentions_set', 1789510000)`,
 		`PRAGMA user_version = 18`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV19 builds a version-19 database from the v18 fixture by applying the
+// v19 journal rebuild (summary column dropped). The v20 migration test
+// upgrades this file and proves plan_blocks arrives while every prior row —
+// the card, its rating, the journal entry, the providers — survives.
+func writeV19(outDir string) error {
+	v18Path := filepath.Join(outDir, "v18-card-ratings.db")
+	v19Path := filepath.Join(outDir, "v19-journal-no-summary.db")
+	data, err := os.ReadFile(v18Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v19Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v19Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`CREATE TABLE journal_entries_v19 (
+			day         TEXT PRIMARY KEY,
+			intentions  TEXT,
+			notes       TEXT,
+			goals       TEXT,
+			reflections TEXT,
+			status      TEXT    NOT NULL,
+			updated_at  INTEGER NOT NULL
+		)`,
+		`INSERT INTO journal_entries_v19 (day, intentions, notes, goals, reflections, status, updated_at)
+		 SELECT day, intentions, notes, goals, reflections, status, updated_at FROM journal_entries`,
+		`DROP TABLE journal_entries`,
+		`ALTER TABLE journal_entries_v19 RENAME TO journal_entries`,
+		`PRAGMA user_version = 19`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

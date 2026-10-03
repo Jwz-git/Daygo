@@ -19,7 +19,7 @@ import (
 
 // Commands is the read command set this build serves (docs/05 §5.9.1). search
 // is deferred with its semantics (09 §9.1) and is not offered here.
-var Commands = []string{"status", "timeline", "card", "daily", "weekly", "categories", "write"}
+var Commands = []string{"status", "timeline", "card", "daily", "weekly", "categories", "plan", "write"}
 
 // Handles reports whether cmd is a CLI read command. cmd/daygo uses it to route
 // only known commands here, so a bare launch (and stray GUI launch flags) fall
@@ -109,6 +109,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	case "categories":
 		return withReader(ctx, opts, stdout, stderr, func(r *agentread.Reader) (any, error) {
 			return r.Categories(ctx)
+		})
+	case "plan":
+		day := optionalArg(rest)
+		return withReader(ctx, opts, stdout, stderr, func(r *agentread.Reader) (any, error) {
+			return r.Plan(ctx, day)
 		})
 	default:
 		fmt.Fprintf(stderr, "daygo: unknown command %q\n", cmd)

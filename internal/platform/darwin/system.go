@@ -152,8 +152,8 @@ func systemEventKind(k uint32) platform.SystemEventKind {
 func (s *System) ScreenRecordingPermission(context.Context) (platform.PermissionState, error) {
 	return queryScreenRecordingPermission()
 }
-func (s *System) NotificationsPermission(context.Context) (platform.PermissionState, error) {
-	return platform.PermissionNotDetermined, nil
+func (s *System) NotificationsPermission(ctx context.Context) (platform.PermissionState, error) {
+	return notificationPermission(ctx)
 }
 func (s *System) RequestScreenRecordingPermission(context.Context) error {
 	return requestScreenRecordingPermission()
@@ -219,11 +219,14 @@ func (s *System) RevealPath(ctx context.Context, path string) error {
 // unavailable until native delivery is wired (docs/decisions/notifications-journal-reminder.md).
 // Returning the shared sentinel instead of nil keeps the resident journal
 // reminder from arming a notification that would never actually fire.
-func (s *System) ScheduleNotification(context.Context, platform.Notification) error {
-	return platform.ErrCapabilityUnavailable
+// ScheduleNotification / CancelNotifications deliver through
+// UNUserNotificationCenter (notifications_darwin.go); without cgo or outside an
+// app bundle they report platform.ErrCapabilityUnavailable.
+func (s *System) ScheduleNotification(ctx context.Context, n platform.Notification) error {
+	return scheduleNotification(ctx, n)
 }
-func (s *System) CancelNotifications(context.Context, []string) error {
-	return platform.ErrCapabilityUnavailable
+func (s *System) CancelNotifications(ctx context.Context, ids []string) error {
+	return cancelNotifications(ctx, ids)
 }
 
 // Relaunch schedules a fresh instance to start once this process has exited so

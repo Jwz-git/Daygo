@@ -20,6 +20,7 @@ type Reader interface {
 	Daily(ctx context.Context, day string) (agentread.DailyResult, error)
 	Weekly(ctx context.Context, weekStart string) (agentread.WeeklyResult, error)
 	Categories(ctx context.Context) (agentread.CategoriesResult, error)
+	Plan(ctx context.Context, day string) (agentread.PlanResult, error)
 }
 
 // Writer is the write face — one method matching agentbridge.Client.Do, so
