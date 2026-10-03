@@ -144,6 +144,11 @@ const SHARED_WORDING = new Set([
   'OpenAI Responses',
   'Anthropic',
   'Windows Recorder',
+  // The User-Agent field's own label and preset names stay in English: they
+  // name HTTP clients, not UI concepts ("User-Agent" reduces to "User Agent").
+  'User Agent',
+  'Claude Code',
+  'Google Chrome',
   // Units and abbreviations written the same across the shipped set. Note
   // "{count} min" and "720 pixels" reduce to 'min' and 'pixels'.
   'GB',

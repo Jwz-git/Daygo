@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: '粘贴密钥',
       apiKeyKeepHint: '留空则保持原密钥不变。',
       httpWarning: '这个地址没有加密（HTTP），密钥和截图可能在传输中被他人看到。',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: '留空则使用默认值',
+      userAgentHint: '部分网关会按 User-Agent 识别或放行客户端。留空使用默认值。',
+      userAgentPreset: {
+        label: '常用预设',
+        custom: '自定义',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: '使用顺序',
@@ -243,6 +252,8 @@ export default {
       required: '不能为空',
       invalidUrl: '请输入以 http:// 或 https:// 开头的完整地址',
       range: '请输入 0 到 20 之间的整数',
+      tooLong: '不能超过 512 个字符',
+      invalidChars: '只能包含可打印的 ASCII 字符',
     },
     test: {
       run: '测试',

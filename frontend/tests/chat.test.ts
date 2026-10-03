@@ -3,7 +3,7 @@ import test from 'node:test'
 import { createChatState } from '../src/stores/chat'
 import type { ChatMessageDTO } from '../src/api/dto'
 
-const row = (role: string, id = 1): ChatMessageDTO => ({ id, role, content: role, status: role === 'assistant' ? 'ok' : '', toolName: '', toolArguments: '', createdAt: 0 })
+const row = (role: string, id = 1): ChatMessageDTO => ({ id, role, content: role, status: role === 'assistant' ? 'ok' : '', errorCode: '', toolName: '', toolArguments: '', createdAt: 0 })
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((done) => { resolve = done })

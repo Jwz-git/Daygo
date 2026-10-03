@@ -17,6 +17,19 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-10-03 每 Provider User-Agent 覆盖（test 未提交工作树，macOS arm64）：每个 AI 服务可配
+`User-Agent`，留空保持现状（openai 用 Go 默认，anthropic 用 SDK 默认）。`providers.user_agent`
+（迁移 v21）与三个 DTO 的 `userAgent`；`internal/app` 校验（trim、≤512、仅可打印 ASCII、拒绝
+CR/LF）；`internal/ai/factory` 以自定义 RoundTripper 覆盖三协议生成路径——Anthropic SDK 自带默认
+UA，只能从更外层覆盖；`ai.ListModels` 同步携带。前端表单加「User-Agent」行（文本框 + 预设下拉：
+Claude Code / Google Chrome），九语言同步。
+夹具先于实现：v20→v21 迁移（新匿名夹具 `v20-plan-blocks.db`）、UA 往返与五类非法值、三协议
+请求头 UA（含覆盖 SDK 默认）、`ListModels` UA、前端 store 往返与预设合法性。
+验证：`./scripts/gate.sh` 通过（前端 227 项、`check-docs` 58 篇 0 问题；Windows 安装器夹具 5 项
+因需 Windows 主机跳过）；`gofmt -l .` 无输出。浏览器实测预设填入、非法值拦截、保存成功，
+浅 / 深色正常。未运行：真实网关按 UA 放行的端到端、Wails 窗口内交互与重启读回。
+回退：撤销即可，新增列默认空串，无数据回滚。
+
 2026-10-03 报告 Token 用量显示开关（test 分支未提交工作树，macOS arm64）：设置「AI 服务」分区新增
 `llm.showTokenUsage`（默认关），决定日报 / 周报末尾的 Token 用量卡片是否渲染。默认值与规范化由
 `internal/settings` 承担，DTO 走 `LLMSettingsDTO.showTokenUsage`；前端新增
@@ -74,8 +87,10 @@ Provider CRUD / 路由链 / 密钥绑定（主要在 `internal/app/providers.go`
 前端 store 已以 Go 绑定为权威来源，写后重拉；表单支持多模型增删与逐模型测试，回退链编辑器
 以单一有序列表编排「供应商 + 模型」对；旧 localStorage 记录只在后端列表为空时做一次性
 无密钥迁移（单模型折为一元列表），成功后删除。`hasSecret` 仅由后端检查钥匙串后返回。
-模型列表查询与每 Provider 图片上限（v11，per-provider、与模型无关）也已接入。真实网络集成、
-完整 Wails 重启闭环与升级身份验证经用户确认已验收。
+模型列表查询与每 Provider 图片上限（v11，per-provider、与模型无关）也已接入。每 Provider 的
+User-Agent 覆盖已落地（v21 `providers.user_agent`，空串 = Go/SDK 默认；`internal/ai/factory`
+经 RoundTripper 对三协议统一注入，`ai.ListModels` 同步携带）。真实网络集成、完整 Wails 重启
+闭环与升级身份验证经用户确认已验收。
 
 ## 能力与跨层职责
 

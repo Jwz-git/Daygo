@@ -30,7 +30,7 @@ func TestListModelsOpenAIShape(t *testing.T) {
 		})
 	})
 
-	models, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "sk-test")
+	models, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "sk-test", "")
 	if err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
@@ -45,6 +45,24 @@ func TestListModelsOpenAIShape(t *testing.T) {
 	}
 }
 
+// TestListModelsSendsUserAgentOverride proves the override reaches the models
+// listing too, so an allow-listing gateway accepts the dropdown fetch.
+func TestListModelsSendsUserAgentOverride(t *testing.T) {
+	var gotAgent string
+	server := modelsServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotAgent = r.Header.Get("User-Agent")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data": [{"id": "model-a"}]}`))
+	})
+
+	if _, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "sk-test", "fixture-agent/1.0"); err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	if gotAgent != "fixture-agent/1.0" {
+		t.Fatalf("User-Agent = %q, want the configured override", gotAgent)
+	}
+}
+
 func TestListModelsAnthropicShape(t *testing.T) {
 	var gotKey, gotVersion, gotPath string
 	server := modelsServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +73,7 @@ func TestListModelsAnthropicShape(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data": [{"id": "claude-x"}, {"id": "claude-y"}]}`))
 	})
 
-	models, err := ListModels(context.Background(), ProtocolAnthropicMessages, server.URL, "sk-ant-test")
+	models, err := ListModels(context.Background(), ProtocolAnthropicMessages, server.URL, "sk-ant-test", "")
 	if err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
@@ -78,7 +96,7 @@ func TestListModelsResponsesUsesModelsPath(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data": []}`))
 	})
 
-	if _, err := ListModels(context.Background(), ProtocolOpenAIResponses, server.URL, "k"); err != nil {
+	if _, err := ListModels(context.Background(), ProtocolOpenAIResponses, server.URL, "k", ""); err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
 	if gotPath != "/models" {
@@ -101,7 +119,7 @@ func TestListModelsClassifiesStatuses(t *testing.T) {
 		server := modelsServer(t, func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(tc.status)
 		})
-		_, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "k")
+		_, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "k", "")
 		if ErrorKindOf(err) != tc.want {
 			t.Errorf("status %d: kind = %v, want %v", tc.status, ErrorKindOf(err), tc.want)
 		}
@@ -118,7 +136,7 @@ func TestListModelsUnreachableEndpoint(t *testing.T) {
 	url := server.URL
 	server.Close()
 
-	_, err := ListModels(context.Background(), ProtocolOpenAIChat, url, "k")
+	_, err := ListModels(context.Background(), ProtocolOpenAIChat, url, "k", "")
 	if ErrorKindOf(err) != ErrorUnavailable {
 		t.Fatalf("kind = %v, want unavailable", ErrorKindOf(err))
 	}
@@ -129,7 +147,7 @@ func TestListModelsInvalidJSON(t *testing.T) {
 		_, _ = w.Write([]byte(`not-json`))
 	})
 
-	_, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "k")
+	_, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "k", "")
 	if ErrorKindOf(err) != ErrorInvalidOutput {
 		t.Fatalf("kind = %v, want invalid_output", ErrorKindOf(err))
 	}
@@ -144,7 +162,7 @@ func TestListModelsCapsAtHundred(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
 	})
 
-	models, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "k")
+	models, err := ListModels(context.Background(), ProtocolOpenAIChat, server.URL, "k", "")
 	if err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
@@ -154,7 +172,7 @@ func TestListModelsCapsAtHundred(t *testing.T) {
 }
 
 func TestListModelsRejectsUnknownProtocol(t *testing.T) {
-	if _, err := ListModels(context.Background(), Protocol("smtp"), "https://e.example.com", "k"); ErrorKindOf(err) != ErrorInvalidRequest {
+	if _, err := ListModels(context.Background(), Protocol("smtp"), "https://e.example.com", "k", ""); ErrorKindOf(err) != ErrorInvalidRequest {
 		t.Fatalf("kind = %v, want invalid_request", ErrorKindOf(err))
 	}
 }

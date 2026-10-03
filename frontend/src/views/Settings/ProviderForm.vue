@@ -23,6 +23,7 @@ import {
   type ProviderErrors,
   type ProviderField,
 } from '@/stores/providers'
+import { USER_AGENT_PRESETS } from './userAgentPresets'
 
 /*
  * The add/edit form owns the full draft lifecycle: the draft, its validation
@@ -138,7 +139,12 @@ async function fetchModels(): Promise<void> {
     const result = await listProviderModels(
       usesStoredKey.value && props.provider !== null
         ? { providerId: props.provider.id }
-        : { protocol: draft.protocol, endpoint: draft.endpoint.trim(), secret: draft.secret.trim() },
+        : {
+            protocol: draft.protocol,
+            endpoint: draft.endpoint.trim(),
+            secret: draft.secret.trim(),
+            userAgent: draft.userAgent.trim(),
+          },
     )
     modelsState.value = { phase: 'done', result }
     if (result.ok) applyFetchedModels(result.models)
@@ -195,6 +201,27 @@ function onProtocolChange(next: ProviderProtocol): void {
     draft.endpoint = DEFAULT_ENDPOINTS[next]
   }
   draft.protocol = next
+}
+
+const userAgentPresetOptions = computed<DgSelectOption<string>[]>(() => [
+  { value: 'custom', label: t('settings.providers.form.userAgentPreset.custom') },
+  ...USER_AGENT_PRESETS.map((preset) => ({
+    value: preset.key,
+    label: t(`settings.providers.form.userAgentPreset.${preset.key}`),
+  })),
+])
+
+/** The preset whose value matches the draft exactly, else 'custom'. */
+const selectedUserAgentPreset = computed(() => {
+  const current = draft.userAgent.trim()
+  const match = USER_AGENT_PRESETS.find((preset) => preset.value === current)
+  return match?.key ?? 'custom'
+})
+
+/** 'custom' is a no-op: it never overwrites what the user typed. */
+function applyUserAgentPreset(key: string): void {
+  const preset = USER_AGENT_PRESETS.find((item) => item.key === key)
+  if (preset !== undefined) draft.userAgent = preset.value
 }
 </script>
 
@@ -335,6 +362,30 @@ function onProtocolChange(next: ProviderProtocol): void {
         <p v-if="errors.maxImages" class="form__error">{{ errorText('maxImages') }}</p>
         <p v-else class="form__hint">{{ t('settings.providers.form.maxImagesHint') }}</p>
       </label>
+
+      <div class="form__cell form__cell--wide">
+        <span class="dg-field-label">{{ t('settings.providers.form.userAgent') }}</span>
+        <div class="form__ua-row">
+          <input
+            v-model="draft.userAgent"
+            class="dg-input dg-input--mono form__ua-input"
+            type="text"
+            spellcheck="false"
+            autocomplete="off"
+            :placeholder="t('settings.providers.form.userAgentPlaceholder')"
+            :aria-invalid="errors.userAgent ? 'true' : undefined"
+          />
+          <DgSelect
+            class="form__ua-preset"
+            :model-value="selectedUserAgentPreset"
+            :options="userAgentPresetOptions"
+            :aria-label="t('settings.providers.form.userAgentPreset.label')"
+            @update:model-value="applyUserAgentPreset"
+          />
+        </div>
+        <p v-if="errors.userAgent" class="form__error">{{ errorText('userAgent') }}</p>
+        <p v-else class="form__hint">{{ t('settings.providers.form.userAgentHint') }}</p>
+      </div>
     </div>
 
     <footer class="form__footer">
@@ -484,6 +535,22 @@ function onProtocolChange(next: ProviderProtocol): void {
   line-height: 1.45;
 }
 
+.form__ua-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form__ua-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.form__ua-preset {
+  flex: none;
+  width: 176px;
+}
+
 .form__error { color: var(--dg-danger); }
 .form__warning { color: var(--dg-warning); }
 .form__hint { color: var(--dg-text-muted); }
@@ -507,5 +574,7 @@ function onProtocolChange(next: ProviderProtocol): void {
   .form__grid { grid-template-columns: minmax(0, 1fr); }
   .form__footer { flex-direction: column; align-items: stretch; }
   .form__actions { justify-content: flex-end; }
+  .form__ua-row { flex-direction: column; align-items: stretch; }
+  .form__ua-preset { width: auto; }
 }
 </style>

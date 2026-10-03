@@ -1264,3 +1264,91 @@ func TestMigrateV19FixtureCreatesPlanTable(t *testing.T) {
 		t.Fatalf("planned block = %+v, %v, want it joined to %q", block, err, categories[0].Name)
 	}
 }
+
+// DB-2 for v21: upgrade a v20 database. providers gains user_agent with the
+// empty default, so existing rows keep the Go/SDK default, and the column
+// round-trips through the repository.
+func TestMigrateV20FixtureAddsProviderUserAgent(t *testing.T) {
+	fixture := filepath.Join("testdata", "v20-plan-blocks.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+	ctx := context.Background()
+
+	providers, err := store.Providers().List(ctx)
+	if err != nil || len(providers) != 2 {
+		t.Fatalf("providers = %d, %v after upgrade, want 2", len(providers), err)
+	}
+	for _, p := range providers {
+		if p.UserAgent != "" {
+			t.Fatalf("provider %s user_agent = %q after upgrade, want the empty default", p.ID, p.UserAgent)
+		}
+	}
+
+	if err := store.Providers().Update(ctx, "fixture-provider-a", Provider{
+		DisplayName: "Fixture A", Protocol: "openai", Endpoint: "https://example.invalid/v1",
+		Models: []string{"fixture-model-a"}, MaxImages: 0, UserAgent: "Daygo/1.0",
+	}); err != nil {
+		t.Fatalf("update provider after upgrade: %v", err)
+	}
+	got, err := store.Providers().Get(ctx, "fixture-provider-a")
+	if err != nil || got.UserAgent != "Daygo/1.0" {
+		t.Fatalf("user_agent = %q, %v after write, want Daygo/1.0", got.UserAgent, err)
+	}
+}
+
+func TestMigrateV21FixtureAddsChatMessageErrorCode(t *testing.T) {
+	fixture := filepath.Join("testdata", "v21-providers-user-agent.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+	ctx := context.Background()
+
+	// The pre-upgrade rows keep their content, and the failed one gets the
+	// empty default rather than a code guessed from its text.
+	messages, err := store.Chat().Messages(ctx, "fixture-conversation", 0, 0)
+	if err != nil || len(messages) != 2 {
+		t.Fatalf("messages = %d, %v after upgrade, want 2", len(messages), err)
+	}
+	if messages[1].Status != ChatStatusFailed || messages[1].ErrorCode != "" {
+		t.Fatalf("failed row = %+v after upgrade, want status failed and empty error_code", messages[1])
+	}
+
+	appended, err := store.Chat().AppendMessage(ctx, "fixture-conversation", ChatMessage{
+		Role: ChatRoleAssistant, Content: "technical fallback", Status: ChatStatusFailed,
+		ErrorCode: "connection",
+	})
+	if err != nil {
+		t.Fatalf("append message after upgrade: %v", err)
+	}
+	if appended.ErrorCode != "connection" {
+		t.Fatalf("appended error_code = %q, want connection", appended.ErrorCode)
+	}
+	reloaded, err := store.Chat().Messages(ctx, "fixture-conversation", 0, 0)
+	if err != nil || len(reloaded) != 3 || reloaded[2].ErrorCode != "connection" {
+		t.Fatalf("reread messages = %+v, %v, want error_code connection on the third", reloaded, err)
+	}
+
+	providers, err := store.Providers().List(ctx)
+	if err != nil || len(providers) != 2 {
+		t.Fatalf("providers = %d, %v after upgrade, want 2", len(providers), err)
+	}
+}

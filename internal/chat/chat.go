@@ -11,10 +11,15 @@ package chat
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
+	"net"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/ai"
@@ -54,6 +59,28 @@ const (
 	StatusCanceled = "canceled"
 )
 
+// Terminal failure codes written to an assistant row's error_code. The UI
+// renders chat.failure.<code> from the locale bundles, so this closed set and
+// the nine translations move together; frontend/tests/chatFailure.test.ts reads
+// this block and fails when a code has no translation.
+const (
+	failureNoProvider         = "no_provider"
+	failureNoProviderSelected = "no_provider_selected"
+	failureCanceled           = "canceled"
+	failureAuthentication     = "authentication"
+	failureRateLimited        = "rate_limited"
+	failureTimeout            = "timeout"
+	failureDNS                = "dns"
+	failureConnection         = "connection"
+	failureTLS                = "tls"
+	failureNetwork            = "network"
+	failureInvalidRequest     = "invalid_request"
+	failureUnsupportedFeature = "unsupported_feature"
+	failureInvalidOutput      = "invalid_output"
+	failureToolBudget         = "tool_budget"
+	failureInternal           = "internal"
+)
+
 // Conversation is one chat thread. Model is the per-thread override: the
 // empty string follows the provider's configured model.
 type Conversation struct {
@@ -67,13 +94,17 @@ type Conversation struct {
 
 // Message is one atomic chat message. ToolName/ToolArguments are set only on
 // agent rows: tool_call fills both, tool_result pairs by ToolName with empty
-// ToolArguments and carries its result envelope in Content.
+// ToolArguments and carries its result envelope in Content. ErrorCode is set
+// only on a terminal assistant row (failed or canceled) and names why the turn
+// ended; Content then holds a technical fallback line for a client that does
+// not know the code.
 type Message struct {
 	ID             int64
 	ConversationID string
 	Role           string
 	Content        string
 	Status         string
+	ErrorCode      string
 	ToolName       string
 	ToolArguments  string
 	CreatedAt      time.Time
@@ -96,11 +127,12 @@ type Store interface {
 // ProviderRepo + keychain + settings.Routing; the interface keeps the chat
 // package free of storage and platform imports.
 type ProviderEntry struct {
-	ID       string
-	Protocol string
-	Endpoint string
-	Model    string
-	Secret   string
+	ID        string
+	Protocol  string
+	Endpoint  string
+	Model     string
+	Secret    string
+	UserAgent string
 }
 
 type Providers interface {
@@ -250,11 +282,11 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 
 	entries, err := s.resolveEntries(ctx, conversation)
 	if err != nil {
-		s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed, Content: failureText(err)})
+		s.complete(conversationID, failedTurn(StatusFailed, err))
 		return
 	}
 	if len(entries) == 0 {
-		s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed, Content: failureText(ai.ErrNoProvider)})
+		s.complete(conversationID, failedTurn(StatusFailed, ai.ErrNoProvider))
 		return
 	}
 
@@ -270,7 +302,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 	for {
 		request, err := s.buildRequest(ctx, conversationID, userMsg, correction)
 		if err != nil {
-			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed, Content: failureText(err)})
+			s.complete(conversationID, failedTurn(StatusFailed, err))
 			return
 		}
 		request.Output = &envelopeOutput
@@ -284,7 +316,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 			} else if toolCalls >= maxToolCallsPerTurn {
 				status = StatusFailed
 			}
-			s.complete(conversationID, Message{Role: RoleAssistant, Status: status, Content: failureText(err)})
+			s.complete(conversationID, failedTurn(status, err))
 			return
 		}
 
@@ -294,8 +326,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 			// a model looping on garbage would never terminate.
 			toolCalls++
 			if toolCalls >= maxToolCallsPerTurn {
-				s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed,
-					Content: "Tool call budget exhausted (8 calls); the turn was terminated."})
+				s.complete(conversationID, failedTurn(StatusFailed, errToolBudget))
 				return
 			}
 			correction = envelopeCorrection
@@ -313,7 +344,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 		if _, err := s.store.AppendMessage(ctx, conversationID, Message{
 			Role: RoleToolCall, ToolName: reply.Tool, ToolArguments: string(compactArgs),
 		}); err != nil {
-			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed, Content: failureText(err)})
+			s.complete(conversationID, failedTurn(StatusFailed, err))
 			return
 		}
 		s.notify(conversationID)
@@ -321,8 +352,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 		if toolCalls >= maxToolCallsPerTurn {
 			s.landToolResult(ctx, conversationID, reply.Tool, toolResultEnvelope(false, "budget_exceeded",
 				"Tool call budget exhausted (8 calls); this call was not executed."))
-			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusFailed,
-				Content: "Tool call budget exhausted (8 calls); the turn was terminated."})
+			s.complete(conversationID, failedTurn(StatusFailed, errToolBudget))
 			return
 		}
 		toolCalls++
@@ -330,7 +360,7 @@ func (s *Service) runTurn(ctx context.Context, conversationID string, userMsg Me
 		outcome := s.executeTool(ctx, reply)
 		s.landToolResult(ctx, conversationID, reply.Tool, outcome)
 		if ctx.Err() != nil {
-			s.complete(conversationID, Message{Role: RoleAssistant, Status: StatusCanceled, Content: failureText(ctx.Err())})
+			s.complete(conversationID, failedTurn(StatusCanceled, ctx.Err()))
 			return
 		}
 	}
@@ -442,10 +472,11 @@ func (s *Service) buildChain(entries []ProviderEntry) *ai.Chain {
 	chainEntries := make([]ai.ChainEntry, 0, len(entries))
 	for _, entry := range entries {
 		provider, err := factory.NewClient(nil, factory.Config{
-			Protocol: ai.Protocol(entry.Protocol),
-			Endpoint: entry.Endpoint,
-			Model:    entry.Model,
-			Secret:   entry.Secret,
+			Protocol:  ai.Protocol(entry.Protocol),
+			Endpoint:  entry.Endpoint,
+			Model:     entry.Model,
+			Secret:    entry.Secret,
+			UserAgent: entry.UserAgent,
 		})
 		if err != nil {
 			// A broken entry would fail every Generate anyway; the honest move
@@ -756,22 +787,88 @@ func titleFrom(content string) string {
 	return title
 }
 
-// failureText maps an ai error to the stored failure message. The ai layer's
-// messages are fixed sanitized strings; raw provider bodies never reach here.
-func failureText(err error) string {
-	if err == nil {
-		return ""
+// errToolBudget marks the one terminal turn failure that is not an error from
+// the provider or the store: the loop ran out of tool calls.
+var errToolBudget = errors.New("chat: tool call budget exhausted")
+
+// failedTurn builds the terminal assistant row for a turn that produced no
+// answer. The code is what the UI localizes; the text is a technical fallback.
+func failedTurn(status string, err error) Message {
+	code, text := failure(err)
+	if status == StatusFailed {
+		// The row keeps only the class, so the raw chain goes to the log: it is
+		// what separates "no such host" from "connection refused" when the
+		// classified message is not enough. Provider endpoints are stored with
+		// their query stripped (internal/app/provider_endpoint.go) and keys
+		// travel in a header, so no credential can appear here.
+		log.Printf("chat: turn failed: code=%s err=%v", code, err)
 	}
-	if err == ai.ErrNoProvider {
-		return "没有已配置的供应商；请先在设置中添加。"
+	return Message{Role: RoleAssistant, Status: status, Content: text, ErrorCode: code}
+}
+
+// failure maps a terminal turn error to the closed code the UI localizes and a
+// technical fallback line. It deliberately keeps no raw provider text: the
+// error is regenerable, and the class is what a user can act on.
+func failure(err error) (code, text string) {
+	switch {
+	case err == nil:
+		return "", ""
+	case errors.Is(err, errToolBudget):
+		return failureToolBudget, "the tool call budget was exhausted; the turn was terminated."
+	case errors.Is(err, ai.ErrNoProvider):
+		return failureNoProvider, "no AI provider is configured."
+	case errors.Is(err, errNoProviderSelected):
+		return failureNoProviderSelected, "this conversation has no AI provider selected."
 	}
-	if err == errNoProviderSelected {
-		return "该会话尚未选择供应商，请先在下方选择。"
+
+	var aiErr *ai.Error
+	if errors.As(err, &aiErr) {
+		switch aiErr.Kind {
+		case ai.ErrorCanceled:
+			return failureCanceled, aiErr.Message
+		case ai.ErrorAuthentication:
+			return failureAuthentication, aiErr.Message
+		case ai.ErrorRateLimited:
+			return failureRateLimited, aiErr.Message
+		case ai.ErrorTimeout:
+			return failureTimeout, aiErr.Message
+		case ai.ErrorInvalidRequest:
+			return failureInvalidRequest, aiErr.Message
+		case ai.ErrorUnsupportedFeature:
+			return failureUnsupportedFeature, aiErr.Message
+		case ai.ErrorInvalidOutput:
+			return failureInvalidOutput, aiErr.Message
+		case ai.ErrorUnavailable:
+			return transportFailure(err)
+		}
 	}
-	switch ai.ErrorKindOf(err) {
-	case ai.ErrorCanceled:
-		return "已取消。"
-	default:
-		return strings.TrimPrefix(err.Error(), "ai: ")
+
+	if errors.Is(err, context.Canceled) {
+		return failureCanceled, "the turn was canceled."
 	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return failureTimeout, "the turn timed out."
+	}
+	return failureInternal, "the turn failed inside Daygo."
+}
+
+// transportFailure narrows ai.ErrorUnavailable, which is raised for every
+// failure that never produced an HTTP response, to the class the user can act
+// on: a bad address, a dead gateway, a TLS problem, or an unknown network
+// fault.
+func transportFailure(err error) (code, text string) {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return failureDNS, "the provider address could not be resolved."
+	}
+	var certErr *tls.CertificateVerificationError
+	var recordErr tls.RecordHeaderError
+	if errors.As(err, &certErr) || errors.As(err, &recordErr) {
+		return failureTLS, "the TLS handshake with the provider failed."
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) {
+		return failureConnection, "the connection to the provider was refused or unreachable."
+	}
+	return failureNetwork, "the request could not reach the provider."
 }

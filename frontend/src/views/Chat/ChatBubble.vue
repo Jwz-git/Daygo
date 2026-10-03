@@ -19,6 +19,8 @@ import xml from 'highlight.js/lib/languages/xml'
 import yaml from 'highlight.js/lib/languages/yaml'
 import DOMPurify from 'dompurify'
 
+import { chatFailureMessage } from '@/lib/chatFailure'
+
 // Register only the languages chat realistically renders. The full
 // highlight.js build bundles ~190 languages (~1MB); registering a subset keeps
 // the Chat chunk small. An unlisted fence falls back to plaintext below.
@@ -47,15 +49,31 @@ const props = defineProps<{
   timestamp?: number
   /** For assistant messages: 'ok' | 'failed' | 'canceled' | '' */
   status?: 'ok' | 'failed' | 'canceled' | ''
+  /** For assistant messages: why the turn ended, from the backend's closed set.
+   * Rendered as chat.failure.<code>; empty falls back to content. */
+  errorCode?: string
 }>()
 
 const emit = defineEmits<{
   copy: [text: string]
 }>()
 
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const copied = ref(false)
 const codeCopied = ref<Record<number, boolean>>({})
+
+// A terminal turn stores a machine code, not user-facing prose; see the helper.
+const failureMessage = computed(() =>
+  chatFailureMessage(
+    {
+      role: props.role,
+      status: props.status ?? '',
+      errorCode: props.errorCode ?? '',
+    },
+    te,
+    t,
+  ),
+)
 
 const html = computed(() => {
   // Track code block index for per-block "copy" affordances.
@@ -107,10 +125,13 @@ const timeLabel = computed(() => {
 })
 
 async function copyContent(): Promise<void> {
+  // Copy what is on screen: for a failed turn that is the localized line, not
+  // the backend's technical fallback the user never saw.
+  const text = failureMessage.value !== '' ? failureMessage.value : props.content
   try {
-    await navigator.clipboard.writeText(props.content)
+    await navigator.clipboard.writeText(text)
     copied.value = true
-    emit('copy', props.content)
+    emit('copy', text)
     setTimeout(() => { copied.value = false }, 2000)
   } catch {
     // clipboard unavailable
@@ -155,7 +176,8 @@ function onAssistantClick(e: MouseEvent): void {
     <!-- Body -->
     <div class="cb__body" @click="onAssistantClick">
       <!-- eslint-disable-next-line vue/no-v-html -->
-      <div v-if="role === 'assistant'" class="cb__md" v-html="html" />
+      <div v-if="failureMessage !== ''" class="cb__failure">{{ failureMessage }}</div>
+      <div v-else-if="role === 'assistant'" class="cb__md" v-html="html" />
       <p v-else class="cb__plain">{{ content }}</p>
     </div>
 
@@ -470,6 +492,20 @@ function onAssistantClick(e: MouseEvent): void {
 .cb__md :deep(.hljs-tag)      { color: #e06c75; }
 .cb__md :deep(.hljs-name)     { color: #e06c75; }
 .cb__md :deep(.hljs-variable) { color: #e06c75; }
+
+/* =========================================================
+   Failed turn — the reason, in place of the reply that never came
+   ========================================================= */
+.cb__failure {
+  padding: 8px 12px;
+  border-left: 2px solid color-mix(in srgb, var(--dg-danger) 55%, transparent);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--dg-danger) 8%, transparent);
+  color: var(--dg-danger-text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 
 /* =========================================================
    Meta line — time + status + copy, only on hover

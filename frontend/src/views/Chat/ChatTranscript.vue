@@ -89,6 +89,7 @@ function itemKey(item: RenderItem): string {
         :role="item.message.role as 'user' | 'assistant'"
         :timestamp="item.message.createdAt * 1000"
         :status="item.message.status as 'ok' | 'failed' | 'canceled' | ''"
+        :error-code="item.message.errorCode"
       />
     </template>
   </div>

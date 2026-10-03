@@ -18,8 +18,11 @@ type ProviderDTO struct {
 	// MaxImages caps the image parts of one request to this provider; 0 means
 	// the built-in default. Low-limit gateways need it lowered, and the
 	// recognition enhancement (one frame → five images) may need it raised.
-	MaxImages int  `json:"maxImages"`
-	HasSecret bool `json:"hasSecret"`
+	MaxImages int `json:"maxImages"`
+	// UserAgent overrides the User-Agent header on requests to this provider;
+	// "" keeps the Go/SDK default (docs/05 §5.5.2).
+	UserAgent string `json:"userAgent"`
+	HasSecret bool   `json:"hasSecret"`
 }
 
 // ProviderInputDTO is the create/update payload. Secret is the one field not
@@ -31,6 +34,7 @@ type ProviderInputDTO struct {
 	Endpoint    string   `json:"endpoint"`
 	Models      []string `json:"models"`
 	MaxImages   int      `json:"maxImages"`
+	UserAgent   string   `json:"userAgent"`
 	Secret      string   `json:"secret"`
 }
 

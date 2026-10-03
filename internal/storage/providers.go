@@ -17,6 +17,9 @@ import (
 // endpoint and key (decisions/providers-multi-model). It is stored as a JSON
 // array in the `models` column; the routing chain references a (provider, model)
 // pair, so a provider with several models contributes several chain entries.
+//
+// UserAgent overrides the User-Agent header on requests to this provider; the
+// empty string keeps the Go/SDK default. The caller layer validates it.
 type Provider struct {
 	ID          string
 	DisplayName string
@@ -24,6 +27,7 @@ type Provider struct {
 	Endpoint    string
 	Models      []string
 	MaxImages   int
+	UserAgent   string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -49,7 +53,7 @@ func (r *ProviderRepo) List(ctx context.Context) ([]Provider, error) {
 	var out []Provider
 	err := r.store.Read(ctx, "providers list", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
-			`SELECT id, display_name, protocol, endpoint, models, max_images, created_at, updated_at
+			`SELECT id, display_name, protocol, endpoint, models, max_images, user_agent, created_at, updated_at
 			 FROM providers ORDER BY display_name, id`)
 		if err != nil {
 			return err
@@ -75,7 +79,7 @@ func (r *ProviderRepo) Get(ctx context.Context, id string) (Provider, error) {
 	var p Provider
 	err := r.store.Read(ctx, "providers get", func(ctx context.Context, tx *sql.Tx) error {
 		row := tx.QueryRowContext(ctx,
-			`SELECT id, display_name, protocol, endpoint, models, max_images, created_at, updated_at
+			`SELECT id, display_name, protocol, endpoint, models, max_images, user_agent, created_at, updated_at
 			 FROM providers WHERE id = ?`, id)
 		var err error
 		p, err = scanProvider(row)
@@ -97,9 +101,9 @@ func (r *ProviderRepo) Add(ctx context.Context, p Provider) error {
 	}
 	return r.store.Write(ctx, "providers add", func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
-			`INSERT INTO providers (id, display_name, protocol, endpoint, models, max_images, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			p.ID, p.DisplayName, p.Protocol, p.Endpoint, models, p.MaxImages, at.Unix(), at.Unix())
+			`INSERT INTO providers (id, display_name, protocol, endpoint, models, max_images, user_agent, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			p.ID, p.DisplayName, p.Protocol, p.Endpoint, models, p.MaxImages, p.UserAgent, at.Unix(), at.Unix())
 		return err
 	})
 }
@@ -115,9 +119,9 @@ func (r *ProviderRepo) Update(ctx context.Context, id string, p Provider) error 
 	return r.store.Write(ctx, "providers update", func(ctx context.Context, tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
 			`UPDATE providers
-			 SET display_name = ?, protocol = ?, endpoint = ?, models = ?, max_images = ?, updated_at = ?
+			 SET display_name = ?, protocol = ?, endpoint = ?, models = ?, max_images = ?, user_agent = ?, updated_at = ?
 			 WHERE id = ?`,
-			p.DisplayName, p.Protocol, p.Endpoint, models, p.MaxImages, at.Unix(), id)
+			p.DisplayName, p.Protocol, p.Endpoint, models, p.MaxImages, p.UserAgent, at.Unix(), id)
 		if err != nil {
 			return err
 		}
@@ -142,7 +146,7 @@ func scanProvider(row scanner) (Provider, error) {
 	var p Provider
 	var models string
 	var createdAt, updatedAt int64
-	if err := row.Scan(&p.ID, &p.DisplayName, &p.Protocol, &p.Endpoint, &models, &p.MaxImages, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&p.ID, &p.DisplayName, &p.Protocol, &p.Endpoint, &models, &p.MaxImages, &p.UserAgent, &createdAt, &updatedAt); err != nil {
 		return Provider{}, err
 	}
 	decoded, err := decodeModels(models)

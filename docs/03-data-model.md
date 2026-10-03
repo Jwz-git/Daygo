@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 20`）有十九张业务表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 22`）有十九张业务表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -11,7 +11,9 @@
 > `providers.max_images`（v11）、首次启动分类种子（v12）、`daily_standup_entries`（v13）、
 > `card_reviews`（v14）、`pending_captures.frame_index`（v15）、分段截图大小均摊（v16），
 > `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）、`card_ratings`（v18），
-> 移除 `journal_entries.summary`（v19，保留用户输入），以及计划的 `plan_blocks`（v20）。本文其余表
+> 移除 `journal_entries.summary`（v19，保留用户输入）、计划的 `plan_blocks`（v20），以及
+> `providers.user_agent`（v21，User-Agent 覆盖），以及 `chat_messages.error_code`（v22，
+> 回合失败原因码）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -356,6 +358,7 @@ CREATE TABLE chat_messages (
   role            TEXT NOT NULL,  -- user | assistant | tool_call | tool_result
   content         TEXT NOT NULL,  -- tool_result 行为结果 JSON 信封
   status          TEXT,           -- assistant 消息：ok | failed | canceled
+  error_code      TEXT NOT NULL DEFAULT '',  -- 仅终结的 assistant 行：回合失败原因（v22）
   tool_name       TEXT,           -- tool_call / tool_result 行的工具名
   tool_arguments  TEXT,           -- 仅 tool_call：紧凑 JSON 参数
   created_at      INTEGER NOT NULL
@@ -382,10 +385,15 @@ CREATE TABLE providers (
   endpoint     TEXT NOT NULL,      -- 绝对 http(s) 基地址，不含凭据
   models       TEXT NOT NULL DEFAULT '[]',  -- v17：JSON 字符串数组，同一 endpoint/key 下的有序模型列表（至少 1 个，上限 20）
   max_images   INTEGER NOT NULL DEFAULT 0,   -- v11：单请求图片上限，0 = ai.MaxImages 默认；与模型无关，按 provider 计
+  user_agent   TEXT NOT NULL DEFAULT '',     -- v21：请求携带的 User-Agent 覆盖；空串 = 用 Go/SDK 默认
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL
 );
 ```
+
+v21 给 `providers` 追加 `user_agent`：部分网关按 User-Agent 识别或放行客户端，空串保持默认行为。
+写入前在 `internal/app` 校验（≤512、仅可打印 ASCII、拒绝 CR/LF）——它是出站 HTTP 头，
+UI / CLI / agent 都能写。
 
 v17 把单列 `model` 重建为 `models`（JSON 字符串数组）：旧 `model` 折为一元数组
 `["<model>"]`，空 `model` 折为 `[]`（建新表→回填→改名，见

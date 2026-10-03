@@ -28,14 +28,17 @@ export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
   anthropic: 'https://api.anthropic.com',
 }
 
-export type ProviderField = 'displayName' | 'endpoint' | 'models' | 'maxImages'
+export type ProviderField = 'displayName' | 'endpoint' | 'models' | 'maxImages' | 'userAgent'
 
-export type ProviderFieldError = 'required' | 'invalidUrl' | 'range'
+export type ProviderFieldError = 'required' | 'invalidUrl' | 'range' | 'tooLong' | 'invalidChars'
 
 export type ProviderErrors = Partial<Record<ProviderField, ProviderFieldError>>
 
 /** The most models one provider may carry; mirrors the backend cap. */
 export const MAX_PROVIDER_MODELS = 20
+
+/** The User-Agent override length cap; mirrors the backend's maxUserAgentLength. */
+export const MAX_USER_AGENT_LENGTH = 512
 
 /** What the form hands back. `secret` goes to the keychain, never to a DTO. */
 export interface ProviderDraft {
@@ -45,6 +48,8 @@ export interface ProviderDraft {
   /** The working list of model ids; blanks are dropped on save. */
   models: string[]
   maxImages: number
+  /** User-Agent override; "" keeps the Go/SDK default. */
+  userAgent: string
   secret: string
 }
 
@@ -55,6 +60,7 @@ export function emptyDraft(): ProviderDraft {
     endpoint: DEFAULT_ENDPOINTS.openai,
     models: [''],
     maxImages: 0,
+    userAgent: '',
     secret: '',
   }
 }
@@ -66,6 +72,7 @@ export function draftOf(provider: ProviderDTO): ProviderDraft {
     endpoint: provider.endpoint,
     models: provider.models.length > 0 ? [...provider.models] : [''],
     maxImages: provider.maxImages,
+    userAgent: provider.userAgent,
     secret: '',
   }
 }
@@ -106,6 +113,21 @@ function normalizeEndpoint(raw: string): string | null {
   return url.toString().replace(/\/+$/, '')
 }
 
+/**
+ * Validate the User-Agent override the way Go does: ≤512 printable ASCII
+ * characters, no CR/LF or control bytes. Feedback only; the backend enforces it.
+ */
+function userAgentError(raw: string): ProviderFieldError | null {
+  const value = raw.trim()
+  if (value === '') return null
+  if (value.length > MAX_USER_AGENT_LENGTH) return 'tooLong'
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i)
+    if (code < 0x20 || code > 0x7e) return 'invalidChars'
+  }
+  return null
+}
+
 function validate(draft: ProviderDraft): { ok: true } | { ok: false; errors: ProviderErrors } {
   const errors: ProviderErrors = {}
 
@@ -121,6 +143,9 @@ function validate(draft: ProviderDraft): { ok: true } | { ok: false; errors: Pro
   if (!Number.isInteger(draft.maxImages) || draft.maxImages < 0 || draft.maxImages > 5) {
     errors.maxImages = 'range'
   }
+
+  const uaError = userAgentError(draft.userAgent)
+  if (uaError !== null) errors.userAgent = uaError
 
   if (Object.keys(errors).length > 0) return { ok: false, errors }
   return { ok: true }
@@ -205,6 +230,7 @@ export const useProvidersStore = defineStore('providers', () => {
         // rejected by the backend, so it seeds an empty list the user fills in.
         models: legacy.model.trim() === '' ? [] : [legacy.model.trim()],
         maxImages: 0,
+        userAgent: '',
         secret: '',
       })
       idMap.set(legacy.id, id)
@@ -257,6 +283,7 @@ export const useProvidersStore = defineStore('providers', () => {
       endpoint: normalizeEndpoint(draft.endpoint) ?? draft.endpoint.trim(),
       models: normalizeModels(draft.models),
       maxImages: draft.maxImages,
+      userAgent: draft.userAgent.trim(),
       secret: draft.secret.trim(),
     })
     await refresh()
@@ -282,6 +309,7 @@ export const useProvidersStore = defineStore('providers', () => {
       endpoint: normalizeEndpoint(draft.endpoint) ?? draft.endpoint.trim(),
       models: normalizeModels(draft.models),
       maxImages: draft.maxImages,
+      userAgent: draft.userAgent.trim(),
       secret: draft.secret.trim(),
     })
     await refresh()

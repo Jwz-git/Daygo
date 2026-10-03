@@ -63,10 +63,11 @@ func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, erro
 			return nil, err
 		}
 		provider, err := factory.NewClient(nil, factory.Config{
-			Protocol: ai.Protocol(row.Protocol),
-			Endpoint: row.Endpoint,
-			Model:    model,
-			Secret:   secret,
+			Protocol:  ai.Protocol(row.Protocol),
+			Endpoint:  row.Endpoint,
+			Model:     model,
+			Secret:    secret,
+			UserAgent: row.UserAgent,
 		})
 		if err != nil {
 			continue

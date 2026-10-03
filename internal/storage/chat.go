@@ -38,16 +38,20 @@ type Conversation struct {
 }
 
 // ChatMessage is one row of chat_messages. Status is set only for assistant
-// messages. ToolName/ToolArguments are set only on agent rows: tool_call fills
-// both, tool_result pairs by ToolName with an empty ToolArguments; success or
-// failure of a tool step is part of the row's content JSON envelope, not a
-// column (status stays reserved for the assistant terminal message).
+// messages. ErrorCode is set only on a terminal assistant row (failed or
+// canceled) and names why the turn ended; empty means success or a row written
+// before the column existed. ToolName/ToolArguments are set only on agent rows:
+// tool_call fills both, tool_result pairs by ToolName with an empty
+// ToolArguments; success or failure of a tool step is part of the row's content
+// JSON envelope, not a column (status stays reserved for the assistant
+// terminal message).
 type ChatMessage struct {
 	ID             int64
 	ConversationID string
 	Role           string
 	Content        string
 	Status         string
+	ErrorCode      string
 	ToolName       string
 	ToolArguments  string
 	CreatedAt      time.Time
@@ -178,9 +182,9 @@ func (r *ChatRepo) AppendMessage(ctx context.Context, conversationID string, m C
 	at := r.store.now()
 	err := r.store.Write(ctx, "chat append message", func(ctx context.Context, tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
-			`INSERT INTO chat_messages (conversation_id, role, content, status, tool_name, tool_arguments, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			conversationID, m.Role, m.Content, m.Status, m.ToolName, m.ToolArguments, at.Unix())
+			`INSERT INTO chat_messages (conversation_id, role, content, status, error_code, tool_name, tool_arguments, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			conversationID, m.Role, m.Content, m.Status, m.ErrorCode, m.ToolName, m.ToolArguments, at.Unix())
 		if err != nil {
 			return err
 		}
@@ -209,7 +213,7 @@ func (r *ChatRepo) Messages(ctx context.Context, conversationID string, beforeID
 	if limit <= 0 || limit > ChatMessageLimit {
 		limit = ChatMessageLimit
 	}
-	query := `SELECT id, conversation_id, role, content, status, tool_name, tool_arguments, created_at
+	query := `SELECT id, conversation_id, role, content, status, error_code, tool_name, tool_arguments, created_at
 		FROM chat_messages WHERE conversation_id = ?`
 	args := []any{conversationID}
 	if beforeID > 0 {
@@ -268,12 +272,13 @@ func scanConversation(row scanner) (Conversation, error) {
 
 func scanChatMessage(row scanner) (ChatMessage, error) {
 	var m ChatMessage
-	var status, toolName, toolArguments sql.NullString
+	var status, errorCode, toolName, toolArguments sql.NullString
 	var createdAt int64
-	if err := row.Scan(&m.ID, &m.ConversationID, &m.Role, &m.Content, &status, &toolName, &toolArguments, &createdAt); err != nil {
+	if err := row.Scan(&m.ID, &m.ConversationID, &m.Role, &m.Content, &status, &errorCode, &toolName, &toolArguments, &createdAt); err != nil {
 		return ChatMessage{}, err
 	}
 	m.Status = status.String
+	m.ErrorCode = errorCode.String
 	m.ToolName = toolName.String
 	m.ToolArguments = toolArguments.String
 	m.CreatedAt = time.Unix(createdAt, 0)

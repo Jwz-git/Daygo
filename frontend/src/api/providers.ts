@@ -51,6 +51,7 @@ function devState(): DevState {
         endpoint: 'https://example.invalid/v1',
         models: ['dev-model', 'dev-model-pro'],
         maxImages: 0,
+        userAgent: '',
         hasSecret: false,
       },
     ],
@@ -80,6 +81,7 @@ export async function addProvider(input: ProviderInput): Promise<string> {
         endpoint: input.endpoint,
         models: [...input.models],
         maxImages: input.maxImages,
+        userAgent: input.userAgent,
         hasSecret: input.secret !== '',
       },
     ]
@@ -104,6 +106,7 @@ export async function updateProvider(id: string, input: ProviderInput): Promise<
             endpoint: input.endpoint,
             models: [...input.models],
             maxImages: input.maxImages,
+            userAgent: input.userAgent,
             hasSecret: input.secret !== '' ? true : provider.hasSecret,
           }
         : provider,

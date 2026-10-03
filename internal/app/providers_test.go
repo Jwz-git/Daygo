@@ -170,6 +170,70 @@ func TestProviderValidation(t *testing.T) {
 	}
 }
 
+func TestProviderUserAgentRoundTrip(t *testing.T) {
+	backend, _, _ := backendWithStoreAndSecrets(t)
+
+	input := validProviderInput()
+	input.UserAgent = "Daygo/1.0"
+	id, err := backend.AddProvider(input)
+	if err != nil {
+		t.Fatalf("AddProvider: %v", err)
+	}
+	list, _ := backend.ListProviders()
+	if len(list) != 1 || list[0].UserAgent != "Daygo/1.0" {
+		t.Fatalf("user agent = %q, want the stored override", list[0].UserAgent)
+	}
+
+	// Surrounding whitespace is trimmed on write.
+	updated := validProviderInput()
+	updated.UserAgent = "  Fixture/2.0  "
+	if err := backend.UpdateProvider(id, updated); err != nil {
+		t.Fatalf("UpdateProvider: %v", err)
+	}
+	list, _ = backend.ListProviders()
+	if list[0].UserAgent != "Fixture/2.0" {
+		t.Fatalf("user agent = %q, want the trimmed value", list[0].UserAgent)
+	}
+
+	// Clearing returns to the default (empty) without touching other fields.
+	if err := backend.UpdateProvider(id, validProviderInput()); err != nil {
+		t.Fatalf("UpdateProvider: %v", err)
+	}
+	list, _ = backend.ListProviders()
+	if list[0].UserAgent != "" {
+		t.Fatalf("user agent = %q, want empty after clearing", list[0].UserAgent)
+	}
+}
+
+func TestProviderUserAgentValidation(t *testing.T) {
+	backend, _, _ := backendWithStoreAndSecrets(t)
+
+	cases := []struct {
+		name      string
+		userAgent string
+	}{
+		{"carriage return", "Daygo/1.0\rHost: evil.example"},
+		{"line feed", "Daygo/1.0\nX-Injected: 1"},
+		{"control byte", "Daygo\x001.0"},
+		{"non-ascii", "Daygo/1.0 中文"},
+		{"too long", strings.Repeat("a", maxUserAgentLength+1)},
+	}
+	for _, tc := range cases {
+		input := validProviderInput()
+		input.UserAgent = tc.userAgent
+		if _, err := backend.AddProvider(input); err == nil {
+			t.Errorf("%s: AddProvider accepted an illegal user agent", tc.name)
+		}
+	}
+
+	// The maximum length itself is accepted.
+	input := validProviderInput()
+	input.UserAgent = strings.Repeat("a", maxUserAgentLength)
+	if _, err := backend.AddProvider(input); err != nil {
+		t.Fatalf("AddProvider rejected a maximum-length user agent: %v", err)
+	}
+}
+
 func TestProviderRoutingChain(t *testing.T) {
 	backend, emitter, _ := backendWithStoreAndSecrets(t)
 

@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: 'キーを貼り付け',
       apiKeyKeepHint: '空欄のままにすると現在のキーを保持します。',
       httpWarning: 'このアドレスは暗号化されていません（HTTP）。キーとスクリーンショットが通信中に第三者へ見られる可能性があります。',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: '空欄なら既定値を使用',
+      userAgentHint: '一部のゲートウェイは User-Agent でクライアントを識別または許可します。空欄なら既定値を使用します。',
+      userAgentPreset: {
+        label: 'よく使うプリセット',
+        custom: 'カスタム',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: '使用順序',
@@ -243,6 +252,8 @@ export default {
       required: '必須です',
       invalidUrl: 'http:// または https:// で始まる完全な URL を入力してください',
       range: '0 から 20 までの整数を入力してください',
+      tooLong: '512 文字以内で入力してください',
+      invalidChars: '印刷可能な ASCII 文字のみ使用できます',
     },
     test: {
       run: 'テスト',

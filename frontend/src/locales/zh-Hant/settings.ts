@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: '貼上金鑰',
       apiKeyKeepHint: '留空則保持原本的金鑰不變。',
       httpWarning: '這個網址沒有加密（HTTP），金鑰和截圖可能在傳輸過程中被他人看到。',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: '留空則使用預設值',
+      userAgentHint: '部分閘道會依 User-Agent 辨識或放行用戶端。留空使用預設值。',
+      userAgentPreset: {
+        label: '常用預設',
+        custom: '自訂',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: '使用順序',
@@ -243,6 +252,8 @@ export default {
       required: '不能是空的',
       invalidUrl: '請輸入以 http:// 或 https:// 開頭的完整網址',
       range: '請輸入 0 到 20 之間的整數',
+      tooLong: '不能超過 512 個字元',
+      invalidChars: '只能包含可列印的 ASCII 字元',
     },
     test: {
       run: '測試',

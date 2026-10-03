@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: 'Schlüssel einfügen',
       apiKeyKeepHint: 'Leer lassen, um den aktuellen Schlüssel zu behalten.',
       httpWarning: 'Diese Adresse ist nicht verschlüsselt (HTTP). Dein Schlüssel und deine Screenshots könnten unterwegs eingesehen werden.',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: 'Leer verwendet den Standard',
+      userAgentHint: 'Manche Gateways erkennen oder erlauben Clients anhand des User-Agent. Leer verwendet den Standard.',
+      userAgentPreset: {
+        label: 'Häufige Vorlagen',
+        custom: 'Benutzerdefiniert',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: 'Reihenfolge der Modelle',
@@ -243,6 +252,8 @@ export default {
       required: 'Erforderlich',
       invalidUrl: 'Gib eine vollständige URL beginnend mit http:// oder https:// ein',
       range: 'Gib eine ganze Zahl von 0 bis 20 ein',
+      tooLong: 'Darf höchstens 512 Zeichen lang sein',
+      invalidChars: 'Nur druckbare ASCII-Zeichen erlaubt',
     },
     test: {
       run: 'Testen',

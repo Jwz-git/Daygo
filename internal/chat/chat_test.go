@@ -2,10 +2,15 @@ package chat
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
+	"net"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -60,7 +65,7 @@ func (f fakeStore) ListConversations(ctx context.Context) ([]Conversation, error
 
 func (f fakeStore) AppendMessage(ctx context.Context, conversationID string, m Message) (Message, error) {
 	saved, err := f.ChatRepo.AppendMessage(ctx, conversationID, storage.ChatMessage{
-		Role: m.Role, Content: m.Content, Status: m.Status,
+		Role: m.Role, Content: m.Content, Status: m.Status, ErrorCode: m.ErrorCode,
 		ToolName: m.ToolName, ToolArguments: m.ToolArguments,
 	})
 	m.ID = saved.ID
@@ -75,7 +80,7 @@ func (f fakeStore) Messages(ctx context.Context, conversationID string, beforeID
 	for i, row := range rows {
 		out[i] = Message{
 			ID: row.ID, ConversationID: row.ConversationID, Role: row.Role,
-			Content: row.Content, Status: row.Status,
+			Content: row.Content, Status: row.Status, ErrorCode: row.ErrorCode,
 			ToolName: row.ToolName, ToolArguments: row.ToolArguments,
 			CreatedAt: row.CreatedAt,
 		}
@@ -378,8 +383,8 @@ func TestServiceSendWithoutProviderFails(t *testing.T) {
 	if len(messages) != 2 || messages[1].Status != StatusFailed {
 		t.Fatalf("messages = %+v", messages)
 	}
-	if !strings.Contains(messages[1].Content, "尚未选择供应商") {
-		t.Fatalf("failure text = %q", messages[1].Content)
+	if messages[1].ErrorCode != failureNoProviderSelected {
+		t.Fatalf("failure code = %q, want %q", messages[1].ErrorCode, failureNoProviderSelected)
 	}
 }
 
@@ -398,8 +403,32 @@ func TestServiceNoProviderFailsGracefully(t *testing.T) {
 	if len(messages) != 2 || messages[1].Status != StatusFailed {
 		t.Fatalf("messages = %+v", messages)
 	}
-	if !strings.Contains(messages[1].Content, "供应商") {
-		t.Fatalf("failure text = %q", messages[1].Content)
+	// With no providers at all the thread never gets a pin, so the failure the
+	// user sees is the missing selection rather than the empty configuration.
+	if messages[1].ErrorCode != failureNoProviderSelected {
+		t.Fatalf("failure code = %q, want %q", messages[1].ErrorCode, failureNoProviderSelected)
+	}
+}
+
+// A provider whose client cannot be built (here an unknown protocol) leaves the
+// chain empty, which surfaces as "nothing to call" rather than as a request
+// that failed.
+func TestServiceUnbuildableProviderFailsAsNoProvider(t *testing.T) {
+	providers := newFakeProviders(ProviderEntry{
+		ID: "p1", Protocol: "carrier-pigeon", Endpoint: "https://example.invalid/v1", Model: "m", Secret: "k",
+	})
+	service, _ := testService(t, providers, &fakeSettings{})
+
+	conversation, _ := service.NewConversation(context.Background())
+	_ = service.Send(context.Background(), conversation.ID, "hi")
+	waitTurn(t, service, conversation.ID)
+
+	messages, _ := service.Messages(context.Background(), conversation.ID, 0, 0)
+	if len(messages) != 2 || messages[1].Status != StatusFailed {
+		t.Fatalf("messages = %+v", messages)
+	}
+	if messages[1].ErrorCode != failureNoProvider {
+		t.Fatalf("failure code = %q, want %q", messages[1].ErrorCode, failureNoProvider)
 	}
 }
 
@@ -419,8 +448,96 @@ func TestServiceProviderFailureLandsAsFailedMessage(t *testing.T) {
 	if len(messages) != 2 || messages[1].Status != StatusFailed {
 		t.Fatalf("messages = %+v", messages)
 	}
+	if messages[1].ErrorCode != failureAuthentication {
+		t.Fatalf("failure code = %q, want %q", messages[1].ErrorCode, failureAuthentication)
+	}
 	if strings.Contains(messages[1].Content, "bad") {
 		t.Fatalf("failure text leaks the secret: %q", messages[1].Content)
+	}
+}
+
+// The reported shape of an unreachable gateway: the address refuses the
+// connection, so no HTTP response ever arrives. The row must say so by class
+// rather than leaving the user with the transport layer's own words.
+func TestServiceTransportFailureRecordsConnectionCode(t *testing.T) {
+	server := newOpenAIServer(t, func(string) string { return `{ "kind": "answer", "answer": "ok" }` })
+	endpoint := server.URL
+	server.Close()
+
+	providers := newFakeProviders(ProviderEntry{
+		ID: "p1", Protocol: "openai", Endpoint: endpoint, Model: "m", Secret: "k",
+	})
+	service, _ := testService(t, providers, &fakeSettings{})
+
+	conversation, _ := service.NewConversation(context.Background())
+	_ = service.Send(context.Background(), conversation.ID, "hi")
+	waitTurn(t, service, conversation.ID)
+
+	messages, _ := service.Messages(context.Background(), conversation.ID, 0, 0)
+	if len(messages) != 2 || messages[1].Status != StatusFailed {
+		t.Fatalf("messages = %+v", messages)
+	}
+	if messages[1].ErrorCode != failureConnection {
+		t.Fatalf("failure code = %q, want %q", messages[1].ErrorCode, failureConnection)
+	}
+}
+
+// Every terminal turn failure maps to the code the UI localizes. The case list
+// is what frontend/tests/chatFailure.test.ts reads to check the translations,
+// so a new branch here needs a matching locale key.
+func TestFailureCodes(t *testing.T) {
+	dnsErr := &net.DNSError{Err: "no such host", Name: "gateway.invalid", IsNotFound: true}
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"tool budget", errToolBudget, failureToolBudget},
+		{"no provider", ai.ErrNoProvider, failureNoProvider},
+		{"no provider selected", errNoProviderSelected, failureNoProviderSelected},
+		{"canceled context", context.Canceled, failureCanceled},
+		{"deadline", context.DeadlineExceeded, failureTimeout},
+		{"ai canceled", ai.NewError(ai.ErrorCanceled, "provider request canceled", 0, nil), failureCanceled},
+		{"ai authentication", ai.NewError(ai.ErrorAuthentication, "provider authentication failed", 401, nil), failureAuthentication},
+		{"ai rate limited", ai.NewError(ai.ErrorRateLimited, "provider rate limit reached", 429, nil), failureRateLimited},
+		{"ai timeout", ai.NewError(ai.ErrorTimeout, "provider request timed out", 0, nil), failureTimeout},
+		{"ai invalid request", ai.NewError(ai.ErrorInvalidRequest, "provider rejected request", 400, nil), failureInvalidRequest},
+		{"ai unsupported feature", ai.NewError(ai.ErrorUnsupportedFeature, "no native structured output", 400, nil), failureUnsupportedFeature},
+		{"ai invalid output", ai.NewError(ai.ErrorInvalidOutput, "provider returned no text", 0, nil), failureInvalidOutput},
+		{"dns", ai.NewError(ai.ErrorUnavailable, "provider request failed", 0, dnsErr), failureDNS},
+		{
+			"tls",
+			ai.NewError(ai.ErrorUnavailable, "provider request failed", 0,
+				&tls.CertificateVerificationError{Err: errors.New("x509: certificate signed by unknown authority")}),
+			failureTLS,
+		},
+		{
+			"connection refused",
+			ai.NewError(ai.ErrorUnavailable, "provider request failed", 0,
+				&net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}),
+			failureConnection,
+		},
+		{
+			"other transport",
+			ai.NewError(ai.ErrorUnavailable, "provider request failed", 0, errors.New("unexpected EOF")),
+			failureNetwork,
+		},
+		{"store error", errors.New("chat get conversation: no such row"), failureInternal},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			code, text := failure(tc.err)
+			if code != tc.want {
+				t.Fatalf("code = %q, want %q", code, tc.want)
+			}
+			if code != "" && text == "" {
+				t.Fatalf("code %q has no fallback text", code)
+			}
+		})
+	}
+
+	if code, text := failure(nil); code != "" || text != "" {
+		t.Fatalf("failure(nil) = %q, %q, want empty", code, text)
 	}
 }
 

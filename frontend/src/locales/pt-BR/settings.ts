@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: 'Cole a chave',
       apiKeyKeepHint: 'Deixe em branco para manter a chave atual.',
       httpWarning: 'Este endereço não é criptografado (HTTP). A sua chave e as capturas de tela podem ser vistas durante o transporte.',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: 'Vazio usa o padrão',
+      userAgentHint: 'Alguns gateways identificam ou permitem clientes pelo User-Agent. Vazio usa o padrão.',
+      userAgentPreset: {
+        label: 'Predefinições comuns',
+        custom: 'Personalizado',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: 'Ordem dos modelos',
@@ -243,6 +252,8 @@ export default {
       required: 'Obrigatório',
       invalidUrl: 'Informe um endereço completo começando com http:// ou https://',
       range: 'Informe um número inteiro de 0 a 20',
+      tooLong: 'Deve ter no máximo 512 caracteres',
+      invalidChars: 'Somente caracteres ASCII imprimíveis são permitidos',
     },
     test: {
       run: 'Testar',

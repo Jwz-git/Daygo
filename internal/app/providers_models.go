@@ -18,6 +18,9 @@ type ProviderModelsRequestDTO struct {
 	Protocol   string `json:"protocol"`
 	Endpoint   string `json:"endpoint"`
 	Secret     string `json:"secret"`
+	// UserAgent applies to the draft branch only; a saved provider uses its
+	// stored value.
+	UserAgent string `json:"userAgent"`
 }
 
 // ProviderModelsResultDTO reports the listing outcome. Following the probe
@@ -35,7 +38,7 @@ type ProviderModelsResultDTO struct {
 // user-triggered and small; the decision to skip a cache is deliberate.
 func (b *Backend) ListProviderModels(req ProviderModelsRequestDTO) (ProviderModelsResultDTO, error) {
 	var protocol daygoai.Protocol
-	var endpoint, secret string
+	var endpoint, secret, userAgent string
 
 	if id := strings.TrimSpace(req.ProviderID); id != "" {
 		repo, err := b.providerStore()
@@ -61,6 +64,7 @@ func (b *Backend) ListProviderModels(req ProviderModelsRequestDTO) (ProviderMode
 		protocol = daygoai.Protocol(row.Protocol)
 		endpoint = row.Endpoint
 		secret = stored
+		userAgent = row.UserAgent
 	} else {
 		protocol = daygoai.Protocol(strings.TrimSpace(req.Protocol))
 		// Strip a pasted request-path suffix exactly as AddProvider /
@@ -72,9 +76,16 @@ func (b *Backend) ListProviderModels(req ProviderModelsRequestDTO) (ProviderMode
 		}
 		endpoint = normalized
 		secret = strings.TrimSpace(req.Secret)
+		// The draft's UA reaches the wire without passing through
+		// AddProvider/UpdateProvider, so it is validated here too.
+		ua, err := normalizeUserAgent(req.UserAgent)
+		if err != nil {
+			return ProviderModelsResultDTO{}, err
+		}
+		userAgent = ua
 	}
 
-	models, err := daygoai.ListModels(context.Background(), protocol, endpoint, secret)
+	models, err := daygoai.ListModels(context.Background(), protocol, endpoint, secret, userAgent)
 	if err != nil {
 		return ProviderModelsResultDTO{
 			OK:        false,

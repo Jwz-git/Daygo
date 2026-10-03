@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -193,6 +194,51 @@ func TestChatBindingSecondSendWhileRunningRejected(t *testing.T) {
 		messages, err := backend.GetChatMessages(conversation.ID, 0, 0)
 		return err == nil && len(messages) >= 2
 	})
+}
+
+// A failed turn reaches the frontend as a code it can localize, not as the
+// provider layer's own English text. Guards the adapter that copies the chat
+// service's message rows into storage and back out to the DTO.
+func TestChatBindingFailedTurnCarriesErrorCode(t *testing.T) {
+	backend, _, _ := backendWithStoreAndSecrets(t)
+
+	server := probeServer(t, http.StatusUnauthorized, `{"error":{"message":"nope"}}`)
+	provider, err := backend.AddProvider(ProviderInputDTO{
+		DisplayName: "Fixture Provider",
+		Protocol:    "openai",
+		Endpoint:    server.URL + "/v1",
+		Models:      []string{"fixture-model"},
+		Secret:      "fixture-secret",
+	})
+	if err != nil {
+		t.Fatalf("AddProvider: %v", err)
+	}
+
+	conversation, err := backend.CreateChatConversation()
+	if err != nil {
+		t.Fatalf("CreateChatConversation: %v", err)
+	}
+	if err := backend.SetChatConversationProvider(conversation.ID, provider); err != nil {
+		t.Fatalf("SetChatConversationProvider: %v", err)
+	}
+	if err := backend.SendChatMessage(conversation.ID, "hi"); err != nil {
+		t.Fatalf("SendChatMessage: %v", err)
+	}
+
+	waitFor(t, func() bool {
+		messages, err := backend.GetChatMessages(conversation.ID, 0, 0)
+		return err == nil && len(messages) == 2 && messages[1].Status == "failed"
+	})
+	messages, err := backend.GetChatMessages(conversation.ID, 0, 0)
+	if err != nil {
+		t.Fatalf("GetChatMessages: %v", err)
+	}
+	if messages[1].ErrorCode != "authentication" {
+		t.Fatalf("errorCode = %q, want authentication", messages[1].ErrorCode)
+	}
+	if strings.Contains(messages[1].Content, "fixture-secret") {
+		t.Fatalf("failure content leaks the secret: %q", messages[1].Content)
+	}
 }
 
 // End to end through the real chat service: a turn against a scripted

@@ -115,7 +115,7 @@ func (b *Backend) TryProvider(req ProviderPlaygroundRequestDTO) (ProviderPlaygro
 		}
 		return ProviderPlaygroundResultDTO{}, apperr.E(apperr.NativeUnavailable, "reading the stored api key failed", nil)
 	}
-	provider, err := factory.NewClient(&http.Client{}, factory.Config{Protocol: ai.Protocol(row.Protocol), Endpoint: row.Endpoint, Model: model, Secret: secret})
+	provider, err := factory.NewClient(&http.Client{}, factory.Config{Protocol: ai.Protocol(row.Protocol), Endpoint: row.Endpoint, Model: model, Secret: secret, UserAgent: row.UserAgent})
 	if err != nil {
 		return ProviderPlaygroundResultDTO{ErrorCode: string(ai.ErrorKindOf(err))}, nil
 	}

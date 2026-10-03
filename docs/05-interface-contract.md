@@ -901,17 +901,20 @@ type ProviderDTO struct {
     Endpoint    string   `json:"endpoint"` // 绝对 http(s) 基地址，不含凭据
     Models      []string `json:"models"`   // → providers.models：有序模型列表，至少 1 个
     MaxImages   int      `json:"maxImages"` // → providers.max_images：单请求图片上限，0 = 默认
+    UserAgent   string   `json:"userAgent"` // → providers.user_agent：请求携带的 User-Agent 覆盖，空串 = Go/SDK 默认
     HasSecret   bool     `json:"hasSecret"` // 只暴露"是否已配置"，永不返回密钥内容
 }
 
 // ProviderInputDTO 是写入形状。Secret 为空串表示"保持不变"，不是"清空"。
 // Models 至少一个非空项，逐个 trim、去重，上限 20（decisions/providers-multi-model）。
+// UserAgent trim 后非空时只允许 ≤512 个可打印 ASCII 字符；含 CR/LF 或控制字符按 invalid_argument 拒绝。
 type ProviderInputDTO struct {
     DisplayName string   `json:"displayName"`
     Protocol    string   `json:"protocol"`
     Endpoint    string   `json:"endpoint"`
     Models      []string `json:"models"`
     MaxImages   int      `json:"maxImages"`
+    UserAgent   string   `json:"userAgent"`
     Secret      string   `json:"secret"`
 }
 
@@ -930,12 +933,13 @@ type ProviderRoutingDTO struct {
 }
 
 // ListProviderModels 的入参：ProviderID 非空时走已保存 provider（密钥从钥匙串取），
-// 否则按草稿处理（Protocol/Endpoint/Secret 随调用跨界，不落盘）。
+// 否则按草稿处理。UserAgent 只作用于草稿分支，已保存分支改用 providers.user_agent。
 type ProviderModelsRequestDTO struct {
     ProviderID string `json:"providerId"`
     Protocol   string `json:"protocol"`
     Endpoint   string `json:"endpoint"`
     Secret     string `json:"secret"`
+    UserAgent  string `json:"userAgent"`
 }
 
 // ListProviderModels 的返回。失败是结果而不是 error（与探针同惯用法）：
@@ -1824,7 +1828,9 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 | `SetChatConversationModel(id string, model string) error` | 写（model 空串 = 跟随 provider 配置的模型；非空即覆盖，上限 256 字节） | `chat:updated` | `invalid_argument`（无 provider、超长）`not_found` |
 
 消息模型：**原子消息**，角色为 `user` / `assistant` / `tool_call` / `tool_result`。
-回合的失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` / `canceled`）。
+回合的失败与取消落为 `assistant` 消息的 `status`（`ok` / `failed` / `canceled`）；
+`errorCode` 为其封闭的失败原因码，前端渲染 `chat.failure.<errorCode>`，空串表示成功行或旧行，
+此时回退到 `content`（技术性英文兜底，不作为用户文案）。
 `tool_call` 行的 `toolName` / `toolArguments` 携带工具名与参数 JSON（content 为空）；相邻的
 `tool_result` 行以 `toolName` 配对，content 为结果信封
 `{"ok":true,"data":…}` 或 `{"ok":false,"error":{"code","message"}}`。既往回合的 tool_result
@@ -1845,11 +1851,20 @@ type ChatMessageDTO struct {
     Role          string `json:"role"`    // user | assistant | tool_call | tool_result
     Content       string `json:"content"` // tool_call 为空；tool_result 为结果信封 JSON
     Status        string `json:"status"`  // assistant: ok | failed | canceled
+    ErrorCode     string `json:"errorCode"` // 终结 assistant 行的失败原因码，见下
     ToolName      string `json:"toolName"`
     ToolArguments string `json:"toolArguments"` // 紧凑参数 JSON，仅 tool_call 行
     CreatedAt     int64  `json:"createdAt"`
 }
 ```
+
+`errorCode` 的封闭取值（`internal/chat`，v22 起；每个码须在九语言
+`chat.failure.<code>` 有文案，`frontend/tests/chatFailure.test.ts` 双向校验）：
+`no_provider`、`no_provider_selected`、`canceled`、`authentication`、`rate_limited`、`timeout`、
+`dns`、`connection`、`tls`、`network`、`invalid_request`、`unsupported_feature`、
+`invalid_output`、`tool_budget`、`internal`。
+其中 `dns` / `connection` / `tls` / `network` 细分 `ai.ErrorUnavailable`——该 kind 覆盖一切
+**没有拿到 HTTP 响应**的失败；能拿到响应的失败（401/429/4xx/5xx）走各自独立的 kind 码。
 
 待定候选（[09 §9.8](09-roadmap.md#98-待定设计清单) #23；前三项已落定，见
 [decisions/chat-session-model.md](decisions/chat-session-model.md)）：

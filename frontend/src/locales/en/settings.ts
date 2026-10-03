@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: 'Paste the key',
       apiKeyKeepHint: 'Leave blank to keep the current key.',
       httpWarning: 'This address isn’t encrypted (HTTP). Your key and screenshots could be seen in transit.',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: 'Empty uses the default',
+      userAgentHint: 'Some gateways identify or allow clients by User-Agent. Empty uses the default.',
+      userAgentPreset: {
+        label: 'Common presets',
+        custom: 'Custom',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: 'Model order',
@@ -243,6 +252,8 @@ export default {
       required: 'Required',
       invalidUrl: 'Enter a full URL starting with http:// or https://',
       range: 'Enter a whole number from 0 to 20',
+      tooLong: 'Must be at most 512 characters',
+      invalidChars: 'Only printable ASCII characters are allowed',
     },
     test: {
       run: 'Test',

@@ -27,8 +27,10 @@ const maxModels = 100
 // ListModels fetches the available model ids from a provider's endpoint.
 // One request, no retry, no fallback: it is a convenience for the model
 // dropdown, and a provider without a models endpoint reports a classified
-// error the user answers by typing the model name manually.
-func ListModels(ctx context.Context, protocol Protocol, endpoint, secret string) ([]string, error) {
+// error the user answers by typing the model name manually. A non-empty
+// userAgent overrides the User-Agent so the listing matches the provider's
+// other requests.
+func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAgent string) ([]string, error) {
 	if !protocol.Valid() {
 		return nil, NewError(ErrorInvalidRequest, "unknown provider protocol", 0, nil)
 	}
@@ -60,6 +62,9 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret string)
 		return nil, NewError(ErrorInvalidRequest, "cannot create models request", 0, err)
 	}
 	header(request)
+	if userAgent != "" {
+		request.Header.Set("User-Agent", userAgent)
+	}
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {

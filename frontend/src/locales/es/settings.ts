@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: 'Pega la clave',
       apiKeyKeepHint: 'Déjalo en blanco para conservar la clave actual.',
       httpWarning: 'Esta dirección no está cifrada (HTTP). Tu clave y tus capturas podrían verse durante la transmisión.',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: 'Vacío usa el valor predeterminado',
+      userAgentHint: 'Algunas pasarelas identifican o permiten clientes por el User-Agent. Vacío usa el valor predeterminado.',
+      userAgentPreset: {
+        label: 'Preajustes comunes',
+        custom: 'Personalizado',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: 'Orden de los modelos',
@@ -243,6 +252,8 @@ export default {
       required: 'Obligatorio',
       invalidUrl: 'Escribe una URL completa que empiece por http:// o https://',
       range: 'Escribe un número entero de 0 a 20',
+      tooLong: 'Debe tener como máximo 512 caracteres',
+      invalidChars: 'Solo se permiten caracteres ASCII imprimibles',
     },
     test: {
       run: 'Probar',

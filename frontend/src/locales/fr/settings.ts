@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: 'Collez la clé',
       apiKeyKeepHint: 'Laissez vide pour conserver la clé actuelle.',
       httpWarning: 'Cette adresse n’est pas chiffrée (HTTP). Votre clé et vos captures d’écran pourraient être interceptées en transit.',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: 'Vide utilise la valeur par défaut',
+      userAgentHint: 'Certaines passerelles identifient ou autorisent les clients via le User-Agent. Vide utilise la valeur par défaut.',
+      userAgentPreset: {
+        label: 'Préréglages courants',
+        custom: 'Personnalisé',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: 'Ordre des modèles',
@@ -243,6 +252,8 @@ export default {
       required: 'Champ obligatoire',
       invalidUrl: 'Saisissez une URL complète commençant par http:// ou https://',
       range: 'Saisissez un nombre entier de 0 à 20',
+      tooLong: 'Doit contenir au plus 512 caractères',
+      invalidChars: 'Seuls les caractères ASCII imprimables sont autorisés',
     },
     test: {
       run: 'Tester',

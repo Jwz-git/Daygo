@@ -28,14 +28,17 @@ type ChatConversationDTO struct {
 }
 
 // ChatMessageDTO is one transcript row. Status is set for assistant messages
-// only (ok | failed | canceled); ToolName/ToolArguments are set only on
-// tool_call rows (tool_result rows pair by toolName with empty toolArguments
-// and carry their result envelope in content).
+// only (ok | failed | canceled); ErrorCode is set on a terminal assistant row
+// and names why the turn ended, so the frontend can localize it instead of
+// showing the row's technical content line. ToolName/ToolArguments are set only
+// on tool_call rows (tool_result rows pair by toolName with empty
+// toolArguments and carry their result envelope in content).
 type ChatMessageDTO struct {
 	ID            int64  `json:"id"`
 	Role          string `json:"role"` // user | assistant | tool_call | tool_result
 	Content       string `json:"content"`
 	Status        string `json:"status"`
+	ErrorCode     string `json:"errorCode"`
 	ToolName      string `json:"toolName"`
 	ToolArguments string `json:"toolArguments"`
 	CreatedAt     int64  `json:"createdAt"`
@@ -229,6 +232,7 @@ func (b *Backend) GetChatMessages(conversationID string, beforeID int64, limit i
 			Role:          m.Role,
 			Content:       m.Content,
 			Status:        m.Status,
+			ErrorCode:     m.ErrorCode,
 			ToolName:      m.ToolName,
 			ToolArguments: m.ToolArguments,
 			CreatedAt:     m.CreatedAt.Unix(),
@@ -348,7 +352,7 @@ func (a storeChatAdapter) ListConversations(ctx context.Context) ([]chat.Convers
 
 func (a storeChatAdapter) AppendMessage(ctx context.Context, conversationID string, m chat.Message) (chat.Message, error) {
 	saved, err := a.repo.AppendMessage(ctx, conversationID, storage.ChatMessage{
-		Role: m.Role, Content: m.Content, Status: m.Status,
+		Role: m.Role, Content: m.Content, Status: m.Status, ErrorCode: m.ErrorCode,
 		ToolName: m.ToolName, ToolArguments: m.ToolArguments,
 	})
 	m.ID = saved.ID
@@ -366,7 +370,7 @@ func (a storeChatAdapter) Messages(ctx context.Context, conversationID string, b
 	for i, row := range rows {
 		out[i] = chat.Message{
 			ID: row.ID, ConversationID: row.ConversationID, Role: row.Role,
-			Content: row.Content, Status: row.Status,
+			Content: row.Content, Status: row.Status, ErrorCode: row.ErrorCode,
 			ToolName: row.ToolName, ToolArguments: row.ToolArguments,
 			CreatedAt: row.CreatedAt,
 		}
@@ -429,11 +433,12 @@ func (p backendProviders) entryByID(ctx context.Context, repo *storage.ProviderR
 		return chat.ProviderEntry{}, err
 	}
 	return chat.ProviderEntry{
-		ID:       row.ID,
-		Protocol: row.Protocol,
-		Endpoint: row.Endpoint,
-		Model:    resolved,
-		Secret:   secret,
+		ID:        row.ID,
+		Protocol:  row.Protocol,
+		Endpoint:  row.Endpoint,
+		Model:     resolved,
+		Secret:    secret,
+		UserAgent: row.UserAgent,
 	}, nil
 }
 

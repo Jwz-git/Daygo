@@ -27,6 +27,12 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；采用原子
 
 实现进度：**纯对话切片与 agent 工具循环切片均已实现**（decisions/chat-session-model）。
 
+回合失败原因以封闭码落库（`chat_messages.error_code`，迁移 v22），不再把 `ai:` 错误串的
+`kind: message` 直接当用户文案：值域见 [05 §5.12](../05-interface-contract.md)。
+`internal/chat.failure` 负责分类，并把 `ai.ErrorUnavailable`（一切没拿到 HTTP 响应的失败）
+细分为 `dns` / `connection` / `tls` / `network`；前端渲染 `chat.failure.<code>`，
+未知码回退到行内容。分类只保留类别不保留原始错误文本，原始链写进程日志。
+
 纯对话切片已落地：多会话模型（`chat_conversations` / `chat_messages`，迁移 v4）、
 `internal/chat` 服务（回合状态机、全局记忆注入、会话级 provider 必选、失败 / 取消落库）、
 每会话单在途回合、32 KiB 消息上限、`internal/app` 会话作用域绑定与 `chat:updated` 事件、
@@ -114,6 +120,21 @@ token 级流式输出（已定：原子消息）、消息留存策略、审计�
 捕获与分析；会话数据独立于业务表，清除不伤及时间线。
 
 ## 验证记录
+
+2026-10-03 回合失败原因码（test 未提交工作树，macOS arm64）：用户报告 chat 显示
+`unavailable: provider request failed`。该串确认为 `internal/ai` 的 `transportError` 输出——
+只在**未收到任何 HTTP 响应**时命中，故排除密钥、限流与 5xx。改动：迁移 v22 加
+`chat_messages.error_code`（新匿名夹具 `v21-providers-user-agent.db`，含一行 v21 时代写的
+失败行），`internal/chat.failure` 分类为封闭码（`unavailable` 细分 dns / connection / tls /
+network），`ChatMessageDTO.errorCode`，前端 `chat.failure.<code>` 九语言（新增
+`frontend/tests/chatFailure.test.ts` 读 Go 源码双向校验码表与文案）。
+夹具先于实现：v21→v22 迁移保数据 / 默认空串 / 写入读回、`failure` 分类 17 例、
+连接被拒端到端落 `connection`、不可构建 provider 落 `no_provider`、app 层
+`GetChatMessages` 码透传（覆盖 adapter 丢字段）。
+验证：`CGO_ENABLED=0 go test ./internal/app ./internal/chat ./internal/storage` 通过；
+前端 249 项通过、typecheck 通过；`check-docs` 0 问题；`gofmt -l` 无输出。
+未运行：真实 Wails 窗口内的失败渲染与重启读回、真实网关按类失败（本机无法构造 TLS / DNS 故障）。
+回退：撤销即可，新增列默认空串，旧行走 `content` 兜底，无数据回滚。
 
 2026-09-23：并发会话分别构建 Provider 链的 Go 回归夹具通过，消息内容渲染与无界缓存的前端修复通过单测 / typecheck / build；`./scripts/gate.sh` 通过。真实 Provider 并发网络调用未在本次重跑。
 

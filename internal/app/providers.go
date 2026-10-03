@@ -54,6 +54,33 @@ type validatedProviderInput struct {
 	endpoint    string
 	models      []string
 	maxImages   int
+	userAgent   string
+}
+
+// maxUserAgentLength bounds the User-Agent override; real values are well under
+// 200 bytes, so the cap only stops an unbounded header value.
+const maxUserAgentLength = 512
+
+// normalizeUserAgent trims the override and rejects anything that is not a legal
+// HTTP header value. CR/LF or a control byte could split the outgoing request
+// header, so it is refused at this one boundary every writer crosses rather than
+// trusting net/http. Empty means "use the default".
+func normalizeUserAgent(raw string) (string, error) {
+	ua := strings.TrimSpace(raw)
+	if ua == "" {
+		return "", nil
+	}
+	if len(ua) > maxUserAgentLength {
+		return "", apperr.E(apperr.InvalidArgument,
+			fmt.Sprintf("user agent must be at most %d characters", maxUserAgentLength), nil)
+	}
+	for i := 0; i < len(ua); i++ {
+		if c := ua[i]; c < 0x20 || c > 0x7e {
+			return "", apperr.E(apperr.InvalidArgument,
+				"user agent must contain only printable ASCII characters", nil)
+		}
+	}
+	return ua, nil
 }
 
 // validateProviderInput checks the wire payload.
@@ -78,12 +105,17 @@ func validateProviderInput(p ProviderInputDTO) (validatedProviderInput, error) {
 		return validatedProviderInput{}, apperr.E(apperr.InvalidArgument,
 			fmt.Sprintf("max images must be between 0 and %d (0 = default)", daygoai.MaxImages), nil)
 	}
+	userAgent, err := normalizeUserAgent(p.UserAgent)
+	if err != nil {
+		return validatedProviderInput{}, err
+	}
 	return validatedProviderInput{
 		displayName: displayName,
 		protocol:    string(proto),
 		endpoint:    endpoint,
 		models:      models,
 		maxImages:   p.MaxImages,
+		userAgent:   userAgent,
 	}, nil
 }
 
@@ -147,6 +179,7 @@ func (b *Backend) ListProviders() ([]ProviderDTO, error) {
 			Endpoint:    row.Endpoint,
 			Models:      row.Models,
 			MaxImages:   row.MaxImages,
+			UserAgent:   row.UserAgent,
 		}
 		if b.secrets != nil {
 			// Presence only: the value is fetched and discarded right here.
@@ -182,7 +215,7 @@ func (b *Backend) AddProvider(p ProviderInputDTO) (string, error) {
 	defer cancel()
 	if err := repo.Add(ctx, storage.Provider{
 		ID: id, DisplayName: v.displayName, Protocol: v.protocol, Endpoint: v.endpoint,
-		Models: v.models, MaxImages: v.maxImages,
+		Models: v.models, MaxImages: v.maxImages, UserAgent: v.userAgent,
 	}); err != nil {
 		return "", mapStorageError("add provider", err)
 	}
@@ -224,7 +257,7 @@ func (b *Backend) UpdateProvider(id string, p ProviderInputDTO) error {
 	defer cancel()
 	if err := repo.Update(ctx, id, storage.Provider{
 		DisplayName: v.displayName, Protocol: v.protocol, Endpoint: v.endpoint,
-		Models: v.models, MaxImages: v.maxImages,
+		Models: v.models, MaxImages: v.maxImages, UserAgent: v.userAgent,
 	}); err != nil {
 		return mapStorageError("update provider", err)
 	}

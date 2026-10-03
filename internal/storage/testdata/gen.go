@@ -88,6 +88,12 @@ func main() {
 	if err := writeV19(outDir); err != nil {
 		log.Fatalf("v19-journal-no-summary.db: %v", err)
 	}
+	if err := writeV20(outDir); err != nil {
+		log.Fatalf("v20-plan-blocks.db: %v", err)
+	}
+	if err := writeV21(outDir); err != nil {
+		log.Fatalf("v21-providers-user-agent.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -1042,6 +1048,95 @@ func writeV19(outDir string) error {
 		`DROP TABLE journal_entries`,
 		`ALTER TABLE journal_entries_v19 RENAME TO journal_entries`,
 		`PRAGMA user_version = 19`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV20 builds a version-20 database from the v19 fixture by adding the
+// plan_blocks table, exactly as the v20 migration does. The v21 migration test
+// upgrades this file and proves the providers table gains the user_agent column
+// with its default while every existing provider row survives untouched.
+func writeV20(outDir string) error {
+	v19Path := filepath.Join(outDir, "v19-journal-no-summary.db")
+	v20Path := filepath.Join(outDir, "v20-plan-blocks.db")
+	data, err := os.ReadFile(v19Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v20Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v20Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`CREATE TABLE plan_blocks (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			day          TEXT    NOT NULL,
+			start_ts     INTEGER NOT NULL,
+			end_ts       INTEGER NOT NULL CHECK (end_ts > start_ts),
+			title        TEXT    NOT NULL,
+			notes        TEXT,
+			category_id  TEXT    REFERENCES categories(id) ON DELETE SET NULL,
+			status       TEXT    NOT NULL DEFAULT 'planned'
+			                     CHECK (status IN ('planned', 'done', 'skipped')),
+			completed_at INTEGER,
+			remind       INTEGER NOT NULL DEFAULT 1,
+			created_at   INTEGER NOT NULL,
+			updated_at   INTEGER NOT NULL
+		)`,
+		`CREATE INDEX plan_blocks_day ON plan_blocks (day, start_ts)`,
+		`PRAGMA user_version = 20`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV21 builds a version-21 database from the v20 fixture by adding the
+// providers.user_agent column, exactly as the v21 migration does. It also seeds
+// a chat conversation with a user message and a failed assistant message: the
+// fixtures from v8 on are built from scratch, so without them the v22 migration
+// test would upgrade an empty chat_messages table and prove nothing about the
+// error_code default reaching existing rows.
+func writeV21(outDir string) error {
+	v20Path := filepath.Join(outDir, "v20-plan-blocks.db")
+	v21Path := filepath.Join(outDir, "v21-providers-user-agent.db")
+	data, err := os.ReadFile(v20Path)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(v21Path, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+v21Path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	stmts := []string{
+		`ALTER TABLE providers ADD COLUMN user_agent TEXT NOT NULL DEFAULT ''`,
+		`INSERT INTO chat_conversations (id, title, provider_id, model, created_at, updated_at)
+			VALUES ('fixture-conversation', 'fixture title', 'fixture-provider-a', '', 1700000001, 1700000004)`,
+		`INSERT INTO chat_messages (id, conversation_id, role, content, status, created_at, tool_name, tool_arguments)
+			VALUES (1, 'fixture-conversation', 'user', 'fixture question', NULL, 1700000002, NULL, NULL)`,
+		// A failed turn written before error_code existed: the upgrade must give
+		// it the empty default, not a guessed code.
+		`INSERT INTO chat_messages (id, conversation_id, role, content, status, created_at, tool_name, tool_arguments)
+			VALUES (2, 'fixture-conversation', 'assistant', 'unavailable: provider request failed', 'failed', 1700000003, NULL, NULL)`,
+		`PRAGMA user_version = 21`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

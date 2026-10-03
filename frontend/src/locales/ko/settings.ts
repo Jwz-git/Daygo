@@ -213,6 +213,15 @@ export default {
       apiKeyPlaceholder: '키 붙여넣기',
       apiKeyKeepHint: '비워 두면 현재 키를 그대로 유지합니다.',
       httpWarning: '이 주소는 암호화되지 않았습니다(HTTP). 키와 스크린샷이 전송 중에 다른 사람에게 보일 수 있습니다.',
+      userAgent: 'User-Agent',
+      userAgentPlaceholder: '비워 두면 기본값 사용',
+      userAgentHint: '일부 게이트웨이는 User-Agent로 클라이언트를 식별하거나 허용합니다. 비워 두면 기본값을 사용합니다.',
+      userAgentPreset: {
+        label: '자주 쓰는 프리셋',
+        custom: '사용자 지정',
+        claudeCli: 'Claude Code',
+        chromeMac: 'Google Chrome',
+      },
     },
     routing: {
       title: '사용 순서',
@@ -243,6 +252,8 @@ export default {
       required: '필수 항목입니다',
       invalidUrl: 'http:// 또는 https://로 시작하는 전체 주소를 입력하세요',
       range: '0에서 20 사이의 정수를 입력하세요',
+      tooLong: '512자 이하여야 합니다',
+      invalidChars: '인쇄 가능한 ASCII 문자만 사용할 수 있습니다',
     },
     test: {
       run: '테스트',

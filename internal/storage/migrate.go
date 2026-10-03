@@ -695,6 +695,37 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 21,
+		name:    "providers: add user_agent column",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// A provider may override the User-Agent its requests carry; some
+			// gateways key routing or allow-lists on it. Empty keeps the default, so
+			// every existing row is a no-op. A constant default lets SQLite append
+			// the column in place — no table rebuild needed.
+			if _, err := tx.ExecContext(ctx,
+				`ALTER TABLE providers ADD COLUMN user_agent TEXT NOT NULL DEFAULT ''`); err != nil {
+				return wrap("add v21 providers user_agent", err)
+			}
+			return nil
+		},
+	},
+	{
+		version: 22,
+		name:    "chat_messages: add error_code column",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// A terminal assistant row carries a closed machine code for why the
+			// turn ended, so the UI can localize it; the row's content holds a
+			// technical fallback line. Empty means "not a failure" (or a row
+			// written before this column existed), so every existing row is a
+			// no-op and a constant default lets SQLite append in place.
+			if _, err := tx.ExecContext(ctx,
+				`ALTER TABLE chat_messages ADD COLUMN error_code TEXT NOT NULL DEFAULT ''`); err != nil {
+				return wrap("add v22 chat_messages error_code", err)
+			}
+			return nil
+		},
+	},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like

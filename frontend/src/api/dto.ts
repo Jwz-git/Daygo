@@ -141,6 +141,8 @@ export interface ProviderDTO {
   models: string[]
   /** Image parts per request cap; 0 means the built-in default. */
   maxImages: number
+  /** User-Agent override for this provider; "" keeps the Go/SDK default. */
+  userAgent: string
   hasSecret: boolean
 }
 
@@ -171,6 +173,8 @@ export interface ProviderInput {
   /** At least one model; trimmed and deduped by the backend, capped at 20. */
   models: string[]
   maxImages: number
+  /** User-Agent override; "" keeps the Go/SDK default. */
+  userAgent: string
   secret: string
 }
 
@@ -180,6 +184,8 @@ export interface ProviderModelsRequest {
   protocol?: ProviderProtocol
   endpoint?: string
   secret?: string
+  /** Draft User-Agent; ignored on the providerId branch, which uses the stored one. */
+  userAgent?: string
 }
 
 /** One model-listing outcome. A failed listing is a result, not an exception. */
@@ -461,6 +467,9 @@ export interface ChatConversationDTO {
 }
 
 /** ChatMessageDTO — one transcript row. Status is set on assistant messages.
+ * errorCode names why a failed or canceled turn ended; the UI renders it as
+ * chat.failure.<errorCode>, falling back to content when it is empty (a
+ * successful row, or one written before the column existed).
  * tool_call rows carry the tool name and its arguments JSON in toolName /
  * toolArguments; the following tool_result row pairs by toolName with the
  * result envelope JSON in content. */
@@ -469,6 +478,7 @@ export interface ChatMessageDTO {
   role: 'user' | 'assistant' | 'tool_call' | 'tool_result'
   content: string
   status: 'ok' | 'failed' | 'canceled' | ''
+  errorCode: string
   toolName: string
   toolArguments: string
   createdAt: number
