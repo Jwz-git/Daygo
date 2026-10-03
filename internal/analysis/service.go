@@ -213,82 +213,46 @@ func (s *Service) Run(ctx context.Context) {
 
 func (s *Service) tick(ctx context.Context) {
 	now := s.cfg.Now()
+	// Discovery must not wait for old provider calls or a rate-limit cooldown:
+	// otherwise a slow backlog can leave live frames unbatched for hours and
+	// eventually push them outside the 24-hour lookback.
+	if err := s.discoverBatches(ctx, now); err != nil {
+		return
+	}
 
 	s.queueMu.Lock()
 	backoff := s.rateLimitBackoffUntil
 	s.queueMu.Unlock()
 	if !backoff.IsZero() && backoff.After(now) {
-		// Rate limit cooldown active: wait for token bucket to replenish before resuming queue
 		return
 	}
-
-	// Requeue failed batches past their cooldown.
 	if _, err := s.cfg.Store.RequeueFailed(ctx, now.Add(-FailureRetryCooldown), now); err != nil {
 		return
 	}
 
-	// Drain pending batches oldest-first before creating new ones. One pass
-	// per tick is enough: batches this pass marked failed stay failed until
-	// the cooldown, and new pending batches created below run immediately.
-	batches, err := s.cfg.Store.PendingBatches(ctx)
-	if err == nil {
-		for _, batch := range batches {
-			if ctx.Err() != nil {
-				return
-			}
-			if err := s.paceBatch(ctx); err != nil {
-				return
-			}
-			if err := s.processBatch(ctx, batch); err != nil {
-				if ctx.Err() != nil {
-					// Canceled mid-flight: the batch stays processing for the
-					// next startup to adopt. Not a failure.
-					return
-				}
-				if errors.Is(err, errBatchDeferred) {
-					// Still in the active segment: stays pending for a later tick.
-					continue
-				}
-				if isRateLimitError(err) {
-					s.handleBatchRateLimit(ctx, batch, err)
-					return
-				}
-				s.queueMu.Lock()
-				s.lastBatchProcessedAt = s.cfg.Now()
-				s.queueMu.Unlock()
-				s.failBatch(ctx, batch, err)
-			} else {
-				s.recordBatchSuccess(batch.ID)
-			}
-		}
-	}
-
-	// Discover unbatched frames and create batches.
-	frames, err := s.cfg.Store.UnbatchedFrames(ctx, now.Add(-UnbatchedLookback), now)
-	if err != nil || len(frames) == 0 {
-		return
-	}
-	split := SplitFrames(frames)
-	for _, plan := range split.Closed {
-		if plan.Span() < MinAnalysisDuration {
-			if _, err := s.cfg.Store.CreateBatch(ctx, plan.Frames, storage.BatchSkippedShort, now); err != nil {
-				return
-			}
-			continue
-		}
-		batch, err := s.cfg.Store.CreateBatch(ctx, plan.Frames, storage.BatchPending, now)
-		if err != nil {
+	// Refresh the queue at every batch boundary. Alternate live and historical
+	// work, preserving chronological order within each class, so neither a
+	// retry backlog nor continued recording can starve the other class.
+	visited := make(map[int64]bool)
+	preferToday := true
+	for ctx.Err() == nil {
+		batch, ok, err := s.nextPendingBatch(ctx, visited, preferToday)
+		if err != nil || !ok {
 			return
 		}
+		visited[batch.ID] = true
 		if err := s.paceBatch(ctx); err != nil {
 			return
 		}
 		if err := s.processBatch(ctx, batch); err != nil {
 			if ctx.Err() != nil {
+				// Cancellation leaves an automatic batch processing for startup
+				// adoption; the app restores unfinished manual batches separately.
 				return
 			}
 			if errors.Is(err, errBatchDeferred) {
-				// Still in the active segment: stays pending, drained next tick.
+				// Check a still-active segment once per tick, without consuming
+				// a turn or blocking ready work elsewhere in the queue.
 				continue
 			}
 			if isRateLimitError(err) {
@@ -302,37 +266,81 @@ func (s *Service) tick(ctx context.Context) {
 		} else {
 			s.recordBatchSuccess(batch.ID)
 		}
+		preferToday = timeutil.LogicalDay(batch.End, s.loc()) != timeutil.LogicalDay(s.cfg.Now(), s.loc())
+		if err := s.discoverBatches(ctx, s.cfg.Now()); err != nil {
+			return
+		}
 	}
-	// The latest run stays unbatched until its span reaches the target
-	// (off-by-one-interval rule); a run that already reached it qualifies.
+}
+
+// discoverBatches performs storage-only work. Frame membership is committed
+// before any provider call, retaining the original span and short-tail rules.
+func (s *Service) discoverBatches(ctx context.Context, now time.Time) error {
+	frames, err := s.cfg.Store.UnbatchedFrames(ctx, now.Add(-UnbatchedLookback), now)
+	if err != nil || len(frames) == 0 {
+		return err
+	}
+	split := SplitFrames(frames)
+	for _, plan := range split.Closed {
+		status := storage.BatchPending
+		if plan.Span() < MinAnalysisDuration {
+			status = storage.BatchSkippedShort
+		}
+		if _, err := s.cfg.Store.CreateBatch(ctx, plan.Frames, status, now); err != nil {
+			return err
+		}
+	}
 	if split.Latest.Span() >= TargetBatchDuration {
-		batch, err := s.cfg.Store.CreateBatch(ctx, split.Latest.Frames, storage.BatchPending, now)
-		if err != nil {
-			return
-		}
-		if err := s.paceBatch(ctx); err != nil {
-			return
-		}
-		if err := s.processBatch(ctx, batch); err != nil {
-			if ctx.Err() != nil {
-				return
+		_, err := s.cfg.Store.CreateBatch(ctx, split.Latest.Frames, storage.BatchPending, now)
+		return err
+	}
+	return nil
+}
+
+func (s *Service) nextPendingBatch(ctx context.Context, visited map[int64]bool, preferToday bool) (storage.Batch, bool, error) {
+	batches, err := s.cfg.Store.PendingBatches(ctx)
+	if err != nil {
+		return storage.Batch{}, false, err
+	}
+	today := timeutil.LogicalDay(s.cfg.Now(), s.loc())
+	for _, preferred := range []bool{preferToday, !preferToday} {
+		for _, batch := range batches {
+			current := timeutil.LogicalDay(batch.End, s.loc()) == today
+			if visited[batch.ID] || current != preferred {
+				continue
 			}
-			if errors.Is(err, errBatchDeferred) {
-				// Still in the active segment: stays pending, drained next tick.
-				return
+			if current {
+				// A live card may absorb a predecessor across 04:00. Finish
+				// pending work in its owned span first: a later historical
+				// rewrite could truncate the newly merged card's live suffix.
+				existing, err := s.cfg.Cards.CardsInRange(ctx, batch.Start.Add(-CardLookback), batch.End)
+				if err != nil {
+					return storage.Batch{}, false, err
+				}
+				ownedFrom, _ := cardRewriteStart(existing, batch.Start)
+				blocked := false
+				for _, earlier := range batches {
+					if !earlier.Start.Before(batch.Start) {
+						break
+					}
+					if !earlier.End.After(ownedFrom) {
+						continue
+					}
+					if !visited[earlier.ID] {
+						return earlier, true, nil
+					}
+					// It is still pending after being visited: its segment was
+					// deferred. The live merge must wait for that rewrite too.
+					blocked = true
+				}
+				if blocked {
+					continue
+				}
 			}
-			if isRateLimitError(err) {
-				s.handleBatchRateLimit(ctx, batch, err)
-				return
-			}
-			s.queueMu.Lock()
-			s.lastBatchProcessedAt = s.cfg.Now()
-			s.queueMu.Unlock()
-			s.failBatch(ctx, batch, err)
-		} else {
-			s.recordBatchSuccess(batch.ID)
+			return batch, true, nil
 		}
 	}
+	return storage.Batch{}, false, nil
 }
 
 // errBatchDeferred signals processBatch declined to run a batch that still
