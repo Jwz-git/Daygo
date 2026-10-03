@@ -67,6 +67,14 @@ watch(
       updateOwnerRequired: t('native.updater.ownerRequired'),
       journalReminderTitle: t('native.journalReminder.title'),
       journalReminderBody: t('native.journalReminder.body'),
+      // Plan notifications: each placeholder is passed its own name so the
+      // pushed copy keeps "{title}" etc. for Go to fill in (plan_reminder.go).
+      planStartTitle: t('native.plan.startTitle', { title: '{title}' }),
+      planStartBody: t('native.plan.startBody', { start: '{start}', end: '{end}' }),
+      planDistractionTitle: t('native.plan.distractionTitle'),
+      planDistractionBody: t('native.plan.distractionBody', { title: '{title}', minutes: '{minutes}' }),
+      dayDistractionTitle: t('native.plan.dayDistractionTitle'),
+      dayDistractionBody: t('native.plan.dayDistractionBody', { minutes: '{minutes}', limit: '{limit}' }),
       applicationMenu: {
         hide: t('native.applicationMenu.hide'),
         hideOthers: t('native.applicationMenu.hideOthers'),

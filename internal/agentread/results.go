@@ -137,3 +137,27 @@ type Category struct {
 	IsSystem  bool   `json:"is_system"`
 	IsIdle    bool   `json:"is_idle"`
 }
+
+// PlanResult is one logical day's plan (docs/05 §5.9.1 plan command).
+type PlanResult struct {
+	SchemaVersion int         `json:"schema_version"`
+	Day           string      `json:"day"`
+	Blocks        []PlanBlock `json:"blocks"`
+}
+
+type PlanBlock struct {
+	ID                 int64   `json:"id"`
+	Start              string  `json:"start"`
+	End                string  `json:"end"`
+	StartTs            int64   `json:"start_ts"`
+	EndTs              int64   `json:"end_ts"`
+	Title              string  `json:"title"`
+	Notes              *string `json:"notes,omitempty"`
+	Category           string  `json:"category,omitempty"`
+	CategoryID         string  `json:"category_id,omitempty"`
+	Status             string  `json:"status"`
+	CompletedAt        *string `json:"completed_at,omitempty"`
+	Remind             bool    `json:"remind"`
+	MatchedMinutes     float64 `json:"matched_minutes"`
+	DistractionMinutes float64 `json:"distraction_minutes"`
+}

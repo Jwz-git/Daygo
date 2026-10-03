@@ -86,7 +86,16 @@
 | fake 夹具 | `fake.System` 记录 `ScheduleNotification` / `CancelNotifications` 调用 | 已实现 |
 | 设置 UI + i18n | 通用区开关 + 时刻输入，9 语言 | 已实现 |
 | 文案通路 | `NativeUiLabelsDTO` 两个字段 + `native` 命名空间 + `App.vue` 推送 | 已实现 |
-| **原生投递** | darwin Swift `UNUserNotificationCenter`、windows C++ toast | **未实现**（§6） |
+| **原生投递** | darwin `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`，cgo 内联 Objective-C，与已安装应用枚举同一形态，未进 Swift 静态库）；windows C++ toast | **darwin 已实现（`feature/plan` 分支，未提交）、未真机验收**；windows 未实现（§6） |
+
+## 5.1 计划通知（2026-10-03 增补）
+
+[plan](../modules/plan.md) 复用同一端口与「Go 拥有调度、适配层只投递」的分工：计划块开始通知以
+`plan-start-<id>` 用 `DeliverAt` 交系统按时投递；分心提醒以 `plan-distraction-<id>` /
+`plan-day-distraction-<day>` 立即投递（`DeliverAt` 为空）。macOS 实现：首次投递时
+`requestAuthorization` 一次，本进程内不再追问；无 bundle（`go test`、裸二进制）返回
+`ErrCapabilityUnavailable`；前台时由 delegate 仍显示横幅；定时用日历日期触发器，不受睡眠与改时钟漂移。
+因 cgo 的 `#cgo CFLAGS` 在包内合并，本文件不开 ARC，以免改变同包其它 Objective-C 的编译方式。
 
 ## 6. 未验证与门禁
 

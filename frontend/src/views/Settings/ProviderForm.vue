@@ -4,6 +4,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import ComboBox from '@/components/ComboBox.vue'
+import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 
 import {
   PROVIDER_PROTOCOLS,
@@ -182,8 +183,11 @@ async function submit(): Promise<void> {
   closeForm()
 }
 
-function onProtocolChange(event: Event): void {
-  const next = (event.target as HTMLSelectElement).value as ProviderProtocol
+const protocolOptions = computed<DgSelectOption<ProviderProtocol>[]>(() =>
+  PROVIDER_PROTOCOLS.map((option) => ({ value: option, label: protocolLabel(option) })),
+)
+
+function onProtocolChange(next: ProviderProtocol): void {
   // Swap the suggested base URL only while the field still holds a suggestion,
   // so a hand-typed endpoint is never overwritten.
   const current = draft.endpoint.trim()
@@ -216,11 +220,12 @@ function onProtocolChange(event: Event): void {
 
       <label class="form__cell">
         <span class="dg-field-label">{{ t('settings.providers.protocol.label') }}</span>
-        <select class="dg-input" :value="draft.protocol" @change="onProtocolChange">
-          <option v-for="option in PROVIDER_PROTOCOLS" :key="option" :value="option">
-            {{ protocolLabel(option) }}
-          </option>
-        </select>
+        <DgSelect
+          :model-value="draft.protocol"
+          :options="protocolOptions"
+          :aria-label="t('settings.providers.protocol.label')"
+          @update:model-value="onProtocolChange"
+        />
       </label>
 
       <label class="form__cell form__cell--wide">

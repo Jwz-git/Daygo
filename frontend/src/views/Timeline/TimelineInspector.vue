@@ -175,12 +175,75 @@ const { t } = useI18n()
 
 .inspector :deep(.inspector__section) { padding: 16px 0; border-top: 1px solid var(--dg-timeline-grid); }
 .inspector :deep(.inspector__section:first-of-type) { border-top: 0; }
-.inspector :deep(.inspector__section h3) { margin-bottom: 6px; color: var(--dg-text-primary); font-size: 11px; font-weight: 650; }
+.inspector :deep(.inspector__section h3) { margin-bottom: 6px; color: var(--dg-text-secondary); font-size: 12px; font-weight: 650; }
 .inspector :deep(.inspector__section p) { color: var(--dg-text-primary); font-size: 13px; font-weight: 500; line-height: 1.65; }
 
 .inspector :deep(.inspector__actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 18px; border-top: 1px solid var(--dg-timeline-grid); }
 .inspector :deep(.inspector__readonly) { width: 100%; color: var(--dg-text-muted); font-size: 10px; }
 .inspector :deep(.inspector__confirm) { width: 100%; color: var(--dg-text-secondary); font-size: 11px; }
+
+/*
+ * Overview tiles: each block of the no-selection pane (plan, goal, review,
+ * failures) sits on its own soft tile with a title row, instead of hairline
+ * separators, so the pane reads as a column of cards.
+ */
+.inspector :deep(.inspector__tile) {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--dg-inspector-tile-fill);
+  box-shadow: inset 0 0 0 1px var(--dg-inspector-tile-border), 0 1px 2px rgba(40, 30, 24, 0.03);
+}
+
+.inspector :deep(.inspector__tile-head) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  margin-bottom: 10px;
+}
+
+.inspector :deep(.inspector__tile-title) {
+  margin: 0;
+  color: var(--dg-text-primary);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.inspector :deep(.inspector__tile-meta) {
+  color: var(--dg-text-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A quiet text action at the end of a tile's title row. */
+.inspector :deep(.inspector__tile-action) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 3px 9px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dg-accent) 12%, transparent);
+  color: var(--dg-accent-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--dg-motion-fast) ease;
+}
+
+.inspector :deep(.inspector__tile-action:hover) { background: color-mix(in srgb, var(--dg-accent) 20%, transparent); }
+.inspector :deep(.inspector__tile-action:focus-visible) { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+
+.inspector :deep(.inspector__tile-note) {
+  margin: 0;
+  color: var(--dg-text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.55;
+}
 
 .inspector :deep(.inspector__failure-note) { margin-top: 8px; color: var(--dg-text-muted); font-size: 11px; }
 

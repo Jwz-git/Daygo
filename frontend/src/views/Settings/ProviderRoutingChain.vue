@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
+import DgSelect from '@/components/DgSelect.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -88,12 +89,10 @@ async function moveEntry(index: number, offset: -1 | 1): Promise<void> {
   await store.setChain(chain)
 }
 
-function onAddChange(event: Event): void {
-  const target = event.target as HTMLSelectElement | null
-  const value = target?.value ?? ''
+// The picker is an action, not a value: it always shows its placeholder, and a
+// pick adds the entry (which then drops out of the options).
+function onAddChange(value: string): void {
   if (value !== '') void addEntry(value)
-  // The select snaps back to its placeholder once the option list refreshes.
-  if (target !== null) target.value = ''
 }
 </script>
 
@@ -149,12 +148,13 @@ function onAddChange(event: Event): void {
 
     <label v-if="addOptions.length > 0" class="routing__add">
       <span class="routing__add-label">{{ t('settings.providers.routing.addEntry') }}</span>
-      <select class="dg-input" value="" @change="onAddChange">
-        <option value="">{{ t('settings.providers.routing.pickEntry') }}</option>
-        <option v-for="option in addOptions" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
+      <DgSelect
+        model-value=""
+        :options="addOptions"
+        :placeholder="t('settings.providers.routing.pickEntry')"
+        :aria-label="t('settings.providers.routing.addEntry')"
+        @update:model-value="onAddChange"
+      />
     </label>
   </section>
 </template>

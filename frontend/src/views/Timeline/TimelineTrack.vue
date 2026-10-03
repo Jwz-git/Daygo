@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type {
+  PlanBlockDTO,
   CategoryDTO,
   DayContextDTO,
   RangeDTO,
@@ -11,6 +12,7 @@ import type {
 } from '@/api/dto'
 import { safeTimeZone } from '@/lib/timeZone'
 import { failurePresentation } from './failurePresentation'
+import { planLanes, planPhase } from './planLayout'
 
 import TimelineActivityCard from './TimelineActivityCard.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
@@ -41,6 +43,11 @@ const props = defineProps<{
   regeneratingCardID: number | null
   /** Placeholder state at the current time: off, live capture, or paused hold. */
   generating: 'off' | 'capturing' | 'paused'
+  /** The day's plan blocks, drawn as dashed lines in the time gutter that
+   * open the block's popover. */
+  planBlocks?: PlanBlockDTO[]
+  /** The block whose popover is open, kept highlighted. */
+  openPlanId?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -49,6 +56,8 @@ const emit = defineEmits<{
   clear: []
   /** The paused status card was clicked: resume recording (Dayflow handlePausedStatusCardTap). */
   resume: []
+  /** A plan line was clicked; the rect anchors the popover. */
+  openPlan: [block: PlanBlockDTO, anchor: DOMRect]
 }>()
 const { locale, t } = useI18n()
 const scroller = ref<HTMLElement | null>(null)
@@ -165,9 +174,40 @@ const regeneratingCardIDs = computed(() => {
   return ids
 })
 
+/*
+ * Plan blocks stay out of the card track: each is one rounded-dash line in
+ * the time gutter, and overlapping blocks step into side-by-side lanes.
+ */
+const PLAN_MIN_HEIGHT = 14
+const MARKER_LANE_STEP = 6
+const MAX_MARKER_LANES = 3
+
+const planPlacements = computed(() =>
+  planLanes(props.planBlocks ?? []).map(({ block, lane, lanes }) => {
+    const box = placed(block.startTs, block.endTs, PLAN_MIN_HEIGHT)
+    return {
+      block,
+      lane,
+      lanes,
+      top: box.top,
+      height: box.height,
+      phase: planPhase(block, nowTs.value),
+      color: safeCategoryColor(block.colorHex || undefined),
+    }
+  }),
+)
+
+const hoverPlanID = ref<number | null>(null)
+
+function openPlan(block: PlanBlockDTO, event: MouseEvent): void {
+  const target = event.currentTarget as HTMLElement | null
+  if (target === null) return
+  emit('openPlan', block, target.getBoundingClientRect())
+}
+
 function handleTrackClick(event: MouseEvent): void {
   const target = event.target as HTMLElement
-  if (target.closest('.activity-card, .range--failure') !== null) return
+  if (target.closest('.activity-card, .range--failure, .plan-marker') !== null) return
   emit('clear')
 }
 
@@ -242,6 +282,28 @@ onBeforeUnmount(() => {
         <time :datetime="new Date(mark.ts * 1000).toISOString()">{{ mark.label }}</time>
         <span aria-hidden="true"></span>
       </div>
+
+      <!-- Plan lines in the gutter beside the cards, never inside the card
+           track; overlapping blocks take side-by-side lanes. -->
+      <button
+        v-for="entry in planPlacements"
+        :key="`plan-marker-${entry.block.id}`"
+        type="button"
+        class="plan-marker"
+        :class="[`is-${entry.phase}`, { 'is-hot': hoverPlanID === entry.block.id || props.openPlanId === entry.block.id }]"
+        :style="{
+          top: `${entry.top}px`,
+          height: `${entry.height}px`,
+          '--plan-color': entry.color,
+          '--plan-lane': Math.min(entry.lane, MAX_MARKER_LANES - 1),
+          '--plan-lane-step': `${MARKER_LANE_STEP}px`,
+        }"
+        :aria-label="`${entry.block.start}–${entry.block.end} ${entry.block.title}`"
+        tabindex="-1"
+        @pointerenter="hoverPlanID = entry.block.id"
+        @pointerleave="hoverPlanID = null"
+        @click.stop="openPlan(entry.block, $event)"
+      ></button>
 
       <div ref="eventsLayer" class="timeline-track__events">
         <div
@@ -351,6 +413,35 @@ onBeforeUnmount(() => {
 .hour-mark span {
   border-top: 1px solid var(--dg-timeline-grid);
 }
+
+/* Gutter marker: a 4px dashed line per lane with round-ended dashes (a
+   rounded rect tiled through a mask), stepping left into the gutter when
+   blocks overlap. ::after widens the hit area without widening the line. */
+.plan-marker {
+  position: absolute;
+  z-index: 1;
+  left: calc(var(--dg-timeline-time-width) - 7px - var(--plan-lane) * var(--plan-lane-step));
+  width: 4px;
+  padding: 0;
+  border: none;
+  background: var(--plan-color);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='10'%3E%3Crect width='4' height='6' rx='2'/%3E%3C/svg%3E") 0 0 / 4px 10px repeat-y;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='10'%3E%3Crect width='4' height='6' rx='2'/%3E%3C/svg%3E") 0 0 / 4px 10px repeat-y;
+  cursor: pointer;
+  transition: transform var(--dg-motion-fast) var(--dg-ease-out), opacity var(--dg-motion-fast) ease;
+}
+
+.plan-marker::after {
+  position: absolute;
+  inset: 0 -4px;
+  content: '';
+}
+
+.plan-marker.is-done { background: var(--dg-plan-done); }
+.plan-marker.is-skipped { background: var(--dg-timeline-grid-strong); }
+.plan-marker.is-missed { opacity: 0.55; }
+.plan-marker.is-hot { opacity: 1; transform: scaleX(1.5); }
+.plan-marker:focus-visible { outline: none; filter: drop-shadow(0 0 2px var(--dg-accent)); }
 
 .timeline-track__events {
   position: absolute;

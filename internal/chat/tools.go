@@ -3,7 +3,7 @@ package chat
 import "encoding/json"
 
 // ToolSpec is one entry in the closed tool catalog (docs/05 §5.12). The write
-// face is exactly the six operations of §5.9.2 and the read face mirrors the
+// face is exactly the ten operations of §5.9.2 and the read face mirrors the
 // §5.9.1 commands this build can serve; search and status are deferred with
 // their CLI semantics. Arguments is a strict JSON Schema (additionalProperties
 // false) the service validates before execution.
@@ -28,6 +28,11 @@ const (
 	ToolCardUpdate     = "card_update"
 	ToolCardDelete     = "card_delete"
 	ToolGoalSet        = "goal_set"
+	ToolPlan           = "plan"
+	ToolPlanAdd        = "plan_add"
+	ToolPlanUpdate     = "plan_update"
+	ToolPlanComplete   = "plan_complete"
+	ToolPlanDelete     = "plan_delete"
 )
 
 // dayPattern is the wire form every day/week argument must match; the
@@ -39,6 +44,10 @@ const dayPattern = `^\\d{4}-\\d{2}-\\d{2}$`
 
 // colorPattern is #RRGGBB.
 const colorPattern = `^#[0-9A-Fa-f]{6}$`
+
+// clockPattern is a 24-hour wall clock, "9:05" or "09:05". Hours 00–03 belong
+// to the next calendar date of the logical day (timeutil.ResolveDayClock).
+const clockPattern = `^([01]?\\d|2[0-3]):[0-5]\\d$`
 
 // toolCatalog is the closed set, fixed order. It is a value, not a registry:
 // adding a tool is a deliberate act that must touch this list, the executor,
@@ -82,6 +91,18 @@ var toolCatalog = []ToolSpec{
 			"type":"object",
 			"properties":{"weekStart":{"type":"string","pattern":"` + dayPattern + `"}},
 			"required":["weekStart"],
+			"additionalProperties":false
+		}`),
+	},
+	{
+		Name: ToolPlan,
+		Description: "Query the plan of one logical day: each time block's id, start / end (HH:mm), title, notes, " +
+			"category, status (planned / done / skipped), and the recorded card minutes in its category plus " +
+			"distraction minutes inside it so far. day is yyyy-MM-dd.",
+		Arguments: json.RawMessage(`{
+			"type":"object",
+			"properties":{"day":{"type":"string","pattern":"` + dayPattern + `"}},
+			"required":["day"],
 			"additionalProperties":false
 		}`),
 	},
@@ -188,6 +209,76 @@ var toolCatalog = []ToolSpec{
 				"distractionCategoryIds":{"type":"array","items":{"type":"string","minLength":1},"maxItems":32,"uniqueItems":true}
 			},
 			"required":["day"],
+			"additionalProperties":false
+		}`),
+		Write: true,
+	},
+	{
+		Name: ToolPlanAdd,
+		Description: "Add a plan block to one logical day. start / end are 24-hour HH:mm; times before 04:00 " +
+			"belong to the next calendar date of that day, and end \"04:00\" means the end of the day. " +
+			"title is required; notes are free text; categoryId is optional (from the categories tool); " +
+			"remind (default true) sends a system notification when the block starts. Write operation, gated by the sandbox.",
+		Arguments: json.RawMessage(`{
+			"type":"object",
+			"properties":{
+				"day":{"type":"string","pattern":"` + dayPattern + `"},
+				"start":{"type":"string","pattern":"` + clockPattern + `"},
+				"end":{"type":"string","pattern":"` + clockPattern + `"},
+				"title":{"type":"string","minLength":1,"maxLength":200},
+				"notes":{"type":"string","maxLength":4000},
+				"categoryId":{"type":"string","maxLength":64},
+				"remind":{"type":"boolean"}
+			},
+			"required":["day","start","end","title"],
+			"additionalProperties":false
+		}`),
+		Write: true,
+	},
+	{
+		Name: ToolPlanUpdate,
+		Description: "Edit a plan block by blockId (from the plan tool): any of day, start, end, title, notes, " +
+			"categoryId (empty string clears it), remind. At least one field to change is required. " +
+			"Write operation, gated by the sandbox.",
+		Arguments: json.RawMessage(`{
+			"type":"object",
+			"properties":{
+				"blockId":{"type":"integer","minimum":1},
+				"day":{"type":"string","pattern":"` + dayPattern + `"},
+				"start":{"type":"string","pattern":"` + clockPattern + `"},
+				"end":{"type":"string","pattern":"` + clockPattern + `"},
+				"title":{"type":"string","minLength":1,"maxLength":200},
+				"notes":{"type":"string","maxLength":4000},
+				"categoryId":{"type":"string","maxLength":64},
+				"remind":{"type":"boolean"}
+			},
+			"required":["blockId"],
+			"additionalProperties":false
+		}`),
+		Write: true,
+	},
+	{
+		Name: ToolPlanComplete,
+		Description: "Mark a plan block done (default), skipped, or back to planned. Use it when a task is finished. " +
+			"Write operation, gated by the sandbox.",
+		Arguments: json.RawMessage(`{
+			"type":"object",
+			"properties":{
+				"blockId":{"type":"integer","minimum":1},
+				"status":{"type":"string","enum":["done","skipped","planned"]}
+			},
+			"required":["blockId"],
+			"additionalProperties":false
+		}`),
+		Write: true,
+	},
+	{
+		Name:        ToolPlanDelete,
+		Description: "Delete a plan block. Write operation, gated by the sandbox.",
+		Arguments: json.RawMessage(`{
+			"type":"object",
+			"properties":{"blockId":{"type":"integer","minimum":1}},
+			"required":["blockId"],
 			"additionalProperties":false
 		}`),
 		Write: true,

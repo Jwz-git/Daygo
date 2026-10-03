@@ -12,6 +12,14 @@ export default {
     title: '記一下今天的日記',
     body: '花幾分鐘記下今天的進展和明天的計畫。',
   },
+  plan: {
+    startTitle: "開始：{title}",
+    startBody: "計畫時間 {start}–{end}",
+    distractionTitle: "有點分心了",
+    distractionBody: "「{title}」進行中已分心 {minutes} 分鐘。",
+    dayDistractionTitle: "今天的分心超過上限",
+    dayDistractionBody: "今天已分心 {minutes} 分鐘，上限是 {limit} 分鐘。",
+  },
   applicationMenu: {
     hide: "隱藏 Daygo",
     hideOthers: "隱藏其他應用程式",

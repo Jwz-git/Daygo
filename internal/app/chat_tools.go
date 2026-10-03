@@ -73,6 +73,16 @@ func (e chatToolExecutor) dispatch(ctx context.Context, call chat.ToolCall) (jso
 		return toolOKEnvelope()
 	case chat.ToolGoalSet:
 		return e.goalSet(ctx, call.Arguments)
+	case chat.ToolPlan:
+		return e.planResult(ctx, stringField(call.Arguments, "day"))
+	case chat.ToolPlanAdd:
+		return e.planAdd(ctx, call.Arguments)
+	case chat.ToolPlanUpdate:
+		return e.planUpdate(ctx, call.Arguments)
+	case chat.ToolPlanComplete:
+		return e.planComplete(ctx, call.Arguments)
+	case chat.ToolPlanDelete:
+		return e.planDelete(ctx, call.Arguments)
 	default:
 		return nil, toolError(apperr.InvalidArgument, "unknown tool "+call.Tool+".")
 	}

@@ -658,6 +658,43 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 20,
+		name:    "plan: plan_blocks",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// plan_blocks holds the user's planned time blocks (docs/modules/plan.md).
+			// day is the logical day (4 AM boundary) Go derives from start_ts; the
+			// pair is stored so a day's plan is one indexed range read. status is the
+			// explicit completion mark set by the user or an agent — coverage by
+			// actual cards is derived on read, never stored. category_id is optional
+			// and survives a category deletion as NULL rather than cascading the
+			// plan away. remind gates the start notification for this block.
+			stmts := []string{
+				`CREATE TABLE plan_blocks (
+					id           INTEGER PRIMARY KEY AUTOINCREMENT,
+					day          TEXT    NOT NULL,
+					start_ts     INTEGER NOT NULL,
+					end_ts       INTEGER NOT NULL CHECK (end_ts > start_ts),
+					title        TEXT    NOT NULL,
+					notes        TEXT,
+					category_id  TEXT    REFERENCES categories(id) ON DELETE SET NULL,
+					status       TEXT    NOT NULL DEFAULT 'planned'
+					                     CHECK (status IN ('planned', 'done', 'skipped')),
+					completed_at INTEGER,
+					remind       INTEGER NOT NULL DEFAULT 1,
+					created_at   INTEGER NOT NULL,
+					updated_at   INTEGER NOT NULL
+				)`,
+				`CREATE INDEX plan_blocks_day ON plan_blocks (day, start_ts)`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return wrap("create v20 plan_blocks", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like

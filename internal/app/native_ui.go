@@ -33,6 +33,16 @@ type NativeUiLabelsDTO struct {
 	// (docs/decisions/notifications-journal-reminder.md).
 	JournalReminderTitle string `json:"journalReminderTitle"`
 	JournalReminderBody  string `json:"journalReminderBody"`
+	// Plan notification copy (plan_reminder.go). The frontend pushes them with
+	// literal placeholders that Go fills in: {title}, {start}, {end} for a
+	// block starting; {title}, {minutes} for distraction inside a block;
+	// {minutes}, {limit} for the day's distraction passing the goal's limit.
+	PlanStartTitle       string `json:"planStartTitle"`
+	PlanStartBody        string `json:"planStartBody"`
+	PlanDistractionTitle string `json:"planDistractionTitle"`
+	PlanDistractionBody  string `json:"planDistractionBody"`
+	DayDistractionTitle  string `json:"dayDistractionTitle"`
+	DayDistractionBody   string `json:"dayDistractionBody"`
 }
 
 // defaultNativeUiLabels seeds the native surfaces before the frontend pushes a
@@ -51,6 +61,12 @@ func defaultNativeUiLabels() NativeUiLabelsDTO {
 		},
 		JournalReminderTitle: "记一下今天的日记",
 		JournalReminderBody:  "花几分钟记录今天的进展和明天的计划。",
+		PlanStartTitle:       "开始：{title}",
+		PlanStartBody:        "计划时间 {start}–{end}",
+		PlanDistractionTitle: "有点分心了",
+		PlanDistractionBody:  "「{title}」进行中已分心 {minutes} 分钟。",
+		DayDistractionTitle:  "今天的分心超过上限",
+		DayDistractionBody:   "今天已分心 {minutes} 分钟，上限是 {limit} 分钟。",
 	}
 }
 

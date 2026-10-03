@@ -33,7 +33,7 @@
   `agentEditsEnabled`、`source` 来源标记与 `agent-writes.log`（只记时间 / 来源 / 操作，不记参数）。
 - 宿主接线：`app.Run` 仅在读写实例上监听 `<支持目录>/agent.sock`；handler 先用 chat 工具的
   严格 schema 校验参数，再交给与 chat 同源的共享执行器，因此同校验、同事件（UI 自动刷新）。
-- MCP：`daygo mcp` stdio 服务，五读六写，读走只读库、写走 socket（[决策](../decisions/agent-mcp-transport.md)）。
+- MCP：`daygo mcp` stdio 服务，六读十写（2026-10-03 随 [plan](plan.md) 增加 `plan` 读与 `plan_add` `plan_update` `plan_complete` `plan_delete`，`feature/plan` 分支未提交），读走只读库、写走 socket（[决策](../decisions/agent-mcp-transport.md)）。
 - 设置页「Agent 访问」：`GetAgentConnection` 返回当前可执行文件绝对路径与 socket 是否在监听，
   页面据此给出可复制的 MCP 客户端配置和 CLI 读 / 写示例，不假定 `daygo` 在 PATH 上；
   路径位于 App Translocation 或磁盘映像（`/Volumes/`）时提示先移入「应用程序」，因为该路径重启即失效。

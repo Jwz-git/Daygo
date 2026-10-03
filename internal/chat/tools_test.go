@@ -7,8 +7,9 @@ import (
 )
 
 // The catalog is the closed set from docs/05 §5.12: five readable commands
-// (search and status deferred) plus exactly the six §5.9.2 write operations,
-// no more, no less.
+// (search and status deferred) plus the plan read, then exactly the ten §5.9.2
+// write operations, no more, no less. The plan tools were added deliberately
+// with the plan module (docs/modules/plan.md).
 func TestToolCatalogIsTheClosedSet(t *testing.T) {
 	want := []struct {
 		name  string
@@ -18,6 +19,7 @@ func TestToolCatalogIsTheClosedSet(t *testing.T) {
 		{ToolCard, false},
 		{ToolDaily, false},
 		{ToolWeekly, false},
+		{ToolPlan, false},
 		{ToolCategories, false},
 		{ToolCategoryAdd, true},
 		{ToolCategoryUpdate, true},
@@ -25,6 +27,10 @@ func TestToolCatalogIsTheClosedSet(t *testing.T) {
 		{ToolCardUpdate, true},
 		{ToolCardDelete, true},
 		{ToolGoalSet, true},
+		{ToolPlanAdd, true},
+		{ToolPlanUpdate, true},
+		{ToolPlanComplete, true},
+		{ToolPlanDelete, true},
 	}
 	if len(toolCatalog) != len(want) {
 		t.Fatalf("catalog has %d tools, want %d", len(toolCatalog), len(want))
@@ -66,6 +72,13 @@ func TestValidateToolArguments(t *testing.T) {
 		{ToolCategoryAdd, `{"name":"Deep Work"}`, "category add minimal"},
 		{ToolCardUpdate, `{"cardId":7,"category":"Coding"}`, "card update category"},
 		{ToolGoalSet, `{"day":"2026-09-12","focusTargetMinutes":120,"focusCategoryIds":["a","b"]}`, "goal set"},
+		{ToolPlan, `{"day":"2026-09-12"}`, "plan day"},
+		{ToolPlanAdd, `{"day":"2026-09-12","start":"9:00","end":"10:30","title":"Write API"}`, "plan add minimal"},
+		{ToolPlanAdd, `{"day":"2026-09-12","start":"23:30","end":"01:00","title":"Late","notes":"- a\n- b","categoryId":"cat-1","remind":false}`, "plan add full"},
+		{ToolPlanUpdate, `{"blockId":3,"categoryId":""}`, "plan update clears category"},
+		{ToolPlanComplete, `{"blockId":3}`, "plan complete default"},
+		{ToolPlanComplete, `{"blockId":3,"status":"skipped"}`, "plan complete skipped"},
+		{ToolPlanDelete, `{"blockId":3}`, "plan delete"},
 	}
 	for _, tc := range valid {
 		var raw json.RawMessage
@@ -92,6 +105,12 @@ func TestValidateToolArguments(t *testing.T) {
 		{ToolGoalSet, `{"focusTargetMinutes":120}`, "missing day"},
 		{ToolGoalSet, `{"day":"2026-09-12","focusTargetMinutes":-1}`, "negative minutes"},
 		{ToolGoalSet, `{"day":"2026-09-12","focusCategoryIds":["a","a"]}`, "duplicate ids"},
+		{ToolPlanAdd, `{"day":"2026-09-12","start":"9:00","end":"10:00"}`, "plan add without title"},
+		{ToolPlanAdd, `{"day":"2026-09-12","start":"24:00","end":"10:00","title":"x"}`, "plan add hour out of range"},
+		{ToolPlanAdd, `{"day":"2026-09-12","start":"9am","end":"10:00","title":"x"}`, "plan add 12-hour clock"},
+		{ToolPlanUpdate, `{"title":"x"}`, "plan update without blockId"},
+		{ToolPlanComplete, `{"blockId":3,"status":"finished"}`, "plan complete unknown status"},
+		{ToolPlanDelete, `{"blockId":0}`, "plan delete blockId below minimum"},
 	}
 	for _, tc := range invalid {
 		if err := validateToolArguments(tc.tool, json.RawMessage(tc.args)); err == nil {
@@ -158,6 +177,7 @@ func TestAgentSystemPrompt(t *testing.T) {
 		ToolTimeline, ToolCard, ToolDaily, ToolWeekly, ToolCategories,
 		ToolCategoryAdd, ToolCategoryUpdate, ToolCategoryRemove,
 		ToolCardUpdate, ToolCardDelete, ToolGoalSet,
+		ToolPlan, ToolPlanAdd, ToolPlanUpdate, ToolPlanComplete, ToolPlanDelete,
 		"readonly",
 	} {
 		if !strings.Contains(readonly, want) {

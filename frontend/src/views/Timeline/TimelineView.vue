@@ -9,7 +9,7 @@ import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import CalendarPopover from '@/components/CalendarPopover.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PeriodNav from '@/components/PeriodNav.vue'
-import type { TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
+import type { PlanBlockDTO, PlanBlockStatus, TimelineCardDTO, TimelineDayDTO } from '@/api/dto'
 import { getTimelineDay } from '@/api/timeline'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { categoryLabel } from '@/lib/categoryLabel'
@@ -18,12 +18,14 @@ import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { formatTimeZoneName } from '@/lib/timeFormat'
 import { safeTimeZone } from '@/lib/timeZone'
 import { useDailyStore } from '@/stores/daily'
+import { usePlanStore } from '@/stores/plan'
 import { useRecordingStore } from '@/stores/recording'
 import { useTimelineStore } from '@/stores/timeline'
 import { getReviewTotals } from '@/api/review'
 import CardReviewFlow from './CardReviewFlow.vue'
 import CategoryManagerModal from './CategoryManagerModal.vue'
 import { ZERO_REVIEW_TOTALS, type ReviewTotals } from './review'
+import PlanBlockPopover from './PlanBlockPopover.vue'
 import TimelineInspector from './TimelineInspector.vue'
 import TimelineStatePanel from './TimelineStatePanel.vue'
 import TimelineTrack from './TimelineTrack.vue'
@@ -36,6 +38,9 @@ const timeline = useTimelineStore()
 // The inspector's default pane embeds the day-goal form; the daily store owns
 // that state (bindings, events, save path) for both pages.
 const daily = useDailyStore()
+// The displayed day's plan: the inspector panel edits it, the track draws it.
+const plan = usePlanStore()
+const planBlocks = computed(() => (plan.day === context.value?.day ? plan.blocks : []))
 // Recording state is shared with the rail's RecordingControl; this view only
 // reads it and triggers actions, and must not stop the shared event listener
 // on unmount (the rail outlives this page).
@@ -298,6 +303,46 @@ async function reprocessWeekCard(cardID: number): Promise<void> {
 watch(viewMode, (mode) => {
   if (mode === 'day') weekSelection.value = null
 })
+
+/*
+ * The plan block popover, opened from the day track or the week grid. It
+ * tracks the block by id so a status change re-renders it from the store's
+ * re-pulled data instead of a stale copy.
+ */
+const planPopover = ref<{ id: number; day: string; anchor: DOMRect } | null>(null)
+
+const planPopoverBlock = computed<PlanBlockDTO | null>(() => {
+  const open = planPopover.value
+  if (open === null) return null
+  const pool = plan.day === open.day ? plan.blocks : (plan.week[open.day] ?? [])
+  return pool.find((block) => block.id === open.id) ?? plan.week[open.day]?.find((block) => block.id === open.id) ?? null
+})
+
+function openPlanPopover(block: PlanBlockDTO, anchor: DOMRect): void {
+  planPopover.value = planPopover.value?.id === block.id ? null : { id: block.id, day: block.day, anchor }
+}
+
+function setPlanStatus(status: PlanBlockStatus): void {
+  const open = planPopover.value
+  if (open !== null) void plan.setStatus(open.id, status)
+}
+
+// Editing belongs to the inspector's plan panel: show the block's day with
+// nothing selected, then ask the panel to open that block's form.
+function editPlanBlock(): void {
+  const open = planPopover.value
+  planPopover.value = null
+  if (open === null) return
+  weekSelection.value = null
+  timeline.selectCard(null)
+  if (viewMode.value === 'week') viewMode.value = 'day'
+  if (context.value?.day !== open.day) {
+    void router.push({ name: 'timeline', query: { ...route.query, day: open.day } })
+  }
+  plan.requestFocus(open.id, true)
+}
+
+watch([viewMode, () => context.value?.day], () => { planPopover.value = null })
 const dateTitle = computed(() => {
   if (viewMode.value === 'week' && weekTitle.value !== '') return weekTitle.value
   if (context.value === null) return t('timeline.title')
@@ -427,16 +472,22 @@ async function reprocessCurrentDay(): Promise<void> {
 onMounted(() => {
   timeline.startEvents()
   daily.startEvents()
+  plan.startListening()
   recording.startListening()
   window.addEventListener('focus', refreshWhenWindowReturns)
   document.addEventListener('visibilitychange', refreshWhenWindowReturns)
 })
 watch(() => route.query.day, () => { void timeline.load(routeDay()) }, { immediate: true })
 watch([viewMode, weekKeys], () => {
-  if (viewMode.value === 'week') void loadWeek()
+  if (viewMode.value !== 'week') return
+  void loadWeek()
+  void plan.loadWeek(weekKeys.value)
 }, { immediate: true })
 watch(() => context.value?.day, (day) => {
-  if (day !== undefined) void daily.load(day)
+  if (day !== undefined) {
+    void daily.load(day)
+    void plan.load(day)
+  }
 }, { immediate: true })
 watch([() => route.query.day, () => context.value?.dayEndTs], scheduleDayRefresh, { immediate: true })
 onBeforeUnmount(() => {
@@ -445,6 +496,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', refreshWhenWindowReturns)
   timeline.stopListening()
   daily.stopListening()
+  plan.stopListening()
 })
 </script>
 
@@ -581,6 +633,9 @@ onBeforeUnmount(() => {
             :selected-card-id="weekSelection?.card.id ?? null"
             :week-loading="weekLoading"
             :generating="generating"
+            :plan-blocks="plan.week"
+            :open-plan-id="planPopover?.id ?? null"
+            @open-plan="openPlanPopover"
             @anchor-day="selectDayFromWeek"
             @select-card="openWeekCard"
           />
@@ -637,6 +692,9 @@ onBeforeUnmount(() => {
               :selected-failure-ts="selectedFailureTs"
               :regenerating-card-i-d="pendingCardID"
               :generating="generating"
+              :plan-blocks="planBlocks"
+              :open-plan-id="planPopover?.id ?? null"
+              @open-plan="openPlanPopover"
               @resume="resumeRecording"
               @select="timeline.selectCard"
               @select-failure="timeline.selectFailure"
@@ -716,6 +774,18 @@ onBeforeUnmount(() => {
         </div>
       </Transition>
     </div>
+
+    <PlanBlockPopover
+      v-if="planPopover !== null && planPopoverBlock !== null"
+      :key="planPopover.id"
+      :block="planPopoverBlock"
+      :anchor="planPopover.anchor"
+      :can-write="(capabilities?.canWrite ?? false) && plan.available"
+      :pending="plan.pending"
+      @close="planPopover = null"
+      @status="setPlanStatus"
+      @edit="editPlanBlock"
+    />
 
     <!-- Category manager wizard -->
     <Teleport to="body">

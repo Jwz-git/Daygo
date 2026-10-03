@@ -12,6 +12,14 @@ export default {
     title: '今日のジャーナルを書こう',
     body: '数分かけて、今日の進捗と明日の予定を書き留めましょう。',
   },
+  plan: {
+    startTitle: "開始：{title}",
+    startBody: "予定 {start}–{end}",
+    distractionTitle: "集中が途切れています",
+    distractionBody: "「{title}」の最中に {minutes} 分脱線しています。",
+    dayDistractionTitle: "今日の脱線が上限を超えました",
+    dayDistractionBody: "今日は {minutes} 分脱線しました（上限 {limit} 分）。",
+  },
   applicationMenu: {
     hide: "Daygo を隠す",
     hideOthers: "ほかのアプリを隠す",

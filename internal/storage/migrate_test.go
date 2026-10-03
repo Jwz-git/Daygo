@@ -1204,3 +1204,63 @@ func TestMigrateV18FixtureDropsJournalSummary(t *testing.T) {
 		t.Fatalf("status = %q after upgrade, want %q", entry.Status, JournalStatusIntentionsSet)
 	}
 }
+
+// DB-2 for v20: upgrade a database written by a v19 build. plan_blocks arrives
+// empty while every earlier row survives — the card, its rating, the journal
+// entry (rebuilt by v19) and the providers — and a block can then be planned
+// against an upgraded category.
+func TestMigrateV19FixtureCreatesPlanTable(t *testing.T) {
+	fixture := filepath.Join("testdata", "v19-journal-no-summary.db")
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("fixture missing (%v); regenerate with: go run ./internal/storage/testdata/gen.go", err)
+	}
+
+	dir := newDir(t)
+	dst := filepath.Join(dir, DatabaseFileName)
+	copyFile(t, fixture, dst)
+
+	store := openWriter(t, dir)
+	if got := userVersionOf(t, store); got != schemaVersion() {
+		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
+	}
+	ctx := context.Background()
+
+	cards, err := store.Cards().CardsForDay(ctx, "2026-09-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("cards = %d after upgrade, want 1", len(cards))
+	}
+	if rating, err := store.Reviews().Rating(ctx, cards[0].ID); err != nil || rating != RatingUp {
+		t.Fatalf("rating = %q, %v after upgrade, want %q", rating, err, RatingUp)
+	}
+	entry, ok, err := store.Journal().Get(ctx, "2026-09-16")
+	if err != nil || !ok || entry.Intentions == nil || *entry.Intentions != "fixture intentions" {
+		t.Fatalf("journal = %+v, %v, %v after upgrade, want the v19 row intact", entry, ok, err)
+	}
+	providers, err := store.Providers().List(ctx)
+	if err != nil || len(providers) != 2 {
+		t.Fatalf("providers = %d, %v after upgrade, want 2", len(providers), err)
+	}
+
+	blocks, err := store.Plans().ForDay(ctx, "2026-09-16")
+	if err != nil || len(blocks) != 0 {
+		t.Fatalf("plan blocks = %v, %v on a freshly upgraded database, want none", blocks, err)
+	}
+	categories, err := store.Categories().List(ctx)
+	if err != nil || len(categories) == 0 {
+		t.Fatalf("categories = %v, %v after upgrade", categories, err)
+	}
+	id, err := store.Plans().Insert(ctx, PlanBlock{
+		Day: "2026-09-16", StartTs: cards[0].StartTs, EndTs: cards[0].EndTs, Title: "fixture plan",
+		CategoryID: categories[0].ID, Remind: true,
+	})
+	if err != nil {
+		t.Fatalf("plan an upgraded day: %v", err)
+	}
+	block, err := store.Plans().Get(ctx, id)
+	if err != nil || block.CategoryName != categories[0].Name {
+		t.Fatalf("planned block = %+v, %v, want it joined to %q", block, err, categories[0].Name)
+	}
+}

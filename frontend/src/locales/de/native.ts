@@ -12,6 +12,14 @@ export default {
     title: 'Zeit fürs Tagebuch',
     body: 'Nimm dir ein paar Minuten, um den heutigen Fortschritt und den Plan für morgen festzuhalten.',
   },
+  plan: {
+    startTitle: "Beginnt jetzt: {title}",
+    startBody: "Geplant für {start}–{end}",
+    distractionTitle: "Du wirst abgelenkt",
+    distractionBody: "{minutes} Minuten Ablenkung während „{title}“.",
+    dayDistractionTitle: "Heutige Ablenkung über dem Limit",
+    dayDistractionBody: "Heute {minutes} Minuten Ablenkung; das Limit liegt bei {limit}.",
+  },
   applicationMenu: {
     hide: "Daygo ausblenden",
     hideOthers: "Andere ausblenden",

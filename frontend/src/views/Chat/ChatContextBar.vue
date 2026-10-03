@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ChatConversationDTO } from '@/api/dto'
+import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 import { useChatStore } from '@/stores/chat'
 
 const { t } = useI18n()
@@ -18,6 +19,17 @@ const effectiveModel = computed(() => {
   const conv = activeConversation.value
   if (conv === null) return ''
   return conv.model !== '' ? conv.model : activeProvider.value?.model ?? ''
+})
+
+const providerOptions = computed<DgSelectOption[]>(() => [
+  { value: '', label: t('chat.provider.placeholder') },
+  ...store.providers.map((provider) => ({ value: provider.id, label: provider.displayName })),
+])
+
+const modelOptions = computed<DgSelectOption[]>(() => {
+  const options: DgSelectOption[] = [{ value: '', label: t('chat.model.follow', { model: activeProvider.value?.model ?? '' }) }]
+  if (activeProvider.value?.model) options.push({ value: activeProvider.value.model, label: activeProvider.value.model })
+  return options
 })
 
 async function switchProvider(id: string): Promise<void> {
@@ -36,44 +48,29 @@ const providerMissing = computed(() => !activeConversation.value?.providerId)
     <!-- Provider -->
     <div class="context-bar__group">
       <span class="context-bar__label">{{ t('chat.provider.label') }}</span>
-      <select
+      <DgSelect
         class="context-bar__select"
-        :value="activeConversation?.providerId ?? ''"
+        size="sm"
+        :model-value="activeConversation?.providerId ?? ''"
+        :options="providerOptions"
+        :aria-label="t('chat.provider.label')"
         :disabled="store.pending || store.loading"
-        @change="(e) => switchProvider((e.target as HTMLSelectElement).value)"
-      >
-        <option value="">
-          {{ t('chat.provider.placeholder') }}
-        </option>
-        <option
-          v-for="provider in store.providers"
-          :key="provider.id"
-          :value="provider.id"
-        >
-          {{ provider.displayName }}
-        </option>
-      </select>
+        @update:model-value="switchProvider"
+      />
     </div>
 
     <!-- Model (only when provider is set) -->
     <div v-if="!providerMissing" class="context-bar__group">
       <span class="context-bar__label">{{ t('chat.model.label') }}</span>
-      <select
+      <DgSelect
         class="context-bar__select"
-        :value="activeConversation?.model ?? ''"
+        size="sm"
+        :model-value="activeConversation?.model ?? ''"
+        :options="modelOptions"
+        :aria-label="t('chat.model.label')"
         :disabled="store.pending || store.loading"
-        @change="(e) => switchModel((e.target as HTMLSelectElement).value)"
-      >
-        <option value="">
-          {{ t('chat.model.follow', { model: activeProvider?.model ?? '' }) }}
-        </option>
-        <option
-          v-if="activeProvider?.model"
-          :value="activeProvider.model"
-        >
-          {{ activeProvider.model }}
-        </option>
-      </select>
+        @update:model-value="switchModel"
+      />
     </div>
   </div>
 </template>
@@ -102,23 +99,7 @@ const providerMissing = computed(() => !activeConversation.value?.providerId)
 }
 
 .context-bar__select {
-  padding: 3px 24px 3px 8px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 6px;
-  background: var(--dg-track-fill);
-  color: var(--dg-text-primary);
-  font-size: 12px;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  cursor: pointer;
-  min-width: 120px;
-}
-
-.context-bar__select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  min-width: 140px;
 }
 
 </style>

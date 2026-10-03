@@ -129,6 +129,18 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
+2026-10-03（仓库忽略规则，`feature/plan`、基于 `31cf614` 的未提交工作树，macOS arm64，
+Git 2.50.1 / Python 3.9.6）：移除整目录 `build/` 忽略，按实际输出目录排除构建产物；
+依赖 / 缓存规则覆盖 `web/`，收窄 `testdata/` 例外并补齐 SQLite 旁路文件与签名材料忽略。
+先固定 187 条匿名路径的忽略 / 可跟踪预期，再在临时 Git 仓库运行
+`git check-ignore --no-index --verbose --non-matching -z --stdin` 与 `git add --all`；
+修改前发现依赖漏忽略、构建资源误忽略及夹具例外过宽，修改后全部预期通过，845 个已跟踪
+路径均未被新规则隐藏。真实工作区未暂存，`web/` 的未跟踪依赖噪声消失，其磁盘文件未改动；
+`python3 scripts/check-docs.py`（57 个 Markdown，0 处问题）与 `git diff --check` 通过。
+仅覆盖 delivery 工程规则，不运行完整应用 / 原生门禁，不改变 G-native / WD 验收状态，
+不读取真实数据或密钥、不生成发行产物。规则边界与复核命令见 [构建目录说明](../../build/README.md)；
+回退仅需反向应用本次 `.gitignore` 与说明文档的补丁，不涉及用户数据。
+
 2026-10-02（macOS，`test` 未提交工作树，配套网页）：新增
 [网页部署工作流](../../.github/workflows/deploy-web.yml)，正式 Release 发布后检出对应 tag 的
 `web/`，独立构建并通过 Pages artifact 部署；草稿、预发布、普通 push 不部署。

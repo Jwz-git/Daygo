@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CategoryDTO, DayGoalDTO, TimelineDayDTO } from '@/api/dto'
@@ -10,6 +10,8 @@ import { categoryLabel } from '@/lib/categoryLabel'
 import type { TimelineAction } from '@/stores/timeline'
 
 import GoalEditor from './GoalEditor.vue'
+import GoalProgress from './GoalProgress.vue'
+import PlanPanel from './PlanPanel.vue'
 import type { ReviewTotals } from './review'
 import { FALLBACK_CATEGORY_COLOR, safeCategoryColor } from './layout'
 import { failurePresentation } from './failurePresentation'
@@ -32,6 +34,12 @@ const props = defineProps<{
   reviewTotals: ReviewTotals
 }>()
 
+// The displayed day is the live one when now falls in its backend window.
+const isLiveDay = computed(() => {
+  const now = Math.floor(Date.now() / 1000)
+  return props.day.dayStartTs <= now && now < props.day.dayEndTs
+})
+
 const emit = defineEmits<{
   retry: [batchIDs: number[]]
   stopRetries: [batchIDs: number[]]
@@ -40,6 +48,21 @@ const emit = defineEmits<{
 }>()
 
 const { t, locale } = useI18n()
+
+/*
+ * The day goal stays collapsed to its progress bars; the editor opens only on
+ * "set goals" / edit and folds away again once a save lands.
+ */
+const editingGoal = ref(false)
+const goalActive = computed(() => {
+  const goal = props.goal
+  return goal !== null && goal.exists && !goal.isSkipped
+    && (goal.focusTargetMinutes > 0 || goal.distractionLimitMinutes > 0)
+})
+watch(() => props.goalSaving, (saving, wasSaving) => {
+  if (wasSaving && !saving && !props.goalFailed) editingGoal.value = false
+})
+watch(() => props.day.day, () => { editingGoal.value = false })
 const duration = useDurationFormat()
 
 // The retryable flag describes automatic requeue behavior only — the backend
@@ -279,11 +302,66 @@ const reviewMinutesTotal = computed(() =>
     </div>
   </div>
 
-  <section class="inspector__section">
-    <h3>{{ t('timeline.overview.review') }}</h3>
+  <PlanPanel :day="day.day" :categories="day.categories" :can-write="canWrite" :live="isLiveDay" />
+
+  <section class="inspector__tile goal-tile">
+    <header class="inspector__tile-head">
+      <h3 class="inspector__tile-title">{{ t('daily.goal.title') }}</h3>
+      <template v-if="!goalUnavailable && !goalFailed && canWrite">
+        <button v-if="editingGoal" type="button" class="inspector__tile-action goal-tile__collapse" @click="editingGoal = false">
+          {{ t('daily.goal.progress.collapse') }}
+        </button>
+        <button
+          v-else-if="goalActive"
+          type="button"
+          class="goal-tile__edit"
+          :title="t('daily.goal.progress.edit')"
+          :aria-label="t('daily.goal.progress.edit')"
+          @click="editingGoal = true"
+        >
+          <DgIcon name="pencil" :size="11" />
+        </button>
+        <button v-else type="button" class="inspector__tile-action" @click="editingGoal = true">
+          {{ t('daily.goal.progress.setGoals') }}
+        </button>
+      </template>
+    </header>
+    <p v-if="goalUnavailable || goalFailed" class="inspector__tile-note">
+      {{ goalFailed ? t('daily.goal.failureDescription') : t('daily.goal.unavailableDescription') }}
+    </p>
+    <template v-else>
+      <p v-if="!editingGoal" class="inspector__tile-note goal-tile__hint">
+        {{ goal?.isSkipped ? t('daily.goal.progress.skippedHint') : goalActive ? t('daily.goal.progress.trackingHint') : t('daily.goal.progress.inactiveHint') }}
+      </p>
+      <Transition name="goal-swap" mode="out-in">
+        <GoalEditor
+          v-if="editingGoal"
+          key="editor"
+          :goal="goal"
+          :categories="day.categories"
+          :saving="goalSaving"
+          @save="(next) => emit('saveGoal', next)"
+        />
+        <GoalProgress
+          v-else
+          key="progress"
+          :goal="goal"
+          :categories="day.categories"
+          :cards="day.cards"
+          :active="goalActive"
+        />
+      </Transition>
+    </template>
+  </section>
+
+  <section class="inspector__tile">
+    <header class="inspector__tile-head">
+      <h3 class="inspector__tile-title">{{ t('timeline.overview.review') }}</h3>
+      <span v-if="reviewMinutesTotal > 0" class="inspector__tile-meta">{{ duration(reviewMinutesTotal) }}</span>
+    </header>
     <!-- No judged minutes yet: a hint instead of an empty bar and three zeros,
          since review verdicts are session-local and start unset. -->
-    <p v-if="reviewMinutesTotal === 0" class="review-empty">
+    <p v-if="reviewMinutesTotal === 0" class="inspector__tile-note">
       {{ t('timeline.overview.reviewEmpty') }}
     </p>
     <template v-else>
@@ -307,23 +385,10 @@ const reviewMinutesTotal = computed(() =>
     </template>
   </section>
 
-  <section class="inspector__section">
-    <h3>{{ t('daily.goal.title') }}</h3>
-    <p class="inspector__failure-note">{{ t('daily.goal.description') }}</p>
-    <div v-if="goalUnavailable || goalFailed" class="goal-state">
-      <span>{{ goalFailed ? t('daily.goal.failureDescription') : t('daily.goal.unavailableDescription') }}</span>
-    </div>
-    <GoalEditor
-      v-else
-      :goal="goal"
-      :categories="day.categories"
-      :saving="goalSaving"
-      @save="(next) => emit('saveGoal', next)"
-    />
-  </section>
-
-  <section v-if="failuresWithBatches.length > 0" class="inspector__section inspector__failures">
-    <h3>{{ t('timeline.failure.title') }}</h3>
+  <section v-if="failuresWithBatches.length > 0" class="inspector__tile inspector__failures">
+    <header class="inspector__tile-head">
+      <h3 class="inspector__tile-title">{{ t('timeline.failure.title') }}</h3>
+    </header>
     <p v-if="providerFailureCount > 0" class="inspector__failure-note" role="status">
       {{ t('timeline.failure.providerSummary', { count: providerFailureCount }) }}
       <RouterLink :to="{ name: 'settings', query: { section: 'providers' } }">{{ t('timeline.failure.openProviders') }}</RouterLink>
@@ -350,7 +415,7 @@ const reviewMinutesTotal = computed(() =>
     </button>
   </section>
 
-  <section v-if="props.actions.reprocessDay" class="inspector__section">
+  <section v-if="props.actions.reprocessDay" class="overview-reprocess">
     <button
       type="button"
       class="dg-button inspector__reprocess"
@@ -370,14 +435,6 @@ const reviewMinutesTotal = computed(() =>
    shares .inspector__title--card from the shell. */
 .inspector__heading .inspector__eyebrow { font-size: 13px; }
 
-.goal-state {
-  padding: 10px 12px;
-  border: 1px solid var(--dg-timeline-grid);
-  border-radius: 8px;
-  background: var(--dg-track-fill);
-}
-
-.goal-state span { color: var(--dg-text-secondary); font-size: 11px; }
 
 /* Dayflow-lineage donut, given depth: a grey base with ambient shadow, tinted
    wedges carrying a top-lit volume gradient and an upper-left specular pool,
@@ -386,7 +443,8 @@ const reviewMinutesTotal = computed(() =>
 .donut {
   position: relative;
   width: 205px;
-  margin: 6px auto 4px;
+  /* Clear the header's divider: the ring's ambient shadow reaches ~16px up. */
+  margin: 26px auto 4px;
 }
 
 .donut svg {
@@ -566,24 +624,11 @@ const reviewMinutesTotal = computed(() =>
   font-weight: 650;
 }
 
-/* Zero-state hint shown before any card has been judged. */
-.review-empty {
-  margin: 10px 0 0;
-  padding: 12px 14px;
-  border: 1px solid var(--dg-timeline-grid);
-  border-radius: 12px;
-  background: var(--dg-track-fill);
-  color: var(--dg-text-secondary);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 /* Review verdict split on a grey track. */
 .review-bar {
   display: flex;
   gap: 8px;
-  min-height: 44px;
-  margin-top: 10px;
+  min-height: 40px;
   padding: 5px;
   border-radius: 12px;
   background: var(--dg-track-fill);
@@ -640,21 +685,67 @@ const reviewMinutesTotal = computed(() =>
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
-  padding-top: 18px;
-  border-top: 1px solid var(--dg-timeline-grid);
 }
+
+.inspector__failures .inspector__tile-head { margin-bottom: 0; }
+
+.goal-tile .goal-tile__hint { margin: -4px 0 14px; font-size: 11.5px; }
+
+.goal-tile__edit {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--dg-hover-fill);
+  color: var(--dg-text-secondary);
+  cursor: pointer;
+  place-items: center;
+  transition: background-color var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
+}
+
+.goal-tile__edit:hover { background: var(--dg-hover-fill-strong); color: var(--dg-text-primary); }
+.goal-tile__edit:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+
+.inspector__tile-action.goal-tile__collapse {
+  background: var(--dg-hover-fill);
+  color: var(--dg-text-secondary);
+}
+
+/* Progress ⇄ editor: a short fade with a slight drop, so expanding reads as
+   the tile opening rather than a jump cut. */
+.goal-swap-enter-active,
+.goal-swap-leave-active {
+  transition: opacity 160ms ease, transform 220ms var(--dg-ease-glide);
+}
+
+.goal-swap-enter-from,
+.goal-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-swap-enter-active,
+  .goal-swap-leave-active { transition: none; }
+}
+
+.overview-reprocess { margin-top: 12px; padding-bottom: 4px; }
 
 .inspector__retry { color: var(--dg-text-secondary); }
 
 .inspector__reprocess {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid var(--dg-timeline-grid);
-  border-radius: 8px;
-  background: var(--dg-track-fill);
+  border: 1px dashed var(--dg-timeline-grid-strong);
+  border-radius: 12px;
+  background: transparent;
   color: var(--dg-text-secondary);
   font-size: 12px;
 }
@@ -662,7 +753,7 @@ const reviewMinutesTotal = computed(() =>
 .inspector__reprocess:hover:not(:disabled) {
   border-color: var(--dg-accent);
   color: var(--dg-accent);
-  background: var(--dg-accent-subtle);
+  background: color-mix(in srgb, var(--dg-accent) 8%, transparent);
 }
 
 .inspector__reprocess:disabled {

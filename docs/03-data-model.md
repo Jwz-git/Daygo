@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 19`）有十八张业务表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 20`）有十九张业务表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -11,7 +11,7 @@
 > `providers.max_images`（v11）、首次启动分类种子（v12）、`daily_standup_entries`（v13）、
 > `card_reviews`（v14）、`pending_captures.frame_index`（v15）、分段截图大小均摊（v16），
 > `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）、`card_ratings`（v18），
-> 以及移除 `journal_entries.summary`（v19，保留用户输入）。本文其余表
+> 移除 `journal_entries.summary`（v19，保留用户输入），以及计划的 `plan_blocks`（v20）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -292,6 +292,25 @@ CREATE TABLE day_goal_categories (
   sort_order  INTEGER NOT NULL,
   PRIMARY KEY (day, category_id, role)
 );
+
+-- plan_blocks（v20 已落盘，docs/modules/plan.md）。用户的计划时间块：day 为 Go 由 start_ts
+-- 推出的逻辑日；status 是显式完成标记（planned|done|skipped），块被卡片覆盖多少只在读时派生、
+-- 从不存储；分类删除时 category_id 置 NULL 而不连带删除计划；remind 控制开始通知。
+CREATE TABLE plan_blocks (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  day          TEXT    NOT NULL,
+  start_ts     INTEGER NOT NULL,
+  end_ts       INTEGER NOT NULL CHECK (end_ts > start_ts),
+  title        TEXT    NOT NULL,
+  notes        TEXT,
+  category_id  TEXT    REFERENCES categories(id) ON DELETE SET NULL,
+  status       TEXT    NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'done', 'skipped')),
+  completed_at INTEGER,
+  remind       INTEGER NOT NULL DEFAULT 1,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL
+);
+CREATE INDEX plan_blocks_day ON plan_blocks (day, start_ts);
 
 -- card_reviews（v14 已落盘）。卡片审阅流的判定：每卡一行，重判覆盖，撤销删除行。
 -- day 与 minutes 在判定时从卡片快照，卡片之后被编辑也不会改变当日统计；
