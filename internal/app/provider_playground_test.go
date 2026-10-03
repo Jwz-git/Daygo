@@ -111,6 +111,48 @@ func TestTryProviderSendsUserInputWithoutSchemaOrFallback(t *testing.T) {
 	}
 }
 
+func TestAnthropicSavedPastedEndpointWorksForTrialAndModels(t *testing.T) {
+	for _, suffix := range []string{"/v1", "/v1/messages", "/proxy/anthropic/v1/messages/"} {
+		t.Run(suffix, func(t *testing.T) {
+			prefix := ""
+			if strings.HasPrefix(suffix, "/proxy") {
+				prefix = "/proxy/anthropic"
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("X-Api-Key") != "fixture-secret" || r.Header.Get("User-Agent") != "fixture-agent/1.0" {
+					t.Error("configured key or User-Agent missing")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case prefix + "/v1/messages":
+					_, _ = io.WriteString(w, `{"model":"fixture-model","content":[{"type":"text","text":"ok"}]}`)
+				case prefix + "/v1/models":
+					_, _ = io.WriteString(w, `{"data":[{"id":"fixture-model"}]}`)
+				default:
+					t.Errorf("unexpected path: %s", r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			b := playgroundBackend(t)
+			input := validProviderInput()
+			input.Protocol, input.Endpoint, input.Secret, input.UserAgent = "anthropic", server.URL+suffix, "fixture-secret", "fixture-agent/1.0"
+			id, err := b.AddProvider(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			trial, err := b.TryProvider(ProviderPlaygroundRequestDTO{ProviderID: id, Model: "fixture-model", Text: "fixture"})
+			if err != nil || !trial.OK || trial.Text != "ok" {
+				t.Fatalf("trial = %+v, error = %v", trial, err)
+			}
+			models, err := b.ListProviderModels(ProviderModelsRequestDTO{ProviderID: id})
+			if err != nil || !models.OK || len(models.Models) != 1 || models.Models[0] != "fixture-model" {
+				t.Fatalf("models = %+v, error = %v", models, err)
+			}
+		})
+	}
+}
+
 func TestPlaygroundRejectsInvalidInput(t *testing.T) {
 	oversized, _ := base64.StdEncoding.DecodeString(playgroundPNG)
 	binary.BigEndian.PutUint32(oversized[16:20], 20000001)

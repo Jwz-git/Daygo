@@ -3,7 +3,6 @@ package anthropic
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -23,8 +22,9 @@ type Client struct {
 }
 
 func NewClient(httpClient *http.Client, endpoint, model, secret string) (*Client, error) {
-	if !validEndpoint(endpoint) {
-		return nil, daygoai.NewError(daygoai.ErrorInvalidRequest, "provider endpoint must be an absolute HTTP URL", 0, nil)
+	base, err := daygoai.AnthropicBaseURL(endpoint)
+	if err != nil {
+		return nil, err
 	}
 	if model == "" {
 		return nil, daygoai.NewError(daygoai.ErrorInvalidRequest, "provider model is required", 0, nil)
@@ -33,8 +33,11 @@ func NewClient(httpClient *http.Client, endpoint, model, secret string) (*Client
 		httpClient = http.DefaultClient
 	}
 	client := anthropicsdk.NewClient(
+		// Daygo resolves credentials itself. SDK environment/profile defaults
+		// must not add unrelated authorization headers or credential sources.
+		option.WithoutEnvironmentDefaults(),
 		option.WithAPIKey(secret),
-		option.WithBaseURL(strings.TrimRight(endpoint, "/")+"/"),
+		option.WithBaseURL(base),
 		option.WithHTTPClient(httpClient),
 		option.WithMaxRetries(0),
 	)
@@ -66,9 +69,9 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 		Model:     anthropicsdk.Model(c.model),
 	}
 	if request.Output != nil {
-		var schema map[string]any
-		if err := json.Unmarshal(request.Output.Schema, &schema); err != nil {
-			return daygoai.Result{}, daygoai.NewError(daygoai.ErrorInvalidRequest, "output schema is invalid", 0, err)
+		schema, err := outputSchema(request.Output.Schema)
+		if err != nil {
+			return daygoai.Result{}, err
 		}
 		params.OutputConfig = anthropicsdk.OutputConfigParam{
 			Format: anthropicsdk.JSONOutputFormatParam{Schema: schema},
@@ -76,7 +79,7 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 	}
 	message, err := c.client.Messages.New(ctx, params)
 	if err != nil {
-		return daygoai.Result{}, mapError(ctx, err)
+		return daygoai.Result{}, mapError(ctx, err, request.Output != nil)
 	}
 	var text strings.Builder
 	for _, block := range message.Content {
@@ -107,12 +110,7 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 	return result, nil
 }
 
-func validEndpoint(endpoint string) bool {
-	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
-	return err == nil && request.URL.Host != "" && (request.URL.Scheme == "http" || request.URL.Scheme == "https")
-}
-
-func mapError(ctx context.Context, err error) error {
+func mapError(ctx context.Context, err error, structuredOutput bool) error {
 	if ctx.Err() != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return daygoai.NewError(daygoai.ErrorTimeout, "provider request timed out", 0, ctx.Err())
@@ -124,6 +122,8 @@ func mapError(ctx context.Context, err error) error {
 		status := apiErr.StatusCode
 		var mapped *daygoai.Error
 		switch {
+		case structuredOutput && (status == http.StatusBadRequest || status == http.StatusNotFound || status == http.StatusUnprocessableEntity) && rejectsStructuredOutput(apiErr.RawJSON()):
+			mapped = daygoai.NewError(daygoai.ErrorUnsupportedFeature, "provider does not support native structured output", status, nil)
 		case status == http.StatusUnauthorized || status == http.StatusForbidden:
 			mapped = daygoai.NewError(daygoai.ErrorAuthentication, "provider authentication failed", status, nil)
 		case status == http.StatusRequestTimeout:

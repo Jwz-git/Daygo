@@ -130,3 +130,169 @@ func TestGenerateCancelsInFlightRequest(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestGenerateAcceptsVersionedAndPastedEndpoints(t *testing.T) {
+	cases := []struct{ endpoint, path string }{
+		{"", "/v1/messages"},
+		{"/v1", "/v1/messages"},
+		{"/v1/", "/v1/messages"},
+		{"/v1/messages", "/v1/messages"},
+		{"/v1/messages/", "/v1/messages"},
+		{"/v1/models", "/v1/messages"},
+		{"/proxy/anthropic", "/proxy/anthropic/v1/messages"},
+		{"/proxy/anthropic/v1", "/proxy/anthropic/v1/messages"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.endpoint, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != tc.path || r.URL.RawQuery != "" {
+					t.Errorf("request URL = %s, want path %s without query", r.URL, tc.path)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"model":"fixture-model","content":[{"type":"text","text":"ok"}]}`))
+			}))
+			defer server.Close()
+			client, err := NewClient(server.Client(), server.URL+tc.endpoint+"?ignored=1#fragment", "model", "fixture-secret")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := client.Generate(context.Background(), daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("fixture")}}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestGenerateIgnoresSDKEnvironmentCredentials(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("ANTHROPIC_AUTH_TOKEN", "fixture-unrelated-token")
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") != "fixture-configured-key" || r.Header.Get("Authorization") != "" {
+			t.Error("request did not use only the configured credential")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"model":"fixture-model","content":[{"type":"text","text":"ok"}]}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(server.Client(), server.URL, "model", "fixture-configured-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Generate(context.Background(), daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("fixture")}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The production frame-transcription schema uses minimum: 0. Anthropic
+// rejects that keyword, but a negative index must still fail local validation.
+func TestGenerateAdaptsNumericConstraintsAndValidatesOriginalSchema(t *testing.T) {
+	output := &daygoai.OutputSchema{Name: "frames", Strict: true, Schema: []byte(`{
+		"type":"object","properties":{"observations":{"type":"array","items":{
+			"type":"object","properties":{"from_frame":{"type":"integer","minimum":0}},
+			"required":["from_frame"],"additionalProperties":false
+		}}},"required":["observations"],"additionalProperties":false
+	}`)}
+	original := string(output.Schema)
+	for _, tc := range []struct {
+		name string
+		text string
+		kind daygoai.ErrorKind
+	}{
+		{"valid frame", `{"observations":[{"from_frame":0}]}`, ""},
+		{"negative frame", `{"observations":[{"from_frame":-1}]}`, daygoai.ErrorInvalidOutput},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body struct {
+					OutputConfig struct {
+						Format struct {
+							Type   string         `json:"type"`
+							Schema map[string]any `json:"schema"`
+						} `json:"format"`
+					} `json:"output_config"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				if body.OutputConfig.Format.Type != "json_schema" {
+					t.Error("request lost native structured output")
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				properties := body.OutputConfig.Format.Schema["properties"].(map[string]any)
+				items := properties["observations"].(map[string]any)["items"].(map[string]any)
+				frame := items["properties"].(map[string]any)["from_frame"].(map[string]any)
+				if _, present := frame["minimum"]; present {
+					t.Error("unsupported minimum constraint sent to Anthropic")
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				if description, _ := frame["description"].(string); !strings.Contains(description, `"minimum":0`) {
+					t.Errorf("description lost the numeric constraint: %q", description)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{"model": "model", "content": []map[string]string{{"type": "text", "text": tc.text}}})
+			}))
+			defer server.Close()
+			client, err := NewClient(server.Client(), server.URL, "model", "fixture-secret")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := client.Generate(context.Background(), daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("fixture")}, Output: output})
+			if daygoai.ErrorKindOf(err) != tc.kind {
+				t.Fatalf("error = %v, want %s", err, tc.kind)
+			}
+			if tc.kind == "" && string(result.JSON) != tc.text {
+				t.Fatalf("JSON = %s", result.JSON)
+			}
+			if string(output.Schema) != original {
+				t.Fatal("original validation schema was mutated")
+			}
+		})
+	}
+}
+
+func TestGenerateClassifiesStructuredOutputRejections(t *testing.T) {
+	for _, tc := range []struct {
+		name, message string
+		status        int
+		structured    bool
+		want          daygoai.ErrorKind
+	}{
+		{"unsupported output", "output_config.format is not supported", 400, true, daygoai.ErrorUnsupportedFeature},
+		{"gateway output format", "unknown output_format parameter", 422, true, daygoai.ErrorUnsupportedFeature},
+		{"bad model", "model not found", 404, true, daygoai.ErrorInvalidRequest},
+		{"unstructured request", "output_config.format is not supported", 400, false, daygoai.ErrorInvalidRequest},
+		{"authentication", "output_config.format fixture-sensitive", 401, true, daygoai.ErrorAuthentication},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_ = json.NewEncoder(w).Encode(map[string]any{"type": "error", "error": map[string]string{"type": "invalid_request_error", "message": tc.message + " fixture-sensitive"}})
+			}))
+			defer server.Close()
+			client, err := NewClient(server.Client(), server.URL, "model", "fixture-secret")
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("fixture")}}
+			if tc.structured {
+				request.Output = &daygoai.OutputSchema{Name: "fixture", Strict: true, Schema: []byte(`{"type":"object","properties":{},"additionalProperties":false}`)}
+			}
+			_, err = client.Generate(context.Background(), request)
+			if daygoai.ErrorKindOf(err) != tc.want || daygoai.HTTPStatusOf(err) != tc.status {
+				t.Fatalf("error = %v, want %s / %d", err, tc.want, tc.status)
+			}
+			if strings.Contains(err.Error(), "fixture-sensitive") || calls.Load() != 1 {
+				t.Fatal("error leaked content or silently retried without schema")
+			}
+		})
+	}
+}

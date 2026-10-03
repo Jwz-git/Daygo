@@ -894,6 +894,8 @@ type CategoryDTO struct {
 // Daygo 只有用户自定义 provider：id 是生成的不透明标识，protocol 是独立字段，
 // 不由 id 隐含。名称、地址、模型全部由用户填写。无 sortOrder：展示顺序按
 // displayName，路由顺序由 ProviderRoutingDTO 表达。
+// Anthropic 请求同时接受无版本基地址、末尾 /v1 和完整 /v1/messages / /v1/models；
+// 发送前统一为无版本基地址，保留网关前缀，Messages / 模型列表只追加一次 /v1。
 type ProviderDTO struct {
     ID          string   `json:"id"`
     DisplayName string   `json:"displayName"`
@@ -1325,7 +1327,11 @@ type ReplaceResult struct {
    首期图片仅接受 JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB。
 2. 三种协议都发送原生 schema：openai（Chat Completions）与 openai_responses 分别使用
    `response_format` 和 `text.format`，anthropic 使用 `output_config.format`；返回后仍须
-   本地提取 / 修复 JSON 并验证 schema。兼容端不支持时返回 `unsupported_feature`，
+   本地提取 / 修复 JSON 并验证**原始 schema**。Anthropic 发送副本将不支持的数值边界、
+   字符串长度、`maxItems` / `uniqueItems` 和大于 1 的 `minItems` 移入字段 description，
+   原始约束仍在本地校验；保留原生结构化输出与受支持的 `minItems: 0/1`。
+   SDK 不加载环境 / profile 凭据或自定义请求头，仅使用 Daygo 配置的地址与系统密钥。
+   兼容端明确拒绝结构化参数时返回 `unsupported_feature`，
    不得静默降级为无约束文本。协议封闭集为 `openai` / `openai_responses` / `anthropic`，
    由 `internal/ai` 的 `Protocol` 类型与 factory 统一构造。
 3. 路由是**有序链** `ai.Chain`（decisions/providers-fallback-chain）：每个条目是一个

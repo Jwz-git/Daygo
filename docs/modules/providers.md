@@ -17,6 +17,26 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-10-03 Anthropic 请求修复（基于 `a53934f` 的 test 未提交工作树，macOS arm64）：
+匿名 HTTP / TLS 夹具先于实现复现：`/v1` 与粘贴的 Messages 地址被重复追加版本路径；
+转录使用的 `minimum: 0` 原样发出后被夹具拒绝；SDK 附带环境中的无关 Authorization；
+结构化参数拒绝被误分类为 `invalid_request`。
+Messages 和模型列表共用地址规范化，兼容无版本 / `/v1` / 完整请求地址，保留网关前缀，
+不改已有 Provider 记录。Anthropic 的 wire Schema 只将不支持的数值 / 长度 / 数组约束移到
+description，本地仍校验原始 Schema，负帧索引继续拒绝；关闭 SDK 环境 / profile 默认配置。
+结构化参数拒绝按 `unsupported_feature` 返回，不泄漏错误正文、不改用无约束请求。
+依据：[Anthropic 结构化输出与 Schema 限制](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+（2026-10-03 核验）及锁定的 `anthropic-sdk-go v1.71.0` 源码。
+验证：定向 `CGO_ENABLED=0 go test ./internal/ai/... ./internal/app -run 'TestGenerateAccepts|TestGenerateIgnores|TestGenerateAdapts|TestGenerateClassifiesStructured|TestListModelsAnthropicAccepts|TestAnthropicSavedPasted|TestOutputSchemaPreserves' -count=1`
+通过，覆盖地址、原始 Schema 校验、密钥隔离、错误脱敏与单次请求。
+`./scripts/gate.sh` 通过：Go 内部测试（含实际 `transcribeOutput` 生产 Schema 夹具与既有
+图文契约）/ vet / `CGO_ENABLED=0` 构建、三平台核心交叉构建、前端 249 项单测 / typecheck /
+build、文档 58 篇 0 问题；Windows 安装器 9 项中 4 项通过、5 项因需 Windows 主机跳过，
+不记为通过。`gofmt -l .` 无输出，`git diff --check` 通过。Wails 引导构建有既有
+macOS deployment target / UserNotifications 可用性告警，构建成功，不等同原生回归通过。
+限制：匿名服务器不证明真实 Anthropic / 中转服务可用，真实 Wails 与真实 Provider 回归未运行，
+不提升历史 G-loop / G-native 验收范围。回退：撤销本次提交，无迁移、无用户数据变更。
+
 2026-10-03 每 Provider User-Agent 覆盖（test 未提交工作树，macOS arm64）：每个 AI 服务可配
 `User-Agent`，留空保持现状（openai 用 Go 默认，anthropic 用 SDK 默认）。`providers.user_agent`
 （迁移 v21）与三个 DTO 的 `userAgent`；`internal/app` 校验（trim、≤512、仅可打印 ASCII、拒绝

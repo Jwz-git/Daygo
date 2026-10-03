@@ -88,6 +88,33 @@ func TestListModelsAnthropicShape(t *testing.T) {
 	}
 }
 
+func TestListModelsAnthropicAcceptsVersionedEndpoints(t *testing.T) {
+	for _, tc := range []struct{ endpoint, path string }{
+		{"/v1", "/v1/models"},
+		{"/v1/", "/v1/models"},
+		{"/v1/messages", "/v1/models"},
+		{"/v1/models/", "/v1/models"},
+		{"/proxy/anthropic", "/proxy/anthropic/v1/models"},
+		{"/proxy/anthropic/v1", "/proxy/anthropic/v1/models"},
+		{"/v1/messages?ignored=1#fragment", "/v1/models"},
+	} {
+		t.Run(tc.endpoint, func(t *testing.T) {
+			server := modelsServer(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != tc.path || r.URL.RawQuery != "" {
+					t.Errorf("request URL = %s, want path %s without query", r.URL, tc.path)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				_, _ = w.Write([]byte(`{"data":[{"id":"fixture-model"}]}`))
+			})
+			models, err := ListModels(context.Background(), ProtocolAnthropicMessages, server.URL+tc.endpoint, "fixture-secret", "")
+			if err != nil || len(models) != 1 || models[0] != "fixture-model" {
+				t.Fatalf("models = %v, error = %v", models, err)
+			}
+		})
+	}
+}
+
 // openai_responses shares the openai /models listing.
 func TestListModelsResponsesUsesModelsPath(t *testing.T) {
 	var gotPath string

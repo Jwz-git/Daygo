@@ -41,10 +41,11 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAg
 	var header func(*http.Request)
 	switch protocol {
 	case ProtocolAnthropicMessages:
-		// Anthropic's configured endpoint is the bare API host with no version
-		// prefix (the SDK adds "v1/messages" itself); the models listing lives
-		// under the same /v1, so it is appended here.
-		requestURL = strings.TrimRight(endpoint, "/") + "/v1/models"
+		base, err := AnthropicBaseURL(endpoint)
+		if err != nil {
+			return nil, err
+		}
+		requestURL = base + "v1/models"
 		header = func(r *http.Request) {
 			r.Header.Set("x-api-key", secret)
 			r.Header.Set("anthropic-version", "2023-06-01")
