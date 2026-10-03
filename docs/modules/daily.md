@@ -125,3 +125,10 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。G
 2026-09-11—12：Go 绑定测试、前端 typecheck / build 与 Vite 匿名卡片预览覆盖日记编辑、日报展示、目标和日期路由。真实 Wails 保存、重启读回及长期表现由用户于 2026-09-22 确认验收，未附逐项运行记录。
 
 2026-09-28（日记提醒，macOS arm64，未提交工作树）：`./scripts/gate.sh` 通过——`CGO_ENABLED=0 go test ./internal/...`（24 包 ok，含 `journal_reminder_test.go` 14 项夹具）、`go vet`、`gofmt -l` 无输出、前端 `typecheck` 与 `build`、三平台核心交叉构建、`check-docs`（56 篇 0 处问题）与 Windows 安装器匿名夹具（9 项，5 项 skip 因需 Windows 主机的运行与卸载仍按 skip 记录，不倒填为通过）；前端 `test:unit` 178 项通过、0 失败 / 跳过。**这是 fake 与无头门禁证据**：不证明原生通知送达、授权弹窗或点击唤回，后者仍按下文 G-native 门禁单独验收。
+2026-10-03（`feature/plan` 工作树，未提交，前端增量）：时间线检查器的「当日目标」默认收起为 Dayflow 式进度条
+（`views/Timeline/GoalProgress.vue`；专注按目标分类逐段填充、达成时发光，分心额度随已用分心从左收缩，未设目标 /
+跳过时显示灰色轨道），点「设置目标」/ 编辑后展开编辑器，保存落地后自动收起。进度数值由
+`views/Timeline/goalProgress.ts` 从当天卡片按目标分类求和（排除 System；分类先按 id 解析现名，已删除时退回目标保存的名称），
+手算夹具见 `frontend/tests/goalProgress.test.ts`。尚未保存目标的日子，编辑器按 Dayflow `DayGoalPlan.defaultPlan` 预填：除 Distraction 外的全部用户分类（排除 System / Idle，按排序）为专注、Distraction 为分心，专注 4.5 小时、分心 2 小时，未改动也可直接保存（`defaultGoalCategories`，同一夹具文件）。日报工作流热力图的分类标签列改为按最宽分类名实测宽度（44–150px），
+不再固定 112px。前端 typecheck、unit（214 项）通过；无头 Chrome 截图核对 Vite 匿名预览（注入目标的达成 / 超额状态）与
+运行中的 wails dev 实例（只读：未设目标的收起态、展开编辑器、日报热力图左右留白）。**未运行**：真实保存后自动收起的往返。

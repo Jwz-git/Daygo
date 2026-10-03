@@ -343,6 +343,49 @@ export interface DayGoalDTO {
   exists: boolean
 }
 
+/** Plan block status: the explicit completion mark (docs/modules/plan.md). */
+export type PlanBlockStatus = 'planned' | 'done' | 'skipped'
+
+/** One plan block with its coverage by recorded cards up to now. */
+export interface PlanBlockDTO {
+  id: number
+  day: string
+  /** 24-hour HH:mm; times before 04:00 belong to the next calendar date. */
+  start: string
+  end: string
+  startTs: number
+  endTs: number
+  title: string
+  notes: string | null
+  categoryId: string
+  categoryName: string
+  colorHex: string
+  status: PlanBlockStatus
+  completedAtTs: number | null
+  remind: boolean
+  /** Recorded card minutes in the block's own category, up to now. */
+  matchedMinutes: number
+  /** Distraction minutes inside the block, up to now. */
+  distractionMinutes: number
+}
+
+export interface PlanDayDTO {
+  day: string
+  blocks: PlanBlockDTO[]
+}
+
+/** Adds a block (id 0) or replaces one's editable fields. */
+export interface PlanBlockInputDTO {
+  id: number
+  day: string
+  start: string
+  end: string
+  title: string
+  notes: string | null
+  categoryId: string
+  remind: boolean
+}
+
 export interface CapabilitiesDTO {
   canWrite: boolean
   isCaptureOwner: boolean

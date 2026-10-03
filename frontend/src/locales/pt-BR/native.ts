@@ -12,6 +12,14 @@ export default {
     title: 'Hora do diário',
     body: 'Reserve alguns minutos para registrar o progresso de hoje e o plano para amanhã.',
   },
+  plan: {
+    startTitle: "Começando: {title}",
+    startBody: "Previsto para {start}–{end}",
+    distractionTitle: "Você está se distraindo",
+    distractionBody: "{minutes} minutos de distração durante \"{title}\".",
+    dayDistractionTitle: "A distração de hoje passou do limite",
+    dayDistractionBody: "Hoje foram {minutes} minutos de distração; o limite é {limit}.",
+  },
   applicationMenu: {
     hide: "Ocultar Daygo",
     hideOthers: "Ocultar outros",

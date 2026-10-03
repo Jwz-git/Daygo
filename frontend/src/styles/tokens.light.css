@@ -75,6 +75,8 @@
   --dg-nav-active-shadow: inset 0 0 6px rgba(255, 255, 255, 0.8), 0 1px 2px #d5d3d9;
   --dg-danger: #e5533d;
   --dg-success: #39815e;
+  /* Plan "done": brighter than --dg-success so a finished block stands out. */
+  --dg-plan-done: #1fb860;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
   --dg-warning: #9a6d14;
 
@@ -171,6 +173,17 @@
   --dg-timeline-card-shadow-hover: 0 8px 20px rgba(28, 34, 45, 0.12), 0 1px 2px rgba(28, 34, 45, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --dg-timeline-inspector-fill: rgba(255, 255, 255, 0.6);
+  /* Inspector overview tiles and the day-goal panels (Dayflow sheet palette). */
+  --dg-inspector-tile-fill: rgba(255, 255, 255, 0.58);
+  --dg-inspector-tile-border: rgba(96, 64, 44, 0.07);
+  --dg-goal-focus: #628cff;
+  --dg-goal-focus-text: #4b74ea;
+  --dg-goal-distraction: #fa8282;
+  --dg-goal-distraction-text: #e8605b;
+  --dg-goal-box-fill: rgba(255, 255, 255, 0.5);
+  --dg-goal-box-border: #ebe3dd;
+  --dg-goal-wheel-fill: linear-gradient(180deg, #ebe6e4 0%, #fffdfc 28%, #fffdfc 72%, #ebe6e4 100%);
+  --dg-goal-wheel-dim: #b2ada9;
   --dg-timeline-empty-fill: rgba(255, 255, 255, 0.2);
   --dg-timeline-placeholder: rgba(95, 87, 100, 0.2);
   --dg-timeline-processing-fill: rgba(103, 128, 177, 0.08);

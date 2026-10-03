@@ -2,7 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import type { PlanBlockDTO } from '@/api/dto'
 import { currentWeekDayKey, type WeekColumn } from './weekLayout'
+import { safeCategoryColor } from './layout'
+import { planLanes, planPhase } from './planLayout'
 import AppSiteIcon from '@/components/AppSiteIcon.vue'
 import GeneratingCard from '@/components/GeneratingCard.vue'
 
@@ -24,11 +27,15 @@ const props = defineProps<{
   weekLoading: boolean
   /** Placeholder state on the now-line: off, live capture, or paused hold. */
   generating: 'off' | 'capturing' | 'paused'
+  /** Plan blocks by logical day, drawn as dashed lines on the column edge. */
+  planBlocks?: Record<string, PlanBlockDTO[]>
+  openPlanId?: number | null
 }>()
 
 const emit = defineEmits<{
   anchorDay: [day: string]
   selectCard: [day: string, cardId: number]
+  openPlan: [block: PlanBlockDTO, anchor: DOMRect]
 }>()
 
 const { locale } = useI18n()
@@ -88,6 +95,41 @@ const generatingMark = computed(() => {
   }
 })
 
+/*
+ * Plan lines per column, placed on the column's own backend window like the
+ * cards: a rounded-dash line on the column's right edge, above the cards,
+ * stepping inward per lane when blocks overlap.
+ */
+const PLAN_MIN_HEIGHT = 16
+
+const planColumns = computed(() =>
+  props.columns.map((column) => {
+    const span = column.windowEndTs - column.windowStartTs
+    const blocks = props.planBlocks?.[column.day] ?? []
+    if (!column.hasData || span <= 0 || blocks.length === 0) return []
+    return planLanes(blocks).map(({ block, lane, lanes }) => {
+      const start = Math.max(block.startTs, column.windowStartTs)
+      const end = Math.min(block.endTs, column.windowEndTs)
+      const top = ((start - column.windowStartTs) / span) * column.height
+      const height = Math.max(PLAN_MIN_HEIGHT, ((end - start) / span) * column.height)
+      return {
+        block,
+        lane,
+        lanes,
+        top,
+        height,
+        phase: planPhase(block, nowTs.value),
+        color: safeCategoryColor(block.colorHex || undefined),
+      }
+    })
+  }),
+)
+
+function openPlan(block: PlanBlockDTO, event: MouseEvent): void {
+  const target = event.currentTarget as HTMLElement | null
+  if (target !== null) emit('openPlan', block, target.getBoundingClientRect())
+}
+
 onMounted(() => {
   nowTimer = window.setInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000)
 })
@@ -138,6 +180,23 @@ onBeforeUnmount(() => {
           :style="{ top: `${mark.top}px` }"
           aria-hidden="true"
         ></i>
+
+        <button
+          v-for="entry in planColumns[index] ?? []"
+          :key="`plan-rail-${entry.block.id}`"
+          type="button"
+          class="week__plan-rail"
+          :class="[`is-${entry.phase}`, { 'is-open': openPlanId === entry.block.id }]"
+          :style="{
+            top: `${entry.top}px`,
+            height: `${entry.height}px`,
+            '--plan-color': entry.color,
+            '--plan-lane': Math.min(entry.lane, 2),
+          }"
+          tabindex="-1"
+          :aria-label="`${entry.block.start}–${entry.block.end} ${entry.block.title}`"
+          @click="openPlan(entry.block, $event)"
+        ></button>
 
         <div
           v-for="range in column.processing"
@@ -309,6 +368,29 @@ onBeforeUnmount(() => {
   font-size: 10px;
   white-space: nowrap;
 }
+
+/* Plan line on the column's right edge, above the cards, with round-ended
+   dashes like the day track's gutter marker. */
+.week__plan-rail {
+  position: absolute;
+  z-index: 5;
+  right: calc(1px + var(--plan-lane) * 5px);
+  width: 3px;
+  padding: 0;
+  border: none;
+  background: var(--plan-color);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='3' height='8'%3E%3Crect width='3' height='5' rx='1.5'/%3E%3C/svg%3E") 0 0 / 3px 8px repeat-y;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='3' height='8'%3E%3Crect width='3' height='5' rx='1.5'/%3E%3C/svg%3E") 0 0 / 3px 8px repeat-y;
+  cursor: pointer;
+  transition: transform var(--dg-motion-fast) var(--dg-ease-out), opacity var(--dg-motion-fast) ease;
+}
+
+.week__plan-rail::after { position: absolute; inset: 0 -4px; content: ''; }
+.week__plan-rail.is-done { background: var(--dg-plan-done); }
+.week__plan-rail.is-skipped { background: var(--dg-timeline-grid-strong); }
+.week__plan-rail.is-missed { opacity: 0.55; }
+.week__plan-rail:hover,
+.week__plan-rail.is-open { opacity: 1; transform: scaleX(1.6); }
 
 .week__card {
   position: absolute;

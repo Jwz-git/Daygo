@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type {
@@ -30,9 +30,36 @@ const { locale, t } = useI18n()
  */
 const MIN_STEP = 20
 const MAX_STEP = 38
-const LABEL_COLUMN = 112
 const LABEL_GAP = 13
 const SCROLL_PADDING = 40
+
+/*
+ * The label column fits the widest category name (at 1× text scale) instead
+ * of a fixed 112px: right-aligned short names in a wide column left a blank
+ * strip on the left while the right edge stayed tight. Measured after render;
+ * 112px is only the first-frame guess.
+ */
+const LABEL_MIN = 44
+const LABEL_MAX = 150
+const LABEL_SWATCH = 14 // 7px dot + 7px gap
+const labelColumn = ref(112)
+const gridEl = ref<HTMLElement | null>(null)
+
+function measureLabels(): void {
+  const grid = gridEl.value
+  if (grid === null) return
+  const scale = textScale(step.value)
+  let widest = 0
+  grid.querySelectorAll<HTMLElement>('.workflow-label').forEach((label) => {
+    const text = label.querySelector('span')
+    if (text === null) return
+    const swatch = label.querySelector('i') === null ? 0 : LABEL_SWATCH
+    widest = Math.max(widest, text.scrollWidth / scale + swatch)
+  })
+  if (widest <= 0) return
+  const next = Math.min(LABEL_MAX, Math.max(LABEL_MIN, Math.ceil(widest) + 2))
+  if (Math.abs(next - labelColumn.value) >= 1) labelColumn.value = next
+}
 
 // The card's width never depends on the grid inside it, so observing it
 // cannot feed back into itself; the update still waits a frame, and sub-pixel
@@ -60,10 +87,10 @@ onBeforeUnmount(() => {
 
 const step = computed(() => {
   const slots = Math.max(1, props.presentation.slotCount)
-  const available = viewportWidth.value - SCROLL_PADDING - LABEL_COLUMN * textScale(MIN_STEP) - LABEL_GAP
+  const available = viewportWidth.value - SCROLL_PADDING - labelColumn.value * textScale(MIN_STEP) - LABEL_GAP
   // Label width depends on the scale, so solve once with the provisional step.
   const provisional = Math.min(MAX_STEP, Math.max(MIN_STEP, available / slots))
-  const fitted = (viewportWidth.value - SCROLL_PADDING - LABEL_COLUMN * textScale(provisional) - LABEL_GAP) / slots
+  const fitted = (viewportWidth.value - SCROLL_PADDING - labelColumn.value * textScale(provisional) - LABEL_GAP) / slots
   return Math.min(MAX_STEP, Math.max(MIN_STEP, fitted))
 })
 function textScale(value: number): number {
@@ -77,12 +104,19 @@ const gridStyle = computed(() => {
   const scale = textScale(step.value)
   return {
     minWidth: `${Math.max(680, props.presentation.slotCount * MIN_STEP)}px`,
-    gridTemplateColumns: `${LABEL_COLUMN * scale}px minmax(0, 1fr)`,
+    gridTemplateColumns: `${labelColumn.value * scale}px minmax(0, 1fr)`,
     rowGap: `${cellGap.value}px`,
     '--daily-cell': `${cellSize.value}px`,
     '--daily-text-scale': `${scale}`,
   }
 })
+
+// Names change with the day's rows and the locale; re-measure after render.
+watch(
+  () => [props.presentation.rows.map((row) => row.name).join('\u0000'), locale.value, gridEl.value] as const,
+  () => { void nextTick(measureLabels) },
+  { immediate: true },
+)
 
 const cellGridStyle = computed(() => ({
   gridTemplateColumns: `repeat(${props.presentation.slotCount}, ${cellSize.value}px)`,
@@ -234,7 +268,7 @@ const duration = useDurationFormat()
       </div>
 
       <div v-else class="workflow-scroll">
-        <div class="workflow-grid" :style="gridStyle">
+        <div ref="gridEl" class="workflow-grid" :style="gridStyle">
           <div class="workflow-axis-label" aria-hidden="true"></div>
           <div class="workflow-axis" aria-hidden="true" :style="{ width: `${gridWidth}px` }">
             <span

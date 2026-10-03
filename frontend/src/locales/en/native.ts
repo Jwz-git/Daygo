@@ -12,6 +12,14 @@ export default {
     title: 'Time to journal',
     body: 'Take a few minutes to log today’s progress and tomorrow’s plan.',
   },
+  plan: {
+    startTitle: "Starting: {title}",
+    startBody: "Planned for {start}–{end}",
+    distractionTitle: "Getting distracted",
+    distractionBody: "{minutes} minutes of distraction during \"{title}\".",
+    dayDistractionTitle: "Today's distraction is over the limit",
+    dayDistractionBody: "{minutes} minutes of distraction today; the limit is {limit}.",
+  },
   applicationMenu: {
     hide: "Hide Daygo",
     hideOthers: "Hide Others",
