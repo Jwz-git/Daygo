@@ -161,7 +161,6 @@ function isSettingsFixture(value: unknown): value is SettingsDTO {
     typeof value.storage.recordingsLimitBytes === 'number' &&
     typeof value.appearance.theme === 'string' &&
     typeof value.appearance.language === 'string' &&
-    typeof value.llm.outputLanguage === 'string' &&
     typeof value.notifications.journalReminderEnabled === 'boolean' &&
     typeof value.notifications.journalReminderTime === 'string' &&
     typeof value.system.launchAtLogin === 'boolean' &&
@@ -201,7 +200,6 @@ export function applyDevelopmentSettingsPatch(
   if (patch.recordingsLimitBytes !== undefined) {
     next.storage.recordingsLimitBytes = patch.recordingsLimitBytes
   }
-  if (patch.outputLanguage !== undefined) next.llm.outputLanguage = patch.outputLanguage
   if (patch.launchAtLogin !== undefined) next.system.launchAtLogin = patch.launchAtLogin
   if (patch.showDockIcon !== undefined) next.system.showDockIcon = patch.showDockIcon
   if (patch.agentEditsEnabled !== undefined) next.system.agentEditsEnabled = patch.agentEditsEnabled

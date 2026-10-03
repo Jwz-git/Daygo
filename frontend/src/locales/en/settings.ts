@@ -112,12 +112,6 @@ export default {
     interface: 'Interface language',
     interfaceDescription: 'The language Daygo’s interface is shown in.',
     followSystem: 'Follow system',
-    output: 'Model output language',
-    outputDescription: 'The language AI uses for cards and summaries. Defaults to the interface language. Enter a language name (like “English”) or code (like en-US). Only affects content generated from now on.',
-    outputPlaceholder: 'e.g. en',
-    outputUnavailable: 'Can’t change this right now.',
-    outputError: 'Couldn’t save. Your previous setting was restored.',
-    saving: 'Saving…',
   },
   storage: {
     limit: 'Storage limit',

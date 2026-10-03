@@ -134,7 +134,7 @@ func (s *fakeSettings) Memory(context.Context) (string, error) { return s.memory
 
 func (s *fakeSettings) EditMode(context.Context) (string, error) { return s.editMode, nil }
 
-func (s *fakeSettings) OutputLanguage(context.Context) (string, error) { return s.language, nil }
+func (s *fakeSettings) Language(context.Context) (string, error) { return s.language, nil }
 
 // scriptedProvider is a fake ai.Provider with controllable outcomes.
 type scriptedProvider struct {

@@ -23,7 +23,7 @@ function settingsWith(showTokenUsage: boolean) {
     privacy: { blockedApplicationIds: [] },
     storage: { recordingsLimitBytes: 0 },
     appearance: { theme: 'system', language: 'zh-CN' },
-    llm: { outputLanguage: '', showTokenUsage },
+    llm: { showTokenUsage },
     chat: { memory: '', editMode: 'readonly' },
     notifications: { journalReminderEnabled: false, journalReminderTime: '18:00' },
     system: {

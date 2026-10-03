@@ -112,12 +112,6 @@ export default {
     interface: 'Langue de l’interface',
     interfaceDescription: 'La langue dans laquelle l’interface de Daygo est affichée.',
     followSystem: 'Suivre le système',
-    output: 'Langue de sortie du modèle',
-    outputDescription: 'La langue que l’IA utilise pour les cartes et les résumés. Par défaut, celle de l’interface. Saisissez un nom de langue (comme « français ») ou un code (comme fr-FR). N’affecte que le contenu généré à partir de maintenant.',
-    outputPlaceholder: 'ex. : fr',
-    outputUnavailable: 'Modification impossible pour le moment.',
-    outputError: 'Échec de l’enregistrement. Votre réglage précédent a été rétabli.',
-    saving: 'Enregistrement…',
   },
   storage: {
     diagnostics: {

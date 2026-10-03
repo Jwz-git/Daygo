@@ -112,12 +112,6 @@ export default {
     interface: '介面語言',
     interfaceDescription: 'Daygo 介面顯示的語言。',
     followSystem: '跟隨系統',
-    output: '模型輸出語言',
-    outputDescription: 'AI 產生卡片和摘要時使用的語言，預設與介面語言相同。可以填寫語言名稱（如「繁體中文」）或代碼（如 zh-Hant），只影響之後產生的內容。',
-    outputPlaceholder: '例如：zh-Hant',
-    outputUnavailable: '暫時無法修改。',
-    outputError: '儲存失敗，已還原原設定。',
-    saving: '儲存中…',
   },
   storage: {
     diagnostics: {

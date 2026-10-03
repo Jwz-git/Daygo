@@ -15,9 +15,9 @@ test('settings deep links accept known sections and fall back to general', () =>
 })
 
 // A settings section that exists but is mounted nowhere is a setting users can
-// no longer change while the backend keeps honouring it. That happened to the
-// model output language (dropped from SettingsView in 6a7911a) with no test
-// noticing; every *Section.vue must be imported by another settings file.
+// no longer change while the backend keeps honouring it; a section was once
+// dropped from SettingsView (6a7911a) with no test noticing, so every
+// *Section.vue must be imported by another settings file.
 test('every settings section component is mounted', async () => {
   const { readFile, readdir } = await import('node:fs/promises')
   const directory = 'src/views/Settings'

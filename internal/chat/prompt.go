@@ -9,8 +9,10 @@ import (
 // tool catalog, the editMode gate state, and the reply envelope format.
 // today is the logical day (4 AM boundary) and monday its week's Monday, both
 // precomputed by the caller so the model never derives dates itself. language
-// is the llm.outputLanguage setting (BCP 47); empty means "match the user's
-// message language", non-empty pins the reply language.
+// is the interface language (BCP 47); empty means "match the user's message
+// language", non-empty pins the reply language. Callers resolve the
+// interface-language sentinel before calling, so production always passes a
+// concrete tag.
 //
 // The skeleton is deliberately single-language (English), mirroring the
 // analysis prompts: model-facing instruction text is not localized per user;

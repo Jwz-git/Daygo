@@ -2,10 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 // A component nothing imports is dead UI: it still costs review and keeps
-// copy alive in nine locales, and when it is a settings section it hides a
-// setting the backend still honours. ChatSidebar.vue (replaced by ChatDrawer)
-// and OutputLanguageSection.vue (dropped from SettingsView) both sat unmounted
-// unnoticed. App.vue is the root and is mounted by main.ts.
+// copy alive in nine locales. ChatSidebar.vue (replaced by ChatDrawer) sat
+// unmounted unnoticed. App.vue is the root and is mounted by main.ts.
 test('every Vue component is imported somewhere', async () => {
   const { readFile, readdir } = await import('node:fs/promises')
   const { basename, join } = await import('node:path')

@@ -298,7 +298,7 @@ func TestSettingsKeysAreNotRewritten(t *testing.T) {
 		"notifications.journalReminderTime",
 		"system.agentEditsEnabled",
 		"telemetry.crashReportingOptIn",
-		"llm.outputLanguage",
+		"llm.showTokenUsage",
 	}
 	for _, key := range keys {
 		if err := repo.Set(ctx, key, `0`); err != nil {

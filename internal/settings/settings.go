@@ -39,7 +39,6 @@ const (
 	KeyTelemetryAnalyticsOptIn      = "telemetry.analyticsOptIn"
 	KeyTelemetryCrashReportingOptIn = "telemetry.crashReportingOptIn"
 	KeyProvidersRouting             = "providers.routing"
-	KeyLLMOutputLanguage            = "llm.outputLanguage"
 	KeyLLMShowTokenUsage            = "llm.showTokenUsage"
 	KeyChatMemory                   = "chat.memory"
 	KeyChatEditMode                 = "chat.editMode"
@@ -66,7 +65,6 @@ func AllKeys() []string {
 		KeyTelemetryAnalyticsOptIn,
 		KeyTelemetryCrashReportingOptIn,
 		KeyProvidersRouting,
-		KeyLLMOutputLanguage,
 		KeyLLMShowTokenUsage,
 		KeyChatMemory,
 		KeyChatEditMode,
@@ -108,7 +106,6 @@ const (
 	DefaultTestToolsEnabled       = false
 	DefaultAnalyticsOptIn         = false
 	DefaultCrashReportingOptIn    = false
-	DefaultOutputLanguage         = ""
 	DefaultShowTokenUsage         = false
 	DefaultChatMemory             = ""
 	DefaultChatEditMode           = ChatEditModeReadonly
@@ -162,7 +159,6 @@ type Snapshot struct {
 	AnalyticsOptIn         bool
 	CrashReportingOptIn    bool
 	ProvidersRouting       Routing
-	OutputLanguage         string
 	ChatMemory             string
 	ChatEditMode           string
 }
@@ -247,7 +243,6 @@ type Patch struct {
 	Theme                  *string
 	Language               *string
 	ShowTokenUsage         *bool
-	OutputLanguage         *string
 	LaunchAtLogin          *bool
 	ShowDockIcon           *bool
 	AgentEditsEnabled      *bool
@@ -361,13 +356,6 @@ func (s *Settings) encodePatch(p Patch) (map[string]string, []string, error) {
 			return nil, nil, err
 		}
 	}
-	if p.OutputLanguage != nil {
-		// Empty means "follow the interface language" and is a real value, not
-		// a missing one, so it is preserved rather than replaced by a default.
-		if err := put(KeyLLMOutputLanguage, normalizeLanguage(*p.OutputLanguage)); err != nil {
-			return nil, nil, err
-		}
-	}
 	if p.LaunchAtLogin != nil {
 		if err := put(KeySystemLaunchAtLogin, *p.LaunchAtLogin); err != nil {
 			return nil, nil, err
@@ -431,7 +419,6 @@ func (s *Settings) snapshotFrom(raw map[string]string) Snapshot {
 		AnalyticsOptIn:         decodeBool(raw[KeyTelemetryAnalyticsOptIn], DefaultAnalyticsOptIn),
 		CrashReportingOptIn:    decodeBool(raw[KeyTelemetryCrashReportingOptIn], DefaultCrashReportingOptIn),
 		ProvidersRouting:       decodeRouting(raw[KeyProvidersRouting]),
-		OutputLanguage:         normalizeLanguage(decodeString(raw[KeyLLMOutputLanguage], DefaultOutputLanguage)),
 		ChatMemory:             normalizeChatMemory(decodeString(raw[KeyChatMemory], DefaultChatMemory)),
 		ChatEditMode:           normalizeChatEditMode(decodeString(raw[KeyChatEditMode], DefaultChatEditMode)),
 	}
@@ -617,8 +604,6 @@ func defaultFor(key string) string {
 		return encodeScalar(DefaultCrashReportingOptIn)
 	case KeyProvidersRouting:
 		return `{"chain":[]}`
-	case KeyLLMOutputLanguage:
-		return encodeScalar(DefaultOutputLanguage)
 	case KeyLLMShowTokenUsage:
 		return encodeScalar(DefaultShowTokenUsage)
 	case KeyChatMemory:
@@ -642,7 +627,7 @@ func normalizeScalar(key, raw string) string {
 		return encodeScalar(value)
 	case KeyAppearanceTheme:
 		return encodeScalar(normalizeMember(decodeString(raw, DefaultTheme), AllowedThemes, DefaultTheme))
-	case KeyAppearanceLanguage, KeyLLMOutputLanguage:
+	case KeyAppearanceLanguage:
 		return encodeScalar(normalizeLanguage(decodeString(raw, "")))
 	case KeyNotificationsReminderTime:
 		return encodeScalar(normalizeClockTime(decodeString(raw, DefaultReminderTime)))

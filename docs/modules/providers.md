@@ -92,9 +92,10 @@ JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB；调用�
 不存 endpoint、正文、图片、密钥或费用。
 协议客户端归 internal/ai；上层任务通过消费者接口调用，不导入另一服务的内部实现。
 providers repository 在 internal/storage；Secrets.Get 只供 Go 客户端取密钥，
-任何绑定均不返回密钥。settings-access 由 preferences 维护，本模块拥有 providers.routing、
-llm.outputLanguage 的字段规则和设置交互；回退链跨回合
-行为由消费方（chat / 分析流水线）集成验证。
+任何绑定均不返回密钥。settings-access 由 preferences 维护，本模块拥有 providers.routing
+的字段规则和设置交互；回退链跨回合
+行为由消费方（chat / 分析流水线）集成验证。模型输出语言已无独立设置：卡片 / 摘要与
+chat 回复跟随 `appearance.language`（`llm.outputLanguage` 于 2026-10-03 移除）。
 
 分析分组按回退链中最小图片上限限制请求规模。识别增强（`ai.GenerateRecognition` 与
 `llm.recognitionEnhancementEnabled`）于 2026-10-02 移除：设置页开关可保存，但转录阶段从未调用

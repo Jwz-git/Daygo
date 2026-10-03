@@ -823,13 +823,12 @@ type AppearanceSettingsDTO struct {
     Language string `json:"language"` // BCP 47；空串表示跟随系统（§5.3.3 的唯一哨兵例外）
 }
 
-// LLMSettingsDTO 与 AppearanceSettingsDTO.Language 是两个独立设置：
-// 前者决定模型生成的卡片标题与摘要用什么语言，后者只影响界面文案。
+// LLMSettingsDTO：卡片 / 摘要与 chat 回复的语言跟随 AppearanceSettingsDTO.Language，
+// 没有独立设置（llm.outputLanguage 已于 2026-10-03 移除）。
 // ShowTokenUsage 决定日报 / 周报末尾的 Token 用量卡片是否渲染（默认 false）：
 // 只影响呈现，GetTokenUsage 始终可调用。
 type LLMSettingsDTO struct {
-    OutputLanguage string `json:"outputLanguage"` // BCP 47；空串表示跟随界面语言
-    ShowTokenUsage bool   `json:"showTokenUsage"` // → llm.showTokenUsage
+    ShowTokenUsage bool `json:"showTokenUsage"` // → llm.showTokenUsage
 }
 
 // ChatSettingsDTO.ChatMemory 是全局聊天记忆（decisions/chat-session-model）：
@@ -869,7 +868,6 @@ type SettingsPatchDTO struct {
     Theme                  *string   `json:"theme"`
     Language               *string   `json:"language"`
     ShowTokenUsage         *bool     `json:"showTokenUsage"`
-    OutputLanguage         *string   `json:"outputLanguage"`
     ChatMemory             *string   `json:"chatMemory"`
     LaunchAtLogin          *bool     `json:"launchAtLogin"`
     ShowDockIcon           *bool     `json:"showDockIcon"`
@@ -1803,7 +1801,7 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 | 写入路径 | 与绑定层同一条服务路径：同校验、同事件；实例不持写入锁时写工具一律拒绝 | 同源；只读实例不因 chat 破坏 |
 | 沙箱门禁 | 设置 `chat.editMode`：`readonly`（默认）/ `edits`；**服务端独立校验**，UI 不承担门禁 | 与 `system.agentEditsEnabled` 分离——那是 `agent.sock` 外部通道的开关，两者独立生效 |
 | 工具调用机制 | 协议无关 JSON 模式：模型经结构化输出返回信封 `{"kind":"answer\|tool","answer","tool","arguments"}`（`Strict:false`，语义校验在 Go 侧）；不依赖各家原生 function-calling API | 三协议统一，复用 `internal/ai` 现有能力 |
-| 提示词语言 | 系统提示词骨架与工具目录为单一语言（英文），与分析侧一致；回复语言由 `llm.outputLanguage` 注入（空串 = 跟随用户消息语言） | 模型可见指令不做多语言模板；语言是输出参数，不是骨架参数 |
+| 提示词语言 | 系统提示词骨架与工具目录为单一语言（英文），与分析侧一致；回复语言跟随界面语言 `appearance.language` 注入（适配层解析"跟随系统"哨兵，落到具体 BCP 47 tag） | 模型可见指令不做多语言模板；语言是输出参数，不是骨架参数 |
 | 预算 | 每条用户消息最多 **8** 次工具调用；单次工具结果截断 **64 KiB**；回合总时限 **120 s**；可取消（取消与总时限共用一个 context） | 防循环与内存放大 |
 | 校验 | 工具参数按固定 JSON Schema 服务端校验；未知工具或非法参数返回封闭错误给模型，回合不中断；畸形信封回复以纠正指令重试并计入预算 | LLM 输出是数据（[07 §7.5](07-privacy-security.md#75-本地攻击面)） |
 | 隐私 | 工具输出与错误 `message` 不含原始帧、分段路径、文件路径、密钥、LLM payload | 07 的边界对 chat 生效 |

@@ -112,12 +112,6 @@ export default {
     interface: '表示言語',
     interfaceDescription: 'Daygo の画面を表示する言語です。',
     followSystem: 'システムに合わせる',
-    output: 'モデル出力言語',
-    outputDescription: 'AI がカードや要約を生成するときの言語です。既定では表示言語と同じになります。言語名（「日本語」など）またはコード（ja など）を入力できます。今後生成される内容だけに影響します。',
-    outputPlaceholder: '例：ja',
-    outputUnavailable: '現在は変更できません。',
-    outputError: '保存できませんでした。以前の設定に戻しました。',
-    saving: '保存中…',
   },
   storage: {
     diagnostics: {

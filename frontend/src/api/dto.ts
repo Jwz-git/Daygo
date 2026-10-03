@@ -19,10 +19,9 @@ export const APP_THEMES = ['system', 'light', 'dark'] as const
 export type AppTheme = (typeof APP_THEMES)[number]
 
 
-/** LLMSettingsDTO — how recognition requests are sent to the model. */
+/** LLMSettingsDTO — how recognition requests are sent to the model. Card and
+ *  summary language is not configurable: it follows the interface language. */
 export interface LLMSettingsDTO {
-  /** BCP 47; "" follows the interface language. */
-  outputLanguage: string
   /** Reveals the token-usage card in the daily and weekly reports. Default off. */
   showTokenUsage: boolean
 }
@@ -99,7 +98,6 @@ export interface SettingsPatch {
   theme?: AppTheme
   language?: LanguagePreference
   showTokenUsage?: boolean
-  outputLanguage?: string
   journalReminderEnabled?: boolean
   journalReminderTime?: string
   launchAtLogin?: boolean

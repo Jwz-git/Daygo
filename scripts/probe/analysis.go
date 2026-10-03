@@ -106,11 +106,11 @@ func main() {
 	if err != nil {
 		fatal("batch: select batch and frames", err)
 	}
-	language, err := outputLanguage(ctx, store)
+	language, err := interfaceLanguage(ctx, store)
 	if err != nil {
-		fatal("settings: load LLM output language", err)
+		fatal("settings: load interface language", err)
 	}
-	fmt.Printf("LLM output language setting: %q (empty means model default)\n", language)
+	fmt.Printf("Interface language (also the model output language): %q\n", language)
 	if override, err := readLine("Output language override [Enter keeps setting, e.g. zh-CN]: "); err == nil {
 		if override = strings.TrimSpace(override); override != "" {
 			language = override
@@ -196,12 +196,18 @@ func configuredProvider(ctx context.Context, store *storage.Store) (providerConf
 	}, nil
 }
 
-func outputLanguage(ctx context.Context, store *storage.Store) (string, error) {
+// interfaceLanguage reads appearance.language, folding its "follow the system"
+// sentinel onto the default. Model output language follows the interface
+// language; this probe mirrors internal/app's resolution.
+func interfaceLanguage(ctx context.Context, store *storage.Store) (string, error) {
 	snapshot, err := settings.New(store.Settings()).Load(ctx)
 	if err != nil {
 		return "", err
 	}
-	return snapshot.OutputLanguage, nil
+	if snapshot.Language != "" {
+		return snapshot.Language, nil
+	}
+	return settings.DefaultLanguage, nil
 }
 
 func chooseBatch(ctx context.Context, store *storage.Store) (storage.Batch, []storage.AnalysisFrame, error) {

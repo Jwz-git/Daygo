@@ -412,7 +412,6 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 | `telemetry.analyticsOptIn` | bool | `false` |
 | `telemetry.crashReportingOptIn` | bool | `false` |
 | `providers.routing` | `{"chain": [{"providerId","model"}, …]}`（有序，`chain[0]` 为主，按对去重，上限 8；`model` 为空跟随该 provider 的首个模型） | `{"chain":[]}` |
-| `llm.outputLanguage` | string（空串=跟随界面语言） | `""` |
 | `llm.showTokenUsage` | bool（日报 / 周报末尾 Token 用量卡片是否渲染） | `false` |
 | `chat.memory` | string（全局聊天记忆，自由文本） | `""` |
 | `chat.editMode` | string（`readonly` \| `edits`） | `"readonly"` |
@@ -430,11 +429,12 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 （[05 §5.12](05-interface-contract.md#512-chat应用内对话式-agent)），
 两键均已随各自切片落盘。
 
-`llm.outputLanguage` 与 `appearance.language` 是**两个独立设置**：前者决定模型生成的卡片
-标题与摘要用什么语言，后者只影响界面文案。不得复用同一个字段。
+模型生成的卡片标题与摘要、chat 回复所用的语言**跟随界面语言** `appearance.language`，
+没有独立设置。
 
+曾有的 `llm.outputLanguage`（模型输出语言）已于 2026-10-03 移除，改为直接跟随界面语言。
 曾有的 `llm.recognitionEnhancementEnabled`（识别图片切片）从未接入分析流水线，已于
-2026-10-02 移除。旧库中残留的该行不迁移删除：读取时按未知键忽略，不影响快照与默认值。
+2026-10-02 移除。旧库中残留的这两行不迁移删除：读取时按未知键忽略，不影响快照与默认值。
 
 ## 3.4 帧与分段
 

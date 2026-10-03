@@ -112,12 +112,6 @@ export default {
     interface: '인터페이스 언어',
     interfaceDescription: 'Daygo 인터페이스를 표시할 언어입니다.',
     followSystem: '시스템 설정 따르기',
-    output: '모델 출력 언어',
-    outputDescription: 'AI가 카드와 요약을 만들 때 쓰는 언어입니다. 기본값은 인터페이스 언어와 같습니다. 언어 이름(예: 「한국어」)이나 코드(예: ko)를 입력할 수 있습니다. 앞으로 생성되는 내용에만 영향을 줍니다.',
-    outputPlaceholder: '예: ko',
-    outputUnavailable: '지금은 변경할 수 없습니다.',
-    outputError: '저장하지 못했습니다. 이전 설정으로 되돌렸습니다.',
-    saving: '저장하는 중…',
   },
   storage: {
     diagnostics: {

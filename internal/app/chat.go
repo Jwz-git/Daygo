@@ -459,15 +459,17 @@ func (s backendChatSettings) EditMode(ctx context.Context) (string, error) {
 	return snapshot.ChatEditMode, nil
 }
 
-func (s backendChatSettings) OutputLanguage(ctx context.Context) (string, error) {
+// Language returns the interface language for the chat prompt. Chat has no
+// separate output-language setting: the model replies in the interface
+// language, resolved at this edge so the prompt carries a concrete BCP 47 tag
+// rather than the empty sentinel, which renders as a weak "match the user"
+// instruction and lets the single-language skeleton default to English.
+func (s backendChatSettings) Language(ctx context.Context) (string, error) {
 	snapshot, err := settings.New(s.backend.store().Settings()).Load(ctx)
 	if err != nil {
-		// An unreadable setting falls back to the interface language, never
-		// to the empty sentinel: an empty language reaches the prompt as a
-		// weak "match the user" instruction and the LLM defaults to English
-		// (the skeleton is single-language). resolveOutputLanguage does the
-		// same fold when the snapshot is available, so the two paths agree.
-		return s.backend.interfaceLanguage(settings.Snapshot{}), nil
+		// An unreadable store has no authoritative language; fall back to
+		// the system default rather than the empty sentinel.
+		return settings.DefaultLanguage, nil
 	}
-	return resolveOutputLanguage(snapshot), nil
+	return resolveInterfaceLanguage(snapshot), nil
 }

@@ -112,15 +112,15 @@ type Providers interface {
 }
 
 // Settings supplies the global chat memory, the agent sandbox gate, and the
-// LLM output language. Memory returns the user-authored text injected into
-// every conversation's system prompt; EditMode returns the chat.editMode value
-// ("readonly" or "edits"), which the service re-reads each turn;
-// OutputLanguage returns the llm.outputLanguage value (BCP 47; empty means
-// the model matches the user's message language).
+// reply language. Memory returns the user-authored text injected into every
+// conversation's system prompt; EditMode returns the chat.editMode value
+// ("readonly" or "edits"), which the service re-reads each turn; Language
+// returns the interface language (BCP 47) the model should reply in, which
+// the adapter resolves to a concrete tag before it reaches the prompt.
 type Settings interface {
 	Memory(ctx context.Context) (string, error)
 	EditMode(ctx context.Context) (string, error)
-	OutputLanguage(ctx context.Context) (string, error)
+	Language(ctx context.Context) (string, error)
 }
 
 // ToolCall is one requested tool invocation from the model.
@@ -554,7 +554,7 @@ func (s *Service) basePrompt(ctx context.Context) *strings.Builder {
 	}
 	language := ""
 	if s.settings != nil {
-		if value, err := s.settings.OutputLanguage(ctx); err == nil {
+		if value, err := s.settings.Language(ctx); err == nil {
 			language = value
 		}
 	}

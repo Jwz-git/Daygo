@@ -112,12 +112,6 @@ export default {
     interface: 'Sprache der Oberfläche',
     interfaceDescription: 'Die Sprache, in der Daygos Oberfläche angezeigt wird.',
     followSystem: 'Systemeinstellung folgen',
-    output: 'Sprache der Modellausgabe',
-    outputDescription: 'Die Sprache, in der die KI Karten und Zusammenfassungen erstellt. Standardmäßig die Sprache der Oberfläche. Gib einen Sprachnamen (etwa „Deutsch“) oder einen Code (etwa de) ein. Betrifft nur künftig erzeugte Inhalte.',
-    outputPlaceholder: 'z. B. de',
-    outputUnavailable: 'Das lässt sich derzeit nicht ändern.',
-    outputError: 'Sichern fehlgeschlagen. Deine vorherige Einstellung wurde wiederhergestellt.',
-    saving: 'Wird gesichert…',
   },
   storage: {
     diagnostics: {

@@ -112,12 +112,6 @@ export default {
     interface: 'Idioma de la interfaz',
     interfaceDescription: 'El idioma en el que se muestra la interfaz de Daygo.',
     followSystem: 'Seguir el sistema',
-    output: 'Idioma de salida del modelo',
-    outputDescription: 'El idioma que usa la IA para las tarjetas y los resúmenes. De forma predeterminada es el de la interfaz. Escribe un nombre de idioma (como «español») o un código (como es-MX). Solo afecta al contenido que se genere a partir de ahora.',
-    outputPlaceholder: 'p. ej., es',
-    outputUnavailable: 'No se puede cambiar ahora mismo.',
-    outputError: 'No se pudo guardar. Se restauró tu ajuste anterior.',
-    saving: 'Guardando…',
   },
   storage: {
     diagnostics: {

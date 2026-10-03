@@ -96,7 +96,6 @@ func TestLoadDefaultsOnEmptyDatabase(t *testing.T) {
 		AnalyticsOptIn:         DefaultAnalyticsOptIn,
 		CrashReportingOptIn:    DefaultCrashReportingOptIn,
 		ProvidersRouting:       Routing{Chain: []RoutingEntry{}},
-		OutputLanguage:         DefaultOutputLanguage,
 		ChatMemory:             DefaultChatMemory,
 		ChatEditMode:           DefaultChatEditMode,
 	}
@@ -409,30 +408,15 @@ func TestShippedLanguagesRoundTrip(t *testing.T) {
 	}
 }
 
-// outputLanguage is independent of the interface language and has its own empty
-// default. Conflating the two would make the card language follow the UI.
-func TestOutputLanguageIsIndependent(t *testing.T) {
-	s := New(newFakeRepo())
-
-	snapshot, _, err := s.Apply(context.Background(), Patch{Language: ptr("en")})
-	if err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-	if snapshot.Language != "en" {
-		t.Fatalf("language = %q, want %q", snapshot.Language, "en")
-	}
-	if snapshot.OutputLanguage != "" {
-		t.Fatalf("outputLanguage = %q, want it untouched by the interface language",
-			snapshot.OutputLanguage)
-	}
-}
-
-// A database written before recognition enhancement was removed still holds
-// its row. Load must ignore it: the snapshot equals the defaults and the stale
-// key never reappears in the known key set.
-func TestLegacyRecognitionEnhancementRowIsIgnored(t *testing.T) {
+// A database written before a setting was removed still holds its row. Load
+// must ignore it: the snapshot equals the defaults and the stale key never
+// reappears in the known key set. llm.recognitionEnhancementEnabled was
+// removed 2026-10-02, llm.outputLanguage 2026-10-03 (model output language
+// now follows appearance.language).
+func TestLegacyRemovedSettingRowsAreIgnored(t *testing.T) {
 	repo := newFakeRepo()
 	repo.values["llm.recognitionEnhancementEnabled"] = "true"
+	repo.values["llm.outputLanguage"] = `"en"`
 
 	got, err := New(repo).Load(context.Background())
 	if err != nil {
@@ -445,9 +429,11 @@ func TestLegacyRecognitionEnhancementRowIsIgnored(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("legacy row changed the snapshot:\ngot  %+v\nwant %+v", got, want)
 	}
-	for _, key := range AllKeys() {
-		if key == "llm.recognitionEnhancementEnabled" {
-			t.Fatal("removed key is still listed in AllKeys")
+	for _, removed := range []string{"llm.recognitionEnhancementEnabled", "llm.outputLanguage"} {
+		for _, key := range AllKeys() {
+			if key == removed {
+				t.Fatalf("removed key %q is still listed in AllKeys", removed)
+			}
 		}
 	}
 }

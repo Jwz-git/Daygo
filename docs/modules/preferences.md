@@ -4,7 +4,7 @@
 
 用户可切换浅色 / 深色 / 系统主题和语言，刷新、重启后偏好保持；各设置分区有一致的入口。
 负责 F-V6/7、前端外壳与通用设置访问，不等待所有功能设置一次完成。
-录制 / 隐私 / 自启 / Dock 归 recording，Provider / 输出语言归 providers，提醒归 daily，
+录制 / 隐私 / 自启 / Dock 归 recording，Provider 归 providers，提醒归 daily，
 磁盘 / 遥测归 data，更新归 delivery；本模块不实现这些字段的产品逻辑。
 
 依据：[02 前端约定](../02-architecture.md#25-前端约定)、
@@ -48,9 +48,9 @@ Go recorder 夹具验证 UI 隐藏后仍产生捕获提交，UI 事件不启动 
 
 已交付：
 
-- `internal/settings`：20 个设置键的类型化读写、默认值、规范化与夹取、`Patch` 语义
-  （nil = 本次不改）、跨键规则（`llm.outputLanguage` 与 `appearance.language` 相互独立、
-  空串语言保留为"跟随系统"哨兵）。只经 `storage.SettingsRepo` 读写，不含 SQL。
+- `internal/settings`：19 个设置键的类型化读写、默认值、规范化与夹取、`Patch` 语义
+  （nil = 本次不改）、跨键规则（`appearance.language` 空串保留为"跟随系统"哨兵；
+  模型输出语言跟随界面语言，无独立键）。只经 `storage.SettingsRepo` 读写，不含 SQL。
 - `internal/app`：`GetSettings` / `UpdateSettings` 绑定与 `SettingsDTO` / `SettingsPatchDTO`；
   `UpdateSettings` 返回生效后的完整设置，`settings:changed` 只带改动键名且仅在提交后发出。
   事件经可注入的 `EventEmitter` 发布，绑定层测试不需要 Wails runtime。
@@ -63,7 +63,7 @@ Go recorder 夹具验证 UI 隐藏后仍产生捕获提交，UI 事件不启动 
 
 未交付：前端所有 DTO 的生成类型替换、统一错误模型、localStorage 全量接管迁移，以及遥测行为接入。
 启动项消费者已存在；本轮补齐 macOS Dock 消费者，均由 recording 维护。
-`frontend/src/api/dto.ts` 仍保留时间线 / Provider 等已有绑定的手写 DTO 子集，生成类型收口仍未完成；主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。模型输出语言和存储上限已通过生成绑定接入设置页（识别增强开关已于 2026-10-02 随功能移除）。
+`frontend/src/api/dto.ts` 仍保留时间线 / Provider 等已有绑定的手写 DTO 子集，生成类型收口仍未完成；主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。存储上限已通过生成绑定接入设置页（识别增强开关已于 2026-10-02 随功能移除；模型输出语言设置已于 2026-10-03 移除，改为跟随界面语言）。
 
 **绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
 绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`（`Store` 还把 `storage.Store` 拉进了生成的
@@ -72,7 +72,7 @@ Go recorder 夹具验证 UI 隐藏后仍产生捕获提交，UI 事件不启动 
 装配用的入口一律非导出，`internal/app/bindings_test.go` 会在两者不一致时失败。
 
 配置的**产品逻辑**不在本模块：录制 / 隐私 / 自启 / Dock 归 recording，
-Provider / 输出语言归 providers，提醒归 daily，磁盘 / 遥测归 data。
+Provider 归 providers，提醒归 daily，磁盘 / 遥测归 data。
 `internal/settings` 只回答"这个设置是什么、什么值有效"。
 
 ## 能力与跨层职责
@@ -105,7 +105,7 @@ internal/app 拥有 Get/UpdateSettings 和 DTO；store / api 拥有取数与事�
 2. 以 settings-store fake 实现类型化访问与 patch；data repository 已就绪。
 3. 接生成绑定与 DTO、薄 wrapper、统一错误和事件消费；设置页已消费生成的 `SettingsDTO`，未实现的功能仍保持占位。
 4. 迁移外观 / 语言的存储来源，先通过一次 `UpdateSettings` 成功返回后删除旧 localStorage；数据库不可用时保留本地预览值且停止写入，避免双写。
-5. 接入模型输出语言和存储上限的设置 UI；启动项 / macOS Dock 消费者已接入，遥测仍须等实际消费者就绪后再开放开关。
+5. 接入存储上限的设置 UI；启动项 / macOS Dock 消费者已接入，遥测仍须等实际消费者就绪后再开放开关。
 6. 验收偏好闭环与九语言状态；新增大规模界面仍受 G-host 约束，该门禁已于 2026-09-22 经用户实测验收（无逐项运行记录），大规模界面扩张已解锁。
 
 ## 验收、阻塞与回退
@@ -119,6 +119,16 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 不能靠全清 localStorage 或把密钥写到本地偏好恢复状态。
 
 ## 验证记录
+
+2026-10-03：移除「模型输出语言」设置，模型输出语言改为直接跟随界面语言 `appearance.language`。
+删除设置键 `llm.outputLanguage`、`Snapshot` / `Patch` 字段、`LLMSettingsDTO` /
+`SettingsPatchDTO.outputLanguage` 与设置页 `OutputLanguageSection.vue` 及九语言对应文案；
+分析流水线与 chat 的提示词语言改由 `internal/app` 的 `resolveInterfaceLanguage` 从
+`appearance.language` 解析（"跟随系统"哨兵落到 `DefaultLanguage`），chat 的 settings 接口方法
+随之改名 `Language`。旧库残留的 `llm.outputLanguage` 行按未知键忽略，并入
+`TestLegacyRemovedSettingRowsAreIgnored` 夹具。验证：`gofmt -l`、`CGO_ENABLED=0 go build ./...`、
+`go vet ./...`、`CGO_ENABLED=0 go test ./internal/...`；前端 `npm run test:unit`（223 项）、
+`npm run typecheck`。真实 Wails 内重启读回与卡片语言实际输出未单独复验。
 
 2026-10-02：恢复「模型输出语言」设置入口。`OutputLanguageSection` 在 2026-09-13 的提交 `6a7911a`
 （对话界面改动）中被从 `SettingsView` 移除且未在说明中提及；后端仍按 `llm.outputLanguage` 生成卡片，

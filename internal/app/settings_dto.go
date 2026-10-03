@@ -44,11 +44,9 @@ type AppearanceSettingsDTO struct {
 	Language string `json:"language"`
 }
 
-// LLMSettingsDTO is independent of AppearanceSettingsDTO.Language: this one
-// decides what language the model writes card titles and summaries in, the
-// other only affects interface text.
+// LLMSettingsDTO covers the model-facing settings. Card and summary language
+// is not configurable: it follows AppearanceSettingsDTO.Language.
 type LLMSettingsDTO struct {
-	OutputLanguage string `json:"outputLanguage"`
 	// ShowTokenUsage reveals the token-usage card of the daily and weekly
 	// reports. Default off; presentation only, GetTokenUsage stays callable
 	// either way.
@@ -93,7 +91,6 @@ type SettingsPatchDTO struct {
 	Theme                  *string   `json:"theme"`
 	Language               *string   `json:"language"`
 	ShowTokenUsage         *bool     `json:"showTokenUsage"`
-	OutputLanguage         *string   `json:"outputLanguage"`
 	ChatMemory             *string   `json:"chatMemory"`
 	ChatEditMode           *string   `json:"chatEditMode"`
 	LaunchAtLogin          *bool     `json:"launchAtLogin"`
