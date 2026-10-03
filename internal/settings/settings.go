@@ -40,6 +40,7 @@ const (
 	KeyTelemetryCrashReportingOptIn = "telemetry.crashReportingOptIn"
 	KeyProvidersRouting             = "providers.routing"
 	KeyLLMOutputLanguage            = "llm.outputLanguage"
+	KeyLLMShowTokenUsage            = "llm.showTokenUsage"
 	KeyChatMemory                   = "chat.memory"
 	KeyChatEditMode                 = "chat.editMode"
 )
@@ -66,6 +67,7 @@ func AllKeys() []string {
 		KeyTelemetryCrashReportingOptIn,
 		KeyProvidersRouting,
 		KeyLLMOutputLanguage,
+		KeyLLMShowTokenUsage,
 		KeyChatMemory,
 		KeyChatEditMode,
 	}
@@ -107,6 +109,7 @@ const (
 	DefaultAnalyticsOptIn         = false
 	DefaultCrashReportingOptIn    = false
 	DefaultOutputLanguage         = ""
+	DefaultShowTokenUsage         = false
 	DefaultChatMemory             = ""
 	DefaultChatEditMode           = ChatEditModeReadonly
 )
@@ -151,6 +154,7 @@ type Snapshot struct {
 	ReminderTime           string
 	Theme                  string
 	Language               string
+	ShowTokenUsage         bool
 	LaunchAtLogin          bool
 	ShowDockIcon           bool
 	AgentEditsEnabled      bool
@@ -242,6 +246,7 @@ type Patch struct {
 	JournalReminderTime    *string
 	Theme                  *string
 	Language               *string
+	ShowTokenUsage         *bool
 	OutputLanguage         *string
 	LaunchAtLogin          *bool
 	ShowDockIcon           *bool
@@ -351,6 +356,11 @@ func (s *Settings) encodePatch(p Patch) (map[string]string, []string, error) {
 			return nil, nil, err
 		}
 	}
+	if p.ShowTokenUsage != nil {
+		if err := put(KeyLLMShowTokenUsage, *p.ShowTokenUsage); err != nil {
+			return nil, nil, err
+		}
+	}
 	if p.OutputLanguage != nil {
 		// Empty means "follow the interface language" and is a real value, not
 		// a missing one, so it is preserved rather than replaced by a default.
@@ -413,6 +423,7 @@ func (s *Settings) snapshotFrom(raw map[string]string) Snapshot {
 		ReminderTime:           normalizeClockTime(decodeString(raw[KeyNotificationsReminderTime], DefaultReminderTime)),
 		Theme:                  normalizeMember(decodeString(raw[KeyAppearanceTheme], DefaultTheme), AllowedThemes, DefaultTheme),
 		Language:               normalizeLanguage(decodeString(raw[KeyAppearanceLanguage], DefaultLanguage)),
+		ShowTokenUsage:         decodeBool(raw[KeyLLMShowTokenUsage], DefaultShowTokenUsage),
 		LaunchAtLogin:          decodeBool(raw[KeySystemLaunchAtLogin], DefaultLaunchAtLogin),
 		ShowDockIcon:           decodeBool(raw[KeySystemShowDockIcon], DefaultShowDockIcon),
 		AgentEditsEnabled:      decodeBool(raw[KeySystemAgentEditsEnabled], DefaultAgentEditsEnabled),
@@ -608,6 +619,8 @@ func defaultFor(key string) string {
 		return `{"chain":[]}`
 	case KeyLLMOutputLanguage:
 		return encodeScalar(DefaultOutputLanguage)
+	case KeyLLMShowTokenUsage:
+		return encodeScalar(DefaultShowTokenUsage)
 	case KeyChatMemory:
 		return encodeScalar(DefaultChatMemory)
 	case KeyChatEditMode:

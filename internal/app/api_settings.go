@@ -143,6 +143,7 @@ func settingsToDTO(s settings.Snapshot) SettingsDTO {
 		},
 		LLM: LLMSettingsDTO{
 			OutputLanguage: s.OutputLanguage,
+			ShowTokenUsage: s.ShowTokenUsage,
 		},
 		Chat: ChatSettingsDTO{
 			Memory:   s.ChatMemory,
@@ -174,6 +175,7 @@ func patchFromDTO(p SettingsPatchDTO) settings.Patch {
 		JournalReminderTime:    p.JournalReminderTime,
 		Theme:                  p.Theme,
 		Language:               p.Language,
+		ShowTokenUsage:         p.ShowTokenUsage,
 		OutputLanguage:         p.OutputLanguage,
 		ChatMemory:             p.ChatMemory,
 		ChatEditMode:           p.ChatEditMode,

@@ -186,6 +186,9 @@ export default {
     emptyHint: 'Ajoutez un service d’IA et Daygo pourra commencer à organiser votre chronologie.',
     add: 'Ajouter un service',
     removeConfirm: 'Supprimer « {name} » ?',
+    showTokenUsage: 'Afficher l’usage des tokens',
+    showTokenUsageHint: 'Affiche le graphique d’usage des tokens à la fin des rapports quotidien et hebdomadaire. Désactivé par défaut.',
+    writeError: 'Échec de l’enregistrement. Votre réglage précédent a été rétabli.',
     protocol: {
       label: 'Type d’API',
       openai: 'OpenAI Chat Completions',

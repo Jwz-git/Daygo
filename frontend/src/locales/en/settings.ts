@@ -186,6 +186,9 @@ export default {
     emptyHint: 'Add an AI service and Daygo can start organizing your timeline.',
     add: 'Add service',
     removeConfirm: 'Delete "{name}"?',
+    showTokenUsage: 'Show token usage',
+    showTokenUsageHint: 'Show the token usage chart at the end of the daily and weekly reports. Off by default.',
+    writeError: 'Couldn’t save. Your previous setting was restored.',
     protocol: {
       label: 'API type',
       openai: 'OpenAI Chat Completions',

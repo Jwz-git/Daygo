@@ -186,6 +186,9 @@ export default {
     emptyHint: 'AI サービスを追加すると、Daygo がタイムラインの整理を始められます。',
     add: 'サービスを追加',
     removeConfirm: '「{name}」を削除しますか？',
+    showTokenUsage: 'トークン使用量を表示',
+    showTokenUsageHint: '日報と週報の末尾にトークン使用量のグラフを表示します。既定ではオフです。',
+    writeError: '保存できませんでした。以前の設定に戻しました。',
     protocol: {
       label: 'API の種類',
       openai: 'OpenAI Chat Completions',

@@ -413,6 +413,7 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 | `telemetry.crashReportingOptIn` | bool | `false` |
 | `providers.routing` | `{"chain": [{"providerId","model"}, …]}`（有序，`chain[0]` 为主，按对去重，上限 8；`model` 为空跟随该 provider 的首个模型） | `{"chain":[]}` |
 | `llm.outputLanguage` | string（空串=跟随界面语言） | `""` |
+| `llm.showTokenUsage` | bool（日报 / 周报末尾 Token 用量卡片是否渲染） | `false` |
 | `chat.memory` | string（全局聊天记忆，自由文本） | `""` |
 | `chat.editMode` | string（`readonly` \| `edits`） | `"readonly"` |
 

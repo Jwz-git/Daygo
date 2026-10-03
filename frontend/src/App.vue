@@ -9,6 +9,7 @@ import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import FatalErrorOverlay from '@/components/FatalErrorOverlay.vue'
 import AppShell from '@/layout/AppShell.vue'
 import { useTestToolsStore } from '@/stores/testTools'
+import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
 import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 const uiVisibility = useUIVisibilityStore()
@@ -19,6 +20,11 @@ onBeforeUnmount(() => uiVisibility.stop())
 // Only wire up the test-tools store in builds that actually ship the test page.
 const testTools = useTestToolsStore()
 if (__DAYGO_TEST_TOOLS__) void testTools.initialize()
+
+// The reports read this gate on mount, so resolve it before the first paint of
+// a report rather than reacting to a late default.
+const tokenUsageVisibility = useTokenUsageVisibilityStore()
+void tokenUsageVisibility.initialize()
 
 // Native surfaces (the menu-bar item, the application picker, the updater's
 // install refusal) render outside the webview, so vue-i18n cannot reach them.

@@ -5,9 +5,12 @@ import { useI18n } from 'vue-i18n'
 
 import type { ProviderDTO, ProviderProtocol } from '@/api/dto'
 import { useProvidersStore } from '@/stores/providers'
+import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
 
 import ProviderForm from './ProviderForm.vue'
 import ProviderRoutingChain from './ProviderRoutingChain.vue'
+import SettingRow from './SettingRow.vue'
+import SwitchControl from './SwitchControl.vue'
 
 /*
  * AI services, laid out like the other settings sections: a title row with
@@ -17,12 +20,19 @@ import ProviderRoutingChain from './ProviderRoutingChain.vue'
  */
 const { t } = useI18n()
 const store = useProvidersStore()
+const tokenUsage = useTokenUsageVisibilityStore()
 
 void store.hydrate()
 
 /** 'new' while adding, a provider id while editing, null when closed. */
 const editing = ref<'new' | string | null>(null)
 const pendingRemoveId = ref<string | null>(null)
+const tokenUsageFailed = ref(false)
+
+function onToggleTokenUsage(next: boolean): void {
+  tokenUsageFailed.value = false
+  void tokenUsage.setShowTokenUsage(next).then((succeeded) => { tokenUsageFailed.value = !succeeded })
+}
 
 function protocolLabel(protocol: ProviderProtocol): string {
   return t(`settings.providers.protocol.${protocol}`)
@@ -164,6 +174,21 @@ async function confirmRemove(id: string): Promise<void> {
   </div>
 
   <ProviderRoutingChain v-if="!store.isEmpty" />
+
+  <!-- How the models' usage is shown, not which models are called: hiding the
+       card never stops GetTokenUsage from being read. -->
+  <SettingRow
+    :title="t('settings.providers.showTokenUsage')"
+    :hint="t('settings.providers.showTokenUsageHint')"
+  >
+    <SwitchControl
+      :checked="tokenUsage.showTokenUsage"
+      :disabled="!tokenUsage.loaded"
+      :label="t('settings.providers.showTokenUsage')"
+      @toggle="onToggleTokenUsage"
+    />
+  </SettingRow>
+  <p v-if="tokenUsageFailed" class="write-error" role="alert">{{ t('settings.providers.writeError') }}</p>
 
   <p class="keychain">
     <DgIcon name="lock" :size="12" />
@@ -465,6 +490,11 @@ async function confirmRemove(id: string): Promise<void> {
 .keychain b {
   color: var(--dg-text-secondary);
   font-weight: 600;
+}
+
+.write-error {
+  color: var(--dg-danger, #b42318);
+  font-size: 13px;
 }
 
 .fold-enter-active,

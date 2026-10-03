@@ -80,6 +80,9 @@ func TestGetSettingsReturnsDefaults(t *testing.T) {
 	if dto.System.TestToolsEnabled {
 		t.Error("testToolsEnabled = true, want the default false")
 	}
+	if dto.LLM.ShowTokenUsage {
+		t.Error("showTokenUsage = true, want the default false")
+	}
 	if dto.Privacy.BlockedApplicationIDs == nil {
 		t.Error("blockedApplicationIds is nil; the contract is an array")
 	}
@@ -286,6 +289,11 @@ func TestSettingsDTOJSONShape(t *testing.T) {
 	system, _ := decoded["system"].(map[string]any)
 	if _, ok := system["testToolsEnabled"]; !ok {
 		t.Error("system.testToolsEnabled missing from the payload")
+	}
+
+	llm, _ := decoded["llm"].(map[string]any)
+	if _, ok := llm["showTokenUsage"]; !ok {
+		t.Error("llm.showTokenUsage missing from the payload")
 	}
 
 	capture, _ := decoded["capture"].(map[string]any)

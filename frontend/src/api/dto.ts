@@ -23,6 +23,8 @@ export type AppTheme = (typeof APP_THEMES)[number]
 export interface LLMSettingsDTO {
   /** BCP 47; "" follows the interface language. */
   outputLanguage: string
+  /** Reveals the token-usage card in the daily and weekly reports. Default off. */
+  showTokenUsage: boolean
 }
 
 /**
@@ -96,6 +98,7 @@ export interface SettingsPatch {
   recordingsLimitBytes?: number
   theme?: AppTheme
   language?: LanguagePreference
+  showTokenUsage?: boolean
   outputLanguage?: string
   journalReminderEnabled?: boolean
   journalReminderTime?: string

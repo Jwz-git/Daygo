@@ -49,6 +49,10 @@ type AppearanceSettingsDTO struct {
 // other only affects interface text.
 type LLMSettingsDTO struct {
 	OutputLanguage string `json:"outputLanguage"`
+	// ShowTokenUsage reveals the token-usage card of the daily and weekly
+	// reports. Default off; presentation only, GetTokenUsage stays callable
+	// either way.
+	ShowTokenUsage bool `json:"showTokenUsage"`
 }
 
 type SystemSettingsDTO struct {
@@ -88,6 +92,7 @@ type SettingsPatchDTO struct {
 	JournalReminderTime    *string   `json:"journalReminderTime"`
 	Theme                  *string   `json:"theme"`
 	Language               *string   `json:"language"`
+	ShowTokenUsage         *bool     `json:"showTokenUsage"`
 	OutputLanguage         *string   `json:"outputLanguage"`
 	ChatMemory             *string   `json:"chatMemory"`
 	ChatEditMode           *string   `json:"chatEditMode"`

@@ -197,6 +197,7 @@ export function applyDevelopmentSettingsPatch(
   }
   if (patch.theme !== undefined) next.appearance.theme = patch.theme
   if (patch.language !== undefined) next.appearance.language = patch.language
+  if (patch.showTokenUsage !== undefined) next.llm.showTokenUsage = patch.showTokenUsage
   if (patch.recordingsLimitBytes !== undefined) {
     next.storage.recordingsLimitBytes = patch.recordingsLimitBytes
   }

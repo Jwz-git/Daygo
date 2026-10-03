@@ -186,6 +186,9 @@ export default {
     emptyHint: '添加一个 AI 服务后，Daygo 就能开始整理你的时间线。',
     add: '添加服务',
     removeConfirm: '确定删除“{name}”？',
+    showTokenUsage: '显示 Token 用量',
+    showTokenUsageHint: '在日报和周报末尾显示 Token 用量图表。默认关闭。',
+    writeError: '保存失败，已恢复原设置。',
     protocol: {
       label: '接口类型',
       openai: 'OpenAI Chat Completions',

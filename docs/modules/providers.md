@@ -17,6 +17,20 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-10-03 报告 Token 用量显示开关（test 分支未提交工作树，macOS arm64）：设置「AI 服务」分区新增
+`llm.showTokenUsage`（默认关），决定日报 / 周报末尾的 Token 用量卡片是否渲染。默认值与规范化由
+`internal/settings` 承担，DTO 走 `LLMSettingsDTO.showTokenUsage`；前端新增
+`stores/tokenUsageVisibility.ts`（读 `GetSettings`、订阅 `settings:changed`、写经 `UpdateSettings`），
+日报 / 周报只按它 `v-if`——关闭只影响渲染，卡片自身的读取、失败态与 `GetTokenUsage` 不变。
+夹具先于实现：Go 键默认关 / 写入读回 / 空 patch 不改写、`SettingsDTO` JSON 含 `llm.showTokenUsage`；
+前端 store 五项——默认关、读回 true、读失败保持隐藏、写回采用规范化值、写失败不翻转。
+验证：`./scripts/gate.sh` 通过（Go 内部测试 / `go vet` / `CGO_ENABLED=0` 构建、三平台核心交叉构建、
+前端 `test:unit` 223 项通过、typecheck、build、`check-docs` 58 篇 0 问题；Windows 安装器夹具 9 项
+中 5 项因需 Windows 主机跳过，未记为通过），`gofmt -l` 无输出。匿名浏览器预览（vite 夹具 + Chrome
+headless 1280×900）：夹具为开时日报卡片 1 个、设置行与说明文案正确；开关切到关后日报卡片 0 个，
+返回设置仍为关，再切到开后周报卡片 1 个，pageerror 为 0。未运行：真实 Wails 窗口内的切换与重启读回。
+键为新增项，旧库缺该行按默认关读取。回退：撤销本次提交即可，无数据迁移。
+
 2026-09-27 默认输入增量（基于 `c1a054f` 工作树，Windows amd64）：进入模型测试与试用页时，预填随包内置的 Daygo 软件图标 PNG 和当前界面的本地化描述提示词（简体中文为「请描述这张图片的内容」）。图标以打包内联 data URL 同时用于预览和请求字节，无需联网加载；用户可移除或替换图片、编辑文字。仅点击发送才调用模型，重新进入页面恢复默认值；切换语言不覆盖正在编辑的文字。
 验证：`npm --prefix frontend run test:unit` 186/186；`npm --prefix frontend run build`（含 vue-tsc）通过；检查构建产物内联图片与源 PNG 字节完全一致。新增匿名夹具先于实现覆盖 PNG 格式 / 大小 / 像素及九语言默认提示词。真实桌面发送未运行；回退仅需恢复页面默认值，不涉及数据迁移。
 

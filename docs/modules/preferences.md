@@ -48,7 +48,7 @@ Go recorder 夹具验证 UI 隐藏后仍产生捕获提交，UI 事件不启动 
 
 已交付：
 
-- `internal/settings`：19 个设置键的类型化读写、默认值、规范化与夹取、`Patch` 语义
+- `internal/settings`：20 个设置键的类型化读写、默认值、规范化与夹取、`Patch` 语义
   （nil = 本次不改）、跨键规则（`llm.outputLanguage` 与 `appearance.language` 相互独立、
   空串语言保留为"跟随系统"哨兵）。只经 `storage.SettingsRepo` 读写，不含 SQL。
 - `internal/app`：`GetSettings` / `UpdateSettings` 绑定与 `SettingsDTO` / `SettingsPatchDTO`；

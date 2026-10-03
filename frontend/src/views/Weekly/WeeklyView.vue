@@ -9,6 +9,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import PeriodNav from '@/components/PeriodNav.vue'
 import { shiftCalendarDate } from '@/lib/calendarDate'
 import { useWeeklyStore } from '@/stores/weekly'
+import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
 
 import WeeklyStatePanel from './WeeklyStatePanel.vue'
 import WeeklyContextCard from './charts/WeeklyContextCard.vue'
@@ -29,6 +30,10 @@ const {
   canNavigateForward,
 } = storeToRefs(weekly)
 const { locale, t } = useI18n()
+
+// The card's read is the report's own concern; this only decides whether the
+// card is rendered (settings.general.showTokenUsage, default off).
+const { showTokenUsage: tokenUsageVisible } = storeToRefs(useTokenUsageVisibilityStore())
 
 const dateTitle = computed(() => {
   const value = dashboard.value
@@ -115,7 +120,7 @@ onBeforeUnmount(() => weekly.stopListening())
 
           <p class="weekly-scope-note">{{ t('weekly.scopeNote') }}</p>
         </template>
-        <TokenUsageCard v-if="dashboard" period="week" :day="dashboard.weekStart" />
+        <TokenUsageCard v-if="dashboard && tokenUsageVisible" period="week" :day="dashboard.weekStart" />
       </div>
     </main>
   </div>

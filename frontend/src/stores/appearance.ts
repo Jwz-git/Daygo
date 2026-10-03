@@ -42,10 +42,16 @@ export const LANGUAGE_PREFERENCES: readonly LanguagePreference[] = [
 ]
 
 interface StoredAppearance {
-  value: AppearanceSettingsDTO
+  value: AppearancePreference
   shouldMigrate: boolean
   usedLegacyKey: boolean
 }
+
+/**
+ * The part of AppearanceSettingsDTO this store owns. Visibility toggles like
+ * showTokenUsage are read where they are rendered, not here.
+ */
+type AppearancePreference = Pick<AppearanceSettingsDTO, 'theme' | 'language'>
 
 function decodeStored(): StoredAppearance {
   const raw = readRecord(STORAGE_KEYS.appearance)
@@ -71,7 +77,7 @@ function decodeStored(): StoredAppearance {
   }
 }
 
-function normalizeBackendAppearance(theme: string, language: string): AppearanceSettingsDTO {
+function normalizeBackendAppearance(theme: string, language: string): AppearancePreference {
   return {
     theme: asMember(theme, APP_THEMES) ?? DEFAULT_THEME,
     language: normalizeLanguagePreference(language) ?? DEFAULT_LANGUAGE,
@@ -121,7 +127,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
    * Awaits the locale's message chunk before resolving, so callers that gate the
    * first paint on this (hydrate) cannot render against an unloaded table.
    */
-  async function applyPreference(value: AppearanceSettingsDTO): Promise<void> {
+  async function applyPreference(value: AppearancePreference): Promise<void> {
     theme.value = value.theme
     language.value = value.language
     applyTheme()

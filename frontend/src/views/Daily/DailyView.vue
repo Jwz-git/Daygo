@@ -11,6 +11,7 @@ import PeriodNav from '@/components/PeriodNav.vue'
 import { calendarDayQuery, shiftCalendarDate } from '@/lib/calendarDate'
 import { safeTimeZone } from '@/lib/timeZone'
 import { useDailyStore } from '@/stores/daily'
+import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
 
 import DailyJournalPanel from './DailyJournalPanel.vue'
 import DailyMetricsPanel from './DailyMetricsPanel.vue'
@@ -43,6 +44,10 @@ const {
 const { locale, t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+
+// The card's read is the report's own concern; this only decides whether the
+// card is rendered (settings.general.showTokenUsage, default off).
+const { showTokenUsage: tokenUsageVisible } = storeToRefs(useTokenUsageVisibilityStore())
 
 const dateTitle = computed(() => {
   if (context.value === null) return t('daily.title')
@@ -177,7 +182,7 @@ onBeforeUnmount(() => daily.stopListening())
             :saving="journalSaving"
             @save="daily.saveJournal"
           />
-          <TokenUsageCard period="day" :day="context.day" />
+          <TokenUsageCard v-if="tokenUsageVisible" period="day" :day="context.day" />
         </template>
       </div>
     </main>

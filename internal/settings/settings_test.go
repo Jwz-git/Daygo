@@ -88,6 +88,7 @@ func TestLoadDefaultsOnEmptyDatabase(t *testing.T) {
 		ReminderTime:           DefaultReminderTime,
 		Theme:                  DefaultTheme,
 		Language:               DefaultLanguage,
+		ShowTokenUsage:         DefaultShowTokenUsage,
 		LaunchAtLogin:          DefaultLaunchAtLogin,
 		ShowDockIcon:           DefaultShowDockIcon,
 		AgentEditsEnabled:      DefaultAgentEditsEnabled,
@@ -482,6 +483,49 @@ func TestTestToolsEnabledIsPersistent(t *testing.T) {
 	}
 	if !after.TestToolsEnabled {
 		t.Fatal("an empty patch reset test tools")
+	}
+}
+
+// ShowTokenUsage defaults to off: the card is opt-in. Turning it on persists,
+// and an empty patch leaves it alone.
+func TestShowTokenUsageDefaultsOffAndIsPersistent(t *testing.T) {
+	repo := newFakeRepo()
+	s := New(repo)
+	ctx := context.Background()
+
+	defaults, err := s.Load(ctx)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if defaults.ShowTokenUsage {
+		t.Fatal("token usage defaults to visible")
+	}
+
+	snapshot, changed, err := s.Apply(ctx, Patch{ShowTokenUsage: ptr(true)})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if !snapshot.ShowTokenUsage {
+		t.Fatal("token usage remained hidden")
+	}
+	if len(changed) != 1 || changed[0] != KeyLLMShowTokenUsage {
+		t.Fatalf("changed = %v, want the token usage key", changed)
+	}
+
+	reloaded, err := New(repo).Load(ctx)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !reloaded.ShowTokenUsage {
+		t.Fatal("the written value was not read back")
+	}
+
+	after, _, err := s.Apply(ctx, Patch{})
+	if err != nil {
+		t.Fatalf("empty patch: %v", err)
+	}
+	if !after.ShowTokenUsage {
+		t.Fatal("an empty patch reset token usage visibility")
 	}
 }
 

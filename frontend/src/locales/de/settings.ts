@@ -186,6 +186,9 @@ export default {
     emptyHint: 'Füge einen KI-Dienst hinzu, dann kann Daygo beginnen, deine Zeitleiste aufzubereiten.',
     add: 'Dienst hinzufügen',
     removeConfirm: '„{name}“ löschen?',
+    showTokenUsage: 'Token-Nutzung anzeigen',
+    showTokenUsageHint: 'Zeigt das Diagramm zur Token-Nutzung am Ende des Tages- und Wochenberichts. Standardmäßig aus.',
+    writeError: 'Sichern fehlgeschlagen. Deine vorherige Einstellung wurde wiederhergestellt.',
     protocol: {
       label: 'API-Typ',
       openai: 'OpenAI Chat Completions',

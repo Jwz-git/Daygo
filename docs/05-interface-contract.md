@@ -587,6 +587,8 @@ OpenAI 输入已含缓存不再加；输出独立相加。NULL 不伪造估算�
 任一 input/output 未报告的调用计入 unknownCalls；合计仅含已知部分。
 这不是价格或账单接口。不暴露 provider 密钥、请求、屏幕或文件路径。
 日报 / 周报页面最末尾的卡片共用此绑定，默认折线，可切柱状/扇形；
+卡片是否渲染由 `llm.showTokenUsage` 决定（默认关，见 §5.5.2，开关在设置「AI 服务」分区）；
+关闭只影响渲染，绑定本身始终可调用。
 扇形展示输入/输出占比。折线 / 柱状在绘图区悬停时按横向时间槽选中一桶，
 显示 1px 竖线、完整起止时间（含时区）与输入 / 输出 / 合计 / 调用次数 / 未报告提示；
 坐标经 SVG 屏幕变换映射，离开绘图区、切换图表或数据重拉时清除悬停。
@@ -823,8 +825,11 @@ type AppearanceSettingsDTO struct {
 
 // LLMSettingsDTO 与 AppearanceSettingsDTO.Language 是两个独立设置：
 // 前者决定模型生成的卡片标题与摘要用什么语言，后者只影响界面文案。
+// ShowTokenUsage 决定日报 / 周报末尾的 Token 用量卡片是否渲染（默认 false）：
+// 只影响呈现，GetTokenUsage 始终可调用。
 type LLMSettingsDTO struct {
     OutputLanguage string `json:"outputLanguage"` // BCP 47；空串表示跟随界面语言
+    ShowTokenUsage bool   `json:"showTokenUsage"` // → llm.showTokenUsage
 }
 
 // ChatSettingsDTO.ChatMemory 是全局聊天记忆（decisions/chat-session-model）：
@@ -863,6 +868,7 @@ type SettingsPatchDTO struct {
     JournalReminderTime    *string   `json:"journalReminderTime"`
     Theme                  *string   `json:"theme"`
     Language               *string   `json:"language"`
+    ShowTokenUsage         *bool     `json:"showTokenUsage"`
     OutputLanguage         *string   `json:"outputLanguage"`
     ChatMemory             *string   `json:"chatMemory"`
     LaunchAtLogin          *bool     `json:"launchAtLogin"`

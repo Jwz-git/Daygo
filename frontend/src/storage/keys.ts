@@ -7,7 +7,7 @@
  * ownership does.
  */
 export const STORAGE_KEYS = {
-  /** -> AppearanceSettingsDTO { theme, language } */
+  /** -> the theme/language fields of AppearanceSettingsDTO */
   appearance: 'daygo.appearance',
   /** -> ProviderRoutingDTO + the non-secret half of ProviderDTO. Never a secret. */
   providers: 'daygo.providers',

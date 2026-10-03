@@ -13,7 +13,8 @@
     "recordingsLimitBytes": 0
   },
   "llm": {
-    "outputLanguage": ""
+    "outputLanguage": "",
+    "showTokenUsage": true
   },
   "appearance": {
     "theme": "system",
