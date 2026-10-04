@@ -1070,7 +1070,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		} else {
 			request = ai.Request{
 				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, mode, ownedFrom, batch.End))},
+				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, mode, ownedFrom, batch.End) + cardsLanguageInstruction(s.cfg.Language(ctx)))},
 				Output:          &cardsOutput,
 				MaxOutputTokens: 4096,
 			}
@@ -1339,7 +1339,7 @@ func (s *Service) generateScopedCards(ctx context.Context, chain *ai.Chain, card
 		} else {
 			request = ai.Request{
 				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, cardModeScoped, windowStart, windowEnd))},
+				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, cardModeScoped, windowStart, windowEnd) + cardsLanguageInstruction(s.cfg.Language(ctx)))},
 				Output:          &cardsOutput,
 				MaxOutputTokens: 4096,
 			}
