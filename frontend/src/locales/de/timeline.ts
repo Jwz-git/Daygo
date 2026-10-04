@@ -113,7 +113,9 @@ export default {
     reason: {
       auth: 'Der KI-Dienst hat den Schlüssel abgelehnt. Prüfe, ob er korrekt ist.',
       rate_limited: 'Zu viele Anfragen oder dein Kontingent ist aufgebraucht.',
-      network: 'Der KI-Dienst war nicht erreichbar. Das kann an der Netzwerkverbindung liegen.',
+      network: 'Die KI-Anfrage konnte nicht abgeschlossen werden. Möglicherweise wurde die Verbindung unterbrochen, das Zeitlimit überschritten oder der Dienst war nicht verfügbar.',
+      timeout: 'Der KI-Dienst hat die Anfrage nicht innerhalb des Zeitlimits abgeschlossen.',
+      service_unavailable: 'Der KI-Dienst oder das Gateway hat einen Serverfehler zurückgegeben. Versuche es später erneut.',
       invalid_request: 'Der KI-Dienst hat die Anfrage abgelehnt. Prüfe Adresse und Modelleinstellungen.',
       invalid_output: 'Die Antwort der KI ließ sich nicht in Karten umwandeln.',
       no_provider: 'Es ist kein KI-Dienst und kein Modell verfügbar.',

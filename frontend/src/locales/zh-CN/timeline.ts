@@ -113,7 +113,9 @@ export default {
     reason: {
       auth: 'AI 服务拒绝了密钥，请检查密钥是否正确。',
       rate_limited: '请求太频繁或额度已用完。',
-      network: '连不上 AI 服务，可能是网络问题。',
+      network: 'AI 请求未能完成，可能是连接中断、超时或服务暂时不可用。',
+      timeout: 'AI 服务未在时限内完成请求。',
+      service_unavailable: 'AI 服务或网关返回了服务器错误，请稍后重试。',
       invalid_request: 'AI 服务拒绝了请求，请检查地址和模型设置。',
       invalid_output: 'AI 返回的内容无法整理成卡片。',
       no_provider: '没有可用的 AI 服务或模型。',

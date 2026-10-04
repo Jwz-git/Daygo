@@ -15,6 +15,12 @@
 
 ## 当前状态与证据
 
+2026-10-04：失败详情区分请求超时（`timeout`）、服务 / 网关 HTTP 5xx
+（`service_unavailable`）和连接 / 响应读取故障（`network`）；九语言同步。
+旧 `network` 记录保留宽泛说明，不做历史数据迁移。回退链仍返回最后一次错误，
+因此 UI 分类可能掩盖主模型的其它失败；脱敏调用元数据须按 attempt 分析。
+本次匿名真实 Provider 请求既有 Schema 拒绝，也有相同输入成功，不能宣称真实批次已恢复。
+
 2026-10-04：默认转录 / 卡片提示词与生产 Schema 对齐：历史卡统一用合法 JSON 数组、
 `detailed_summary` 与数组形状的 `appSites`，明确必填字段 / 空值 / 嵌套对象 / 帧索引 / 时钟格式。
 fresh 历史上下文与 ongoing 改写范围分开描述，多卡边界不再要求每张卡覆盖整窗；
@@ -62,6 +68,7 @@ fresh 历史上下文与 ongoing 改写范围分开描述，多卡边界不再�
   （`ZoneName` 注册表回退）已补齐，只影响新读取的页面。
 - 失败提示：时间轨道和详情页按批次 `kind` 显示本地化原因；Provider 请求相关错误引导用户
   检查设置与连接，`no_provider` 显示为本机配置缺失，存储 / 分析错误显示为 Daygo 问题。
+  超时与 HTTP 5xx 分别显示，旧 `network` 不再仅提示连不上服务。
   不同原因或自动重试状态的相邻批次分开呈现，不直接把诊断 `message` 当成界面文案。
   单卡重生成失败时原卡保留，详情操作区按绑定错误码显示本地化原因与下一步；
   `provider_failed` 在现有契约下包含请求失败和输出校验失败，前端不展示原始诊断文本。
@@ -134,6 +141,28 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 事务改写失败不提交，不以删除卡片重建的方式回退。schema 回退遵循 data 的备份恢复策略。
 
 ## 验证记录
+
+- **2026-10-04 服务失败归因（基于 `25e4070` 的 `test` 工作树，macOS arm64）**：
+  只读目标批次与 attempt 元数据：最近一轮主模型转录成功、卡片请求三次 `invalid_output`，
+  随后备用模型三次 HTTP 502，最终 `failure_kind=network`；这只证明失败阶段 / 分类，
+  未保留原始响应，不能反推具体 Schema 字段。运行中的开发二进制包含当天最新提示词标记，
+  不把本次问题简单归因于旧提示词未生效。只读已保存配置与钥匙串、一次一请求的临时匿名探针
+  使用固定 15 分钟窗口、四条合成文本 observation、生产卡片提示词 / Schema 和 4096 输出上限：
+  当前 GPT 路径返回 HTTP 502；已保存的 DeepSeek Responses 路径首次 HTTP 200、completed、
+  无 token 上限终止，但顶层 `additionalProperties` 校验失败；同一匿名输入另一次通过 Schema，
+  返回一张卡片。未输出密钥、endpoint、正文，未读真实截图 / observation / 卡片，未改用户配置
+  或数据库；临时探针已删除。这些请求不证明原批次恢复或稳定性，不算 G-loop 增量验收。
+  先改分类夹具的显式预期：502 / 503 → `service_unavailable`，请求 / HTTP 408 超时 →
+  `timeout`，断连 / HTTP 200 响应中断仍为 `network`；旧实现五项失败，前端新增类别夹具两项失败。
+  实现只改变分类与九语言提示，保留重试 / 回退、Schema 校验与历史数据。
+  `CGO_ENABLED=0 go test ./internal/analysis -run '^TestFailureKindClassification$' -count=1`
+  及 `./scripts/gate.sh` 通过：Go 内部测试 / vet / 无 cgo 构建、三平台核心交叉构建、前端
+  249 项单测 / typecheck / build、58 篇文档 0 问题；Windows 安装器 9 项中 4 项通过、
+  5 项因需 Windows 主机跳过，不记为通过。`gofmt -l .` 无输出、`git diff --check` 通过。
+  Wails 引导构建有既有 deployment target / UserNotifications 告警及只读对账日志，构建成功，
+  不代替原生回归；真实 Wails 新提示及真实失败批次恢复尚未验证。
+  回退：恢复原分类逻辑时保留前端两种新增 kind 的显示分支，兼容已落库的新记录，
+  避免旧界面误归为内部错误；无 schema / 用户数据迁移。
 
 - **2026-10-04 提示词契约对齐（基于 `0a34025` 的 `test` 工作树，macOS arm64）**：匿名历史卡与固定 15 / 30 分钟窗口夹具先固定预期；旧代码上历史数组 / 字段形状、结构示例、fresh 历史范围、ongoing 改写范围及批次纠错语言五项测试失败，新增多卡首尾边界夹具在修正前亦失败。实现选择是遵循已有生产 Schema 和 Go 所有权闸门，不放宽校验或改夹具期望；存储对象只在提示词边界转换为字符串数组，原 metadata 保留。结构示例由 `ai.ValidateJSON` 使用生产 Schema 校验；批次 / 单卡纠错另用持续无效输出验证两次纠错都保留所选语言。`CGO_ENABLED=0 go test ./internal/analysis -count=1` 与 `./scripts/gate.sh` 通过（Go 内部测试 / vet / 无 cgo 构建、三平台核心交叉构建、前端单测 / typecheck / build、58 篇文档 0 问题；Windows 安装器 9 项中 5 项因需 Windows 主机跳过）。`gofmt -l .` 无输出、`git diff --check` 通过。限制：未调用真实 Provider、未替换已安装应用、未测量输出失败率改善，不把此前匿名 Provider 探针算作本次验证；G-loop 增量待验证。回退：撤销本次提示词与语言补充，无 schema / 数据迁移。
 

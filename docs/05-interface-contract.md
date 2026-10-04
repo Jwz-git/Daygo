@@ -1109,9 +1109,13 @@ type UpdaterStateDTO struct {
 ```
 
 失败时段仅在 `kind` 相同且 `retryable` 相同时按 60 秒容差合并，避免相邻的 Provider 超时与
-Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`、`network`、
-`invalid_request`、`invalid_output` 是 Provider 请求相关类别；`network` 只表明请求链路失败，
-不推断服务商服务器一定有故障。`no_provider` 表示本机尚无可用配置；`internal` 与其它未知类别
+Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`、`network`、`timeout`、
+`service_unavailable`、`invalid_request`、`invalid_output` 是 Provider 请求相关类别。
+`timeout` 表示请求超时；`service_unavailable` 表示 `ai.ErrorUnavailable` 携带 HTTP 5xx，
+服务或网关返回错误，不据此确定哪个上游组件故障；其余连接 / 响应读取失败归 `network`。
+旧记录的 `network` 也可能包含超时或 5xx，故界面保留宽泛提示，不归因于本机网络。
+失败分类沿用回退链最后一个错误，不能代替整轮 attempt 记录。
+`no_provider` 表示本机尚无可用配置；`internal` 与其它未知类别
 不得归因于服务商。模型连续输出不合法卡片时归 `invalid_output`；卡片存储所有权冲突仍归 `internal`。
 
 `availableVersion == nil` 表示未发现更新；非空字符串表示已发现且知道版本号；空字符串表示已发现但平台回调未提供版本号（Windows WinSparkle）。前端在空字符串时显示不含版本号的本地化提示。

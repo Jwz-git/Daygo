@@ -113,7 +113,9 @@ export default {
     reason: {
       auth: 'O serviço de IA recusou a chave. Confira se ela está correta.',
       rate_limited: 'Requisições demais, ou a sua cota acabou.',
-      network: 'Não foi possível alcançar o serviço de IA. Pode ser um problema de rede.',
+      network: 'A solicitação de IA não foi concluída. A conexão pode ter sido interrompida, o tempo limite excedido ou o serviço estar indisponível.',
+      timeout: 'O serviço de IA não concluiu a solicitação dentro do prazo limite.',
+      service_unavailable: 'O serviço de IA ou o gateway retornou um erro do servidor. Tente novamente mais tarde.',
       invalid_request: 'O serviço de IA recusou a requisição. Confira o endereço e as configurações do modelo.',
       invalid_output: 'Não foi possível transformar a resposta da IA em cartões.',
       no_provider: 'Nenhum serviço de IA ou modelo está disponível.',

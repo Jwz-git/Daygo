@@ -113,7 +113,9 @@ export default {
     reason: {
       auth: 'AI 服務拒絕了金鑰，請檢查金鑰是否正確。',
       rate_limited: '請求太頻繁或額度已用完。',
-      network: '連不上 AI 服務，可能是網路問題。',
+      network: 'AI 請求未能完成，可能是連線中斷、逾時或服務暫時無法使用。',
+      timeout: 'AI 服務未在時限內完成請求。',
+      service_unavailable: 'AI 服務或閘道傳回了伺服器錯誤，請稍後重試。',
       invalid_request: 'AI 服務拒絕了請求，請檢查網址和模型設定。',
       invalid_output: 'AI 回應的內容無法整理成卡片。',
       no_provider: '沒有可用的 AI 服務或模型。',

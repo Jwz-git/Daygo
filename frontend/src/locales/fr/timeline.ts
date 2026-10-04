@@ -113,7 +113,9 @@ export default {
     reason: {
       auth: 'Le service d’IA a rejeté la clé. Vérifiez qu’elle est correcte.',
       rate_limited: 'Trop de requêtes, ou votre quota est épuisé.',
-      network: 'Impossible de joindre le service d’IA. Il s’agit peut-être d’un problème de réseau.',
+      network: 'La requête IA a échoué. La connexion a peut-être été interrompue, le délai dépassé ou le service indisponible.',
+      timeout: 'Le service d’IA n’a pas terminé la requête dans le délai imparti.',
+      service_unavailable: 'Le service d’IA ou la passerelle a renvoyé une erreur serveur. Réessayez plus tard.',
       invalid_request: 'Le service d’IA a rejeté la requête. Vérifiez l’URL et les réglages du modèle.',
       invalid_output: 'La réponse de l’IA n’a pas pu être transformée en cartes.',
       no_provider: 'Aucun service d’IA ni modèle n’est disponible.',

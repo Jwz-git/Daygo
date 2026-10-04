@@ -14,6 +14,8 @@ export function failurePresentation(kind: string): FailurePresentation {
     case 'auth':
     case 'rate_limited':
     case 'network':
+    case 'timeout':
+    case 'service_unavailable':
     case 'invalid_request':
     case 'invalid_output':
       return {

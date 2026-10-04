@@ -115,7 +115,9 @@ export default {
     reason: {
       auth: 'The AI service rejected the key. Check that it’s correct.',
       rate_limited: 'Too many requests, or your quota has run out.',
-      network: 'Couldn’t reach the AI service. This may be a network issue.',
+      network: 'The AI request failed. The connection may have been interrupted, the request timed out, or the service was unavailable.',
+      timeout: 'The AI service did not complete the request within the time limit.',
+      service_unavailable: 'The AI service or gateway returned a server error. Try again later.',
       invalid_request: 'The AI service rejected the request. Check the URL and model settings.',
       invalid_output: 'The AI response couldn’t be turned into cards.',
       no_provider: 'No AI service or model is available.',

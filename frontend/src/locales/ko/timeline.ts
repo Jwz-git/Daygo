@@ -113,7 +113,9 @@ export default {
     reason: {
       auth: 'AI 서비스가 키를 거부했습니다. 올바른지 확인하세요.',
       rate_limited: '요청이 너무 많거나 할당량을 다 썼습니다.',
-      network: 'AI 서비스에 연결하지 못했습니다. 네트워크 문제일 수 있습니다.',
+      network: 'AI 요청을 완료하지 못했습니다. 연결 중단, 시간 초과 또는 일시적인 서비스 중단일 수 있습니다.',
+      timeout: 'AI 서비스가 제한 시간 내에 요청을 완료하지 못했습니다.',
+      service_unavailable: 'AI 서비스 또는 게이트웨이가 서버 오류를 반환했습니다. 잠시 후 다시 시도하세요.',
       invalid_request: 'AI 서비스가 요청을 거부했습니다. 주소와 모델 설정을 확인하세요.',
       invalid_output: 'AI 응답을 카드로 만들지 못했습니다.',
       no_provider: '쓸 수 있는 AI 서비스나 모델이 없습니다.',

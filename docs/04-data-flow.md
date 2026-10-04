@@ -300,6 +300,11 @@ attempt 超时的挂死连接会永远不产生可分类错误，从而卡死整
 `batch:failed` 事件推给 UI。只有真正的 `ai.Error` 才映射为供应商侧类别；本地错误
 （分段文件缺失、解码失败、storage 故障、`ai.ErrNoProvider`）分别归为 `internal` /
 `no_provider`，不冒充"网络问题稍后自动重试"。失败 note 不携带分段路径等本地敏感串。
+Provider 超时单独归 `timeout`，`ai.ErrorUnavailable` 携带 HTTP 5xx 时归
+`service_unavailable`（服务或网关返回错误），其它连接 / 响应读取故障归 `network`。
+旧批次的 `network` 未迁移，界面以连接中断、超时或服务不可用的宽泛说明兼容历史记录，
+不能从该旧分类判断是本机网络问题。回退链仍返回最后一个错误，因此失败详情的分类不代表
+本轮所有模型失败的原因；不同 attempt 的脱敏分类 / HTTP 状态由 `llm_calls` 保留。
 
 批失败后在 10 分钟冷却后重新入队，但**每批最多进入失败状态 `MaxBatchAttempts`（5）次**；
 达到上限后该批保持失败终态，不再消耗 LLM 调用。auth / invalid_request / no_provider

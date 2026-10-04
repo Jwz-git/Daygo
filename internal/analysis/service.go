@@ -1904,7 +1904,12 @@ func failureKind(err error) string {
 			return "auth"
 		case ai.ErrorRateLimited:
 			return "rate_limited"
-		case ai.ErrorTimeout, ai.ErrorUnavailable:
+		case ai.ErrorTimeout:
+			return "timeout"
+		case ai.ErrorUnavailable:
+			if aiErr.HTTPStatus >= 500 {
+				return "service_unavailable"
+			}
 			return "network"
 		case ai.ErrorInvalidOutput:
 			return "invalid_output"
