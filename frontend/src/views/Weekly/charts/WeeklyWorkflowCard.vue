@@ -3,12 +3,13 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useDurationFormat } from '@/lib/duration'
-import { hourTicks, type WeeklyWorkflowCell, type WeeklyWorkflowSnapshot } from '@/stores/weeklyCharts'
+import type { WeeklyWorkflowCell, WeeklyWorkflowSnapshot } from '@/stores/weeklyCharts'
 
 import WeeklyChartCard from './WeeklyChartCard.vue'
 import WeeklyChartTooltip from './WeeklyChartTooltip.vue'
 import { svgPoint, useChartPointer } from './useChartPointer'
 import { useWeeklyChartLabels } from './useWeeklyChartLabels'
+import { useWeeklyGrid } from './useWeeklyGrid'
 
 /*
  * "Your workflow this week" (Dayflow WeeklyWorkflowSection): one row per day,
@@ -29,19 +30,16 @@ const LABEL_WIDTH = 40
 const AXIS_HEIGHT = 22
 
 const columns = computed(() => props.snapshot.rows[0]?.length ?? 0)
-const width = computed(() => LABEL_WIDTH + columns.value * (CELL + GAP))
+const { container: gridContainer, width, step, ticks } = useWeeklyGrid(
+  () => ({ start: props.snapshot.start, end: props.snapshot.end, columns: columns.value }),
+  LABEL_WIDTH,
+)
 const height = 7 * (CELL + GAP) + AXIS_HEIGHT
+const cellWidth = computed(() => step.value - GAP)
 
 function cellX(slot: number): number {
-  return LABEL_WIDTH + slot * (CELL + GAP)
+  return LABEL_WIDTH + slot * step.value
 }
-
-const ticks = computed(() =>
-  hourTicks(props.snapshot.start, props.snapshot.end).map((minute) => ({
-    minute,
-    x: cellX((minute - props.snapshot.start) / props.snapshot.slotMinutes),
-  })),
-)
 
 interface HoveredCell {
   day: number
@@ -55,7 +53,7 @@ const pointer = useChartPointer<HoveredCell>()
 function onPointerMove(event: PointerEvent): void {
   const point = svgPoint(event)
   const day = point === null ? -1 : Math.floor(point.y / (CELL + GAP))
-  const slot = point === null ? -1 : Math.floor((point.x - LABEL_WIDTH) / (CELL + GAP))
+  const slot = point === null ? -1 : Math.floor((point.x - LABEL_WIDTH) / step.value)
   const cell = props.snapshot.rows[day]?.[slot]
   if (cell !== undefined) pointer.move(event, { day, slot, cell })
   else pointer.leave()
@@ -79,8 +77,10 @@ const legendCategory = ref<string | null>(null)
       role="img"
       :aria-label="t('weekly.charts.workflow.aria')"
     >
-      <div class="wf__scroll">
+      <div ref="gridContainer" class="wf__scroll">
         <svg
+          :width="width"
+          :height="height"
           :viewBox="`0 0 ${width} ${height}`"
           aria-hidden="true"
           preserveAspectRatio="xMinYMin meet"
@@ -106,7 +106,7 @@ const legendCategory = ref<string | null>(null)
               }"
               :x="cellX(slot)"
               :y="dayIndex * (CELL + GAP)"
-              :width="CELL"
+              :width="cellWidth"
               :height="CELL"
               rx="2.5"
               :fill="cell.colorHex ?? undefined"
@@ -119,7 +119,7 @@ const legendCategory = ref<string | null>(null)
             :style="{
               transform: `translate(${cellX(pointer.hovered.value.slot) - 1}px, ${pointer.hovered.value.day * (CELL + GAP) - 1}px)`,
             }"
-            :width="CELL + 2"
+            :width="cellWidth + 2"
             :height="CELL + 2"
             rx="3.5"
           />
@@ -174,9 +174,6 @@ const legendCategory = ref<string | null>(null)
 
 .wf svg {
   display: block;
-  width: 100%;
-  min-width: 560px;
-  height: auto;
 }
 
 .wf__row {

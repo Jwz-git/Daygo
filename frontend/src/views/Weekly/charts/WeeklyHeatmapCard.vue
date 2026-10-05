@@ -2,12 +2,13 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { hourTicks, type WeeklyHeatmapSnapshot } from '@/stores/weeklyCharts'
+import type { WeeklyHeatmapSnapshot } from '@/stores/weeklyCharts'
 
 import WeeklyChartCard from './WeeklyChartCard.vue'
 import WeeklyChartTooltip from './WeeklyChartTooltip.vue'
 import { svgPoint, useChartPointer } from './useChartPointer'
 import { useWeeklyChartLabels } from './useWeeklyChartLabels'
+import { useWeeklyGrid } from './useWeeklyGrid'
 
 /*
  * "Focus and distraction heat map" (Dayflow WeeklyFocusHeatmapSection): one
@@ -38,22 +39,17 @@ function cellColor(score: number): string | null {
   return score < 0 ? mix(FOCUS_SOFT, FOCUS_DARK, amount) : mix(DISTRACTION_SOFT, DISTRACTION_DARK, amount)
 }
 
-const CELL_WIDTH = 6
 const CELL_HEIGHT = 12
 const ROW_GAP = 2
 const LABEL_WIDTH = 36
 const AXIS_HEIGHT = 20
 
 const columns = computed(() => props.snapshot.rows[0]?.length ?? 0)
-const width = computed(() => LABEL_WIDTH + columns.value * CELL_WIDTH)
-const height = 7 * (CELL_HEIGHT + ROW_GAP) + AXIS_HEIGHT
-
-const ticks = computed(() =>
-  hourTicks(props.snapshot.start, props.snapshot.end).map((minute) => ({
-    minute,
-    x: LABEL_WIDTH + ((minute - props.snapshot.start) / props.snapshot.bucketMinutes) * CELL_WIDTH,
-  })),
+const { container: gridContainer, width, step, ticks } = useWeeklyGrid(
+  () => ({ start: props.snapshot.start, end: props.snapshot.end, columns: columns.value }),
+  LABEL_WIDTH,
 )
+const height = 7 * (CELL_HEIGHT + ROW_GAP) + AXIS_HEIGHT
 
 interface HoveredBucket {
   day: number
@@ -67,7 +63,7 @@ const pointer = useChartPointer<HoveredBucket>()
 function onPointerMove(event: PointerEvent): void {
   const point = svgPoint(event)
   const day = point === null ? -1 : Math.floor(point.y / (CELL_HEIGHT + ROW_GAP))
-  const bucket = point === null ? -1 : Math.floor((point.x - LABEL_WIDTH) / CELL_WIDTH)
+  const bucket = point === null ? -1 : Math.floor((point.x - LABEL_WIDTH) / step.value)
   const score = props.snapshot.rows[day]?.[bucket]
   if (score !== undefined) pointer.move(event, { day, bucket, score })
   else pointer.leave()
@@ -99,8 +95,10 @@ function scoreLabel(score: number): string {
       role="img"
       :aria-label="t('weekly.charts.heatmap.aria')"
     >
-      <div class="hm__scroll">
+      <div ref="gridContainer" class="hm__scroll">
         <svg
+          :width="width"
+          :height="height"
           :viewBox="`0 0 ${width} ${height}`"
           aria-hidden="true"
           preserveAspectRatio="xMinYMin meet"
@@ -122,9 +120,9 @@ function scoreLabel(score: number): string {
             <rect
               v-for="(score, bucket) in row"
               :key="bucket"
-              :x="LABEL_WIDTH + bucket * CELL_WIDTH"
+              :x="LABEL_WIDTH + bucket * step"
               :y="dayIndex * (CELL_HEIGHT + ROW_GAP)"
-              :width="CELL_WIDTH - 0.5"
+              :width="step - 0.5"
               :height="CELL_HEIGHT"
               :class="{ 'hm__cell--neutral': cellColor(score) === null }"
               :fill="cellColor(score) ?? undefined"
@@ -134,9 +132,9 @@ function scoreLabel(score: number): string {
             v-if="pointer.hovered.value"
             class="hm__cursor"
             :style="{
-              transform: `translate(${LABEL_WIDTH + pointer.hovered.value.bucket * CELL_WIDTH - 1}px, ${pointer.hovered.value.day * (CELL_HEIGHT + ROW_GAP) - 1}px)`,
+              transform: `translate(${LABEL_WIDTH + pointer.hovered.value.bucket * step - 1}px, ${pointer.hovered.value.day * (CELL_HEIGHT + ROW_GAP) - 1}px)`,
             }"
-            :width="CELL_WIDTH + 1.5"
+            :width="step + 1.5"
             :height="CELL_HEIGHT + 2"
             rx="1.5"
           />
@@ -205,9 +203,6 @@ function scoreLabel(score: number): string {
 
 .hm svg {
   display: block;
-  width: 100%;
-  min-width: 560px;
-  height: auto;
 }
 
 .hm__cell--neutral {
