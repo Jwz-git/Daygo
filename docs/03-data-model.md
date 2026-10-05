@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 22`）有十九张业务表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 23`）有十九张业务表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -13,7 +13,7 @@
 > `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）、`card_ratings`（v18），
 > 移除 `journal_entries.summary`（v19，保留用户输入）、计划的 `plan_blocks`（v20），以及
 > `providers.user_agent`（v21，User-Agent 覆盖），以及 `chat_messages.error_code`（v22，
-> 回合失败原因码）。本文其余表
+> 回合失败原因码）、`timeline_cards.is_user_edited`（v23，自动改写保留人工输入）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -210,6 +210,7 @@ CREATE TABLE timeline_cards (
   video_summary_path TEXT,             -- timelapse 相对路径
   metadata         TEXT,               -- JSON：appSites、distractions、idle 诊断等
   is_deleted       INTEGER NOT NULL DEFAULT 0,
+  is_user_edited   INTEGER NOT NULL DEFAULT 0 CHECK (is_user_edited IN (0,1)), -- v23
   created_at       INTEGER NOT NULL,
   updated_at       INTEGER NOT NULL
 );
@@ -520,9 +521,16 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
   AND is_deleted = 0
 ```
 
-范围内**所有**存活卡片都在改写中吸收，`System` 回退卡（模型输出了未知分类名）也不例外：
-融合把改写范围扩展到被融合卡片的 start 时，那张卡必须一并消失，否则两张卡并列占住同一时段。
-失败状态由 `analysis_batches` 承载（失败面板读它），不落在卡片上。
+自动批次、重试、整日重分析与空闲短路调用 `ReplaceGeneratedCardsInRange`：编辑标记为 1、
+仍有审阅或评分的卡片保留原 ID、完整时间范围与内容，人工删除的时间范围同样被保护；
+模型输出先扣除这些范围再插入，结构化时间信息随新片段裁剪。保护判定与改写在同一事务内，
+覆盖生成期间发生的人工写入。v23 将旧的存活卡片全部标为受保护，不用不可靠的时间戳推测
+编辑来源；旧软删除行不标记，迁移前人工删除无法可靠识别。详情见
+[人工输入保留决策](decisions/timeline-human-card-preservation.md)。
+
+其余存活卡片在改写中吸收，`System` 回退卡也不例外；失败状态仍由 `analysis_batches` 承载。
+用户明确单卡「重新生成」使用 `ReplaceCardsInRange` 的显式替换规则，可替换人工卡并使旧反馈
+退出统计；不能把该方法用于自动分析或批次重处理。
 
 删除整张重叠卡之前，改写所有权必须覆盖该卡完整的 `[start_ts, end_ts)`。卡片若只与改写窗口
 部分重叠，而生成结果没有把所有权扩到它的完整起止，事务必须以约束错误回滚，保留原卡；不得

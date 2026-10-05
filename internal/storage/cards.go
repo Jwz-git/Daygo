@@ -14,7 +14,7 @@ import (
 
 // CardRepo implements the cards capability over timeline_cards
 // (docs/05 §5.6.2 TimelineRepository). It is the pipeline's atomic commit
-// point: ReplaceCardsInRange holds the whole rewrite in one transaction.
+// point: both explicit and generated rewrites hold one transaction.
 type CardRepo struct {
 	store *Store
 }
@@ -120,8 +120,10 @@ func (r *CardRepo) CardByID(ctx context.Context, id int64) (domain.TimelineCard,
 	return card, nil
 }
 
-// ReplaceCardsInRange rewrites the cards of [from, to) with the pipeline's
-// output, in ONE transaction (docs/03 §3.5):
+// ReplaceCardsInRange explicitly rewrites [from, to), including human cards.
+// Automatic analysis must use ReplaceGeneratedCardsInRange. Both methods do
+// the following in ONE transaction (docs/03 §3.5), with human intervals excluded
+// from deletion and output only in the generated variant:
 //
 //  1. select the overlapping rows — every card in range, System fallback
 //     cards included: a merge that extends into a neighbor's System card
@@ -137,6 +139,20 @@ func (r *CardRepo) CardByID(ctx context.Context, id int64) (domain.TimelineCard,
 // the analysis scheduler's job; this method only guarantees atomicity.
 func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 	cards []domain.CardShell, batchID int64) (ReplaceResult, error) {
+
+	return r.replaceCardsInRange(ctx, from, to, cards, batchID, false)
+}
+
+// ReplaceGeneratedCardsInRange preserves human edits, feedback and deliberate
+// deletions. It subtracts their spans from generated output inside the same
+// transaction, so edits made while a model request is running cannot be lost.
+func (r *CardRepo) ReplaceGeneratedCardsInRange(ctx context.Context, from, to time.Time,
+	cards []domain.CardShell, batchID int64) (ReplaceResult, error) {
+	return r.replaceCardsInRange(ctx, from, to, cards, batchID, true)
+}
+
+func (r *CardRepo) replaceCardsInRange(ctx context.Context, from, to time.Time,
+	cards []domain.CardShell, batchID int64, preserveHuman bool) (ReplaceResult, error) {
 
 	var result ReplaceResult
 	at := r.store.now().Unix()
@@ -194,22 +210,31 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 
 		// Step 1: the overlap predicate of docs/03 §3.5 over the expanded span.
 		rows, err := tx.QueryContext(ctx, `
-			SELECT id, start_ts, end_ts, video_summary_path FROM timeline_cards
+			SELECT id, start_ts, end_ts, video_summary_path,
+				(is_user_edited=1 OR EXISTS(SELECT 1 FROM card_reviews WHERE card_id=c.id)
+				 OR EXISTS(SELECT 1 FROM card_ratings WHERE card_id=c.id))
+			FROM timeline_cards c
 			WHERE ((start_ts < ? AND end_ts > ?) OR (start_ts >= ? AND start_ts < ?))
-			  AND is_deleted = 0`,
-			effectiveTo.Unix(), effectiveFrom.Unix(), effectiveFrom.Unix(), effectiveTo.Unix())
+			  AND (is_deleted=0 OR (? AND is_user_edited=1))`,
+			effectiveTo.Unix(), effectiveFrom.Unix(), effectiveFrom.Unix(), effectiveTo.Unix(), preserveHuman)
 		if err != nil {
 			return wrap("select overlapping cards", err)
 		}
+		var protected []cardInterval
 		var victimIDs []int64
 		var videoPaths []string
 		for rows.Next() {
 			var id int64
 			var startTs, endTs int64
 			var video sql.NullString
-			if err := rows.Scan(&id, &startTs, &endTs, &video); err != nil {
+			var human bool
+			if err := rows.Scan(&id, &startTs, &endTs, &video, &human); err != nil {
 				_ = rows.Close()
 				return wrap("scan overlapping card", err)
+			}
+			if preserveHuman && human {
+				protected = append(protected, cardInterval{start: time.Unix(startTs, 0), end: time.Unix(endTs, 0)})
+				continue
 			}
 			// Deleting an overlap removes the whole row. Refuse a rewrite whose
 			// owned span does not cover that whole row; otherwise a tiny overlap
@@ -229,6 +254,29 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 			return wrap("iterate overlapping cards", err)
 		}
 		_ = rows.Close()
+
+		// Carve immutable human intervals out of each resolved shell. Keep IDs,
+		// content and reviews on their original rows; new minutes get new IDs.
+		var fragments []resolvedCard
+		for _, rc := range resolved {
+			spans := subtractCardIntervals(cardInterval{start: rc.startTs, end: rc.endTs}, protected)
+			for _, span := range spans {
+				fragment := rc
+				if !span.start.Equal(rc.startTs) || !span.end.Equal(rc.endTs) {
+					fragment.startTs, fragment.endTs = span.start, span.end
+					fragment.day = timeutil.LogicalDay(span.start, loc)
+					fragment.shell.Start = timeutil.FormatClock(span.start, loc)
+					fragment.shell.End = timeutil.FormatClock(span.end, loc)
+					fragment.shell.VideoSummaryPath = ""
+					fragment.shell.Metadata, err = clipGeneratedMetadata(rc.shell.Metadata, span, anchor, loc)
+					if err != nil {
+						return err
+					}
+				}
+				fragments = append(fragments, fragment)
+			}
+		}
+		resolved = fragments
 
 		for _, id := range victimIDs {
 			if _, err := tx.ExecContext(ctx,
@@ -272,14 +320,14 @@ func (r *CardRepo) ReplaceCardsInRange(ctx context.Context, from, to time.Time,
 // UpdateCardCategory moves one card to another category name.
 func (r *CardRepo) UpdateCardCategory(ctx context.Context, id int64, category string) error {
 	return r.updateCardColumn(ctx, "update card category", id,
-		"UPDATE timeline_cards SET category = ?, updated_at = ? WHERE id = ? AND is_deleted = 0",
+		"UPDATE timeline_cards SET category = ?, is_user_edited = 1, updated_at = ? WHERE id = ? AND is_deleted = 0",
 		category)
 }
 
 // UpdateCardTitle renames one card.
 func (r *CardRepo) UpdateCardTitle(ctx context.Context, id int64, title string) error {
 	return r.updateCardColumn(ctx, "update card title", id,
-		"UPDATE timeline_cards SET title = ?, updated_at = ? WHERE id = ? AND is_deleted = 0",
+		"UPDATE timeline_cards SET title = ?, is_user_edited = 1, updated_at = ? WHERE id = ? AND is_deleted = 0",
 		title)
 }
 
@@ -287,7 +335,7 @@ func (r *CardRepo) UpdateCardTitle(ctx context.Context, id int64, title string) 
 // pane then shows its no-summary placeholder.
 func (r *CardRepo) UpdateCardSummary(ctx context.Context, id int64, text string) error {
 	return r.updateCardColumn(ctx, "update card summary", id,
-		"UPDATE timeline_cards SET summary = ?, updated_at = ? WHERE id = ? AND is_deleted = 0",
+		"UPDATE timeline_cards SET summary = ?, is_user_edited = 1, updated_at = ? WHERE id = ? AND is_deleted = 0",
 		text)
 }
 
@@ -295,7 +343,7 @@ func (r *CardRepo) UpdateCardSummary(ctx context.Context, id int64, text string)
 // valid: the detail pane falls back to the short summary.
 func (r *CardRepo) UpdateCardDetailedSummary(ctx context.Context, id int64, text string) error {
 	return r.updateCardColumn(ctx, "update card summary", id,
-		"UPDATE timeline_cards SET detailed_summary = ?, updated_at = ? WHERE id = ? AND is_deleted = 0",
+		"UPDATE timeline_cards SET detailed_summary = ?, is_user_edited = 1, updated_at = ? WHERE id = ? AND is_deleted = 0",
 		text)
 }
 
@@ -314,7 +362,7 @@ func (r *CardRepo) SoftDeleteCard(ctx context.Context, id int64) (string, error)
 			return wrap("select card for delete", err)
 		}
 		if _, err := tx.ExecContext(ctx,
-			"UPDATE timeline_cards SET is_deleted = 1, updated_at = ? WHERE id = ?", at, id); err != nil {
+			"UPDATE timeline_cards SET is_deleted = 1, is_user_edited = 1, updated_at = ? WHERE id = ?", at, id); err != nil {
 			return wrap("soft-delete card", err)
 		}
 		videoPath = video.String

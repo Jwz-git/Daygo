@@ -94,6 +94,9 @@ func main() {
 	if err := writeV21(outDir); err != nil {
 		log.Fatalf("v21-providers-user-agent.db: %v", err)
 	}
+	if err := writeV22(outDir); err != nil {
+		log.Fatalf("v22-human-card-source.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -1139,6 +1142,39 @@ func writeV21(outDir string) error {
 		`PRAGMA user_version = 21`,
 	}
 	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV22 records the schema before human-card protection, including live
+// and deleted cards plus feedback, so v23 must preserve real old-row shapes.
+func writeV22(outDir string) error {
+	data, err := os.ReadFile(filepath.Join(outDir, "v21-providers-user-agent.db"))
+	if err != nil {
+		return err
+	}
+	fixture := filepath.Join(outDir, "v22-human-card-source.db")
+	if err := os.WriteFile(fixture, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+fixture)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for _, stmt := range []string{
+		`ALTER TABLE chat_messages ADD COLUMN error_code TEXT NOT NULL DEFAULT ''`,
+		`INSERT INTO timeline_cards(id,day,start,end,start_ts,end_ts,category,title,summary,is_deleted,created_at,updated_at)
+		 VALUES (900,'2026-09-12','10:00 AM','10:15 AM',1789178400,1789179300,'Work','anonymous live','anonymous summary',0,100,100),
+		 (901,'2026-09-12','10:15 AM','10:30 AM',1789179300,1789180200,'Work','anonymous rated','anonymous summary',0,100,100),
+		 (902,'2026-09-12','10:00 AM','10:15 AM',1789178400,1789179300,'Work','anonymous retired','anonymous summary',1,100,101)`,
+		`INSERT INTO card_reviews(card_id,day,verdict,minutes,created_at,updated_at) VALUES (900,'2026-09-12','focus',15,100,100)`,
+		`INSERT INTO card_ratings(card_id,rating,created_at,updated_at) VALUES (901,'up',100,100)`,
+		`PRAGMA user_version = 22`,
+	} {
 		if _, err := db.Exec(stmt); err != nil {
 			return err
 		}

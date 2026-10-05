@@ -71,6 +71,7 @@
 | [weekly 周边界：周一起始](decisions/weekly-boundary-monday.md) | 已决定 | 周一 4 点对齐的语义与夹具 |
 | [chat 会话模型](decisions/chat-session-model.md) | 已决定 | 多会话、原子消息、会话级 provider 选择 |
 | [agent MCP 传输：stdio 子进程](decisions/agent-mcp-transport.md) | 已决定，基础实现已落盘 | stdio `daygo mcp` 子进程、读走只读 DB / 写走 `agent.sock`、审计来源标记与回退 |
+| [时间线人工输入保留](decisions/timeline-human-card-preservation.md) | 已决定并实现 | 自动改写保留原 ID / 区间，v23 旧库保护与显式单卡替换边界 |
 | [时间线短卡合并](decisions/timeline-short-single-card-merge.md) | 已决定并实现 | 首批与持续窗口的 15 分钟下限及合并边界 |
 | [网站图标获取](decisions/timeline-favicon-fetch.md) | 已决定并实现 | 本地缓存、受限网络获取与载荷预算 |
 | [Windows 录制目录迁移](decisions/recording-directory-windows.md) | Windows 已实现，跨盘迁移待真机验收 | 迁移 recordings/ 树到用户所选空目录；DB / 备份 / 密钥 / 锁留在应用数据目录，segment_path 保持相对根不改写 |

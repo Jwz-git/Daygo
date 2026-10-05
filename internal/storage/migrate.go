@@ -726,6 +726,19 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 23,
+		name:    "timeline cards: preserve human edits during generation",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, `ALTER TABLE timeline_cards ADD COLUMN is_user_edited INTEGER NOT NULL DEFAULT 0 CHECK (is_user_edited IN (0,1))`); err != nil {
+				return wrap("add v23 card edit marker", err)
+			}
+			// Old timestamps cannot distinguish same-second manual edits from
+			// generated data. Preserve every live old card rather than guess.
+			_, err := tx.ExecContext(ctx, `UPDATE timeline_cards SET is_user_edited=1 WHERE is_deleted=0`)
+			return err
+		},
+	},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like

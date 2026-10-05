@@ -142,6 +142,26 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 
 ## 验证记录
 
+- **2026-10-05 人工卡片保留（基于 `6491f28` 的 `test` 工作树，macOS arm64）**：
+  匿名连续两批先复现标题 / 摘要 / 详情 / 审阅 / 评分丢失与人工删除被重新生成；区间扣除与
+  撤销反馈夹具也先失败。按 [决策](../decisions/timeline-human-card-preservation.md) 分开自动与
+  显式单卡替换：v23 标记编辑 / 删除，旧存活卡片保守保留，事务内保护反馈与生成期间的编辑；
+  模型输出只写剩余区间，时间点 / 分心区间同步裁剪，不复用整段视频。
+  `CGO_ENABLED=0 go test ./internal/storage ./internal/analysis ./internal/app ./internal/insight -count=1`
+  通过；定向夹具覆盖独立编辑、单独审阅 / 评分、删除、撤销、多个保护区间、4 点逻辑日、
+  在途人工编辑、空闲短路、匿名 v22→v23 数据保留与重启读回。
+  `go test -race ./internal/storage ./internal/analysis -run '^(TestGeneratedRewrite|TestMigrateV22|TestNextAutomaticBatch|TestHumanEditWhile|TestIdleBatchKeeps)' -count=1`
+  通过。最终 `./scripts/gate.sh` 通过：Go 内部测试 / vet / 无 cgo 构建、三平台核心交叉构建、
+  前端 249 项单测 / typecheck / build、59 篇文档 0 问题；Windows 安装器 9 项中 4 项通过、
+  5 项需 Windows 主机而跳过。`gofmt -l .` 无输出，`git diff --check` 通过。
+  此门禁覆盖同日分类身份、覆盖校验、活跃分段清理、系统暂停收尾和人工输入五项修复，
+  另有 storage / analysis / recorder 定向 race 与 macOS 合成像素原生收尾 / 回放证据。
+  Wails 引导有既有原生编译告警但成功；没有修改既有测试预期，真实 Provider / Wails、
+  实际睡眠 / 锁屏 / 屏保、Windows 原生增量与 G-loop 未复测。
+  旧 schema 无法区分历史人工删除与自动淘汰，因此不为旧软删除行猜测保护标记；
+  显式单卡重新生成仍可替换人工输入，原卡反馈按既有契约退出统计。
+  回退旧版本前须停止宿主、保留 v23 副本并恢复升级前备份，不能直接降 schema。
+
 - **2026-10-05 首次批次覆盖校验（基于 `56a9b1a` 的 `test` 工作树，macOS arm64）**：
   匿名 31 帧 / 15 分钟批次仅返回中间 1 分钟，旧实现误记 succeeded；单元夹具也复现
   fresh 提前返回和模型起点推迟改写起点。修正后首尾各报缺口，三次请求仍不完整时批次失败、

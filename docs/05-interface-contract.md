@@ -1280,10 +1280,12 @@ type TimelineRepository interface {
     CardsInRange(ctx context.Context, from, to time.Time) ([]domain.TimelineCard, error)
     CardByID(ctx context.Context, id int64) (domain.TimelineCard, error)
 
-    // ReplaceCardsInRange 是流水线的原子提交点：单个事务内完成软删除（范围内所有卡片，
-    // 含 System 回退卡）、时钟串解析、插入，并返回可清理的 timelapse 路径与被跳过的卡片。
-    // 规则见 03 §3.5——这是整个存储层风险最高的方法。
+    // 显式单卡重新生成：完整替换所拥有的行，旧卡反馈退出统计。
     ReplaceCardsInRange(ctx context.Context, from, to time.Time,
+        cards []domain.CardShell, batchID int64) (ReplaceResult, error)
+    // 自动 / 重试 / 整日重分析 / 空闲短路：同一事务内保留人工卡 ID、内容与范围，
+    // 扣除受保护区间后插入生成片段。保护含编辑、现存审阅 / 评分与人工删除。
+    ReplaceGeneratedCardsInRange(ctx context.Context, from, to time.Time,
         cards []domain.CardShell, batchID int64) (ReplaceResult, error)
 
     UpdateCardCategory(ctx context.Context, id int64, category string) error

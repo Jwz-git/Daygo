@@ -40,6 +40,7 @@ type Store interface {
 type CardStore interface {
 	CardsInRange(ctx context.Context, from, to time.Time) ([]domain.TimelineCard, error)
 	ReplaceCardsInRange(ctx context.Context, from, to time.Time, cards []domain.CardShell, batchID int64) (storage.ReplaceResult, error)
+	ReplaceGeneratedCardsInRange(ctx context.Context, from, to time.Time, cards []domain.CardShell, batchID int64) (storage.ReplaceResult, error)
 }
 
 type CategorySource interface {
@@ -487,7 +488,7 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	// before the span survive beside the rewrite. ownedFrom is that start after
 	// the merge gate: a merge the gate refused starts the span at the window
 	// instead, and the cross-category predecessor keeps its own card.
-	result, err := s.cfg.Cards.ReplaceCardsInRange(ctx, ownedFrom, batch.End, shells, batch.ID)
+	result, err := s.cfg.Cards.ReplaceGeneratedCardsInRange(ctx, ownedFrom, batch.End, shells, batch.ID)
 	if err != nil {
 		return err
 	}
@@ -795,7 +796,7 @@ func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error
 	}
 
 	shells := append(preserved, idle)
-	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, batch.End, shells, batch.ID); err != nil {
+	if _, err := s.cfg.Cards.ReplaceGeneratedCardsInRange(ctx, replaceFrom, batch.End, shells, batch.ID); err != nil {
 		return err
 	}
 	if err := s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchSucceeded, "", "", s.cfg.Now()); err != nil {
