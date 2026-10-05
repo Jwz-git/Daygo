@@ -575,6 +575,11 @@ type ProviderPlaygroundResultDTO struct {
 `SetNativeUiLabels` 下发（§5.5.1），适配器经 `UpdateCopySink` 接收；Sparkle 与 WinSparkle
 自己的对话框文案不由本应用提供，跟随系统语言。
 
+macOS 检查、下载、解压、等待更新选择或稍后安装期间继续录制，不设置更新录制闸门。
+只有真正请求安装重启前才重新检查所有权并收尾，收尾失败拒绝该次重启；后台等待退出安装
+仍由宿主真退出协议收尾。回调时机依赖固定 Sparkle 版本，见
+[macOS 更新决策](decisions/delivery-auto-update.md#4-生命周期更新重启前的收尾硬约束)。
+
 Token 用量只读绑定：`GetTokenUsage(period, day)`，period 为 `day` 或 `week`；
 day 必须为 yyyy-MM-dd，week 还须周一，否则 `invalid_argument`。读库失败为 `database_error`。
 返回 `TokenUsageDTO { period, timeZone, buckets }`；timeZone 经 `timeutil.ZoneName` 输出

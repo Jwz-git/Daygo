@@ -27,7 +27,9 @@ static NSString *installRefusedMessage;
         shouldProceedWithUpdate:(SUAppcastItem *)item
         updateCheck:(SPUUpdateCheck)updateCheck
         error:(NSError * __autoreleasing *)error {
-    if (dgGoUpdaterCanInstall() != 0 && dgGoUpdaterPrepare() == 0) return YES;
+    /* This callback runs before Sparkle shows or downloads the update. Keep
+       recording until the installer actually requests termination. */
+    if (dgGoUpdaterCanInstall() != 0) return YES;
     if (error != NULL) {
         NSMutableDictionary *info = [NSMutableDictionary dictionary];
         if (installRefusedMessage.length > 0) {
@@ -37,6 +39,14 @@ static NSString *installRefusedMessage;
                                      code:1
                                  userInfo:info];
     }
+    return NO;
+}
+- (BOOL)updaterShouldRelaunchApplication:(SPUUpdater *)updater {
+    /* Sparkle 2.10.0's installWithToolAndRelaunch checks this before sending
+       its installation request, and aborts when it returns NO. Recheck owner
+       and finalize here, after download/extraction and the user's decision. */
+    if (dgGoUpdaterCanInstall() != 0 && dgGoUpdaterPrepare() == 0) return YES;
+    dgGoUpdaterCancelled();
     return NO;
 }
 - (void)updater:(SPUUpdater *)updater userDidMakeChoice:(SPUUserUpdateChoice)choice forUpdate:(SUAppcastItem *)item state:(SPUUserUpdateState *)state {

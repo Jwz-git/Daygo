@@ -1,0 +1,30 @@
+name: Verify macOS updater callbacks
+
+on:
+  push:
+    branches: [test, main]
+    paths:
+      - internal/platform/darwin/updater_*
+      - native/darwin/updater*
+      - scripts/bootstrap-updaters.sh
+      - .github/workflows/macos-updater-check.yml
+  pull_request:
+    paths:
+      - internal/platform/darwin/updater_*
+      - native/darwin/updater*
+      - scripts/bootstrap-updaters.sh
+      - .github/workflows/macos-updater-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  callbacks:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the pinned Sparkle framework
+        run: ./scripts/bootstrap-updaters.sh
+      - name: Verify production delegate callbacks with anonymous inputs
+        run: bash native/darwin/updater-smoke.sh

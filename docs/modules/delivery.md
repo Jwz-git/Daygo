@@ -46,6 +46,9 @@ Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
 Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow
 均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
 客户端 feed 指向同一正式 Release 的 `appcast.xml`。发布到 appcast 上传之间可能短暂返回 404；
+2026-10-05 macOS 更新收尾延后：检查、下载、解压和等待更新决定继续录制，仅真正安装重启前
+重新检查所有权并收尾，失败拒绝该次重启。匿名原生回调增量通过，真实下载 / 安装重启未复测，
+详见本册验证记录与 [macOS 更新决策](../decisions/delivery-auto-update.md#4-生命周期更新重启前的收尾硬约束)。
 2026-10-05 修正 Windows 安装交接：自定义启动回调传入当前目录，安装器在更新模式下共享
 30 秒文件释放等待预算；旧客户端由 appcast 更新参数进入同一路径，按安装注册表恢复旧目录。
 UAC 取消 / 启动失败恢复此前录制，错误 / 取消 / 关闭回调解除检查状态；增量证据见本册验证记录。
@@ -131,6 +134,23 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
+
+2026-10-05（macOS 更新收尾时机，`test`、基于 `9b7d1be` 的工作树，macOS 26.0.1 /
+arm64、Apple clang 17.0.0、Sparkle 2.10.0）：用户要求更新等待期间不禁止录制。先添加
+[`native/darwin/updater-smoke.sh`](../../native/darwin/updater-smoke.sh)，用匿名回调输入调用
+生产 Objective-C delegate；旧实现失败于“发现新版必须保持录制与启动闸门不变”，期望未修改。
+修正后后台 / 交互 / 信息检查、下载 / 解压选择、等待退出安装、跳过 / 取消、安装前收尾、
+收尾失败拒绝与可重试、安装所有权复查、报错后只恢复一次的断言通过。
+`go test -tags daygo_updater ./internal/platform/darwin ./internal/app` 通过，实际链接固定框架。
+框架内部安装驱动的动态 selector 实验因方法未暴露失败，已移除，不计为驱动运行通过；
+实际调用次序只按固定版本官方源码核对。夹具没有启动更新调度器或安装进程，不访问网络、
+屏幕、真实数据库或密钥。最终 `6c9036b` 工作树的 `./scripts/gate.sh` 通过：Go build /
+internal 单测 / vet、三平台核心交叉构建、前端单元 / typecheck / build、59 篇 Markdown 检查
+与 15 项安装器夹具（5 通过、10 项 Windows 执行跳过）；单独 `gofmt -l .` 无输出，
+`git diff --check` 通过。新增 macOS 回调 CI 入口，YAML 解析与 shell 语法检查通过，远端执行
+结果待记录。真实 Wails 检查 / 下载 / 安装重启、
+持续截图与 G-native 增量尚未运行，不提升历史用户验收范围。回退可还原本次桥、夹具与文档，
+不改变 schema、设置、证书或 feed；本次不替换已安装应用、不生成或上传 release 产物。
 
 2026-10-05（Windows 更新交接，`test`、基于 `051bc5f` 的工作树，macOS arm64 / Go 1.25.6，
 NSIS 3.12、Python 3.9.6）：核对 WinSparkle 0.9.4 固定版本源码，确认其先启动安装器、后请求

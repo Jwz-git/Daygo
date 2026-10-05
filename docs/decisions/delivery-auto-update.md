@@ -79,7 +79,19 @@ Sparkle 负责：下载归档 → 校验 **EdDSA 签名** → 验证可用的应
 
 ## 4. 生命周期：更新重启前的收尾（硬约束）
 
-2026-09-25 实现约束：Sparkle 的 `willInstallUpdate` 只有通知作用，不能用返回值拒绝安装。因此 macOS 适配器在可拒绝的 `shouldProceedWithUpdate` 回调中完成 `Recorder.Stop`，失败则拒绝该次更新；在用户跳过、未安排安装的取消或更新驱动报错时解除录制闸门，恢复此前正在捕获的录制。发现更新到用户决定之间会暂停捕获，须在真机验证回调次序和实际暂停时长。
+2026-10-05 修正：`shouldProceedWithUpdate` 在展示 / 下载新版之前执行，只检查安装所有权，
+不调用 `Recorder.Stop`。检查、下载、解压、等待用户决定及选择稍后更新时，录制继续且不会设置
+录制启动闸门。真正请求安装重启时，在 `updaterShouldRelaunchApplication` 重新检查所有权并
+执行收尾，失败返回 `NO` 并解除更新闸门；准备后的更新报错 / 取消恢复此前正在捕获的录制。
+后台下载后等待应用退出的更新不提前收尾，普通真退出仍走宿主既有收尾协议。
+
+此时机依赖固定 Sparkle 2.10.0 的
+[安装器源码](https://github.com/sparkle-project/Sparkle/blob/2.10.0/Sparkle/SPUInstallerDriver.m)：
+`installWithToolAndRelaunch` 在发送安装请求、通知 `updaterWillRelaunchApplication` 前检查
+`updaterShouldRelaunchApplication`，返回 `NO` 会中止该次安装请求。框架升级时必须重新核对该
+调用顺序；`willInstallUpdate` 仍只是通知，不能用来拒绝收尾失败的安装。
+本轮匿名原生回调夹具已通过，真实 Sparkle 下载 / 安装重启增量未复测，见
+[delivery 验证记录](../modules/delivery.md#验证记录)。
 
 「更新重启」是区别于软退出 / 真退出的**独立生命周期事件**（[生命周期退出模型](lifecycle-quit-model.md)
 已把它列为独立事件）。Sparkle 在替换 bundle 前会终止进程，因此重启前**必须**同步完成：
