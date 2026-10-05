@@ -86,6 +86,7 @@ ShowUninstDetails hide
 
 Function .onInit
   !insertmacro wails.checkArchitecture
+  Call DaygoUpdateInit
 FunctionEnd
 
 Function un.onInit
@@ -155,6 +156,7 @@ Section
   !insertmacro wails.associateFiles
   !insertmacro wails.associateCustomProtocols
   !insertmacro wails.writeUninstaller
+  WriteRegStr SHELL_CONTEXT "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegDWORD SHELL_CONTEXT "${UNINST_KEY}" "InstallerLanguage" $LANGUAGE
 SectionEnd
 

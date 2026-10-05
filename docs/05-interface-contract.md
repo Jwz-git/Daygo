@@ -1121,6 +1121,9 @@ Daygo 内部错误被合成一条“供应商问题”。`auth`、`rate_limited`
 不得归因于服务商。模型连续输出不合法卡片时归 `invalid_output`；卡片存储所有权冲突仍归 `internal`。
 
 `availableVersion == nil` 表示未发现更新；非空字符串表示已发现且知道版本号；空字符串表示已发现但平台回调未提供版本号（Windows WinSparkle）。前端在空字符串时显示不含版本号的本地化提示。
+Windows 的错误、取消与关闭更新弹窗回调均清除 `checking`。安装器启动失败解除录制闸门并
+恢复此前录制；只有安装器成功启动后才接受真退出请求，重复终态回调不能重复恢复 / 退出。
+安装器先启动、宿主后退出的等待和目录恢复见 [Windows 更新决策](decisions/delivery-auto-update-windows.md)。
 
 ### 5.5.3 事件目录
 

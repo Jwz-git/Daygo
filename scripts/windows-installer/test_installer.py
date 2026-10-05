@@ -11,8 +11,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 import uuid
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).resolve().parent
@@ -22,6 +24,25 @@ LANGUAGES = {"English", "SimpChinese", "TradChinese", "Japanese", "Korean",
 
 
 class SourceContract(unittest.TestCase):
+    def test_windows_feed_marks_installer_as_update(self):
+        with tempfile.TemporaryDirectory(prefix="daygo-appcast-fixture-") as directory:
+            root = Path(directory)
+            mac, windows, output = root / "fixture.dmg", root / "fixture.exe", root / "appcast.xml"
+            mac.write_bytes(b"anonymous mac fixture")
+            windows.write_bytes(b"anonymous windows fixture")
+            subprocess.run([os.sys.executable, str(ROOT / "scripts/generate-appcast.py"),
+                "--version", "0.0.2", "--mac", str(mac), "--mac-signature", "fixture-mac-signature",
+                "--windows", str(windows), "--windows-signature", "fixture-windows-signature",
+                "--output", str(output)], check=True)
+            sparkle = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
+            enclosures = ET.parse(output).findall("./channel/item/enclosure")
+            self.assertEqual(len(enclosures), 2)
+            for enclosure in enclosures:
+                if enclosure.get(sparkle + "os") == "windows":
+                    self.assertEqual(enclosure.get(sparkle + "installerArguments"), "/DAYGO_UPDATE")
+                else:
+                    self.assertIsNone(enclosure.get(sparkle + "installerArguments"))
+
     def test_every_custom_string_is_translated(self):
         source = (SOURCE / "languages.nsh").read_text(encoding="utf-8-sig")
         loaded = set(re.findall(r'MUI_LANGUAGE "([^"]+)"', source))
@@ -88,10 +109,12 @@ class InstallerFixture(unittest.TestCase):
         if os.name == "nt":
             import winreg
             self.addCleanup(self.clean_registry)
+            self.addCleanup(lambda: shutil.rmtree(Path(os.environ["LOCALAPPDATA"]) /
+                "Programs" / self.product, ignore_errors=True))
             self.addCleanup(lambda: (Path(os.environ["APPDATA"]) /
                 "Microsoft/Windows/Start Menu/Programs" / (self.product + ".lnk")).unlink(missing_ok=True))
 
-    def compile(self, scope="user", expect_success=True):
+    def compile(self, scope="user", expect_success=True, wait_ticks=None):
         prefix = "/" if os.name == "nt" else "-"
         args = [COMPILER, prefix + "V2", prefix + "WX",
                 prefix + "DARG_WAILS_AMD64_BINARY=" + str(self.bin / (self.product + ".exe")),
@@ -99,6 +122,8 @@ class InstallerFixture(unittest.TestCase):
                 prefix + "DDAYGO_WEBVIEW_USER_KEY=" + self.key]
         if scope == "user":
             args += [prefix + "DWAILS_INSTALL_SCOPE=user", prefix + "DREQUEST_EXECUTION_LEVEL=user"]
+        if wait_ticks is not None:
+            args += [prefix + "DDAYGO_UPDATE_WAIT_TICKS=" + str(wait_ticks)]
         args.append(str(self.project / "project.nsi"))
         result = subprocess.run(args, cwd=self.project, capture_output=True, text=True)
         if expect_success:
@@ -133,11 +158,97 @@ class InstallerFixture(unittest.TestCase):
             except FileNotFoundError:
                 pass
 
-    def run_installer(self, executable):
+    def installer_command(self, executable, update=False, explicit_directory=True):
         # NSIS /D= and _?= must be last and UNQUOTED, even for paths with spaces.
         # A subprocess argument list would quote the entire special parameter.
-        return subprocess.run('"' + str(executable) + '" /S /D=' + str(self.target),
-                              timeout=30).returncode
+        command = '"' + str(executable) + '" /S'
+        if update:
+            command += " /DAYGO_UPDATE"
+        if explicit_directory:
+            command += " /D=" + str(self.target)
+        return command
+
+    def run_installer(self, executable, update=False, explicit_directory=True):
+        return subprocess.run(self.installer_command(executable, update, explicit_directory),
+                              timeout=40).returncode
+
+    def lock_file(self, path):
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
+            ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+        kernel.CreateFileW.restype = ctypes.c_void_p
+        kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+        handle = kernel.CreateFileW(str(path), 0x80000000, 0, None, 3, 0, None)
+        self.assertNotEqual(handle, ctypes.c_void_p(-1).value)
+        return lambda: kernel.CloseHandle(handle)
+
+    @unittest.skipUnless(os.name == "nt", "Windows execution required")
+    def test_update_waits_for_old_process_files(self):
+        installer = self.compile()
+        self.target.mkdir()
+        dll = self.target / "daygo_windows_native.dll"
+        dll.write_bytes(b"old fixture")
+        unlock = self.lock_file(dll)
+        process = subprocess.Popen(self.installer_command(installer, update=True))
+        try:
+            time.sleep(1)
+            self.assertIsNone(process.poll(), "update failed before old files were released")
+            self.assertFalse((self.target / (self.product + ".exe")).exists())
+        finally:
+            unlock()
+            result = process.wait(timeout=40)
+        self.assertEqual(result, 0)
+        self.assertEqual(dll.read_bytes(), self.payload)
+
+    @unittest.skipUnless(os.name == "nt", "Windows execution required")
+    def test_update_timeout_preserves_all_payload(self):
+        installer = self.compile(wait_ticks=3)
+        self.target.mkdir()
+        paths = [self.target / name for name in
+                 (self.product + ".exe", "daygo_windows_native.dll", "WinSparkle.dll")]
+        for path in paths:
+            path.write_bytes(b"old fixture")
+        unlock = self.lock_file(paths[-1])
+        try:
+            self.assertEqual(self.run_installer(installer, update=True), 10)
+        finally:
+            unlock()
+        for path in paths:
+            self.assertEqual(path.read_bytes(), b"old fixture")
+
+    @unittest.skipUnless(os.name == "nt", "Windows execution required")
+    def test_update_uses_registered_custom_directory(self):
+        import winreg
+        installer = self.compile()
+        self.assertEqual(self.run_installer(installer), 0)
+        key = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + self.product * 2
+        # Cover both new InstallLocation and older Wails DisplayIcon records.
+        for legacy in (False, True):
+            with self.subTest(legacy=legacy):
+                if legacy:
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key, 0,
+                            winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY) as handle:
+                        winreg.DeleteValue(handle, "InstallLocation")
+                target = self.target / (self.product + ".exe")
+                target.write_bytes(b"old fixture")
+                self.assertEqual(self.run_installer(installer, update=True, explicit_directory=False), 0)
+                self.assertEqual(target.read_bytes(), self.payload)
+
+    @unittest.skipUnless(os.name == "nt", "Windows execution required")
+    def test_update_explicit_directory_overrides_registration(self):
+        installer = self.compile()
+        self.assertEqual(self.run_installer(installer), 0)
+        original = self.target
+        self.target = self.root / "another directory with spaces"
+        self.assertEqual(self.run_installer(installer, update=True), 0)
+        self.assertTrue((self.target / (self.product + ".exe")).exists())
+        self.assertTrue((original / (self.product + ".exe")).exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows execution required")
+    def test_update_without_target_fails_before_install(self):
+        self.assertEqual(self.run_installer(self.compile(), update=True, explicit_directory=False), 30)
+        default = Path(os.environ["LOCALAPPDATA"]) / "Programs" / self.product
+        self.assertFalse(default.exists())
 
     def test_compile_both_scopes(self):
         for scope in ("machine", "user"):
@@ -200,17 +311,11 @@ class InstallerFixture(unittest.TestCase):
         self.target.mkdir()
         dll = self.target / "daygo_windows_native.dll"
         dll.write_bytes(b"old fixture")
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
-            ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
-        kernel.CreateFileW.restype = ctypes.c_void_p
-        kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-        handle = kernel.CreateFileW(str(dll), 0x80000000, 0, None, 3, 0, None)
-        self.assertNotEqual(handle, ctypes.c_void_p(-1).value)
+        unlock = self.lock_file(dll)
         try:
             self.assertEqual(self.run_installer(installer), 10)
         finally:
-            kernel.CloseHandle(handle)
+            unlock()
         self.assertEqual(dll.read_bytes(), b"old fixture")
 
 

@@ -17,14 +17,8 @@ import (
 )
 
 type Updater struct {
-	mu          sync.Mutex
-	dll         *xwindows.LazyDLL
-	automatic   bool
-	checking    bool
-	available   *string
-	closed      bool
-	lastChecked *time.Time
-	events      chan platform.UpdaterEvent
+	updateSession
+	dll *xwindows.LazyDLL
 
 	checkUI       *xwindows.LazyProc
 	checkSilent   *xwindows.LazyProc
@@ -32,14 +26,12 @@ type Updater struct {
 	getAutomatic  *xwindows.LazyProc
 	cleanup       *xwindows.LazyProc
 	callbackAddrs []uintptr
-	canInstall    func() bool
-	prepare       func() error
-	shutdown      func()
 	closeOnce     sync.Once
 	initOnce      sync.Once
 }
 
 var _ platform.Updater = (*Updater)(nil)
+var _ platform.UpdateInstallCoordinator = (*Updater)(nil)
 
 func NewUpdater() (*Updater, error) {
 	executable, err := os.Executable()
@@ -55,13 +47,16 @@ func NewUpdater() (*Updater, error) {
 		return nil, fmt.Errorf("load WinSparkle.dll: %w", err)
 	}
 	u := &Updater{
-		dll:          dll,
-		events:       make(chan platform.UpdaterEvent, 8),
-		checkUI:      dll.NewProc("win_sparkle_check_update_with_ui"),
-		checkSilent:  dll.NewProc("win_sparkle_check_update_without_ui"),
-		setAutomatic: dll.NewProc("win_sparkle_set_automatic_check_for_updates"),
-		getAutomatic: dll.NewProc("win_sparkle_get_automatic_check_for_updates"),
-		cleanup:      dll.NewProc("win_sparkle_cleanup"),
+		updateSession: updateSession{events: make(chan platform.UpdaterEvent, 8)},
+		dll:           dll,
+		checkUI:       dll.NewProc("win_sparkle_check_update_with_ui"),
+		checkSilent:   dll.NewProc("win_sparkle_check_update_without_ui"),
+		setAutomatic:  dll.NewProc("win_sparkle_set_automatic_check_for_updates"),
+		getAutomatic:  dll.NewProc("win_sparkle_get_automatic_check_for_updates"),
+		cleanup:       dll.NewProc("win_sparkle_cleanup"),
+	}
+	u.launch = func(payload string) error {
+		return launchUpdateInstaller(payload, filepath.Dir(executable))
 	}
 	feed, _ := xwindows.BytePtrFromString(updateconfig.FeedURL)
 	key, _ := xwindows.BytePtrFromString(updateconfig.Ed25519PublicKey)
@@ -86,58 +81,58 @@ func (u *Updater) installCallbacks() {
 		return 0
 	}
 	canShutdown := func() uintptr {
-		u.mu.Lock()
-		canInstall, prepare := u.canInstall, u.prepare
-		u.mu.Unlock()
-		if canInstall == nil || !canInstall() || prepare == nil || prepare() != nil {
-			return 0
-		}
-		return 1
-	}
-	shutdown := func() uintptr {
-		u.mu.Lock()
-		request := u.shutdown
-		u.mu.Unlock()
-		if request != nil {
-			request()
+		if u.canShutdown() {
+			return 1
 		}
 		return 0
+	}
+	shutdown := func() uintptr {
+		u.requestShutdown()
+		return 0
+	}
+	interrupted := func() uintptr {
+		u.interruptInstall()
+		return 0
+	}
+	launch := func(path uintptr) uintptr {
+		if path != 0 && u.launchInstaller(xwindows.UTF16PtrToString((*uint16)(unsafe.Pointer(path)))) {
+			return 1 // Handled; never fall back to WinSparkle's default launch.
+		}
+		return ^uintptr(0) // WINSPARKLE_RETURN_ERROR (-1).
 	}
 	u.callbackAddrs = []uintptr{
 		xwindows.NewCallbackCDecl(done), xwindows.NewCallbackCDecl(found),
 		xwindows.NewCallbackCDecl(canShutdown), xwindows.NewCallbackCDecl(shutdown),
+		xwindows.NewCallbackCDecl(interrupted), xwindows.NewCallbackCDecl(launch),
 	}
 	u.dll.NewProc("win_sparkle_set_did_not_find_update_callback").Call(u.callbackAddrs[0])
 	u.dll.NewProc("win_sparkle_set_did_find_update_callback").Call(u.callbackAddrs[1])
 	u.dll.NewProc("win_sparkle_set_can_shutdown_callback").Call(u.callbackAddrs[2])
 	u.dll.NewProc("win_sparkle_set_shutdown_request_callback").Call(u.callbackAddrs[3])
+	u.dll.NewProc("win_sparkle_set_error_callback").Call(u.callbackAddrs[4])
+	u.dll.NewProc("win_sparkle_set_update_cancelled_callback").Call(u.callbackAddrs[4])
+	u.dll.NewProc("win_sparkle_set_update_dismissed_callback").Call(u.callbackAddrs[4])
+	u.dll.NewProc("win_sparkle_set_user_run_installer_callback").Call(u.callbackAddrs[5])
 }
 
-// WinSparkle's did-find callback has no version argument. An empty, non-nil
-// AvailableVersion records the known update without inventing a version string.
-func (u *Updater) reportFound() {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	if u.closed {
-		return
+func updateInstallerArguments(directory string) string {
+	// NSIS requires /D= last and unquoted, including paths containing spaces.
+	return "/DAYGO_UPDATE /D=" + directory
+}
+
+func launchUpdateInstaller(payload, directory string) error {
+	file, err := xwindows.UTF16PtrFromString(payload)
+	if err != nil {
+		return fmt.Errorf("encode update installer: %w", err)
 	}
-	u.checking = false
-	unknownVersion := ""
-	u.available = &unknownVersion
-	state := platform.UpdaterState{Automatic: u.automatic, AvailableVersion: u.available}
-	if u.lastChecked != nil {
-		at := *u.lastChecked
-		state.LastCheckedAt = &at
+	args, err := xwindows.UTF16PtrFromString(updateInstallerArguments(directory))
+	if err != nil {
+		return fmt.Errorf("encode update arguments: %w", err)
 	}
-	select {
-	case u.events <- platform.UpdaterEvent{State: state}:
-	default:
-		select {
-		case <-u.events:
-		default:
-		}
-		u.events <- platform.UpdaterEvent{State: state}
+	if err := xwindows.ShellExecute(0, nil, file, args, nil, xwindows.SW_SHOWNORMAL); err != nil {
+		return fmt.Errorf("launch update installer: %w", err)
 	}
+	return nil
 }
 
 func (u *Updater) SetInstallCallbacks(canInstall func() bool, prepare func() error, requestShutdown func()) {
@@ -173,20 +168,6 @@ func (u *Updater) CheckForUpdates(ctx context.Context, interactive bool) error {
 	return nil
 }
 
-func (u *Updater) State(ctx context.Context) (platform.UpdaterState, error) {
-	if err := ctx.Err(); err != nil {
-		return platform.UpdaterState{}, err
-	}
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	state := platform.UpdaterState{Automatic: u.automatic, Checking: u.checking, AvailableVersion: u.available}
-	if u.lastChecked != nil {
-		at := *u.lastChecked
-		state.LastCheckedAt = &at
-	}
-	return state, nil
-}
-
 func (u *Updater) SetAutomaticChecks(ctx context.Context, enabled bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -202,15 +183,10 @@ func (u *Updater) SetAutomaticChecks(ctx context.Context, enabled bool) error {
 	return nil
 }
 
-func (u *Updater) Events() <-chan platform.UpdaterEvent { return u.events }
-
 func (u *Updater) Close() error {
 	u.closeOnce.Do(func() {
+		u.closeState()
 		u.cleanup.Call()
-		u.mu.Lock()
-		u.closed = true
-		close(u.events)
-		u.mu.Unlock()
 	})
 	return nil
 }

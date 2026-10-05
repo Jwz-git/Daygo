@@ -6,6 +6,8 @@ on:
     paths:
       - scripts/windows-installer/**
       - scripts/package-windows.ps1
+      - scripts/generate-appcast.py
+      - internal/platform/windows/updater*.go
       - build/windows/icon.ico
       - go.mod
       - .github/workflows/windows-installer-check.yml
@@ -13,6 +15,8 @@ on:
     paths:
       - scripts/windows-installer/**
       - scripts/package-windows.ps1
+      - scripts/generate-appcast.py
+      - internal/platform/windows/updater*.go
       - build/windows/icon.ico
       - go.mod
       - .github/workflows/windows-installer-check.yml
@@ -51,3 +55,10 @@ jobs:
           if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { throw 'NSIS compiler missing' }
           python scripts/windows-installer/test_installer.py
           if ($LASTEXITCODE -ne 0) { throw 'Installer fixtures failed' }
+      - name: Verify updater callback and launch contracts without native UI
+        shell: pwsh
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go test ./internal/platform/windows
+          if ($LASTEXITCODE -ne 0) { throw 'Updater contracts failed' }

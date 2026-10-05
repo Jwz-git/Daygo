@@ -94,8 +94,16 @@ elevated token. User-scope setup offers launch only when not running as admin.
 The install scope, product identity and two-pass signing sequence are unchanged.
 
 Silent failure codes include 10 (required files inaccessible/in use), 20 (WebView2
-unavailable after bootstrap), and the Wails architecture/OS codes 65/64.
+unavailable after bootstrap), 30 (existing update target missing), and the Wails architecture/OS codes 65/64.
 Setup checks files before changing them and does not kill the resident agent.
+`/DAYGO_UPDATE` shares a 30-second file-release wait across the required EXE and DLLs,
+because WinSparkle starts setup before asking Daygo to quit. New clients also pass
+the current executable directory using the final, unquoted `/D=` argument; older
+clients receive `/DAYGO_UPDATE` from the appcast and setup recovers `InstallLocation`
+or the legacy `DisplayIcon` directory in the installer's registry scope. Missing
+targets fail instead of creating a second installation. Ordinary installation and
+uninstallation retain the immediate in-use-file refusal. Launch failure, including
+UAC cancellation, restores previously active recording before WinSparkle reports failure.
 The access checks are not an atomic upgrade transaction: a concurrent launch or
 I/O failure can still interrupt extraction, which fails rather than offering
 Ignore for a required DLL. This needs the real WD-5 recovery check.
@@ -107,7 +115,7 @@ python3 scripts/windows-installer/test_installer.py
 ```
 
 On Windows use `python` instead of `python3`. The separate Windows installer
-fixture workflow runs compilation, PowerShell parsing and anonymous `/S` cases;
+fixture workflow runs compilation, PowerShell parsing, updater callback contracts and anonymous `/S` cases;
 it does not build or publish a Daygo release. Manual WD-3 also needs all nine
 languages at 100%, 150% and 200% scaling, keyboard navigation, the two scope
 finish pages, optional shortcuts, and upgrade/uninstall while Daygo is resident.

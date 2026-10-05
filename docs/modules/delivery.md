@@ -46,6 +46,9 @@ Updater 已按 [macOS 决策](../decisions/delivery-auto-update.md)和
 Sparkle / WinSparkle 适配器、共用 Ed25519 appcast、安装前 owner / recorder 收尾和 GitHub Release workflow
 均已落盘。普通 macOS 开发构建不带 `daygo_updater` tag，诚实显示不可用；发行脚本才嵌入 Sparkle。
 客户端 feed 指向同一正式 Release 的 `appcast.xml`。发布到 appcast 上传之间可能短暂返回 404；
+2026-10-05 修正 Windows 安装交接：自定义启动回调传入当前目录，安装器在更新模式下共享
+30 秒文件释放等待预算；旧客户端由 appcast 更新参数进入同一路径，按安装注册表恢复旧目录。
+UAC 取消 / 启动失败恢复此前录制，错误 / 取消 / 关闭回调解除检查状态；增量证据见本册验证记录。
 预发布提升为正式版后，可按同一 tag 手动触发工作流并核验资产。现有身份下安装升级与首次引导
 的用户确认状态见本节开头；正式签名 / 公证不在确认范围；历史运行记录仍按下文原日期保留。
 捕获文档历史静态库编译探针不构成发行身份或升级证据。
@@ -128,6 +131,23 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
+
+2026-10-05（Windows 更新交接，`test`、基于 `051bc5f` 的工作树，macOS arm64 / Go 1.25.6，
+NSIS 3.12、Python 3.9.6）：核对 WinSparkle 0.9.4 固定版本源码，确认其先启动安装器、后请求
+宿主退出，且启动失败不触发 error callback。先固定 owner / 收尾失败拒绝、启动失败恢复一次、
+成功交接不恢复、取消后可重试、检查复位与并发发现 / 关闭的匿名 Go 夹具；新增 session 实现前
+测试因缺类型失败。先固定 appcast 更新参数和五项 Windows 运行夹具，原生成器因缺
+`sparkle:installerArguments` 失败，未改期望。修正后 `CGO_ENABLED=0 go test
+./internal/platform/windows ./internal/app`、`go test -race ./internal/platform/windows`、
+`GOOS=windows CGO_ENABLED=0 go test -c -o /tmp/daygo-windows-updater.test.exe
+./internal/platform/windows` 与完整 `./scripts/gate.sh` 通过：Go / vet / 无格式输出、三平台
+核心构建、前端类型 / 单元 / 构建、59 篇 Markdown 链接检查均通过；NSIS 两种范围编译、
+缺 DLL 拒绝封装、九语言与 appcast 夹具通过（共 15 项，10 项 Windows 执行夹具在本机跳过）。
+更新期占用等待、超时保留、InstallLocation / 旧 DisplayIcon 恢复、显式路径优先与缺目标拒绝
+已接入 Windows CI；本条写入时 Windows 执行结果待记录。未运行真实 WinSparkle 下载 / 验签、
+UAC 与旧正式版 → 新正式版升级，不提升 G-native / WD；当前机器级 feed 不构成跨安装范围迁移
+验收，成功安装后仍由用户启动应用。回退可反向应用本次 updater / NSIS / appcast 补丁；
+不变更数据库或凭据，不生成 / 上传发行产物。
 
 2026-10-03（仓库忽略规则，`feature/plan`、基于 `31cf614` 的未提交工作树，macOS arm64，
 Git 2.50.1 / Python 3.9.6）：移除整目录 `build/` 忽略，按实际输出目录排除构建产物；

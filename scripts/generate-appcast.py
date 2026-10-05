@@ -17,6 +17,10 @@ def enclosure(url: str, path: Path, signature: str, os_name: str) -> str:
         "sparkle:edSignature": signature,
         "sparkle:os": os_name,
     }
+    if os_name == "windows":
+        # Older clients use WinSparkle's default launcher. The installer must
+        # still wait for their asynchronous shutdown and recover the old path.
+        attrs["sparkle:installerArguments"] = "/DAYGO_UPDATE"
     rendered = " ".join(f'{key}="{html.escape(value, quote=True)}"' for key, value in attrs.items())
     return f"      <enclosure {rendered} />"
 

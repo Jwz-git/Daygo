@@ -19,6 +19,19 @@ NSIS 将 `WinSparkle.dll` 与 `Daygo.exe`、`daygo_windows_native.dll` 一起安
 
 `win_sparkle_set_can_shutdown_callback` 只允许同时持有写锁和捕获锁的实例安装，并在返回允许前同步
 停止 recorder、收尾活跃分段；随后 `win_sparkle_set_shutdown_request_callback` 走 Wails 真退出。
+**2026-10-05 交接修正**：WinSparkle 0.9.4 的安装顺序是先启动安装器，再请求宿主退出，
+不是等待宿主退出后才启动（[固定版本源码](https://github.com/vslavik/winsparkle/blob/v0.9.4/src/ui.cpp)）。
+继续使用 WinSparkle 的下载、验签与原生 UI；`user_run_installer` 回调仅负责通过 ShellExecute
+传入 `/DAYGO_UPDATE /D=<当前 EXE 目录>`，保持 NSIS 要求的 `/D=` 最后且不加引号。
+启动失败（含 UAC 取消）立即解除更新录制闸门并恢复此前录制，不放行真退出；错误、取消和
+关闭更新弹窗也清除检查状态，重复回调只恢复一次。成功启动后才接受 shutdown 请求，且只执行一次。
+NSIS 更新模式在写入任何载荷前等待旧 EXE / DLL 释放，100 ms 重试，共享 30 秒预算；
+超时保留旧文件并报原有占用错误，不强制结束进程。普通安装和卸载仍立即拒绝占用文件。
+appcast 的 Windows enclosure 带 `/DAYGO_UPDATE`，让旧适配器也进入安装器等待路径；未显式
+传入 `/D=` 时，在该安装包的注册表范围内恢复 `InstallLocation`，旧记录回退到 `DisplayIcon`
+的目录，找不到有效旧安装则以 30 退出，不能在默认目录另建一份安装。
+当前发布工作流提供 machine 安装包；此修正不将 user → machine 的跨范围迁移视为已验收，
+也不从提权安装器自动启动常驻 Agent。安装后继续由用户从开始菜单打开。
 更新安装器必须通过 Ed25519 验证；有 Authenticode 证书时再提供平台签名。2026-09-25 用户决定
 不申请正式平台签名材料，发布工作流不再以 Authenticode 验证阻止 appcast 生成。
 Ed25519 私钥只在本机钥匙串和受保护的 GitHub Actions Secret，客户端只包含公钥。无 Authenticode
