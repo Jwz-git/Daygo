@@ -158,6 +158,13 @@ func (r *AnalysisRepo) CreateBatch(ctx context.Context, frames []AnalysisFrame, 
 			return wrap("insert batch id", err)
 		}
 		for _, f := range frames {
+			var live bool
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM screenshots WHERE id=? AND is_deleted=0)`, f.ID).Scan(&live); err != nil {
+				return wrap("check batch frame", err)
+			}
+			if !live {
+				return newError(KindConstraint, "create batch: frame is no longer available")
+			}
 			if _, err := tx.ExecContext(ctx,
 				`INSERT INTO batch_screenshots (batch_id, screenshot_id) VALUES (?, ?)`,
 				batch.ID, f.ID); err != nil {

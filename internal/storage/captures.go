@@ -46,6 +46,8 @@ func (r *CaptureRepo) Begin(ctx context.Context, relativePath string, frameIndex
 	if !platform.ValidSegmentPath(relativePath) || frameIndex < 0 || width < 1 || height < 1 {
 		return 0, fmt.Errorf("captures: invalid pending capture")
 	}
+	r.store.segmentMu.Lock()
+	defer r.store.segmentMu.Unlock()
 	var id int64
 	err := r.store.Write(ctx, "capture begin", func(ctx context.Context, tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `INSERT INTO pending_captures(relative_path,frame_index,captured_at,idle_seconds,width,height,redacted,state,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, relativePath, frameIndex, capturedAt.Unix(), idle, width, height, boolInt(redacted), PendingCaptureState, time.Now().Unix())
@@ -55,6 +57,12 @@ func (r *CaptureRepo) Begin(ctx context.Context, relativePath string, frameIndex
 		id, err = res.LastInsertId()
 		return err
 	})
+	if err == nil && strings.EqualFold(filepath.Ext(relativePath), ".mp4") {
+		if r.store.openSegments == nil {
+			r.store.openSegments = make(map[string]struct{})
+		}
+		r.store.openSegments[relativePath] = struct{}{}
+	}
 	return id, err
 }
 
@@ -233,11 +241,15 @@ func (r *CaptureRepo) Reconcile(ctx context.Context, root string) error {
 // AmortizeSegment redistributes the segment's total file_size evenly across
 // all committed, non-deleted frames in that segment (docs/03 §3.4 and AGENTS.md:
 // screenshots.file_size is the amortized per-frame share).
+// The caller must have finalized the container first. Successful accounting
+// releases its cleanup protection; a failure keeps the segment protected.
 func (r *CaptureRepo) AmortizeSegment(ctx context.Context, segmentPath string, totalSize int64) error {
 	if r == nil || r.store == nil || segmentPath == "" {
 		return nil
 	}
-	return r.store.Write(ctx, "capture amortize segment", func(ctx context.Context, tx *sql.Tx) error {
+	r.store.segmentMu.Lock()
+	defer r.store.segmentMu.Unlock()
+	err := r.store.Write(ctx, "capture amortize segment", func(ctx context.Context, tx *sql.Tx) error {
 		var count int64
 		if err := tx.QueryRowContext(ctx, `
 			SELECT COUNT(*)
@@ -269,6 +281,10 @@ func (r *CaptureRepo) AmortizeSegment(ctx context.Context, segmentPath string, t
 			WHERE segment_path = ? AND is_deleted = 0`, perFrame, segmentPath)
 		return err
 	})
+	if err == nil {
+		delete(r.store.openSegments, segmentPath)
+	}
+	return err
 }
 func boolInt(v bool) int {
 	if v {

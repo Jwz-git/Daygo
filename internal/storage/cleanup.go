@@ -32,18 +32,15 @@ const cleanupStaleFileAge = time.Hour
 //
 //   - usage is SUM(file_size) over live screenshots rows, never a directory
 //     scan (03 §3.4: file_size is the per-frame share of storage);
-//   - a pending capture's staging file is the ACTIVE segment and is never a
-//     candidate, nor is any frame rented by a pending or processing batch;
+//   - pending/blocked capture files and open MP4 containers are never candidates,
+//     nor is any frame rented by a pending or processing batch;
 //   - deletion is two-phase so a crash cannot leave a live row pointing at a
 //     missing file: the rows are soft-deleted first (the intent), then the
 //     files go outside any transaction;
 //   - timeline cards are untouched — after cleanup the user still sees what
 //     they did in that span, just with no frames to view.
 //
-// In the current pipeline every frame is a single-frame segment (one JPEG per
-// screenshots row), so per-row cleanup IS per-segment cleanup; when the
-// segment builder lands, this migrates to per-segment without changing the
-// boundary rules. limitBytes <= 0 means unlimited and is a no-op.
+// Cleanup groups all frames by segment_path. limitBytes <= 0 is a no-op.
 func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes int64) (CleanupResult, error) {
 	var result CleanupResult
 	if s == nil {
@@ -56,6 +53,8 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 		// 0 is the documented "no limit": nothing to enforce.
 		return result, nil
 	}
+	s.segmentMu.Lock()
+	defer s.segmentMu.Unlock()
 
 	usage, err := s.recordingsUsage(ctx)
 	if err != nil {
@@ -102,7 +101,7 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 	// Phase 1: the intent. Soft-delete exactly these rows, re-asserting
 	// is_deleted = 0 so a concurrent pass cannot double-delete; only rows the
 	// update actually touched count toward the result.
-	deleted, freed, err := s.softDeleteSegments(ctx, selected)
+	deleted, freed, removed, err := s.softDeleteSegments(ctx, selected)
 	if err != nil {
 		return result, err
 	}
@@ -112,7 +111,7 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 	// Phase 2: the files, outside any transaction. A missing file is fine —
 	// the row is already soft-deleted either way, and a removal failure only
 	// leaves an orphan the next pass's sweep will catch.
-	for _, seg := range selected {
+	for _, seg := range removed {
 		if seg.segmentPath == "" {
 			continue
 		}
@@ -178,7 +177,7 @@ func (s *Store) cleanupCandidates(ctx context.Context) ([]cleanupSegment, error)
 			  AND s.file_size IS NOT NULL
 			  AND NOT EXISTS (
 			      SELECT 1 FROM pending_captures p
-			      WHERE p.state = 'pending' AND p.relative_path = s.segment_path)
+		      WHERE p.state IN ('pending', 'blocked') AND p.relative_path = s.segment_path)
 			  AND NOT EXISTS (
 			      SELECT 1 FROM batch_screenshots bs
 			      JOIN analysis_batches b ON b.id = bs.batch_id
@@ -195,6 +194,9 @@ func (s *Store) cleanupCandidates(ctx context.Context) ([]cleanupSegment, error)
 			if err := rows.Scan(&seg.segmentPath, &seg.oldestAt, &seg.fileSize); err != nil {
 				return wrap("scan cleanup candidate", err)
 			}
+			if _, open := s.openSegments[seg.segmentPath]; open {
+				continue
+			}
 			out = append(out, seg)
 		}
 		return rows.Err()
@@ -202,9 +204,25 @@ func (s *Store) cleanupCandidates(ctx context.Context) ([]cleanupSegment, error)
 	return out, err
 }
 
-func (s *Store) softDeleteSegments(ctx context.Context, segments []cleanupSegment) (deleted int, freed int64, err error) {
+func (s *Store) softDeleteSegments(ctx context.Context, segments []cleanupSegment) (deleted int, freed int64, removed []cleanupSegment, err error) {
 	err = s.Write(ctx, "cleanup soft-delete segments", func(ctx context.Context, tx *sql.Tx) error {
 		for _, seg := range segments {
+			// Batch membership may change after candidate discovery. Recheck in
+			// the same write transaction that deletes rows, and return only paths
+			// actually deleted to the physical-removal phase.
+			var protected bool
+			if err := tx.QueryRowContext(ctx, `SELECT
+				EXISTS(SELECT 1 FROM pending_captures WHERE relative_path=? AND state IN ('pending','blocked'))
+				OR EXISTS(SELECT 1 FROM batch_screenshots bs
+					JOIN analysis_batches b ON b.id=bs.batch_id
+					JOIN screenshots s ON s.id=bs.screenshot_id
+					WHERE s.segment_path=? AND b.status IN ('pending','processing'))`,
+				seg.segmentPath, seg.segmentPath).Scan(&protected); err != nil {
+				return wrap("recheck segment protection", err)
+			}
+			if protected {
+				continue
+			}
 			var segFreed int64
 			if err := tx.QueryRowContext(ctx,
 				"SELECT COALESCE(SUM(file_size), 0) FROM screenshots WHERE segment_path = ? AND is_deleted = 0", seg.segmentPath).Scan(&segFreed); err != nil {
@@ -218,11 +236,12 @@ func (s *Store) softDeleteSegments(ctx context.Context, segments []cleanupSegmen
 			if n, rowsErr := res.RowsAffected(); rowsErr == nil && n > 0 {
 				deleted += int(n)
 				freed += segFreed
+				removed = append(removed, seg)
 			}
 		}
 		return nil
 	})
-	return deleted, freed, err
+	return deleted, freed, removed, err
 }
 
 // sweepOrphanFiles removes files under root that no database row claims
@@ -232,6 +251,9 @@ func (s *Store) softDeleteSegments(ctx context.Context, segments []cleanupSegmen
 // unreadable entry never fails the pass, the next one retries.
 func (s *Store) sweepOrphanFiles(ctx context.Context, root string) error {
 	referenced := make(map[string]bool)
+	for segment := range s.openSegments {
+		referenced[segment] = true
+	}
 	if err := s.Read(ctx, "cleanup sweep refs", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
 			"SELECT segment_path FROM screenshots WHERE is_deleted = 0")
@@ -250,7 +272,7 @@ func (s *Store) sweepOrphanFiles(ctx context.Context, root string) error {
 			return err
 		}
 		pending, err := tx.QueryContext(ctx,
-			"SELECT relative_path FROM pending_captures WHERE state = 'pending'")
+			"SELECT relative_path FROM pending_captures WHERE state IN ('pending', 'blocked')")
 		if err != nil {
 			return err
 		}

@@ -470,7 +470,8 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 
 三条不变量：
 
-1. **绝不删除活跃分段。**
+1. **绝不删除活跃分段。** MP4 从 Begin 注册到原生收尾后的 AmortizeSegment 成功一直受 Store
+   保护；逐帧 Commit 不释放。清理与注册 / 释放互斥，孤儿扫描也遵守该集合；重启先 Reconcile。
 2. `screenshots.file_size` 是分段总大小**均摊**到该分段每一行的值。要得到实际磁盘占用，
    必须逐行求和；把某一行的值当成单帧大小是错的。
 3. 启动时必须执行一次对账：恢复已登记的 staging/pending；探测已发布但尚未结构化提交的

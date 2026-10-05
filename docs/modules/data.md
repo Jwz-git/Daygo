@@ -73,13 +73,15 @@ Windows 录制目录迁移已增加纯 Go 复制、SHA-256 校验、数据库状
 **已可供消费者接入**（`09 §9.3`）：db-core、settings-store、diagnostics。
 维护的 checkpoint、备份与损坏恢复已可用；**录制清理已按分段实现**。当前 macOS 管线把多帧写入
 同一 HEVC/MP4 分段，`screenshots.file_size` 保存该段总大小的逐帧均摊值。清理按
-`segment_path` 聚合候选并整段软删除，事务外只删除一次段文件；活跃 pending 分段和被
-`pending` / `processing` 批次租用的分段绝不删除，卡片保留。当前无需单独的
-`recording_segments` 表；用量、活跃边界和租用关系由现有表推导（`CleanupRecordings`，
-`internal/storage/cleanup.go`）。孤儿清扫兜底两阶段删除的崩溃窗口。
+`segment_path` 聚合候选并整段软删除，事务外只删除实际软删除的段文件；pending / blocked
+捕获、未收尾 MP4 和被 `pending` / `processing` 批次租用的分段绝不删除，卡片保留。
+用量与租用关系由现有表推导；活跃 MP4 由 Store 所有的保护集合记录（Begin 注册，原生收尾后
+AmortizeSegment 成功才释放），不由逐帧 committed 状态推断。注册 / 释放和整个清理共用互斥锁；
+删除事务内重查租用，批次创建事务内拒绝已删除帧。孤儿清扫也保留活跃集合与 pending / blocked。
+重启不恢复内存集合：启动 Reconcile 先处理未完成容器，再启动捕获与维护；异常段按既有恢复规则处理。
+当前无需单独的 `recording_segments` 表（`CleanupRecordings`，`internal/storage/cleanup.go`）。
 `Maintainer` 每小时跑一次，上限从 `storage.recordingsLimitBytes` 实时读取（读取失败按 0=不限
-处理，宁可跳过也不在不确定中删文件）。`recording_segments` 表与分段构建器落地后迁移为
-按段清理，边界规则不变。
+处理，宁可跳过也不在不确定中删文件）。
 
 | 输入 | 可独立推进 | 真实接入条件 |
 |---|---|---|
@@ -134,6 +136,16 @@ opt-in 和隐私载荷符合 07；已完成 db-core 可提前被接入。
 故障先停止写入、保留原库与备份，按已验证恢复步骤处理；不得拿用户库测试破坏性迁移。
 
 ## 验证记录
+
+- **2026-10-05 活跃分段与租用保护（基于 `ce87533` 的 `test` 工作树，macOS arm64）**：
+  匿名夹具先复现已提交帧的活跃 MP4 被删除、放弃帧后的活跃孤儿被清扫，以及选择候选后
+  新增租用仍被软删除 / 已删帧仍能创建批次。修正后四项均被阻止；收尾并记账成功后可回收，
+  取消记账保留保护。既有多帧清理夹具显式补上收尾记账，原删除数量 / 字节预期不变。
+  `CGO_ENABLED=0 go test ./internal/storage ./internal/analysis ./internal/app -count=1` 与
+  `go test -race ./internal/storage -run '^(TestCleanup|TestOrphanSweep|TestCreateBatch)' -count=1`
+  通过；此前 storage / analysis / recorder / app 测试也通过。无 schema 变更。
+  DB-9 匿名自动化通过，不代表本次真实录制 IT-12 / 长期磁盘观察通过；真实数据未用于测试。
+  回退可还原本次提交，但会恢复活跃分段误删风险；无需数据库降级。
 
 - **2026-09-23 回归修复**：匿名夹具覆盖并发读后写事务、分类交换/链式改名、未超限孤儿文件清理与 URI 特殊字符路径；`./scripts/gate.sh` 通过。真实数据库和长时争用未在本次重跑。
 

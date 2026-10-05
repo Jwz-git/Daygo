@@ -306,6 +306,13 @@ func TestCleanupMultiFrameSegmentDeletesAllRowsAndFile(t *testing.T) {
 	}
 
 	// Limit is 1000 bytes: segment 1 (1500 bytes) must be deleted entirely, keeping segment 2 (1000 bytes)
+	// These fixture containers are finalized; per-frame Commit alone is not closure.
+	if err := store.Captures().AmortizeSegment(ctx, seg1, 1500); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Captures().AmortizeSegment(ctx, seg2, 1000); err != nil {
+		t.Fatal(err)
+	}
 	res, err := store.CleanupRecordings(ctx, root, 1000)
 	if err != nil {
 		t.Fatalf("CleanupRecordings: %v", err)

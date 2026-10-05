@@ -69,6 +69,13 @@ type Store struct {
 	backupMu  sync.Mutex
 	backupSeq int
 
+	// segmentMu serializes capture registration/finalization with cleanup.
+	// A committed MP4 frame does not finalize its container: openSegments keeps
+	// that protection until the recorder closes and accounts for the segment.
+	// Startup reconciliation settles interrupted containers before capture starts.
+	segmentMu    sync.Mutex
+	openSegments map[string]struct{}
+
 	// subscribers receive settings-change notifications. The mutex guards both
 	// the set and the sends, so a notify never races with a Watch teardown.
 	subMu       sync.Mutex
