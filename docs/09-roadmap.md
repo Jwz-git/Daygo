@@ -65,8 +65,9 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 
 **2026-10-05 Windows 更新交接**：启动安装器传入当前目录，更新模式在写入前等待旧文件释放；
 UAC 取消 / 启动失败恢复录制，终态回调复位检查。匿名 Go / race、三平台核心构建、NSIS
-两种范围编译、九语言和 appcast 夹具与完整门禁通过；10 项 Windows 运行夹具本机跳过，
-已接 CI，真实 WinSparkle / UAC / WD 增量未复测，详见 [delivery 验证记录](modules/delivery.md#验证记录)。
+两种范围编译、九语言和 appcast 夹具与完整门禁通过；Windows CI 实际运行 15 项安装器
+夹具全部通过（0 失败 / 跳过），更新 Go 契约、真实系统回调跳板和 Windows vet 通过。
+真实 WinSparkle / UAC / WD 增量未复测，详见 [delivery 验证记录](modules/delivery.md#验证记录)。
 
 **2026-10-05 配置模型 combobox**：获取模型仅填充候选，由用户逐项选择或手填；模型编辑保留
 候选，服务来源变化清空并丢弃旧请求结果。聚焦 / 立即保存与键盘选择修复，九语言同步。

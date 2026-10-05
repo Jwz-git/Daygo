@@ -141,10 +141,10 @@ NSIS 3.12、Python 3.9.6）：核对 WinSparkle 0.9.4 固定版本源码，确�
 ./internal/platform/windows ./internal/app`、`go test -race ./internal/platform/windows`、
 `GOOS=windows CGO_ENABLED=0 go test -c -o /tmp/daygo-windows-updater.test.exe
 ./internal/platform/windows` 与完整 `./scripts/gate.sh` 通过：Go / vet / 无格式输出、三平台
-核心构建、前端类型 / 单元 / 构建、59 篇 Markdown 链接检查均通过；NSIS 两种范围编译、
+核心构建、前端类型 / 255 项单元（0 失败 / 跳过）/ 构建、59 篇 Markdown 链接检查均通过；NSIS 两种范围编译、
 缺 DLL 拒绝封装、九语言与 appcast 夹具通过（共 15 项，10 项 Windows 执行夹具在本机跳过）。
 更新期占用等待、超时保留、InstallLocation / 旧 DisplayIcon 恢复、显式路径优先与缺目标拒绝
-已接入 Windows CI；本条写入时 Windows 执行结果待记录。未运行真实 WinSparkle 下载 / 验签、
+已接入 Windows CI；结果见同日下方追加记录。未运行真实 WinSparkle 下载 / 验签、
 UAC 与旧正式版 → 新正式版升级，不提升 G-native / WD；当前机器级 feed 不构成跨安装范围迁移
 验收，成功安装后仍由用户启动应用。回退可反向应用本次 updater / NSIS / appcast 补丁；
 不变更数据库或凭据，不生成 / 上传发行产物。
@@ -153,7 +153,24 @@ UAC 与旧正式版 → 新正式版升级，不提升 G-native / WD；当前机
 ./internal/platform/windows`，发现 installer callback 的 `uintptr → unsafe.Pointer` 转换
 被目标平台 vet 拒绝。改用与 WinSparkle `const wchar_t *` 一致的 `*uint16` 入参，补充通过
 Windows 系统回调跳板解码含空格 / 中文的路径及空指针恢复夹具；不调用真实安装器 / 原生 UI。
-该项纳入 Windows CI 的测试与 vet；本机交叉 vet / 测试编译通过，Windows 执行结果待记录。
+该项纳入 Windows CI 的测试与 vet；本机交叉 vet / 测试编译通过，Windows 执行结果见下方追加记录。
+
+同日 Windows CI 追加（`eecc934`，`windows-2025` amd64 / Go 1.25.0 / Python 3.12.10 /
+NSIS 3.13.0，[运行 37320678692](https://github.com/Jwz-git/Daygo/actions/runs/37320678692)）：
+PowerShell 打包脚本语法检查、`python scripts/windows-installer/test_installer.py` 的 15 项全部
+通过（0 失败 / 跳过），包括实际等待文件解锁后替换、持续占用超时保留三个旧文件、
+InstallLocation 与旧 DisplayIcon 恢复含空格目录、显式 `/D=` 优先、缺目标返回 30；
+`CGO_ENABLED=0 go test ./internal/platform/windows` 通过。载荷为临时目录里的匿名字节，
+注册表与快捷方式采用唯一夹具身份并清理；此运行不证明真实 WinSparkle / UAC / Wails 退出
+与完整 WD 升级，也不将 user-scope 运行夹具写为 machine-scope 实际安装通过。
+
+同日最新代码复验（`339a8cd`，同类 Windows 环境，
+[运行 37321051595](https://github.com/Jwz-git/Daygo/actions/runs/37321051595)）：15 项安装器夹具
+再次全部通过（0 失败 / 跳过）；`CGO_ENABLED=0 go test ./internal/platform/windows` 与
+`go vet ./internal/platform/windows` 通过，包含实际调用 Windows 回调跳板传递 UTF-16
+空格 / 中文路径，以及空指针拒绝并恢复录制的两项夹具。该运行使用本次修正后的指针入参；
+仍未调用真实 WinSparkle / ShellExecute 安装器，不扩大上述真实升级验收范围。
+最终文档同步另跑 `python3 scripts/check-docs.py` 与 `git diff --check`，均通过。
 
 2026-10-03（仓库忽略规则，`feature/plan`、基于 `31cf614` 的未提交工作树，macOS arm64，
 Git 2.50.1 / Python 3.9.6）：移除整目录 `build/` 忽略，按实际输出目录排除构建产物；
