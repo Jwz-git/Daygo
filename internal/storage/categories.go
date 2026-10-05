@@ -91,6 +91,8 @@ func (r *CategoryRepo) ByName(ctx context.Context, name string) (domain.Category
 // Input rows with an empty ID are new; storage generates the UUID so the
 // identifier is assigned exactly once, at the write.
 func (r *CategoryRepo) Save(ctx context.Context, cats []domain.Category) error {
+	cats = append([]domain.Category(nil), cats...)
+	ids := make(map[string]bool, len(cats))
 	for i, c := range cats {
 		if c.Name == "" {
 			return newError(KindConstraint, fmt.Sprintf("save categories: row %d has an empty name", i))
@@ -99,6 +101,17 @@ func (r *CategoryRepo) Save(ctx context.Context, cats []domain.Category) error {
 			return newError(KindConstraint, fmt.Sprintf(
 				"save categories: row %d (%q) claims is_system; built-ins are assigned by the database", i, c.Name))
 		}
+		if c.ID == "" {
+			id, err := newCategoryID()
+			if err != nil {
+				return err
+			}
+			cats[i].ID = id
+		}
+		if ids[cats[i].ID] {
+			return newError(KindConstraint, "save categories: duplicate category id")
+		}
+		ids[cats[i].ID] = true
 	}
 
 	at := r.store.now().Unix()
@@ -111,11 +124,12 @@ func (r *CategoryRepo) Save(ctx context.Context, cats []domain.Category) error {
 		// Merge the built-ins into the input so the write set always contains
 		// them; their identity is fixed and cannot come from the caller.
 		merged := make([]domain.Category, 0, len(cats)+len(existing))
-		builtIns := 0
 		for _, e := range existing {
 			if e.IsSystem {
+				if ids[e.ID] {
+					return newError(KindConstraint, "save categories: built-in category id cannot be overwritten")
+				}
 				merged = append(merged, e)
-				builtIns++
 			}
 		}
 		merged = append(merged, cats...)
@@ -140,8 +154,43 @@ func (r *CategoryRepo) Save(ctx context.Context, cats []domain.Category) error {
 			renames[e.Name] = c.Name
 		}
 
-		if _, err := tx.ExecContext(ctx, `DELETE FROM categories WHERE is_system = 0`); err != nil {
-			return wrap("delete categories", err)
+		// Only genuinely removed IDs are deleted. Recreating a surviving ID
+		// would fire plan ON DELETE SET NULL and violate goal foreign keys.
+		for _, e := range existing {
+			if !e.IsSystem && !ids[e.ID] {
+				if _, err := tx.ExecContext(ctx, `DELETE FROM categories WHERE id = ?`, e.ID); err != nil {
+					return wrap("delete removed category", err)
+				}
+			}
+		}
+		// Release renamed names without releasing identity. Temporary names
+		// permit swaps/chains despite UNIQUE(name); nothing sees them outside
+		// this transaction and card rewrites still use the original names.
+		occupied := make(map[string]bool, len(existing)+len(merged))
+		for _, c := range existing {
+			occupied[c.Name] = true
+		}
+		for _, c := range merged {
+			occupied[c.Name] = true
+		}
+		for _, c := range cats {
+			if e, ok := byID[c.ID]; ok && e.Name != c.Name {
+				var temporary string
+				for {
+					id, err := newCategoryID()
+					if err != nil {
+						return err
+					}
+					temporary = "__daygo_category_" + id
+					if !occupied[temporary] {
+						break
+					}
+				}
+				occupied[temporary] = true
+				if _, err := tx.ExecContext(ctx, `UPDATE categories SET name = ? WHERE id = ?`, temporary, c.ID); err != nil {
+					return wrap("release renamed category name", err)
+				}
+			}
 		}
 		for i := range merged {
 			if err := upsertCategory(ctx, tx, merged[i], at); err != nil {

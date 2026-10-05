@@ -449,7 +449,9 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 - `UpdateSettings` 是**局部补丁**：只有出现在负载中的键被应用（Go 侧字段用指针区分
   "未提供"与"置空"）。返回值是规范化、夹取后的完整设置，`settings:changed` 的 payload
   只带被改动的键名。
-- `SaveCategories` 是整体覆盖。**重命名分类必须在同一事务内同步改写已有卡片的
+- `SaveCategories` 是整体覆盖，按 ID 更新而不删除重建保留的分类。重复 ID 或冒用内置 ID
+  被拒绝；未改动、改名与名称互换保留目标 / 计划引用。真正删除被目标引用的分类由外键拒绝，
+  删除其他分类时计划引用置空。**重命名分类必须在同一事务内同步改写已有卡片的
   `category` 字符串**，因此它也触发 `timeline:updated`。
 
 #### Provider
