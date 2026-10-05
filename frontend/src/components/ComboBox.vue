@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 /**
@@ -37,12 +37,16 @@ const { t } = useI18n()
 
 const open = ref(false)
 const query = ref('')
+const filtering = ref(false)
+const activeIndex = ref(-1)
 const input = ref<HTMLInputElement | null>(null)
+const list = ref<HTMLUListElement | null>(null)
+const listId = `combo-${useId()}`
 
 /** The text shown in the closed state: the matched option's label, or the
  * raw value (a hand-typed model name, say) when no option matches. */
 const display = computed(() => {
-  if (open.value) return query.value
+  if (open.value && filtering.value) return query.value
   const match = props.options.find((option) => option.value === props.modelValue)
   if (match !== undefined) return match.label
   if (props.modelValue !== '' && props.fallbackLabel !== '') return props.fallbackLabel
@@ -50,7 +54,7 @@ const display = computed(() => {
 })
 
 const filtered = computed(() => {
-  const needle = query.value.trim().toLowerCase()
+  const needle = filtering.value ? query.value.trim().toLowerCase() : ''
   if (needle === '') return props.options
   return props.options.filter((option) => {
     const haystack = `${option.value} ${option.label} ${option.detail ?? ''}`.toLowerCase()
@@ -58,54 +62,74 @@ const filtered = computed(() => {
   })
 })
 
-watch(open, (next) => {
-  if (next) query.value = ''
-})
+watch(filtered, () => { activeIndex.value = -1 }, { flush: 'sync' })
+watch(() => props.disabled, (disabled) => { if (disabled) open.value = false })
+
+function openDropdown(): void {
+  if (props.disabled || open.value) return
+  filtering.value = false
+  query.value = ''
+  activeIndex.value = -1
+  open.value = true
+}
 
 function select(value: string): void {
-  open.value = false
+  if (props.disabled) return
   input.value?.focus()
+  open.value = false
+  filtering.value = false
   if (value !== props.modelValue) emit('update:modelValue', value)
 }
 
 function onInput(event: Event): void {
+  openDropdown()
   query.value = (event.target as HTMLInputElement).value
-  if (!open.value) open.value = true
+  filtering.value = true
+  // Update immediately so clicking Save cannot race a delayed blur commit.
+  emit('update:modelValue', query.value)
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.isComposing || event.keyCode === 229) return
+  if (props.disabled || event.isComposing || event.keyCode === 229) return
   if (event.key === 'Escape') {
+    if (open.value) event.preventDefault()
     open.value = false
     return
   }
-  if (event.key === 'ArrowDown' && filtered.value.length > 0) {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
-    open.value = true
+    openDropdown()
+    const count = filtered.value.length
+    if (count === 0) return
+    activeIndex.value = activeIndex.value < 0
+      ? event.key === 'ArrowDown' ? 0 : count - 1
+      : (activeIndex.value + (event.key === 'ArrowDown' ? 1 : -1) + count) % count
+    void nextTick(() => list.value?.children[activeIndex.value]?.scrollIntoView({ block: 'nearest' }))
+  } else if (event.key === 'Enter' && open.value) {
+    event.preventDefault()
+    const option = filtered.value[activeIndex.value]
+    if (option !== undefined) select(option.value)
+    else onInputBlur()
   }
 }
 
 function onToggle(): void {
   if (props.disabled) return
-  open.value = !open.value
-  if (open.value) input.value?.focus()
+  if (open.value) open.value = false
+  else {
+    input.value?.focus()
+    openDropdown()
+  }
 }
 
 function onInputBlur(): void {
-  // Commit the typed text when it stops matching a filtered option's value or
-  // label exactly; clicking an option re-focuses first, so a pick never lands
-  // here as a partial commit.
-  window.setTimeout(() => {
-    if (!open.value) return
-    open.value = false
-    const typed = query.value.trim()
-    if (typed === '') return
-    const exact = props.options.find(
-      (option) => option.value === typed || option.label === typed,
-    )
-    const picked = exact !== undefined ? exact.value : typed
-    if (picked !== props.modelValue) emit('update:modelValue', picked)
-  }, 120)
+  open.value = false
+  if (!filtering.value) return
+  const typed = query.value.trim()
+  const exact = props.options.find((option) => option.value === typed || option.label === typed)
+  const picked = exact?.value ?? typed
+  if (picked !== props.modelValue) emit('update:modelValue', picked)
+  filtering.value = false
 }
 </script>
 
@@ -123,31 +147,37 @@ function onInputBlur(): void {
       :aria-label="ariaLabel || placeholder"
       role="combobox"
       :aria-expanded="open"
+      :aria-controls="listId"
+      :aria-activedescendant="open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined"
       aria-autocomplete="list"
       @input="onInput"
-      @focus="open = true"
+      @focus="openDropdown"
       @blur="onInputBlur"
       @keydown="onKeydown"
     />
     <button
       type="button"
       class="combo__toggle"
+      :disabled="disabled"
       :tabindex="disabled ? -1 : 0"
       :aria-label="open ? t('common.combo.collapse') : t('common.combo.expand')"
-      @mousedown.prevent="onToggle"
+      @mousedown.prevent
+      @click="onToggle"
     >
       <span class="combo__chevron" aria-hidden="true">{{ open ? '▴' : '▾' }}</span>
     </button>
-    <ul v-if="open && !disabled" class="combo__list dg-popover" role="listbox">
+    <ul v-if="open && !disabled" :id="listId" ref="list" class="combo__list dg-popover" role="listbox">
       <li v-if="filtered.length === 0" class="combo__empty">
         <slot name="empty">{{ t('common.combo.noMatches') }}</slot>
       </li>
-      <li v-for="option in filtered" :key="option.value" role="option" :aria-selected="option.value === modelValue">
+      <li v-for="(option, index) in filtered" :id="`${listId}-${index}`" :key="option.value" role="option" :aria-selected="option.value === modelValue">
         <button
           type="button"
+          tabindex="-1"
           class="combo__option"
-          :class="{ 'combo__option--active': option.value === modelValue }"
-          @mousedown.prevent="select(option.value)"
+          :class="{ 'combo__option--active': option.value === modelValue || index === activeIndex }"
+          @mousedown.prevent
+          @click="select(option.value)"
         >
           <span class="combo__option-label">{{ option.label }}</span>
           <span v-if="option.detail !== undefined && option.detail !== ''" class="combo__option-detail">

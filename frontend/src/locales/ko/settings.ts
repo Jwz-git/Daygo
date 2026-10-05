@@ -197,7 +197,7 @@ export default {
       endpoint: '서비스 주소',
       model: '모델',
       models: '모델',
-      modelsHint: '모델을 최대 20개까지 추가하고 아래 사용 순서에서 각각 배치할 수 있습니다.',
+      modelsHint: '모델 이름을 직접 입력하거나 “모델 가져오기”를 누른 뒤 드롭다운에서 선택하세요. 최대 20개까지 추가할 수 있습니다.',
       modelAria: '모델 {index}',
       addModel: '모델 추가',
       removeModel: '이 모델 삭제',

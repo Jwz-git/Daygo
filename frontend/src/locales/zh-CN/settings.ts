@@ -197,7 +197,7 @@ export default {
       endpoint: '服务地址',
       model: '模型',
       models: '模型',
-      modelsHint: '可以添加多个模型（最多 20 个），并在下方的使用顺序中分别排列。',
+      modelsHint: '可手动输入模型名称，或点击“获取模型”后从下拉列表选择；最多添加 20 个模型。',
       modelAria: '模型 {index}',
       addModel: '添加模型',
       removeModel: '移除该模型',

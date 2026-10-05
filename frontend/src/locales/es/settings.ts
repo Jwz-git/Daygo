@@ -197,7 +197,7 @@ export default {
       endpoint: 'URL del servicio',
       model: 'Modelo',
       models: 'Modelos',
-      modelsHint: 'Añade hasta 20 modelos y ordénalos uno a uno en la lista de abajo.',
+      modelsHint: 'Escribe un nombre de modelo o pulsa «Obtener modelos» para elegir en la lista. Puedes añadir hasta 20 modelos.',
       modelAria: 'Modelo {index}',
       addModel: 'Añadir modelo',
       removeModel: 'Quitar este modelo',

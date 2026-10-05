@@ -197,7 +197,7 @@ export default {
       endpoint: 'Dienstadresse',
       model: 'Modell',
       models: 'Modelle',
-      modelsHint: 'Füge bis zu 20 Modelle hinzu und ordne jedes in der Reihenfolge unten an.',
+      modelsHint: 'Gib einen Modellnamen ein oder klicke auf „Modelle abrufen“ und wähle aus der Liste. Bis zu 20 Modelle sind möglich.',
       modelAria: 'Modell {index}',
       addModel: 'Modell hinzufügen',
       removeModel: 'Dieses Modell entfernen',

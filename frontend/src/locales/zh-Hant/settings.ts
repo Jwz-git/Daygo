@@ -197,7 +197,7 @@ export default {
       endpoint: '服務網址',
       model: '模型',
       models: '模型',
-      modelsHint: '可以加入多個模型（最多 20 個），並在下方的使用順序中分別排列。',
+      modelsHint: '可手動輸入模型名稱，或按「取得模型」後從下拉清單選擇；最多加入 20 個模型。',
       modelAria: '模型 {index}',
       addModel: '加入模型',
       removeModel: '移除這個模型',

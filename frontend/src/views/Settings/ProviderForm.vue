@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import ComboBox from '@/components/ComboBox.vue'
@@ -65,11 +65,6 @@ const modelOptions = computed(() => {
   return state.result.models.map((model) => ({ value: model, label: model }))
 })
 
-/** The models that carry a non-blank id; what the test dropdown offers. */
-const filledModels = computed(() =>
-  draft.models.map((model) => model.trim()).filter((model) => model !== ''),
-)
-
 const canAddModel = computed(() => draft.models.length < MAX_PROVIDER_MODELS)
 
 function addModelRow(): void {
@@ -88,22 +83,18 @@ function setModel(index: number, value: string): void {
   draft.models[index] = value
 }
 
-/** Fill any blank rows (then append) with a fetched list, deduped in order. */
-function applyFetchedModels(models: string[]): void {
-  const have = new Set(filledModels.value)
-  const additions = models.filter((model) => model.trim() !== '' && !have.has(model.trim()))
-  if (additions.length === 0) return
-  const kept = draft.models.filter((model) => model.trim() !== '')
-  const merged = [...kept, ...additions].slice(0, MAX_PROVIDER_MODELS)
-  draft.models = merged.length > 0 ? merged : ['']
-}
-
-// Clear model listings when their source configuration changes.
-watch(draft, () => {
-  if (modelsState.value.phase === 'done') {
+// Only source changes invalidate candidates; picking, adding or removing a
+// model must leave the fetched list available for the other rows.
+let modelsRevision = 0
+watch(
+  () => [draft.protocol, draft.endpoint, draft.secret, draft.userAgent],
+  () => {
+    modelsRevision++
     modelsState.value = { phase: 'idle' }
-  }
-})
+  },
+  { flush: 'sync' },
+)
+onBeforeUnmount(() => { modelsRevision++ })
 
 /*
  * A saved service with its key in the keychain can list models without the
@@ -134,6 +125,7 @@ function modelsFailureText(result: ProviderModelsResult): string {
 
 async function fetchModels(): Promise<void> {
   if (modelsState.value.phase === 'fetching' || !canFetchModels.value) return
+  const revision = ++modelsRevision
   modelsState.value = { phase: 'fetching' }
   try {
     const result = await listProviderModels(
@@ -146,9 +138,11 @@ async function fetchModels(): Promise<void> {
             userAgent: draft.userAgent.trim(),
           },
     )
+    if (revision !== modelsRevision) return
+    // Fetching offers choices; only an explicit pick configures a model.
     modelsState.value = { phase: 'done', result }
-    if (result.ok) applyFetchedModels(result.models)
   } catch {
+    if (revision !== modelsRevision) return
     modelsState.value = {
       phase: 'done',
       result: {

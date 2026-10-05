@@ -197,7 +197,7 @@ export default {
       endpoint: 'サービスの URL',
       model: 'モデル',
       models: 'モデル',
-      modelsHint: '最大 20 個のモデルを追加し、下の順序でそれぞれ並べられます。',
+      modelsHint: 'モデル名を入力するか、「モデルを取得」を押してドロップダウンから選択できます。最大 20 個まで追加できます。',
       modelAria: 'モデル {index}',
       addModel: 'モデルを追加',
       removeModel: 'このモデルを削除',

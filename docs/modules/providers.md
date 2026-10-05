@@ -17,6 +17,17 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-10-05 配置模型 combobox 修复（基于 `a9dc930` 的 test 工作树，macOS arm64）：
+单个服务的模型栏可手填或下拉选择；「获取模型」只更新候选，不自动将所有返回模型写入草稿。
+修复原先全表单监听导致获取后候选立即清空，以及聚焦清空显示值、延迟 blur 导致立即保存旧值的问题。
+模型选择 / 增删、服务名称与图片数编辑保留候选；协议 / 地址 / 密钥 / User-Agent 变化清空候选，
+丢弃旧请求及卸载后的迟到结果。支持输入筛选、方向键 / Enter 选择、Escape 收起；九语言提示同步。
+沿用 `ListProviderModels` 的草稿 / 已存密钥分支，地址或协议修改后不能把已存密钥发往新目的地。
+夹具先于实现复现自动添加、空候选、聚焦清空与保存旧值；另覆盖空 / 失败列表可手填、来源失效、
+重复请求闸门及迟到失败不覆盖新列表。真实 SFC 使用匿名 Vue host renderer / Wails 绑定夹具。
+验证结果与限制在下方本次验证记录中单列；不变更后端 DTO、数据库、钥匙串或历史门禁验收。
+回退：撤销本次提交即可，无数据迁移。
+
 2026-10-03 Anthropic 请求修复（基于 `a53934f` 的 test 未提交工作树，macOS arm64）：
 匿名 HTTP / TLS 夹具先于实现复现：`/v1` 与粘贴的 Messages 地址被重复追加版本路径；
 转录使用的 `minimum: 0` 原样发出后被夹具拒绝；SDK 附带环境中的无关 Authorization；
@@ -107,7 +118,8 @@ Provider CRUD / 路由链 / 密钥绑定（主要在 `internal/app/providers.go`
 前端 store 已以 Go 绑定为权威来源，写后重拉；表单支持多模型增删与逐模型测试，回退链编辑器
 以单一有序列表编排「供应商 + 模型」对；旧 localStorage 记录只在后端列表为空时做一次性
 无密钥迁移（单模型折为一元列表），成功后删除。`hasSecret` 仅由后端检查钥匙串后返回。
-模型列表查询与每 Provider 图片上限（v11，per-provider、与模型无关）也已接入。每 Provider 的
+模型列表查询与每 Provider 图片上限（v11，per-provider、与模型无关）也已接入；10-05 模型列表
+仅作为 combobox 候选，由用户逐项选择或手填，来源不变时保留候选。每 Provider 的
 User-Agent 覆盖已落地（v21 `providers.user_agent`，空串 = Go/SDK 默认；`internal/ai/factory`
 经 RoundTripper 对三协议统一注入，`ai.ListModels` 同步携带）。真实网络集成、完整 Wails 重启
 闭环与升级身份验证经用户确认已验收。
@@ -172,6 +184,24 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-10-05 配置模型 combobox（`a9dc930` 的 test 工作树，macOS arm64）**：匿名输入为已存服务
+  `https://example.invalid/v1`、自定义模型和返回的两项模型；期望获取仅更新候选、选择 / 手填保存
+  精确对应用户输入、其他模型行继续可选、旧来源响应不覆盖当前列表。原代码的五组夹具失败，
+  未改变行为期望；测试宿主补全 DOM / Teleport 操作，鼠标夹具跟随最终 click 事件选择。
+  完整 `./scripts/gate.sh` 通过（Go 内部测试 / vet / `CGO_ENABLED=0` 构建、三平台核心交叉构建、
+  前端 254 项单测 / typecheck / build、59 篇文档 0 问题；Windows 安装器 9 项中 4 项通过、
+  5 项需 Windows 主机跳过）。最终 click 收尾与追加来源竞态夹具后，
+  `npm --prefix frontend run test:unit` 255 项全通过，`npm --prefix frontend run build`
+  （含 vue-tsc）通过；`python3 scripts/check-docs.py` 59 篇 0 问题，`git diff --check` 通过，
+  `gofmt -l .` 无输出。Wails 引导有既有 macOS deployment target / UserNotifications 告警，
+  构建成功，未作为原生回归证据。
+  内置浏览器匿名开发夹具实测：获取保留两条既有模型；鼠标选 `dev-standard`，第二行输入
+  `large` 后 ArrowDown / Enter 选 `dev-large`；第一行手填 `manual-fixture-model` 后立即保存，
+  模型标签精确为 `manual-fixture-model` / `dev-large`。重新编辑可用已存密钥获取下拉候选；
+  切换为 Anthropic 后候选为空且「获取模型」停用，不复用旧协议的已存密钥。
+  前一轮预览与绑定生成引起的热更新重叠，内存夹具被重置，该轮不作为最终保存证据；构建后
+  重载再完整复测。未运行真实 Wails / 外部 Provider；浏览器结果不提升真实闭环或 G-native。
 
 - **2026-10-02 AI 服务设置页整理（`frontend-lab` 分支）**：版式改为与其它设置页一致的平铺行与细分隔线——标题行右侧放
   「模型测试与试用」「添加服务」；每个服务一行（名称、主 / 备标记、接口类型、地址、密钥状态、最多图片数），模型为可点的

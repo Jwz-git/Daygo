@@ -197,7 +197,7 @@ export default {
       endpoint: 'Service URL',
       model: 'Model',
       models: 'Models',
-      modelsHint: 'Add up to 20 models and arrange each one in the order below.',
+      modelsHint: 'Type a model name, or click “Fetch models” and choose from the dropdown. Add up to 20 models.',
       modelAria: 'Model {index}',
       addModel: 'Add model',
       removeModel: 'Remove this model',
