@@ -62,3 +62,5 @@ jobs:
         run: |
           go test ./internal/platform/windows
           if ($LASTEXITCODE -ne 0) { throw 'Updater contracts failed' }
+          go vet ./internal/platform/windows
+          if ($LASTEXITCODE -ne 0) { throw 'Updater static checks failed' }

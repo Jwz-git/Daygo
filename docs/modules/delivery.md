@@ -149,6 +149,12 @@ UAC 与旧正式版 → 新正式版升级，不提升 G-native / WD；当前机
 验收，成功安装后仍由用户启动应用。回退可反向应用本次 updater / NSIS / appcast 补丁；
 不变更数据库或凭据，不生成 / 上传发行产物。
 
+同日补充（更新回调 ABI）：提交 `eecc934` 后追加 `GOOS=windows CGO_ENABLED=0 go vet
+./internal/platform/windows`，发现 installer callback 的 `uintptr → unsafe.Pointer` 转换
+被目标平台 vet 拒绝。改用与 WinSparkle `const wchar_t *` 一致的 `*uint16` 入参，补充通过
+Windows 系统回调跳板解码含空格 / 中文的路径及空指针恢复夹具；不调用真实安装器 / 原生 UI。
+该项纳入 Windows CI 的测试与 vet；本机交叉 vet / 测试编译通过，Windows 执行结果待记录。
+
 2026-10-03（仓库忽略规则，`feature/plan`、基于 `31cf614` 的未提交工作树，macOS arm64，
 Git 2.50.1 / Python 3.9.6）：移除整目录 `build/` 忽略，按实际输出目录排除构建产物；
 依赖 / 缓存规则覆盖 `web/`，收窄 `testdata/` 例外并补齐 SQLite 旁路文件与签名材料忽略。

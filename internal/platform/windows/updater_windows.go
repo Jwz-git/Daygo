@@ -94,16 +94,10 @@ func (u *Updater) installCallbacks() {
 		u.interruptInstall()
 		return 0
 	}
-	launch := func(path uintptr) uintptr {
-		if path != 0 && u.launchInstaller(xwindows.UTF16PtrToString((*uint16)(unsafe.Pointer(path)))) {
-			return 1 // Handled; never fall back to WinSparkle's default launch.
-		}
-		return ^uintptr(0) // WINSPARKLE_RETURN_ERROR (-1).
-	}
 	u.callbackAddrs = []uintptr{
 		xwindows.NewCallbackCDecl(done), xwindows.NewCallbackCDecl(found),
 		xwindows.NewCallbackCDecl(canShutdown), xwindows.NewCallbackCDecl(shutdown),
-		xwindows.NewCallbackCDecl(interrupted), xwindows.NewCallbackCDecl(launch),
+		xwindows.NewCallbackCDecl(interrupted), xwindows.NewCallbackCDecl(u.installerCallback),
 	}
 	u.dll.NewProc("win_sparkle_set_did_not_find_update_callback").Call(u.callbackAddrs[0])
 	u.dll.NewProc("win_sparkle_set_did_find_update_callback").Call(u.callbackAddrs[1])
@@ -113,6 +107,15 @@ func (u *Updater) installCallbacks() {
 	u.dll.NewProc("win_sparkle_set_update_cancelled_callback").Call(u.callbackAddrs[4])
 	u.dll.NewProc("win_sparkle_set_update_dismissed_callback").Call(u.callbackAddrs[4])
 	u.dll.NewProc("win_sparkle_set_user_run_installer_callback").Call(u.callbackAddrs[5])
+}
+
+func (u *Updater) installerCallback(path *uint16) uintptr {
+	if path == nil {
+		u.interruptInstall()
+	} else if u.launchInstaller(xwindows.UTF16PtrToString(path)) {
+		return 1 // Handled; never fall back to WinSparkle's default launch.
+	}
+	return ^uintptr(0) // WINSPARKLE_RETURN_ERROR (-1).
 }
 
 func updateInstallerArguments(directory string) string {
