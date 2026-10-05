@@ -102,10 +102,6 @@ func validateCards(spans []cardSpan, rewriteStart, batchEnd time.Time, requiresS
 		}
 	}
 
-	if requiresSingleCard {
-		return issues
-	}
-
 	// Ordering and overlaps.
 	for i := 1; i < len(spans); i++ {
 		if spans[i].Start.Before(spans[i-1].Start) {

@@ -1530,6 +1530,9 @@ func (s *Service) mergeOwnershipStart(shells []domain.CardShell, batch storage.B
 	// itself start inside an earlier one, and the rewrite has to own every card
 	// it deletes whole (docs/03 §3.5).
 	floor := earliest
+	if floor.After(batch.Start) {
+		floor = batch.Start
+	}
 	for changed := true; changed; {
 		changed = false
 		for _, card := range existing {
