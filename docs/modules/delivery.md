@@ -147,8 +147,10 @@ arm64、Apple clang 17.0.0、Sparkle 2.10.0）：用户要求更新等待期间�
 屏幕、真实数据库或密钥。最终 `6c9036b` 工作树的 `./scripts/gate.sh` 通过：Go build /
 internal 单测 / vet、三平台核心交叉构建、前端单元 / typecheck / build、59 篇 Markdown 检查
 与 15 项安装器夹具（5 通过、10 项 Windows 执行跳过）；单独 `gofmt -l .` 无输出，
-`git diff --check` 通过。新增 macOS 回调 CI 入口，YAML 解析与 shell 语法检查通过，远端执行
-结果待记录。真实 Wails 检查 / 下载 / 安装重启、
+`git diff --check` 通过。新增 macOS 回调 CI 入口，YAML 解析与 shell 语法检查通过；
+提交 `0ef97f7` 的 [运行 37326739692](https://github.com/Jwz-git/Daygo/actions/runs/37326739692)
+在 `macos-15-arm64` runner 成功下载固定 Sparkle 框架、编译并执行全部匿名回调断言。
+该 CI 仍未启动安装器或真实捕获。真实 Wails 检查 / 下载 / 安装重启、
 持续截图与 G-native 增量尚未运行，不提升历史用户验收范围。回退可还原本次桥、夹具与文档，
 不改变 schema、设置、证书或 feed；本次不替换已安装应用、不生成或上传 release 产物。
 
