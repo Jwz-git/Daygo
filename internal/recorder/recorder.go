@@ -70,23 +70,27 @@ type Config struct {
 }
 
 type Recorder struct {
-	mu               sync.Mutex
-	cfg              Config
-	state            State
-	userPaused       bool
-	cancel           context.CancelFunc
-	done             chan struct{}
-	settingsChanged  chan struct{}
-	lastFrameAt      *time.Time
-	lastError        error
-	pauseUntil       *time.Time
-	shutdownErr      error
-	lastStopCause    StopCause
-	systemBlockers   map[platform.SystemEventKind]struct{}
-	resumeGeneration uint64
-	lastSegmentPath  string
-	lastSegmentSize  int64
-	startPaused      bool
+	mu                  sync.Mutex
+	captureMu           sync.Mutex // append/commit and container finalization have one owner
+	cfg                 Config
+	state               State
+	userPaused          bool
+	cancel              context.CancelFunc
+	done                chan struct{}
+	settingsChanged     chan struct{}
+	lastFrameAt         *time.Time
+	lastError           error
+	pauseUntil          *time.Time
+	shutdownErr         error
+	lastStopCause       StopCause
+	systemBlockers      map[platform.SystemEventKind]struct{}
+	resumeGeneration    uint64
+	lastSegmentPath     string
+	lastSegmentSize     int64
+	startPaused         bool
+	segmentFinalizing   int
+	segmentError        error
+	resumeAfterFinalize bool
 }
 
 func New(cfg Config) (*Recorder, error) {
@@ -255,6 +259,7 @@ func (r *Recorder) StopWithCause(cause StopCause) error {
 	// the timer wins the lock before run()'s deferred teardown sets StateIdle.
 	r.resumeGeneration++
 	r.lastStopCause = cause
+	r.resumeAfterFinalize = false
 	r.mu.Unlock()
 	cancel()
 	<-done
@@ -277,26 +282,14 @@ func (r *Recorder) Pause(duration time.Duration) error {
 	r.userPaused = true
 	r.pauseUntil = nil
 	r.state = StatePaused
+	r.segmentFinalizing++
+	r.resumeAfterFinalize = false
 	r.resumeGeneration++
 	generation := r.resumeGeneration
 	r.mu.Unlock()
-	if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
-		if err := closer.CloseActiveSegment(context.Background()); err != nil {
-			return fmt.Errorf("recorder: close segment on pause: %w", err)
-		}
-		r.mu.Lock()
-		activePath := r.lastSegmentPath
-		activeSize := r.lastSegmentSize
-		r.mu.Unlock()
-		if activePath != "" {
-			if err := r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize); err != nil {
-				return fmt.Errorf("recorder: amortize segment on pause: %w", err)
-			}
-		}
-		r.mu.Lock()
-		r.lastSegmentPath = ""
-		r.lastSegmentSize = 0
-		r.mu.Unlock()
+	if err := r.finishSegment(); err != nil {
+		r.fail(err)
+		return err
 	}
 	if duration > 0 {
 		r.mu.Lock()
@@ -327,9 +320,14 @@ func (r *Recorder) resumeAfterUserPause(generation uint64) {
 	}
 	r.userPaused = false
 	r.pauseUntil = nil
-	if len(r.systemBlockers) != 0 {
+	if len(r.systemBlockers) != 0 || r.segmentError != nil {
 		r.mu.Unlock()
 		r.emit(StatePaused, nil)
+		return
+	}
+	if r.segmentFinalizing != 0 {
+		r.resumeAfterFinalize = true
+		r.mu.Unlock()
 		return
 	}
 	r.state = StateCapturing
@@ -338,13 +336,26 @@ func (r *Recorder) resumeAfterUserPause(generation uint64) {
 }
 func (r *Recorder) Resume() error {
 	r.mu.Lock()
-	if r.state != StatePaused {
+	if r.state != StatePaused || r.segmentFinalizing != 0 {
 		r.mu.Unlock()
-		return fmt.Errorf("recorder: cannot resume from %s", r.state)
+		return fmt.Errorf("recorder: resume requires a settled pause")
 	}
 	if len(r.systemBlockers) != 0 {
 		r.mu.Unlock()
 		return fmt.Errorf("recorder: cannot resume while system capture is blocked")
+	}
+	if r.segmentError != nil {
+		r.segmentFinalizing++
+		r.mu.Unlock()
+		if err := r.finishSegment(); err != nil {
+			r.fail(err)
+			return err
+		}
+		r.mu.Lock()
+		if r.state != StatePaused || len(r.systemBlockers) != 0 {
+			r.mu.Unlock()
+			return fmt.Errorf("recorder: resume interrupted by lifecycle change")
+		}
 	}
 	r.userPaused = false
 	r.pauseUntil = nil
@@ -389,21 +400,23 @@ func (r *Recorder) HandleSystemEvent(event platform.SystemEvent) {
 		// pending timed user-pause timer — its resumeAfterUserPause would then
 		// find a stale generation, never clear userPaused, and the wake branch
 		// below would refuse to re-arm, freezing a timed pause forever.
-		if r.state == StateCapturing {
+		if r.state == StateCapturing || r.state == StatePaused {
 			r.state = StatePaused
+			r.segmentFinalizing++
+			r.resumeAfterFinalize = false
 			r.mu.Unlock()
-			r.emit(StatePaused, nil)
-		} else {
-			paused := r.state == StatePaused
-			r.mu.Unlock()
-			if paused {
-				r.emit(StatePaused, nil)
+			if err := r.finishSegment(); err != nil {
+				r.fail(err)
+			} else {
+				r.emit(r.State(), nil)
 			}
+		} else {
+			r.mu.Unlock()
 		}
 	case platform.EventWake, platform.EventScreenUnlocked, platform.EventScreensaverStop:
 		r.mu.Lock()
 		delete(r.systemBlockers, blockingEventFor(event.Kind))
-		if r.userPaused || r.state != StatePaused || len(r.systemBlockers) != 0 {
+		if r.userPaused || r.state != StatePaused || len(r.systemBlockers) != 0 || r.lastStopCause != "" {
 			paused := r.state == StatePaused
 			r.mu.Unlock()
 			if paused {
@@ -437,7 +450,12 @@ func blockingEventFor(event platform.SystemEventKind) platform.SystemEventKind {
 
 func (r *Recorder) resumeAfterSystemEvent(generation uint64) {
 	r.mu.Lock()
-	if generation != r.resumeGeneration || r.userPaused || r.state != StatePaused || len(r.systemBlockers) != 0 {
+	if generation != r.resumeGeneration || r.userPaused || r.state != StatePaused || len(r.systemBlockers) != 0 || r.segmentError != nil {
+		r.mu.Unlock()
+		return
+	}
+	if r.segmentFinalizing != 0 {
+		r.resumeAfterFinalize = true
 		r.mu.Unlock()
 		return
 	}
@@ -450,29 +468,64 @@ func (r *Recorder) emit(s State, e error) {
 		r.cfg.OnEvent(Event{State: s, At: r.cfg.Clock.Now(), Err: e})
 	}
 }
+
+// finishSegment serializes native closure and accounting with an in-flight
+// append. On failure the active path remains protected and automatic resume is
+// held; Resume retries this operation before allowing another capture.
+func (r *Recorder) finishSegment() error {
+	r.captureMu.Lock()
+	var finishErr error
+	if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
+		if err := closer.CloseActiveSegment(context.Background()); err != nil {
+			finishErr = fmt.Errorf("recorder: finalize active segment: %w", err)
+		} else {
+			r.mu.Lock()
+			activePath, activeSize := r.lastSegmentPath, r.lastSegmentSize
+			r.mu.Unlock()
+			if activePath != "" {
+				if err := r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize); err != nil {
+					finishErr = fmt.Errorf("recorder: account for finalized segment: %w", err)
+				}
+			}
+		}
+	}
+	r.mu.Lock()
+	r.segmentFinalizing--
+	previousError := r.segmentError
+	r.segmentError = finishErr
+	if finishErr == nil {
+		if previousError != nil && errors.Is(r.lastError, previousError) {
+			r.lastError = nil
+		}
+		r.lastSegmentPath, r.lastSegmentSize = "", 0
+	} else {
+		r.lastError = finishErr
+	}
+	resume := finishErr == nil && r.segmentFinalizing == 0 && r.lastStopCause == "" && r.resumeAfterFinalize && r.state == StatePaused && !r.userPaused && len(r.systemBlockers) == 0
+	if r.segmentFinalizing == 0 {
+		r.resumeAfterFinalize = false
+	}
+	if resume {
+		r.state = StateCapturing
+	}
+	r.mu.Unlock()
+	r.captureMu.Unlock()
+	if resume {
+		r.emit(StateCapturing, nil)
+	}
+	return finishErr
+}
+
 func (r *Recorder) run(ctx context.Context) {
 	defer close(r.done)
 	defer func() {
-		if closer, ok := r.cfg.Capture.(platform.SegmentCloser); ok {
-			if err := closer.CloseActiveSegment(context.Background()); err != nil {
-				r.mu.Lock()
-				r.shutdownErr = fmt.Errorf("recorder: finalize active segment: %w", err)
-				r.mu.Unlock()
-			} else {
-				r.mu.Lock()
-				activePath := r.lastSegmentPath
-				activeSize := r.lastSegmentSize
-				r.lastSegmentPath = ""
-				r.lastSegmentSize = 0
-				r.mu.Unlock()
-				if activePath != "" {
-					if err := r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize); err != nil {
-						r.mu.Lock()
-						r.shutdownErr = fmt.Errorf("recorder: account for finalized segment: %w", err)
-						r.mu.Unlock()
-					}
-				}
-			}
+		r.mu.Lock()
+		r.segmentFinalizing++
+		r.mu.Unlock()
+		if err := r.finishSegment(); err != nil {
+			r.mu.Lock()
+			r.shutdownErr = err
+			r.mu.Unlock()
 		}
 		r.mu.Lock()
 		if r.lastStopCause == "" {
@@ -554,6 +607,14 @@ func (r *Recorder) fail(err error) {
 	r.emit(state, err)
 }
 func (r *Recorder) capture(ctx context.Context) error {
+	r.captureMu.Lock()
+	defer r.captureMu.Unlock()
+	r.mu.Lock()
+	capturing := r.state == StateCapturing
+	r.mu.Unlock()
+	if !capturing {
+		return nil
+	}
 	now := r.cfg.Clock.Now()
 	current := r.captureSettings()
 
@@ -575,12 +636,8 @@ func (r *Recorder) capture(ctx context.Context) error {
 			return err
 		}
 
-		r.mu.Lock()
-		paused := r.state == StatePaused
-		r.mu.Unlock()
-		if paused {
-			return nil
-		}
+		// A segment frame already appended by the adapter must settle in storage
+		// even if a pause arrived in flight. Finalization waits on captureMu.
 
 		redacted := result.Outcome == platform.CaptureBlocked
 		id, err := r.cfg.Store.Begin(ctx, result.SegmentPath, result.FrameIndex, result.CapturedAt, nil, result.Width, result.Height, redacted)

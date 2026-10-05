@@ -260,6 +260,19 @@ G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixt
 
 ## 验证记录
 
+- **2026-10-05 系统暂停收尾（基于 `970e20e` 的 `test` 工作树，macOS arm64）**：
+  匿名夹具先复现睡眠 / 锁屏 / 屏保只改状态不关闭容器，以及暂停丢弃已追加的在途帧。
+  现在追加与关闭 / 记账串行：暂停先阻止新捕获，等待已追加帧落库，再关闭并记账；失败保留
+  活跃路径与可见错误，自动恢复被阻止，手动 Resume 可重试。恢复延迟与用户定时暂停保持原契约。
+  `CGO_ENABLED=0 go test ./internal/recorder ./internal/app -count=1` 与
+  `go test -race ./internal/recorder -run '^(TestSystem|TestRecorderTimedPause|TestRecorderStopCancels|TestStopReports)' -count=1`
+  通过。`native/darwin/build.sh` 成功（既有 Swift 弃用 / Sendable 告警）；
+  `go test -a ./internal/platform/darwin -run '^TestNativeRecorderSystemPauseFinalizesReadableSegment$' -count=1`
+  通过：合成像素经真实 native writer，三个合成系统事件后的容器均可 probe / decode。
+  未读取真实屏幕，未触发实际睡眠 / 锁屏 / 屏保，不将匿名原生集成提升为本次 IT-6/7、
+  Windows DLL 或 G-host / 长期观察验收。无 ABI / schema 变更，回退可还原提交，
+  但会恢复系统暂停未收尾与在途帧丢弃风险。
+
 - **状态机回归（2026-09-23）**：连续 4 次捕获失败后自动恢复、睡眠期间定时暂停、停止时恢复定时器竞态的 Go 夹具通过；`./scripts/gate.sh` 通过。尚未在真实 Windows 捕获故障上复现与复核。
 - **macOS 分段追加（2026-09-23）**：取消后的截图任务在写段前再次检查取消；每帧像素缓冲在
   `autoreleasepool` 内释放；段收尾等待限制为 10 秒并记录超时诊断。`native/darwin/build.sh`
