@@ -142,6 +142,21 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 
 ## 验证记录
 
+- **2026-10-07 清理旧分析探针（基于 `f0688d4` 的 test 工作树，macOS arm64）**：
+  删除 `scripts/probe/analysis.go` 及唯一为它提供入口的 `internal/analysis/probe.go`。
+  旧脚本直接读取 staging 文件并拒绝非零帧索引，未接当前 `platform.Media` 分段解码；
+  同时使用 `storage.Open` 而非连接层只读打开，旧“只读探针”说明与代码不符。
+  全仓引用检查确认 `Service.Probe` / `ProbeResult` / `ProbeError` 没有其它消费者；
+  正式流水线、重处理、媒体端口与匿名回归夹具保持原行为和期望值。
+  本次不运行旧脚本，不打开用户库，不发送录制数据；回退可独立 revert 本次清理提交。
+  清理前运行 `CGO_ENABLED=0 DAYGO_ANONYMOUS_PROBE=0 go test ./internal/analysis -v -count=1`，
+  清理后运行 `CGO_ENABLED=0 go test ./internal/analysis -v -count=1`；两份结果按测试名比对，
+  95 项顶层回归均为 PASS，仅删除原本 SKIP 的 `TestLocalAnonymousProbe`，未改夹具期望。
+  `./scripts/gate.sh` 通过：Go core / vet、三平台无 cgo 核心交叉构建、前端 265 项测试 /
+  typecheck / build、60 篇文档 0 问题；Windows 安装器 15 项中 5 项通过、10 项需目标主机跳过。
+  `gofmt -l .` 无输出，`git diff --check` 通过。交叉构建仅证明编译；未运行真实 Provider、
+  Wails、原生捕获或安装升级，不提升原生 / 真实闭环验收状态。
+
 - **2026-10-05 人工卡片保留（基于 `6491f28` 的 `test` 工作树，macOS arm64）**：
   匿名连续两批先复现标题 / 摘要 / 详情 / 审阅 / 评分丢失与人工删除被重新生成；区间扣除与
   撤销反馈夹具也先失败。按 [决策](../decisions/timeline-human-card-preservation.md) 分开自动与

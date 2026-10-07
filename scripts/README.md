@@ -6,8 +6,8 @@ here. The split is by **role**, not by language — three platform dev scripts
 platform packagers (`package-macos.sh` → signed DMG, `package-windows.ps1` →
 signable NSIS installer), one headless CI gate (`gate.sh`),
 shared bootstrap and shell helpers (`bootstrap-frontend.sh`), a docs sanity
-check (`check-docs.py`), and a `probe/` directory for one-off diagnostic
-tools. The README documents the contract for each so it stays obvious which
+check (`check-docs.py`), and a memory sampler (`sample-memory.py`).
+The README documents the contract for each so it stays obvious which
 script owns a responsibility and which one a new contributor should reach for.
 
 | Script | Role | Caller |
@@ -30,13 +30,28 @@ script owns a responsibility and which one a new contributor should reach for.
 | `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + docs and installer fixture checks. Python checks skip when `python3` is missing; NSIS compilations skip without `makensis`, Windows execution skips on other hosts. | CI runner, also local pre-commit |
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
 | `sample-memory.py` | Read-only macOS fixed-PID RSS / physical-footprint sampler. Checks process start identity, marks missing or reused PIDs, creates CSV exclusively, and collects no activity content. | Manual memory comparisons; see testing strategy |
-| `probe/analysis.go` | Provider-agnostic diagnostic: runs the production transcription + card-generation pipeline against the user-configured provider, never writes the database. | Manual, when debugging AI integration |
 
 The 2026-09-26 user confirmation accepts all implemented functionality, long-term observation, and actual
 installation / upgrades under the existing identity, without per-case execution records. It does not establish
 Developer ID, notarization, or Authenticode certification. See the [acceptance record](../docs/09-roadmap.md#911-本轮验收记录与证据边界).
 Historical skipped / failed fixture results remain unchanged. `gofmt -l .` must produce no output; the gate's
 exit code alone does not verify formatting.
+
+## Retired diagnostics
+
+On 2026-10-07, the old `probe/analysis.go` entry point and its exclusive
+`internal/analysis/probe.go` helper were removed. The entry point read staging
+files directly and rejected every nonzero frame index, so it could not decode
+the current multi-frame recording segments through `platform.Media`. It also
+opened the store with `storage.Open`, rather than a connection restricted to
+read-only access; its old "read-only probe" description was inaccurate.
+
+The Qwen-specific `internal/analysis/local_probe_test.go` was also removed. It
+depended on a Windows `APPDATA` path, a fixed model alias and a fixed local
+endpoint; the normal test suite skipped it. Historical Provider observations
+remain in the [providers module](../docs/modules/providers.md#验证记录), with
+the old commands marked as retired. Current pipeline fixtures, the frontend
+unit runner, native smoke tests and installer / updater checks remain active.
 
 ## Shared helpers — where logic lives
 
@@ -123,8 +138,8 @@ finish pages, optional shortcuts, and upgrade/uninstall while Daygo is resident.
 
 ## Naming
 
-- `probe/` collects one-off diagnostic tools. Add a new diagnostic as
-  `scripts/probe/<topic>.go` or `scripts/probe/<topic>.sh`; do not put
+- If a new diagnostic is needed, put it in `scripts/probe/<topic>.go` or
+  `scripts/probe/<topic>.sh`; the directory is created when needed. Do not put
   diagnostic scripts at the `scripts/` root.
 - `dev-*` means "run `wails dev`". `build-*` means "run `wails build`".
   `package-*` means "build a signed, distributable artifact" (more than a

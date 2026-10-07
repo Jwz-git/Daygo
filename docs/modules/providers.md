@@ -185,6 +185,17 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 
 ## 验证记录
 
+- **2026-10-07 退役一次性模型探针（基于 `f0688d4` 的 test 工作树，macOS arm64）**：
+  删除 `internal/analysis/local_probe_test.go`。它固定使用 Windows `APPDATA` 路径、
+  `qwen3-vl-8b` 别名及本地 Ollama 地址，不属于可移植匿名回归测试；正常门禁只会跳过。
+  下方 09-27—29 的实际观察与原命令作为历史证据保留，**旧命令已退役，当前检出不再可运行**。
+  三协议匿名 HTTP / Schema、Provider 绑定与生产分析流水线夹具继续保留；不改其期望值。
+  本次不读取用户配置、系统密钥或真实数据，不向 Provider 发请求。
+  清理前显式设 `DAYGO_ANONYMOUS_PROBE=0` 的分析测试为 95 项通过、该探针 1 项跳过；
+  清理后 95 项名称及 PASS 状态逐项相同。完整 `./scripts/gate.sh` 通过（前端 265 项，
+  Windows 主机执行项 10 项跳过），格式与文档检查通过；未复验真实 Provider / Wails。
+  具体命令、分段脚本清理与回退见 [timeline 验证记录](timeline.md#验证记录)。
+
 - **2026-10-05 配置模型 combobox（`a9dc930` 的 test 工作树，macOS arm64）**：匿名输入为已存服务
   `https://example.invalid/v1`、自定义模型和返回的两项模型；期望获取仅更新候选、选择 / 手填保存
   精确对应用户输入、其他模型行继续可选、旧来源响应不覆盖当前列表。原代码的五组夹具失败，
