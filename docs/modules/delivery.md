@@ -26,6 +26,7 @@ Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路
 
 **配套网页（2026-10-07）**：`web/` 已替换为 AwayC/daygo-website 的固定源码版本，
 包含静态匿名交互演示、本地字体与图标；按用户要求不扩展多语种，保留来源中英切换。
+公开文案将 Dayflow 定位为设计参考，模型配置介绍为「自定义模型 / Custom models」。
 构建 / Pages 项目路径与浏览器验证范围见本册验证记录和 [网页说明](../../web/README.md)。
 正式 Release 触发的部署工作流保持原入口，本次替换不改变桌面功能或 G-native 验收范围。
 
@@ -139,6 +140,17 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
+
+2026-10-07（配套网页文案，`test`、基于 `8a3a9ce` 的工作树，macOS 26.0.1 / arm64，
+Node 25.2.1 / npm 11.6.2）：按用户澄清，将介绍区、首页、页脚与 HTML description 统一为
+「设计参考 / design inspiration」，卡片标签改为「设计参考 / 本项目」，保留 Dayflow 致谢链接。
+模型介绍标题改为「自定义模型 / Custom models」，中英及 HTML 静态回退一起更新。
+`npm --prefix web run build`、`python3 scripts/check-docs.py`、`git diff --check` 通过。
+在 Codex 内置浏览器刷新 `/Daygo/` 生产预览，核对两种语言的介绍正文、标签、首页与页脚；
+隐私区显示「自定义模型 / Custom models」，截图检查文字与卡片布局通过。
+本轮 Dayflow 文案修改后执行 `./scripts/gate.sh` 通过（前端 257 项单测，0 失败 / 跳过；
+安装器 5 项通过、10 项 Windows 执行跳过）；其后仅追加模型标题与文档，重新验证网页构建与文档。
+本次只改配套网页文案，真实 Pages 部署未执行；回退可撤销本次文案提交。
 
 2026-10-07（配套网页替换，`test`、基于 `5148917` 的工作树，macOS 26.0.1 / arm64，
 Node 25.2.1 / npm 11.6.2，Chrome 154.0.8037.98）：导入

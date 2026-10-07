@@ -3,7 +3,7 @@
 Imported design notes for the pinned source version in [README.md](README.md).
 These describe the website replica; they do not certify parity with every current desktop component.
 
-> **Daygo is a cross-platform remake of [Dayflow](https://dayflow.so)** ([source](https://github.com/JerryZLiu/Dayflow); Swift, macOS only), rewritten in Go + Wails + Vue for macOS and Windows. The site says so in the hero pill, its own section and the footer.
+> **Daygo takes design inspiration from [Dayflow](https://dayflow.so)** ([source](https://github.com/JerryZLiu/Dayflow)) and is built with Go + Wails + Vue for macOS and Windows. The hero pill, inspiration section and footer credit Dayflow as a design reference.
 >
 > **One scroll = one day.** The page runs from sunrise (06:00) to midnight. The sky, the sun and the nav clock follow the scroll; when the sun sets the whole page — including the app window — switches to Daygo's dark appearance.
 
@@ -17,8 +17,8 @@ These describe the website replica; they do not certify parity with every curren
 | 周报 / Weekly | 14:00 | "Most used per category" treemap + "Time between categories and apps" sankey |
 | 对话 / Chat (preview) | 16:00 | The chat panel answering a question |
 | 原理 / How | 18:40 dusk | Screenshots flow into an AI lens and come out as timeline cards |
-| 起源 / Origin | 19:30 | Dayflow (Swift · macOS) → Daygo (Go · Wails · Vue · macOS / Windows) |
-| 隐私 / Privacy | 20:30 night | Four short points: local first, your own model, blocked apps, keys in Keychain |
+| 设计参考 / Inspiration | 19:30 | Dayflow as a design reference alongside Daygo and its Go · Wails · Vue stack |
+| 隐私 / Privacy | 20:30 night | Four short points: local first, custom models, blocked apps, keys in Keychain |
 | 下载 / Download | 23:00 midnight | Stars, moon, app icon, download buttons |
 
 Only the opening shows the whole window; every other feature is one component on its own.
