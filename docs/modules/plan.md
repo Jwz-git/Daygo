@@ -16,7 +16,7 @@
 
 ## 当前状态与证据
 
-实现进度：部分实现（`feature/plan` 分支，**未提交**）。
+实现进度：部分实现（已在 `test` 合入，基础提交 `4dac8b7`）。
 
 - 存储：迁移 v20 `plan_blocks`（[03](../03-data-model.md)）、`storage.PlanRepo`；v19 → v20 匿名
   夹具 `internal/storage/testdata/v19-journal-no-summary.db`（生成器 `writeV19`）。
@@ -83,3 +83,9 @@
   build 通过；无头 Chrome 截图核对：Vite 匿名预览（日视图、弹层、目标编辑器浅 / 深色、设置页下拉）与
   运行中的 wails dev 实例（只读打开周 / 日视图，用户自建的两个重叠计划分道显示、弹层数据正确）。
   **未运行**：在 Wails 窗口内点击完成 / 跳过 / 编辑的写入往返、拖放在 WKWebView 中的行为。
+
+- **2026-10-07（`test`，基于 `3cd8f40` 的工作树，macOS arm64）**：计划 store 同时订阅
+  `plan:updated`、`timeline:updated`、`goal:updated`，刷新当日与已加载周内的派生分钟；
+  周请求按周与日版本隔离，迟到响应不得插回旧周或覆盖较新事件。先加匿名夹具，旧实现三项失败，
+  修复后前端 260 项通过、0 失败 / 跳过；完整 `./scripts/gate.sh` 通过（包括三平台核心交叉构建，
+  Windows 主机执行项按跳过记录），`gofmt -l .` 无输出。未复测真实 Wails 写入、原生通知或外部客户端。

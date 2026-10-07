@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import type { PlanBlockDTO, PlanBlockInputDTO, PlanBlockStatus } from '@/api/dto'
+import { onGoalUpdated } from '@/api/daily'
+import { onTimelineUpdated } from '@/api/timeline'
 import {
   deletePlanBlock,
   getPlanDay,
@@ -39,6 +41,7 @@ export const usePlanStore = defineStore('plan', () => {
   const focusRequest = ref<PlanFocusRequest | null>(null)
   let requestVersion = 0
   let weekVersion = 0
+  const weekDayVersions = new Map<string, number>()
   let focusNonce = 0
   let stopEvents: (() => void) | null = null
 
@@ -67,20 +70,27 @@ export const usePlanStore = defineStore('plan', () => {
   async function loadWeek(days: string[]): Promise<void> {
     const keys = days.filter((key) => key !== '')
     const version = ++weekVersion
+    weekDayVersions.clear()
+    week.value = Object.fromEntries(keys.map((key) => [key, week.value[key] ?? []]))
     const results = await Promise.allSettled(keys.map((key) => getPlanDay(key)))
     if (version !== weekVersion) return
     const next: Record<string, PlanBlockDTO[]> = {}
     keys.forEach((key, index) => {
       const result = results[index]
-      next[key] = result?.status === 'fulfilled' ? result.value.blocks : (week.value[key] ?? [])
+      next[key] = result?.status === 'fulfilled' && !weekDayVersions.has(key)
+        ? result.value.blocks : (week.value[key] ?? [])
     })
     week.value = next
   }
 
   async function reloadWeekDay(changed: string): Promise<void> {
     if (!(changed in week.value)) return
+    const version = weekVersion
+    const dayVersion = (weekDayVersions.get(changed) ?? 0) + 1
+    weekDayVersions.set(changed, dayVersion)
     try {
       const result = await getPlanDay(changed)
+      if (version !== weekVersion || dayVersion !== weekDayVersions.get(changed)) return
       week.value = { ...week.value, [changed]: result.blocks }
     } catch {
       // Keep the drawn blocks; the next week load retries.
@@ -112,11 +122,14 @@ export const usePlanStore = defineStore('plan', () => {
 
   function startListening(): void {
     if (stopEvents !== null) return
-    stopEvents = onPlanUpdated((changed) => {
+    const reload = (changed: string | null) => {
       if (day.value !== null && (changed === null || changed === day.value)) void load(day.value)
       if (changed === null) void loadWeek(Object.keys(week.value))
       else void reloadWeekDay(changed)
-    })
+    }
+    // Reviews derive from cards and goal categories as well as the plan itself.
+    const stops = [onPlanUpdated(reload), onTimelineUpdated(reload), onGoalUpdated(reload)]
+    stopEvents = () => stops.forEach((stop) => stop())
   }
 
   function stopListening(): void {

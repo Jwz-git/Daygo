@@ -34,7 +34,7 @@
 | [data](modules/data.md) | 数据维护与诊断 |
 | [preferences](modules/preferences.md) | 外观、语言与通用设置 |
 | [delivery](modules/delivery.md) | 安装与安全更新 |
-| [plan](modules/plan.md) | 计划时间块、完成标记与开始 / 分心提醒（`feature/plan` 分支，未提交） |
+| [plan](modules/plan.md) | 计划时间块、完成标记与开始 / 分心提醒（基础提交 `4dac8b7`，已合入 `test`） |
 | [agent](modules/agent.md) | CLI、agent.sock 与 MCP（基础实现已落盘，v1 不交付） |
 | [chat](modules/chat.md) | 应用内自然语言问答与受控编辑（部分实现，v1 不交付） |
 
