@@ -15,6 +15,9 @@ type DiagnosticsDTO struct {
 	NativeState       string `json:"nativeState"`
 	CaptureOwnerPID   *int   `json:"captureOwnerPid"`
 	SkippedCardsToday int    `json:"skippedCardsToday"`
+	// StorageHealth is nil when the observer has no counters. Counters are local
+	// to this process and reset on restart, never uploaded or persisted.
+	StorageHealth *StorageHealthDTO `json:"storageHealth"`
 
 	// DBStatus reports the storage layer's own state: "ok", "read_only" or
 	// "unavailable". Together with Unavailable it lets the frontend tell a
@@ -36,6 +39,13 @@ type DiagnosticsDTO struct {
 	// would make corruption recovery a silent loss, which docs/01 §1.5 lists
 	// as a defect rather than a tradeoff.
 	RecoveredFromBackup string `json:"recoveredFromBackup,omitempty"`
+}
+
+type StorageHealthDTO struct {
+	SlowQueries       int64 `json:"slowQueries"`
+	QueryErrors       int64 `json:"queryErrors"`
+	BusyErrors        int64 `json:"busyErrors"`
+	MaintenanceErrors int64 `json:"maintenanceErrors"`
 }
 
 // DBStatus values.

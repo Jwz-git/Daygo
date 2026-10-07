@@ -115,6 +115,13 @@ export default {
   },
   storage: {
     diagnostics: {
+      slowQueries: '느린 쿼리 횟수',
+      queryErrors: '쿼리 실패 횟수',
+      busyErrors: '데이터베이스 경합 횟수',
+      maintenanceErrors: '유지 관리 실패 횟수',
+      counterHint: '현재 프로세스 시작 이후 누적되며 재시작 시 초기화됩니다. 250밀리초 이상 걸리는 쿼리를 집계하며 이 기기에만 보관합니다.',
+      refresh: '진단 새로 고침',
+      refreshFailed: '진단을 새로 고칠 수 없습니다. 마지막으로 읽은 결과를 표시합니다.',
       title: '진단',
       hint: '기록과 저장 공간의 실시간 상태입니다. 문제 해결에 사용합니다.',
       dbStatus: '데이터베이스 상태',

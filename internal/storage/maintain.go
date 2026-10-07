@@ -52,7 +52,7 @@ type MaintainerOptions struct {
 	// BackupRetention is how many backups to keep. Zero means
 	// DefaultBackupRetention.
 	BackupRetention int
-	// Observer receives maintenance breadcrumbs and errors.
+	// Observer receives maintenance breadcrumbs and errors. Nil shares the store observer.
 	Observer Observer
 	// Now overrides the clock. Nil means time.Now.
 	Now func() time.Time
@@ -63,6 +63,9 @@ func NewMaintainer(store *Store, opts MaintainerOptions) *Maintainer {
 	observer := opts.Observer
 	if observer == nil {
 		observer = NopObserver{}
+		if store != nil && store.observer != nil {
+			observer = store.observer
+		}
 	}
 	retain := opts.BackupRetention
 	if retain <= 0 {

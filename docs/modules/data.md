@@ -55,7 +55,7 @@ Windows 录制目录迁移已增加纯 Go 复制、SHA-256 校验、数据库状
 诊断的「来源不存在」分支仍然保留，但已无法由正常迁移链触达，因此其测试改为显式删除表来构造
 （`internal/storage/db_gate_test.go`）。**录制清理已实现**，见「能力与跨层职责」。
 
-已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者、最近截图、待处理 / 失败批次、今日跳过卡片数与数据库大小，并在数据从备份恢复时给出显式警示；录制占用上限可持久化写入 `app_settings`。页面在数据源不可用时显示“尚未接入”，不把零误报为没有录制数据。**上限的消费者已接线**：修改它写入 `app_settings`，每小时的维护任务按它执行清理（读取失败按
+已接入前端的低风险切片：设置页“存储与诊断”通过 `GetSettings` / `GetDiagnostics` 显示数据库状态、原生服务状态、捕获所有者、最近截图、待处理 / 失败批次、今日跳过卡片数、数据库大小及本进程的慢查询 / 查询失败 / 争用 / 维护失败计数，并在数据从备份恢复时给出显式警示；录制占用上限可持久化写入 `app_settings`。页面在数据源不可用时显示“尚未接入”，不把零误报为没有录制数据。**上限的消费者已接线**：修改它写入 `app_settings`，每小时的维护任务按它执行清理（读取失败按
 "不限"处理，宁可跳过也不在不确定中删文件）。
 
 落盘代码：`internal/storage/{doc,errors,observe,store,open,pragma,migrate,recover,settings,cards,categories,captures,diagnostics,maintenance,maintain,lock_unix,lock_windows}.go`，匿名夹具与生成器在 `internal/storage/testdata/`；前端接入位于 `frontend/src/views/Settings/StorageSection.vue` 与 `frontend/src/api/diagnostics.ts`。
@@ -136,6 +136,17 @@ opt-in 和隐私载荷符合 07；已完成 db-core 可提前被接入。
 故障先停止写入、保留原库与备份，按已验证恢复步骤处理；不得拿用户库测试破坏性迁移。
 
 ## 验证记录
+
+2026-10-07（`test`，基于 `4283270` 的工作树，macOS arm64）：默认 storage observer 改为
+定长原子计数，maintainer 默认共享 store observer，`GetDiagnostics.storageHealth` 与设置页
+贯通；不持久化、不上报、不保留错误 / 操作文本。查询统计在 store 封装产生，repository
+接口未增加埋点参数。无计数源返回 null；刷新失败保留旧结果并显示失败。
+先写并发 / 匿名载荷 / 实际 SQLite 失败 / 维护失败 / 自定义 Nop 与绑定夹具，再实现；
+新增 API 指针归一化和前端失败重试夹具。完整 `./scripts/gate.sh` 通过（前端 257 项），
+额外 `go test -race ./internal/storage -run 'Test(CounterObserver|DefaultObserverAndMaintenance|UnmeasuredObserver)'
+-count=1` 通过；`gofmt -l .` 无输出，文档 60 篇 / 0 处问题。Windows 安装器 15 项中
+10 项需 Windows 主机而跳过。中途 API 指针归一化的 typecheck 发现生成类含 `convertValues`
+方法，显式排除后完整门禁重跑通过。未运行真实用户数据、真实 Wails 诊断页或长期争用观察。回退：撤销本次提交，数据库 schema 不变。
 
 - **2026-10-05 v23 人工卡片保护**：追加编辑标记，旧存活卡片保守标记以避免猜测编辑来源；
   新卡默认 0，旧软删除行不标记。提交匿名 `v22-human-card-source.db` 与可复现生成器，

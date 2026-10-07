@@ -147,6 +147,13 @@ export default {
     moveFailed: 'The move did not finish. The old location is still in use. Cancellation may leave partial copies in the destination; check the drive, free space, and permissions before retrying.',
     writeError: 'Couldn’t save. Your previous setting was restored.',
     diagnostics: {
+      slowQueries: 'Slow queries',
+      queryErrors: 'Query failures',
+      busyErrors: 'Database contention failures',
+      maintenanceErrors: 'Maintenance failures',
+      counterHint: 'Counts since this process started; reset on restart. Slow queries take at least 250 ms. Counts stay on this device.',
+      refresh: 'Refresh diagnostics',
+      refreshFailed: 'Could not refresh diagnostics; showing the last successful result.',
       title: 'Diagnostics',
       hint: 'The live state of recording and storage, for troubleshooting.',
       dbStatus: 'Database status',

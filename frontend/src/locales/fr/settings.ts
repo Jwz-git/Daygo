@@ -115,6 +115,13 @@ export default {
   },
   storage: {
     diagnostics: {
+      slowQueries: 'Requêtes lentes',
+      queryErrors: 'Échecs de requêtes',
+      busyErrors: 'Conflits de base de données',
+      maintenanceErrors: 'Échecs de maintenance',
+      counterHint: 'Cumuls depuis le démarrage du processus, remis à zéro au redémarrage. Les requêtes lentes durent au moins 250 ms. Ces compteurs restent sur cet appareil.',
+      refresh: 'Actualiser le diagnostic',
+      refreshFailed: 'Impossible d’actualiser le diagnostic ; le dernier résultat obtenu est affiché.',
       title: 'Diagnostic',
       hint: 'L’état en temps réel de l’enregistrement et du stockage, pour le dépannage.',
       dbStatus: 'État de la base de données',

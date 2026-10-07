@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
 import { CAPTURE_HEIGHTS, CAPTURE_INTERVAL_SECONDS } from '@/api/dto'
-import { getDiagnostics, type DiagnosticsDTO } from '@/api/diagnostics'
+import { useDiagnosticsStore } from '@/stores/diagnostics'
 import { cancelRecordingDirectoryMove, getRecordingDirectory, getRecordingDirectoryMigration, moveRecordingDirectory, pickRecordingDirectory } from '@/api/recording'
 import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 
@@ -35,7 +36,8 @@ const moveFailed = ref(false)
 const pendingTarget = ref('')
 const cleanupPending = ref(false)
 const directoryAvailable = ref(true)
-const diagnostics = ref<DiagnosticsDTO | null>(null)
+const diagnosticsStore = useDiagnosticsStore()
+const { diagnostics, loading: diagnosticsLoading, loadFailed: diagnosticsFailed } = storeToRefs(diagnosticsStore)
 const recordingsBytes = computed(() => diagnostics.value?.recordingsBytes ?? 0)
 const gbInput = ref('1')
 function syncGbInput(): void { gbInput.value = String(limitGb.value) }
@@ -91,9 +93,7 @@ onMounted(() => {
   if (isWindows) void getRecordingDirectoryMigration()
     .then((value) => { if (value.phase === 'copying') pendingTarget.value = value.target; cleanupPending.value = value.phase === 'committed'; directoryAvailable.value = value.available })
     .catch(() => undefined)
-  void getDiagnostics()
-    .then((value: DiagnosticsDTO) => { diagnostics.value = value })
-    .catch(() => undefined)
+  void diagnosticsStore.load()
 })
 
 async function performMove(target: string): Promise<void> {
@@ -298,6 +298,20 @@ function onLimitChange(event: Event): void {
     <SettingRow :title="t('settings.storage.diagnostics.databaseSize')">
       <span class="diag-value">{{ databaseSizeLabel }}</span>
     </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.slowQueries')" :hint="t('settings.storage.diagnostics.counterHint')">
+      <span class="diag-value">{{ diagnostics?.storageHealth?.slowQueries ?? t('settings.storage.diagnostics.unavailable') }}</span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.queryErrors')">
+      <span class="diag-value">{{ diagnostics?.storageHealth?.queryErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.busyErrors')">
+      <span class="diag-value">{{ diagnostics?.storageHealth?.busyErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
+    </SettingRow>
+    <SettingRow :title="t('settings.storage.diagnostics.maintenanceErrors')">
+      <span class="diag-value">{{ diagnostics?.storageHealth?.maintenanceErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
+    </SettingRow>
+    <button type="button" :disabled="diagnosticsLoading" @click="diagnosticsStore.load()">{{ t('settings.storage.diagnostics.refresh') }}</button>
+    <p v-if="diagnosticsFailed" class="write-error" role="alert">{{ t('settings.storage.diagnostics.refreshFailed') }}</p>
   </SettingGroup>
   <p v-if="writeFailed" class="write-error" role="alert">{{ t('settings.storage.writeError') }}</p>
 </template>

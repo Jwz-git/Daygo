@@ -115,6 +115,13 @@ export default {
   },
   storage: {
     diagnostics: {
+      slowQueries: '遅いクエリの回数',
+      queryErrors: 'クエリ失敗の回数',
+      busyErrors: 'データベース競合の回数',
+      maintenanceErrors: 'メンテナンス失敗の回数',
+      counterHint: 'このプロセスの起動以降の累計です。再起動でリセットされます。250 ミリ秒以上のクエリを数え、集計はこの端末にのみ保持します。',
+      refresh: '診断を更新',
+      refreshFailed: '診断を更新できませんでした。前回取得できた結果を表示しています。',
       title: '診断',
       hint: '記録とストレージの現在の状態です。トラブルシューティングに使います。',
       dbStatus: 'データベースの状態',

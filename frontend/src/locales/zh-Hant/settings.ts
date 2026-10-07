@@ -115,6 +115,13 @@ export default {
   },
   storage: {
     diagnostics: {
+      slowQueries: '慢查詢次數',
+      queryErrors: '查詢失敗次數',
+      busyErrors: '資料庫爭用次數',
+      maintenanceErrors: '維護失敗次數',
+      counterHint: '本次程序累計；重新啟動歸零。慢查詢門檻為 250 毫秒。僅在本機保留計數。',
+      refresh: '重新整理診斷',
+      refreshFailed: '診斷重新整理失敗；顯示的是上次成功讀取的結果。',
       title: '診斷',
       hint: '錄製與儲存的運作狀態，用於排查異常。',
       dbStatus: '資料庫狀態',

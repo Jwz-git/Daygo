@@ -115,6 +115,13 @@ export default {
   },
   storage: {
     diagnostics: {
+      slowQueries: 'Consultas lentas',
+      queryErrors: 'Consultas fallidas',
+      busyErrors: 'Conflictos de base de datos',
+      maintenanceErrors: 'Fallos de mantenimiento',
+      counterHint: 'Recuentos desde el inicio del proceso; se reinician al volver a abrir la aplicación. Las consultas lentas duran al menos 250 ms. Los recuentos permanecen en este dispositivo.',
+      refresh: 'Actualizar diagnóstico',
+      refreshFailed: 'No se pudo actualizar el diagnóstico; se muestra el último resultado obtenido.',
       title: 'Diagnóstico',
       hint: 'El estado en tiempo real de la grabación y el almacenamiento, para diagnosticar problemas.',
       dbStatus: 'Estado de la base de datos',

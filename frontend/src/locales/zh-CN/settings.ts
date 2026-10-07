@@ -147,6 +147,13 @@ export default {
     cleanupPending: '新位置已生效，旧位置的副本仍待清理；下次启动会重试。',
     moveFailed: '迁移未完成，原位置仍可使用。取消后目标目录可能留有部分副本；重试前请检查目标磁盘、空间和权限。',
     diagnostics: {
+      slowQueries: '慢查询次数',
+      queryErrors: '查询失败次数',
+      busyErrors: '数据库争用次数',
+      maintenanceErrors: '维护失败次数',
+      counterHint: '本次进程累计；重启清零。慢查询阈值为 250 毫秒。仅在本机保留计数。',
+      refresh: '刷新诊断',
+      refreshFailed: '诊断刷新失败；显示的是上次成功读取的结果。',
       title: '诊断',
       hint: '录制与存储的运行状态，用于排查异常。',
       dbStatus: '数据库状态',

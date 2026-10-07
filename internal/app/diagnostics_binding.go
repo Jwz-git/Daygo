@@ -61,6 +61,12 @@ func (b *Backend) GetDiagnostics() (DiagnosticsDTO, error) {
 	dto.DatabasePath = stats.DatabasePath
 	dto.DatabaseBytes = stats.DatabaseBytes + stats.WALBytes
 	dto.SkippedCardsToday = int(stats.SkippedCards)
+	if counts := store.ObservationCounts(); counts != nil {
+		dto.StorageHealth = &StorageHealthDTO{
+			SlowQueries: counts.SlowQueries, QueryErrors: counts.QueryErrors,
+			BusyErrors: counts.BusyErrors, MaintenanceErrors: counts.MaintenanceErrors,
+		}
+	}
 
 	if store.Mode() == storage.ModeReadOnly {
 		dto.DBStatus = DBStatusReadOnly

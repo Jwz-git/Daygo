@@ -34,7 +34,7 @@ type Options struct {
 	// Dir is the application support directory holding the database and lock
 	// files. Open creates it when missing.
 	Dir string
-	// Observer receives diagnostics. Nil means NopObserver.
+	// Observer receives diagnostics. Nil records local counters.
 	Observer Observer
 	// CaptureOwnerRequested asks for the capture-owner lock. The caller decides
 	// whether this process should capture; Open only reports whether it got it.
@@ -67,7 +67,7 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	}
 	observer := opts.Observer
 	if observer == nil {
-		observer = NopObserver{}
+		observer = &CounterObserver{}
 	}
 
 	if err := os.MkdirAll(opts.Dir, 0o700); err != nil {

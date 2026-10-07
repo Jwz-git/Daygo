@@ -115,6 +115,13 @@ export default {
   },
   storage: {
     diagnostics: {
+      slowQueries: 'Langsame Abfragen',
+      queryErrors: 'Fehlgeschlagene Abfragen',
+      busyErrors: 'Datenbankkonflikte',
+      maintenanceErrors: 'Fehlgeschlagene Wartungen',
+      counterHint: 'Zähler seit Prozessstart; beim Neustart zurückgesetzt. Langsame Abfragen dauern mindestens 250 ms. Die Zähler bleiben auf diesem Gerät.',
+      refresh: 'Diagnose aktualisieren',
+      refreshFailed: 'Die Diagnose konnte nicht aktualisiert werden; das letzte erfolgreiche Ergebnis wird angezeigt.',
       title: 'Diagnose',
       hint: 'Der aktuelle Zustand von Aufzeichnung und Speicher, zur Fehlersuche.',
       dbStatus: 'Datenbankstatus',

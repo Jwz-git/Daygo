@@ -642,6 +642,7 @@ type DiagnosticsDTO struct {
     NativeState       string `json:"nativeState"` // "ok" | "restarting" | "unavailable"
     CaptureOwnerPID   *int   `json:"captureOwnerPid"`
     SkippedCardsToday int    `json:"skippedCardsToday"` // 时钟串解析失败计数，见 03 §3.5
+    StorageHealth *StorageHealthDTO `json:"storageHealth"` // 无计数 observer 时为 null
 
     // 以下两项由 data 在实现诊断时新增，属非破坏性扩张：既有字段的名称与
     // 语义均未改变。目的见下方说明。
@@ -651,6 +652,14 @@ type DiagnosticsDTO struct {
     // 损坏恢复后写回被还原的备份文件名，未恢复时为空。
     RecoveredFromBackup string `json:"recoveredFromBackup,omitempty"`
 }
+
+`StorageHealthDTO` 为 `{slowQueries, queryErrors, busyErrors, maintenanceErrors}` 四个整数。
+由同一个 store observer 累计本进程的慢查询（≥250ms）、查询失败、SQLite 争用失败与
+checkpoint / backup / cleanup 失败；计数可重叠，不能相加为失败总数。内存定长，不保留
+操作 / 错误文本、SQL 参数或 breadcrumb 内容，不持久化、不上传；进程重启清零。
+没有数据库或 observer 不提供快照时 `storageHealth = null`，不可显示为四个零。
+Wails 将 Go 指针生成成可选字段，`api/diagnostics` 统一将缺失值转为 `null`。
+设置页首屏拉取并支持显式刷新，失败保留上次结果且提示过期。
 
 `DBStatus` 与 `Unavailable` 的存在理由：`RecordingsBytes`、`PendingBatches`、`FailedBatches`
 与 `LastCaptureAtTs` 的数据源分属 recording 与 timeline，在其表落盘前这些字段只能是 0。

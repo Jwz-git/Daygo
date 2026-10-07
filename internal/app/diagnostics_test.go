@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -12,6 +13,46 @@ import (
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
+
+func TestDiagnosticsIncludesLocalStorageCounters(t *testing.T) {
+	var observer storage.CounterObserver
+	store, err := storage.Open(context.Background(), storage.Options{Dir: t.TempDir(), Observer: &observer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	observer.ObserveQuery("anonymous-private-operation", time.Second, errors.New("anonymous-private-error"))
+	observer.ObserveBusy("anonymous-private-operation")
+	observer.ObserveBreadcrumb("storage.cleanup.failed")
+	dto, err := newBackend(fixedClock{}, nil, store, false, false).GetDiagnostics()
+	if err != nil || dto.StorageHealth == nil {
+		t.Fatalf("missing counters: %+v, %v", dto, err)
+	}
+	if dto.StorageHealth.SlowQueries < 1 || dto.StorageHealth.QueryErrors != 1 ||
+		dto.StorageHealth.BusyErrors != 1 || dto.StorageHealth.MaintenanceErrors != 1 {
+		t.Fatalf("counts=%+v", dto.StorageHealth)
+	}
+	payload, err := json.Marshal(dto.StorageHealth)
+	if err != nil || strings.Contains(string(payload), "private") {
+		t.Fatalf("sensitive observer content crossed binding: %s, %v", payload, err)
+	}
+	withoutStore, err := newBackend(fixedClock{}, nil, nil, false, false).GetDiagnostics()
+	if err != nil || withoutStore.StorageHealth != nil {
+		t.Fatalf("no store must report counters unavailable: %+v, %v", withoutStore, err)
+	}
+}
+
+func TestStorageHealthJSONContract(t *testing.T) {
+	payload, err := json.Marshal(StorageHealthDTO{SlowQueries: 2, QueryErrors: 3, BusyErrors: 1, MaintenanceErrors: 4})
+	const want = `{"slowQueries":2,"queryErrors":3,"busyErrors":1,"maintenanceErrors":4}`
+	if err != nil || string(payload) != want {
+		t.Fatalf("storage health JSON=%s, err=%v, want %s", payload, err, want)
+	}
+	payload, err = json.Marshal(DiagnosticsDTO{})
+	if err != nil || !strings.Contains(string(payload), `"storageHealth":null`) {
+		t.Fatalf("unavailable storage health must be explicit null: %s, %v", payload, err)
+	}
+}
 
 // Diagnostics must work without a database: it is the method that explains why
 // things are degraded, so it cannot itself depend on everything working.

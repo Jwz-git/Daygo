@@ -9,7 +9,7 @@ import "time"
 // Implementations must be safe for concurrent use and must not block: a slow
 // observer would distort the measurement it exists to report.
 //
-// The statement text passed here is compile-time constant SQL. Bound arguments
+// Operation names passed here are constant diagnostic labels. Bound arguments
 // are never included, because they can carry user content (docs/07).
 type Observer interface {
 	// ObserveQuery reports a completed statement.
@@ -22,8 +22,8 @@ type Observer interface {
 	ObserveBreadcrumb(name string)
 }
 
-// NopObserver discards every signal. It is the default when Options.Observer is
-// nil, so callers that do not care about diagnostics pay nothing.
+// NopObserver explicitly discards every signal. Open records local counters by
+// default; callers that do not need diagnostics can opt out with NopObserver.
 type NopObserver struct{}
 
 func (NopObserver) ObserveQuery(string, time.Duration, error) {}
