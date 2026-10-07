@@ -1,3 +1,4 @@
+import { normalizeChatMessage } from '@/api/normalizeDTO'
 import {
   CancelChatTurn,
   CreateChatConversation,
@@ -41,7 +42,7 @@ function devState(): DevConversation[] {
 
 export async function listChatConversations(): Promise<ChatConversationDTO[]> {
   if (hasBridge()) {
-    return (await ListChatConversations()) as unknown as ChatConversationDTO[]
+    return ListChatConversations()
   }
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     return devState().map((conversation) => ({ ...conversation.dto }))
@@ -51,7 +52,7 @@ export async function listChatConversations(): Promise<ChatConversationDTO[]> {
 
 export async function createChatConversation(): Promise<ChatConversationDTO> {
   if (hasBridge()) {
-    return (await CreateChatConversation()) as unknown as ChatConversationDTO
+    return CreateChatConversation()
   }
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     // Mirror the backend: a new thread defaults to the first configured
@@ -132,7 +133,7 @@ export async function getChatMessages(
   limit: number,
 ): Promise<ChatMessageDTO[]> {
   if (hasBridge()) {
-    return (await GetChatMessages(conversationId, beforeId, limit)) as unknown as ChatMessageDTO[]
+    return (await GetChatMessages(conversationId, beforeId, limit)).map(normalizeChatMessage)
   }
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const conversation = devState().find((entry) => entry.dto.id === conversationId)

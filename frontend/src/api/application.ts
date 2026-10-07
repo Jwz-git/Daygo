@@ -1,3 +1,5 @@
+import type { app } from '../../wailsjs/go/models'
+import type { WireDTO } from '@/api/dto'
 import {
   DescribeApplications,
   GetBlockedApplications,
@@ -17,23 +19,13 @@ import { LruCache } from '@/lib/lruCache'
  * back empty means the platform could not resolve the bundle, and the caller
  * shows `id` instead of inventing a label.
  */
-export interface ApplicationDTO {
-  id: string
-  name: string
-  iconDataUrl: string
-}
+export type ApplicationDTO = WireDTO<app.ApplicationDTO>
 
-export interface PrivacyCompatibilityDTO {
-  platform: string
-  version: string
-  build: number
-  minimumBuild: number
-  supported: boolean
-}
+export type PrivacyCompatibilityDTO = WireDTO<app.PrivacyCompatibilityDTO>
 
 export async function getPrivacyCompatibility(): Promise<PrivacyCompatibilityDTO | null> {
   if (!('go' in window) || window.go === undefined) return null
-  return (await GetPrivacyCompatibility()) as unknown as PrivacyCompatibilityDTO
+  return GetPrivacyCompatibility()
 }
 
 /**
@@ -43,7 +35,7 @@ export async function getPrivacyCompatibility(): Promise<PrivacyCompatibilityDTO
  */
 export async function pickApplication(): Promise<ApplicationDTO | null> {
   if (!('go' in window) || window.go === undefined) throw new Error(WAILS_UNAVAILABLE)
-  return (await PickApplication()) as unknown as ApplicationDTO | null
+  return PickApplication()
 }
 
 /**
@@ -53,7 +45,7 @@ export async function pickApplication(): Promise<ApplicationDTO | null> {
  */
 export async function getBlockedApplications(): Promise<ApplicationDTO[]> {
   if ('go' in window && window.go !== undefined) {
-    return (await GetBlockedApplications()) as unknown as ApplicationDTO[]
+    return GetBlockedApplications()
   }
 
   const settings = await getSettings()
@@ -95,7 +87,7 @@ export async function listInstalledApplications(language: string): Promise<Appli
   if (!('go' in window) || window.go === undefined) {
     apps = []
   } else {
-    apps = (await ListInstalledApplications(language)) as unknown as ApplicationDTO[]
+    apps = await ListInstalledApplications(language)
   }
   installedCache = { language, apps }
   return apps
@@ -124,7 +116,7 @@ export async function describeApplications(ids: string[]): Promise<ApplicationDT
     const names = (await getApplicationNamesDevelopmentFixture()) ?? {}
     resolvedBatch = missing.map((id) => ({ id, name: names[id] ?? '', iconDataUrl: '' }))
   } else {
-    resolvedBatch = (await DescribeApplications(missing)) as unknown as ApplicationDTO[]
+    resolvedBatch = await DescribeApplications(missing)
   }
   for (const application of resolvedBatch) identityCache.set(application.id, application)
   return [...out, ...resolvedBatch]

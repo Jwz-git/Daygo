@@ -1,3 +1,5 @@
+import { normalizeProvider } from '@/api/normalizeDTO'
+import { app } from '../../wailsjs/go/models'
 import {
   AddProvider,
   DeleteProvider,
@@ -62,13 +64,13 @@ function devState(): DevState {
 }
 
 export async function listProviders(): Promise<ProviderDTO[]> {
-  if (hasBridge()) return (await ListProviders()) as unknown as ProviderDTO[]
+  if (hasBridge()) return (await ListProviders()).map(normalizeProvider)
   if (import.meta.env.DEV && canUseDevelopmentTestData()) return [...devState().providers]
   throw new Error(WAILS_UNAVAILABLE)
 }
 
 export async function addProvider(input: ProviderInput): Promise<string> {
-  if (hasBridge()) return AddProvider(input as never)
+  if (hasBridge()) return AddProvider(input)
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const state = devState()
     const id = `dev-${state.nextId++}`
@@ -94,7 +96,7 @@ export async function addProvider(input: ProviderInput): Promise<string> {
 }
 
 export async function updateProvider(id: string, input: ProviderInput): Promise<void> {
-  if (hasBridge()) return UpdateProvider(id, input as never)
+  if (hasBridge()) return UpdateProvider(id, input)
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const state = devState()
     state.providers = state.providers.map((provider) =>
@@ -130,7 +132,7 @@ export async function deleteProvider(id: string): Promise<void> {
 }
 
 export async function getProviderRouting(): Promise<ProviderRoutingDTO> {
-  if (hasBridge()) return (await GetProviderRouting()) as unknown as ProviderRoutingDTO
+  if (hasBridge()) return GetProviderRouting()
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     return { chain: devState().routing.chain.map((entry) => ({ ...entry })) }
   }
@@ -138,7 +140,7 @@ export async function getProviderRouting(): Promise<ProviderRoutingDTO> {
 }
 
 export async function setProviderRouting(routing: ProviderRoutingDTO): Promise<void> {
-  if (hasBridge()) return SetProviderRouting(routing as never)
+  if (hasBridge()) return SetProviderRouting(new app.ProviderRoutingDTO(routing))
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     devState().routing = { chain: routing.chain.map((entry) => ({ ...entry })) }
     return
@@ -163,7 +165,12 @@ export async function listProviderModels(
   request: ProviderModelsRequest,
 ): Promise<ProviderModelsResult> {
   if (hasBridge()) {
-    return (await ListProviderModels(request as never)) as unknown as ProviderModelsResult
+    // UI requests may omit either branch's fields. Send explicit Go zero
+    // values so the generated signature checks the complete input contract.
+    return ListProviderModels({
+      providerId: request.providerId ?? '', protocol: request.protocol ?? '',
+      endpoint: request.endpoint ?? '', secret: request.secret ?? '', userAgent: request.userAgent ?? '',
+    })
   }
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     // A plausible fake list keeps the dropdown flow exercisable in a browser.

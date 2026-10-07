@@ -9,6 +9,7 @@ import {
 } from '../../wailsjs/go/app/Backend'
 
 import { WAILS_UNAVAILABLE } from '@/api/settings'
+import { oneOf } from '@/api/normalizeDTO'
 import type { ReviewTotals, ReviewVerdict, SummaryRating } from '@/views/Timeline/review'
 
 function hasBridge(): boolean {
@@ -18,7 +19,7 @@ function hasBridge(): boolean {
 /** Judged minutes per verdict for one logical day; zeros when never reviewed. */
 export async function getReviewTotals(day: string): Promise<ReviewTotals> {
   if (!hasBridge()) throw new Error(WAILS_UNAVAILABLE)
-  return (await GetReviewTotals(day)) as unknown as ReviewTotals
+  return GetReviewTotals(day)
 }
 
 /** Record (or overwrite) the verdict for one card; minutes snapshot server-side. */
@@ -31,7 +32,7 @@ export async function saveCardReview(cardID: number, verdict: ReviewVerdict): Pr
 export async function getCardVerdict(cardID: number): Promise<ReviewVerdict | null> {
   if (!hasBridge()) throw new Error(WAILS_UNAVAILABLE)
   const verdict = await GetCardVerdict(cardID)
-  return verdict === '' ? null : (verdict as ReviewVerdict)
+  return verdict === '' ? null : oneOf(verdict, ['distraction', 'neutral', 'focus'], 'verdict')
 }
 
 /** Remove the verdict for one card (撤销). */
@@ -50,7 +51,7 @@ export async function saveCardRating(cardID: number, rating: SummaryRating): Pro
 export async function getCardRating(cardID: number): Promise<SummaryRating | null> {
   if (!hasBridge()) throw new Error(WAILS_UNAVAILABLE)
   const rating = await GetCardRating(cardID)
-  return rating === '' ? null : (rating as SummaryRating)
+  return rating === '' ? null : oneOf(rating, ['up', 'down'], 'rating')
 }
 
 /** Remove the summary rating for one card (tapping the active thumb again). */

@@ -1,3 +1,5 @@
+import { normalizePlanDay } from '@/api/normalizeDTO'
+import type { GeneratedBindings } from '@/api/generatedBindings'
 import type { PlanBlockDTO, PlanBlockInputDTO, PlanBlockStatus, PlanDayDTO } from '@/api/dto'
 import { canUseDevelopmentTestData } from '@/api/developmentFixtures'
 
@@ -8,12 +10,12 @@ import { canUseDevelopmentTestData } from '@/api/developmentFixtures'
  * panel exercisable; it never runs in production.
  */
 
-interface PlanBackend {
-  GetPlanDay?: (day: string) => Promise<PlanDayDTO>
-  SavePlanBlock?: (input: PlanBlockInputDTO) => Promise<number>
-  SetPlanBlockStatus?: (id: number, status: string) => Promise<void>
-  DeletePlanBlock?: (id: number) => Promise<void>
-}
+type PlanBackend = GeneratedBindings<
+  | 'GetPlanDay'
+  | 'SavePlanBlock'
+  | 'SetPlanBlockStatus'
+  | 'DeletePlanBlock'
+>
 
 interface WailsRuntime {
   EventsOnMultiple?: (eventName: string, callback: (...data: unknown[]) => void, maxCallbacks: number) => () => void
@@ -98,7 +100,7 @@ export async function getPlanDay(day: string): Promise<PlanDayDTO> {
   }
   const method = backend()?.GetPlanDay
   if (typeof method !== 'function') throw new PlanUnavailableError()
-  return method(day)
+  return normalizePlanDay(await method(day))
 }
 
 export async function savePlanBlock(input: PlanBlockInputDTO): Promise<number> {

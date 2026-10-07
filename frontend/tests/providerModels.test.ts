@@ -119,7 +119,9 @@ test('fetching populates candidates without adding models; picks and unrelated e
   try {
     await event(form.button('获取模型'), 'onClick')
     await settle()
-    assert.deepEqual(form.requests, [{ providerId: saved.id }], 'stored key stays in Go')
+    // The wrapper now sends the complete generated Go input with empty unused
+    // fields; empty secret still means the stored key never crosses to Vue.
+    assert.deepEqual(form.requests, [{ providerId: saved.id, protocol: '', endpoint: '', secret: '', userAgent: '' }], 'stored key stays in Go')
     assert.equal(form.combos().length, 1, 'listing must not configure every fetched model')
     assert.equal(form.combos()[0]!.props.value, 'custom-model')
     event(form.combos()[0]!, 'onFocus')

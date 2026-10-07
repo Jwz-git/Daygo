@@ -1,3 +1,5 @@
+import { normalizeTimelineDay, normalizeRecap, normalizeJournal } from '@/api/normalizeDTO'
+import type { GeneratedBindings } from '@/api/generatedBindings'
 import type {
   CapabilitiesDTO,
   DailyRecapDTO,
@@ -7,18 +9,18 @@ import type {
   TimelineDayDTO,
 } from '@/api/dto'
 
-interface DailyBackend {
-  GetCapabilities?: () => Promise<CapabilitiesDTO>
-  GetDayContext?: (day: string) => Promise<DayContextDTO>
-  GetTimelineDay?: (day: string) => Promise<TimelineDayDTO>
-  GetDailyRecap?: (standupDay: string) => Promise<DailyRecapDTO>
-  GenerateDailyRecap?: (standupDay: string) => Promise<DailyRecapDTO>
-  SaveDailyRecap?: (recap: DailyRecapDTO) => Promise<void>
-  GetJournalDay?: (day: string) => Promise<JournalDayDTO>
-  SaveJournalDay?: (entry: JournalDayDTO) => Promise<void>
-  GetDayGoal?: (day: string) => Promise<DayGoalDTO>
-  SaveDayGoal?: (goal: DayGoalDTO) => Promise<void>
-}
+type DailyBackend = GeneratedBindings<
+  | 'GetCapabilities'
+  | 'GetDayContext'
+  | 'GetTimelineDay'
+  | 'GetDailyRecap'
+  | 'GenerateDailyRecap'
+  | 'SaveDailyRecap'
+  | 'GetJournalDay'
+  | 'SaveJournalDay'
+  | 'GetDayGoal'
+  | 'SaveDayGoal'
+>
 
 interface WailsRuntime {
   EventsOnMultiple?: (
@@ -65,13 +67,13 @@ export async function getDailyContext(day = ''): Promise<DayContextDTO> {
 export async function getDailyTimeline(day: string): Promise<TimelineDayDTO> {
   const method = backend()?.GetTimelineDay
   if (typeof method !== 'function') throw new DailyUnavailableError()
-  return method(day)
+  return normalizeTimelineDay(await method(day))
 }
 
 export async function getDailyRecap(standupDay: string): Promise<DailyRecapDTO> {
   const method = backend()?.GetDailyRecap
   if (typeof method !== 'function') throw new DailyUnavailableError()
-  return method(standupDay)
+  return normalizeRecap(await method(standupDay))
 }
 
 export function hasRecapGenerationBinding(): boolean {
@@ -81,7 +83,7 @@ export function hasRecapGenerationBinding(): boolean {
 export async function generateDailyRecap(standupDay: string): Promise<DailyRecapDTO> {
   const method = backend()?.GenerateDailyRecap
   if (typeof method !== 'function') throw new DailyUnavailableError()
-  return method(standupDay)
+  return normalizeRecap(await method(standupDay))
 }
 
 export function hasRecapSaveBinding(): boolean {
@@ -118,7 +120,7 @@ export function hasGoalBinding(): boolean {
 export async function getJournalDay(day: string): Promise<JournalDayDTO> {
   const method = backend()?.GetJournalDay
   if (typeof method !== 'function') throw new DailyUnavailableError()
-  return method(day)
+  return normalizeJournal(await method(day))
 }
 
 export async function saveJournalDay(entry: JournalDayDTO): Promise<void> {

@@ -1,3 +1,5 @@
+import { normalizeTimelineDay } from '@/api/normalizeDTO'
+import type { GeneratedBindings } from '@/api/generatedBindings'
 import type {
   CapabilitiesDTO,
   CategoryDTO,
@@ -5,23 +7,23 @@ import type {
   TimelineDayDTO,
 } from '@/api/dto'
 
-interface TimelineBackend {
-  SaveCategories?: (categories: CategoryDTO[]) => Promise<void>
-  GetCapabilities?: () => Promise<CapabilitiesDTO>
-  GetDayContext?: (day: string) => Promise<DayContextDTO>
-  GetTimelineDay?: (day: string) => Promise<TimelineDayDTO>
-  UpdateCardCategory?: (cardID: number, category: string) => Promise<void>
-  UpdateCardTitle?: (cardID: number, title: string) => Promise<void>
-  UpdateCardSummary?: (cardID: number, text: string) => Promise<void>
-  UpdateCardDetailedSummary?: (cardID: number, text: string) => Promise<void>
-  DeleteCard?: (cardID: number) => Promise<void>
-  RetryBatches?: (batchIDs: number[]) => Promise<void>
-  StopRetries?: (batchIDs: number[]) => Promise<void>
-  ReprocessDay?: (day: string) => Promise<void>
-  ReprocessCard?: (cardID: number) => Promise<void>
-  DeleteBatches?: (batchIDs: number[]) => Promise<void>
-  ClearHistoryData?: () => Promise<void>
-}
+type TimelineBackend = GeneratedBindings<
+  | 'SaveCategories'
+  | 'GetCapabilities'
+  | 'GetDayContext'
+  | 'GetTimelineDay'
+  | 'UpdateCardCategory'
+  | 'UpdateCardTitle'
+  | 'UpdateCardSummary'
+  | 'UpdateCardDetailedSummary'
+  | 'DeleteCard'
+  | 'RetryBatches'
+  | 'StopRetries'
+  | 'ReprocessDay'
+  | 'ReprocessCard'
+  | 'DeleteBatches'
+  | 'ClearHistoryData'
+>
 
 interface WailsRuntime {
   EventsOnMultiple?: (
@@ -106,7 +108,7 @@ export async function getDayContext(day = ''): Promise<DayContextDTO> {
 export async function getTimelineDay(day: string): Promise<TimelineDayDTO> {
   const method = backend()?.GetTimelineDay
   if (typeof method !== 'function') throw new TimelineUnavailableError()
-  return method(day)
+  return normalizeTimelineDay(await method(day))
 }
 
 export async function getTimelineCapabilities(): Promise<CapabilitiesDTO | null> {

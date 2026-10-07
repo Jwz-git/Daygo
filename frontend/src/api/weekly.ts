@@ -1,8 +1,10 @@
+import { normalizeWeeklyDashboard } from '@/api/normalizeDTO'
+import type { GeneratedBindings } from '@/api/generatedBindings'
 import type { WeeklyDashboardDTO } from '@/api/dto'
 
-interface WeeklyBackend {
-  GetWeeklyDashboard?: (weekStart: string) => Promise<WeeklyDashboardDTO>
-}
+type WeeklyBackend = GeneratedBindings<
+  | 'GetWeeklyDashboard'
+>
 
 type WeeklyWindow = Window & {
   go?: { app?: { Backend?: WeeklyBackend } }
@@ -26,5 +28,5 @@ export function hasWeeklyBinding(): boolean {
 export async function getWeeklyDashboard(weekStart = ''): Promise<WeeklyDashboardDTO> {
   const method = backend()?.GetWeeklyDashboard
   if (typeof method !== 'function') throw new WeeklyUnavailableError()
-  return method(weekStart)
+  return normalizeWeeklyDashboard(await method(weekStart))
 }

@@ -1,3 +1,5 @@
+import type { ReviewTotalsDTO } from '@/api/dto'
+
 /*
  * Persisted review statistics shared between the review flow and the
  * inspector's "你的回顾" panel. The backend returns the day totals and the
@@ -11,13 +13,7 @@ export type ReviewVerdict = 'distraction' | 'neutral' | 'focus'
  */
 export type SummaryRating = 'up' | 'down'
 
-export interface ReviewTotals {
-  distractionMinutes: number
-  neutralMinutes: number
-  focusMinutes: number
-  /** Cards with a stored verdict; the queue excludes them. */
-  reviewedCardIds?: number[]
-}
+export type ReviewTotals = Omit<ReviewTotalsDTO, 'reviewedCardIds'> & Partial<Pick<ReviewTotalsDTO, 'reviewedCardIds'>>
 
 export const ZERO_REVIEW_TOTALS: ReviewTotals = {
   distractionMinutes: 0,

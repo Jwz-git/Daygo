@@ -52,7 +52,7 @@ const planDay = (day: string, minutes: number): PlanDayDTO => ({
   day,
   blocks: [{
     id: 1, day, start: '09:00', end: '10:00', startTs: 100, endTs: 3700,
-    title: 'Anonymous plan', notes: null, categoryId: null, categoryName: '', colorHex: '',
+    title: 'Anonymous plan', notes: null, categoryId: '', categoryName: '', colorHex: '',
     status: 'planned', completedAtTs: null, remind: false,
     matchedMinutes: minutes, distractionMinutes: minutes / 2,
   } satisfies PlanBlockDTO],

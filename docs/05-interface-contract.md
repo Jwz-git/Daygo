@@ -1227,7 +1227,7 @@ frontend/
 │   └── runtime/                    事件与窗口 runtime
 └── src/
     ├── api/
-    │   ├── dto.ts          ☐ 临时手写 DTO 子集，生成绑定接入后删除
+    │   ├── dto.ts          ★ 生成 DTO 的数据字段派生（枚举 / null 由 wrapper 校验）
     │   ├── providerTest.ts ★ 已有的薄 wrapper（连接探针）
     │   ├── client.ts       ☐ 错误解析（§5.4）、超时、重试策略
     │   ├── events.ts       ☐ 事件订阅与取消订阅，事件名常量
@@ -1252,7 +1252,11 @@ frontend/
 1. **组件不得直接 import 生成绑定，也不得订阅事件。** 数据获取与事件响应只发生在 store
    或 `api/` 中；组件只消费 store。
 2. **DTO 类型的唯一来源是生成的 `models.ts`。** 不手写重复的 `interface`。视图模型可以
-   另建类型，但必须由 DTO 类型派生。
+   另建类型，但必须由 DTO 类型派生。`WireDTO` 排除生成类的构造 helper，接受 Go 指针的
+   null；`normalizeDTO` 在读取边界将可空字段统一为 null 并校验封闭字符串枚举，未知值抛
+   `invalid_binding_payload: <固定字段名>`，不包含返回值内容。动态 `window.go` 方法签名
+   通过 `GeneratedBindings` 从生成函数派生，不独立手写。模型列表 UI 的两种请求分支允许
+   省略无关字段，wrapper 发送完整 Go DTO，缺失字符串为 Go 零值空串；不读取已存密钥。
 3. **生成产物不入库**（`frontend/wailsjs/` 已在 `.gitignore` 中），因此 CI 必须先执行
    绑定生成再跑 `vue-tsc`。
 4. **禁止 `any` 跨越 Wails 边界。** 需要逃逸时定义显式的 `unknown` + 解析函数。

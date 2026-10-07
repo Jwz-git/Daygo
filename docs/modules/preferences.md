@@ -61,9 +61,11 @@ Go recorder 夹具验证 UI 隐藏后仍产生捕获提交，UI 事件不启动 
   提供 36px 顶栏：左侧只显示 Daygo 图标，右侧提供最小化、最大化 / 还原和“关闭即隐藏”控制；
   macOS 的隐藏标题栏和 Linux 原生窗口行为不变。
 
-未交付：前端所有 DTO 的生成类型替换、统一错误模型、localStorage 全量接管迁移，以及遥测行为接入。
+未交付：统一错误模型、localStorage 全量接管迁移，以及遥测行为接入。
 启动项消费者已存在；本轮补齐 macOS Dock 消费者，均由 recording 维护。
-`frontend/src/api/dto.ts` 仍保留时间线 / Provider 等已有绑定的手写 DTO 子集，生成类型收口仍未完成；主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。存储上限已通过生成绑定接入设置页（识别增强开关已于 2026-10-02 随功能移除；模型输出语言设置已于 2026-10-03 移除，改为跟随界面语言）。
+`frontend/src/api/dto.ts` 已改为从 `frontend/wailsjs/go/models.ts` 派生的数据类型；
+`generatedBindings` 从生成函数派生动态桥签名，`normalizeDTO` 校验封闭枚举并统一指针空值，
+时间线 / 日报 / 周报 / 计划不再维护独立手写签名。主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。存储上限已通过生成绑定接入设置页（识别增强开关已于 2026-10-02 随功能移除；模型输出语言设置已于 2026-10-03 移除，改为跟随界面语言）。
 
 **绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
 绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`（`Store` 还把 `storage.Store` 拉进了生成的
@@ -119,6 +121,19 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 不能靠全清 localStorage 或把密钥写到本地偏好恢复状态。
 
 ## 验证记录
+
+2026-10-07（`test`，基于 `0abca1b` 的工作树，macOS arm64）：删除 `api/dto.ts` 手写字段
+副本，改为生成模型的数据字段派生；动态时间线 / daily / weekly / plan 桥签名由生成函数
+派生，所有 API 的 `as unknown as` / `as never` 响应与输入逃逸已清除。wrapper 校验主题、
+语言、Provider 协议、chat / plan 状态与审阅枚举；Go 指针的缺失值转为 null，保留合法 0。
+先写无效枚举 / 缺失指针夹具，旧实现三项失败；审阅非法值夹具旧实现也失败。
+显式决定：模型列表请求改为发送生成 Go DTO 的完整字段，无关字符串为零值空串（存储密钥
+仍留在 Go）；因此对应匿名请求期望从省略字段改为空字段，改动不改变后端两分支的语义。
+`PlanDay` 匿名夹具的 categoryId 校正为空字符串以符合 Go 契约，无期望值变化。
+完整 `./scripts/gate.sh` 通过，前端 265 项 / 0 失败 / 跳过，typecheck / build 通过；
+文档 60 篇 / 0 处问题，`gofmt -l .` 无输出。Windows 安装器 15 项中 10 项需 Windows 主机
+而跳过。未运行真实 Wails / Provider / CLI / MCP 回归；回退：撤销本次前端提交，无 Go 绑定
+签名、数据库 schema 或用户设置变更。
 
 2026-10-03：移除「模型输出语言」设置，模型输出语言改为直接跟随界面语言 `appearance.language`。
 删除设置键 `llm.outputLanguage`、`Snapshot` / `Patch` 字段、`LLMSettingsDTO` /

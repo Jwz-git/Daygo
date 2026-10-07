@@ -13,6 +13,6 @@ function hasBridge(): boolean {
  * long card never produces an oversized response.
  */
 export async function getCardMedia(cardID: number): Promise<CardMediaDTO> {
-  if (hasBridge()) return (await GetCardMedia(cardID)) as unknown as CardMediaDTO
+  if (hasBridge()) return GetCardMedia(cardID)
   throw new Error(WAILS_UNAVAILABLE)
 }

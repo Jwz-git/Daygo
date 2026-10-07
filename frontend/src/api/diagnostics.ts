@@ -1,12 +1,13 @@
 import { GetDiagnostics } from '../../wailsjs/go/app/Backend'
 import type { app } from '../../wailsjs/go/models'
+import type { WireDTO } from '@/api/dto'
 
 // Wails generates Go pointers as optional fields, although JSON sends null.
 // Normalize those fields once at the boundary so consumers see the real shape.
-export type DiagnosticsDTO = Omit<app.DiagnosticsDTO, 'convertValues' | 'lastCaptureAtTs' | 'captureOwnerPid' | 'storageHealth'> & {
+export type DiagnosticsDTO = Omit<WireDTO<app.DiagnosticsDTO>, 'lastCaptureAtTs' | 'captureOwnerPid' | 'storageHealth'> & {
   lastCaptureAtTs: number | null
   captureOwnerPid: number | null
-  storageHealth: app.StorageHealthDTO | null
+  storageHealth: WireDTO<app.StorageHealthDTO> | null
 }
 
 export const DIAGNOSTICS_UNAVAILABLE = 'diagnostics_unavailable'

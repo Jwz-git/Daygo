@@ -1,3 +1,4 @@
+import { normalizeSettings } from '@/api/normalizeDTO'
 import { GetSettings, UpdateSettings } from '../../wailsjs/go/app/Backend'
 
 import {
@@ -31,7 +32,7 @@ async function loadDevelopmentSettings(): Promise<SettingsDTO | null> {
 
 /** The effective settings, with backend defaults already applied. */
 export async function getSettings(): Promise<SettingsDTO> {
-  if (hasBridge()) return (await GetSettings()) as unknown as SettingsDTO
+  if (hasBridge()) return normalizeSettings(await GetSettings())
 
   const dev = await loadDevelopmentSettings()
   if (dev !== null) return dev
@@ -43,7 +44,7 @@ export async function getSettings(): Promise<SettingsDTO> {
  * which is the only authority to display — never the value that was sent.
  */
 export async function updateSettings(patch: SettingsPatch): Promise<SettingsDTO> {
-  if (hasBridge()) return (await UpdateSettings(patch)) as unknown as SettingsDTO
+  if (hasBridge()) return normalizeSettings(await UpdateSettings(patch))
 
   const dev = await loadDevelopmentSettings()
   if (dev === null) throw new Error(WAILS_UNAVAILABLE)
