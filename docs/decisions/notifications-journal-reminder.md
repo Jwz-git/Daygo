@@ -1,11 +1,11 @@
 # notifications 日记提醒：Go 拥有重复、一次性原生通知、墙钟时刻
 
-> **状态：已决定；Go 调度与前端已实现，原生投递待真机验收。** 本轮落盘：决策、Go 侧调度器
-> `runJournalReminder`、fake 夹具、设置 UI、九语言文案与 `NativeUiLabelsDTO` 文案通路。
-> macOS / Windows 原生投递（`ScheduleNotification` 真实实现）**尚未实现**，属本文 §6 的
-> on-device 门禁；在此之前 `internal/platform/{darwin,windows}` 的 `ScheduleNotification` /
-> `CancelNotifications` 诚实返回 `platform.ErrCapabilityUnavailable`（不再以 nil 假装成功），
-> 调度器据此按能力静默跳过，见 §3「能力不可用」与 §6。
+> **状态：已决定；Go 调度、前端与 macOS 原生投递已实现，真实通知投递待验收。**
+> macOS `UNUserNotificationCenter` 已随 `4dac8b7` 合入 `test`；Windows toast、无 cgo 与
+> 无应用 bundle 的运行环境仍返回 `platform.ErrCapabilityUnavailable`。2026-10-07 起
+> `NotificationAvailability` 无授权副作用地报告投递实现能力，绑定以 `notifications`
+> feature 下发；设置与计划编辑器在能力缺失时禁用提醒并显示说明，保留已有提醒偏好。
+> 支持投递不等于获准投递，授权仍由平台投递时校验。调度与 fake 证据不替代 §6 真机门禁。
 
 ## 1. 决策
 
@@ -86,7 +86,7 @@
 | fake 夹具 | `fake.System` 记录 `ScheduleNotification` / `CancelNotifications` 调用 | 已实现 |
 | 设置 UI + i18n | 通用区开关 + 时刻输入，9 语言 | 已实现 |
 | 文案通路 | `NativeUiLabelsDTO` 两个字段 + `native` 命名空间 + `App.vue` 推送 | 已实现 |
-| **原生投递** | darwin `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`，cgo 内联 Objective-C，与已安装应用枚举同一形态，未进 Swift 静态库）；windows C++ toast | **darwin 已实现（`feature/plan` 分支，未提交）、未真机验收**；windows 未实现（§6） |
+| **原生投递** | darwin `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`，cgo 内联 Objective-C，与已安装应用枚举同一形态，未进 Swift 静态库）；windows C++ toast | **darwin 已实现（`4dac8b7`，已合入 `test`）、未真机验收**；windows 未实现（§6） |
 
 ## 5.1 计划通知（2026-10-03 增补）
 

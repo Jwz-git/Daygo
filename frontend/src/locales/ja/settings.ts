@@ -73,6 +73,7 @@ export default {
     chatEditsHint: 'アプリ内チャットがカード、カテゴリ、目標を編集できるようにします。上の設定とは独立しています。',
   },
   general: {
+    notificationsUnavailable: 'この環境では現在、システム通知を利用できません。',
     showDockIcon: "Dock に表示",
     showDockIconHint: "オフの場合はメニューバーから Daygo を開きます。Cmd+Q はウインドウを隠し、記録を継続します。メニューバーを利用できない場合は Dock に表示します。",
     launchAtLogin: 'ログイン時に起動',

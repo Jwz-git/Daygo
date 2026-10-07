@@ -11,6 +11,8 @@ import (
 // Without cgo there is no UserNotifications bridge; the schedulers treat the
 // capability as absent and stay silent.
 
+func notificationsAvailable() bool { return false }
+
 func scheduleNotification(context.Context, platform.Notification) error {
 	return platform.ErrCapabilityUnavailable
 }

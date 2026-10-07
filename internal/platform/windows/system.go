@@ -155,6 +155,7 @@ func (*System) RequestScreenRecordingPermission(context.Context) error { return 
 func (*System) NotificationsPermission(context.Context) (platform.PermissionState, error) {
 	return "", errSystemCapabilityUnavailable
 }
+func (*System) NotificationsAvailable() bool { return false }
 func (*System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, errSystemCapabilityUnavailable
 }

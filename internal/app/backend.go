@@ -671,6 +671,9 @@ func (b *Backend) features() []string {
 	if b.storage != nil {
 		// Persistence is real only when a database is actually open.
 		features = append(features, "storage", "timeline")
+		if notifications, ok := b.system.(platform.NotificationAvailability); ok && notifications.NotificationsAvailable() {
+			features = append(features, "notifications")
+		}
 	}
 	return features
 }

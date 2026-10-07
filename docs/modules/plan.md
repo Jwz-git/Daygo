@@ -30,6 +30,8 @@
 - 外部：CLI `daygo plan [day]`；`agent.sock` / MCP / chat 写操作 `plan_add` `plan_update`
   `plan_complete` `plan_delete`，MCP / chat 读工具 `plan`（[05 §5.9](../05-interface-contract.md#59-b6对外接口推迟到-v11)）。
 - 提醒：`internal/app/plan_reminder.go`，读写实例上运行的对账循环（2 分钟 + 写入后立即唤醒）。
+- 能力：`GetCapabilities.features` 的 `notifications` 区分实现与授权；不可用时禁用提醒编辑、
+  新计划默认不提醒，已有提醒偏好保留，九语言说明复用设置文案。
 - 原生投递：macOS `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`），
   见 [通知决策](../decisions/notifications-journal-reminder.md)；Windows 仍为 `ErrCapabilityUnavailable`。
 - 前端：`api/plan.ts`、`stores/plan.ts`（当日 + 周视图各日、检查器定位请求）、
@@ -68,6 +70,17 @@
   降级迁移不做破坏性删除。
 
 ## 验证记录
+
+2026-10-07（`test`，基于 `5b6d903` 的工作树，macOS arm64）：新增无授权副作用的
+`NotificationAvailability`，仅数据库已打开且当前平台 / 构建有原生投递时广告 `notifications`。
+日记与计划提醒 UI 缺能力时禁用并显示九语言说明；新计划默认不提醒，既有偏好不清除。
+先写支持 / 不支持 / 权限拒绝 / 无数据库的匿名 Go 夹具，旧代码支持分支失败；前端 capability
+失败重试与真实 PlanBlockForm SSR 夹具通过（SSR 不证明真实窗口视觉）。完整 `./scripts/gate.sh`
+通过，前端 259 项 / 0 失败 / 跳过；`gofmt -l .` 无输出，文档检查 60 篇 / 0 处问题。
+`go test ./internal/platform/darwin -run TestNotificationsUnavailableWithoutAppBundle -count=1`
+通过，只证明无 bundle 时不广告原生通知；新增 cgo 查询初次编译发现 BOOL 类型差异，统一通过
+C int 返回值后通过。不证明授权或投递；真实 macOS bundle、Windows 主机与点击唤回未运行。
+Windows 安装器 15 项中 10 项需 Windows 主机而跳过。回退：撤销本次能力门禁提交，无 schema 变更。
 
 - **2026-10-03（`feature/plan` 工作树，未提交，macOS arm64）**：`gofmt -l` 无输出、`go vet ./...`、
   `CGO_ENABLED=0 go test ./internal/...` 全部通过（含 storage v19→v20 夹具、repository、timeutil 日内时刻 /

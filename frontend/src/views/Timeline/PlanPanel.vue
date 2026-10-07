@@ -7,6 +7,7 @@ import type { CategoryDTO, PlanBlockDTO, PlanBlockInputDTO } from '@/api/dto'
 import { categoryLabel } from '@/lib/categoryLabel'
 import { useDurationFormat } from '@/lib/duration'
 import { usePlanStore } from '@/stores/plan'
+import { useCapabilitiesStore } from '@/stores/capabilities'
 import { safeCategoryColor } from './layout'
 import PlanBlockForm, { type PlanDraft } from './PlanBlockForm.vue'
 import { planPhase } from './planLayout'
@@ -30,10 +31,12 @@ const props = defineProps<{
 const { t } = useI18n()
 const duration = useDurationFormat()
 const plan = usePlanStore()
+const capabilities = useCapabilitiesStore()
 
 const nowTs = ref(Math.floor(Date.now() / 1000))
 let clock: number | null = null
 onMounted(() => {
+  void capabilities.load()
   clock = window.setInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 30_000)
 })
 onBeforeUnmount(() => {
@@ -69,7 +72,7 @@ function newDraft(): PlanDraft {
     const now = new Date()
     start = Math.ceil((now.getHours() * 60 + now.getMinutes() + 1) / 30) * 30
   }
-  return { id: 0, start: clockOf(start), end: clockOf(start + 60), title: '', notes: '', categoryId: '', remind: true }
+  return { id: 0, start: clockOf(start), end: clockOf(start + 60), title: '', notes: '', categoryId: '', remind: capabilities.notificationsAvailable }
 }
 
 function openNew(): void {
@@ -187,6 +190,7 @@ const errorText = computed(() => {
         :categories="categories"
         :pending="plan.pending"
         :error="errorText"
+        :notifications-available="capabilities.notificationsAvailable"
         @save="submit"
         @cancel="draft = null"
       />
@@ -209,6 +213,7 @@ const errorText = computed(() => {
             :categories="categories"
             :pending="plan.pending"
             :error="errorText"
+            :notifications-available="capabilities.notificationsAvailable"
             @save="submit"
             @cancel="draft = null"
           />

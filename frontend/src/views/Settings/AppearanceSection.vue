@@ -6,6 +6,7 @@ import type { AppTheme } from '@/api/dto'
 import { SYSTEM_LANGUAGE, type LanguagePreference } from '@/i18n/locales'
 import { useAppearanceStore } from '@/stores/appearance'
 import { useTestToolsStore } from '@/stores/testTools'
+import { useCapabilitiesStore } from '@/stores/capabilities'
 
 import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 
@@ -16,6 +17,7 @@ import { useSettingsSection } from './useSettingsSection'
 const { t } = useI18n()
 const appearance = useAppearanceStore()
 const testTools = useTestToolsStore()
+const capabilities = useCapabilitiesStore()
 const testToolsFailed = ref(false)
 
 // The toggle only reveals a page that ships in dev/opt-in builds; hide it in
@@ -34,7 +36,10 @@ const journalReminderTime = computed(
 )
 const dockConfigurable = document.documentElement.dataset.dgPlatform === 'darwin'
 
-onMounted(() => void loadSystem())
+onMounted(() => {
+  void loadSystem()
+  void capabilities.load()
+})
 
 function onToggleLaunchAtLogin(next: boolean): void {
   void persistSystem({ launchAtLogin: next })
@@ -149,11 +154,11 @@ const languageOptions = computed<DgSelectOption<LanguagePreference>[]>(() =>
 
   <SettingRow
     :title="t('settings.general.journalReminder')"
-    :hint="t('settings.general.journalReminderHint')"
+    :hint="capabilities.notificationsAvailable ? t('settings.general.journalReminderHint') : t('settings.general.notificationsUnavailable')"
   >
     <div class="reminder-control">
       <input
-        v-if="journalReminderEnabled"
+        v-if="journalReminderEnabled && capabilities.notificationsAvailable"
         class="dg-input reminder-time"
         type="time"
         :value="journalReminderTime"
@@ -163,7 +168,7 @@ const languageOptions = computed<DgSelectOption<LanguagePreference>[]>(() =>
       >
       <SwitchControl
         :checked="journalReminderEnabled"
-        :disabled="systemState !== 'ready'"
+        :disabled="systemState !== 'ready' || !capabilities.notificationsAvailable"
         :label="t('settings.general.journalReminder')"
         @toggle="onToggleJournalReminder"
       />

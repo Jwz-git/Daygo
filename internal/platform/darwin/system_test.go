@@ -9,6 +9,12 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
 
+func TestNotificationsUnavailableWithoutAppBundle(t *testing.T) {
+	if (&System{}).NotificationsAvailable() {
+		t.Fatal("bare test process must not advertise bundle-only notifications")
+	}
+}
+
 func TestSystemShutdownMappingAndFullQueue(t *testing.T) {
 	s := &System{events: make(chan platform.SystemEvent, 2)}
 	s.push(1, 1)

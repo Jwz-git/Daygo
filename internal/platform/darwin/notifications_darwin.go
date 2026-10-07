@@ -49,6 +49,8 @@ static BOOL dg_has_bundle(void) {
     return [[NSBundle mainBundle] bundleIdentifier] != nil;
 }
 
+static int dg_notifications_available(void) { return dg_has_bundle() ? 1 : 0; }
+
 static UNUserNotificationCenter *dg_center(void) {
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
     static dispatch_once_t once;
@@ -172,6 +174,8 @@ import (
 )
 
 var errNotificationsDenied = errors.New("darwin: notifications are not authorized")
+
+func notificationsAvailable() bool { return C.dg_notifications_available() != 0 }
 
 func scheduleNotification(_ context.Context, n platform.Notification) error {
 	id := C.CString(n.ID)

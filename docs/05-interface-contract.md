@@ -627,10 +627,14 @@ type DayContextDTO struct {
 type CapabilitiesDTO struct {
     CanWrite        bool     `json:"canWrite"`        // 是否持有写入锁
     IsCaptureOwner  bool     `json:"isCaptureOwner"`  // 是否持有捕获所有者锁
-    Features        []string `json:"features"`        // 已交付界面："timeline","daily","weekly","settings",...
+    Features        []string `json:"features"`        // 当前值："settings"；有数据库加 "storage","timeline"；有原生投递加 "notifications"
     AppVersion      string   `json:"appVersion"`
     APIRevision     int      `json:"apiRevision"` // 见 §5.10.1
 }
+
+// notifications 仅表示当前构建 / bundle 有投递实现，并依赖数据库打开；不表示获准投递。
+// System 的可选 NotificationAvailability 无授权副作用地报告此能力；无 reporter 视为不可用。
+// UI 无能力时禁用日记 / 计划提醒，已有偏好保留；授权状态仍由 GetPermissionState 查询。
 
 type DiagnosticsDTO struct {
     DatabasePath      string `json:"databasePath"`

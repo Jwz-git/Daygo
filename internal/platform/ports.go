@@ -70,6 +70,13 @@ type System interface {
 	Events() <-chan SystemEvent
 }
 
+// NotificationAvailability reports whether this build/environment implements
+// native delivery. It must be nonblocking and must not request authorization;
+// a denied permission does not remove the capability.
+type NotificationAvailability interface {
+	NotificationsAvailable() bool
+}
+
 // Relauncher is an optional System capability: it re-launches the app after the
 // current process has exited. A System adapter opts in by implementing it; the
 // app layer type-asserts and degrades to a plain quit when it is absent.

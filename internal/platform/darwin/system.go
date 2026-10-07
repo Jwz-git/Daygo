@@ -19,6 +19,8 @@ type System struct {
 	closed  bool
 }
 
+func (*System) NotificationsAvailable() bool { return notificationsAvailable() }
+
 func NewSystem() *System {
 	s := &System{events: make(chan platform.SystemEvent, 32)}
 	_ = s.start()

@@ -28,6 +28,7 @@ const props = defineProps<{
   categories: CategoryDTO[]
   pending: boolean
   error: string
+  notificationsAvailable: boolean
 }>()
 
 const emit = defineEmits<{
@@ -78,9 +79,10 @@ const categoryOptions = computed<DgSelectOption[]>(() => [
     <div class="plan-form__row">
       <DgSelect v-model="draft.categoryId" size="sm" :options="categoryOptions" :aria-label="t('timeline.plan.category')" />
       <label class="plan-form__remind">
-        <input v-model="draft.remind" class="dg-checkbox" type="checkbox">
+        <input v-model="draft.remind" class="dg-checkbox" type="checkbox" :disabled="!notificationsAvailable">
         <span>{{ t('timeline.plan.remind') }}</span>
       </label>
+      <span v-if="!notificationsAvailable" class="plan-form__notification-hint">{{ t('settings.general.notificationsUnavailable') }}</span>
     </div>
     <p v-if="error" class="plan-form__error" role="alert">{{ error }}</p>
     <div class="plan-form__actions">
@@ -155,6 +157,11 @@ const categoryOptions = computed<DgSelectOption[]>(() => [
   font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.plan-form__notification-hint {
+  color: var(--dg-text-secondary);
+  font-size: 12px;
 }
 
 .plan-form__error {

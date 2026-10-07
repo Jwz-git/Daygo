@@ -31,6 +31,8 @@ type System struct {
 	cancelErr        error
 }
 
+func (*System) NotificationsAvailable() bool { return true }
+
 // SetNotificationsPermission makes NotificationsPermission report state. The
 // default is granted; a test that wants a denied platform sets it explicitly.
 func (s *System) SetNotificationsPermission(state platform.PermissionState) {

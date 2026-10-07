@@ -73,6 +73,7 @@ export default {
     chatEditsHint: 'Deixe a conversa dentro do aplicativo editar cartões, categorias e metas para você. Independente da configuração acima.',
   },
   general: {
+    notificationsUnavailable: 'As notificações do sistema estão indisponíveis neste ambiente no momento.',
     showDockIcon: "Mostrar no Dock",
     showDockIconHint: "Quando desativado, abra o Daygo pela barra de menus. Cmd+Q oculta a janela e continua gravando. Se a barra de menus estiver indisponível, o Dock permanece disponível.",
     launchAtLogin: 'Abrir ao iniciar sessão',

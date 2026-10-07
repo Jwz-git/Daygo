@@ -65,9 +65,10 @@ Go 侧 httptest 全链路 + 存储夹具断言（补历史、空活动跳过、�
 `NativeUiLabelsDTO` 的 `journalReminderTitle` / `journalReminderBody` 文案通路与九语言文案。
 Go 侧夹具覆盖：默认关闭不排、按时刻排下一次、过点顺延次日、幂等不重排、改时刻 / 改文案重排、
 关闭取消、只读实例空操作、平台失败可重试、能力不可用则静默跳过、文案未下发则等待、DST 与半小时时区。
-**原生投递（macOS `UNUserNotificationCenter` / Windows toast）仍未实现**；在此之前
-`ScheduleNotification` / `CancelNotifications` 诚实返回 `platform.ErrCapabilityUnavailable`
-（不再以 nil 假装成功），调度器据此按能力静默跳过。fake 通过不等于通知送达。
+**macOS `UNUserNotificationCenter` 已实现**（`4dac8b7`），真实授权与投递未验收；
+Windows toast、无 cgo 或无应用 bundle 环境仍返回 `platform.ErrCapabilityUnavailable`，
+调度器静默跳过。10-07 起 UI 根据 `notifications` 能力禁用不可用的提醒开关并显示说明，
+不改写已有偏好；fake 通过不等于通知送达。
 
 ## 能力与跨层职责
 
@@ -100,7 +101,7 @@ repository 位于 internal/storage。notifications 设置、日记 / 目标表�
 2. 在 storage 加所需迁移与 repository，独立验证保存、查询和重启；复用 time / cards。
 3. 通过客户端接口生成并存储摘要，保持 insight 只读；fixture 后接真实服务。
 4. **部分实现**：System 通知 fake 已记录调度 / 取消，提醒设置、文案通路与九语言 UI 已落盘；
-   真实原生投递（`ScheduleNotification` 实现、授权弹窗、点击唤回）仍缺。
+   macOS 原生排程已实现，授权弹窗 / 投递待真机验收；Windows toast 与点击唤回仍缺。
 5. 用真实卡片与持久化日记验收用户闭环，并在真实 macOS 验证提醒；可独立于 weekly 完成。
 
 ## 验收、阻塞与回退
@@ -116,6 +117,17 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。G
 禁用不可用的入口，不删除用户输入或改动 recording 的录制意愿。
 
 ## 验证记录
+
+2026-10-07（`test`，基于 `5b6d903` 的工作树，macOS arm64）：新增无授权副作用的
+`NotificationAvailability`，仅数据库已打开且当前平台 / 构建有原生投递时广告 `notifications`。
+日记与计划提醒 UI 缺能力时禁用并显示九语言说明；新计划默认不提醒，既有偏好不清除。
+先写支持 / 不支持 / 权限拒绝 / 无数据库的匿名 Go 夹具，旧代码支持分支失败；前端 capability
+失败重试与真实 PlanBlockForm SSR 夹具通过（SSR 不证明真实窗口视觉）。完整 `./scripts/gate.sh`
+通过，前端 259 项 / 0 失败 / 跳过；`gofmt -l .` 无输出，文档检查 60 篇 / 0 处问题。
+`go test ./internal/platform/darwin -run TestNotificationsUnavailableWithoutAppBundle -count=1`
+通过，只证明无 bundle 时不广告原生通知；新增 cgo 查询初次编译发现 BOOL 类型差异，统一通过
+C int 返回值后通过。不证明授权或投递；真实 macOS bundle、Windows 主机与点击唤回未运行。
+Windows 安装器 15 项中 10 项需 Windows 主机而跳过。回退：撤销本次能力门禁提交，无 schema 变更。
 
 2026-10-03（test 分支未提交工作树）：日报末尾的 Token 用量卡片改为按 `llm.showTokenUsage`
 （设置「AI 服务」分区，默认关）决定是否渲染，卡片读取与失败态不变。前端 store 夹具五项、

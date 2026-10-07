@@ -3,12 +3,47 @@ package app
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
+
+type notificationCapabilityStub struct {
+	*systemStub
+	supported bool
+}
+
+func (s notificationCapabilityStub) NotificationsAvailable() bool { return s.supported }
+
+func TestNotificationCapabilityReflectsDeliveryImplementation(t *testing.T) {
+	store := openTestStore(t, t.TempDir(), true)
+	for _, tc := range []struct {
+		name   string
+		system platform.System
+		want   bool
+	}{
+		{"no system", nil, false},
+		{"no reporter", &systemStub{}, false},
+		{"unavailable build", notificationCapabilityStub{systemStub: &systemStub{}, supported: false}, false},
+		// Permission denial does not remove an implemented capability. The
+		// permission gate remains in delivery; capability discovery never prompts.
+		{"supported but denied", notificationCapabilityStub{systemStub: &systemStub{notifications: platform.PermissionDenied}, supported: true}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			caps, err := newBackend(fixedClock{}, tc.system, store, false, false).GetCapabilities()
+			if err != nil || slices.Contains(caps.Features, "notifications") != tc.want {
+				t.Fatalf("caps=%+v err=%v, want notifications=%v", caps, err, tc.want)
+			}
+		})
+	}
+	noStore, err := newBackend(fixedClock{}, notificationCapabilityStub{systemStub: &systemStub{}, supported: true}, nil, false, false).GetCapabilities()
+	if err != nil || slices.Contains(noStore.Features, "notifications") {
+		t.Fatalf("reminders need persistence: %+v, %v", noStore, err)
+	}
+}
 
 type fixedClock struct{ now time.Time }
 
