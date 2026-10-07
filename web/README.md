@@ -15,6 +15,7 @@ Daygo 配套静态网页，独立于桌面应用的 `frontend/`。
 ```bash
 npm --prefix web ci
 npm --prefix web run dev
+npm --prefix web run test:unit
 npm --prefix web run build
 npm --prefix web run preview
 ```
@@ -23,6 +24,20 @@ npm --prefix web run preview
 开发地址为 `http://127.0.0.1:5180`，生产预览地址为 `http://localhost:5181`。
 仓库不提交 `node_modules/` 或 `dist/`。导入时移除来源的本地 `deploy` 命令，
 沿用下文的 Release 部署工作流。
+
+## 下载链接
+
+首页与页尾的 macOS 按钮下载 Apple Silicon DMG，Windows 按钮下载 x64 EXE。
+页面加载时通过 GitHub 的公开 `releases/latest` 接口读取最新正式 Release，按发布工作流的
+`vX.Y.Z` tag 匹配 `Daygo-X.Y.Z-arm64.dmg` 与 `Daygo-X.Y.Z-amd64-installer.exe`，
+使用对应资产的 `browser_download_url`。发布新正式版并上传安装包后，刷新页面即可取得新链接，
+无需改网页源码或重新部署网页；已打开页面需刷新。草稿和预发布不作为下载目标。
+
+接口请求不带凭据，要求浏览器重新验证缓存，8 秒超时。某平台资产尚未上传完成时，
+该平台按钮回退到最新 Release 页面；接口失败、限流或 JavaScript 不可用时也使用该页面。
+不猜测不存在的安装包地址，不用 appcast、源码压缩包或其他架构替代安装器。
+匿名单测覆盖版本更新、平台匹配、资产未齐、地址校验和接口失败；部署前也执行这些单测。
+接口依据：[GitHub Get the latest release](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)。
 
 ## Release 部署
 

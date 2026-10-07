@@ -4,6 +4,7 @@ import './styles.css';
 import { createApp, mountDaily, mountWeekly, mountChat } from './app.js';
 import { CARDS, CATS } from './data.js';
 import { t, L, getLang, setLang, onLang, fmt12 } from './i18n.js';
+import { loadReleaseDownloads } from './downloads.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -13,6 +14,13 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t *
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const root = document.documentElement;
+
+loadReleaseDownloads().then((downloads) => {
+  $$('a[data-download]').forEach((anchor) => {
+    const url = downloads[anchor.dataset.download];
+    if (url) anchor.href = url;
+  });
+});
 
 /* ───────── Smooth scroll ───────── */
 const lenis = reduced ? null : new Lenis({ lerp: 0.09, wheelMultiplier: 0.9 });

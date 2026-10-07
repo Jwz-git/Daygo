@@ -27,6 +27,8 @@ Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路
 **配套网页（2026-10-07）**：`web/` 已替换为 AwayC/daygo-website 的固定源码版本，
 包含静态匿名交互演示、本地字体与图标；按用户要求不扩展多语种，保留来源中英切换。
 公开文案将 Dayflow 定位为设计参考，模型配置介绍为「自定义模型 / Custom models」。
+下载按钮读取最新正式 Release，直接绑定已上传的 macOS arm64 DMG / Windows amd64 EXE；
+发布新版本后刷新网页更新链接，资产未齐或接口失败时回退到最新 Release 页面。
 构建 / Pages 项目路径与浏览器验证范围见本册验证记录和 [网页说明](../../web/README.md)。
 正式 Release 触发的部署工作流保持原入口，本次替换不改变桌面功能或 G-native 验收范围。
 
@@ -140,6 +142,30 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
+
+2026-10-07（网页下载，delivery 配套网页能力，`test`、基于 `d054d69` 的工作树，
+macOS 26.0.1 / arm64，Node 25.2.1 / npm 11.6.2）：下载按钮自动读取最新正式 Release，
+按现有发布命名绑定 macOS arm64 DMG 与 Windows amd64 EXE；初始化、资产未齐或接口失败
+均保留最新 Release 页面回退。仅发一次公开元数据请求，不带凭据，8 秒超时，不固定版本。
+
+先添加匿名输入 / 期望夹具，首次运行因生产模块尚未创建失败；实现后未修改期望，
+`npm --prefix web run test:unit` 7 项通过、0 失败 / 跳过，覆盖新版本、平台与资产状态、
+错误地址、草稿 / 预发布及网络 / JSON / HTTP 失败。`npm --prefix web run build` 通过。
+`gh release view --repo Jwz-git/Daygo --json tagName,isPrerelease,url,assets` 确认当前为 v0.3.2，
+生产解析函数请求真实公开接口取得两个资产地址；对地址仅执行 HEAD、跟随重定向后均为 HTTP 200，
+大小分别为 13,416,591 与 16,362,747 字节，未下载或运行安装包。
+
+Codex 内置浏览器在 `/Daygo/#download` 检查首页与页尾共三处链接，均指向 v0.3.2 对应资产；
+中英切换保留绑定，下载区截图布局通过，英文 Windows 按钮的实际标签为 `Windows`。
+初次英文等待探针用了不存在的 `Download for Windows` 标签而超时，改按实际 DOM 文案核对，
+未改页面文案迎合探针。部署工作流新增网页单测后再构建，仍仅由正式 Release 发布触发。
+
+`./scripts/gate.sh` 通过：Go build / internal 测试 / vet、三平台核心交叉构建、
+前端 257 项单测（0 失败 / 跳过）/ typecheck / build、Markdown 与安装器匿名夹具检查；
+Windows 安装器 5 项通过、10 项执行检查因非 Windows 主机跳过。单独 `gofmt -l .` 无输出。
+真实新版本发布、Pages 部署与安装未执行，不提升桌面 G-native 验收状态。
+后续安装器命名改变须同步解析规则；接口限流 / 不可用时可从 Release 页面下载。
+回退可撤销本次网页下载提交，线上回退仍重跑旧 Release 的网页部署工作流。
 
 2026-10-07（配套网页文案，`test`、基于 `8a3a9ce` 的工作树，macOS 26.0.1 / arm64，
 Node 25.2.1 / npm 11.6.2）：按用户澄清，将介绍区、首页、页脚与 HTML description 统一为

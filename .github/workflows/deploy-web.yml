@@ -34,7 +34,9 @@ jobs:
         run: npm --prefix web ci
 
       - name: Build website
-        run: npm --prefix web run build
+        run: |
+          npm --prefix web run test:unit
+          npm --prefix web run build
 
       - name: Upload website
         uses: actions/upload-pages-artifact@v4
