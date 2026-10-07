@@ -2,13 +2,26 @@
 
 Daygo 配套静态网页，独立于桌面应用的 `frontend/`。
 
+当前页面导入自 [AwayC/daygo-website](https://github.com/AwayC/daygo-website)，
+固定来源 commit 为 `20d938c354bdf02c142f89a98d01ee2be7461287`（2026-10-07 导入）。
+保留滚动天空、时间线卡片、日报、周报图表、对话预览及本地字体 / 图标；
+设计说明见 [DESIGN.md](DESIGN.md)。依赖与锁文件随来源一起更新。
+
+按用户本次要求，不扩展多语种；保留来源的中英切换，首次访问默认英文，选择后本机保存。
+页面内活动、计划与对话均为静态匿名演示，不连接桌面应用、真实录制或 Provider；
+对话预览不改变 chat 的 v1 不交付范围。隐私文案明确截图只发送给用户配置的 AI。
+
 ```bash
 npm --prefix web ci
 npm --prefix web run dev
 npm --prefix web run build
+npm --prefix web run preview
 ```
 
 构建产物为 `web/dist/`。Vite 使用相对资源路径，适配 GitHub Pages 项目路径。
+开发地址为 `http://127.0.0.1:5180`，生产预览地址为 `http://localhost:5181`。
+仓库不提交 `node_modules/` 或 `dist/`。导入时移除来源的本地 `deploy` 命令，
+沿用下文的 Release 部署工作流。
 
 ## Release 部署
 

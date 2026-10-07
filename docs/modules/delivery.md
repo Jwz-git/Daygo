@@ -24,6 +24,11 @@ Windows 已有安装器与安装升级用户确认，正式 Authenticode 材料�
 Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路径，不能用工作流源码或资产上传
 代替真实升级记录。
 
+**配套网页（2026-10-07）**：`web/` 已替换为 AwayC/daygo-website 的固定源码版本，
+包含静态匿名交互演示、本地字体与图标；按用户要求不扩展多语种，保留来源中英切换。
+构建 / Pages 项目路径与浏览器验证范围见本册验证记录和 [网页说明](../../web/README.md)。
+正式 Release 触发的部署工作流保持原入口，本次替换不改变桌面功能或 G-native 验收范围。
+
 实现进度：部分实现。已有 [Wails 配置](../../cmd/daygo/wails.json)、macOS / Linux 开发构建链，
 以及 Windows 的 `scripts/dev.ps1` / `scripts/build.ps1` 入口；Windows 构建会校验 EXE 与必需的
 `daygo_windows_native.dll` 同时产出。打包入口方面，`scripts/package-macos.sh` 产出签名 DMG，
@@ -134,6 +139,31 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
+
+2026-10-07（配套网页替换，`test`、基于 `5148917` 的工作树，macOS 26.0.1 / arm64，
+Node 25.2.1 / npm 11.6.2，Chrome 154.0.8037.98）：导入
+[AwayC/daygo-website 固定 commit](https://github.com/AwayC/daygo-website/tree/20d938c354bdf02c142f89a98d01ee2be7461287)
+的页面、17 个源码 / 字体 / 图标文件与 18 个 public 资源，删除旧 WebGL / GSAP 页面实现。
+源码仅调整中英隐私说明，明确截图发送给用户配置的 AI；public 逐文件字节与来源一致。
+按用户本次明确要求不扩展多语种；保留来源中英切换及本机记忆，更新锁文件，移除来源的
+本地 `gh-pages` 推送命令，沿用现有正式 Release 的 Pages 部署入口。
+
+`npm --prefix web ci`、`npm --prefix web run build` 通过；产物放在本地静态服务器的
+`/Daygo/` 子路径，用系统 Chrome / Playwright 无头检查 1440×1000 与 390×844 视口：
+一级章节、卡片点击详情、日报匿名内容、周报图表悬停、对话匿名应答、中英切换后的刷新读回、
+三处 Release 链接、手机紧凑布局与全页无横向溢出通过，0 脚本错误 / HTTP 失败。
+普通动画下另核对首屏下载按钮、下载导航、夜间天空与应用深色外观；截图人工检查首屏、
+时间线详情、周报与手机首屏。验收计数限于 `body > main > section`（演示内部另有 main），
+下载导航按下载区进入视口验收，不要求文档底部严格吸顶；初始探针的更严定位断言超时，
+实际桌面定位距顶 20px、下载区可见，未修改页面代码以迎合探针。
+
+首次完整门禁因新增设计说明文件缺失而在文档链接检查失败，补齐文件后重跑
+`./scripts/gate.sh` 通过：Go build / internal 测试 / vet、三平台核心交叉构建、
+前端 257 项单测（0 失败 / 跳过）/ typecheck / build、60 篇 Markdown 检查；
+Windows 安装器 15 项夹具中 5 通过、10 项执行检查因非 Windows 主机跳过。
+单独 `gofmt -l .` 无输出、`git diff --check` 通过。网页演示不访问真实活动、数据库或 Provider；
+真实 Pages 部署、Safari / Firefox 及移动设备未运行，不提升 G-native 或桌面用户闭环状态。
+回退可撤销本次网页替换提交；线上回退仍重跑已验证旧 Release 的部署工作流。
 
 2026-10-05（macOS 更新收尾时机，`test`、基于 `9b7d1be` 的工作树，macOS 26.0.1 /
 arm64、Apple clang 17.0.0、Sparkle 2.10.0）：用户要求更新等待期间不禁止录制。先添加

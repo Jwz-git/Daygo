@@ -1,465 +1,173 @@
 <!doctype html>
-<html lang="zh-CN" data-nav-theme="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Daygo — 一天结束，你还记得自己做了什么吗？</title>
-  <meta name="description" content="Daygo 在后台安静地记录工作，用你自己选择的 AI，把零散的一天整理成时间线、每日回顾与每周总结。本地优先，隐私优先。" />
-  <meta name="theme-color" content="#08080B" />
+  <title>Daygo — Your day, remembered</title>
+  <meta name="description" content="Daygo is a cross-platform remake of Dayflow: it takes quiet screenshots in the background and uses the AI you choose to turn your day into a timeline, daily recaps and weekly reviews. macOS and Windows, local first, open source." />
+  <meta name="theme-color" content="#f6d9cf" />
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@300;500;700;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./src/styles.css" />
+  <link rel="apple-touch-icon" href="./appicon.png" />
 </head>
 <body>
-  <!-- ====== Loader ====== -->
-  <div class="loader" aria-hidden="true">
-    <div class="loader__inner">
-      <div class="loader__mark"><svg viewBox="0 0 64 64"><use href="#mark" /></svg></div>
-      <div class="loader__line"><span></span></div>
-      <div class="loader__meta mono"><span>DAYGO</span><span class="loader__clock">00:00</span></div>
-    </div>
+  <!-- Sky: the page is one day, from sunrise to midnight -->
+  <div class="sky" aria-hidden="true">
+    <div class="sky__grad"></div>
+    <canvas class="sky__stars"></canvas>
+    <div class="sky__haze"></div>
+    <div class="sky__sun"><i></i></div>
+    <div class="sky__moon"></div>
   </div>
 
-  <canvas class="gl" aria-hidden="true"></canvas>
-    <div class="shutter" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-  <div class="cursor" aria-hidden="true"><div class="cursor__ring"><i></i><i></i><i></i><i></i></div><div class="cursor__dot"></div><div class="cursor__label mono"></div></div>
-
-  <!-- SVG symbols -->
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <defs>
-      <mask id="mark-slits">
-        <rect width="64" height="64" fill="#fff" />
-        <rect x="0" y="22" width="64" height="1.6" fill="#000" />
-        <rect x="0" y="28" width="64" height="2.2" fill="#000" />
-        <rect x="0" y="33.5" width="64" height="2.8" fill="#000" />
-        <rect x="0" y="38.4" width="64" height="3.4" fill="#000" />
-      </mask>
-      <clipPath id="mark-clip"><rect x="0" y="0" width="64" height="43" /></clipPath>
-    </defs>
-    <symbol id="mark" viewBox="0 0 64 64">
-      <g clip-path="url(#mark-clip)"><circle cx="32" cy="43" r="22" fill="currentColor" mask="url(#mark-slits)" /></g>
-      <rect x="4" y="47" width="56" height="3" rx="1.5" fill="currentColor" />
-    </symbol>
-  </svg>
-
-  <!-- ====== Nav ====== -->
   <header class="nav">
-    <a class="brand" href="#top" data-cursor="回到黎明">
-      <svg class="brand__mark" viewBox="0 0 64 64"><use href="#mark" /></svg>
-      <span class="brand__word">Daygo</span>
-    </a>
-    <div class="hud mono" aria-live="off">
-      <span class="hud__rec"><i></i>REC</span>
-      <span class="hud__time">05:30</span>
-      <span class="hud__sep">/</span>
-      <span class="hud__label">黎明</span>
-      <span class="hud__frames"><b>000</b> 帧</span>
-    </div>
-    <nav class="nav__links">
-      <a href="#how">如何工作</a>
-      <a href="#timeline">时间线</a>
-      <a href="#privacy">隐私</a>
-      <a class="btn btn--pill" href="#download" data-cursor="下载">下载</a>
+    <a class="nav__brand" href="#top" aria-label="Daygo"><img src="./appicon.png" alt="" width="26" height="26" /><span>Daygo</span></a>
+    <nav class="nav__links" aria-label="Sections">
+      <a href="#product" data-i18n="nav.timeline">Timeline</a>
+      <a href="#daily" data-i18n="nav.daily">Daily</a>
+      <a href="#weekly" data-i18n="nav.weekly">Weekly</a>
+      <a href="#privacy" data-i18n="nav.privacy">Privacy</a>
     </nav>
+    <div class="nav__clock" aria-hidden="true"><svg class="nav__sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" /></svg><svg class="nav__moon" viewBox="0 0 24 24"><path d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1Z" /></svg><span class="nav__time">06:00</span></div>
+    <div class="lang" role="group" aria-label="Language"><span class="lang__thumb"></span><button data-lang="zh">中</button><button data-lang="en">EN</button></div>
+    <a class="btn btn--primary btn--sm" href="#download" data-i18n="nav.download">Download</a>
   </header>
 
-  <div class="day-rail" aria-hidden="true"><div class="day-rail__fill"></div><div class="day-rail__ticks"></div></div>
-
   <main id="top">
-    <!-- ====== 01 HERO · 05:30 Dawn ====== -->
-    <section class="hero" data-sky="dawn" data-time="05:30" data-theme="dark" data-label="黎明" data-name="序章">
-      <div class="hero__pin">
-        <div class="hero__meta mono">
-          <span>[ 自动工作日志 ]</span>
-          <span class="hide-sm">开源 · 本地优先</span>
-        </div>
-        <h1 class="hero__title" aria-label="一天结束，你还记得自己做了什么吗？">
-          <span class="line"><span>一天结束，</span></span>
-          <span class="line"><span>你还记得自己</span></span>
-          <span class="line"><span>做了<em class="vf">什么<i></i><i></i><i></i><i></i></em>吗？</span></span>
-        </h1>
-        <p class="hero__en serif-en">At the end of the day — <em>do you remember?</em></p>
-        <div class="hero__foot">
-          <p class="hero__lede">Daygo 自动记录你的工作，<br />把零散的一天，整理成清晰的时间线。</p>
+    <!-- Hero: the timeline window rises and pins; scrolling walks through the day -->
+    <section class="stage" id="product">
+      <div class="stage__sticky">
+        <div class="hero">
+          <a class="pill" href="#product"><span class="pill__dot"></span><span data-i18n="hero.pill">Recording</span><span class="pill__sep"></span><span data-i18n="hero.pill2">A cross-platform remake of Dayflow</span></a>
+          <h1 class="hero__title"><span class="ln"><span data-i18n="hero.l1">At the end of the day,</span></span><span class="ln"><span class="grad" data-i18n="hero.l2">Daygo remembers.</span></span></h1>
+          <p class="hero__en" data-i18n="hero.en">Every moment, kept.</p>
+          <p class="hero__sub" data-i18n-html="hero.sub"></p>
           <div class="hero__cta">
-            <a class="btn btn--sun magnetic" href="#download" data-cursor="下载"><span>免费下载</span><svg viewBox="0 0 16 16"><path d="M8 2v9m0 0 4-4m-4 4L4 7M3 14h10" /></svg></a>
-            <a class="btn btn--ghost magnetic" href="#how" data-cursor="向下"><span>看它如何工作</span></a>
+            <a class="btn btn--primary btn--lg magnetic" href="https://github.com/Jwz-git/Daygo/releases" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" class="apple"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.5-1-2.5-3.9ZM14 5.4c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.4Z" /></svg><span data-i18n="hero.mac">Download for macOS</span></a>
+            <a class="btn btn--glass btn--lg magnetic" href="https://github.com/Jwz-git/Daygo" target="_blank" rel="noopener"><img src="./apps/github.png" alt="" width="18" height="18" />GitHub</a>
           </div>
+          <p class="hero__note" data-i18n="hero.note">macOS 14+ · Apple Silicon　/　Windows 11</p>
         </div>
-        <div class="hero__after">
-          <p class="hero__after-zh">每一帧，<br />都会成为时间线的一部分。</p>
-          <p class="hero__after-en serif-en"><em>Every frame becomes a moment kept.</em></p>
-        </div>
-        <div class="hero__scroll mono"><span>滚动，过完这一天</span><i></i></div>
-      </div>
-    </section>
 
-    <!-- ====== 02 PROBLEM · 07:40 ====== -->
-    <section class="problem section" data-sky="morning" data-time="07:40" data-theme="dark" data-label="清晨" data-name="被遗忘的一天">
-      <div class="wrap">
-        <div class="kicker mono"><span class="kicker__t">07:40</span><span>清晨</span><span class="kicker__en">/ The forgotten day</span></div>
-        <p class="manifesto"><span class="m-dim">计时器</span>要你记得启停。<span class="m-dim">应用统计</span>只知道「VS Code 三小时」。<span class="m-dim">日历</span>记下的是计划，不是真正发生的事。</p>
-      </div>
+        <div class="captions">
+          <div class="cap"><span class="cap__k" data-i18n-html="cap.timeline.k"></span><h2 data-i18n-html="cap.timeline"></h2></div>
+        </div>
 
-      <div class="truth wrap">
-        <div class="truth__head">
-          <div>
-            <div class="mono label">应用统计看到的</div>
-            <div class="truth__app"><span class="truth__icon">{ }</span>VS Code<span class="mono truth__dur">3:02:14</span></div>
-          </div>
-          <div class="truth__right">
-            <div class="mono label">Daygo 看到的</div>
-            <p class="truth__hint">往下滚动 ↓</p>
-          </div>
-        </div>
-        <div class="truth__bar">
-          <div class="truth__seg" style="--w:29%;--c:var(--tide)"><span>修复登录态过期的竞态</span></div>
-          <div class="truth__seg" style="--w:21%;--c:var(--amber)"><span>评审支付重构 PR</span></div>
-          <div class="truth__seg" style="--w:34%;--c:var(--dusk)"><span>排查 WebSocket 断线</span></div>
-          <div class="truth__seg" style="--w:16%;--c:var(--dawn)"><span>与设计讨论空状态</span></div>
-        </div>
-        <div class="truth__cards">
-          <article class="mini-card" style="--c:var(--tide)"><div class="mono">09:24 — 10:16 · 52 分钟</div><h4>修复登录态过期的竞态</h4></article>
-          <article class="mini-card" style="--c:var(--amber)"><div class="mono">10:16 — 10:54 · 38 分钟</div><h4>评审支付重构 PR</h4></article>
-          <article class="mini-card" style="--c:var(--dusk)"><div class="mono">10:54 — 12:04 · 1 小时 10 分</div><h4>排查 WebSocket 断线</h4></article>
-          <article class="mini-card" style="--c:var(--dawn)"><div class="mono">12:04 — 12:26 · 22 分钟</div><h4>与设计讨论空状态</h4></article>
+        <div class="win" data-win>
+          <div class="win__glow"></div>
+          <div class="win__mount"></div>
+          <span class="win__hint" data-i18n="win.hint">Click a card ↗</span>
         </div>
       </div>
     </section>
 
-    <!-- ====== 03 HOW · 09:00 ====== -->
-    <section class="how section" id="how" data-sky="forenoon" data-time="09:00" data-theme="dark" data-label="上午" data-name="如何工作">
-      <div class="wrap how__intro">
-        <div class="kicker mono"><span class="kicker__t">09:00</span><span>上午</span><span class="kicker__en">/ How it works</span></div>
-        <h2 class="h2">打开它，<br />然后<span class="serif-en accent-tide"> forget it.</span></h2>
+    <!-- Features, one Daygo component each -->
+    <section class="sec feat" id="daily">
+      <div class="sec__head" data-anim>
+        <span class="kicker" data-i18n-html="daily.k"></span>
+        <h2 data-i18n-html="daily.h"></h2>
+        <p data-i18n="daily.p">Focus, switches and your standup, already written.</p>
       </div>
-      <div class="how__grid wrap">
-        <div class="how__steps">
-          <article class="step" data-step="0">
-            <div class="step__n mono">01 — 捕捉 / Capture</div>
-            <h3 class="h3">安静地，<br />记下你的屏幕。</h3>
-            <p class="body">在后台运行，不打扰你。</p>
-            <div class="ctrl">
-              <div class="mono label">记录频率</div>
-              <div class="chips" data-interval>
-                <button data-v="1">1s</button><button data-v="5">5s</button><button data-v="10" class="on">10s</button><button data-v="20">20s</button><button data-v="30">30s</button><button data-v="60">60s</button>
-              </div>
+      <div class="feat__body feat__body--daily dgc surface" data-mount="daily" data-anim></div>
+    </section>
 
-            </div>
-          </article>
-          <article class="step" data-step="1">
-            <div class="step__n mono">02 — 理解 / Understand</div>
-            <h3 class="h3">AI 读懂<br />你在做什么。</h3>
-            <p class="body">不只是「开着哪个应用」，而是你真正在做的事。</p>
-          </article>
-          <article class="step" data-step="2">
-            <div class="step__n mono">03 — 整理 / Organize</div>
-            <h3 class="h3">一天，<br />变成一张张卡片。</h3>
-            <p class="body">随时展开，回到那一刻。</p>
-          </article>
-        </div>
-        <div class="how__stage">
-          <div class="stage">
-            <div class="stage__layer is-on" data-layer="0">
-              <div class="monitor">
-                <div class="monitor__screen"></div>
-                <div class="monitor__vf"><i></i><i></i><i></i><i></i></div>
-                <div class="monitor__flash"></div>
-                <div class="monitor__badge mono"><i></i>每 <b class="monitor__iv">10</b> 秒</div>
-              </div>
-              <div class="filmstrip"></div>
-                          </div>
-            <div class="stage__layer" data-layer="1">
-              <div class="lens">
-                <div class="lens__frame"></div>
-                <div class="lens__scan"></div>
-                <div class="lens__boxes">
-                  <span style="--x:6%;--y:22%;--w:34%;--h:10%">登录模块</span>
-                  <span style="--x:46%;--y:48%;--w:46%;--h:12%">登录过期报错</span>
-                  <span style="--x:10%;--y:70%;--w:30%;--h:10%">代码评审</span>
-                </div>
-              </div>
-              <div class="thought mono"><span class="thought__k">model ›</span> <span class="thought__t"></span><i class="caret"></i></div>
-            </div>
-            <div class="stage__layer" data-layer="2">
-              <div class="stack">
-                <article class="card card--hero" style="--c:var(--tide)">
-                  <div class="card__top mono"><span>09:24 — 10:41</span><span class="chip-cat"><i></i>构建</span></div>
-                  <h4>修复登录态过期的竞态条件</h4>
-                  <p>找到了 token 刷新时的竞态问题，修复并补上测试，随后回复了评审意见。</p>
-                  <div class="card__frames"></div>
-                </article>
-                <article class="card card--ghost" style="--c:var(--amber)"><div class="card__top mono"><span>10:41 — 11:15</span><span class="chip-cat"><i></i>会议</span></div><h4>支付重构评审会</h4></article>
-                <article class="card card--ghost2" style="--c:var(--dusk)"><div class="card__top mono"><span>11:15 — 12:08</span><span class="chip-cat"><i></i>研究</span></div><h4>排查 WebSocket 断线重连</h4></article>
-              </div>
-            </div>
-            <div class="stage__progress mono"><span class="on">01</span><span>02</span><span>03</span></div>
-          </div>
-        </div>
+    <section class="sec feat" id="weekly">
+      <div class="sec__head" data-anim>
+        <span class="kicker" data-i18n-html="weekly.k"></span>
+        <h2 data-i18n-html="weekly.h"></h2>
+        <p data-i18n="weekly.p">Hover any category or app to follow its time.</p>
+      </div>
+      <div class="feat__body feat__body--weekly dgc surface" data-mount="weekly" data-anim></div>
+    </section>
+
+    <section class="sec feat" id="chat">
+      <div class="sec__head" data-anim>
+        <span class="kicker" data-i18n-html="chat.k"></span>
+        <h2 data-i18n-html="chat.h"></h2>
+      </div>
+      <div class="feat__body feat__body--chat dgc" data-mount="chat" data-anim></div>
+    </section>
+
+    <!-- Dusk: how it works -->
+    <section class="sec how" id="how">
+      <div class="sec__head" data-anim>
+        <span class="kicker" data-i18n-html="how.k"></span>
+        <h2 data-i18n-html="how.h"></h2>
+        <p data-i18n="how.p">Open it once, then forget it.</p>
+      </div>
+      <div class="pipe" data-anim>
+        <div class="pipe__frames" data-frames></div>
+        <div class="pipe__lens"><span class="pipe__ring"></span><span class="pipe__core"><svg viewBox="0 0 24 24"><path d="M10 3c.7 4.4 2.6 6.3 7 7-4.4.7-6.3 2.6-7 7-.7-4.4-2.6-6.3-7-7 4.4-.7 6.3-2.6 7-7ZM18 14.5c.3 1.9 1.1 2.7 3 3-1.9.3-2.7 1.1-3 3-.3-1.9-1.1-2.7-3-3 1.9-.3 2.7-1.1 3-3Z" /></svg></span></div>
+        <div class="pipe__cards" data-cards></div>
+      </div>
+      <ol class="steps" data-anim>
+        <li><b data-i18n="how.s1">Capture</b><span data-i18n="how.s1d">One frame every 10s, no video</span></li>
+        <li><b data-i18n="how.s2">Understand</b><span data-i18n="how.s2d">Read by the model you pick</span></li>
+        <li><b data-i18n="how.s3">Card</b><span data-i18n="how.s3d">Title, summary, category</span></li>
+      </ol>
+    </section>
+
+    <!-- Night: where Daygo comes from -->
+    <section class="sec origin" id="origin">
+      <div class="sec__head" data-anim>
+        <span class="kicker" data-i18n-html="origin.k"></span>
+        <h2 data-i18n-html="origin.h"></h2>
+        <p data-i18n="origin.p">Dayflow is a macOS app written in Swift. Daygo keeps its design, rewrites it in Go + Vue, and brings it to Windows.</p>
+      </div>
+      <div class="lineage" data-anim>
+        <article class="lineage__app">
+          <span class="lineage__tag" data-i18n="origin.orig">Original</span>
+          <img class="lineage__mark" src="./dayflow.png" alt="Dayflow" width="64" height="64" />
+          <h3>Dayflow</h3>
+          <ul><li>Swift</li><li>SwiftUI</li></ul>
+          <p class="lineage__os"><span>macOS</span></p>
+        </article>
+        <div class="lineage__arrow" aria-hidden="true"><span class="lineage__track"><i></i></span><small data-i18n="origin.arrow">Rewritten · cross-platform</small></div>
+        <article class="lineage__app lineage__app--daygo">
+          <span class="lineage__tag" data-i18n="origin.remake">Remake</span>
+          <img class="lineage__mark" src="./appicon.png" alt="Daygo" width="64" height="64" />
+          <h3>Daygo</h3>
+          <ul><li>Go</li><li>Wails</li><li>Vue</li></ul>
+          <p class="lineage__os"><span>macOS</span><span>Windows</span></p>
+        </article>
+      </div>
+      <p class="origin__link" data-anim><a href="https://dayflow.so" target="_blank" rel="noopener">dayflow.so ↗</a><a href="https://github.com/JerryZLiu/Dayflow" target="_blank" rel="noopener" data-i18n="origin.link">Dayflow on GitHub ↗</a></p>
+    </section>
+
+    <!-- Night: privacy -->
+    <section class="sec trust" id="privacy">
+      <div class="sec__head" data-anim>
+        <span class="kicker" data-i18n-html="privacy.k"></span>
+        <h2 data-i18n-html="privacy.h"></h2>
+      </div>
+      <div class="tiles">
+        <article class="tile-g" data-anim style="--d:0"><svg viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="10.5" rx="2.5" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10" /></svg><h3 data-i18n="pv.1">Local first</h3><p data-i18n="pv.1d">Data stays local; screenshots go only to the AI you configure</p></article>
+        <article class="tile-g" data-anim style="--d:1"><svg viewBox="0 0 24 24"><path d="M10 3c.7 4.4 2.6 6.3 7 7-4.4.7-6.3 2.6-7 7-.7-4.4-2.6-6.3-7-7 4.4-.7 6.3-2.6 7-7Z" /><path d="M18 14.5c.3 1.9 1.1 2.7 3 3-1.9.3-2.7 1.1-3 3-.3-1.9-1.1-2.7-3-3 1.9-.3 2.7-1.1 3-3Z" /></svg><h3 data-i18n="pv.2">Your own model</h3><p data-i18n="pv.2d">OpenAI · Anthropic · local models</p></article>
+        <article class="tile-g" data-anim style="--d:2"><svg viewBox="0 0 24 24"><path d="M3 12s3.5-6.5 9-6.5S21 12 21 12s-3.5 6.5-9 6.5S3 12 3 12Z" /><circle cx="12" cy="12" r="2.8" /><path d="M4 20 20 4" /></svg><h3 data-i18n="pv.3">Blocked apps</h3><p data-i18n="pv.3d">Sensitive apps leave only a placeholder</p></article>
+        <article class="tile-g" data-anim style="--d:3"><svg viewBox="0 0 24 24"><circle cx="8.5" cy="14.5" r="4" /><path d="M11.6 11.4 19.5 3.5M16.5 6.5 19 9M14 9l2 2" /></svg><h3 data-i18n="pv.4">Keys in Keychain</h3><p data-i18n="pv.4d">Write-only from the interface</p></article>
       </div>
     </section>
 
-    <!-- ====== 04 TIMELINE · 12:00 Noon (light) ====== -->
-    <section class="tl section" id="timeline" data-sky="noon" data-time="12:00" data-theme="light" data-label="正午" data-name="时间线">
-      <div class="wrap">
-        <div class="kicker mono"><span class="kicker__t">12:00</span><span>正午</span><span class="kicker__en">/ The timeline</span></div>
-        <div class="tl__head">
-          <h2 class="h2">你的一天，<br /><span class="serif-en">at a glance.</span></h2>
-          <ul class="tl__tips mono">
-            <li><b>点击</b> 查看那一刻</li>
-            <li><b>拖选</b> 重新整理</li>
-          </ul>
+    <!-- Midnight: download -->
+    <section class="sec cta" id="download">
+      <div class="cta__in" data-anim>
+        <img class="cta__icon" src="./appicon.png" alt="Daygo" width="112" height="112" />
+        <h2 data-i18n="cta.h">Good work today.</h2>
+        <p class="hero__en" data-i18n="cta.en">See you tomorrow.</p>
+        <div class="hero__cta">
+          <a class="btn btn--primary btn--lg magnetic" href="https://github.com/Jwz-git/Daygo/releases" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" class="apple"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.5-1-2.5-3.9ZM14 5.4c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.4Z" /></svg><span data-i18n="hero.mac">Download for macOS</span></a>
+          <a class="btn btn--glass btn--lg magnetic" href="https://github.com/Jwz-git/Daygo/releases" target="_blank" rel="noopener" data-i18n="cta.win">Windows</a>
         </div>
-        <div class="tl__band-wrap" data-cursor="拖选">
-          <div class="tl__band" role="listbox" aria-label="今日时间线"></div>
-          <div class="tl__sel"><button class="tl__reprocess mono" type="button">↻ 重新处理 <span></span></button></div>
-          <div class="tl__now"></div>
-        </div>
-        <div class="tl__hours mono"></div>
-        <div class="tl__legend mono"></div>
-
-        <div class="tl__detail">
-          <article class="tl__card">
-            <div class="tl__card-top mono"><span class="tl__range"></span><span class="tl__dur"></span></div>
-            <h3 class="tl__title" contenteditable="true" spellcheck="false"></h3>
-            <p class="tl__summary" contenteditable="true" spellcheck="false"></p>
-            <div class="tl__cats"></div>
-            <div class="tl__actions mono">
-              <button class="tl__del" type="button">删除卡片</button>
-              <span class="tl__note">可随时编辑 · 删除可撤销</span>
-            </div>
-          </article>
-          <div class="tl__viewer">
-            <div class="tl__frame"></div>
-            <div class="tl__strip" data-cursor="拖动查看"></div>
-            <div class="tl__viewer-meta mono"><span class="tl__fidx">帧 01 / 08</span><span class="tl__ftime"></span></div>
-          </div>
-        </div>
+        <p class="hero__note" data-i18n="cta.note">macOS 14+ · Apple Silicon　/　Windows 11 · x64　/　MIT licensed</p>
       </div>
-    </section>
-
-    <!-- ====== 05 REVIEW · 15:30 Afternoon (light) ====== -->
-    <section class="review section" data-sky="afternoon" data-time="15:30" data-theme="light" data-label="午后" data-name="回顾">
-      <div class="wrap">
-        <div class="kicker mono"><span class="kicker__t">15:30</span><span>午后</span><span class="kicker__en">/ Daily &amp; weekly review</span></div>
-        <h2 class="h2">站会，<br />一键写好。</h2>
-        <div class="review__grid">
-          <article class="daily">
-            <header class="daily__head">
-              <div><div class="mono label">每日回顾</div><div class="daily__date">10 月 2 日 · 周五</div></div>
-              <button class="btn btn--ink btn--sm daily__copy" type="button" data-cursor="复制"><span>复制为站会文本</span></button>
-            </header>
-            <div class="daily__body">
-              <div class="daily__col"><h5><i style="--c:var(--amber)"></i>亮点</h5><ul><li>修好了登录过期的问题</li><li>找到了连接断开的原因</li></ul></div>
-              <div class="daily__col"><h5><i style="--c:var(--tide)"></i>完成</h5><ul><li>登录修复 + 测试</li><li>评审支付改版</li><li>时间线测试 12 条</li><li>回复用户反馈</li></ul></div>
-              <div class="daily__col"><h5><i style="--c:var(--dawn)"></i>阻塞</h5><ul><li>等运维确认网关配置</li></ul></div>
-            </div>
-          </article>
-          <article class="weekly">
-            <div class="mono label">每周总结 · 第 40 周</div>
-            <div class="sundial">
-              <svg class="sundial__svg" viewBox="0 0 400 400" aria-label="本周各分类时间占比"></svg>
-              <div class="sundial__center">
-                <div class="sundial__big">38<small>h</small> 20<small>m</small></div>
-                <div class="sundial__sub mono">跟踪时长</div>
-                <div class="sundial__focus mono">专注 <b>26h 45m</b></div>
-              </div>
-            </div>
-            <div class="weekly__legend mono"></div>
-
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- ====== 06 PRIVACY · 18:40 Dusk ====== -->
-    <section class="privacy section" id="privacy" data-sky="dusk" data-time="18:40" data-theme="dark" data-label="黄昏" data-name="隐私">
-      <div class="wrap">
-        <div class="kicker mono"><span class="kicker__t">18:40</span><span>黄昏</span><span class="kicker__en">/ Privacy is the product</span></div>
-        <h2 class="h2 h2--xl">你的屏幕，<br />只属于<span class="accent-dawn">你</span>。</h2>
-        <p class="serif-en privacy__en"><em>No Daygo server. No account. No sync.</em></p>
-
-        <div class="vault">
-          <div class="vault__viz">
-            <svg class="vault__svg" viewBox="0 0 800 460" aria-hidden="true"></svg>
-            <div class="vault__toggle">
-
-              <div class="seg" role="radiogroup">
-                <button class="on" data-mode="cloud" role="radio" aria-checked="true">云端 AI</button>
-                <button data-mode="local" role="radio" aria-checked="false">本地 AI</button>
-              </div>
-            </div>
-          </div>
-          <div class="vault__copy">
-            <p class="vault__lead">你的截图和数据，<b>只存在你的电脑上</b>。</p>
-            <ul class="nos mono">
-              <li><s>Daygo 服务器</s><span>不存在</span></li>
-              <li><s>注册账号</s><span>不需要</span></li>
-              <li><s>云端同步</s><span>没有</span></li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="privacy__grid">
-          <article class="block">
-            <div class="mono label">屏蔽应用</div>
-            <h3 class="h4">敏感应用，自动屏蔽。</h3>
-            <div class="apps">
-              <button class="app" data-app="vault"><span class="app__ico" style="--c:#FFB03B">◆</span><span><b>密码管理器</b></span><i class="sw"></i></button>
-              <button class="app" data-app="chat"><span class="app__ico" style="--c:#FF6A45">●</span><span><b>私人聊天</b></span><i class="sw"></i></button>
-              <button class="app" data-app="bank"><span class="app__ico" style="--c:#8C7CFF">▲</span><span><b>网上银行</b></span><i class="sw"></i></button>
-            </div>
-            <div class="redact-strip"></div>
-
-          </article>
-          <article class="block opensrc">
-            <div class="mono label">开源</div>
-            <h3 class="h4">每一行代码，<br />都看得见。</h3>
-            <p class="body sm">MIT 协议开源。可审计，可自己构建。</p>
-            <a class="btn btn--ghost btn--sm opensrc__link" href="https://github.com/Jwz-git/Daygo" target="_blank" rel="noopener" data-cursor="GitHub"><span>在 GitHub 查看代码 ↗</span></a>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- ====== 07 AI · 20:00 Evening ====== -->
-    <section class="ai section" data-sky="evening" data-time="20:00" data-theme="dark" data-label="傍晚" data-name="你的 AI">
-      <div class="wrap">
-        <div class="kicker mono"><span class="kicker__t">20:00</span><span>傍晚</span><span class="kicker__en">/ Bring your own model</span></div>
-        <div class="ai__head">
-          <h2 class="h2">你的 AI，<br />你说了算。</h2>
-          <p class="body">用你喜欢的模型，或者完全本地运行。一个出问题，下一个自动接上。</p>
-        </div>
-        <div class="chain">
-          <svg class="chain__svg" aria-hidden="true"></svg>
-          <div class="chain__src node mono"><span class="node__k">输入</span><b>你的屏幕</b></div>
-          <div class="chain__providers">
-            <button class="prov" data-i="0" data-cursor="模拟故障"><span class="prov__n mono">1</span><span class="prov__body"><b>模型 A</b><em class="mono">云端</em></span><span class="prov__st mono">就绪</span></button>
-            <button class="prov" data-i="1" data-cursor="模拟故障"><span class="prov__n mono">2</span><span class="prov__body"><b>模型 B</b><em class="mono">云端</em></span><span class="prov__st mono">就绪</span></button>
-            <button class="prov" data-i="2" data-cursor="模拟故障"><span class="prov__n mono">3</span><span class="prov__body"><b>本地模型</b><em class="mono">在你的电脑上</em></span><span class="prov__st mono">就绪</span></button>
-          </div>
-          <div class="chain__out node mono"><span class="node__k">输出</span><b>时间线卡片</b><em class="chain__via">经由 模型 A</em></div>
-        </div>
-        <p class="tiny mono chain__hint">↑ 点一下，让它“出故障”</p>
-      </div>
-    </section>
-
-    <!-- ====== 08 ALWAYS · 21:30 Night ====== -->
-    <section class="always section" data-sky="night" data-time="21:30" data-theme="dark" data-label="夜晚" data-name="常驻">
-      <div class="wrap">
-        <div class="kicker mono"><span class="kicker__t">21:30</span><span>夜晚</span><span class="kicker__en">/ Always there, never in the way</span></div>
-        <h2 class="h2">关上窗口，<br />它仍在记录。</h2>
-        <div class="bento">
-          <article class="tile tile--menubar">
-            <div class="menubar mono">
-              <span class="menubar__l"><b></b> Finder　文件　编辑　显示</span>
-              <span class="menubar__r"><button class="menubar__icon" data-cursor="打开菜单" aria-label="Daygo 菜单"><svg viewBox="0 0 64 64"><use href="#mark" /></svg><i></i></button><span class="menubar__clock">21:30</span></span>
-            </div>
-            <div class="menu" role="menu">
-              <div class="menu__state mono"><i></i><span>正在记录</span></div>
-              <hr />
-              <button role="menuitem" data-pause="15">暂停 15 分钟</button>
-              <button role="menuitem" data-pause="30">暂停 30 分钟</button>
-              <button role="menuitem" data-pause="60">暂停 60 分钟</button>
-              <button role="menuitem" data-pause="inf">暂停，直到我恢复</button>
-              <button role="menuitem" class="menu__resume" data-pause="0">恢复记录</button>
-              <hr />
-              <button role="menuitem" class="dim">打开 Daygo…</button>
-            </div>
-            <div class="pause-ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" /><circle class="pause-ring__p" cx="60" cy="60" r="52" /></svg><div class="pause-ring__t mono">--:--</div><div class="pause-ring__l mono">后自动恢复</div></div>
-            <div class="tile__copy"><h3 class="h4">住在菜单栏里</h3><p class="body sm">一键暂停，到点自动恢复。</p></div>
-          </article>
-          <article class="tile tile--sys">
-            <div class="mono label">系统事件</div>
-            <div class="sys">
-              <button data-ev="sleep">睡眠</button><button data-ev="lock">锁屏</button><button data-ev="saver">屏保</button>
-            </div>
-            <div class="sys__strip"></div>
-            <p class="body sm">你离开时，它也休息。</p>
-          </article>
-          <article class="tile tile--disk">
-            <div class="mono label">磁盘上限</div>
-            <div class="disk"><span class="disk__v">20</span><span class="disk__u">GB</span></div>
-            <input class="range" type="range" min="5" max="100" step="5" value="20" aria-label="磁盘上限" />
-            <p class="body sm">不会悄悄占满你的硬盘。</p>
-          </article>
-          <article class="tile tile--cats">
-            <div class="mono label">分类 · 点击换色</div>
-            <div class="catchips"></div>
-            <p class="body sm">按你的方式分类。</p>
-          </article>
-          <article class="tile tile--lang">
-            <div class="mono label">9 种界面语言</div>
-            <div class="lang"><span class="lang__w">一天结束</span></div>
-            <div class="lang__list mono">中文 · English · 日本語 · 한국어 · Deutsch · Français · Español · Português</div>
-          </article>
-          <article class="tile tile--theme" data-mode="dark">
-            <div class="mono label">外观</div>
-            <div class="seg seg--sm"><button data-t="light">浅色</button><button data-t="dark" class="on">深色</button><button data-t="system">跟随系统</button></div>
-            <div class="theme-prev"><div class="theme-prev__bar"></div><div class="theme-prev__row" style="--c:var(--tide)"></div><div class="theme-prev__row" style="--c:var(--amber);width:62%"></div><div class="theme-prev__row" style="--c:var(--dusk);width:78%"></div></div>
-            <p class="body sm">浅色、深色，随你。</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- ====== FAQ · 22:40 ====== -->
-    <section class="faq section" data-sky="night" data-time="22:40" data-theme="dark" data-label="深夜" data-name="问答">
-      <div class="wrap faq__grid">
-        <div>
-          <div class="kicker mono"><span class="kicker__t">22:40</span><span>深夜</span><span class="kicker__en">/ FAQ</span></div>
-          <h2 class="h2">常见问题</h2>
-        </div>
-        <div class="faq__list">
-          <details><summary>Daygo 是在录屏吗？</summary><p>不是。它每隔一段时间截一张图（默认 10 秒），而不是连续录像。</p></details>
-          <details><summary>我的数据安全吗？</summary><p>截图和数据都只存在你的电脑上。只有你自己配置的 AI 服务会收到截图；用本地模型，则完全不离开电脑。</p></details>
-          <details><summary>需要付费吗？</summary><p>Daygo 免费且开源，但不附带 AI 服务，需要你自备。</p></details>
-          <details><summary>支持哪些 AI？</summary><p>兼容 OpenAI 与 Anthropic 接口的云端服务，以及本地模型。可以设置多个，按顺序自动回退。</p></details>
-          <details><summary>支持哪些系统？</summary><p>macOS 14 及以上（Apple Silicon），以及 Windows 11。</p></details>
-          <details><summary>可以随时暂停吗？</summary><p>可以。在菜单栏一键暂停；敏感应用在前台时也会自动屏蔽。</p></details>
-        </div>
-      </div>
-    </section>
-
-    <!-- ====== 09 DOWNLOAD · 23:30 Midnight ====== -->
-    <section class="dl section" id="download" data-sky="midnight" data-time="23:30" data-theme="dark" data-label="午夜" data-name="下载">
-      <div class="wrap">
-        <div class="kicker mono"><span class="kicker__t">23:30</span><span>午夜</span><span class="kicker__en">/ Before you go</span></div>
-        <div class="visit">
-          <p class="visit__lead">你在这一页度过了 <b class="visit__time mono">00:00</b>，<br />Daygo 替你捕捉了 <b class="visit__frames mono">0</b> 帧。</p>
-          <div class="visit__band"></div>
-          <div class="visit__labels mono"></div>
-        </div>
-        <h2 class="dl__title">明天，<br />从记住今天开始。</h2>
-        <div class="dl__btns">
-          <a class="dlbtn magnetic" href="https://github.com/Jwz-git/Daygo/releases" target="_blank" rel="noopener" data-cursor="下载">
-            <span class="dlbtn__os"><svg viewBox="0 0 24 24"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.8-3.5.8-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.6zM14.1 5.6c.6-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.4z" /></svg></span>
-            <span class="dlbtn__txt"><b>macOS</b><em class="mono">macOS 14+ · Apple Silicon · .dmg</em></span>
-            <span class="dlbtn__arr">↓</span>
-          </a>
-          <a class="dlbtn magnetic" href="https://github.com/Jwz-git/Daygo/releases" target="_blank" rel="noopener" data-cursor="下载">
-            <span class="dlbtn__os"><svg viewBox="0 0 24 24"><path d="M3 5.5 10.5 4.5v7H3zM11.5 4.3 21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.3z" /></svg></span>
-            <span class="dlbtn__txt"><b>Windows</b><em class="mono">Windows 11 24H2+ · x64 · .exe</em></span>
-            <span class="dlbtn__arr">↓</span>
-          </a>
-        </div>
-        <p class="tiny mono dl__note">免费 · 开源 · 需自备 AI 服务</p>
-      </div>
-
-      <footer class="footer">
-        <div class="footer__word" aria-hidden="true">Daygo</div>
-        <div class="footer__row wrap mono">
-          <span>© 2026 Daygo · MIT License</span>
-          <span>开源 · MIT</span>
-          <a href="https://github.com/Jwz-git/Daygo" target="_blank" rel="noopener" data-cursor="GitHub">GitHub ↗</a>
-        </div>
+      <footer class="foot">
+        <span>© 2026 Daygo</span>
+        <span data-i18n-html="foot.credit"></span>
+        <a href="https://github.com/Jwz-git/Daygo" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/Jwz-git/Daygo/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
       </footer>
     </section>
   </main>
 
-  <div class="toast mono" role="status" aria-live="polite"></div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
