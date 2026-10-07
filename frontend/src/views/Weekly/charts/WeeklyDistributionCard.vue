@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { WeeklyPresentation } from '@/stores/weeklyPresentation'
+import type { WeeklyDistribution } from '@/stores/weeklyDistribution'
 
 import { useDurationFormat } from '@/lib/duration'
 
@@ -14,7 +14,7 @@ import { useWeeklyChartLabels } from './useWeeklyChartLabels'
  * sectors with small angular gaps and rounded ends over a solid disc, the
  * week total at the centre, and a legend with each category's share.
  */
-const props = defineProps<{ presentation: WeeklyPresentation; days: string[] }>()
+const props = defineProps<{ presentation: WeeklyDistribution; days: string[] }>()
 
 const { t } = useI18n()
 const formatDuration = useDurationFormat()

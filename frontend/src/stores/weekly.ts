@@ -15,7 +15,7 @@ import {
   buildWorkflow,
   weeklyChartFacts,
 } from '@/stores/weeklyCharts'
-import { buildWeeklyPresentation } from '@/stores/weeklyPresentation'
+import { buildWeeklyDistribution } from '@/stores/weeklyDistribution'
 
 export type WeeklyState = 'loading' | 'unavailable' | 'failure' | 'empty' | 'populated'
 
@@ -41,7 +41,7 @@ export const useWeeklyStore = defineStore('weekly', () => {
   })
 
   const presentation = computed(() =>
-    dashboard.value === null ? null : buildWeeklyPresentation(dashboard.value),
+    dashboard.value === null ? null : buildWeeklyDistribution(dashboard.value),
   )
 
   // Dayflow's weekly charts, computed from the same payload (stores/weeklyCharts).
