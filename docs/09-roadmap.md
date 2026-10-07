@@ -63,6 +63,21 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 
 ### 当前代码证据
 
+**2026-10-07 设计接入修复与清理**：计划派生分钟随计划 / 时间线 / 目标事件重新拉取，
+迟到的周查询不能覆盖新周或较新事件；删除已撤下周报面板的前端计算；默认 storage observer
+与维护信号接到本机诊断计数；日记 / 计划提醒按当前环境的原生投递能力门禁；主要 DTO 与
+动态桥方法由生成绑定派生，wrapper 校验封闭枚举 / null；未实现的 macOS System 查询明确
+返回不可用。各阶段完整门禁通过，最后一轮前端 265 项通过；Windows 主机执行项仍为跳过。
+证据、回退和真实 Wails / 原生验收限制分别见 [plan](modules/plan.md)、
+[weekly](modules/weekly.md)、[data](modules/data.md)、[daily](modules/daily.md)、
+[preferences](modules/preferences.md)、[recording](modules/recording.md) 的验证记录。
+
+本轮保留明确规划或待定设计：空闲采样端口、Windows toast、Linux Capture / System、
+搜索、录制后即时日报、视频合成、统一首次引导与遥测消费者，均不能视为已打通。
+`batch:progress` / `recording:warning` 保留为尚无发送方的契约；`appVersion` 当前仍为
+未注入构建信息的 `0.0.0`，版本字段与 `apiRevision` 未有前端消费者。已实现的 agent / chat
+保留，v1 交付范围不因清理改写；正式签名与真实通知投递仍受既有门禁约束。
+
 **2026-10-07 配套网页替换**：`web/` 导入 AwayC/daygo-website 的固定源码、匿名交互演示与
 本地素材，保留正式 Release 的 Pages 部署入口；按用户要求不扩展多语种。
 下载按钮通过公开 GitHub 接口跟随最新正式版安装包，缺资产或接口失败时回退到 Release 页面。

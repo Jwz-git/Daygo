@@ -3,11 +3,23 @@
 package darwin
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"testing"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
+
+func TestUnimplementedSystemQueriesReportUnavailable(t *testing.T) {
+	s := &System{}
+	if _, err := s.Displays(context.Background()); !errors.Is(err, platform.ErrCapabilityUnavailable) {
+		t.Fatalf("Displays error=%v, want unavailable", err)
+	}
+	if _, err := s.FrontmostApplication(context.Background()); !errors.Is(err, platform.ErrCapabilityUnavailable) {
+		t.Fatalf("FrontmostApplication error=%v, want unavailable", err)
+	}
+}
 
 func TestNotificationsUnavailableWithoutAppBundle(t *testing.T) {
 	if (&System{}).NotificationsAvailable() {

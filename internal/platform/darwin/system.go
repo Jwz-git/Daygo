@@ -163,9 +163,11 @@ func (s *System) RequestScreenRecordingPermission(context.Context) error {
 func (s *System) OpenSystemSettings(_ context.Context, pane platform.SettingsPane) error {
 	return openSystemSettings(pane)
 }
-func (s *System) Displays(context.Context) ([]platform.Display, error) { return nil, nil }
+func (s *System) Displays(context.Context) ([]platform.Display, error) {
+	return nil, platform.ErrCapabilityUnavailable
+}
 func (s *System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
-	return platform.AppInfo{}, nil
+	return platform.AppInfo{}, platform.ErrCapabilityUnavailable
 }
 func (s *System) InstalledApplications(ctx context.Context, language string) ([]platform.AppInfo, error) {
 	return listApplications(ctx, language)

@@ -1438,6 +1438,7 @@ type Media interface {
     ProbeSegment(ctx context.Context, path string) (SegmentInfo, error)
 }
 
+// darwin 的 Displays / FrontmostApplication 尚无业务消费者且未实现，明确返回 ErrCapabilityUnavailable。
 type System interface {
     ScreenRecordingPermission(ctx context.Context) (PermissionState, error)
     NotificationsPermission(ctx context.Context) (PermissionState, error)
