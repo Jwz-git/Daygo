@@ -191,6 +191,7 @@ Section "uninstall"
   !insertmacro wails.unassociateCustomProtocols
   # Desktop notification identity is registered by the app for its current
   # user. Never inspect other users' hives in a machine-scope uninstall.
+  SetRegView 64
   DeleteRegKey HKCU "Software\Classes\AppUserModelId\${DAYGO_NOTIFICATION_APP_ID}"
   DeleteRegKey HKCU "Software\Classes\CLSID\${DAYGO_NOTIFICATION_CLSID}"
   !insertmacro wails.deleteUninstaller
