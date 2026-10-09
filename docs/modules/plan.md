@@ -72,6 +72,10 @@
 
 ## 验证记录
 
+2026-10-09：Windows 复用通知端口的实现与证据见 [daily 验证记录](daily.md#验证记录)及
+[Windows 决策](../decisions/notifications-windows-toast.md)。原生 DLL 编译 / ABI / XML 门禁通过，
+提权 CI 主机的注册 / 权限 / 系统排程明确跳过；计划通知的真实 Windows 桌面投递未运行。
+
 2026-10-07（`test`，基于 `5b6d903` 的工作树，macOS arm64）：新增无授权副作用的
 `NotificationAvailability`，仅数据库已打开且当前平台 / 构建有原生投递时广告 `notifications`。
 日记与计划提醒 UI 缺能力时禁用并显示九语言说明；新计划默认不提醒，既有偏好不清除。

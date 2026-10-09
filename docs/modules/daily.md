@@ -136,7 +136,7 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。G
 而跳过；新增卸载身份契约与匿名身份覆盖，避免夹具触及真实 Daygo 注册。
 原生夹具 `native/windows/notifications_smoke.cpp` 使用随机 AUMID / CLSID：XML 注入 / UTF-16 /
 ABI / 初始化 / 退出；系统允许时仅排 30 分钟后的匿名通知、替换 / 碰撞拒绝 / 幂等取消，不弹通知。
-Windows CI 入口 `windows-notifications-check.yml` 已加入，Windows 编译与执行结果待补。
+Windows CI 入口 `windows-notifications-check.yml` 已加入，实际结果见后续记录。
 新增两项循环夹具先失败，再验证设置 / 文案变更即时重排；前进程残留夹具先失败，
 明确将旧「关闭且进程未排过则不调用取消」期望改为「首次取消一次、随后不重复」。
 完整 `./scripts/gate.sh` 通过：Go 构建 / 内部测试 / vet、三平台无 cgo 核心构建，
@@ -152,11 +152,21 @@ Windows CI 入口 `windows-notifications-check.yml` 已加入，Windows 编译�
 MSVC 完整 DLL 编译、C++ 夹具编译通过；夹具权限查询失败，整项 CI 失败，不记录排程 / 送达通过。
 新增提权运行能力门禁（官方通知限制），夹具在提权主机明确验证 unavailable 后跳过注册 / 权限 /
 系统排程；非提权主机保持原有严格断言，并输出失败 HRESULT。该期望调整为显式平台边界决定，
-不能用它证明普通 Windows 桌面投递。复跑结果待补。
+不能用它证明普通 Windows 桌面投递。复跑结果见后续记录。
 [安装器 CI](https://github.com/Jwz-git/Daygo/actions/runs/37878228338) 16 项中 15 项通过、1 项失败：
 新增卸载夹具发现 64 位 CLSID 注册未清理；NSIS 默认 32 位视图，新增显式 `SetRegView 64`，
-保留原断言与匿名身份，复跑结果待补。
+保留原断言与匿名身份，复跑结果见后续记录。
 同一提交 `075ae73` 的独立临时检出运行完整 `./scripts/gate.sh` 通过，排除共享工作区同期改动的影响。
+
+2026-10-09（`f27c8ec`，Windows Server 2025 GitHub runner）：
+[原生复跑](https://github.com/Jwz-git/Daygo/actions/runs/37878767088) 通过：Go 驱动 / System 测试与
+vet、MSVC 完整 DLL / C++ 夹具编译、匿名 ABI / XML 文本与 UTF-16 验证、提权进程 capability
+不可用断言通过。日志明确 `SKIP native registration/permission/OS schedule: elevated runner`；
+注册、权限、系统排程 / 替换 / 取消没有在本次非提权宿主执行，不能记为通过。
+[安装器复跑](https://github.com/Jwz-git/Daygo/actions/runs/37878768044) 全部 16 项通过、0 跳过，
+含卸载删除匿名 AUMID / 64 位 CLSID 并保留无关注册与文件；无头 updater 契约也通过。
+普通用户的 Windows 10/11 桌面送达、真实 Wails 设置往返 / 重启读回、升级身份与休眠行为仍未运行，
+G-native 不升级验收状态；原生 DLL 与 Go 适配器需要一起进入后续安装包，本轮未生成 / 发布 release。
 
 2026-10-07（`test`，基于 `5b6d903` 的工作树，macOS arm64）：新增无授权副作用的
 `NotificationAvailability`，仅数据库已打开且当前平台 / 构建有原生投递时广告 `notifications`。
