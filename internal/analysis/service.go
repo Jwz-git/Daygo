@@ -18,10 +18,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/timeutil"
 )
 
-// Some providers count reasoning against the same limit as visible card JSON.
-// Give initial generation and corrections the same bounded allowance.
-const cardsMaxOutputTokens = 8192
-
 // Consumer-side interfaces. *storage.AnalysisRepo, *storage.CardRepo, and
 // *storage.CategoryRepo satisfy these structurally; tests use the same real
 // repositories over a temp-dir database (docs/09 §9.2: fakes prove shape,
@@ -1067,17 +1063,15 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		var request ai.Request
 		if attempt == 1 {
 			request = ai.Request{
-				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsPrompt(batch.Start, batch.End, existing, obs, categories, s.cfg.Language(ctx), mode))},
-				Output:          &cardsOutput,
-				MaxOutputTokens: cardsMaxOutputTokens,
+				Purpose: ai.PurposeCards,
+				Parts:   []ai.Part{ai.TextPart(cardsPrompt(batch.Start, batch.End, existing, obs, categories, s.cfg.Language(ctx), mode))},
+				Output:  &cardsOutput,
 			}
 		} else {
 			request = ai.Request{
-				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, mode, ownedFrom, batch.End) + cardsLanguageInstruction(s.cfg.Language(ctx)))},
-				Output:          &cardsOutput,
-				MaxOutputTokens: cardsMaxOutputTokens,
+				Purpose: ai.PurposeCards,
+				Parts:   []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, mode, ownedFrom, batch.End) + cardsLanguageInstruction(s.cfg.Language(ctx)))},
+				Output:  &cardsOutput,
 			}
 		}
 		result, err := chain.Generate(ctx, request)
@@ -1336,17 +1330,15 @@ func (s *Service) generateScopedCards(ctx context.Context, chain *ai.Chain, card
 		var request ai.Request
 		if attempt == 1 {
 			request = ai.Request{
-				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsPrompt(windowStart, windowEnd, existing, obs, categories, s.cfg.Language(ctx), cardModeScoped))},
-				Output:          &cardsOutput,
-				MaxOutputTokens: cardsMaxOutputTokens,
+				Purpose: ai.PurposeCards,
+				Parts:   []ai.Part{ai.TextPart(cardsPrompt(windowStart, windowEnd, existing, obs, categories, s.cfg.Language(ctx), cardModeScoped))},
+				Output:  &cardsOutput,
 			}
 		} else {
 			request = ai.Request{
-				Purpose:         ai.PurposeCards,
-				Parts:           []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, cardModeScoped, windowStart, windowEnd) + cardsLanguageInstruction(s.cfg.Language(ctx)))},
-				Output:          &cardsOutput,
-				MaxOutputTokens: cardsMaxOutputTokens,
+				Purpose: ai.PurposeCards,
+				Parts:   []ai.Part{ai.TextPart(cardsCorrectionPrompt(string(lastRaw), issues, cardModeScoped, windowStart, windowEnd) + cardsLanguageInstruction(s.cfg.Language(ctx)))},
+				Output:  &cardsOutput,
 			}
 		}
 		result, err := chain.Generate(ctx, request)

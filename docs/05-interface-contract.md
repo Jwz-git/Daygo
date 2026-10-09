@@ -1368,6 +1368,9 @@ type ReplaceResult struct {
    Chat Completions 的正数 `MaxOutputTokens` 映射到 `max_completion_tokens`（包含推理
    tokens），0 时不发送该字段；不发送已弃用且不兼容 o 系列的 `max_tokens`。
    兼容端若拒绝该参数，按 `invalid_request` 返回；不猜模型别名、不额外重发或移除输出上限。
+   Responses 正数映射 `max_output_tokens`，0 时省略；Anthropic 必须传 `max_tokens`，
+   0 的卡片请求保留 8192，其它 0 请求为 4096。卡片生成 / 纠错采用 0，不替模型猜统一额度，
+   见 [输出预算决策](decisions/timeline-output-budget.md)。
 2. 三种协议都发送原生 schema：openai（Chat Completions）与 openai_responses 分别使用
    `response_format` 和 `text.format`，anthropic 使用 `output_config.format`；返回后仍须
    本地提取 / 修复 JSON 并验证**原始 schema**。Anthropic 发送副本将不支持的数值边界、
@@ -1382,6 +1385,10 @@ type ReplaceResult struct {
    仅接受 `completed`，拒绝非 null `error` 与 `refusal` 内容块；Anthropic 显式 `stop_reason`
    仅接受 `end_turn` / `stop_sequence`。截断、失败、拒绝、未完成工具回合、未知非空状态
    及空白正文统一为 `invalid_output`，即使正文可通过 Schema 也不能接受。
+   Responses 非 null `incomplete_details` 同样不得接受，显式 error 优先；
+   `reason=max_output_tokens`、Chat 的 `length`、Anthropic 的 `max_tokens` /
+   `model_context_window_exceeded` 附带类型化 `ai.ErrTokenLimit` 原因与固定说明。
+   不转存未知原因文字，不根据 token 用量是否等于额度猜测。
    兼容端省略状态字段时沿用非空正文 / 本地 Schema 校验；此路径不证明生成完整。
 3. 路由是**有序链** `ai.Chain`（decisions/providers-fallback-chain）：每个条目是一个
    「供应商 + 模型」对（decisions/providers-multi-model），预先包 `WithRetry`，先按自身策略
@@ -1392,7 +1399,8 @@ type ReplaceResult struct {
    provider ID。链为空时返回 `ai.ErrNoProvider`，绑定层映射 `provider_not_configured`。
 4. 默认每个 provider 最多 3 次 attempt；500 ms 指数退避、8 秒封顶并带 full jitter，
    `Retry-After` 等待不超过 30 秒。408 / 429 / 5xx、临时网络错误与超时可重试；认证、404、
-   无效参数及取消不重试。结构化输出无效的额外重试仍计入该上限。
+   无效参数、取消与 `ai.ErrTokenLimit` 不重试。token 终止直接交给既有回退链，不续写。
+   其它结构化输出无效的额外重试仍计入该上限；批次级重试策略不变。
 5. 每次真实 HTTP attempt 必须记录 `llm_calls` 脱敏元数据：批次 / purpose、序号、provider、
    协议、模型、时间 / 耗时、结果 / 错误、HTTP 状态和可选 usage。禁止保存 endpoint、正文、图片、
    密钥和费用；匿名人工 fixture 才是解析器黄金测试输入。

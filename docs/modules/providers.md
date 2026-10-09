@@ -17,6 +17,13 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-10-09 token 终止处理：Responses 的 `incomplete_details.reason=max_output_tokens`、
+Chat 的 `finish_reason=length`、Anthropic 的 `max_tokens` / `model_context_window_exceeded`
+带类型化 `ai.ErrTokenLimit` 原因，外部分类仍为 `invalid_output`，固定说明不包含正文。
+同一 Provider 不原样重试，既有回退链继续适用；其它错误保持原有策略。
+卡片 0 额度在 OpenAI 两协议省略，Anthropic 保留必填 8192，其它 0 额度仍为 4096。
+依据、验收与边界见 [输出预算决策](../decisions/timeline-output-budget.md) 和下方记录。
+
 2026-10-09 Responses / Anthropic 协议检查（基于 `e28953e` 的 test 工作树，macOS arm64）：
 请求映射核对官方文档与锁定 SDK：Responses 使用 `input_text` / `input_image`、
 `max_output_tokens`、`text.format`；Anthropic 使用 base64 图片块、`max_tokens`、
@@ -28,7 +35,8 @@ anthropic 三种协议。
 请求模型另有审计字段，避免扩张无效响应中的任意字符串落库范围。
 兼容省略状态字段的服务，但不据此证明生成完整；用量未知为 nil，显式 0 继续保留。
 这是一次显式行为决定：试用的成功条件由“非空文字”收紧为“通过协议状态检查的非空文字”；
-错误仍走既有有界重试 / 回退，客户端内部不续写、不重发，`TryProvider` 仍为单次调用。
+错误仍走有界重试 / 回退（后续明确 token 终止不原样重试），客户端内部不续写、不重发，
+`TryProvider` 仍为单次调用。
 依据（2026-10-09 核验）：[OpenAI Responses 结构化输出与未完成响应](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses)、
 [Anthropic stop reasons](https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons)、
 [Anthropic Schema 限制](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)。
@@ -218,6 +226,23 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-10-09 token 终止不原样重试（基于 `f39089b` 的 test 工作树，macOS arm64）**：
+  匿名 TLS 协议矩阵接入真实重试装饰器，先复现明确 token 原因仍请求三次；Responses
+  增加缺状态 / 矛盾 completed / 未知原因 / error 优先夹具，另覆盖 Chat `length`、
+  Anthropic 输出 / 上下文限制、固定错误与已知用量保留。显式改矩阵预期：裸客户端的
+  一次请求改为装饰器下 token 终止一次、其它无效输出最多三次。`ai.ErrTokenLimit`
+  保留外部 `invalid_output`，回退链夹具证明主服务只调用一次后备用成功，无退避。
+  卡片 0 额度协议映射夹具先复现 Anthropic 降回 4096，再修复为必填 8192；OpenAI
+  两协议省略可选参数，既有显式正数 / 其它 purpose、地址与 Schema 测试继续通过。
+  `CGO_ENABLED=0 go test ./internal/analysis ./internal/ai/... -count=1` 和
+  `./scripts/gate.sh` 通过：Go 内部测试 / vet / 无 cgo 构建、三平台核心交叉构建、
+  前端 266 项单测 / typecheck / build、文档 62 篇 0 问题；Windows 安装器 16 项中
+  6 项通过、10 项需目标主机跳过。`gofmt -l .` 无输出、`git diff --check` 通过。
+  真实服务匿名小输入 / 预算省略对比与 WAL 检查点限制见
+  [timeline 本轮记录](timeline.md#验证记录)；它没有复现真实 token 截断，不能证明
+  原批次恢复或真实回退。未运行 Wails / 目标平台回归，不扩大 G-loop / G-native。
+  回退：撤销本次提交，无数据迁移。
 
 - **2026-10-09 三协议响应状态 / 用量（基于 `e28953e` 的 test 工作树与独立 `provider-protocol-review` 工作树，macOS arm64）**：
   providers / provider-client 的协议契约增量。先写匿名 TLS 夹具：带有效文字 / 有效 JSON

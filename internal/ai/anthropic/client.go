@@ -62,6 +62,11 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 	maxTokens := int64(request.MaxOutputTokens)
 	if maxTokens == 0 {
 		maxTokens = 4096
+		// Messages requires max_tokens. Preserve the card allowance while
+		// optional-budget protocols can defer to their server's model default.
+		if request.Purpose == daygoai.PurposeCards {
+			maxTokens = 8192
+		}
 	}
 	params := anthropicsdk.MessageNewParams{
 		MaxTokens: maxTokens,
@@ -95,6 +100,8 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 	case "", anthropicsdk.StopReasonEndTurn, anthropicsdk.StopReasonStopSequence:
 	case anthropicsdk.StopReasonRefusal:
 		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider refused the request", 0, nil)
+	case anthropicsdk.StopReasonMaxTokens, anthropicsdk.StopReasonModelContextWindowExceeded:
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, daygoai.ErrTokenLimit.Error(), 0, daygoai.ErrTokenLimit)
 	default:
 		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider response did not complete", 0, nil)
 	}

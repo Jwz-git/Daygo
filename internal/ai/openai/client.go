@@ -167,6 +167,9 @@ func parseResponse(body []byte, output *daygoai.OutputSchema) (daygoai.Result, e
 		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned no text", 0, nil)
 	}
 	choice := response.Choices[0]
+	if choice.FinishReason == "length" {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, daygoai.ErrTokenLimit.Error(), 0, daygoai.ErrTokenLimit)
+	}
 	if choice.FinishReason != "" && choice.FinishReason != "stop" {
 		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider response did not complete", 0, nil)
 	}

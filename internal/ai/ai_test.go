@@ -116,6 +116,25 @@ func TestRetryStopsOnCancellation(t *testing.T) {
 	}
 }
 
+func TestTokenLimitSkipsIdenticalRetryAndStillFallsBack(t *testing.T) {
+	limitErr := NewError(ErrorInvalidOutput, ErrTokenLimit.Error(), 0, ErrTokenLimit)
+	primary := &sequenceProvider{errors: []error{limitErr}}
+	secondary := &sequenceProvider{results: []Result{{Text: "complete"}}}
+	policy := DefaultRetryPolicy()
+	policy.Sleep = func(context.Context, time.Duration) error {
+		t.Fatal("token limit must not enter retry backoff")
+		return nil
+	}
+	chain := NewChain(chainEntries(WithRetry(primary, policy), WithRetry(secondary, policy)), DefaultChainThreshold)
+	result, err := chain.Generate(context.Background(), Request{Purpose: PurposeCards})
+	if err != nil || result.Text != "complete" || primary.calls != 1 || secondary.calls != 1 || chain.ActiveID() != "b" {
+		t.Fatalf("result=%+v, error=%v, calls=%d/%d, active=%s", result, err, primary.calls, secondary.calls, chain.ActiveID())
+	}
+	if !errors.Is(limitErr, ErrTokenLimit) || ErrorKindOf(limitErr) != ErrorInvalidOutput {
+		t.Fatal("token limit lost its typed cause or existing public error kind")
+	}
+}
+
 func TestAttemptObserverReceivesRedactedMetadataForEachRetry(t *testing.T) {
 	provider := &sequenceProvider{
 		results: []Result{{}, {Text: "ok", Model: "actual-model"}},

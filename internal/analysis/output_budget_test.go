@@ -10,9 +10,8 @@ import (
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
 
-// This anonymous provider needs more than the old 4096-token allowance for
-// complete output. The fixture models total generation, including reasoning;
-// it never accepts a partial response just to make card parsing succeed.
+// This anonymous provider's default can complete generation above 8192 tokens,
+// including reasoning. An application cap below that still truncates it.
 type budgetProvider struct {
 	calls      []ai.Request
 	correction bool
@@ -20,7 +19,7 @@ type budgetProvider struct {
 
 func (p *budgetProvider) Generate(_ context.Context, request ai.Request) (ai.Result, error) {
 	p.calls = append(p.calls, request)
-	if request.MaxOutputTokens < 8192 {
+	if request.MaxOutputTokens > 0 && request.MaxOutputTokens < 12288 {
 		return ai.Result{}, ai.NewError(ai.ErrorInvalidOutput, "anonymous output exhausted its budget", 0, nil)
 	}
 	end := "10:15 AM"
@@ -30,7 +29,7 @@ func (p *budgetProvider) Generate(_ context.Context, request ai.Request) (ai.Res
 	return ai.Result{Text: `{"cards":[{"start":"10:00 AM","end":"` + end + `","category":"Coding","subcategory":"","title":"Anonymous task","summary":"Anonymous work.","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`}, nil
 }
 
-func TestCardsOutputBudgetSupportsCompleteGenerationAndCorrection(t *testing.T) {
+func TestCardsUseProviderOutputBudgetForGenerationAndCorrection(t *testing.T) {
 	for _, mode := range []string{"fresh", "ongoing", "scoped"} {
 		for _, correction := range []bool{false, true} {
 			name := mode + "/initial"
@@ -64,8 +63,8 @@ func TestCardsOutputBudgetSupportsCompleteGenerationAndCorrection(t *testing.T) 
 					t.Fatalf("calls=%d, want %d", len(provider.calls), wantCalls)
 				}
 				for _, request := range provider.calls {
-					if request.MaxOutputTokens != 8192 || request.Output == nil || !request.Output.Strict {
-						t.Fatalf("request budget=%d, schema=%v; want bounded 8192 with strict output", request.MaxOutputTokens, request.Output)
+					if request.MaxOutputTokens != 0 || request.Output == nil || !request.Output.Strict {
+						t.Fatalf("request budget=%d, schema=%v; want provider default with strict output", request.MaxOutputTokens, request.Output)
 					}
 				}
 			})

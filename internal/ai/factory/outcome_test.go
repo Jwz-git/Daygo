@@ -2,10 +2,12 @@ package factory
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	daygoai "github.com/Jwz-git/Daygo/internal/ai"
 )
@@ -21,6 +23,10 @@ func TestProtocolClientsRejectUnfinishedOutputs(t *testing.T) {
 		fields   string
 	}{
 		{"responses token limit", daygoai.ProtocolOpenAIResponses, `"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"message","content":[{"type":"output_text","text":` + text + `}]}]`},
+		{"responses token limit without status", daygoai.ProtocolOpenAIResponses, `"incomplete_details":{"reason":"max_output_tokens"},"output":[]`},
+		{"responses token limit with completed", daygoai.ProtocolOpenAIResponses, `"status":"completed","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"message","content":[{"type":"output_text","text":` + text + `}]}]`},
+		{"responses unknown incomplete reason", daygoai.ProtocolOpenAIResponses, `"status":"incomplete","incomplete_details":{"reason":"` + private + `"},"output":[]`},
+		{"responses error overrides incomplete reason", daygoai.ProtocolOpenAIResponses, `"status":"failed","error":{"code":"server_error","message":"` + private + `"},"incomplete_details":{"reason":"max_output_tokens"},"output":[]`},
 		{"responses failed", daygoai.ProtocolOpenAIResponses, `"status":"failed","error":{"code":"server_error","message":"` + private + `"},"output":[{"type":"message","content":[{"type":"output_text","text":` + text + `}]}]`},
 		{"responses queued", daygoai.ProtocolOpenAIResponses, `"status":"queued","output":[{"type":"message","content":[{"type":"output_text","text":` + text + `}]}]`},
 		{"responses in progress", daygoai.ProtocolOpenAIResponses, `"status":"in_progress","output":[{"type":"message","content":[{"type":"output_text","text":` + text + `}]}]`},
@@ -44,6 +50,11 @@ func TestProtocolClientsRejectUnfinishedOutputs(t *testing.T) {
 		{"chat refusal with text", daygoai.ProtocolOpenAIChat, `"choices":[{"finish_reason":"stop","message":{"content":` + text + `,"refusal":"` + private + `"}}]`},
 		{"chat unknown stop", daygoai.ProtocolOpenAIChat, `"choices":[{"finish_reason":"` + private + `","message":{"content":` + text + `}}]`},
 		{"chat whitespace", daygoai.ProtocolOpenAIChat, `"choices":[{"finish_reason":"stop","message":{"content":" \n "}}]`},
+	}
+	tokenLimits := map[string]bool{
+		"responses token limit": true, "responses token limit without status": true,
+		"responses token limit with completed": true, "anthropic token limit": true,
+		"anthropic context limit": true, "chat token limit": true,
 	}
 	for _, tc := range cases {
 		for _, structured := range []bool{false, true} {
@@ -69,13 +80,23 @@ func TestProtocolClientsRejectUnfinishedOutputs(t *testing.T) {
 				}
 				var observed daygoai.Attempt
 				provider = daygoai.WithAttemptObserver(provider, "fixture-provider", tc.protocol, "fixture-model", daygoai.AttemptObserverFunc(func(_ context.Context, a daygoai.Attempt) { observed = a }))
+				policy := daygoai.DefaultRetryPolicy()
+				policy.Sleep = func(context.Context, time.Duration) error { return nil }
+				provider = daygoai.WithRetry(provider, policy)
 				request := daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("fixture")}}
 				if structured {
 					request.Output = &daygoai.OutputSchema{Name: "fixture", Strict: true, Schema: []byte(`{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false}`)}
 				}
 				result, err := provider.Generate(context.Background(), request)
-				if daygoai.ErrorKindOf(err) != daygoai.ErrorInvalidOutput || result.Model != "" || result.Text != "" || len(result.JSON) != 0 || calls != 1 {
+				wantCalls := policy.MaxAttempts
+				if tokenLimits[tc.name] {
+					wantCalls = 1
+				}
+				if daygoai.ErrorKindOf(err) != daygoai.ErrorInvalidOutput || result.Model != "" || result.Text != "" || len(result.JSON) != 0 || calls != wantCalls {
 					t.Fatalf("kind = %s, text = %q, JSON = %s, calls = %d", daygoai.ErrorKindOf(err), result.Text, result.JSON, calls)
+				}
+				if daygoai.Retryable(err) == tokenLimits[tc.name] {
+					t.Fatalf("retryable=%v, token limit=%v", daygoai.Retryable(err), tokenLimits[tc.name])
 				}
 				if strings.Contains(err.Error(), private) {
 					t.Fatal("provider detail appeared in the error")
@@ -85,6 +106,48 @@ func TestProtocolClientsRejectUnfinishedOutputs(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestCardsProtocolOutputBudgetDefaults(t *testing.T) {
+	for _, protocol := range []daygoai.Protocol{daygoai.ProtocolOpenAIChat, daygoai.ProtocolOpenAIResponses, daygoai.ProtocolAnthropicMessages} {
+		t.Run(string(protocol), func(t *testing.T) {
+			var payload map[string]json.RawMessage
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Error(err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				switch protocol {
+				case daygoai.ProtocolOpenAIChat:
+					_, _ = w.Write([]byte(`{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}`))
+				case daygoai.ProtocolOpenAIResponses:
+					_, _ = w.Write([]byte(`{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`))
+				case daygoai.ProtocolAnthropicMessages:
+					_, _ = w.Write([]byte(`{"stop_reason":"end_turn","content":[{"type":"text","text":"ok"}]}`))
+				}
+			}))
+			defer server.Close()
+			provider, err := NewClient(server.Client(), Config{Protocol: protocol, Endpoint: server.URL, Model: "fixture-model"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := provider.Generate(context.Background(), daygoai.Request{Purpose: daygoai.PurposeCards, Parts: []daygoai.Part{daygoai.TextPart("fixture")}})
+			if err != nil || result.Text != "ok" {
+				t.Fatalf("result=%+v, error=%v", result, err)
+			}
+			if protocol == daygoai.ProtocolAnthropicMessages {
+				if string(payload["max_tokens"]) != "8192" {
+					t.Fatalf("required max_tokens=%s, want preserved 8192 allowance", payload["max_tokens"])
+				}
+			} else {
+				for _, key := range []string{"max_tokens", "max_completion_tokens", "max_output_tokens"} {
+					if _, present := payload[key]; present {
+						t.Fatalf("card request unexpectedly overrides provider default with %s", key)
+					}
+				}
+			}
+		})
 	}
 }
 

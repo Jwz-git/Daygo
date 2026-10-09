@@ -117,9 +117,12 @@ func (c *ResponsesClient) requestBody(request daygoai.Request) ([]byte, error) {
 }
 
 type responsesResponse struct {
-	Model  string    `json:"model"`
-	Status string    `json:"status"`
-	Error  *struct{} `json:"error"`
+	Model             string    `json:"model"`
+	Status            string    `json:"status"`
+	Error             *struct{} `json:"error"`
+	IncompleteDetails *struct {
+		Reason string `json:"reason"`
+	} `json:"incomplete_details"`
 	Output []struct {
 		Type    string `json:"type"`
 		Status  string `json:"status"`
@@ -155,7 +158,13 @@ func parseResponsesResponse(body []byte, output *daygoai.OutputSchema) (daygoai.
 	// Some compatible providers omit status. Preserve that path, but never
 	// accept an explicit failure or unfinished response merely because it has
 	// text. Provider error/refusal prose is not retained or returned.
-	if response.Error != nil || (response.Status != "" && response.Status != "completed") {
+	if response.Error != nil {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider response did not complete", 0, nil)
+	}
+	if response.IncompleteDetails != nil && response.IncompleteDetails.Reason == "max_output_tokens" {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, daygoai.ErrTokenLimit.Error(), 0, daygoai.ErrTokenLimit)
+	}
+	if response.IncompleteDetails != nil || (response.Status != "" && response.Status != "completed") {
 		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider response did not complete", 0, nil)
 	}
 	var text strings.Builder

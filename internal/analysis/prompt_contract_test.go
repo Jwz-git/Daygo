@@ -106,6 +106,11 @@ func TestCardPromptsShareLightBrevityGuidance(t *testing.T) {
 					"Combine repetitive actions into short chronological lines",
 					"each activityPoint description to one short sentence",
 					"Keep useful specifics; add detail when it helps recall the activity",
+					"detailed_summary adds only useful context missing from summary or activityPoints",
+					"use \"\" if it adds nothing",
+					"combine consecutive observations of the same action",
+					"preserve earlier points when merging",
+					"compact JSON without indentation or whitespace outside strings",
 					"Preserve evidence-supported time coverage and meaningful activity changes",
 					"brevity never overrides required JSON fields or segmentation rules",
 				} {
@@ -116,8 +121,10 @@ func TestCardPromptsShareLightBrevityGuidance(t *testing.T) {
 				if strings.ContainsAny(guidance, "0123456789") {
 					t.Fatal("light guidance adds a numeric content limit")
 				}
-				if strings.Contains(prompt, "Every app, every switch, every action.") {
-					t.Fatal("prompt still demands an exhaustive replay of minor actions")
+				for _, verbose := range []string{"Every app, every switch, every action.", "one entry per observation", "Titles can be longer:", "Don't trim useful detail for brevity."} {
+					if strings.Contains(prompt, verbose) {
+						t.Errorf("prompt still encourages expanded output: %q", verbose)
+					}
 				}
 			})
 		}

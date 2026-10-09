@@ -260,11 +260,11 @@ func cardsPrompt(batchStart, batchEnd time.Time,
 		b.WriteString("- Every card must lie inside the current window; previous cards are context only.\n")
 	}
 	b.WriteString("- end after start; if an activity crosses midnight, end may be earlier than start.\n")
-	b.WriteString("- activityPoints lists the concrete time points of the window: one entry per ")
+	b.WriteString("- activityPoints lists meaningful steps and changes, combining consecutive observations of the same action: ")
 	if mode == cardModeScoped {
-		b.WriteString("observation, time formatted like \"10:21 AM\" and inside the window.\n")
+		b.WriteString("time formatted like \"10:21 AM\" and inside the window.\n")
 	} else {
-		b.WriteString("observation, time formatted like \"10:21 AM\" and inside the window; when merging, ")
+		b.WriteString("time formatted like \"10:21 AM\" and inside the window; when merging, ")
 		b.WriteString("include the merged card's earlier points too, in chronological order.\n")
 	}
 	b.WriteString("- appSites: array of strings [primary, secondary] following the APP SITES rules; element 0 is primary canonical domain/app, element 1 is enclosing browser/secondary app. The observations above already name the apps/sites in brackets — derive appSites from them and ALWAYS fill element 0 whenever any app or site is named. Leave the array empty ONLY when no observation named any app or site at all.\n")
@@ -299,8 +299,11 @@ func writeCardsOutputContract(b *strings.Builder, start, end time.Time, category
 const cardsBrevityInstruction = `
 <output_brevity>
 Keep wording concise and avoid repeating the same details across fields.
+Use a short title and a brief summary of the main activity and result. detailed_summary adds only useful context missing from summary or activityPoints; use "" if it adds nothing.
 Combine repetitive actions into short chronological lines in detailed_summary; keep each activityPoint description to one short sentence. Keep useful specifics; add detail when it helps recall the activity.
+For new activityPoints, combine consecutive observations of the same action; retain meaningful changes and preserve earlier points when merging.
 Preserve evidence-supported time coverage and meaningful activity changes; brevity never overrides required JSON fields or segmentation rules.
+Return compact JSON without indentation or whitespace outside strings.
 </output_brevity>
 `
 
@@ -321,8 +324,8 @@ func cardsLanguageInstruction(language string) string {
 }
 
 // titleBlock ports Dayflow's primary title guidance (GeminiPromptDefaults.titleBlock):
-// each title is a memory trigger, specific enough that it could only describe one situation,
-// roughly 5-15 words with honest verbs and no corporate filler.
+// each title is a short memory trigger with one identifying detail, honest
+// verbs and no corporate filler.
 const titleBlock = `TITLES — Each title is a memory trigger. Be specific enough that it could only describe one situation.
 "Bug fixes" could be anything. "Fixed the infinite scroll crash on search results" can only be one thing.
 "Gaming session" could be any day. "League ARAM — Thresh and Jinx" is a specific session.
@@ -336,8 +339,8 @@ Accuracy over polish:
 Don't compress what happened into a technical-sounding phrase that loses the meaning. If the actual bug was "the notification wasn't showing up after regeneration," say that — don't abstract it into "verification pipeline error" because it sounds more engineered.
 The title's job is to be TRUE and SPECIFIC, not to sound smart. When in doubt, describe the actual problem or action in plain language.
 
-Titles can be longer:
-A title that's a few words longer but triggers a real memory beats a short vague one every time. Don't trim useful detail for brevity. Aim for roughly 5–15 words — but if word 12 is the one that makes you remember, keep it.
+Keep titles short:
+Name the main action and one identifying detail. Put supporting details in the summary.
 
 Banned words (corporate filler — no human writes them in a personal journal):
 "research", "coordination", "management", "administration", "workflow", "sync", "alignment", "exploration", "investigation", "project development", "social chat", "various", "multiple", "several", "deep dive", "rabbit hole".
@@ -369,7 +372,7 @@ Final check:
 
 // summaryBlock ports Dayflow's GeminiPromptDefaults.summaryBlock.
 const summaryBlock = `SUMMARY:
-2-3 sentences max. First person without "I". Just state what happened.
+Usually one or two short sentences. First person without "I". State the main activity and result, without replaying each step.
 
 Good:
 - "Refactored the auth module in React, added OAuth support. Hit CORS issues with the backend API."
@@ -386,32 +389,17 @@ Never use:
 - Third person ("The session", "The work")
 - Mental states or assumptions about why the person did something`
 
-// detailedSummaryBlock ports Dayflow's GeminiPromptDefaults.detailedSummaryBlock.
+// Detailed summaries add context rather than replaying the activity point list.
 const detailedSummaryBlock = `DETAILED SUMMARY:
-This is the chronological view of the activity's meaningful actions and changes.
+Add only useful context not already covered by the summary or activityPoints; use "" when there is nothing to add.
+Group repeated actions into short chronological lines. Name the specific app, file, document or topic when it helps recall the activity; do not enumerate every tab, click or line of screen text.
 
 Format each line as:
 [H:MM AM/PM] - [H:MM AM/PM]: [specific action] [in app/tool] [on what]
 
-Include:
-- Specific file/document names when visible
-- Page titles, tabs, search queries
-- Actions: opened, edited, scrolled, searched, replied, watched
-- Content context: what topic, what section, who you messaged
-
 Good example:
-"7:00 AM - 7:08 AM: edited \"Q4 Launch Plan\" in Notion, added timeline section
-7:08 AM - 7:10 AM: replied to Mike in Slack #engineering
-7:10 AM - 7:12 AM: scrolled X home feed
-7:12 AM - 7:18 AM: back to Notion, wrote launch risks section
-7:18 AM - 7:20 AM: searched Google \"feature flag best practices\"
-7:20 AM - 7:25 AM: read LaunchDarkly docs
-7:25 AM - 7:30 AM: added feature flag notes to Notion doc"
-
-Bad example:
-"7:00 AM - 7:30 AM writing Notion doc
-7:30 AM - 7:35 AM: Slack
-(Too coarse — what doc? which Slack channel? coding what?)
+"7:00 AM - 7:20 AM: added timeline and launch risks to \"Q4 Launch Plan\" in Notion
+7:20 AM - 7:30 AM: read LaunchDarkly docs and added feature flag notes"
 
 The goal: help someone recall what happened from the supported details.
 Keep at most 15 lines and 2500 characters total.`
