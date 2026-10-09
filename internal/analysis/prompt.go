@@ -292,7 +292,17 @@ func writeCardsOutputContract(b *strings.Builder, start, end time.Time, category
 	b.WriteString("Structure example only; replace sample prose, times and category with the supported output. An array with one card illustrates the shape, not a requirement to use one card in every mode.\n<output_example>\n")
 	b.Write(raw)
 	b.WriteString("\n</output_example>\n")
+	b.WriteString(cardsBrevityInstruction)
 }
+
+// Soft guidance shared with stateless corrections; it adds no content caps.
+const cardsBrevityInstruction = `
+<output_brevity>
+Keep wording concise and avoid repeating the same details across fields.
+Combine repetitive actions into short chronological lines in detailed_summary; keep each activityPoint description to one short sentence. Keep useful specifics; add detail when it helps recall the activity.
+Preserve evidence-supported time coverage and meaningful activity changes; brevity never overrides required JSON fields or segmentation rules.
+</output_brevity>
+`
 
 func exampleCategory(categories []domain.Category) string {
 	for _, category := range categories {
@@ -378,7 +388,7 @@ Never use:
 
 // detailedSummaryBlock ports Dayflow's GeminiPromptDefaults.detailedSummaryBlock.
 const detailedSummaryBlock = `DETAILED SUMMARY:
-This is the "show me exactly what happened" view. Every app, every switch, every action.
+This is the chronological view of the activity's meaningful actions and changes.
 
 Format each line as:
 [H:MM AM/PM] - [H:MM AM/PM]: [specific action] [in app/tool] [on what]
@@ -403,7 +413,7 @@ Bad example:
 7:30 AM - 7:35 AM: Slack
 (Too coarse — what doc? which Slack channel? coding what?)
 
-The goal: someone could reconstruct exactly what you did just from the detailed summary.
+The goal: help someone recall what happened from the supported details.
 Keep at most 15 lines and 2500 characters total.`
 
 // distractionsBlock ports Dayflow's distraction guidance (GeminiDirectProvider+ActivityCards.swift):

@@ -3,6 +3,7 @@ package analysis
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -83,6 +84,43 @@ func TestPromptOutputExamplesMatchSchemas(t *testing.T) {
 	correction := cardsCorrectionPrompt(`{"cards":[]}`, []string{"anonymous issue"}, cardModeOngoing, start, start.Add(15*time.Minute))
 	if err := ai.ValidateJSON(promptBlock(t, correction, "output_example"), cardsOutput); err != nil {
 		t.Fatalf("correction example does not match schema: %v", err)
+	}
+}
+
+// Brevity is shared by initial generation and stateless corrections. It must
+// not encourage dropping JSON fields, evidence coverage or activity changes.
+func TestCardPromptsShareLightBrevityGuidance(t *testing.T) {
+	start := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	for _, mode := range []cardMode{cardModeFresh, cardModeOngoing, cardModeScoped} {
+		prompts := map[string]string{
+			"generation": cardsPrompt(start, start.Add(15*time.Minute), nil, nil,
+				[]domain.Category{{Name: "Coding"}}, "zh-CN", mode),
+			"correction": cardsCorrectionPrompt(`{"cards":[]}`, []string{"anonymous issue"},
+				mode, start, start.Add(15*time.Minute)),
+		}
+		for name, prompt := range prompts {
+			t.Run(fmt.Sprintf("mode%d/%s", mode, name), func(t *testing.T) {
+				guidance := string(promptBlock(t, prompt, "output_brevity"))
+				for _, requirement := range []string{
+					"avoid repeating the same details across fields",
+					"Combine repetitive actions into short chronological lines",
+					"each activityPoint description to one short sentence",
+					"Keep useful specifics; add detail when it helps recall the activity",
+					"Preserve evidence-supported time coverage and meaningful activity changes",
+					"brevity never overrides required JSON fields or segmentation rules",
+				} {
+					if !strings.Contains(guidance, requirement) {
+						t.Errorf("brevity guidance missing %q", requirement)
+					}
+				}
+				if strings.ContainsAny(guidance, "0123456789") {
+					t.Fatal("light guidance adds a numeric content limit")
+				}
+				if strings.Contains(prompt, "Every app, every switch, every action.") {
+					t.Fatal("prompt still demands an exhaustive replay of minor actions")
+				}
+			})
+		}
 	}
 }
 
