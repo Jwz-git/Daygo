@@ -63,6 +63,20 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 
 ### 当前代码证据
 
+**2026-10-09 `test` / `main` 分支整合复核（macOS arm64）**：输入为 `test` 的
+`cba3b90` 与 `main` 的 `565ffa0`；在 `test` 工作树合并 `main`，无冲突，保留两侧提交。
+预期为 README / 匿名截图更新与 providers、timeline、daily / plan 的现有增量共同通过
+提交门禁；合并工作树实际执行 `./scripts/gate.sh` 通过：Go 内部测试（多数复用缓存）、
+vet、无 cgo 构建与 Linux / Darwin / Windows 核心交叉构建，前端 266 项单测 / 0 失败 /
+0 跳过、typecheck / build，文档 62 篇 / 0 问题。Windows 安装器 16 项中 6 项通过、
+10 项因需 Windows 主机而跳过；独立 `gofmt -l .` 无输出，`git diff --check` 与
+`git diff --cached --check` 通过。Wails 引导编译成功，已有 macOS deployment target /
+UserNotifications 可用性告警仍存在。
+本轮只整合分支，不新增功能或变更模块验收状态；未执行 Linux 主机测试、真实 Wails /
+Provider、通知送达、安装升级或长期观察，不提升 G-host / G-loop / G-native。
+回退使用普通 revert 保留历史：本次合并的第二父提交是原 `main`，第一父提交是原 `test`，
+分别选择对应 mainline 恢复该分支合并前的文件内容。
+
 **2026-10-07 过时测试脚本清理**：退役固定 Windows 路径 / Qwen 别名的一次性模型探针，
 删除仍直接读取 staging、无法处理多帧分段的旧分析脚本及其无其它消费者的 Go 辅助入口。
 正常分析回归、原生 smoke、前端运行器、安装器和更新器检查保留；历史 Provider 观察保留，

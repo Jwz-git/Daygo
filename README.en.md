@@ -1,8 +1,23 @@
-# Daygo
+<p align="center">
+  <img src="docs/assets/readme/banner.en.webp" alt="Daygo — At the end of the day, do you remember what you worked on?" />
+</p>
 
-[简体中文](README.md) · **English**
+<p align="center">
+  <a href="https://github.com/Jwz-git/Daygo/releases"><img src="https://img.shields.io/github/v/release/Jwz-git/Daygo?style=flat-square&color=F3854B&label=download" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-333333?style=flat-square&logo=apple&logoColor=white" alt="macOS 14+" />
+  <img src="https://img.shields.io/badge/Windows-11-0078D4?style=flat-square" alt="Windows 11" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E7DF7?style=flat-square" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails · Vue 3" />
+</p>
 
-> At the end of the day, do you remember what you worked on?
+<p align="center">
+  <a href="https://github.com/Jwz-git/Daygo/releases"><b>Download</b></a> ·
+  <a href="https://awayc.github.io/daygo-website/"><b>Website</b></a> ·
+  <a href="docs/README.md">Design docs</a> ·
+  <a href="README.md">简体中文</a>
+</p>
+
+Daygo is the cross-platform version of [Dayflow](https://dayflow.so), available on macOS and Windows.
 
 Daygo quietly records your work in the background. With an AI provider you choose, it turns a scattered day into a timeline, daily review, and weekly summary. Coding, research, meetings, conversations, and thinking no longer disappear when you close a window.
 
@@ -12,40 +27,55 @@ Daygo puts local storage and privacy first. Screen content stays on your compute
 
 The usual tools leave gaps when you look back on your work:
 
-- **Manual timers** require you to remember to start and stop them, especially when you are focused.
-- **App usage statistics** can say “three hours in VS Code” but cannot say what you did there.
-- **Calendars** show what you planned, not necessarily what happened.
+| | What it records | What it misses |
+|---|---|---|
+| ⏱ Manual timers | The stretches you remembered to start | Anything after you got focused |
+| 📊 App usage stats | “Three hours in VS Code” | What you actually did there |
+| 📅 Calendars | What you planned | What actually happened |
 
 Daygo captures the context of the work itself: what you built, investigated, discussed, and reviewed. When it is time for a standup or retrospective, you have a record to work from.
 
 ## What Daygo does
 
-**Automatic timeline**
+### Automatic timeline
+
+<img src="docs/assets/readme/timeline.en.webp" alt="Timeline with an activity detail" />
 
 - At intervals, Daygo captures the main display and uses AI to organize activity into cards with times, titles, summaries, and categories.
 - Each card links to the original frames, which you can inspect in its frame strip.
 
-**Daily and weekly reviews**
+### Daily review
 
-- **Daily:** a calendar-day recap of highlights, completed work, and blockers for your standup.
-- **Weekly:** tracked and focused time, plus category shares; the total excludes the System category.
+<img src="docs/assets/readme/daily.en.webp" alt="Workflow overview and standup" />
 
-**Control over the results**
+- A calendar-day recap of highlights, completed work, and blockers for your standup.
+
+### Weekly review
+
+<img src="docs/assets/readme/weekly.en.webp" alt="Most used apps per category and time flow" />
+
+- Tracked and focused time, plus category shares; the total excludes the System category.
+
+### Control over the results
 
 - Edit a card's category, title, or summary, and soft-delete cards you do not need.
 - Reprocess a time range when the first result is not useful, without creating duplicate cards.
 
-**Your choice of AI**
+### Your choice of AI
 
 - Supports OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages protocols.
 - Configure multiple models per provider and an ordered fallback chain across providers. A compatible local model can keep analysis on your device.
 - Daygo has no first-party backend and does not provide or choose a default provider.
 
-**Settings for your workflow**
+### Settings for your workflow
+
+<img src="docs/assets/readme/dark.en.webp" alt="Dark appearance" />
 
 - Adjust the screenshot interval (1 / 5 / 10 / 20 / 30 / 60 seconds; 10 by default), resolution (720 / 1080; 1080 by default), blocked apps, and disk limit.
 - Add, remove, reorder, and recolor categories. Choose whether Daygo starts at login and whether its Dock icon is shown.
 - Use the interface in Simplified Chinese, Traditional Chinese, English, Japanese, Korean, German, French, Spanish, or Brazilian Portuguese, with light, dark, or system theme.
+
+<sub>Screenshots use anonymous sample data.</sub>
 
 ## Always available
 
@@ -58,6 +88,10 @@ Daygo runs in the background after you close its window:
 ## Your data, your choice
 
 Daygo handles highly sensitive screen information, so privacy is a product boundary:
+
+| 🔒 Local first | ✨ Your own model | 🙈 Blocked apps | 🔑 Keys in Keychain |
+|---|---|---|---|
+| No server, account or sync | Local models keep analysis on device | Only a redacted placeholder frame | Write-only from the interface |
 
 - Screenshots, timelines, journals, and the database stay on your computer by default. There is no Daygo server, account, or sync service.
 - Screen data leaves your computer only for the AI provider you explicitly configure. With a compatible local model, analysis can stay on your device.
@@ -88,7 +122,22 @@ Windows uninstall preserves user data and credentials. Removing the macOS app al
 4. Choose a screenshot interval, blocked apps, and a disk limit, then start recording.
 5. When the first analysis batch completes, review the timeline and edit categories or summaries as needed.
 
-Daygo does not include an AI service or API credits. How a third-party provider handles data you send depends on that service and its privacy policy.
+> [!NOTE]
+> Daygo does not include an AI service or API credits. How a third-party provider handles data you send depends on that service and its privacy policy.
+
+## Daygo and Dayflow
+
+<p>
+  <img src="docs/assets/readme/icon.png" width="20" align="top" alt="" /> Daygo is the cross-platform version of <a href="https://dayflow.so">Dayflow</a> (<a href="https://github.com/JerryZLiu/Dayflow">source</a>).
+</p>
+
+| | Dayflow | Daygo |
+|---|---|---|
+| Stack | Swift · SwiftUI | Go · Wails · Vue 3 · SQLite |
+| Platforms | macOS | macOS · Windows |
+| License | MIT | MIT |
+
+Daygo follows Dayflow's product design and is built with Go and a web frontend, so it runs on both macOS and Windows. Some interface icons and chart algorithms are ported from Dayflow (MIT, © 2025 Jerry Liu).
 
 ## Contributing
 
@@ -107,7 +156,3 @@ Found a problem? Open an [issue](https://github.com/Jwz-git/Daygo/issues). Do no
 ## License
 
 Released under the [MIT License](LICENSE).
-
-## Acknowledgements
-
-Product concept inspired by projects such as [Dayflow](https://github.com/JerryZLiu/Dayflow).
