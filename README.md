@@ -1,8 +1,23 @@
-# Daygo
+<p align="center">
+  <img src="docs/assets/readme/banner.en.webp" alt="Daygo — 一天结束，你还记得自己做了什么吗？" />
+</p>
 
-**简体中文** · [English](README.en.md)
+<p align="center">
+  <a href="https://github.com/Jwz-git/Daygo/releases"><img src="https://img.shields.io/github/v/release/Jwz-git/Daygo?style=flat-square&color=F3854B&label=%E4%B8%8B%E8%BD%BD" alt="最新版本" /></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-333333?style=flat-square&logo=apple&logoColor=white" alt="macOS 14+" />
+  <img src="https://img.shields.io/badge/Windows-11-0078D4?style=flat-square" alt="Windows 11" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E7DF7?style=flat-square" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails · Vue 3" />
+</p>
 
-> 一天结束，你还记得自己做了什么吗？
+<p align="center">
+  <a href="https://github.com/Jwz-git/Daygo/releases"><b>下载</b></a> ·
+  <a href="https://awayc.github.io/daygo-website/"><b>官网</b></a> ·
+  <a href="docs/README.md">设计文档</a> ·
+  <a href="README.en.md">English</a>
+</p>
+
+Daygo 是 [Dayflow](https://dayflow.so) 的跨平台版本，同时支持 macOS 与 Windows。
 
 Daygo 在后台默默替你记录工作，用你自己的 AI 把零散的一天整理成清晰的时间线、每日回顾和每周总结。写代码、查资料、开会、沟通、思考——都不再随着窗口关闭而消失。
 
@@ -12,35 +27,55 @@ Daygo 在后台默默替你记录工作，用你自己的 AI 把零散的一天�
 
 复盘的时候，工具往往帮不上忙：
 
-- **手动计时器**要你记得启停，可人一专注就最不可能记得。
-- **应用统计**只知道「VS Code 三小时」，却不知道你在里面到底做了什么。
-- **日历**记的是计划，不是真正发生的事。
+| | 它记下的 | 它漏掉的 |
+|---|---|---|
+| ⏱ 手动计时器 | 你记得按下开始的那段 | 一专注就忘了启停 |
+| 📊 应用统计 | 「VS Code 三小时」 | 你在里面到底做了什么 |
+| 📅 日历 | 计划 | 真正发生的事 |
 
 Daygo 记录的是工作本身的上下文：你在构建什么、排查什么、和谁讨论、评审了什么。等到写站会、做复盘、回答「这周时间到底去哪了」的时候，答案已经替你整理好了。
 
 ## Daygo 能做什么
 
-**自动时间线**
+### 自动时间线
+
+<img src="docs/assets/readme/timeline.en.webp" alt="时间线与活动详情" />
+
 - 后台按间隔截取系统主显示器，AI 把活动整理成一张张卡片：时间、标题、摘要、分类一应俱全。
 - 每张卡片都关联当时的原始画面，展开即可查看帧条。
 
-**每日与每周回顾**
-- **每日**：按日历日聚合出当天的亮点、完成项和阻塞项，写站会直接拿来就用。
-- **每周**：一周的跟踪时长、专注时长与各分类占比（合计不计入 System 分类），看清时间究竟花在了哪里。
+### 每日回顾
 
-**完全的编辑控制权**
+<img src="docs/assets/readme/daily.en.webp" alt="工作流概览与站会" />
+
+- 按日历日聚合出当天的亮点、完成项和阻塞项，写站会直接拿来就用。
+
+### 每周回顾
+
+<img src="docs/assets/readme/weekly.en.webp" alt="各分类最常用的应用与时间流向" />
+
+- 一周的跟踪时长、专注时长与各分类占比（合计不计入 System 分类），看清时间究竟花在了哪里。
+
+### 完全的编辑控制权
+
 - 分类错了能改，标题和摘要能调，不需要的卡片能删（软删除）。
 - 某个时段整理得不理想，可以重新处理——重处理不会产生重复卡片。
 
-**接入你自己的 AI**
+### 接入你自己的 AI
+
 - 支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 三种协议。
 - 单个供应商可配多个模型，多个供应商可排成有序的回退链；也能指向兼容协议的本地模型，让分析全程不出网。
 - 没有自有后端，不提供也不替你预设 provider——数据流向由你做主。
 
-**贴合你的工作方式**
+### 贴合你的工作方式
+
+<img src="docs/assets/readme/dark.en.webp" alt="深色模式" />
+
 - 截图间隔（1 / 5 / 10 / 20 / 30 / 60 秒，默认 10 秒）、分辨率（720 / 1080，默认 1080）、屏蔽应用、磁盘占用上限都可调。
 - 分类可增删改、可调顺序与配色；开机自启、Dock 图标显隐随你设定。
 - 界面支持简体中文、繁体中文、英文、日文、韩文、德文、法文、西班牙文与巴西葡萄牙文，浅色 / 深色 / 跟随系统三态主题。
+
+<sub>截图使用匿名示例数据。</sub>
 
 ## 它一直在
 
@@ -53,6 +88,10 @@ Daygo 是一个安静待在后台的常驻助手，而不是「关掉窗口就�
 ## 你的数据，你做主
 
 Daygo 处理的是高度私密的屏幕信息，所以隐私是它的产品边界，而不是一个可有可无的开关：
+
+| 🔒 本地优先 | ✨ 自带模型 | 🙈 屏蔽应用 | 🔑 密钥进钥匙串 |
+|---|---|---|---|
+| 没有服务器、账号与同步 | 接本地模型可全程不出网 | 敏感应用只留脱敏占位帧 | 前端只写不读 |
 
 - 截图、时间线、日记和数据库默认只留在你的电脑上。没有服务器，没有账号，没有同步。
 - 屏幕数据从不离开这台电脑，除非你亲手把它交给你明确配置的那个 AI provider；接本地模型，就能一步都不出网。
@@ -83,7 +122,23 @@ Windows 卸载保留用户数据与凭据；macOS 移除应用也不等于删除
 4. 设定截图间隔、屏蔽应用和磁盘上限，然后开始记录。
 5. 第一批分析完成后，到时间线里看看结果，按需调整分类和摘要。
 
-Daygo 不附带任何 AI 服务或 API 额度，你需要自备 provider 与额度。数据发送到第三方 provider 后如何被处理，取决于你选择的服务及其隐私政策。
+> [!NOTE]
+> Daygo 不附带任何 AI 服务或 API 额度，你需要自备 provider 与额度。数据发送到第三方 provider 后如何被处理，取决于你选择的服务及其隐私政策。
+
+## 与 Dayflow 的关系
+
+<p>
+  <img src="docs/assets/readme/icon.png" width="20" align="top" alt="" /> Daygo 是 <a href="https://dayflow.so">Dayflow</a>（<a href="https://github.com/JerryZLiu/Dayflow">源码</a>）的跨平台版本。
+</p>
+
+
+| | Dayflow | Daygo |
+|---|---|---|
+| 技术栈 | Swift · SwiftUI | Go · Wails · Vue 3 · SQLite |
+| 平台 | macOS | macOS · Windows |
+| 许可证 | MIT | MIT |
+
+Daygo 沿用 Dayflow 的产品设计，基于 Go 与 Web 前端实现，让它同时运行在 macOS 与 Windows 上。部分界面图标与图表算法移植自 Dayflow（MIT，© 2025 Jerry Liu）。
 
 ## 参与开发
 
@@ -97,12 +152,8 @@ cd Daygo
 
 更多设计规格、架构分层与贡献约束见 [docs/README.md](docs/README.md) 与 [AGENTS.md](AGENTS.md)。
 
-遇到问题欢迎提 [Issue](https://github.com/Jwz-git/Daygo/issues)——请不要附带真实截图、API Key、数据库或其他敏感信息。
-你的创意可以会被重视。
+遇到问题欢迎提 [Issue](https://github.com/Jwz-git/Daygo/issues)——请不要附带真实截图、API Key、数据库或其他敏感信息。你的创意会被重视。
+
 ## 许可证
 
 本项目基于 [MIT License](LICENSE) 开源。
-
-## 致谢
-
-产品创意受 [Dayflow](https://github.com/JerryZLiu/Dayflow) 等项目启发。
