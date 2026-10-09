@@ -10,6 +10,9 @@ func TestNormalizeTestEndpointStripsRequestPathSuffix(t *testing.T) {
 	}{
 		{"base only", "https://example.com/v1", "https://example.com/v1"},
 		{"pasted chat completions url", "https://example.com/v1/chat/completions", "https://example.com/v1"},
+		{"pasted chat completions url with slash", "https://example.com/v1/chat/completions/", "https://example.com/v1"},
+		{"gateway request url with slashes", "https://example.com/gateway/v1/chat/completions///?x=1#frag", "https://example.com/gateway/v1"},
+		{"pasted responses url with slash", "https://example.com/v1/responses/", "https://example.com/v1"},
 		{"pasted responses url", "https://example.com/v1/responses", "https://example.com/v1"},
 		{"pasted messages url", "https://example.com/v1/messages", "https://example.com/v1"},
 		{"pasted models url", "https://example.com/v1/models", "https://example.com/v1"},

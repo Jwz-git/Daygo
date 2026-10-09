@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -23,15 +22,15 @@ const maxResponseBytes = 8 << 20
 
 type Client struct {
 	httpClient *http.Client
-	endpoint   *url.URL
+	endpoint   string
 	model      string
 	secret     string
 }
 
 func NewClient(httpClient *http.Client, endpoint, model, secret string) (*Client, error) {
-	base, err := url.Parse(endpoint)
-	if err != nil || base.Scheme == "" || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") {
-		return nil, daygoai.NewError(daygoai.ErrorInvalidRequest, "provider endpoint must be an absolute HTTP URL", 0, err)
+	base, err := daygoai.OpenAIBaseURL(endpoint)
+	if err != nil {
+		return nil, err
 	}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -39,7 +38,7 @@ func NewClient(httpClient *http.Client, endpoint, model, secret string) (*Client
 	if model == "" {
 		return nil, daygoai.NewError(daygoai.ErrorInvalidRequest, "provider model is required", 0, nil)
 	}
-	return &Client{httpClient: httpClient, endpoint: base, model: model, secret: secret}, nil
+	return &Client{httpClient: httpClient, endpoint: base + "chat/completions", model: model, secret: secret}, nil
 }
 
 func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai.Result, error) {
@@ -50,9 +49,7 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 	if err != nil {
 		return daygoai.Result{}, err
 	}
-	requestURL := *c.endpoint
-	requestURL.Path = strings.TrimRight(requestURL.Path, "/") + "/chat/completions"
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL.String(), bytes.NewReader(body))
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return daygoai.Result{}, daygoai.NewError(daygoai.ErrorInvalidRequest, "cannot create provider request", 0, err)
 	}
@@ -112,7 +109,9 @@ func (c *Client) requestBody(request daygoai.Request) ([]byte, error) {
 		"messages": []any{map[string]any{"role": "user", "content": content}},
 	}
 	if request.MaxOutputTokens > 0 {
-		payload["max_tokens"] = request.MaxOutputTokens
+		// Includes reasoning tokens. max_tokens is deprecated and rejected by
+		// o-series models, including those exposed under gateway aliases.
+		payload["max_completion_tokens"] = request.MaxOutputTokens
 	}
 	if request.Output != nil {
 		var schema any

@@ -7,10 +7,9 @@ import (
 	daygoai "github.com/Jwz-git/Daygo/internal/ai"
 )
 
-// normalizeTestEndpoint accepts an absolute http(s) base URL and strips query,
-// fragment, trailing slashes and a pasted request-path suffix — the same shape
-// the form's own validator produces, so both sides agree on what gets appended
-// a request path.
+// normalizeTestEndpoint validates a configured http(s) URL and strips query,
+// fragment, trailing slashes and a pasted request-path suffix before saving
+// providers or listing models from a draft.
 //
 // Users paste full request URLs from provider docs (".../v1/chat/completions");
 // appending the request path to those would double it, so every suffix Daygo
@@ -29,9 +28,14 @@ func normalizeTestEndpoint(raw string) (string, error) {
 	}
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
+	parsed.RawFragment = ""
+	parsed.ForceQuery = false
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+	parsed.RawPath = strings.TrimRight(parsed.RawPath, "/")
 	for _, suffix := range endpointPathSuffixes {
 		if strings.HasSuffix(parsed.Path, suffix) {
 			parsed.Path = strings.TrimSuffix(parsed.Path, suffix)
+			parsed.RawPath = strings.TrimSuffix(parsed.RawPath, suffix)
 			break
 		}
 	}

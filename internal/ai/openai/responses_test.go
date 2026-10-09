@@ -103,6 +103,30 @@ func TestResponsesGenerateClassifiesAndRedactsErrorBody(t *testing.T) {
 	}
 }
 
+func TestResponsesGenerateAcceptsPastedEndpoints(t *testing.T) {
+	for _, suffix := range []string{"/v1/responses/", "/v1/chat/completions/", "/v1/models///?ignored=1#fragment"} {
+		t.Run(suffix, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.EscapedPath() != "/proxy%2Ftenant/v1/responses" || r.URL.RawQuery != "" {
+					t.Errorf("unexpected URL: %s", r.URL)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`))
+			}))
+			defer server.Close()
+			client, err := NewResponsesClient(server.Client(), server.URL+"/proxy%2Ftenant"+suffix, "fixture-model", "fixture-secret")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := client.Generate(context.Background(), daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("fixture")}})
+			if err != nil || result.Text != "ok" {
+				t.Fatalf("result = %+v, error = %v", result, err)
+			}
+		})
+	}
+}
+
 func TestResponsesGenerateRejectsUnsupportedStructuredOutput(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

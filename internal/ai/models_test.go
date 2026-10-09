@@ -131,6 +131,33 @@ func TestListModelsResponsesUsesModelsPath(t *testing.T) {
 	}
 }
 
+func TestListModelsOpenAIAcceptsPastedEndpoints(t *testing.T) {
+	for _, protocol := range []Protocol{ProtocolOpenAIChat, ProtocolOpenAIResponses} {
+		for _, tc := range []struct{ endpoint, path string }{
+			{"/v1/chat/completions/", "/v1/models"},
+			{"/v1/responses/", "/v1/models"},
+			{"/proxy/openai/v1/models///?ignored=1#fragment", "/proxy/openai/v1/models"},
+			{"/gateway/custom/", "/gateway/custom/models"},
+			{"/proxy%2Ftenant/v1/chat/completions/", "/proxy%2Ftenant/v1/models"},
+		} {
+			t.Run(string(protocol)+tc.endpoint, func(t *testing.T) {
+				server := modelsServer(t, func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.EscapedPath() != tc.path || r.URL.RawQuery != "" {
+						t.Errorf("request URL = %s, want path %s without query", r.URL, tc.path)
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					_, _ = w.Write([]byte(`{"data":[{"id":"fixture-model"}]}`))
+				})
+				models, err := ListModels(context.Background(), protocol, server.URL+tc.endpoint, "fixture-secret", "")
+				if err != nil || len(models) != 1 || models[0] != "fixture-model" {
+					t.Fatalf("models = %v, error = %v", models, err)
+				}
+			})
+		}
+	}
+}
+
 func TestListModelsClassifiesStatuses(t *testing.T) {
 	cases := []struct {
 		status int

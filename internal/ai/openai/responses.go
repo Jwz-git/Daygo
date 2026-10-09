@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 
 	daygoai "github.com/Jwz-git/Daygo/internal/ai"
@@ -15,15 +14,15 @@ import (
 
 type ResponsesClient struct {
 	httpClient *http.Client
-	endpoint   *url.URL
+	endpoint   string
 	model      string
 	secret     string
 }
 
 func NewResponsesClient(httpClient *http.Client, endpoint, model, secret string) (*ResponsesClient, error) {
-	base, err := url.Parse(endpoint)
-	if err != nil || base.Scheme == "" || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") {
-		return nil, daygoai.NewError(daygoai.ErrorInvalidRequest, "provider endpoint must be an absolute HTTP URL", 0, err)
+	base, err := daygoai.OpenAIBaseURL(endpoint)
+	if err != nil {
+		return nil, err
 	}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -31,7 +30,7 @@ func NewResponsesClient(httpClient *http.Client, endpoint, model, secret string)
 	if model == "" {
 		return nil, daygoai.NewError(daygoai.ErrorInvalidRequest, "provider model is required", 0, nil)
 	}
-	return &ResponsesClient{httpClient: httpClient, endpoint: base, model: model, secret: secret}, nil
+	return &ResponsesClient{httpClient: httpClient, endpoint: base + "responses", model: model, secret: secret}, nil
 }
 
 func (c *ResponsesClient) Generate(ctx context.Context, request daygoai.Request) (daygoai.Result, error) {
@@ -42,9 +41,7 @@ func (c *ResponsesClient) Generate(ctx context.Context, request daygoai.Request)
 	if err != nil {
 		return daygoai.Result{}, err
 	}
-	requestURL := *c.endpoint
-	requestURL.Path = strings.TrimRight(requestURL.Path, "/") + "/responses"
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL.String(), bytes.NewReader(body))
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return daygoai.Result{}, daygoai.NewError(daygoai.ErrorInvalidRequest, "cannot create provider request", 0, err)
 	}

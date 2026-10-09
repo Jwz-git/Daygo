@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"hash/crc32"
 	"io"
 	"net/http"
@@ -150,6 +151,83 @@ func TestAnthropicSavedPastedEndpointWorksForTrialAndModels(t *testing.T) {
 				t.Fatalf("models = %+v, error = %v", models, err)
 			}
 		})
+	}
+}
+
+// Cover both newly saved URLs and records produced before trailing-slash
+// normalization was fixed. Reading the latter must not rewrite the record.
+func TestOpenAISavedPastedEndpointWorksForTrialAndModels(t *testing.T) {
+	for _, protocol := range []string{"openai", "openai_responses"} {
+		for _, legacy := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/legacy=%v", protocol, legacy), func(t *testing.T) {
+				path := "/chat/completions"
+				response := `{"choices":[{"message":{"content":"ok"}}]}`
+				if protocol == "openai_responses" {
+					path = "/responses"
+					response = `{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`
+				}
+				posts, gets := 0, 0
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Header.Get("Authorization") != "Bearer fixture-secret" || r.Header.Get("User-Agent") != "fixture-agent/1.0" {
+						t.Error("configured key or User-Agent missing")
+					}
+					w.Header().Set("Content-Type", "application/json")
+					switch r.URL.Path {
+					case "/proxy/v1" + path:
+						posts++
+						var body map[string]any
+						if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+							t.Errorf("decode request: %v", err)
+							w.WriteHeader(http.StatusBadRequest)
+							return
+						}
+						if protocol == "openai" && (body["max_completion_tokens"] != float64(2048) || body["max_tokens"] != nil) {
+							t.Error("trial must use max_completion_tokens")
+						}
+						_, _ = io.WriteString(w, response)
+					case "/proxy/v1/models":
+						gets++
+						_, _ = io.WriteString(w, `{"data":[{"id":"fixture-model"}]}`)
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+						w.WriteHeader(http.StatusNotFound)
+					}
+				}))
+				defer server.Close()
+				b := playgroundBackend(t)
+				input := validProviderInput()
+				input.Protocol, input.Endpoint, input.Secret, input.UserAgent = protocol, server.URL+"/proxy/v1"+path+"/", "fixture-secret", "fixture-agent/1.0"
+				id, err := b.AddProvider(input)
+				if err != nil {
+					t.Fatal(err)
+				}
+				repo := b.store().Providers()
+				row, err := repo.Get(context.Background(), id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if legacy {
+					row.Endpoint = server.URL + "/proxy/v1" + path
+					if err := repo.Update(context.Background(), id, row); err != nil {
+						t.Fatal(err)
+					}
+				} else if row.Endpoint != server.URL+"/proxy/v1" {
+					t.Fatalf("saved endpoint = %s", row.Endpoint)
+				}
+				trial, err := b.TryProvider(ProviderPlaygroundRequestDTO{ProviderID: id, Model: "fixture-model", Text: "fixture"})
+				if err != nil || !trial.OK || trial.Text != "ok" {
+					t.Fatalf("trial = %+v, error = %v", trial, err)
+				}
+				models, err := b.ListProviderModels(ProviderModelsRequestDTO{ProviderID: id})
+				if err != nil || !models.OK || len(models.Models) != 1 || models.Models[0] != "fixture-model" || posts != 1 || gets != 1 {
+					t.Fatalf("models = %+v, error = %v, posts=%d gets=%d", models, err, posts, gets)
+				}
+				after, err := repo.Get(context.Background(), id)
+				if err != nil || after.Endpoint != row.Endpoint {
+					t.Fatal("request changed the saved endpoint")
+				}
+			})
+		}
 	}
 }
 

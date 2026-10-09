@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -55,6 +56,9 @@ func TestGenerateMapsMultimodalStructuredRequest(t *testing.T) {
 	if gotBody["response_format"].(map[string]any)["type"] != "json_schema" {
 		t.Fatalf("response_format = %#v", gotBody["response_format"])
 	}
+	if gotBody["max_completion_tokens"] != float64(100) || gotBody["max_tokens"] != nil {
+		t.Fatalf("structured request token limit = %#v", gotBody)
+	}
 
 	messages := gotBody["messages"].([]any)
 	content := messages[0].(map[string]any)["content"].([]any)
@@ -88,6 +92,105 @@ func TestGenerateRejectsUnsupportedStructuredOutput(t *testing.T) {
 	})
 	if daygoai.ErrorKindOf(err) != daygoai.ErrorUnsupportedFeature {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+// Model aliases must use the modern parameter too; guessing from the model
+// name would leave gateways exposing reasoning models under an alias broken.
+func TestGenerateUsesMaxCompletionTokens(t *testing.T) {
+	for _, tokens := range []int{0, 2048} {
+		t.Run(fmt.Sprint(tokens), func(t *testing.T) {
+			calls := 0
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Errorf("decode request: %v", err)
+				}
+				if _, legacy := body["max_tokens"]; legacy {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"error":{"param":"max_tokens","code":"unsupported_parameter"}}`))
+					return
+				}
+				value, present := body["max_completion_tokens"]
+				if (tokens > 0 && value != float64(tokens)) || (tokens == 0 && present) {
+					t.Errorf("max_completion_tokens = %v, present=%v, tokens=%d", value, present, tokens)
+				}
+				_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
+			}))
+			defer server.Close()
+			client, err := NewClient(server.Client(), server.URL+"/v1", "gateway-alias", "fixture-secret")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := client.Generate(context.Background(), daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("fixture")}, MaxOutputTokens: tokens})
+			if err != nil || result.Text != "ok" || calls != 1 {
+				t.Fatalf("result = %+v, error = %v, calls = %d", result, err, calls)
+			}
+		})
+	}
+}
+
+func TestGenerateDoesNotRetryRejectedTokenParameter(t *testing.T) {
+	calls := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		if body["max_completion_tokens"] != float64(100) || body["response_format"] == nil {
+			t.Error("request lost its token limit or structured output")
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"param":"max_completion_tokens","code":"unsupported_parameter","message":"fixture-private-input"}}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(server.Client(), server.URL, "fixture-model", "fixture-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Generate(context.Background(), daygoai.Request{
+		Parts: []daygoai.Part{daygoai.TextPart("fixture")}, MaxOutputTokens: 100,
+		Output: &daygoai.OutputSchema{Name: "item", Strict: true, Schema: []byte(`{"type":"object"}`)},
+	})
+	if daygoai.ErrorKindOf(err) != daygoai.ErrorInvalidRequest || calls != 1 || daygoai.Retryable(err) {
+		t.Fatalf("error = %v, calls = %d", err, calls)
+	}
+	if strings.Contains(err.Error(), "fixture-private-input") {
+		t.Fatal("error exposed provider response text")
+	}
+}
+
+func TestGenerateAcceptsPastedEndpoints(t *testing.T) {
+	for _, tc := range []struct{ endpoint, path string }{
+		{"", "/chat/completions"},
+		{"/v1/", "/v1/chat/completions"},
+		{"/v1/chat/completions", "/v1/chat/completions"},
+		{"/v1/chat/completions///?ignored=1#fragment", "/v1/chat/completions"},
+		{"/proxy/openai/v1/chat/completions/", "/proxy/openai/v1/chat/completions"},
+		{"/gateway/custom/", "/gateway/custom/chat/completions"},
+		{"/proxy%2Ftenant/v1/chat/completions/", "/proxy%2Ftenant/v1/chat/completions"},
+	} {
+		t.Run(tc.endpoint, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.EscapedPath() != tc.path || r.URL.RawQuery != "" {
+					t.Errorf("request URL = %s, want path %s without query", r.URL, tc.path)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
+			}))
+			defer server.Close()
+			client, err := NewClient(server.Client(), server.URL+tc.endpoint, "fixture-model", "fixture-secret")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := client.Generate(context.Background(), daygoai.Request{Parts: []daygoai.Part{daygoai.TextPart("fixture")}})
+			if err != nil || result.Text != "ok" {
+				t.Fatalf("result = %+v, error = %v", result, err)
+			}
+		})
 	}
 }
 

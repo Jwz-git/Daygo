@@ -916,6 +916,9 @@ type CategoryDTO struct {
 // displayName，路由顺序由 ProviderRoutingDTO 表达。
 // Anthropic 请求同时接受无版本基地址、末尾 /v1 和完整 /v1/messages / /v1/models；
 // 发送前统一为无版本基地址，保留网关前缀，Messages / 模型列表只追加一次 /v1。
+// OpenAI 两协议与模型列表接受基地址及完整 /chat/completions、/responses、/models 地址，
+// 先去末尾斜杠再去请求路径，并在发送时兼容旧记录；保留版本 / 网关前缀与路径转义。
+// 不猜测 /v1；OpenAI 官方地址需配置 https://api.openai.com/v1。
 type ProviderDTO struct {
     ID          string   `json:"id"`
     DisplayName string   `json:"displayName"`
@@ -1358,6 +1361,9 @@ type ReplaceResult struct {
 1. `internal/ai` 暴露统一 `Generate(ctx, Request)`：`Request.Parts` 是有序文本 / 内存图片，
    可附带 JSON Schema；媒体由流水线经 `platform.Media` 准备，provider 不读路径或自行解码。
    首期图片仅接受 JPEG / PNG / WebP，最多 5 张、单张 5 MiB、原始总量 20 MiB。
+   Chat Completions 的正数 `MaxOutputTokens` 映射到 `max_completion_tokens`（包含推理
+   tokens），0 时不发送该字段；不发送已弃用且不兼容 o 系列的 `max_tokens`。
+   兼容端若拒绝该参数，按 `invalid_request` 返回；不猜模型别名、不额外重发或移除输出上限。
 2. 三种协议都发送原生 schema：openai（Chat Completions）与 openai_responses 分别使用
    `response_format` 和 `text.format`，anthropic 使用 `output_config.format`；返回后仍须
    本地提取 / 修复 JSON 并验证**原始 schema**。Anthropic 发送副本将不支持的数值边界、

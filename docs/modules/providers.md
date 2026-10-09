@@ -17,6 +17,22 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-10-09 Chat Completions 协议修复（基于 `9e1114e` 的 test 工作树，macOS arm64）：
+匿名 HTTP / TLS 夹具先于实现复现：正数输出上限发送旧 `max_tokens` 被拒绝为 400；
+完整请求地址带末尾斜杠保存后漏去路径，生成 / 获取模型重复追加路径并返回 404。
+Chat Completions 改为 `max_completion_tokens`，0 时省略；该上限包含推理 tokens，
+模型别名也使用相同字段。OpenAI 两协议与模型列表共用发送前地址规范化，保留版本、
+网关前缀与路径转义，兼容旧记录而不改数据库；保存前先去末尾斜杠再去请求路径。
+依据：[官方 Chat Completions 参数](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
+（2026-10-09 核验）：`max_tokens` 已弃用且不兼容 o 系列。
+边界：不自动补 `/v1`（官方服务填 `https://api.openai.com/v1`，兼容端按其文档）；
+兼容端若拒绝 `max_completion_tokens`，返回 `invalid_request`，不额外重发或取消上限；
+第三方服务对新参数的接受 / 执行情况未核验。
+试用不带 Schema，自动分析仍要求原生 `json_schema`，不降级为无约束文本；图文输入映射
+符合官方请求形状，但具体模型的视觉 / Schema 能力与真实失败原因须另行验证。
+本次用户尚未提供服务商、模型或错误码，夹具不能证明已解决其真实服务故障。
+验证与限制见下方记录；回退：撤销本次提交，无数据迁移。
+
 2026-10-05 配置模型 combobox 修复（基于 `a9dc930` 的 test 工作树，macOS arm64）：
 单个服务的模型栏可手填或下拉选择；「获取模型」只更新候选，不自动将所有返回模型写入草稿。
 修复原先全表单监听导致获取后候选立即清空，以及聚焦清空显示值、延迟 blur 导致立即保存旧值的问题。
@@ -184,6 +200,23 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-10-09 Chat Completions 参数 / 地址（基于 `9e1114e` 的 test 工作树，macOS arm64）**：
+  providers / provider-client 的协议契约增量。匿名输入：模型别名、0 / 2048 token 上限、
+  带斜杠与查询片段的完整请求地址、转义网关前缀，以及此前漏去请求路径的已存记录。
+  期望：正数只发送 `max_completion_tokens`、0 时省略、生成 / 列表只追加一次请求路径、
+  保留前缀 / 转义、旧记录读后不改写、试用仅一次 POST；拒绝新参数保留 `invalid_request`，
+  错误正文不外泄且不重发。原实现夹具分别得到 HTTP 400、重复路径 404 和错误持久化地址；
+  没有修改这些失败夹具的期望，修复后均通过。
+  定向命令：`CGO_ENABLED=0 go test ./internal/ai/... ./internal/app -run 'TestGenerateUsesMaxCompletionTokens|TestGenerateAcceptsPastedEndpoints|TestResponsesGenerateAcceptsPastedEndpoints|TestListModelsOpenAIAcceptsPastedEndpoints|TestNormalizeTestEndpointStripsRequestPathSuffix|TestOpenAISavedPastedEndpointWorksForTrialAndModels' -count=1`。
+  `./scripts/gate.sh` 通过：Go 内部测试（含图文 / Schema、参数拒绝 / 错误脱敏与单次请求夹具）、
+  vet、`CGO_ENABLED=0` 构建、linux / darwin / windows 核心交叉构建；前端 265 项单测、
+  typecheck / build；文档 60 篇 0 问题；Windows 安装器 15 项中 5 项通过、10 项需 Windows
+  主机跳过。Wails 引导编译成功，既有 deployment target / UserNotifications 可用性告警保留。
+  `gofmt -l .` 无输出、`git diff --check` 通过。
+  限制：未使用用户密钥、配置或屏幕数据，未运行真实 Provider / Wails 闭环、Linux 主机测试
+  或目标平台原生回归；交叉构建不等于执行测试，不提升 G-loop / G-native 历史验收范围。
+  第三方参数兼容性和用户实际失败原因未核验。回退：撤销本次提交，无数据迁移。
 
 - **2026-10-07 退役一次性模型探针（基于 `f0688d4` 的 test 工作树，macOS arm64）**：
   删除 `internal/analysis/local_probe_test.go`。它固定使用 Windows `APPDATA` 路径、

@@ -52,7 +52,11 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAg
 		}
 	default:
 		// openai and openai_responses share the same /models listing.
-		requestURL = strings.TrimRight(endpoint, "/") + "/models"
+		base, err := OpenAIBaseURL(endpoint)
+		if err != nil {
+			return nil, err
+		}
+		requestURL = base + "models"
 		header = func(r *http.Request) {
 			r.Header.Set("Authorization", "Bearer "+secret)
 		}
