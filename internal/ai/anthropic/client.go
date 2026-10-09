@@ -81,32 +81,41 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 	if err != nil {
 		return daygoai.Result{}, mapError(ctx, err, request.Output != nil)
 	}
+	result := daygoai.Result{
+		Usage: daygoai.Usage{
+			InputTokens:      optionalUsage(message.Usage.JSON.InputTokens.Valid(), message.Usage.InputTokens),
+			OutputTokens:     optionalUsage(message.Usage.JSON.OutputTokens.Valid(), message.Usage.OutputTokens),
+			CacheReadTokens:  optionalUsage(message.Usage.JSON.CacheReadInputTokens.Valid(), message.Usage.CacheReadInputTokens),
+			CacheWriteTokens: optionalUsage(message.Usage.JSON.CacheCreationInputTokens.Valid(), message.Usage.CacheCreationInputTokens),
+		},
+	}
+	// This adapter returns one finished text/JSON generation, not a native
+	// tool loop. Missing stop_reason stays compatible with older gateways.
+	switch message.StopReason {
+	case "", anthropicsdk.StopReasonEndTurn, anthropicsdk.StopReasonStopSequence:
+	case anthropicsdk.StopReasonRefusal:
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider refused the request", 0, nil)
+	default:
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider response did not complete", 0, nil)
+	}
 	var text strings.Builder
 	for _, block := range message.Content {
 		if block.Type == "text" {
 			text.WriteString(block.Text)
 		}
 	}
-	if text.Len() == 0 {
-		return daygoai.Result{}, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned no text", 0, nil)
-	}
-	result := daygoai.Result{
-		Text:  text.String(),
-		Model: string(message.Model),
-		Usage: daygoai.Usage{
-			InputTokens:      int64Pointer(message.Usage.InputTokens),
-			OutputTokens:     int64Pointer(message.Usage.OutputTokens),
-			CacheReadTokens:  optionalUsage(message.Usage.JSON.CacheReadInputTokens.Valid(), message.Usage.CacheReadInputTokens),
-			CacheWriteTokens: optionalUsage(message.Usage.JSON.CacheCreationInputTokens.Valid(), message.Usage.CacheCreationInputTokens),
-		},
+	if strings.TrimSpace(text.String()) == "" {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned no text", 0, nil)
 	}
 	if request.Output != nil {
-		structured, err := daygoai.ParseStructuredOutput(result.Text, *request.Output)
+		structured, err := daygoai.ParseStructuredOutput(text.String(), *request.Output)
 		if err != nil {
-			return daygoai.Result{}, err
+			return result, err
 		}
 		result.JSON = structured
 	}
+	result.Text = text.String()
+	result.Model = string(message.Model)
 	return result, nil
 }
 

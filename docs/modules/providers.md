@@ -17,6 +17,24 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-10-09 Responses / Anthropic 协议检查（基于 `e28953e` 的 test 工作树，macOS arm64）：
+请求映射核对官方文档与锁定 SDK：Responses 使用 `input_text` / `input_image`、
+`max_output_tokens`、`text.format`；Anthropic 使用 base64 图片块、`max_tokens`、
+`output_config.format`，现有地址规范化、原始 Schema 校验和环境凭据隔离保持适用。
+未发现需改写的请求字段。新增匿名 TLS 夹具先于实现复现两类缺陷：显式截断 / 未完成状态
+仍被非空文字（含符合 Schema 的 JSON）判为成功；Anthropic 未报告 token 用量被记为 0。
+响应解析修复，并同步 Chat Completions 的同类缺口：检查完成 / 拒绝状态，空白正文与
+无效生成返回 `invalid_output`；错误旁只保留已知用量，正文、JSON 与响应模型为空，
+请求模型另有审计字段，避免扩张无效响应中的任意字符串落库范围。
+兼容省略状态字段的服务，但不据此证明生成完整；用量未知为 nil，显式 0 继续保留。
+这是一次显式行为决定：试用的成功条件由“非空文字”收紧为“通过协议状态检查的非空文字”；
+错误仍走既有有界重试 / 回退，客户端内部不续写、不重发，`TryProvider` 仍为单次调用。
+依据（2026-10-09 核验）：[OpenAI Responses 结构化输出与未完成响应](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses)、
+[Anthropic stop reasons](https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons)、
+[Anthropic Schema 限制](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)。
+Chat Completions 完成 / 拒绝字段依据同日核验的[官方 API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)。
+验证见下方记录；真实 Provider / Wails 闭环未运行。回退：撤销本次提交，无数据迁移。
+
 2026-10-09 Chat Completions 协议修复（基于 `9e1114e` 的 test 工作树，macOS arm64）：
 匿名 HTTP / TLS 夹具先于实现复现：正数输出上限发送旧 `max_tokens` 被拒绝为 400；
 完整请求地址带末尾斜杠保存后漏去路径，生成 / 获取模型重复追加路径并返回 404。
@@ -200,6 +218,27 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-10-09 三协议响应状态 / 用量（基于 `e28953e` 的 test 工作树与独立 `provider-protocol-review` 工作树，macOS arm64）**：
+  providers / provider-client 的协议契约增量。先写匿名 TLS 夹具：带有效文字 / 有效 JSON
+  的截断、拒绝、工具 / 暂停回合、失败 / 排队 / 进行中 / 未知状态，以及空白正文；
+  期望均返回 `invalid_output`、仅一次请求，错误正文不回显、用量可供失败 attempt 审计。
+  另验证正常 / 省略完成字段、多文本块、reasoning 块忽略、用量省略 / null / 显式 0 /
+  单字段报告。初版夹具在原实现下 52 个子用例失败；最终矩阵 78 个子用例通过。
+  收尾显式将失败 `ActualModel` 的夹具期望从保留响应值改为空：失败不扩大任意字符串的
+  审计范围，请求模型独立保留；正文 / JSON 为空、已报告用量保留的期望未改。
+  初始命令：`CGO_ENABLED=0 go test ./internal/ai/factory -run 'TestProtocolClients' -count=1`。
+  修复后 `CGO_ENABLED=0 go test ./internal/ai/... ./internal/app ./internal/analysis ./internal/chat ./internal/insight -count=1`
+  通过；最终代码在独立工作树执行 `./scripts/gate.sh` 通过：Go 内部测试 / vet /
+  `CGO_ENABLED=0` 构建、三平台核心交叉构建、前端 265 项单测 / typecheck / build、
+  文档 60 篇 0 问题；Windows 安装器 15 项中 5 项通过、10 项需 Windows 主机跳过。
+  `gofmt -l .` 无输出，`git diff --check` 通过。Wails 引导成功，既有 deployment target /
+  UserNotifications 可用性告警保留。原共享工作树的最后一轮 gate 在 Go / 前端 / 交叉构建
+  后因另一项进行中的 Windows 通知决策文档未被引用而失败（61 篇，1 处问题），不能记为
+  通过；独立工作树仅复制本次九个改动文件，未包含该组并发改动。
+  限制：没有读取用户配置 / 密钥 / 屏幕数据，真实 Provider / Wails、Linux 主机测试与
+  目标平台原生回归未运行；不提高 G-loop / G-native 验收范围。缺失完成字段仅兼容，
+  不证明生成完整。回退：撤销本次提交，无数据迁移。
 
 - **2026-10-09 Chat Completions 参数 / 地址（基于 `9e1114e` 的 test 工作树，macOS arm64）**：
   providers / provider-client 的协议契约增量。匿名输入：模型别名、0 / 2048 token 上限、

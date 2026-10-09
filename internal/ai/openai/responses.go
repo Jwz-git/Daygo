@@ -117,9 +117,12 @@ func (c *ResponsesClient) requestBody(request daygoai.Request) ([]byte, error) {
 }
 
 type responsesResponse struct {
-	Model  string `json:"model"`
+	Model  string    `json:"model"`
+	Status string    `json:"status"`
+	Error  *struct{} `json:"error"`
 	Output []struct {
 		Type    string `json:"type"`
+		Status  string `json:"status"`
 		Content []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
@@ -140,21 +143,7 @@ func parseResponsesResponse(body []byte, output *daygoai.OutputSchema) (daygoai.
 	if err := json.Unmarshal(body, &response); err != nil {
 		return daygoai.Result{}, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned invalid JSON", 0, err)
 	}
-	var text strings.Builder
-	for _, item := range response.Output {
-		if item.Type != "message" {
-			continue
-		}
-		for _, content := range item.Content {
-			if content.Type == "output_text" {
-				text.WriteString(content.Text)
-			}
-		}
-	}
-	if text.Len() == 0 {
-		return daygoai.Result{}, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned no text", 0, nil)
-	}
-	result := daygoai.Result{Text: text.String(), Model: response.Model}
+	result := daygoai.Result{}
 	if response.Usage != nil {
 		result.Usage.InputTokens = response.Usage.InputTokens
 		result.Usage.OutputTokens = response.Usage.OutputTokens
@@ -163,12 +152,40 @@ func parseResponsesResponse(body []byte, output *daygoai.OutputSchema) (daygoai.
 			result.Usage.CacheWriteTokens = response.Usage.InputDetails.CacheWriteTokens
 		}
 	}
+	// Some compatible providers omit status. Preserve that path, but never
+	// accept an explicit failure or unfinished response merely because it has
+	// text. Provider error/refusal prose is not retained or returned.
+	if response.Error != nil || (response.Status != "" && response.Status != "completed") {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider response did not complete", 0, nil)
+	}
+	var text strings.Builder
+	for _, item := range response.Output {
+		if item.Type != "message" {
+			continue
+		}
+		if item.Status != "" && item.Status != "completed" {
+			return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider message did not complete", 0, nil)
+		}
+		for _, content := range item.Content {
+			if content.Type == "refusal" {
+				return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider refused the request", 0, nil)
+			}
+			if content.Type == "output_text" {
+				text.WriteString(content.Text)
+			}
+		}
+	}
+	if strings.TrimSpace(text.String()) == "" {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned no text", 0, nil)
+	}
 	if output != nil {
-		structured, err := daygoai.ParseStructuredOutput(result.Text, *output)
+		structured, err := daygoai.ParseStructuredOutput(text.String(), *output)
 		if err != nil {
-			return daygoai.Result{}, err
+			return result, err
 		}
 		result.JSON = structured
 	}
+	result.Text = text.String()
+	result.Model = response.Model
 	return result, nil
 }

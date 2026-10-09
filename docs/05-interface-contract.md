@@ -1373,6 +1373,12 @@ type ReplaceResult struct {
    兼容端明确拒绝结构化参数时返回 `unsupported_feature`，
    不得静默降级为无约束文本。协议封闭集为 `openai` / `openai_responses` / `anthropic`，
    由 `internal/ai` 的 `Protocol` 类型与 factory 统一构造。
+   生成响应须先检查完成状态，再提取 / 校验正文：Chat Completions 显式 `finish_reason`
+   仅接受 `stop`，拒绝非空 `message.refusal`；Responses 显式顶层 / message `status`
+   仅接受 `completed`，拒绝非 null `error` 与 `refusal` 内容块；Anthropic 显式 `stop_reason`
+   仅接受 `end_turn` / `stop_sequence`。截断、失败、拒绝、未完成工具回合、未知非空状态
+   及空白正文统一为 `invalid_output`，即使正文可通过 Schema 也不能接受。
+   兼容端省略状态字段时沿用非空正文 / 本地 Schema 校验；此路径不证明生成完整。
 3. 路由是**有序链** `ai.Chain`（decisions/providers-fallback-chain）：每个条目是一个
    「供应商 + 模型」对（decisions/providers-multi-model），预先包 `WithRetry`，先按自身策略
    重试，仍失败才走到链上下一个；环形遍历，一轮最多每条目一次。连续失败 3 次（常量阈值）的
@@ -1386,8 +1392,12 @@ type ReplaceResult struct {
 5. 每次真实 HTTP attempt 必须记录 `llm_calls` 脱敏元数据：批次 / purpose、序号、provider、
    协议、模型、时间 / 耗时、结果 / 错误、HTTP 状态和可选 usage。禁止保存 endpoint、正文、图片、
    密钥和费用；匿名人工 fixture 才是解析器黄金测试输入。
-6. 产品测试只使用上述 `TryProvider`：单次调用、30 秒上限、不重试、不 fallback，以非空文字
-   回复为成功标准，不验证结构化输出能力。原固定探针（内嵌匿名 PNG + 严格 JSON Schema 的
+   已解码但无效的生成可在错误旁返回已报告 `Usage` 供 attempt 审计，
+   `Text` / `JSON` / 响应 `Model` 必须为空（请求模型另有审计字段）；
+   未报告 / null 的用量保留 nil，显式 0 与未知不可混用。
+6. 产品测试只使用上述 `TryProvider`：单次调用、30 秒上限、不重试、不 fallback，以通过协议
+   完成状态检查的非空文字回复为成功标准，不验证结构化输出能力。
+   原固定探针（内嵌匿名 PNG + 严格 JSON Schema 的
    `ai.TestConnection` 及其 `TestProvider` / `TestProviderConnection` 绑定）已于 2026-10-02 移除。
    HTTP endpoint 允许使用，仅提示明文传输风险，不强制 HTTPS。
 7. 转录可并行，**但卡片的 读取 → 生成 → 改写 序列必须按重叠范围串行化**。

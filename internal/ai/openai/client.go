@@ -133,8 +133,10 @@ func (c *Client) requestBody(request daygoai.Request) ([]byte, error) {
 type completionResponse struct {
 	Model   string `json:"model"`
 	Choices []struct {
-		Message struct {
+		FinishReason string `json:"finish_reason"`
+		Message      struct {
 			Content string `json:"content"`
+			Refusal string `json:"refusal"`
 		} `json:"message"`
 	} `json:"choices"`
 	Usage *struct {
@@ -151,10 +153,9 @@ func parseResponse(body []byte, output *daygoai.OutputSchema) (daygoai.Result, e
 	if err := json.Unmarshal(body, &response); err != nil {
 		return daygoai.Result{}, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned invalid JSON", 0, err)
 	}
-	if len(response.Choices) == 0 || response.Choices[0].Message.Content == "" {
-		return daygoai.Result{}, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned no text", 0, nil)
-	}
-	result := daygoai.Result{Text: response.Choices[0].Message.Content, Model: response.Model}
+	// Preserve measured usage for failed attempts, but expose text/JSON only
+	// after completion and local validation have both succeeded.
+	result := daygoai.Result{}
 	if response.Usage != nil {
 		result.Usage.InputTokens = response.Usage.PromptTokens
 		result.Usage.OutputTokens = response.Usage.CompletionTokens
@@ -162,13 +163,28 @@ func parseResponse(body []byte, output *daygoai.OutputSchema) (daygoai.Result, e
 			result.Usage.CacheReadTokens = response.Usage.PromptDetails.CachedTokens
 		}
 	}
+	if len(response.Choices) == 0 {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned no text", 0, nil)
+	}
+	choice := response.Choices[0]
+	if choice.FinishReason != "" && choice.FinishReason != "stop" {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider response did not complete", 0, nil)
+	}
+	if choice.Message.Refusal != "" {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider refused the request", 0, nil)
+	}
+	if strings.TrimSpace(choice.Message.Content) == "" {
+		return result, daygoai.NewError(daygoai.ErrorInvalidOutput, "provider returned no text", 0, nil)
+	}
 	if output != nil {
-		structured, err := daygoai.ParseStructuredOutput(result.Text, *output)
+		structured, err := daygoai.ParseStructuredOutput(choice.Message.Content, *output)
 		if err != nil {
-			return daygoai.Result{}, err
+			return result, err
 		}
 		result.JSON = structured
 	}
+	result.Text = choice.Message.Content
+	result.Model = response.Model
 	return result, nil
 }
 

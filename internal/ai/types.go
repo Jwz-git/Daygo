@@ -138,6 +138,8 @@ type Usage struct {
 	CacheWriteTokens *int64
 }
 
+// Protocol clients expose Text/JSON/Model only on success. A decoded but
+// unusable response can still return measured Usage for attempt auditing.
 type Result struct {
 	Text  string
 	JSON  json.RawMessage

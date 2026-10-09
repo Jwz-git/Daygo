@@ -53,6 +53,9 @@ func TestGenerateMapsMultimodalStructuredRequest(t *testing.T) {
 	if gotPath != "/v1/messages" || gotAPIKey != "fixture-secret" {
 		t.Fatalf("path=%q api key=%q", gotPath, gotAPIKey)
 	}
+	if gotBody["max_tokens"] != float64(100) || gotBody["max_completion_tokens"] != nil || gotBody["max_output_tokens"] != nil {
+		t.Fatalf("Anthropic token limit = %#v", gotBody)
+	}
 
 	messages := gotBody["messages"].([]any)
 	content := messages[0].(map[string]any)["content"].([]any)
