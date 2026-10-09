@@ -27,6 +27,19 @@ using Microsoft::WRL::RuntimeClassFlags;
 constexpr wchar_t kGroup[] = L"reminders";
 constexpr int64_t kLastWindowsTick = 2650467743999999999LL;
 
+bool is_elevated() {
+  HANDLE token = nullptr;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+    winrt::throw_hresult(HRESULT_FROM_WIN32(GetLastError()));
+  TOKEN_ELEVATION elevation{};
+  DWORD bytes = 0;
+  const BOOL queried = GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &bytes);
+  const DWORD error = queried ? ERROR_SUCCESS : GetLastError();
+  CloseHandle(token);
+  winrt::check_hresult(HRESULT_FROM_WIN32(error));
+  return elevation.TokenIsElevated != 0;
+}
+
 // Reopen/deep-link routing remains outside this delivery slice, as on macOS.
 class Activation final : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
                                              INotificationActivationCallback> {
@@ -211,6 +224,10 @@ int32_t dg_notification_open(uint32_t abi, const wchar_t* app_id, const wchar_t*
       wcschr(executable, L'\"') || wcslen(executable) < 3 || executable[1] != L':' ||
       (executable[2] != L'\\' && executable[2] != L'/')) return DG_NOTIFICATION_INVALID;
   try {
+    // Windows desktop app notifications do not support an elevated sender.
+    // Keep this environment out of NotificationAvailability rather than
+    // advertising delivery and failing later at ToastNotifier.Setting/Show.
+    if (is_elevated()) return DG_NOTIFICATION_UNAVAILABLE;
     auto session = std::make_unique<Session>();
     session->app_id = app_id;
     session->clsid_string = clsid;

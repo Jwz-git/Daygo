@@ -147,6 +147,17 @@ Windows CI 入口 `windows-notifications-check.yml` 已加入，Windows 编译�
 桌面送达，Windows 真机集成仍未运行。
 回退：关闭提醒并等下一次对账取消，再撤销本切片；无 schema 或日记数据变更。
 
+2026-10-09（`075ae73`，Windows Server 2025 GitHub runner）：首次
+[原生 CI](https://github.com/Jwz-git/Daygo/actions/runs/37878228287) 的 Go 驱动 / System 测试、
+MSVC 完整 DLL 编译、C++ 夹具编译通过；夹具权限查询失败，整项 CI 失败，不记录排程 / 送达通过。
+新增提权运行能力门禁（官方通知限制），夹具在提权主机明确验证 unavailable 后跳过注册 / 权限 /
+系统排程；非提权主机保持原有严格断言，并输出失败 HRESULT。该期望调整为显式平台边界决定，
+不能用它证明普通 Windows 桌面投递。复跑结果待补。
+[安装器 CI](https://github.com/Jwz-git/Daygo/actions/runs/37878228338) 16 项中 15 项通过、1 项失败：
+新增卸载夹具发现 64 位 CLSID 注册未清理；NSIS 默认 32 位视图，新增显式 `SetRegView 64`，
+保留原断言与匿名身份，复跑结果待补。
+同一提交 `075ae73` 的独立临时检出运行完整 `./scripts/gate.sh` 通过，排除共享工作区同期改动的影响。
+
 2026-10-07（`test`，基于 `5b6d903` 的工作树，macOS arm64）：新增无授权副作用的
 `NotificationAvailability`，仅数据库已打开且当前平台 / 构建有原生投递时广告 `notifications`。
 日记与计划提醒 UI 缺能力时禁用并显示九语言说明；新计划默认不提醒，既有偏好不清除。

@@ -14,6 +14,7 @@
 以及固定 CLSID `{EF69D18B-ED0F-4B85-9FDB-1A9458027B0C}` 的 `LocalServer32`（引用加引号的当前
 EXE，附 `--daygo-toast-activated`）。不依赖 machine 快捷方式的写权限，也不改安装范围。
 注册在 System 初始化中完成，不申请授权；失败时不广告 `notifications`，其余 System 能力继续。
+提权运行不广告通知能力（Windows 通知不支持管理员发送者），需按普通用户身份启动。
 
 COM class factory 在适配器拥有的 MTA 线程上注册；退出时撤销 class object 并 join 线程，
 不删除已排通知或持久身份，以便已交给 OS 的下一次提醒仍可投递。激活回调仅确认收到，
@@ -41,6 +42,8 @@ COM class factory 在适配器拥有的 MTA 线程上注册；退出时撤销 cl
 验证 XML、输入 / 版本拒绝、注册与撤销 COM；系统允许时排 30 分钟后的匿名通知，
 验证替换、碰撞拒绝和取消。系统禁用时明确跳过排程执行、验证拒绝，不弹真实通知、不使用 Daygo 身份或数据。
 Windows CI 编译 DLL 与夹具，不能替代真实 Windows 桌面的送达验收。
+若 runner 为提权进程，验证能力不可用与 ABI / XML 后明确跳过注册 / 权限 / 排程；
+不将该跳过记为通知送达或原生排程通过。非提权主机仍要求注册、查询及排程契约成功。
 
 真实门禁属于 G-native：安装后开启提醒、改时刻、关闭、系统禁用 / 恢复、重启读回、
 关窗后到点投递、进程退出后已排提醒、升级后身份保持分别记录；点击唤回仍是范围外。
@@ -52,3 +55,4 @@ Windows CI 编译 DLL 与夹具，不能替代真实 Windows 桌面的送达验�
 - [微软桌面 C++/WinRT 兼容注册示例](https://github.com/WindowsNotifications/desktop-toasts/blob/master/CPP-WINRT/DesktopToastsCppWinRtApp/DesktopNotificationManagerCompat.cpp)：当前用户 AppUserModelId 与 COM 注册。
 - [计划 Toast](https://learn.microsoft.com/zh-cn/windows/apps/design/shell/tiles-and-notifications/scheduled-toast)：OS 排程、取消与五分钟送达窗口。
 - [桌面通知](https://learn.microsoft.com/en-us/windows/win32/shell/quickstart-sending-desktop-toast)：显式 AUMID 的 ToastNotifier。
+- [Windows 通知限制](https://learn.microsoft.com/en-ie/windows/apps/develop/notifications/app-notifications/toast-notifications-overview)：提权应用不能发送 / 接收通知。

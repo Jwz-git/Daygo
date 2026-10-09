@@ -57,11 +57,19 @@ int main() {
     const DWORD length = GetModuleFileNameW(nullptr, executable, 32768);
     require(length != 0 && length < 32768, "fixture executable unavailable");
     const int32_t opened = dg_notification_open(1, fixture.app_id.c_str(), fixture.clsid.c_str(), executable, &fixture.session, &error);
+    if (is_elevated()) {
+      require(opened == DG_NOTIFICATION_UNAVAILABLE && fixture.session == nullptr, "elevated sender advertised notifications");
+      std::puts("SKIP native registration/permission/OS schedule: elevated runner; unavailable capability gate verified; ABI/XML validation passed");
+      return 0;
+    }
     if (opened != DG_NOTIFICATION_OK) {
       std::fprintf(stderr, "native registration status=%d HRESULT=0x%08x\n", opened, static_cast<uint32_t>(error));
       return 1;
     }
-    require(dg_notification_permission(1, fixture.session, &permission, &error) == DG_NOTIFICATION_OK, "permission query failed");
+    const int32_t permission_status = dg_notification_permission(1, fixture.session, &permission, &error);
+    if (permission_status != DG_NOTIFICATION_OK)
+      std::fprintf(stderr, "permission status=%d HRESULT=0x%08x\n", permission_status, static_cast<uint32_t>(error));
+    require(permission_status == DG_NOTIFICATION_OK, "permission query failed");
     require(permission == 1 || permission == 2, "invalid permission state");
     require(dg_notification_schedule(1, fixture.session, L"fixture", L"bad", L"anonymous", L"anonymous", 0, &error) == DG_NOTIFICATION_INVALID, "invalid token accepted");
     if (permission == 2) {
