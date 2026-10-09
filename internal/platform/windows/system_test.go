@@ -97,3 +97,28 @@ func TestSystemPushActionPublishesStatusItemEvent(t *testing.T) {
 		t.Fatal("timed out waiting for status-item event")
 	}
 }
+
+func TestSystemNotificationMethodsUseNativeClient(t *testing.T) {
+	driver := &notificationFixtureDriver{state: platform.PermissionDenied}
+	system := &System{notifications: &notificationClient{driver: driver}}
+	if !system.NotificationsAvailable() {
+		t.Fatal("native delivery capability missing")
+	}
+	state, err := system.NotificationsPermission(context.Background())
+	if err != nil || state != platform.PermissionDenied {
+		t.Fatalf("permission=%q %v", state, err)
+	}
+	if err := system.ScheduleNotification(context.Background(), platform.Notification{ID: "fixture", Title: "anonymous", Body: "anonymous"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := system.CancelNotifications(context.Background(), []string{"fixture"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(driver.scheduled) != 1 || len(driver.cancelled) != 1 {
+		t.Fatal("System did not forward requests")
+	}
+	system.notifications.close()
+	if system.NotificationsAvailable() {
+		t.Fatal("closed driver still advertised")
+	}
+}

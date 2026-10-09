@@ -33,7 +33,8 @@
 - 能力：`GetCapabilities.features` 的 `notifications` 区分实现与授权；不可用时禁用提醒编辑、
   新计划默认不提醒，已有提醒偏好保留，九语言说明复用设置文案。
 - 原生投递：macOS `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`），
-  见 [通知决策](../decisions/notifications-journal-reminder.md)；Windows 仍为 `ErrCapabilityUnavailable`。
+  见 [通知决策](../decisions/notifications-journal-reminder.md)；Windows 同端口已于 10-09 接入 C++/WinRT 排程与取消，见
+  [Windows 决策](../decisions/notifications-windows-toast.md)；真实送达待验收，点击唤回仍在范围外。
 - 前端：`api/plan.ts`、`stores/plan.ts`（当日 + 周视图各日、检查器定位请求）、
   `views/Timeline/PlanPanel.vue` / `PlanBlockForm.vue` / `PlanBlockPopover.vue`、`planLayout.ts`
   （重叠分道 `planLanes`、阶段 `planPhase`，夹具见 `frontend/tests/plan.test.ts`）、日轨道时间栏与

@@ -24,6 +24,15 @@ LANGUAGES = {"English", "SimpChinese", "TradChinese", "Japanese", "Korean",
 
 
 class SourceContract(unittest.TestCase):
+    def test_notification_uninstall_identity_matches_adapter(self):
+        source = (SOURCE / "project.nsi").read_text(encoding="utf-8")
+        adapter = (ROOT / "internal/platform/windows/notifications_windows.go").read_text()
+        for define, constant in (("DAYGO_NOTIFICATION_APP_ID", "notificationAppID"),
+                                 ("DAYGO_NOTIFICATION_CLSID", "notificationCLSID")):
+            identity = re.search(r'const ' + constant + r' = "([^"]+)"', adapter).group(1)
+            self.assertIn('!define ' + define + ' "' + identity + '"', source)
+            self.assertIn('${' + define + '}', source.split('Section "uninstall"')[1])
+
     def test_windows_feed_marks_installer_as_update(self):
         with tempfile.TemporaryDirectory(prefix="daygo-appcast-fixture-") as directory:
             root = Path(directory)
@@ -85,6 +94,8 @@ class InstallerFixture(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.product = "DaygoFixture" + uuid.uuid4().hex
         self.key = "Software\\DaygoInstallerFixtures\\" + self.product
+        self.notification_id = self.product + ".Notifications"
+        self.notification_clsid = "{" + str(uuid.uuid4()).upper() + "}"
         self.project = self.root / "build/windows/installer"
         self.project.mkdir(parents=True)
         self.bin = self.root / "build/bin"
@@ -119,7 +130,9 @@ class InstallerFixture(unittest.TestCase):
         args = [COMPILER, prefix + "V2", prefix + "WX",
                 prefix + "DARG_WAILS_AMD64_BINARY=" + str(self.bin / (self.product + ".exe")),
                 prefix + "DDAYGO_WEBVIEW_MACHINE_KEY=" + self.key,
-                prefix + "DDAYGO_WEBVIEW_USER_KEY=" + self.key]
+                prefix + "DDAYGO_WEBVIEW_USER_KEY=" + self.key,
+                prefix + "DDAYGO_NOTIFICATION_APP_ID=" + self.notification_id,
+                prefix + "DDAYGO_NOTIFICATION_CLSID=" + self.notification_clsid]
         if scope == "user":
             args += [prefix + "DWAILS_INSTALL_SCOPE=user", prefix + "DREQUEST_EXECUTION_LEVEL=user"]
         if wait_ticks is not None:
@@ -151,8 +164,14 @@ class InstallerFixture(unittest.TestCase):
 
     def clean_registry(self):
         import winreg
+        clsid_key = "Software\\Classes\\CLSID\\" + self.notification_clsid
+        for key in (clsid_key + "\\LocalServer32", clsid_key):
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key)
+            except FileNotFoundError:
+                pass
         for key in (self.key, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" +
-                    self.product * 2):
+                    self.product * 2, "Software\\Classes\\AppUserModelId\\" + self.notification_id):
             try:
                 winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, key, winreg.KEY_WOW64_64KEY)
             except FileNotFoundError:
@@ -270,15 +289,30 @@ class InstallerFixture(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows execution required")
     def test_success_and_uninstall_preserve_unknown_file(self):
+        import winreg
         self.assertEqual(self.run_installer(self.compile()), 0)
         self.assertEqual((self.target / (self.product + ".exe")).read_bytes(), self.payload)
         sentinel = self.target / "must-not-delete.txt"
         sentinel.write_text("unowned data", encoding="utf-8")
+        notification_key = "Software\\Classes\\AppUserModelId\\" + self.notification_id
+        activator_key = "Software\\Classes\\CLSID\\" + self.notification_clsid
+        for path in (notification_key, activator_key + "\\LocalServer32"):
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
+                winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "anonymous fixture")
+        unrelated_key = notification_key + ".Other"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, unrelated_key) as key:
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "unowned fixture")
+        self.addCleanup(lambda: winreg.DeleteKey(winreg.HKEY_CURRENT_USER, unrelated_key))
         self.assertEqual(subprocess.run('"' + str(self.target / "uninstall.exe") +
             '" /S _?=' + str(self.target), timeout=30).returncode, 0)
         self.assertEqual(sentinel.read_text(), "unowned data")
         self.assertFalse((self.target / (self.product + ".exe")).exists())
         self.assertFalse((self.target / "daygo_windows_native.dll").exists())
+        for path in (notification_key, activator_key):
+            with self.assertRaises(FileNotFoundError):
+                winreg.OpenKey(winreg.HKEY_CURRENT_USER, path)
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, unrelated_key) as key:
+            self.assertEqual(winreg.QueryValueEx(key, "")[0], "unowned fixture")
 
     @unittest.skipUnless(os.name == "nt", "Windows execution required")
     def test_bootstrapper_failure_does_not_install_payload(self):

@@ -40,6 +40,94 @@ func reminderLabels() NativeUiLabelsDTO {
 	return labels
 }
 
+// A user can choose the next minute or switch off an already scheduled toast.
+// Waiting for the five-minute fallback tick would miss/cancel it too late.
+func TestJournalReminderLoopReconcilesSettingsWithoutWaitingForTick(t *testing.T) {
+	system := fake.NewSystem()
+	now := time.Date(2026, 10, 9, 9, 0, 0, 0, time.UTC)
+	backend := reminderBackend(t, system, now)
+	enableReminder(t, backend, "18:00")
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); backend.runJournalReminder(ctx) }()
+	defer func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Error("reminder loop did not stop")
+		}
+	}()
+	waitJournalReminder(t, func() bool { return system.ScheduleCalls() == 1 })
+	next := "09:01"
+	if _, err := backend.UpdateSettings(SettingsPatchDTO{JournalReminderTime: &next}); err != nil {
+		t.Fatal(err)
+	}
+	waitJournalReminder(t, func() bool {
+		n, ok := system.ScheduledNotification(journalReminderID)
+		return ok && n.DeliverAt != nil && n.DeliverAt.Equal(now.Add(time.Minute))
+	})
+	off := false
+	if _, err := backend.UpdateSettings(SettingsPatchDTO{JournalReminderEnabled: &off}); err != nil {
+		t.Fatal(err)
+	}
+	waitJournalReminder(t, func() bool { _, ok := system.ScheduledNotification(journalReminderID); return !ok })
+}
+
+func TestJournalReminderLoopReconcilesLocalizedCopyWithoutWaitingForTick(t *testing.T) {
+	system := fake.NewSystem()
+	backend := reminderBackend(t, system, time.Date(2026, 10, 9, 9, 0, 0, 0, time.UTC))
+	enableReminder(t, backend, "18:00")
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); backend.runJournalReminder(ctx) }()
+	defer func() { cancel(); <-done }()
+	waitJournalReminder(t, func() bool { return system.ScheduleCalls() == 1 })
+	labels := reminderLabels()
+	labels.JournalReminderTitle = "Anonymous journal reminder"
+	if err := backend.SetNativeUiLabels(labels); err != nil {
+		t.Fatal(err)
+	}
+	waitJournalReminder(t, func() bool {
+		n, ok := system.ScheduledNotification(journalReminderID)
+		return ok && n.Title == labels.JournalReminderTitle
+	})
+}
+
+func waitJournalReminder(t *testing.T, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("journal reminder did not reconcile before the fallback tick")
+}
+
+func TestJournalReminderDisabledOnRestartCancelsPersistedOSSchedule(t *testing.T) {
+	system := fake.NewSystem()
+	at := time.Date(2026, 10, 9, 18, 0, 0, 0, time.UTC)
+	if err := system.ScheduleNotification(context.Background(), platform.Notification{ID: journalReminderID, DeliverAt: &at}); err != nil {
+		t.Fatal(err)
+	}
+	backend := reminderBackend(t, system, at.Add(-time.Hour))
+	if err := backend.journalReminderSync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := system.ScheduledNotification(journalReminderID); ok {
+		t.Fatal("disabled reminder retained schedule from previous process")
+	}
+	if err := backend.journalReminderSync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	calls, _ := system.CancelCalls()
+	if calls != 1 {
+		t.Fatalf("startup cancellation calls=%d, want exactly 1", calls)
+	}
+}
+
 // A disabled reminder schedules nothing: the default is off, so the first sync
 // must be a no-op rather than arming a notification the user never asked for.
 func TestJournalReminderDisabledSchedulesNothing(t *testing.T) {
@@ -229,8 +317,11 @@ func TestJournalReminderDisableIsIdempotent(t *testing.T) {
 	if err := backend.journalReminderSync(context.Background()); err != nil {
 		t.Fatalf("sync while disabled: %v", err)
 	}
-	if calls, _ := system.CancelCalls(); calls != 0 {
-		t.Fatalf("CancelNotifications called %d times for a reminder that was never enabled, want 0", calls)
+	if err := backend.journalReminderSync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls, _ := system.CancelCalls(); calls != 1 {
+		t.Fatalf("CancelNotifications called %d times, want one startup reconciliation and no repeat", calls)
 	}
 }
 

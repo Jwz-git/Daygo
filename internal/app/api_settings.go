@@ -80,6 +80,9 @@ func (b *Backend) UpdateSettings(patch SettingsPatchDTO) (SettingsDTO, error) {
 	if len(changed) > 0 {
 		b.emitSettingsChanged(changed)
 	}
+	if slices.Contains(changed, settings.KeyNotificationsReminderEnabled) || slices.Contains(changed, settings.KeyNotificationsReminderTime) {
+		b.nudgeJournalReminder()
+	}
 	b.applyLaunchAtLogin(ctx, changed, snapshot.LaunchAtLogin)
 	if slices.Contains(changed, settings.KeySystemShowDockIcon) {
 		if err := b.applyDockPreference(ctx, snapshot.ShowDockIcon); err != nil {

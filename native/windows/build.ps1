@@ -10,6 +10,7 @@ $RootDir = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Source = Join-Path $PSScriptRoot 'Sources\daygo_capture.cpp'
 $ApplicationSource = Join-Path $PSScriptRoot 'Sources\daygo_application_proxy.cpp'
 $NativeSource = Join-Path $PSScriptRoot 'Sources\daygo_windows_native.cpp'
+$NotificationSource = Join-Path $PSScriptRoot 'Sources\daygo_notifications.cpp'
 $SystemSource = Join-Path $PSScriptRoot 'Sources\daygo_system.cpp'
 $StatusItemSource = Join-Path $PSScriptRoot 'Sources\daygo_status_item.cpp'
 $SegmentSource = Join-Path $PSScriptRoot 'Sources\daygo_segment.cpp'
@@ -22,7 +23,7 @@ $StatusItemObject = Join-Path $OutDir 'daygo_status_item.o'
 $SegmentObject = Join-Path $OutDir 'daygo_segment.o'
 $Archive = Join-Path $OutDir 'libdaygo_capture.a'
 $NativeDLL = Join-Path $OutDir 'daygo_windows_native.dll'
-$NativeObject = Join-Path $OutDir 'daygo_windows_native.obj'
+$NativeObjectDir = "$OutDir/"
 $NativeImportLibrary = Join-Path $OutDir 'daygo_windows_native.lib'
 $BinDir = Join-Path $RootDir 'build\bin'
 $WinSparkleVersion = '0.9.4'
@@ -102,7 +103,7 @@ if ($PrivacyHeader) {
     if (-not (Test-Path -LiteralPath $VCVars -PathType Leaf)) {
         throw 'vcvars64.bat was not found in the selected Visual Studio installation.'
     }
-    $NativeCompile = '"{0}" >nul && cl.exe /nologo /std:c++20 /EHsc /O2 /MT /LD /DUNICODE /D_UNICODE /I"{1}" "{2}" /Fo:"{3}" /Fe:"{4}" d3d11.lib dxgi.lib windowsapp.lib runtimeobject.lib windowscodecs.lib ole32.lib user32.lib shell32.lib bcrypt.lib version.lib gdi32.lib onecoreuap.lib /link /IMPLIB:"{5}"' -f $VCVars, $IncludeDir, $NativeSource, $NativeObject, $NativeDLL, $NativeImportLibrary
+    $NativeCompile = '"{0}" >nul && cl.exe /nologo /std:c++20 /utf-8 /EHsc /O2 /MT /LD /DUNICODE /D_UNICODE /I"{1}" "{2}" "{6}" /Fo:"{3}" /Fe:"{4}" d3d11.lib dxgi.lib windowsapp.lib runtimeobject.lib windowscodecs.lib ole32.lib user32.lib shell32.lib bcrypt.lib version.lib gdi32.lib onecoreuap.lib advapi32.lib /link /IMPLIB:"{5}"' -f $VCVars, $IncludeDir, $NativeSource, $NativeObjectDir, $NativeDLL, $NativeImportLibrary, $NotificationSource
     & $env:ComSpec /d /s /c $NativeCompile
     if ($LASTEXITCODE -ne 0) {
         throw "C++/WinRT native adapter compilation failed ($LASTEXITCODE)."

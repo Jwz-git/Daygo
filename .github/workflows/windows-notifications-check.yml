@@ -1,0 +1,55 @@
+name: Windows notification contracts
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - internal/platform/windows/**
+      - native/include/daygo_notifications.h
+      - native/windows/**
+      - .github/workflows/windows-notifications-check.yml
+  pull_request:
+    paths:
+      - internal/platform/windows/**
+      - native/include/daygo_notifications.h
+      - native/windows/**
+      - .github/workflows/windows-notifications-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Go driver and System contracts
+        shell: pwsh
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go test ./internal/platform/windows
+          if ($LASTEXITCODE -ne 0) { throw 'Go notification contracts failed' }
+          go vet ./internal/platform/windows
+          if ($LASTEXITCODE -ne 0) { throw 'Windows adapter static checks failed' }
+      - name: Compile native DLL and run anonymous notification contracts
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
+          if (-not $vs) { throw 'MSVC not found' }
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          $out = Join-Path $env:RUNNER_TEMP 'daygo-notification-contracts'
+          New-Item -ItemType Directory -Force $out | Out-Null
+          $compile = '"{0}" >nul && cl.exe /nologo /std:c++20 /utf-8 /EHsc /O2 /MT /LD /DUNICODE /D_UNICODE /I"{1}\native\include" "{1}\native\windows\Sources\daygo_windows_native.cpp" "{1}\native\windows\Sources\daygo_notifications.cpp" /Fo:"{2}/" /Fe:"{2}\daygo_windows_native.dll" d3d11.lib dxgi.lib windowsapp.lib runtimeobject.lib windowscodecs.lib ole32.lib user32.lib shell32.lib bcrypt.lib version.lib gdi32.lib onecoreuap.lib advapi32.lib /link /IMPLIB:"{2}\daygo_windows_native.lib"' -f $vcvars, $PWD, $out
+          & $env:ComSpec /d /s /c $compile
+          if ($LASTEXITCODE -ne 0) { throw 'Native DLL compilation failed' }
+          $fixture = '"{0}" >nul && cl.exe /nologo /std:c++20 /utf-8 /EHsc /O2 /MT /DUNICODE /D_UNICODE "{1}\native\windows\notifications_smoke.cpp" /Fo:"{2}/" /Fe:"{2}\notification-contracts.exe" windowsapp.lib runtimeobject.lib ole32.lib advapi32.lib' -f $vcvars, $PWD, $out
+          & $env:ComSpec /d /s /c $fixture
+          if ($LASTEXITCODE -ne 0) { throw 'Native fixture compilation failed' }
+          & (Join-Path $out 'notification-contracts.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Native notification contracts failed' }

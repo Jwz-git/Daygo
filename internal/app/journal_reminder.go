@@ -33,12 +33,25 @@ const (
 // restart the first tick re-issues the schedule once, which is harmless because
 // the platform keys by id.
 type journalReminderState struct {
-	armed     bool // a schedule has been issued and not cancelled
-	enabled   bool
-	clockTime string
-	deliverAt time.Time
-	title     string
-	body      string
+	reconciled bool // disabled startup must cancel schedules left in the OS by a prior process
+	armed      bool // a schedule has been issued and not cancelled
+	enabled    bool
+	clockTime  string
+	deliverAt  time.Time
+	title      string
+	body       string
+}
+
+// Wake the existing owner loop after a committed preference/copy change.
+// Coalesce repeated changes; never spawn a second scheduler.
+func (b *Backend) nudgeJournalReminder() {
+	if b.reminderNudge == nil {
+		return
+	}
+	select {
+	case b.reminderNudge <- struct{}{}:
+	default:
+	}
 }
 
 // runJournalReminder keeps the daily journal reminder in sync with the user's
@@ -58,6 +71,7 @@ func (b *Backend) runJournalReminder(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-b.reminderNudge:
 		}
 	}
 }
@@ -107,7 +121,7 @@ func (b *Backend) journalReminderSync(ctx context.Context) error {
 	state := &b.reminder
 
 	if !snapshot.ReminderEnabled {
-		if state.armed {
+		if state.armed || !state.reconciled {
 			if err := b.system.CancelNotifications(ctx, []string{journalReminderID}); err != nil {
 				if ctx.Err() != nil {
 					return nil
@@ -118,7 +132,7 @@ func (b *Backend) journalReminderSync(ctx context.Context) error {
 				// The capability is absent, so there is nothing to cancel: fall
 				// through and clear the local state rather than surface an error.
 			}
-			*state = journalReminderState{}
+			*state = journalReminderState{reconciled: true}
 		}
 		return nil
 	}
@@ -153,12 +167,13 @@ func (b *Backend) journalReminderSync(ctx context.Context) error {
 		return apperr.E(apperr.NativeUnavailable, "schedule journal reminder", err)
 	}
 	*state = journalReminderState{
-		armed:     true,
-		enabled:   true,
-		clockTime: snapshot.ReminderTime,
-		deliverAt: deliverAt,
-		title:     title,
-		body:      body,
+		reconciled: true,
+		armed:      true,
+		enabled:    true,
+		clockTime:  snapshot.ReminderTime,
+		deliverAt:  deliverAt,
+		title:      title,
+		body:       body,
 	}
 	return nil
 }

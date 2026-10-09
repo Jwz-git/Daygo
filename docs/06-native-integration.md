@@ -47,7 +47,7 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 17 | 开机自启开关 | 设置 | `System.{,Set}LaunchAtLogin` | macOS SMAppService / Windows Run 键已实现 |
 | 18 | 激活策略切换（是否占 Dock） | 后台 Agent 语义 | `System.SetActivationPolicy` | macOS 已实现并消费 Dock 偏好；Windows 无同等进程策略，窗口由 app 管理 |
 | 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | macOS 与 Windows ABI 均已实现并接入；两平台的完整宿主/长驻矩阵分别验收 |
-| 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | 未实现：macOS no-op、Windows 不可用；权限查询也未接真实通知授权 |
+| 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | macOS UNUserNotificationCenter 与 Windows C++/WinRT 已实现，权限独立查询；真实桌面送达待 G-native 验收（[Windows 决策](decisions/notifications-windows-toast.md)） |
 | 21 | 系统钥匙串读写删 | provider 密钥 | `Secrets` | macOS Keychain / Windows Credential Manager / Linux Secret Service 已实现并经用户确认验收 |
 | 22 | 自动更新 | 版本分发 | `Updater` | macOS Sparkle / Windows WinSparkle 已实现；真实安装升级经用户确认，正式证书 / 公证仍缺 |
 

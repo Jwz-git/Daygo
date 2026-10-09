@@ -109,8 +109,9 @@ type Backend struct {
 	// reminder is the last reconciled journal reminder, guarded by reminderMu.
 	// journal_reminder.go owns it; it exists so a tick that finds nothing
 	// changed makes no platform call (docs/decisions/notifications-journal-reminder.md).
-	reminderMu sync.Mutex
-	reminder   journalReminderState
+	reminderMu    sync.Mutex
+	reminder      journalReminderState
+	reminderNudge chan struct{}
 	// planReminder is the last reconciled plan notification state, guarded by
 	// planReminderMu; planNudge wakes the loop after a plan write
 	// (plan_reminder.go).
@@ -291,6 +292,7 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 		isCaptureOwner: isCaptureOwner,
 		emitter:        nopEmitter{},
 		planNudge:      make(chan struct{}, 1),
+		reminderNudge:  make(chan struct{}, 1),
 	}
 	// Seed the menu bar before the frontend pushes a localized bundle: the
 	// status item is created during OnStartup, ahead of the first webview paint.

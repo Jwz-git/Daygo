@@ -1,8 +1,9 @@
 # notifications 日记提醒：Go 拥有重复、一次性原生通知、墙钟时刻
 
-> **状态：已决定；Go 调度、前端与 macOS 原生投递已实现，真实通知投递待验收。**
-> macOS `UNUserNotificationCenter` 已随 `4dac8b7` 合入 `test`；Windows toast、无 cgo 与
-> 无应用 bundle 的运行环境仍返回 `platform.ErrCapabilityUnavailable`。2026-10-07 起
+> **状态：已决定；Go 调度、前端与 macOS / Windows 原生投递已实现，真实通知投递待验收。**
+> macOS `UNUserNotificationCenter` 已随 `4dac8b7` 合入 `test`；Windows C++/WinRT toast 于 10-09
+> 落盘，见 [Windows 通知决策](notifications-windows-toast.md)。缺对应原生运行环境 / DLL 时仍返回
+> `platform.ErrCapabilityUnavailable`。2026-10-07 起
 > `NotificationAvailability` 无授权副作用地报告投递实现能力，绑定以 `notifications`
 > feature 下发；设置与计划编辑器在能力缺失时禁用提醒并显示说明，保留已有提醒偏好。
 > 支持投递不等于获准投递，授权仍由平台投递时校验。调度与 fake 证据不替代 §6 真机门禁。
@@ -50,7 +51,7 @@
 
   | 设置 | 期望动作 |
   |---|---|
-  | 关闭 | 若在排 → `CancelNotifications`；否则无事 |
+  | 关闭 | 进程首次对账或此前已排 → `CancelNotifications`；随后幂等无事 |
   | 开启，时刻未变且已排给同一 `deliverAt` | 无事 |
   | 开启，时刻变更 / 未排 / `deliverAt` 已过 | 覆盖排下一次 |
 
@@ -65,6 +66,8 @@
   原生投递的平台或构建）视为「本平台不投递」：`journalReminderSync` 以 `errors.Is` 判定后
   静默跳过——不 arm、返回 nil、不每 tick 记日志，与「无 System」同类。其它错误（未授权、
   瞬时失败）仍返回 `apperr.NativeUnavailable`，记日志并在下一次 tick 重试。
+- **设置 / 文案变更。** 提交提醒设置或下发原生文案后非阻塞唤醒现有 Go 对账循环；
+  不等待五分钟 tick，不另起调度器。启动时若设置关闭也取消一次稳定 ID，以清理前进程遗留排程。
 - **tick 间隔。** 复用较低频的轮询（与 `standupBackfillInterval` 同量级），因为对账只需覆盖
   「设置改了」「跨过当天时刻」两类变化；分钟级精度由 `DeliverAt` 交给系统保证，不靠 tick 命中。
 
@@ -86,7 +89,7 @@
 | fake 夹具 | `fake.System` 记录 `ScheduleNotification` / `CancelNotifications` 调用 | 已实现 |
 | 设置 UI + i18n | 通用区开关 + 时刻输入，9 语言 | 已实现 |
 | 文案通路 | `NativeUiLabelsDTO` 两个字段 + `native` 命名空间 + `App.vue` 推送 | 已实现 |
-| **原生投递** | darwin `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`，cgo 内联 Objective-C，与已安装应用枚举同一形态，未进 Swift 静态库）；windows C++ toast | **darwin 已实现（`4dac8b7`，已合入 `test`）、未真机验收**；windows 未实现（§6） |
+| **原生投递** | darwin `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`，cgo 内联 Objective-C，与已安装应用枚举同一形态，未进 Swift 静态库）；windows C++ toast | **darwin 已实现（`4dac8b7`）**；Windows C++/WinRT 桌面身份注册、立即 / 定时排程与取消已实现，见 [Windows 决策](notifications-windows-toast.md)；两平台真实送达待验收（§6） |
 
 ## 5.1 计划通知（2026-10-03 增补）
 
@@ -102,9 +105,8 @@
 - **on-device 投递（G-native）**：`ScheduleNotification` 的真实实现、系统授权弹窗、
   `DeliverAt` 到点真的弹出、进程不在（软退出为后台）时仍投递、点击通知唤回窗口
   （`SystemEventData.NotificationID` 已预留：`EventNotificationClick`），都必须在真实
-  macOS / Windows 观察。当前桩返回 `platform.ErrCapabilityUnavailable`、调度器据此静默跳过，
-  Go 调度器的正确性只能靠 fake 证明——**fake 通过
-  不等于通知送达**（daily 执行册明确此点）。
+  macOS / Windows 观察。缺对应原生运行环境的构建仍返回 `platform.ErrCapabilityUnavailable`，
+  调度器据此静默跳过；两平台投递实现已落盘，但 **fake / CI 通过不等于真实桌面通知送达**（daily 执行册明确此点）。
 - **签名身份**：macOS 未签名 / `wails dev` 下 `requestAuthorization` 行为与正式签名 `.app`
   可能不同，属 [G-native](delivery-macos-signing-identity.md)。
 - **回退**：停止 `runJournalReminder` 并取消已排通知，保留设置键与 UI 开关；

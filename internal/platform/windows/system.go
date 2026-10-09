@@ -5,6 +5,7 @@ package windows
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -19,10 +20,11 @@ var errSystemCapabilityUnavailable = fmt.Errorf("windows system capability is un
 // slice implements power and session events only; unrelated methods fail
 // explicitly until their native capability is added.
 type System struct {
-	mu      sync.Mutex
-	events  chan platform.SystemEvent
-	started bool
-	policy  platform.ActivationPolicy
+	mu            sync.Mutex
+	events        chan platform.SystemEvent
+	started       bool
+	policy        platform.ActivationPolicy
+	notifications *notificationClient
 }
 
 func NewSystem() (*System, error) {
@@ -30,6 +32,11 @@ func NewSystem() (*System, error) {
 	if err := system.start(); err != nil {
 		close(system.events)
 		return nil, err
+	}
+	var err error
+	system.notifications, err = newNativeNotifications()
+	if err != nil {
+		log.Printf("platform/windows: %v", err)
 	}
 	return system, nil
 }
@@ -60,6 +67,9 @@ func (s *System) Close() {
 	defer s.mu.Unlock()
 	if !s.started {
 		return
+	}
+	if s.notifications != nil {
+		s.notifications.close()
 	}
 	stopStatusItem()
 	systemStop()
@@ -152,10 +162,15 @@ func (*System) ScreenRecordingPermission(context.Context) (platform.PermissionSt
 }
 func (*System) RequestScreenRecordingPermission(context.Context) error { return nil }
 
-func (*System) NotificationsPermission(context.Context) (platform.PermissionState, error) {
-	return "", errSystemCapabilityUnavailable
+func (s *System) NotificationsPermission(ctx context.Context) (platform.PermissionState, error) {
+	if s.notifications == nil {
+		return "", errSystemCapabilityUnavailable
+	}
+	return s.notifications.permission(ctx)
 }
-func (*System) NotificationsAvailable() bool { return false }
+func (s *System) NotificationsAvailable() bool {
+	return s.notifications != nil && s.notifications.available()
+}
 func (*System) FrontmostApplication(context.Context) (platform.AppInfo, error) {
 	return platform.AppInfo{}, errSystemCapabilityUnavailable
 }
@@ -182,11 +197,17 @@ func (s *System) SetActivationPolicy(ctx context.Context, policy platform.Activa
 func (*System) SetStatusItem(_ context.Context, state platform.StatusItemState) error {
 	return setStatusItem(state)
 }
-func (*System) ScheduleNotification(context.Context, platform.Notification) error {
-	return errSystemCapabilityUnavailable
+func (s *System) ScheduleNotification(ctx context.Context, n platform.Notification) error {
+	if s.notifications == nil {
+		return errSystemCapabilityUnavailable
+	}
+	return s.notifications.schedule(ctx, n)
 }
-func (*System) CancelNotifications(context.Context, []string) error {
-	return errSystemCapabilityUnavailable
+func (s *System) CancelNotifications(ctx context.Context, ids []string) error {
+	if s.notifications == nil {
+		return errSystemCapabilityUnavailable
+	}
+	return s.notifications.cancel(ctx, ids)
 }
 
 var _ platform.System = (*System)(nil)

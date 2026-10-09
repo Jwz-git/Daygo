@@ -66,9 +66,19 @@ Go 侧 httptest 全链路 + 存储夹具断言（补历史、空活动跳过、�
 Go 侧夹具覆盖：默认关闭不排、按时刻排下一次、过点顺延次日、幂等不重排、改时刻 / 改文案重排、
 关闭取消、只读实例空操作、平台失败可重试、能力不可用则静默跳过、文案未下发则等待、DST 与半小时时区。
 **macOS `UNUserNotificationCenter` 已实现**（`4dac8b7`），真实授权与投递未验收；
-Windows toast、无 cgo 或无应用 bundle 环境仍返回 `platform.ErrCapabilityUnavailable`，
+该日期的 Windows toast、无 cgo 或无应用 bundle 环境仍返回 `platform.ErrCapabilityUnavailable`，
 调度器静默跳过。10-07 起 UI 根据 `notifications` 能力禁用不可用的提醒开关并显示说明，
 不改写已有偏好；fake 通过不等于通知送达。
+
+**2026-10-09（Windows toast）**：新增 C++/WinRT 通知 C ABI，与既有捕获代码一起编入
+`daygo_windows_native.dll`；Windows System 通过应用目录绝对路径加载、校验入口并初始化当前用户
+AUMID / COM 身份。能力为初始化成功的缓存，不混同授权；`ToastNotifier.Setting` 查询与投递前校验、
+立即 `Show`、未来 `AddToSchedule`、同 ID 替换、取消排程与历史、关闭后 MTA 线程回收已接入。
+Go 拥有全部提醒设置与重复调度，九语言文案沿用现有通路；原生用 DOM 构造 XML、校验 token 碰撞，
+错误只含状态 / HRESULT。保存开关 / 时刻、切换语言立即唤醒现有对账循环；关闭状态启动时
+也取消一次前进程遗留的 OS 提醒，随后幂等。卸载只清理执行用户的通知注册，不访问其它用户配置。
+决策见 [notifications-windows-toast](../decisions/notifications-windows-toast.md)。
+真实 Windows 桌面送达、重启 / 升级身份与休眠行为尚未验收；点击恢复窗口仍未实现。
 
 ## 能力与跨层职责
 
@@ -101,7 +111,8 @@ repository 位于 internal/storage。notifications 设置、日记 / 目标表�
 2. 在 storage 加所需迁移与 repository，独立验证保存、查询和重启；复用 time / cards。
 3. 通过客户端接口生成并存储摘要，保持 insight 只读；fixture 后接真实服务。
 4. **部分实现**：System 通知 fake 已记录调度 / 取消，提醒设置、文案通路与九语言 UI 已落盘；
-   macOS 原生排程已实现，授权弹窗 / 投递待真机验收；Windows toast 与点击唤回仍缺。
+   macOS 与 Windows 原生排程已实现（Windows 增量见 [决策](../decisions/notifications-windows-toast.md)），
+   真实投递待真机验收；点击唤回仍缺。
 5. 用真实卡片与持久化日记验收用户闭环，并在真实 macOS 验证提醒；可独立于 weekly 完成。
 
 ## 验收、阻塞与回退
@@ -117,6 +128,24 @@ G-host 限制大规模 UI，其他缺口只阻塞相应文本 / 通知能力。G
 禁用不可用的入口，不删除用户输入或改动 recording 的录制意愿。
 
 ## 验证记录
+
+2026-10-09（`test`，基于 `e28953e` 工作树，macOS arm64）：先写匿名驱动夹具，桩实现的
+能力、请求透传与 context 取消三项失败；实现后 `CGO_ENABLED=0 go test ./internal/platform/windows
+-count=1` 通过，`GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build ./internal/platform/windows`
+通过。`python3 scripts/windows-installer/test_installer.py` 16 项中 6 项通过、10 项因需 Windows
+而跳过；新增卸载身份契约与匿名身份覆盖，避免夹具触及真实 Daygo 注册。
+原生夹具 `native/windows/notifications_smoke.cpp` 使用随机 AUMID / CLSID：XML 注入 / UTF-16 /
+ABI / 初始化 / 退出；系统允许时仅排 30 分钟后的匿名通知、替换 / 碰撞拒绝 / 幂等取消，不弹通知。
+Windows CI 入口 `windows-notifications-check.yml` 已加入，Windows 编译与执行结果待补。
+新增两项循环夹具先失败，再验证设置 / 文案变更即时重排；前进程残留夹具先失败，
+明确将旧「关闭且进程未排过则不调用取消」期望改为「首次取消一次、随后不重复」。
+完整 `./scripts/gate.sh` 通过：Go 构建 / 内部测试 / vet、三平台无 cgo 核心构建，
+前端 265 项通过、typecheck / build，文档 61 篇 0 问题，安装器 16 项中 10 项跳过；
+`gofmt -l .` 无输出。提醒循环的 `go test -race ./internal/app -run TestJournalReminderLoop -count=1`
+通过（macOS 链接器另有 LC_DYSYMTAB 警告，无测试失败）。首次完整门禁在新决策尚未链接时
+因孤立文档失败，补齐入口后重跑通过；不把首次失败改写为通过。跨构建和 CI 不替代 G-native
+桌面送达，Windows 真机集成仍未运行。
+回退：关闭提醒并等下一次对账取消，再撤销本切片；无 schema 或日记数据变更。
 
 2026-10-07（`test`，基于 `5b6d903` 的工作树，macOS arm64）：新增无授权副作用的
 `NotificationAvailability`，仅数据库已打开且当前平台 / 构建有原生投递时广告 `notifications`。

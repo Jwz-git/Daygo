@@ -417,7 +417,8 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
   Cmd+Q 的应用菜单标题明确为“留在后台继续记录”；Dock 系统菜单的“退出”仍由系统渲染。
 - `journalReminderTitle` / `journalReminderBody` 是**日记提醒通知**的文案。提醒的重复语义由 Go
   拥有（端口 `ScheduleNotification` 是一次性通知，见 §5.7），调度器在读写实例上运行、按设置对账、
-  以稳定 id `journal-reminder` 覆盖或取消；文案随语言变化一并重排。决策与门禁见
+  以稳定 id `journal-reminder` 覆盖或取消；提醒设置提交 / 原生文案变化立即唤醒对账，
+  启动时若关闭则取消一次前进程遗留排程。文案随语言变化一并重排。决策与门禁见
   [日记提醒决策](decisions/notifications-journal-reminder.md)。
 - `plan*` / `dayDistraction*` 是**计划通知**的文案，前端以字面占位符（`{title}` `{start}` `{end}`
   `{minutes}` `{limit}`）下发，Go 在投递时替换；调度与阈值见 [plan 执行册](modules/plan.md)。
@@ -632,7 +633,8 @@ type CapabilitiesDTO struct {
     APIRevision     int      `json:"apiRevision"` // 见 §5.10.1
 }
 
-// notifications 仅表示当前构建 / bundle 有投递实现，并依赖数据库打开；不表示获准投递。
+// notifications 仅表示当前构建 / 环境有投递实现，并依赖数据库打开；不表示获准投递。
+// Windows 需同目录 DLL 的通知 ABI 与当前用户桌面身份初始化成功；旧 / 缺 DLL 保持不可用。
 // System 的可选 NotificationAvailability 无授权副作用地报告此能力；无 reporter 视为不可用。
 // UI 无能力时禁用日记 / 计划提醒，已有偏好保留；授权状态仍由 GetPermissionState 查询。
 
@@ -1494,7 +1496,8 @@ type StatusItemAvailability interface {
 // Notification 是一次性通知：DeliverAt 为空表示立即投递；端口没有重复 / 周期字段。
 // 「每天同一时刻」的重复语义由 Go 拥有——日记提醒调度器在读写实例上按设置对账，
 // 以稳定 id 覆盖或取消单条通知，文案随语言变化重排。见 §5.5.1 与
-// decisions/notifications-journal-reminder.md。
+// decisions/notifications-journal-reminder.md；Windows 实现见 decisions/notifications-windows-toast.md。
+// Windows 取消同时清理该 ID 的排程与历史，不清空其它通知；关闭适配器保留已排下一次。
 type Notification struct {
     ID        string
     Title     string

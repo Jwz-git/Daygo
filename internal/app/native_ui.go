@@ -93,6 +93,7 @@ func (s *nativeUiLabelStore) set(labels NativeUiLabelsDTO) {
 // without a native update dialog simply never receives the copy.
 func (b *Backend) SetNativeUiLabels(labels NativeUiLabelsDTO) error {
 	b.nativeLabels.set(labels)
+	b.nudgeJournalReminder()
 	b.pushUpdateCopy()
 	b.pushApplicationMenuCopy()
 	return nil

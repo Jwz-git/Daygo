@@ -6,6 +6,13 @@ Unicode true
 # system events and the notification-area adapter.
 !include "wails_tools.nsh"
 
+!ifndef DAYGO_NOTIFICATION_APP_ID
+  !define DAYGO_NOTIFICATION_APP_ID "io.github.jwz-git.Daygo"
+!endif
+!ifndef DAYGO_NOTIFICATION_CLSID
+  !define DAYGO_NOTIFICATION_CLSID "{EF69D18B-ED0F-4B85-9FDB-1A9458027B0C}"
+!endif
+
 VIProductVersion "${INFO_PRODUCTVERSION}.0"
 VIFileVersion "${INFO_PRODUCTVERSION}.0"
 VIAddVersionKey "CompanyName" "${INFO_COMPANYNAME}"
@@ -182,6 +189,10 @@ Section "uninstall"
 
   !insertmacro wails.unassociateFiles
   !insertmacro wails.unassociateCustomProtocols
+  # Desktop notification identity is registered by the app for its current
+  # user. Never inspect other users' hives in a machine-scope uninstall.
+  DeleteRegKey HKCU "Software\Classes\AppUserModelId\${DAYGO_NOTIFICATION_APP_ID}"
+  DeleteRegKey HKCU "Software\Classes\CLSID\${DAYGO_NOTIFICATION_CLSID}"
   !insertmacro wails.deleteUninstaller
   RMDir "$INSTDIR"
 SectionEnd
