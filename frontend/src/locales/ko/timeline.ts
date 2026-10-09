@@ -104,10 +104,12 @@ export default {
   failure: {
     title: '분석이 끝나지 않았습니다',
     providerTitle: 'AI 서비스 요청이 실패했습니다',
+    outputTitle: 'AI 콘텐츠 생성 실패',
     configurationTitle: 'AI 서비스가 설정되지 않았습니다',
     providerSummary: 'AI 서비스 요청이 실패해 {count}개 구간을 정리하지 못했습니다.',
     openProviders: 'AI 서비스 설정으로',
     providerAction: 'AI 서비스 주소, 모델, 키를 확인하고 설정에서 연결을 테스트한 뒤 다시 시도하세요.',
+    outputAction: '이 시간대를 다시 시도하세요. 계속 실패하면 다른 모델을 사용해 보세요. 연결 테스트에 성공해도 카드 생성이 보장되지는 않습니다.',
     configurationAction: '먼저 AI 서비스와 모델을 추가한 뒤 다시 시도하세요.',
     applicationAction: 'Daygo가 이 구간을 정리하다 문제가 생겼습니다. AI 서비스 때문이 아닙니다. 나중에 다시 시도하세요.',
     reason: {
@@ -117,7 +119,7 @@ export default {
       timeout: 'AI 서비스가 제한 시간 내에 요청을 완료하지 못했습니다.',
       service_unavailable: 'AI 서비스 또는 게이트웨이가 서버 오류를 반환했습니다. 잠시 후 다시 시도하세요.',
       invalid_request: 'AI 서비스가 요청을 거부했습니다. 주소와 모델 설정을 확인하세요.',
-      invalid_output: 'AI 응답을 카드로 만들지 못했습니다.',
+      invalid_output: 'AI 응답이 불완전하거나 카드 요구 사항을 충족하지 않습니다.',
       no_provider: '쓸 수 있는 AI 서비스나 모델이 없습니다.',
       application: 'Daygo가 이 활동을 정리하다 문제가 생겼습니다.',
     },

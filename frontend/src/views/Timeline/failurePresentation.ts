@@ -11,13 +11,19 @@ export interface FailurePresentation {
 
 export function failurePresentation(kind: string): FailurePresentation {
   switch (kind) {
+    case 'invalid_output':
+      return {
+        source: 'provider',
+        titleKey: 'timeline.failure.outputTitle',
+        reasonKey: 'timeline.failure.reason.invalid_output',
+        actionKey: 'timeline.failure.outputAction',
+      }
     case 'auth':
     case 'rate_limited':
     case 'network':
     case 'timeout':
     case 'service_unavailable':
     case 'invalid_request':
-    case 'invalid_output':
       return {
         source: 'provider',
         titleKey: 'timeline.failure.providerTitle',

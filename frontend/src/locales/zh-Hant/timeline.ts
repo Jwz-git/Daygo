@@ -104,10 +104,12 @@ export default {
   failure: {
     title: '分析未完成',
     providerTitle: 'AI 服務請求失敗',
+    outputTitle: 'AI 內容產生失敗',
     configurationTitle: '還沒有設定 AI 服務',
     providerSummary: '有 {count} 個時段因 AI 服務請求失敗而未能整理。',
     openProviders: '前往 AI 服務設定',
     providerAction: '請檢查 AI 服務的網址、模型和金鑰，並在設定裡測試連接，然後重試。',
+    outputAction: '請先重試這個時段；如果持續失敗，請嘗試其他模型。連線測試成功不代表能產生卡片。',
     configurationAction: '請先加入 AI 服務和模型，然後重試。',
     applicationAction: 'Daygo 整理這個時段時出了問題，這不是 AI 服務造成的。可以稍後重試。',
     reason: {
@@ -117,7 +119,7 @@ export default {
       timeout: 'AI 服務未在時限內完成請求。',
       service_unavailable: 'AI 服務或閘道傳回了伺服器錯誤，請稍後重試。',
       invalid_request: 'AI 服務拒絕了請求，請檢查網址和模型設定。',
-      invalid_output: 'AI 回應的內容無法整理成卡片。',
+      invalid_output: 'AI 傳回的內容不完整或不符合卡片要求。',
       no_provider: '沒有可用的 AI 服務或模型。',
       application: 'Daygo 整理這段活動時出了問題。',
     },

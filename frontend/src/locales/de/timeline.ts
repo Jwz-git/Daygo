@@ -104,10 +104,12 @@ export default {
   failure: {
     title: 'Analyse unvollständig',
     providerTitle: 'Anfrage an den KI-Dienst fehlgeschlagen',
+    outputTitle: 'KI-Inhalt konnte nicht erzeugt werden',
     configurationTitle: 'Kein KI-Dienst eingerichtet',
     providerSummary: '{count} Zeitbereiche konnten nicht aufbereitet werden, weil die Anfrage an den KI-Dienst fehlgeschlagen ist.',
     openProviders: 'Zu den Einstellungen der KI-Dienste',
     providerAction: 'Prüfe Adresse, Modell und Schlüssel des KI-Dienstes, teste die Verbindung in den Einstellungen und versuche es dann erneut.',
+    outputAction: 'Versuche diesen Zeitraum erneut. Wenn es weiterhin fehlschlägt, probiere ein anderes Modell. Ein erfolgreicher Verbindungstest bestätigt nicht, dass Karten erzeugt werden können.',
     configurationAction: 'Füge zuerst einen KI-Dienst und ein Modell hinzu und versuche es dann erneut.',
     applicationAction: 'Daygo ist beim Aufbereiten dieses Zeitbereichs auf ein Problem gestoßen; dein KI-Dienst ist nicht die Ursache. Versuche es später erneut.',
     reason: {
@@ -117,7 +119,7 @@ export default {
       timeout: 'Der KI-Dienst hat die Anfrage nicht innerhalb des Zeitlimits abgeschlossen.',
       service_unavailable: 'Der KI-Dienst oder das Gateway hat einen Serverfehler zurückgegeben. Versuche es später erneut.',
       invalid_request: 'Der KI-Dienst hat die Anfrage abgelehnt. Prüfe Adresse und Modelleinstellungen.',
-      invalid_output: 'Die Antwort der KI ließ sich nicht in Karten umwandeln.',
+      invalid_output: 'Die KI-Antwort ist unvollständig oder erfüllt die Anforderungen für Karten nicht.',
       no_provider: 'Es ist kein KI-Dienst und kein Modell verfügbar.',
       application: 'Daygo ist beim Aufbereiten dieser Aktivität auf ein Problem gestoßen.',
     },

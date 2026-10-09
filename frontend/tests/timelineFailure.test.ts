@@ -26,11 +26,22 @@ test('provider failures remain explicit while application failures do not blame 
   for (const kind of providerKinds) {
     const display = failurePresentation(kind)
     assert.equal(display.source, 'provider', kind)
-    assert.equal(display.titleKey, 'timeline.failure.providerTitle', kind)
+    assert.equal(display.titleKey, kind === 'invalid_output' ? 'timeline.failure.outputTitle' : 'timeline.failure.providerTitle', kind)
   }
   assert.equal(failurePresentation('no_provider').source, 'configuration')
   assert.equal(failurePresentation('internal').source, 'application')
   assert.equal(failurePresentation('media').source, 'application')
+})
+
+test('invalid output suggests generation recovery without blaming credentials', () => {
+  const display = failurePresentation('invalid_output')
+  assert.equal(display.actionKey, 'timeline.failure.outputAction')
+  assert.equal(display.reasonKey, 'timeline.failure.reason.invalid_output')
+  for (const [locale, bundle] of Object.entries(bundles)) {
+    for (const key of ['timeline.failure.outputTitle', 'timeline.failure.outputAction']) {
+      assert.equal(typeof translation(bundle, key), 'string', `${locale} ${key}`)
+    }
+  }
 })
 
 test('each provider failure has a specific localized reason key', () => {

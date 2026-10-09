@@ -104,10 +104,12 @@ export default {
   failure: {
     title: 'Análisis incompleto',
     providerTitle: 'Falló la solicitud al servicio de IA',
+    outputTitle: 'Error al generar contenido con IA',
     configurationTitle: 'No hay ningún servicio de IA configurado',
     providerSummary: '{count} franjas horarias no se pudieron organizar porque falló la solicitud al servicio de IA.',
     openProviders: 'Ir a los ajustes de servicios de IA',
     providerAction: 'Comprueba la URL, el modelo y la clave del servicio de IA, prueba la conexión en Ajustes y vuelve a intentarlo.',
+    outputAction: 'Vuelve a intentar este período. Si sigue fallando, prueba otro modelo. Una prueba de conexión correcta no garantiza la generación de tarjetas.',
     configurationAction: 'Añade primero un servicio de IA y un modelo, y vuelve a intentarlo.',
     applicationAction: 'Daygo tuvo un problema al organizar esta franja horaria; no lo causó tu servicio de IA. Inténtalo más tarde.',
     reason: {
@@ -117,7 +119,7 @@ export default {
       timeout: 'El servicio de IA no completó la solicitud dentro del plazo límite.',
       service_unavailable: 'El servicio de IA o la puerta de enlace devolvió un error del servidor. Vuelve a intentarlo más tarde.',
       invalid_request: 'El servicio de IA rechazó la solicitud. Comprueba la URL y los ajustes del modelo.',
-      invalid_output: 'La respuesta de la IA no se pudo convertir en tarjetas.',
+      invalid_output: 'La respuesta de la IA está incompleta o no cumple los requisitos de las tarjetas.',
       no_provider: 'No hay ningún servicio de IA ni modelo disponible.',
       application: 'Daygo tuvo un problema al organizar esta actividad.',
     },

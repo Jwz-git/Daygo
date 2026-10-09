@@ -106,10 +106,12 @@ export default {
   failure: {
     title: 'Analysis incomplete',
     providerTitle: 'AI service request failed',
+    outputTitle: 'AI content generation failed',
     configurationTitle: 'No AI service set up',
     providerSummary: '{count} time ranges couldn’t be organized because the AI service request failed.',
     openProviders: 'Go to AI service settings',
     providerAction: 'Check the AI service URL, model, and key, test the connection in Settings, then try again.',
+    outputAction: 'Retry this time range. If it keeps failing, try another model. A successful connection test does not verify card generation.',
     configurationAction: 'Add an AI service and model first, then try again.',
     applicationAction: 'Daygo ran into a problem organizing this time range; it isn’t caused by your AI service. Try again later.',
     reason: {
@@ -119,7 +121,7 @@ export default {
       timeout: 'The AI service did not complete the request within the time limit.',
       service_unavailable: 'The AI service or gateway returned a server error. Try again later.',
       invalid_request: 'The AI service rejected the request. Check the URL and model settings.',
-      invalid_output: 'The AI response couldn’t be turned into cards.',
+      invalid_output: 'The AI response is incomplete or does not meet the card requirements.',
       no_provider: 'No AI service or model is available.',
       application: 'Daygo ran into a problem organizing this activity.',
     },

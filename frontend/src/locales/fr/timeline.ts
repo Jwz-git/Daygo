@@ -104,10 +104,12 @@ export default {
   failure: {
     title: 'Analyse incomplète',
     providerTitle: 'Échec de la requête au service d’IA',
+    outputTitle: 'Échec de la génération du contenu IA',
     configurationTitle: 'Aucun service d’IA configuré',
     providerSummary: '{count} plages horaires n’ont pas pu être organisées car la requête au service d’IA a échoué.',
     openProviders: 'Aller aux réglages des services d’IA',
     providerAction: 'Vérifiez l’URL, le modèle et la clé du service d’IA, testez la connexion dans les Réglages, puis réessayez.',
+    outputAction: 'Réessayez cette période. Si les échecs persistent, essayez un autre modèle. Un test de connexion réussi ne garantit pas la génération de cartes.',
     configurationAction: 'Ajoutez d’abord un service d’IA et un modèle, puis réessayez.',
     applicationAction: 'Daygo a rencontré un problème en organisant cette plage horaire ; votre service d’IA n’en est pas la cause. Réessayez plus tard.',
     reason: {
@@ -117,7 +119,7 @@ export default {
       timeout: 'Le service d’IA n’a pas terminé la requête dans le délai imparti.',
       service_unavailable: 'Le service d’IA ou la passerelle a renvoyé une erreur serveur. Réessayez plus tard.',
       invalid_request: 'Le service d’IA a rejeté la requête. Vérifiez l’URL et les réglages du modèle.',
-      invalid_output: 'La réponse de l’IA n’a pas pu être transformée en cartes.',
+      invalid_output: 'La réponse de l’IA est incomplète ou ne répond pas aux exigences des cartes.',
       no_provider: 'Aucun service d’IA ni modèle n’est disponible.',
       application: 'Daygo a rencontré un problème en organisant cette activité.',
     },
