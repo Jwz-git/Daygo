@@ -95,7 +95,7 @@ def main() -> int:
 
     # Entry points are reachable by definition; everything else under docs/ has
     # to be linked from somewhere, or it is documentation nobody will find.
-    entry_points = {ROOT / "README.md", ROOT / "README.en.md", ROOT / "AGENTS.md", ROOT / "docs" / "README.md"}
+    entry_points = {ROOT / "README.md", ROOT / "readme" / "README.en.md", ROOT / "AGENTS.md", ROOT / "docs" / "README.md"}
     for path in files:
         if path in entry_points or path in linked:
             continue
