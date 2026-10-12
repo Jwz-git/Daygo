@@ -285,30 +285,6 @@ html.is-night .lang__thumb { background: rgba(255, 255, 255, 0.16); }
 main, .nav__links { transition: opacity 180ms ease; }
 body.is-switching main, body.is-switching .nav__links { opacity: 0; }
 
-/* Origin: Dayflow (Swift, macOS) → Daygo (Go + Wails + Vue, macOS / Windows) */
-.lineage { display: grid; grid-template-columns: 1fr 220px 1fr; align-items: center; max-width: 920px; margin: 56px auto 0; }
-.lineage__app { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 34px 24px 28px; border: 1px solid var(--glass-line); border-radius: 24px; background: var(--glass); box-shadow: var(--glass-shadow); -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%); text-align: center; transition: transform 700ms var(--glide); }
-.lineage__app:hover { transform: translateY(-4px); }
-.lineage__app--daygo { border-color: color-mix(in srgb, var(--g1) 45%, var(--glass-line)); box-shadow: var(--glass-shadow), 0 0 0 1px color-mix(in srgb, var(--g1) 20%, transparent), 0 20px 60px -20px color-mix(in srgb, var(--g1) 55%, transparent); }
-.lineage__tag { position: absolute; top: 14px; left: 16px; padding: 2px 9px; border-radius: 999px; background: rgba(127, 127, 140, 0.16); color: var(--ink-2); font-size: 11.5px; font-weight: 600; }
-.lineage__app--daygo .lineage__tag { background: color-mix(in srgb, var(--g1) 22%, transparent); color: var(--ink); }
-.lineage__mark { width: 64px; height: 64px; filter: drop-shadow(0 10px 18px rgba(20, 20, 40, 0.28)); transition: transform 700ms var(--glide); }
-.lineage__app:hover .lineage__mark { transform: translateY(-3px) rotate(-4deg); }
-.lineage__app h3 { margin: 4px 0 0; font-family: var(--serif); font-size: 34px; font-weight: 400; letter-spacing: -0.01em; }
-.lineage__app ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.lineage__app li { padding: 3px 10px; border: 1px solid var(--glass-line); border-radius: 999px; color: var(--ink-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-.lineage__os { display: flex; gap: 6px; margin: 4px 0 0; }
-.lineage__os span { padding: 4px 11px; border-radius: 8px; background: rgba(127, 127, 140, 0.14); color: var(--ink); font-size: 13px; font-weight: 600; }
-.lineage__app--daygo .lineage__os span:last-child { background: color-mix(in srgb, var(--g1) 24%, transparent); }
-.lineage__arrow { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0 12px; }
-.lineage__track { position: relative; width: 100%; height: 2px; overflow: hidden; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--ink-3), transparent); }
-.lineage__track::after { content: ''; position: absolute; right: -2px; top: -4px; border: 5px solid transparent; border-left-color: var(--ink-3); }
-.lineage__track i { position: absolute; top: -3px; left: -30%; width: 30%; height: 8px; border-radius: 4px; background: linear-gradient(90deg, transparent, var(--g1), var(--g2)); filter: blur(1px); animation: flow 2.4s var(--ease) infinite; }
-@keyframes flow { to { left: 110%; } }
-.lineage__arrow small { color: var(--ink-3); font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
-.origin__link { display: flex; justify-content: center; gap: 22px; margin-top: 26px; }
-.origin__link a { color: var(--ink-2); font-size: 14px; border-bottom: 1px solid var(--ink-3); padding-bottom: 2px; transition: color 200ms ease; }
-.origin__link a:hover { color: var(--ink); }
 .foot a, .foot span a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ink-3); }
 
 /* Privacy summary */
@@ -323,12 +299,6 @@ body.is-switching main, body.is-switching .nav__links { opacity: 0; }
 
 @media (max-width: 860px) {
   .tiles { grid-template-columns: 1fr 1fr; }
-  .lineage { grid-template-columns: 1fr; gap: 14px; max-width: 420px; }
-  .lineage__arrow { padding: 6px 0; }
-  .lineage__track { width: 2px; height: 46px; background: linear-gradient(180deg, transparent, var(--ink-3), transparent); }
-  .lineage__track::after { display: none; }
-  .lineage__track i { top: -30%; left: -3px; width: 8px; height: 30%; animation-name: flow-down; }
-  @keyframes flow-down { to { top: 110%; } }
 }
 @media (max-width: 560px) {
   .tiles { grid-template-columns: 1fr; }

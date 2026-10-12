@@ -2,11 +2,14 @@
 
 Daygo 配套静态网页，独立于桌面应用的 `frontend/`。
 
-当前页面导入自 [AwayC/daygo-website](https://github.com/AwayC/daygo-website)，
-固定来源 commit 为 `20d938c354bdf02c142f89a98d01ee2be7461287`（2026-10-07 导入）。
-保留滚动天空、时间线卡片、日报、周报图表、对话预览及本地字体 / 图标；
+当前页面同步自 [AwayC/daygo-website](https://github.com/AwayC/daygo-website)，
+来源 commit 为 `712b864`（2026-10-12 同步）。
+保留滚动天空、时间线卡片（随滚动逐张生成）、日报、周报图表、对话预览及本地字体 / 图标；
 设计说明见 [DESIGN.md](DESIGN.md)。依赖与锁文件随来源一起更新。
-页面对 Dayflow 的介绍统一为「设计参考 / 设计灵感」，与本项目 README 的产品定位一致。
+同步时保留本仓库自有部分：最新 Release 下载链接（`src/downloads.js` 与单测）、本 README，
+以及「截图仅发送给你配置的 AI」的隐私文案；来源移除的 Dayflow「设计参考」独立章节与
+`dayflow.png` 不再保留，页尾仍保留 Dayflow 致谢。导航与章节标题中的「隐私」
+随桌面应用设置改为「隐私安全 / Privacy & security」。
 
 按用户本次要求，不扩展多语种；保留来源的中英切换，首次访问默认英文，选择后本机保存。
 页面内活动、计划与对话均为静态匿名演示，不连接桌面应用、真实录制或 Provider；
@@ -44,6 +47,8 @@ npm --prefix web run preview
 [部署工作流](../.github/workflows/deploy-web.yml) 在正式 Release 的 `published` 事件后
 检出对应 tag，安装锁文件中的依赖、构建网页，上传 Pages artifact 并部署。
 草稿、预发布和普通 push 不部署；可在 Actions 中重跑失败任务。
+也可在 Actions 页面手动运行（`workflow_dispatch`），此时部署所选分支当前提交的网页，
+不依赖新 Release；`github-pages` environment 须允许该分支（当前允许 `main`）。
 网页与安装器工作流独立，网页部署不等待安装器资产或 appcast 完成。
 
 首次启用前，在仓库 Settings → Pages → Build and deployment 将 Source 设为

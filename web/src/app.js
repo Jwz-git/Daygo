@@ -106,6 +106,7 @@ function bindPlayer(p, card, onTouch = () => {}) {
 /* ───────── Timeline window ───────── */
 const DAY_START = 8 * 60, DAY_END = 23 * 60, PPM = 2.6; // PIXELS_PER_MINUTE in layout.ts
 const yOf = (m) => (m - DAY_START) * PPM;
+const generated = new Set(); // cards already generated survive a rebuild (language, layout)
 
 export function createApp({ compact = false } = {}) {
   const zh = getLang() === 'zh';
@@ -213,10 +214,46 @@ export function createApp({ compact = false } = {}) {
   events.appendChild(recording);
   scroller.addEventListener('click', () => { touch(); planPop.hidden = true; if (selected !== null) closeDetail(); });
 
+  // cards are generated one at a time, in order, as their hour scrolls into view
+  const queue = cardEls.filter((e) => !reduced && !generated.has(+e.dataset.id));
+  queue.forEach((e) => e.classList.add('is-waiting'));
+  const isReady = (c) => !cardEls.find((e) => +e.dataset.id === c.id)?.classList.contains('is-waiting');
+  let genReady = false, genBusy = false, lastP = 0;
+  function reveal(c) {
+    generated.add(+c.dataset.id);
+    c.classList.remove('is-waiting');
+  }
+  function generateNext() {
+    if (!genReady || genBusy) return;
+    const top = scroller.scrollTop, bottom = top + scroller.clientHeight;
+    while (queue.length) {
+      const c = queue[0], y = parseFloat(c.style.top), h = parseFloat(c.style.height);
+      if (y > bottom - 24) return;
+      queue.shift();
+      if (y + h < top) { reveal(c); continue; } // scrolled past unseen: no show
+      // catch up quickly when the visitor scrolls faster than the generator
+      const fast = queue.length > 0 && parseFloat(queue[0].style.top) < bottom - 24;
+      genBusy = true;
+      const g = el(`<div class="range range--gen" style="top:${y}px;height:${h}px"><div class="gen-card range__status">${spinner()}${h >= 26 ? `<span class="gen-card__text">${t('tl.generating')}</span>` : ''}</div></div>`);
+      events.appendChild(g);
+      setTimeout(() => {
+        g.classList.add('is-out');
+        setTimeout(() => g.remove(), 380);
+        reveal(c);
+        c.classList.add('is-new');
+        c.addEventListener('animationend', () => c.classList.remove('is-new'), { once: true });
+        genBusy = false;
+        setTimeout(generateNext, fast ? 40 : 160);
+      }, fast ? 240 : 640);
+      return;
+    }
+    if (lastP > 0.86) resolvePending();
+  }
+
   // the pending window turns into its card while the visitor watches
   let resolved = false;
   function resolvePending() {
-    if (resolved) return;
+    if (resolved || queue.length) return;
     resolved = true;
     processing.classList.add('is-out');
     setTimeout(() => {
@@ -324,23 +361,29 @@ export function createApp({ compact = false } = {}) {
     current += (target - current) * 0.14;
     if (Math.abs(target - current) < 0.3) current = target;
     scroller.scrollTop = current;
+    generateNext();
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
 
   return {
     el: root,
-    start() { placeThumb(); playDonut(overview.querySelector('.donut')); },
+    start() {
+      placeThumb();
+      playDonut(overview.querySelector('.donut'));
+      setTimeout(() => { genReady = true; }, generated.size ? 0 : 700);
+    },
     onNavigate(cb) { navCb = cb; },
     progress(p) {
       const k = Math.min(1, Math.max(0, (p - 0.08) / 0.8));
       target = startTop() + (endTop() - startTop()) * (k * k * (3 - 2 * k));
+      lastP = p;
       if (p > 0.86) resolvePending();
       if (touched) return;
       // demo: open whichever card sits in the middle of the view, once per pass
       if (p > 0.3 && p < 0.72 && selected === null) {
         const mid = DAY_START + (target + scroller.clientHeight / 2) / PPM;
-        const pick = cards.filter((c) => c.cat !== 'distraction').sort((a, b) => Math.abs((a.start + a.end) / 2 - mid) - Math.abs((b.start + b.end) / 2 - mid))[0];
+        const pick = cards.filter((c) => c.cat !== 'distraction' && isReady(c)).sort((a, b) => Math.abs((a.start + a.end) / 2 - mid) - Math.abs((b.start + b.end) / 2 - mid))[0];
         if (pick) selectCard(pick.id);
       } else if ((p <= 0.22 || p >= 0.8) && selected !== null) closeDetail();
     },
