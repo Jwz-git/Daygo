@@ -6,8 +6,10 @@ import { useI18n } from 'vue-i18n'
 import { CAPTURE_HEIGHTS, CAPTURE_INTERVAL_SECONDS } from '@/api/dto'
 import { useDiagnosticsStore } from '@/stores/diagnostics'
 import { cancelRecordingDirectoryMove, getRecordingDirectory, getRecordingDirectoryMigration, moveRecordingDirectory, pickRecordingDirectory } from '@/api/recording'
+import DgIcon from '@/components/DgIcon.vue'
 import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 
+import SettingGroup from './SettingGroup.vue'
 import SettingRow from './SettingRow.vue'
 import { useSettingsSection } from './useSettingsSection'
 
@@ -259,60 +261,71 @@ function onLimitChange(event: Event): void {
     <p v-if="isWindows && moveFailed" role="alert">{{ t('settings.storage.moveFailed') }}</p>
   </SettingGroup>
 
-  <SettingGroup
-    :title="t('settings.storage.diagnostics.title')"
-    :hint="t('settings.storage.diagnostics.hint')"
-  >
-    <p v-if="diagnostics?.recoveredFromBackup" class="recovered" role="alert">
-      <strong>{{ t('settings.storage.diagnostics.recovered') }}</strong>
-      {{ t('settings.storage.diagnostics.recoveredDetail', { backup: diagnostics.recoveredFromBackup }) }}
-    </p>
-    <SettingRow :title="t('settings.storage.diagnostics.dbStatus')">
-      <span class="diag-value">{{ dbStatusLabel }}</span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.nativeState')">
-      <span class="diag-value">{{ nativeStateLabel }}</span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.captureOwner')">
-      <span class="diag-value">{{ captureOwnerLabel }}</span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.lastCapture')">
-      <span class="diag-value">{{ lastCaptureLabel }}</span>
-    </SettingRow>
-    <SettingRow
-      :title="t('settings.storage.diagnostics.skippedCardsToday')"
-      :hint="t('settings.storage.diagnostics.skippedCardsHint')"
-    >
-      <span class="diag-value" :class="{ 'diag-value--warn': (diagnostics?.skippedCardsToday ?? 0) > 0 }">
-        {{ diagnostics ? diagnostics.skippedCardsToday : '—' }}
+  <p v-if="diagnostics?.recoveredFromBackup" class="recovered" role="alert">
+    <strong>{{ t('settings.storage.diagnostics.recovered') }}</strong>
+    {{ t('settings.storage.diagnostics.recoveredDetail', { backup: diagnostics.recoveredFromBackup }) }}
+  </p>
+  <details class="diagnostics">
+    <summary class="diagnostics__summary">
+      <DgIcon class="diagnostics__chevron" name="chevronRight" :size="16" />
+      <span class="diagnostics__heading">
+        <span class="diagnostics__title">{{ t('settings.storage.diagnostics.title') }}</span>
+        <span class="diagnostics__hint">{{ t('settings.storage.diagnostics.hint') }}</span>
       </span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.pendingBatches')">
-      <span class="diag-value">{{ isUnavailable('pendingBatches') ? t('settings.storage.diagnostics.unavailable') : (diagnostics?.pendingBatches ?? '—') }}</span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.failedBatches')">
-      <span class="diag-value" :class="{ 'diag-value--warn': !isUnavailable('failedBatches') && (diagnostics?.failedBatches ?? 0) > 0 }">
-        {{ isUnavailable('failedBatches') ? t('settings.storage.diagnostics.unavailable') : (diagnostics?.failedBatches ?? '—') }}
-      </span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.databaseSize')">
-      <span class="diag-value">{{ databaseSizeLabel }}</span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.slowQueries')" :hint="t('settings.storage.diagnostics.counterHint')">
-      <span class="diag-value">{{ diagnostics?.storageHealth?.slowQueries ?? t('settings.storage.diagnostics.unavailable') }}</span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.queryErrors')">
-      <span class="diag-value">{{ diagnostics?.storageHealth?.queryErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.busyErrors')">
-      <span class="diag-value">{{ diagnostics?.storageHealth?.busyErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
-    </SettingRow>
-    <SettingRow :title="t('settings.storage.diagnostics.maintenanceErrors')">
-      <span class="diag-value">{{ diagnostics?.storageHealth?.maintenanceErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
-    </SettingRow>
-    <button type="button" :disabled="diagnosticsLoading" @click="diagnosticsStore.load()">{{ t('settings.storage.diagnostics.refresh') }}</button>
-    <p v-if="diagnosticsFailed" class="write-error" role="alert">{{ t('settings.storage.diagnostics.refreshFailed') }}</p>
-  </SettingGroup>
+    </summary>
+    <div class="diagnostics__body">
+      <div class="diagnostics__actions">
+        <button class="dg-button diagnostics__refresh" type="button" :disabled="diagnosticsLoading" @click="diagnosticsStore.load()">
+          <DgIcon name="refresh" :size="14" />
+          {{ t('settings.storage.diagnostics.refresh') }}
+        </button>
+      </div>
+      <SettingRow :title="t('settings.storage.diagnostics.dbStatus')">
+        <span class="diag-value">{{ dbStatusLabel }}</span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.nativeState')">
+        <span class="diag-value">{{ nativeStateLabel }}</span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.captureOwner')">
+        <span class="diag-value">{{ captureOwnerLabel }}</span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.lastCapture')">
+        <span class="diag-value">{{ lastCaptureLabel }}</span>
+      </SettingRow>
+      <SettingRow
+        :title="t('settings.storage.diagnostics.skippedCardsToday')"
+        :hint="t('settings.storage.diagnostics.skippedCardsHint')"
+      >
+        <span class="diag-value" :class="{ 'diag-value--warn': (diagnostics?.skippedCardsToday ?? 0) > 0 }">
+          {{ diagnostics ? diagnostics.skippedCardsToday : '—' }}
+        </span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.pendingBatches')">
+        <span class="diag-value">{{ isUnavailable('pendingBatches') ? t('settings.storage.diagnostics.unavailable') : (diagnostics?.pendingBatches ?? '—') }}</span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.failedBatches')">
+        <span class="diag-value" :class="{ 'diag-value--warn': !isUnavailable('failedBatches') && (diagnostics?.failedBatches ?? 0) > 0 }">
+          {{ isUnavailable('failedBatches') ? t('settings.storage.diagnostics.unavailable') : (diagnostics?.failedBatches ?? '—') }}
+        </span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.databaseSize')">
+        <span class="diag-value">{{ databaseSizeLabel }}</span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.slowQueries')" :hint="t('settings.storage.diagnostics.counterHint')">
+        <span class="diag-value">{{ diagnostics?.storageHealth?.slowQueries ?? t('settings.storage.diagnostics.unavailable') }}</span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.queryErrors')">
+        <span class="diag-value">{{ diagnostics?.storageHealth?.queryErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.busyErrors')">
+        <span class="diag-value">{{ diagnostics?.storageHealth?.busyErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
+      </SettingRow>
+      <SettingRow :title="t('settings.storage.diagnostics.maintenanceErrors')">
+        <span class="diag-value">{{ diagnostics?.storageHealth?.maintenanceErrors ?? t('settings.storage.diagnostics.unavailable') }}</span>
+      </SettingRow>
+    </div>
+  </details>
+  <p v-if="diagnosticsFailed" class="write-error" role="alert">{{ t('settings.storage.diagnostics.refreshFailed') }}</p>
   <p v-if="writeFailed" class="write-error" role="alert">{{ t('settings.storage.writeError') }}</p>
 </template>
 
@@ -381,6 +394,73 @@ function onLimitChange(event: Event): void {
   font-size: 12px;
   word-break: break-all;
   text-align: right;
+}
+
+.diagnostics {
+  border-top: 1px solid var(--dg-timeline-grid);
+}
+
+.diagnostics__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.diagnostics__summary::-webkit-details-marker {
+  display: none;
+}
+
+.diagnostics__summary:hover {
+  background: var(--dg-input-fill-hover);
+}
+
+.diagnostics__summary:focus-visible {
+  outline: 2px solid var(--dg-focus-ring);
+  outline-offset: 2px;
+}
+
+.diagnostics__chevron {
+  color: var(--dg-text-secondary);
+}
+
+.diagnostics[open] .diagnostics__chevron {
+  transform: rotate(90deg);
+}
+
+.diagnostics__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diagnostics__title {
+  color: var(--dg-text-primary);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.diagnostics__hint {
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+}
+
+.diagnostics__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.diagnostics__refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diagnostics__body :deep(.row:last-child) {
+  border-bottom: none;
 }
 
 .diag-value {

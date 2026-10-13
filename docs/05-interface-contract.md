@@ -666,7 +666,8 @@ checkpoint / backup / cleanup 失败；计数可重叠，不能相加为失败�
 操作 / 错误文本、SQL 参数或 breadcrumb 内容，不持久化、不上传；进程重启清零。
 没有数据库或 observer 不提供快照时 `storageHealth = null`，不可显示为四个零。
 Wails 将 Go 指针生成成可选字段，`api/diagnostics` 统一将缺失值转为 `null`。
-设置页首屏拉取并支持显式刷新，失败保留上次结果且提示过期。
+设置页首屏拉取；诊断详情默认折叠，展开后支持显式刷新，失败保留上次结果且提示过期。
+备份恢复警示与刷新失败提示不随详情折叠隐藏。
 
 `DBStatus` 与 `Unavailable` 的存在理由：`RecordingsBytes`、`PendingBatches`、`FailedBatches`
 与 `LastCaptureAtTs` 的数据源分属 recording 与 timeline，在其表落盘前这些字段只能是 0。
