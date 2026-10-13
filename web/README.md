@@ -55,4 +55,5 @@ GitHub Actions；确认 `github-pages` environment 的 deployment branch/tag rul
 重跑已验证的旧 Release 部署工作流会重新部署该 tag 的网页，不修改 Release 资产。
 
 实现依据：[GitHub Pages 自定义工作流](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
-代码配置不代表 Pages 服务端已启用或真实部署已验收。
+配套网页部署与下载链路于 2026-10-13 用户确认已验收，未附 Pages / CI 逐项运行记录；
+本轮未重新部署或改动服务端配置，统一证据边界见 [09 §9.1.1](../docs/09-roadmap.md#911-本轮验收记录与证据边界)。

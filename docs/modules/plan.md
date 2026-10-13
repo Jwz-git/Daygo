@@ -16,6 +16,8 @@
 
 ## 当前状态与证据
 
+> **验收状态（2026-10-13）**：本模块此前仍待验收的已实现能力及后续增量均由用户确认已验收，未附逐项运行记录。未实现能力与待定设计保持原状态；历史失败、跳过或未运行结果保留，后续新改动需独立验收。正式身份与签名材料的证据边界见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+
 实现进度：部分实现（已在 `test` 合入，基础提交 `4dac8b7`）。
 
 - 存储：迁移 v20 `plan_blocks`（[03](../03-data-model.md)）、`storage.PlanRepo`；v19 → v20 匿名
@@ -34,7 +36,7 @@
   新计划默认不提醒，已有提醒偏好保留，九语言说明复用设置文案。
 - 原生投递：macOS `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`），
   见 [通知决策](../decisions/notifications-journal-reminder.md)；Windows 同端口已于 10-09 接入 C++/WinRT 排程与取消，见
-  [Windows 决策](../decisions/notifications-windows-toast.md)；真实送达待验收，点击唤回仍在范围外。
+  [Windows 决策](../decisions/notifications-windows-toast.md)；真实送达于 10-13 用户确认已验收（无逐项记录），点击唤回仍在范围外。
 - 前端：`api/plan.ts`、`stores/plan.ts`（当日 + 周视图各日、检查器定位请求）、
   `views/Timeline/PlanPanel.vue` / `PlanBlockForm.vue` / `PlanBlockPopover.vue`、`planLayout.ts`
   （重叠分道 `planLanes`、阶段 `planPhase`，夹具见 `frontend/tests/plan.test.ts`）、日轨道时间栏与
@@ -71,6 +73,11 @@
   降级迁移不做破坏性删除。
 
 ## 验证记录
+
+2026-10-13（`test`，基于 `bf49b34` 工作树；来源：本次用户明确确认全部待验收项已完成）：
+计划新增 / 编辑 / 完成 / 跳过 / 删除、派生分钟与日 / 周时间线、真实 Wails 写入和 CLI / MCP / socket / chat 往返、macOS / Windows 通知授权与送达，均记为**用户确认已验收，未附逐项运行记录**。
+本条新增用户确认证据；下文旧日期的失败 / 跳过 / 未运行结果不改写。
+本轮仅同步文档，未重新执行真实集成或长期观察；统一证据边界见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 2026-10-09：Windows 复用通知端口的实现与证据见 [daily 验证记录](daily.md#验证记录)及
 [Windows 决策](../decisions/notifications-windows-toast.md)。原生 DLL 编译 / ABI / XML 门禁通过，

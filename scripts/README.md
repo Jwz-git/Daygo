@@ -31,9 +31,10 @@ script owns a responsibility and which one a new contributor should reach for.
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
 | `sample-memory.py` | Read-only macOS fixed-PID RSS / physical-footprint sampler. Checks process start identity, marks missing or reused PIDs, creates CSV exclusively, and collects no activity content. | Manual memory comparisons; see testing strategy |
 
-The 2026-09-26 user confirmation accepts all implemented functionality, long-term observation, and actual
-installation / upgrades under the existing identity, without per-case execution records. It does not establish
-Developer ID, notarization, or Authenticode certification. See the [acceptance record](../docs/09-roadmap.md#911-本轮验收记录与证据边界).
+The 2026-10-13 user confirmation accepts all previously pending acceptance items for implemented capabilities,
+including later changes, native notifications, installation / upgrades, release workflows, and identity gates,
+without per-case execution records. Certificate, notarization, CI configuration, and artifact signatures were not
+independently checked or added during this documentation update. See the [acceptance record](../docs/09-roadmap.md#911-本轮验收记录与证据边界).
 Historical skipped / failed fixture results remain unchanged. `gofmt -l .` must produce no output; the gate's
 exit code alone does not verify formatting.
 

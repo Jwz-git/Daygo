@@ -94,8 +94,9 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 | chat | `ListChatConversations`、`CreateChatConversation`、`DeleteChatConversation`、`RenameChatConversation`、`SetChatConversationProvider`、`SetChatConversationModel`、`GetChatMessages`、`SendChatMessage`、`CancelChatTurn` | 真实多会话读写 v4/v6 表；`SendChatMessage` 异步发起工具循环回合（信封解析、`chat.editMode` 门禁、8 次调用 / 64 KiB / 120 s 预算），回合内每条消息落库后发 `chat:updated`；写工具经与绑定同源的共享路径；HTTP attempt 计入 `llm_calls`（purpose=`chat`） |
 
 没有数据库时（第二实例或打开失败）设置与诊断返回 `database_error`，不返回编造的默认值。
-上表只说明绑定与本地实现已存在。2026-09-26 用户确认所有已实现能力（含近期增量、长期观察与
-现有身份下真实安装升级）已验收；未附逐项运行记录，正式证书缺失与未实现功能保持原状态。
+上表只说明绑定与本地实现已存在。2026-10-13 用户确认此前仍待验收的已实现能力及后续增量、
+长期观察与真实安装升级均已验收；未附逐项运行记录，未实现功能与待定设计保持原状态。
+原待验收正式身份按用户确认已验收，证书 / 公证 / CI 材料本轮未独立核验或补录。
 确认代码范围与历史证据边界见 [09 §9.1.1](09-roadmap.md#911-本轮验收记录与证据边界)。
 fake 的覆盖以 §5.7.4 为准。
 

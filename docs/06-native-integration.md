@@ -2,8 +2,9 @@
 
 > **平台能力已部分实现，形态汇总及部分选型仍待决策。** 本文说明能力、端口和各平台当前实现。
 > 具体选型按负责模块的决策记录处理（[09 §9.8](09-roadmap.md#98-待定设计清单)）；
-> 实现 / 验收以 [09 §9.1](09-roadmap.md#91-模块总表) 为准。2026-09-26 用户确认所有已实现
-> 功能、长期观察与真实安装升级已验收，未附逐项记录；未实现能力和正式证书缺失不在确认范围。
+> 实现 / 验收以 [09 §9.1](09-roadmap.md#91-模块总表) 为准。2026-10-13 用户确认此前仍待验收的
+> 已实现能力及后续增量、长期观察、真实安装升级与原待验收正式身份均已验收，未附逐项记录。
+> 未实现能力与待定设计保留；签名材料本轮未独立核验，证据边界见 [09 §9.1.1](09-roadmap.md#911-本轮验收记录与证据边界)。
 >
 > 在决策落盘前，**不得**按某一种候选方案大规模实现，也不得删除其它候选路径。
 >
@@ -47,9 +48,9 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 17 | 开机自启开关 | 设置 | `System.{,Set}LaunchAtLogin` | macOS SMAppService / Windows Run 键已实现 |
 | 18 | 激活策略切换（是否占 Dock） | 后台 Agent 语义 | `System.SetActivationPolicy` | macOS 已实现并消费 Dock 偏好；Windows 无同等进程策略，窗口由 app 管理 |
 | 19 | 状态栏项与其菜单 | 无窗口时的入口 | `System.SetStatusItem` | macOS 与 Windows ABI 均已实现并接入；两平台的完整宿主/长驻矩阵分别验收 |
-| 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | macOS UNUserNotificationCenter 与 Windows C++/WinRT 已实现，权限独立查询；真实桌面送达待 G-native 验收（[Windows 决策](decisions/notifications-windows-toast.md)） |
+| 20 | 本地通知 | 日记提醒 | `System.ScheduleNotification` | macOS UNUserNotificationCenter 与 Windows C++/WinRT 已实现，权限独立查询；真实授权 / 桌面送达于 10-13 用户确认已验收，无逐项记录（[Windows 决策](decisions/notifications-windows-toast.md)） |
 | 21 | 系统钥匙串读写删 | provider 密钥 | `Secrets` | macOS Keychain / Windows Credential Manager / Linux Secret Service 已实现并经用户确认验收 |
-| 22 | 自动更新 | 版本分发 | `Updater` | macOS Sparkle / Windows WinSparkle 已实现；真实安装升级经用户确认，正式证书 / 公证仍缺 |
+| 22 | 自动更新 | 版本分发 | `Updater` | macOS Sparkle / Windows WinSparkle 已实现；真实安装升级及后续增量于 10-13 用户确认已验收；正式身份与材料边界见 09 §9.1.1 |
 
 端口的完整 Go 签名见 [05 §5.7](05-interface-contract.md#57-b4platform-端口契约)。
 菜单 / 恢复入口增量另有 `StatusItemAvailability`、`ApplicationMenuCopySink` 与
@@ -134,7 +135,7 @@ Capture fake 需要能构造：正常 JPEG、授权拒绝、blocked、适配层�
 ## 6.7 平台实现状态
 
 macOS 是当前主线，Windows 与 Linux 是已排期的一等发布目标。macOS / Windows 已实现能力与
-真实安装升级经用户确认验收；正式证书材料仍缺，Linux Capture / System 尚未实现
+真实安装升级及后续通知 / 更新增量于 10-13 用户确认已验收；正式证书材料本轮未独立核验，Linux Capture / System 尚未实现
 （[09 §9.1](09-roadmap.md#91-模块总表)、[§9.8](09-roadmap.md#98-待定设计清单)）。
 把状态写在这里，是因为“仓库里有 Windows 代码”和“Windows 已验收可发布”是两件事，不写下来就会被混淆。
 

@@ -1,9 +1,9 @@
 # delivery 自动更新：Sparkle 2 + GitHub 静态 appcast + Sparkle 标准 UI
 
-> **最新功能验收（2026-09-26）**：本文涉及的所有已实现能力、长期观察与现有身份下真实安装升级，
-> 均按本次用户确认记为已验收，未附逐项运行记录；未实现项、待定设计与正式证书缺失保留。
-> 下文旧日期的失败 / 跳过 / 未运行结果是历史记录，不倒填为通过；统一范围见
-> [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+> **最新验收确认（2026-10-13，`test` / `bf49b34` 工作树）**：本文涉及的已实现能力及后续增量，
+> 此前仍待验收的项目均由用户确认已验收，未附逐项运行记录；未实现项与待定设计保留。
+> 下文旧日期的失败 / 跳过 / 未运行结果是历史记录，不倒填为通过；后续新改动需独立验收。
+> 正式身份与签名材料的证据边界、统一范围见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 > **状态：GitHub Actions 发布自动化已实现；客户端 Sparkle 适配器已落盘。**
 > [发布工作流](../../.github/workflows/publish-release.yml)在 Release 发布后构建、上传安装器，正式版在两端安装器齐备且 Ed25519 签名成功后上传 appcast；预发布跳过 appcast。
@@ -65,14 +65,14 @@ appcast 每个 `<item>` 携带版本、最低系统版本、归档 URL、长度�
 ## 3. 更新机制（apply）
 
 Sparkle 负责：下载归档 → 校验 **EdDSA 签名** → 验证可用的应用代码签名 → **原子替换** bundle
-→ **重启**。Developer ID + 公证会增加 Gatekeeper 信任，但目前没有正式证书；无正式证书时真实
-升级能否完成仍须真机验证。Daygo 侧只需：
+→ **重启**。Developer ID + 公证与 EdDSA 的作用仍分别记录；真实升级与原待验收身份于
+10-13 用户确认已验收，证书 / 公证材料本轮未独立核验。Daygo 侧只需：
 
 1. 提供 `SPUUpdater`（`SPUStandardUpdaterController`，标准 UI）；
 2. 在重启前挂钩里完成录制收尾与锁移交（§4）；
 3. 把「已发现新版本」经 `update:available` 事件冒泡为次要提示（如状态栏角标），主流程仍由 Sparkle UI 承载。
 
-**签名与密钥。** `.app` 的 Developer ID + 公证属未验收的 G-native（见
+**签名与密钥。** `.app` 的 Developer ID + 公证属于 G-native；原待验收身份于 10-13 用户确认已验收，未附签名核验记录（见
 [签名身份决策](delivery-macos-signing-identity.md)）；appcast / 归档另用 EdDSA(ed25519) 签名，
 **公钥编入 `Info.plist` 的 `SUPublicEDKey`**，**私钥绝不入库**（存本地钥匙串 / CI secret，用后不留存）。
 两套签名正交：Developer ID 管 Gatekeeper 信任，EdDSA 管 feed 完整性。
@@ -148,13 +148,13 @@ Updater 完成时验证真实升级」，可先做的有限实验（不产出正
 
 - **真机验收：2026-09-22 用户确认通过（无逐项记录）**：Sparkle 集成、后台 / 交互检查、下载校验、原子替换、重启收尾、真实升级保留数据与
   授权身份，均须在真实 macOS 完整观察。
-- **发布身份未就绪**：Developer ID + 公证属 G-native（[签名身份决策](delivery-macos-signing-identity.md)），
-  自签名开发证书不满足干净机 Gatekeeper。
-- **EdDSA 流程已建立但未实发验证**：新私钥只在本机钥匙串和 GitHub Actions Secret，公钥编入
-  两端适配器 / `Info.plist`；尚未用正式产物验证拒绝错签名与接受正确签名。
-- **发布链路源码已建立，但本次更改尚未实跑**：Release workflow 在两端安装器齐备后用 Ed25519
-  签名最终资产、生成共用 appcast 并上传；缺少更新私钥或安装器时失败关闭。Developer ID / 公证和
-  Windows Authenticode 材料未配置，不阻止 feed 生成，但现有身份下平台安装与真实升级于 09-26 用户确认已验收，未附逐项记录；正式证书身份不在范围。
+- **发布身份**：原待验收 G-native 身份于 10-13 用户确认已验收，未附证书 / 公证或 Gatekeeper 核验记录
+  （[签名身份决策](delivery-macos-signing-identity.md)）。自签名开发证书仍不等同 Developer ID + 公证。
+- **EdDSA 流程**：私钥只在本机钥匙串和 GitHub Actions Secret，公钥编入两端适配器 / `Info.plist`；
+  原待验收的正式产物正确 / 错误签名路径于 10-13 用户确认已验收，未附逐项运行或签名核验记录。
+- **发布链路**：Release workflow 在两端安装器齐备后用 Ed25519 签名最终资产、生成共用 appcast
+  并上传；缺少更新私钥或安装器时失败关闭。已实现 CI / feed、真实安装升级及后续更新增量于
+  10-13 用户确认已验收，未附逐项记录；平台签名仍不作为 feed 生成前置，材料本轮未独立核验。
 
 ## 9. 回退
 

@@ -4,6 +4,10 @@
 > [09 §9.1](09-roadmap.md#91-模块总表)，待定设计见 [09 §9.8](09-roadmap.md#98-待定设计清单)。
 > 文档与代码冲突时，以当前代码和可复现实验为准。
 
+2026-10-13 用户确认项目此前仍待验收的项目全部完成；统一记为“用户确认已验收，未附逐项运行记录”。
+未实现能力与待定设计保留，历史失败 / 跳过 / 未运行结果不改写；正式身份与签名材料的证据边界见
+[09 §9.1.1](09-roadmap.md#911-本轮验收记录与证据边界)。
+
 ## 文档索引
 
 | # | 文档 | 回答的问题 |
@@ -56,7 +60,7 @@
 | [macOS 自动更新](decisions/delivery-auto-update.md) | 已决定并实现 | Sparkle、签名 appcast、安装前收尾与发行身份门禁 |
 | [Windows 自动更新](decisions/delivery-auto-update-windows.md) | 已决定并实现 | WinSparkle、NSIS 与共用 appcast |
 | [跨平台应用身份解析与 ABI](decisions/recording-application-picker.md) | 有限实现 | Wails `.app` / `.exe` picker、独立 Go 端口、ABI 2.1 图标与平台 ID 回查 |
-| [屏幕截屏（Windows）：DXGI/WGC 实现与限制](decisions/recording-screen-capture-windows.md) | 已实现能力用户确认已验收；正式证书仍缺 | DXGI/WGC、应用身份、系统事件 / 通知区、安装升级与证据边界 |
+| [屏幕截屏（Windows）：DXGI/WGC 实现与限制](decisions/recording-screen-capture-windows.md) | 已实现能力及原待验收身份于 10-13 用户确认已验收；材料本轮未核验 | DXGI/WGC、应用身份、系统事件 / 通知区、安装升级与证据边界 |
 | [屏幕截屏（Linux）：候选与决策进度](decisions/recording-screen-capture-linux.md) | 已排期，决策进行中 | X11 vs Wayland、离散截图约束、分发形态与 LC 门禁 |
 | [图片存储流水线](decisions/recording-image-storage.md) | 公共边界保留；staging 方案已被取代 | 像素 / SQLite 边界、整段清理与 LLM 内存图片发送；现行实现见下一项 |
 | [HEVC 帧分段](decisions/recording-frame-segments-hevc.md) | 已决定并有限实现 | macOS 直接追加、帧解码、v15/v16 迁移、按段清理与验收状态 |
@@ -75,9 +79,9 @@
 | [时间线短卡合并](decisions/timeline-short-single-card-merge.md) | 已决定并实现 | 首批与持续窗口的 15 分钟下限及合并边界 |
 | [时间线输出预算与 token 截断](decisions/timeline-output-budget.md) | 已决定 | 服务端默认额度、必填协议边界与明确截断不原样重试 |
 | [网站图标获取](decisions/timeline-favicon-fetch.md) | 已决定并实现 | 本地缓存、受限网络获取与载荷预算 |
-| [Windows 录制目录迁移](decisions/recording-directory-windows.md) | Windows 已实现，跨盘迁移待真机验收 | 迁移 recordings/ 树到用户所选空目录；DB / 备份 / 密钥 / 锁留在应用数据目录，segment_path 保持相对根不改写 |
-| [Windows 日记 / 计划通知](decisions/notifications-windows-toast.md) | 已决定；原生实现已落盘，真实送达待验收 | C++/WinRT、当前用户 AUMID / COM、一次性系统排程与取消、身份与送达边界 |
-| [日记提醒通知](decisions/notifications-journal-reminder.md) | 已决定；Go 与前端已实现，原生投递待验收 | Go 拥有重复调度与一次性原生通知端口、墙钟时刻，文案经 NativeUiLabelsDTO 下发；原生不可用则静默门禁 |
+| [Windows 录制目录迁移](decisions/recording-directory-windows.md) | Windows 已实现，真实迁移于 10-13 用户确认已验收 | 迁移 recordings/ 树到用户所选空目录；DB / 备份 / 密钥 / 锁留在应用数据目录，segment_path 保持相对根不改写 |
+| [Windows 日记 / 计划通知](decisions/notifications-windows-toast.md) | 已决定并实现；真实送达于 10-13 用户确认已验收 | C++/WinRT、当前用户 AUMID / COM、一次性系统排程与取消、身份与送达边界 |
+| [日记提醒通知](decisions/notifications-journal-reminder.md) | 已决定并实现；原生投递于 10-13 用户确认已验收 | Go 拥有重复调度与一次性原生通知端口、墙钟时刻，文案经 NativeUiLabelsDTO 下发；原生不可用则静默门禁 |
 
 `scripts/check-docs.py` 会检查本目录里所有链接和小节锚点是否存在、有没有“谁都没链接到”
 的孤立文档；它由 `scripts/gate.sh` 调用。它只能证明文档内部自洽，**不能证明文档与代码一致**

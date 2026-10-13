@@ -1,6 +1,11 @@
 # notifications 日记提醒：Go 拥有重复、一次性原生通知、墙钟时刻
 
-> **状态：已决定；Go 调度、前端与 macOS / Windows 原生投递已实现，真实通知投递待验收。**
+> **最新验收确认（2026-10-13，`test` / `bf49b34` 工作树）**：本文涉及的已实现能力及后续增量，
+> 此前仍待验收的项目均由用户确认已验收，未附逐项运行记录；未实现项与待定设计保留。
+> 下文旧日期的失败 / 跳过 / 未运行结果是历史记录，不倒填为通过；后续新改动需独立验收。
+> 正式身份与签名材料的证据边界、统一范围见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
+
+> **状态：已决定；Go 调度、前端与 macOS / Windows 原生投递已实现，真实通知投递于 10-13 用户确认已验收（无逐项记录）。**
 > macOS `UNUserNotificationCenter` 已随 `4dac8b7` 合入 `test`；Windows C++/WinRT toast 于 10-09
 > 落盘，见 [Windows 通知决策](notifications-windows-toast.md)。缺对应原生运行环境 / DLL 时仍返回
 > `platform.ErrCapabilityUnavailable`。2026-10-07 起
@@ -89,7 +94,7 @@
 | fake 夹具 | `fake.System` 记录 `ScheduleNotification` / `CancelNotifications` 调用 | 已实现 |
 | 设置 UI + i18n | 通用区开关 + 时刻输入，9 语言 | 已实现 |
 | 文案通路 | `NativeUiLabelsDTO` 两个字段 + `native` 命名空间 + `App.vue` 推送 | 已实现 |
-| **原生投递** | darwin `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`，cgo 内联 Objective-C，与已安装应用枚举同一形态，未进 Swift 静态库）；windows C++ toast | **darwin 已实现（`4dac8b7`）**；Windows C++/WinRT 桌面身份注册、立即 / 定时排程与取消已实现，见 [Windows 决策](notifications-windows-toast.md)；两平台真实送达待验收（§6） |
+| **原生投递** | darwin `UNUserNotificationCenter`（`internal/platform/darwin/notifications_darwin.go`，cgo 内联 Objective-C，与已安装应用枚举同一形态，未进 Swift 静态库）；windows C++ toast | **darwin 已实现（`4dac8b7`）**；Windows C++/WinRT 桌面身份注册、立即 / 定时排程与取消已实现，见 [Windows 决策](notifications-windows-toast.md)；两平台真实送达于 10-13 用户确认已验收（无逐项记录；§6） |
 
 ## 5.1 计划通知（2026-10-03 增补）
 
@@ -102,10 +107,14 @@
 
 ## 6. 未验证与门禁
 
+2026-10-13：已实现的两平台授权、排程 / 取消、真实送达、重启 / 升级及 Windows 既有卸载清理行为
+均由用户确认已验收，未附逐项运行记录。以下要求用于复核与后续增量；点击通知唤回仍未实现。
+
 - **on-device 投递（G-native）**：`ScheduleNotification` 的真实实现、系统授权弹窗、
-  `DeliverAt` 到点真的弹出、进程不在（软退出为后台）时仍投递、点击通知唤回窗口
-  （`SystemEventData.NotificationID` 已预留：`EventNotificationClick`），都必须在真实
-  macOS / Windows 观察。缺对应原生运行环境的构建仍返回 `platform.ErrCapabilityUnavailable`，
+  `DeliverAt` 到点真的弹出、关窗后台与已排通知在进程退出后的投递，都必须在真实
+  macOS / Windows 观察。点击通知唤回窗口仍未实现
+  （`SystemEventData.NotificationID` / `EventNotificationClick` 仅为预留），不纳入已验收范围。
+  缺对应原生运行环境的构建仍返回 `platform.ErrCapabilityUnavailable`，
   调度器据此静默跳过；两平台投递实现已落盘，但 **fake / CI 通过不等于真实桌面通知送达**（daily 执行册明确此点）。
 - **签名身份**：macOS 未签名 / `wails dev` 下 `requestAuthorization` 行为与正式签名 `.app`
   可能不同，属 [G-native](delivery-macos-signing-identity.md)。
