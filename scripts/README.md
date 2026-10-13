@@ -54,6 +54,17 @@ remain in the [providers module](../docs/modules/providers.md#验证记录), wit
 the old commands marked as retired. Current pipeline fixtures, the frontend
 unit runner, native smoke tests and installer / updater checks remain active.
 
+2026-10-13 local cleanup (`test`, based on `ff181c3`, macOS arm64): audited tracked entry points against
+CI, Wails hooks, npm scripts and documented manual checks. The 21 maintained shell, PowerShell, Python and
+Node entry points still have a development, build, packaging or regression role. Removed the ignored
+`build/diagnostics/readme-locales/render.py`, the two `/tmp/daygo-acceptance-*-20261013.py` documentation
+snippets, and the `/tmp/daygo-review-meter.swift` / `.html` probe pair. No tracked script was removed.
+A second inventory found no remaining untracked or ignored script source in the current project checkout,
+excluding dependencies, generated bundles and the `legacy/` archive. Bash syntax checks (11), in-memory
+Python compilation (4) and Node syntax checks (1) passed; PowerShell and runtime checks were not rerun.
+Existing validation records and outputs remain available; deleted local snippets were not versioned and
+cannot be restored with Git. Recreate a probe from its recorded inputs if another experiment is needed.
+
 ## Shared helpers — where logic lives
 
 Both `bootstrap-frontend.sh` and the three dev scripts used to duplicate
@@ -139,6 +150,8 @@ finish pages, optional shortcuts, and upgrade/uninstall while Daygo is resident.
 
 ## Naming
 
+- One-off snippets belong in the system temporary directory and are removed when the task ends.
+  Keep only reusable entry points with an identified caller or documented manual purpose in the repository.
 - If a new diagnostic is needed, put it in `scripts/probe/<topic>.go` or
   `scripts/probe/<topic>.sh`; the directory is created when needed. Do not put
   diagnostic scripts at the `scripts/` root.
@@ -186,8 +199,9 @@ are not inputs to the appcast job.
 
 The Ed25519 signature authenticates the update archive to Sparkle and WinSparkle. It does not give the macOS installer
 Apple Developer ID / Gatekeeper trust or the Windows installer Authenticode / SmartScreen reputation. Those platform
-identities still lack formal certificates. Actual installed-app upgrades were accepted by user confirmation on
-2026-09-26 without per-case records. The `releases/latest` URL can return 404
+identity gates and installed-app upgrades were accepted by user confirmation on 2026-10-13 without per-case
+records; certificate and artifact signatures were not independently checked in that documentation update.
+The `releases/latest` URL can return 404
 between publishing a formal Release and uploading the appcast. After promoting a prerelease, manually dispatch the
 workflow with its tag and check that the appcast exists. Existing installers are reused by the prepare job.
 For an existing published Release whose original event was skipped or missed, use the workflow's manual dispatch with

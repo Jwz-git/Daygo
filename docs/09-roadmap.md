@@ -93,6 +93,16 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 
 ### 当前代码证据
 
+**2026-10-13 临时脚本清理（`test`，基于 `ff181c3` 工作树，macOS arm64）**：输入为脚本清单、
+当前磁盘与 CI / Wails / npm / 文档引用；删除未跟踪的 README 一次性生成器、两个文档同步脚本
+和 Swift / HTML 进度条探针，共 5 个本地临时文件。21 个仍有维护用途的脚本入口保留，
+未删除任何 Git 跟踪的脚本；清理后项目检出中未跟踪 / 被忽略的脚本源码为 0（排除依赖、
+生成 bundle 与 `legacy/` 归档）。11 个 Bash、4 个 Python、1 个 Node 入口的语法检查通过；
+文档检查 69 篇 / 0 处问题，`git diff --check` 通过。未运行 PowerShell、完整 `gate.sh` 或
+原生 / Provider / 安装升级回归；本轮无产品代码、数据或 release 变更，不改写验收状态。
+范围与后续临时脚本约定见 [脚本说明](../scripts/README.md#retired-diagnostics)。
+回退：文档可 revert 本次提交；已删除的本地临时脚本不在 Git 中，复现实验时按保留的记录重建。
+
 **2026-10-09 `test` / `main` 分支整合复核（macOS arm64）**：输入为 `test` 的
 `cba3b90` 与 `main` 的 `565ffa0`；在 `test` 工作树合并 `main`，无冲突，保留两侧提交。
 预期为 README / 匿名截图更新与 providers、timeline、daily / plan 的现有增量共同通过
