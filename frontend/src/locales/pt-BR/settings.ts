@@ -64,8 +64,6 @@ export default {
     },
     copy: 'Copiar',
     copied: 'Copiado',
-    permissionsTitle: 'Acesso',
-    permissionsHint: 'A leitura está sempre disponível. Fazer alterações precisa ser ativado à parte e vem desligado.',
     writeError: 'Não foi possível salvar. A configuração anterior foi restaurada.',
     editsTitle: 'Permitir que ferramentas externas façam alterações',
     editsHint: 'Deixe os clientes MCP e a linha de comando editarem cartões, categorias e metas.',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: 'Envia uma notificação na hora definida abaixo para lembrar você de escrever o diário de hoje.',
     journalReminderTime: 'Hora do lembrete',
     writeError: 'Não foi possível salvar. A configuração anterior foi restaurada.',
+  },
+  support: {
+    title: 'Apoie o Daygo',
+    hint: 'Se o Daygo ajuda você, dê uma estrela ao projeto no GitHub para apoiar seu desenvolvimento contínuo.',
+    action: 'Apoiar no GitHub',
   },
   update: {
     title: 'Atualizações do aplicativo',

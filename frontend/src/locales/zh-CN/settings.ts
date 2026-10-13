@@ -64,8 +64,6 @@ export default {
     },
     copy: '复制',
     copied: '已复制',
-    permissionsTitle: '访问权限',
-    permissionsHint: '查询始终可用；修改数据需要单独开启，默认关闭。',
     writeError: '保存失败，已恢复原设置。',
     editsTitle: '允许外部工具修改',
     editsHint: '允许通过 MCP 或命令行修改卡片、分类和目标。',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: '在下面设定的时间发一条通知，提醒你写当天的日记。',
     journalReminderTime: '提醒时间',
     writeError: '保存失败，已恢复原设置。',
+  },
+  support: {
+    title: '支持 Daygo',
+    hint: '如果 Daygo 对你有帮助，欢迎在 GitHub 点个 Star，支持项目继续完善。',
+    action: '在 GitHub 上支持',
   },
   update: {
     title: '软件更新',

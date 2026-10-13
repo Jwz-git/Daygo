@@ -64,8 +64,6 @@ export default {
     },
     copy: '複製',
     copied: '已複製',
-    permissionsTitle: '存取權限',
-    permissionsHint: '查詢一律可用；修改資料需要另外開啟，預設為關閉。',
     writeError: '儲存失敗，已還原原設定。',
     editsTitle: '允許外部工具修改',
     editsHint: '允許透過 MCP 或命令列修改卡片、分類和目標。',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: '在下面設定的時間發送通知，提醒你寫當天的日記。',
     journalReminderTime: '提醒時間',
     writeError: '儲存失敗，已還原原設定。',
+  },
+  support: {
+    title: '支持 Daygo',
+    hint: '如果 Daygo 對你有幫助，歡迎在 GitHub 點個 Star，支持專案持續完善。',
+    action: '在 GitHub 上支持',
   },
   update: {
     title: '軟體更新',

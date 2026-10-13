@@ -64,8 +64,6 @@ export default {
     },
     copy: 'Kopieren',
     copied: 'Kopiert',
-    permissionsTitle: 'Zugriff',
-    permissionsHint: 'Lesen ist immer möglich. Änderungen müssen separat eingeschaltet werden und sind standardmäßig aus.',
     writeError: 'Sichern fehlgeschlagen. Deine vorherige Einstellung wurde wiederhergestellt.',
     editsTitle: 'Externen Werkzeugen Änderungen erlauben',
     editsHint: 'Lass MCP-Clients und die Kommandozeile Karten, Kategorien und Ziele bearbeiten.',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: 'Schickt zur unten festgelegten Zeit eine Mitteilung und erinnert dich ans Tagebuch für heute.',
     journalReminderTime: 'Uhrzeit der Erinnerung',
     writeError: 'Sichern fehlgeschlagen. Deine vorherige Einstellung wurde wiederhergestellt.',
+  },
+  support: {
+    title: 'Daygo unterstützen',
+    hint: 'Wenn Daygo dir hilft, gib dem Projekt auf GitHub einen Stern und unterstütze seine Weiterentwicklung.',
+    action: 'Auf GitHub unterstützen',
   },
   update: {
     title: 'Softwareupdates',

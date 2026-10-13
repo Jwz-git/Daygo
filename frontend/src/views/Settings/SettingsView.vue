@@ -11,6 +11,7 @@ import AppearanceSection from './AppearanceSection.vue'
 import PrivacySection from './PrivacySection.vue'
 import ProvidersSection from './ProvidersSection.vue'
 import StorageSection from './StorageSection.vue'
+import SupportSection from './SupportSection.vue'
 import UpdateSection from './UpdateSection.vue'
 import { SETTINGS_SECTIONS, settingsSectionFromQuery, type SettingsSection } from './navigation'
 
@@ -124,6 +125,7 @@ watch(active, () => void nextTick(measurePill))
               <template v-if="active === 'general'">
                 <AppearanceSection />
                 <UpdateSection />
+                <SupportSection />
               </template>
               <template v-else-if="active === 'recording'">
                 <PrivacySection />

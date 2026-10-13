@@ -13,6 +13,11 @@
 
 ## 当前状态与证据
 
+2026-10-13：MCP / CLI 移除「访问权限」标题与说明，保留「允许外部工具修改」开关；
+「通用与外观」在软件更新之后增加「支持 Daygo」说明与 GitHub Star 入口，九语言同步。
+固定跳转项目仓库，Wails 使用生成的 `BrowserOpenURL` 在系统浏览器打开，浏览器预览
+使用普通新标签链接；不查询 Star 数或登录状态。验证与限制见下方记录。
+
 2026-10-13：将「允许对话修改」从 MCP / CLI 移到 AI 服务，在「显示 Token 用量」之前
 呈现；九语言文案迁入 `settings.providers`，删除依赖旧位置的「与上一项互不影响」。
 沿用 `chat.editMode` 与既有设置加载、保存和失败读回路径；MCP / CLI 保留外部工具权限。
@@ -138,6 +143,24 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 不能靠全清 localStorage 或把密钥写到本地偏好恢复状态。
 
 ## 验证记录
+
+2026-10-13（`test`，基于 `14b4480` 工作树，macOS arm64）：MCP / CLI 删除访问权限
+分组标题和说明，保留外部工具权限开关及错误提示；通用与外观在软件更新之后挂载
+`SupportSection`，九语言增加支持说明与按钮，移除旧权限标题 / 说明 key。
+入口固定指向 `https://github.com/Jwz-git/Daygo`；Wails 经生成的 `BrowserOpenURL`
+调用系统浏览器，无 Wails 的预览保留 `target=_blank` / `noopener noreferrer` 链接。
+先添加匿名 runtime 夹具，验证固定仓库调用以及缺失 runtime 时返回普通链接处理；
+不查询或修改 Star，不读取 GitHub 登录状态，不发送屏幕数据。
+输入为 `#/settings?section=general&testData=1` 与 `section=agentAccess`；Codex 内置
+浏览器窄窗口检查支持标题 / 说明 / 按钮显示完整，链接 href 符合预期，MCP / CLI 不再显示
+「访问权限」和说明且外部工具开关仍存在。预览截图保存在本机临时路径
+`/tmp/daygo-support-preview.jpg`，不进入 Git。
+完整 `./scripts/gate.sh` 通过：Go 测试 / build / vet、三平台无 cgo 核心交叉构建、
+前端 269 项单测 / typecheck / build、文档检查通过，`gofmt -l .` 无输出；Windows
+安装器夹具 6 项通过、10 项因需 Windows 主机跳过，原有 macOS 目标版本警告仍存在。
+本次属于 preferences 文案 / 支持入口增量；真实 Wails 到系统浏览器跳转、浅色和
+其它语言视觉未复验，匿名 runtime 不等于真实集成，不扩大 G-host / G-native 验收范围。
+回退：撤销本次提交，无设置值、数据库或发布产物变更。
 
 2026-10-13（`test`，基于 `140fc97` 工作树，macOS arm64）：将「允许对话修改」从
 `AgentAccessSection` 移入 `ProvidersSection`，位于 Token 用量开关之前；沿用

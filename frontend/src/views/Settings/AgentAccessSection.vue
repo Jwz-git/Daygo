@@ -149,7 +149,7 @@ async function copy(id: SnippetId, text: string): Promise<void> {
       </div>
     </SettingGroup>
 
-    <SettingGroup :title="t('settings.agentAccess.permissionsTitle')" :hint="t('settings.agentAccess.permissionsHint')">
+    <div>
       <SettingRow :title="t('settings.agentAccess.editsTitle')" :hint="t('settings.agentAccess.editsHint')">
         <SwitchControl
           :checked="enabled"
@@ -159,7 +159,7 @@ async function copy(id: SnippetId, text: string): Promise<void> {
         />
       </SettingRow>
       <p v-if="writeFailed" role="alert" class="write-error">{{ t('settings.agentAccess.writeError') }}</p>
-    </SettingGroup>
+    </div>
   </div>
 </template>
 

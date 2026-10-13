@@ -64,8 +64,6 @@ export default {
     },
     copy: 'Copiar',
     copied: 'Copiado',
-    permissionsTitle: 'Acceso',
-    permissionsHint: 'Leer siempre está disponible. Hacer cambios hay que activarlo aparte y viene desactivado de forma predeterminada.',
     writeError: 'No se pudo guardar. Se restauró tu ajuste anterior.',
     editsTitle: 'Permitir que las herramientas externas hagan cambios',
     editsHint: 'Deja que los clientes MCP y la línea de comandos editen tarjetas, categorías y objetivos.',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: 'Envía una notificación a la hora indicada abajo para recordarte que escribas el diario de hoy.',
     journalReminderTime: 'Hora del recordatorio',
     writeError: 'No se pudo guardar. Se restauró tu ajuste anterior.',
+  },
+  support: {
+    title: 'Apoya a Daygo',
+    hint: 'Si Daygo te resulta útil, dale una estrella al proyecto en GitHub para apoyar su desarrollo.',
+    action: 'Apoyar en GitHub',
   },
   update: {
     title: 'Actualizaciones de software',

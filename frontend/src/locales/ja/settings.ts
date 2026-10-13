@@ -64,8 +64,6 @@ export default {
     },
     copy: 'コピー',
     copied: 'コピーしました',
-    permissionsTitle: 'アクセス権',
-    permissionsHint: '読み取りは常に可能です。変更は別途オンにする必要があり、初期状態はオフです。',
     writeError: '保存できませんでした。以前の設定に戻しました。',
     editsTitle: '外部ツールによる変更を許可',
     editsHint: 'MCP クライアントとコマンドラインによるカード、カテゴリ、目標の編集を許可します。',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: '下の時刻に通知を送り、その日のジャーナルを書くよう知らせます。',
     journalReminderTime: '通知する時刻',
     writeError: '保存できませんでした。以前の設定に戻しました。',
+  },
+  support: {
+    title: 'Daygo を応援',
+    hint: 'Daygo が役に立ったら、GitHub で Star を付けて、今後の開発を応援してください。',
+    action: 'GitHub で応援する',
   },
   update: {
     title: 'ソフトウェアアップデート',

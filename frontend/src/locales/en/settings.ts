@@ -64,8 +64,6 @@ export default {
     },
     copy: 'Copy',
     copied: 'Copied',
-    permissionsTitle: 'Access',
-    permissionsHint: 'Reading is always available. Making changes must be turned on separately and is off by default.',
     writeError: 'Couldn’t save. Your previous setting was restored.',
     editsTitle: 'Allow external tools to make changes',
     editsHint: 'Let MCP clients and the CLI edit cards, categories, and goals.',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: 'Send a notification at the time below to write the day’s journal.',
     journalReminderTime: 'Reminder time',
     writeError: 'Couldn’t save. Your previous setting was restored.',
+  },
+  support: {
+    title: 'Support Daygo',
+    hint: 'If Daygo helps you, give the project a star on GitHub to support its continued development.',
+    action: 'Support on GitHub',
   },
   update: {
     title: 'Software updates',

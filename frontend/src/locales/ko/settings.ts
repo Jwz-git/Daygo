@@ -64,8 +64,6 @@ export default {
     },
     copy: '복사',
     copied: '복사됨',
-    permissionsTitle: '접근 권한',
-    permissionsHint: '읽기는 항상 가능합니다. 변경은 따로 켜야 하며 기본값은 꺼짐입니다.',
     writeError: '저장하지 못했습니다. 이전 설정으로 되돌렸습니다.',
     editsTitle: '외부 도구의 변경 허용',
     editsHint: 'MCP 클라이언트와 명령줄이 카드, 카테고리, 목표를 편집하도록 허용합니다.',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: '아래에 설정한 시각에 알림을 보내 그날의 저널을 쓰도록 알려 줍니다.',
     journalReminderTime: '알림 시각',
     writeError: '저장하지 못했습니다. 이전 설정으로 되돌렸습니다.',
+  },
+  support: {
+    title: 'Daygo 응원하기',
+    hint: 'Daygo가 도움이 된다면 GitHub에서 Star를 눌러 프로젝트의 지속적인 개발을 응원해 주세요.',
+    action: 'GitHub에서 응원하기',
   },
   update: {
     title: '소프트웨어 업데이트',

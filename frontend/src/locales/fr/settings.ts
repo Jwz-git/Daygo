@@ -64,8 +64,6 @@ export default {
     },
     copy: 'Copier',
     copied: 'Copié',
-    permissionsTitle: 'Accès',
-    permissionsHint: 'La lecture est toujours disponible. Les modifications doivent être activées séparément et sont désactivées par défaut.',
     writeError: 'Échec de l’enregistrement. Votre réglage précédent a été rétabli.',
     editsTitle: 'Autoriser les outils externes à modifier',
     editsHint: 'Permet aux clients MCP et à la ligne de commande de modifier les cartes, les catégories et les objectifs.',
@@ -80,6 +78,11 @@ export default {
     journalReminderHint: 'Envoie une notification à l’heure indiquée ci-dessous pour vous rappeler d’écrire le journal du jour.',
     journalReminderTime: 'Heure du rappel',
     writeError: 'Échec de l’enregistrement. Votre réglage précédent a été rétabli.',
+  },
+  support: {
+    title: 'Soutenir Daygo',
+    hint: 'Si Daygo vous est utile, ajoutez une étoile au projet sur GitHub pour soutenir son développement.',
+    action: 'Soutenir sur GitHub',
   },
   update: {
     title: 'Mises à jour logicielles',
