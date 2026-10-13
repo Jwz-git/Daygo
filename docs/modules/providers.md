@@ -17,6 +17,14 @@ anthropic 三种协议。
 
 ## 当前状态与证据
 
+2026-10-13 审查补充：协议、重试和用量元数据已实现，但生产录制缺空闲样本，
+不能用 `DetectIdle` 单测证明真实调用量下降（AUD-01）。模型测试成功不等于时间线识别质量或
+账单受控；后续固定匿名场景比较调用次数、已知 token 用量与遗漏 / 分类错误（AUD-08），
+不从未知用量补算费用，不保存真实请求 / 响应作为评测数据。
+
+审查范围、优先级、完成标准和已运行命令统一见
+[09 §9.1.2](../09-roadmap.md#912-当前不足与改进清单)；本条不表示修复或新一轮真实验收。
+
 2026-10-09 token 终止处理：Responses 的 `incomplete_details.reason=max_output_tokens`、
 Chat 的 `finish_reason=length`、Anthropic 的 `max_tokens` / `model_context_window_exceeded`
 带类型化 `ai.ErrTokenLimit` 原因，外部分类仍为 `invalid_output`，固定说明不包含正文。

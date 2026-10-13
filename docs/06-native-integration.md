@@ -32,7 +32,7 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 1 | 查询屏幕录制授权状态 | 捕获前预检 | `System.ScreenRecordingPermission` | macOS TCC 已实现；Windows 无对应授权，返回 granted |
 | 2 | 触发授权申请 | 引导流程 | `System.RequestScreenRecordingPermission` | macOS 已实现；Windows no-op |
 | 3 | 跳转到系统设置的指定面板 | 授权被拒后的引导 | `System.OpenSystemSettings` | macOS / Windows 已实现 |
-| 4 | 枚举显示器 | 选择捕获目标 | `System.Displays` | Windows 已实现；macOS 此端口仍返回空列表，Capture 内部独立选主屏 |
+| 4 | 枚举显示器 | 选择捕获目标 | `System.Displays` | Windows 已实现；macOS 此端口返回 ErrCapabilityUnavailable，Capture 内部独立选主屏 |
 | 5 | 截取当前主显示器的一帧 | 捕获 | `Capture.Capture` | macOS / Windows 已实现并经用户确认验收 |
 | 6 | 从捕获中排除指定应用 | 隐私屏蔽 | `CaptureRequest.BlockedApplicationIDs` | macOS / Windows 双保护已实现；Windows 非空名单要求 build 26100+ |
 | 7 | 持久化捕获像素 | 帧段写入 | `Capture.Capture` / `SegmentCloser` | macOS 直接追加 HEVC；Windows HEVC → H.264 → 单帧 JPEG；旧原子 JPEG ABI 保留 |
@@ -41,7 +41,7 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 | 10 | 探测分段的帧数与尺寸、可读性 | 崩溃恢复 | `Media.ProbeSegment` | macOS / Windows 已实现 |
 | 11 | 读取系统空闲秒数 | 空闲判定 | 端口待决定 | 未实现，录制行该字段为 NULL |
 | 12 | 解析调用时的系统主显示器 | 捕获目标 | `Capture.Capture`（内部） | macOS / Windows 已实现 |
-| 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | Capture 内部已实现；公共 System 查询 macOS 为空值、Windows 返回不可用 |
+| 13 | 最前方可见应用标识 | 隐私屏蔽判定 | `Capture` 内部 / `System.FrontmostApplication` | Capture 内部已实现；公共 System 查询两平台均返回不可用 |
 | 14 | 已安装应用列表 | 隐私名单选择器 | `System.InstalledApplications` | 两平台均已实现；Windows 从当前用户/机器、32/64 位 App Paths 与 Uninstall 注册表枚举，去重规则见 [应用身份解析](decisions/recording-application-picker.md) |
 | 15 | 睡眠 / 唤醒 / 锁屏 / 解锁 / 屏保事件 | 捕获状态机 | `System.Events` | macOS / Windows 已实现；正式订阅选型汇总仍待决策 |
 | 16 | 显示器配置变化事件 | 刷新捕获目标 | `System.Events` | macOS / Windows 已实现 |
@@ -82,6 +82,11 @@ Go 能做完这个产品的绝大部分：分批、调度、解析、存储、�
 这条边界让恢复责任保持明确：适配层恢复原生资源，Go 负责 pending 对账与数据库幂等提交。
 
 ## 6.4 已知的工程约束
+
+2026-10-13 捕获健康复核：已有捕获错误返回 / 状态反馈不等于覆盖调用永不返回的情况。
+当前 recorder 没有独立长时间无新帧看门狗，原生卡死本轮未复现；后续先用阻塞调用夹具
+固定告警、恢复与取消行为，再做目标平台故障注入，见
+[09 AUD-02](09-roadmap.md#912-当前不足与改进清单)。不以同一被阻塞循环中的检查证明独立监控。
 
 即使实现方式未定，下面几条对**任何**方案都成立，选型时必须一并评估：
 
@@ -153,10 +158,11 @@ macOS 是当前主线，Windows 与 Linux 是已排期的一等发布目标。ma
 | 帧解码 / 段探测（第 8、10 项） | 原生段读取（`frameDecode` / `segmentProbe`） | Media Foundation / WIC 原生读取 | 两平台均经 `platform.Media` 读取帧段并兼容 JPEG；Linux / 其他非原生路径使用 [`mediafile`](../internal/platform/mediafile/mediafile.go)，仅支持 JPEG 单帧段 |
 | 视频编码（第 9 项） | 未实现 | 未实现 | 两平台 `EncodeVideo` 均返回错误；录制帧段格式已决定，timelapse 合成须另行决定 |
 | 更新与发布（第 22 项） | Sparkle 2.10.0 适配器（仅发行 tag 构建） | WinSparkle 0.9.4 动态适配器 | GitHub Actions 已实现发布后构建并上传两端安装器；正式版在两个安装器齐备且 Ed25519 签名成功后上传 appcast。此处的发布自动化不等于客户端升级验收；后者按 [delivery 决策](decisions/delivery-auto-update.md)记录 |
-| 显示器枚举（第 4 项） | System 空列表桩 | 已实现 | Capture 内部选主屏不依赖公共枚举 |
+| 显示器枚举（第 4 项） | System 返回 ErrCapabilityUnavailable | 已实现 | Capture 内部选主屏不依赖公共枚举 |
 | 自启（第 17 项） | SMAppService 已实现 | Run 键已实现 | DB 保存用户意图，OS 应用为尽力执行，失败不回滚保存 |
 | 激活策略（第 18 项） | AppKit 同步应用并确认 | 保存请求策略，窗口由 app 管理 | Dock 偏好与窗口可见性分别建模 |
-| 空闲采样 / 通知（第 11、20 项） | 未实现 | 未实现 | 空闲字段为 NULL；通知端口桩不能证明提醒送达 |
+| 空闲采样（第 11 项） | 未实现 | 未实现 | recorder 两条路径均写 NULL，生产空闲短路不生效；端口须先决策 |
+| 通知（第 20 项） | UNUserNotificationCenter 投递 / 排程 / 取消已实现 | C++/WinRT toast 身份 / 排程 / 取消已实现 | 两平台于 10-13 用户确认已验收（未附逐项记录）；能力与授权分别查询，点击唤回未实现 |
 
 构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
 `native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是

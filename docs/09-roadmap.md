@@ -37,14 +37,14 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 
 | 模块 / 执行册 | 用户结果与职责 | 当前实现进度 | 当前验证状态 |
 |---|---|---|---|
-| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：macOS 离散截图 / HEVC、Windows DXGI/WGC / 分段降级、Go recorder 与 pending 对账、自启、隐私选择、状态栏、软退出、Dock 偏好、菜单 / 反馈及关机意图；空闲采样与 Linux Capture / System 未实现 | Go / fake、原生 smoke 与前端夹具有历史记录；已实现捕获 / 隐私 / 分段恢复、宿主与 Windows 目录迁移等增量、G-host、MC / WC 与长期观察于 10-13 用户确认已验收（无逐项记录）；正式身份与材料核验边界见 §9.1.1 |
+| [recording 常驻录制](modules/recording.md) | 授权、状态栏、录制暂停、系统事件、隐私屏蔽、分段保存与恢复 | 部分实现：macOS 离散截图 / HEVC、Windows DXGI/WGC / 分段降级、Go recorder 与 pending 对账、自启、隐私选择、状态栏、软退出、Dock 偏好、菜单 / 反馈及关机意图；空闲采样、独立缺帧看门狗、跨重启停止意图与 Linux Capture / System 未实现（§9.1.2） | Go / fake、原生 smoke 与前端夹具有历史记录；已实现捕获 / 隐私 / 分段恢复、宿主与 Windows 目录迁移等增量、G-host、MC / WC 与长期观察于 10-13 用户确认已验收（无逐项记录）；正式身份与材料核验边界见 §9.1.1 |
 | [providers AI 接入](modules/providers.md) | Provider、密钥、回退链路由、协议客户端、连接测试与模型列表 | 部分实现：三协议客户端、重试 / 回退、Provider 落库、有序路由链、macOS Keychain、CRUD / 密钥 / 模型列表 / 连接测试绑定与前端 store、10-03 报告 Token 用量显示开关（`llm.showTokenUsage`，默认关）；10-03 Anthropic 地址 / Schema 适配与 SDK 凭据隔离；10-05 模型 combobox 获取候选 / 手填与选择、来源失效保护；10-09 Chat Completions 输出上限与 OpenAI 请求地址规范化、三协议响应完成状态与用量未知语义、明确 token 终止不原样重试与卡片协议默认额度；旧 localStorage 仅用于一次性迁移 | Go / Secrets fake / 匿名 TLS / 钥匙串与前端门禁有历史记录；模型试用、combobox、User-Agent、地址 / Schema / 响应完成状态 / 用量及预算增量的真实 Provider / Wails 闭环于 10-13 用户确认已验收（无逐项记录）；历史自动化结果保留 |
 | [timeline 自动时间线](modules/timeline.md) | 分批分析、卡片、分类、搜索、帧条、编辑和重处理 | 部分实现：时间 / 周边界、卡片与分类 repository、两阶段分析流水线、失败批次重试、真退出取消本次未完成手动分析（已完成卡片保留）、卡片编辑 / 删除、分类保存、日视图与失败 / 处理中状态；跨 4 点卡片按日投影、裁剪时长与周明细；帧回放（`GetCardMedia` + `/media/frame` 资源）、周视图、持久化卡片审阅、按卡片来源批次重处理与日历选择已提交；10-09 卡片使用协议默认输出预算、明确 token 终止不原样重试、内容生成失败建议与字段篇幅指导 | Go 时间 / 事务 / 流水线与前端夹具有历史记录；卡片 / 编辑 / 重处理 / 媒体、提示词 / 默认预算 / token 终止、失败批次恢复、人工输入保护与退出取消增量、真实 Provider / Wails、G-loop 及长期观察于 10-13 用户确认已验收（无逐项记录）；搜索未实现 |
 | [daily 每日复盘](modules/daily.md) | 每日摘要、日记、目标和提醒 | 部分实现：日记 / 目标持久化、日报读写与手动生成、启动 / 每小时后台补生成、当天 4 小时刷新、工作流与指标、日记提醒的 Go 调度 / 设置 UI / 文案通路（决策 notifications-journal-reminder）；v19 移除日记 AI summary；10-02 新增报告后 Token 用量图（折线 / 柱状 / 扇形），10-03 起该卡片按 `llm.showTokenUsage` 决定是否渲染（默认关）；macOS 原生投递已实现（真实授权 / 投递于 10-13 用户确认已验收），10-07 提醒 UI 按投递能力门禁；10-09 Windows C++/WinRT toast 身份 / 排程 / 取消已落盘；录制后即时生成未实现 | Go / 前端 / 原生编译 / 安装器夹具有历史记录；生成调度、Token 图 / 开关、真实 Provider / Wails 和 macOS / Windows 通知授权 / 投递 / 重启 / 升级于 10-13 用户确认已验收（无逐项记录）；历史 CI 提权排程跳过保留；点击唤回未实现 |
 | [weekly 每周复盘](modules/weekly.md) | 周时长、专注时长和分类占比 | 部分实现：真实只读聚合与 `GetWeeklyDashboard` 绑定（周边界周一 4 点对齐已定，含按日明细与洞察 DTO）、Dayflow 原版六张周报图（10-02 起替代原有概览 / 分类 / 节奏 / 洞察面板；10-07 清理无消费者的旧前端计算）、开发专用匿名样例、10-02 新增末尾 Token 用量图（10-03 起按 `llm.showTokenUsage` 决定是否渲染，默认关） | Go 周边界 / 聚合与前端夹具有历史记录；真实卡片周、六张周报图、Token 图 / 开关与后续图表增量、九语言 Wails 和日期 / 跨周长期观察于 10-13 用户确认已验收（无逐项记录） |
 | [data 数据管理与诊断](modules/data.md) | 数据库基础、锁、维护、磁盘限制、诊断和遥测开关 | 部分实现：db-core、settings-store、diagnostics、checkpoint、备份 / 损坏恢复、磁盘上限消费与分段文件清理；存储设置页已接入；10-07 存储 observer 与维护信号接通本进程诊断计数 | macOS DB-1–8 / IT-13 及匿名维护夹具有历史记录；维护 / 整段清理、Windows DB-8 / 目录迁移、诊断增量、真实宿主与长期观察于 10-13 用户确认已验收（无逐项记录）；遥测消费者未实现 |
 | [preferences 应用偏好](modules/preferences.md) | 外观、语言、设置容器、通用设置与前端接入 | 部分实现：外壳、路由、九语言 i18n、后端偏好接入、UI 可见性与隐藏媒体暂停、macOS Dock 开关 | Go / 前端 / 原生夹具有历史记录；九语言、偏好重启、Dock / 隐藏媒体、模型试用与目录迁移入口、DTO 接入和后续界面增量于 10-13 用户确认已验收（无逐项记录）；统一错误模型与遥测消费者未完成 |
-| [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：GitHub Actions 安装器 / 签名 appcast、Sparkle / WinSparkle、安装前收尾、固定自签名身份与九语言 NSIS / 安装防护 | Go / 前端 / appcast / NSIS 夹具有历史记录；已实现安装升级、两平台更新增量、CI / feed / 网页部署与原待验收 G-native 身份于 10-13 用户确认已验收（无逐项记录）；证书 / 公证 / CI 配置本轮未独立核验，见 §9.1.1 |
+| [delivery 安装与更新](modules/delivery.md) | 身份和分发实验、首次引导、安装、升级、安全重启 | 部分实现：GitHub Actions 安装器 / 签名 appcast、Sparkle / WinSparkle、安装前收尾、固定自签名身份与九语言 NSIS / 安装防护；完整核心 CI、v1 入口收口与能力接口构建版本接线未完成（§9.1.2） | Go / 前端 / appcast / NSIS 夹具有历史记录；已实现安装升级、两平台更新增量、CI / feed / 网页部署与原待验收 G-native 身份于 10-13 用户确认已验收（无逐项记录）；证书 / 公证 / CI 配置本轮未独立核验，见 §9.1.1 |
 | [plan 计划与提醒](modules/plan.md) | 计划时间块、完成标记、开始 / 分心系统通知、CLI / MCP / chat 读写 | 部分实现（基础提交 `4dac8b7`，已合入 `test`）：v20 `plan_blocks`、日内 `HH:mm` 换算、派生分钟、四个绑定与 `plan:updated`、四个外部写操作与 `plan` 读、提醒对账循环、macOS `UNUserNotificationCenter` 投递、10-09 Windows 同端口投递、检查器面板与时间栏标记；10-07 派生分钟随时间线 / 目标刷新、隔离迟到周请求 | Go / fake / 前端夹具有历史记录；真实 Wails 计划写入 / 日周展示 / 派生分钟、两平台通知授权与投递、CLI / MCP / socket / chat 往返于 10-13 用户确认已验收（无逐项记录）；点击唤回仍在范围外 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 部分实现：CLI 读 / write 子命令、stdio MCP 六读十写（计划读写随 plan 加入）、宿主 socket 与共享执行器、来源审计、MCP 配置 / CLI 示例；search 与 Windows 终端 CLI 未实现；v1 不交付 | Go 协议 / socket / 宿主与前端夹具有历史记录；已实现 CLI / socket / MCP 及新增计划读写的真实客户端闭环于 10-13 用户确认已验收（无逐项记录）；未实现入口不在范围，v1 不交付 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：多会话纯对话、会话级 Provider / 模型、16 个封闭工具（含计划五项）的 agent 循环、只读 / 只读实例双门禁、调用预算 / 取消、`llm_calls` 审计元数据和工具消息 UI | Go 回合 / 参数 / 门禁 / 预算 / 取消与前端夹具有历史记录；已实现问答 / 编辑及新增计划工具的真实 Provider / Wails 闭环于 10-13 用户确认已验收（无逐项记录）；search / status / 独立写入审计 / 诊断计数未实现，v1 不交付 |
@@ -91,7 +91,51 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 （复用 Go 缓存）；`npm --prefix frontend run test:unit` 169 项通过、0 失败 / 跳过。
 这是本次文档核对证据，不代替原生 / 长期 / 安装升级实测；未重跑完整 `gate.sh`。
 
+### 9.1.2 当前不足与改进清单
+
+2026-10-13 / `test`、`1b54e24` / macOS arm64：本次代码与文档审查区分已确认的实现缺口、
+未复现的失效风险和产品能力缺口。下列建议是后续工作项，**本次只同步文档，不表示已经修复、
+完成设计决策或扩大 v1 范围**。§9.1.1 的用户确认验收保持有效；不把证据粒度不足改写为未验收。
+
+| ID / 优先级 | 模块 / 能力 | 当前观察与边界 | 下一步与完成标准 |
+|---|---|---|---|
+| AUD-01 / 高 | recording / 空闲采样；timeline / 空闲短路；providers / 调用量 | recorder 的分段与 legacy 路径均给 `CaptureStore.Begin` 传 nil；`DetectIdle` 因样本不可用返回 false，生产空闲短路不生效。调用量及统计误差未量化 | 先落定采样端口与平台决策；用离席、静态阅读、视频观看及采样不可用输入验证，记录真实样本可用率、判定与 LLM 调用次数；不可用仍保持 NULL |
+| AUD-02 / 高 | recording / 捕获健康；data / 诊断 | 已返回的错误经 LastError / 状态事件可见且持续重试；缺独立的长时间无新帧监控，`recording:warning` 无生产发送方。适配调用卡住且不返回错误的风险本轮未复现 | 先用阻塞 Capture 夹具固定告警 / 恢复 / 取消预期，再实现独立看门狗；沿 C-2 的 `interval × 5` 目标验证，无需等调用返回即可暴露缺帧；目标平台原生故障回归另记 |
+| AUD-03 / 高 | delivery / 工程门禁 | 仓库现有工作流为安装器、通知、更新器、发布与网站专项，未发现常规 push / PR 完整核心门禁；`gate.sh` 的 `gofmt -l .` 后无条件打印 clean，不能自动拒绝未格式化代码 | 先固定未格式化文件的失败夹具，再让门禁失败；接入常规 CI，干净检出执行前端引导、Go / 前端 / 文档检查及 Linux 核心测试；交叉构建与目标平台运行分别记录 |
+| AUD-04 / 中 | recording / 启动与停止意图；preferences / 设置 | `maybeAutoStartRecording` 仅检查所有权、授权和路由 Provider；手动停止不跨重启保存，条件满足会重新启动。现行行为是已接受的初版行为，停止持久化尚未实现 | 先明确手动停止、暂停、自启及更新重启的产品语义；新增持久化行为前补契约 / 迁移夹具，再验证停止→真退出→重启及系统事件不覆盖用户意图 |
+| AUD-05 / 中 | delivery / v1 范围；preferences / 导航；agent / chat / 入口 | v1 文档不交付 agent / chat，但默认生产代码无相应交付门禁：Chat 导航 / 路由始终包含，主程序直接分派 CLI / MCP；测试工具开关不控制它们。本轮未生成安装包 | 保持 v1 范围约定；后续使生产导航、绑定、命令入口与宿主 socket 范围一致，补生产构建 / 入口夹具，开发能力保留。扩大范围须另作明确决定 |
+| AUD-06 / 中 | delivery / 构建版本；preferences / 能力接口 | `GetCapabilities.appVersion` 返回 `internal/app/backend.go` 的固定常量 `0.0.0`；没有注入构建版本，不能据此识别实际安装包版本 | 统一构建版本来源，验证能力接口、包元数据与诊断来源一致；开发版本与正式版本分别测试，不改变 `apiRevision` 的独立含义 |
+| AUD-07 / 中 | timeline / 搜索；daily / 触发；daily / plan / 点击唤回；recording / Linux；agent / Windows CLI | 搜索、录制后即时日报、通知点击唤回及 Windows 终端 CLI 未实现；Linux Capture 返回 unsupported、System 为 nil，不能形成录制闭环。通知投递已实现并验收，不属于该缺口 | macOS 主线优先补搜索的查询 / 分页 / 匿名数据夹具与真实绑定；即时触发、点击唤回和 Linux 原生能力按各自决策与门禁推进，不顺手扩大 plan 非目标 |
+| AUD-08 / 中 | timeline / 识别质量；daily / 摘要；weekly / 派生统计；providers / 用量；data / 证据 | 自动化主要证明协议、结构、时间和存储正确；用户确认未附逐项环境 / 测量值，缺可引用的识别准确率、摘要事实错误率、统计偏差和单位时间调用量。不能据测试通过推断这些指标 | 设计小规模匿名人工标注集与固定场景，对模型 / 提示词变更比较分类错误、时间偏差、遗漏及调用量 / 已知 token 用量；先固定指标和期望，不要求 LLM 文本完全相同，不采集真实用户 payload |
+
+源码复核入口：[`recorder`](../internal/recorder/recorder.go)、[`DetectIdle`](../internal/analysis/idle.go)、
+[`auto_start`](../internal/app/auto_start.go)、[`GetCapabilities`](../internal/app/backend.go)、
+[`gate.sh`](../scripts/gate.sh)、[工作流目录](../.github/workflows/)、
+[Chat 导航](../frontend/src/layout/SideRail.vue)、[路由](../frontend/src/router/index.ts)、
+[命令入口](../cmd/daygo/main.go)、[Linux Capture 桩](../internal/platform/factory/capture_unavailable.go)、
+[Linux System 桩](../internal/platform/factory/system_unavailable.go)。
+
+建议顺序：先补可独立验证的格式门禁与版本来源，再推进空闲采样、捕获看门狗和停止意图；
+v1 范围收口由 delivery 协调，搜索等产品增量随后推进。先落盘相关未决设计，不把建议当作已决定方案。
+
+审查基线验证：同一 `1b54e24` 工作树上 `CGO_ENABLED=0 go test -count=1 ./internal/...`、
+`CGO_ENABLED=0 go build ./...`、`CGO_ENABLED=0 go vet ./...` 通过；前端 `test:unit`
+267 项通过、0 失败 / 跳过，`typecheck` 通过；`python3 scripts/check-docs.py` 检查 69 篇、
+0 问题，`gofmt -l internal cmd frontend` 与 `git diff --check` 无输出。未重跑完整 `gate.sh`、
+前端 build、Linux 主机测试、原生捕获 / Provider / 安装升级或长期观察；这些检查不提升真实门禁状态。
+本次文档更新的验证记录见下方「当前代码证据」。回退为 revert 本次 `docs:` 提交，无数据迁移。
+
 ### 当前代码证据
+
+**2026-10-13 审查不足文档同步（`test`，基于 `1b54e24` 工作树，macOS arm64 / Go 1.25.6）**：
+输入为同一基线上的代码抽查、八项审查结论与上一轮实际测试输出；预期为 §9.1.2、11 个模块
+执行册、相关公共规范及风险登记互相一致，保留用户确认验收和未实现 / 未复现边界。
+同步 AUD-01–08 的观察、责任、优先级和完成标准；修正原生能力表的旧通知 / 查询状态，以及
+时间线执行册仍把人工卡片保护列为未修的描述。未修改产品代码、设置、数据库、CI 或发布产物。
+`python3 scripts/check-docs.py` 检查 69 篇、0 问题，`git diff --check` 通过；核对 recorder 两条
+nil 样本写入、启动闸门、版本常量、生产导航 / CLI / MCP / socket、原生通知 / 查询与现有工作流。
+本轮未重跑 Go / 前端门禁及真实集成，审查基线的实际自动化结果单列于 §9.1.2，不重复认定
+新验收或量化收益。回退：`git revert <本次 docs 提交>`，无数据迁移。
 
 **2026-10-13 `test` / `main` 指向统一（macOS arm64）**：输入为 `test` 的 `ebc81b7` 与抓取后的
 `origin/main` 的 `4957729`；两者从 `bf49b34` 分叉。在 `test` 工作树合并远端 `main`，无冲突，
