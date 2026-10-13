@@ -69,8 +69,6 @@ export default {
     writeError: 'Sichern fehlgeschlagen. Deine vorherige Einstellung wurde wiederhergestellt.',
     editsTitle: 'Externen Werkzeugen Änderungen erlauben',
     editsHint: 'Lass MCP-Clients und die Kommandozeile Karten, Kategorien und Ziele bearbeiten.',
-    chatEditsTitle: 'Chat Änderungen erlauben',
-    chatEditsHint: 'Lass den Chat in der App Karten, Kategorien und Ziele für dich bearbeiten. Unabhängig von der Einstellung darüber.',
   },
   general: {
     notificationsUnavailable: 'Systembenachrichtigungen sind in dieser Umgebung derzeit nicht verfügbar.',
@@ -180,6 +178,8 @@ export default {
     directoryUnavailable: 'Nicht verfügbar',
   },
   providers: {
+    chatEditsTitle: 'Chat Änderungen erlauben',
+    chatEditsHint: 'Lass den Chat in der App Karten, Kategorien und Ziele für dich bearbeiten.',
     title: 'KI-Dienste',
     description: 'Gib Dienstadresse, API-Typ und Modellnamen ein, um deinen eigenen KI-Dienst anzubinden.',
     empty: 'Noch keine KI-Dienste.',

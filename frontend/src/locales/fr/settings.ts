@@ -69,8 +69,6 @@ export default {
     writeError: 'Échec de l’enregistrement. Votre réglage précédent a été rétabli.',
     editsTitle: 'Autoriser les outils externes à modifier',
     editsHint: 'Permet aux clients MCP et à la ligne de commande de modifier les cartes, les catégories et les objectifs.',
-    chatEditsTitle: 'Autoriser la discussion à modifier',
-    chatEditsHint: 'Permet à la discussion intégrée de modifier les cartes, les catégories et les objectifs à votre place. Indépendant du réglage ci-dessus.',
   },
   general: {
     notificationsUnavailable: 'Les notifications système ne sont pas disponibles dans cet environnement pour le moment.',
@@ -180,6 +178,8 @@ export default {
     directoryUnavailable: 'Indisponible',
   },
   providers: {
+    chatEditsTitle: 'Autoriser la discussion à modifier',
+    chatEditsHint: 'Permet à la discussion intégrée de modifier les cartes, les catégories et les objectifs à votre place.',
     title: 'Services d’IA',
     description: 'Saisissez l’URL du service, le type d’API et le nom du modèle pour connecter votre propre service d’IA.',
     empty: 'Aucun service d’IA pour le moment.',

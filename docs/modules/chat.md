@@ -23,6 +23,10 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；采用原子
 
 ## 当前状态与证据
 
+2026-10-13：「允许对话修改」设置入口由 MCP / CLI 移至 AI 服务，默认只读与
+服务端 `chat.editMode` 门禁不变；九语言说明移除对旧相邻开关的引用。
+验证见 [preferences 验证记录](preferences.md#验证记录)，不改变 v1 交付范围。
+
 2026-10-13 审查补充：v1 不交付的约定保持，但 Chat 导航和 `/chat` 路由始终包含于
 默认生产前端，尚无交付门禁（AUD-05）；开发测试工具开关不控制 Chat。后续与 delivery /
 preferences 核对生产导航、路由与绑定，保留开发能力；扩大交付范围须另作明确决定。
@@ -106,7 +110,7 @@ chat 写入独立审计与诊断计数、消息留存策略（待定）。外部
    回合内每条消息落库后各发一次 `chat:updated`）。
 5. UI：chat 视图与 store、`chat.editMode` 设置项、空态 / 错误态 / i18n；受 G-host 约束（G-host 已于 2026-09-22 经用户实测验收，无逐项运行记录）。
    **已落盘**：多会话列表、全局记忆（`chat.memory`）、会话级 provider 选择、
-   `chat.editMode` 开关（AgentAccessSection）、工具消息折叠渲染（一行摘要 + 展开参数 /
+   `chat.editMode` 开关（ProvidersSection；2026-10-13 从 AgentAccessSection 迁入）、工具消息折叠渲染（一行摘要 + 展开参数 /
    结果 JSON）。
 6. 真实闭环与诊断计数：工具错误、预算终止、取消计入 data 的既有诊断框架。**未落盘**
    （data 诊断基础已存在，但 chat 尚未提供这些业务计数；`llm_calls` 行只可作为手工核对依据）。

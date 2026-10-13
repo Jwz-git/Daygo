@@ -69,8 +69,6 @@ export default {
     writeError: '保存失败，已恢复原设置。',
     editsTitle: '允许外部工具修改',
     editsHint: '允许通过 MCP 或命令行修改卡片、分类和目标。',
-    chatEditsTitle: '允许对话修改',
-    chatEditsHint: '允许应用内对话帮你修改卡片、分类和目标。与上一项互不影响。',
   },
   general: {
     notificationsUnavailable: '当前环境暂时无法使用系统通知。',
@@ -180,6 +178,8 @@ export default {
     },
   },
   providers: {
+    chatEditsTitle: '允许对话修改',
+    chatEditsHint: '允许应用内对话帮你修改卡片、分类和目标。',
     title: 'AI 服务',
     description: '填写服务地址、接口类型和模型名称，即可接入你自己的 AI 服务。',
     empty: '还没有添加 AI 服务。',

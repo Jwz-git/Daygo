@@ -17,7 +17,6 @@ const { t } = useI18n()
 const { state, settings, load, persist, writeFailed } = useSettingsSection()
 
 const enabled = computed(() => settings.value?.system.agentEditsEnabled ?? false)
-const chatEdits = computed(() => settings.value?.chat.editMode === 'edits')
 
 // null until loaded or when the binding is unavailable; the snippets then
 // fall back to the bare `daygo` command name.
@@ -59,10 +58,6 @@ onBeforeUnmount(() => window.clearTimeout(copiedTimer))
 
 function onToggle(next: boolean): void {
   void persist({ agentEditsEnabled: next })
-}
-
-function onToggleChatEdits(next: boolean): void {
-  void persist({ chatEditMode: next ? 'edits' : 'readonly' })
 }
 
 async function copy(id: SnippetId, text: string): Promise<void> {
@@ -161,14 +156,6 @@ async function copy(id: SnippetId, text: string): Promise<void> {
           :disabled="state !== 'ready'"
           :label="t('settings.agentAccess.editsTitle')"
           @toggle="onToggle"
-        />
-      </SettingRow>
-      <SettingRow :title="t('settings.agentAccess.chatEditsTitle')" :hint="t('settings.agentAccess.chatEditsHint')">
-        <SwitchControl
-          :checked="chatEdits"
-          :disabled="state !== 'ready'"
-          :label="t('settings.agentAccess.chatEditsTitle')"
-          @toggle="onToggleChatEdits"
         />
       </SettingRow>
       <p v-if="writeFailed" role="alert" class="write-error">{{ t('settings.agentAccess.writeError') }}</p>

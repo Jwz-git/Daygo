@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ProviderDTO, ProviderProtocol } from '@/api/dto'
@@ -11,6 +11,7 @@ import ProviderForm from './ProviderForm.vue'
 import ProviderRoutingChain from './ProviderRoutingChain.vue'
 import SettingRow from './SettingRow.vue'
 import SwitchControl from './SwitchControl.vue'
+import { useSettingsSection } from './useSettingsSection'
 
 /*
  * AI services, laid out like the other settings sections: a title row with
@@ -21,13 +22,20 @@ import SwitchControl from './SwitchControl.vue'
 const { t } = useI18n()
 const store = useProvidersStore()
 const tokenUsage = useTokenUsageVisibilityStore()
+const { state, settings, load, persist, writeFailed } = useSettingsSection()
+const chatEdits = computed(() => settings.value?.chat.editMode === 'edits')
 
 void store.hydrate()
+onMounted(() => { void load() })
 
 /** 'new' while adding, a provider id while editing, null when closed. */
 const editing = ref<'new' | string | null>(null)
 const pendingRemoveId = ref<string | null>(null)
 const tokenUsageFailed = ref(false)
+
+function onToggleChatEdits(next: boolean): void {
+  void persist({ chatEditMode: next ? 'edits' : 'readonly' })
+}
 
 function onToggleTokenUsage(next: boolean): void {
   tokenUsageFailed.value = false
@@ -174,6 +182,16 @@ async function confirmRemove(id: string): Promise<void> {
   </div>
 
   <ProviderRoutingChain v-if="!store.isEmpty" />
+
+  <SettingRow :title="t('settings.providers.chatEditsTitle')" :hint="t('settings.providers.chatEditsHint')">
+    <SwitchControl
+      :checked="chatEdits"
+      :disabled="state !== 'ready'"
+      :label="t('settings.providers.chatEditsTitle')"
+      @toggle="onToggleChatEdits"
+    />
+  </SettingRow>
+  <p v-if="writeFailed" class="write-error" role="alert">{{ t('settings.providers.writeError') }}</p>
 
   <!-- How the models' usage is shown, not which models are called: hiding the
        card never stops GetTokenUsage from being read. -->

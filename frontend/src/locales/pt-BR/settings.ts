@@ -69,8 +69,6 @@ export default {
     writeError: 'Não foi possível salvar. A configuração anterior foi restaurada.',
     editsTitle: 'Permitir que ferramentas externas façam alterações',
     editsHint: 'Deixe os clientes MCP e a linha de comando editarem cartões, categorias e metas.',
-    chatEditsTitle: 'Permitir que a conversa faça alterações',
-    chatEditsHint: 'Deixe a conversa dentro do aplicativo editar cartões, categorias e metas para você. Independente da configuração acima.',
   },
   general: {
     notificationsUnavailable: 'As notificações do sistema estão indisponíveis neste ambiente no momento.',
@@ -180,6 +178,8 @@ export default {
     directoryUnavailable: 'Indisponível',
   },
   providers: {
+    chatEditsTitle: 'Permitir que a conversa faça alterações',
+    chatEditsHint: 'Deixe a conversa dentro do aplicativo editar cartões, categorias e metas para você.',
     title: 'Serviços de IA',
     description: 'Informe o endereço do serviço, o tipo de API e o nome do modelo para conectar o seu próprio serviço de IA.',
     empty: 'Nenhum serviço de IA ainda.',

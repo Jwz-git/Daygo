@@ -69,8 +69,6 @@ export default {
     writeError: '儲存失敗，已還原原設定。',
     editsTitle: '允許外部工具修改',
     editsHint: '允許透過 MCP 或命令列修改卡片、分類和目標。',
-    chatEditsTitle: '允許對話修改',
-    chatEditsHint: '允許應用程式內的對話幫你修改卡片、分類和目標。與上一項互不影響。',
   },
   general: {
     notificationsUnavailable: '目前環境暫時無法使用系統通知。',
@@ -180,6 +178,8 @@ export default {
     directoryUnavailable: '暫不可用',
   },
   providers: {
+    chatEditsTitle: '允許對話修改',
+    chatEditsHint: '允許應用程式內的對話幫你修改卡片、分類和目標。',
     title: 'AI 服務',
     description: '填寫服務網址、介面類型和模型名稱，即可接入你自己的 AI 服務。',
     empty: '還沒有加入 AI 服務。',

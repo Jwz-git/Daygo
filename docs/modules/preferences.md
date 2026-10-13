@@ -13,6 +13,11 @@
 
 ## 当前状态与证据
 
+2026-10-13：将「允许对话修改」从 MCP / CLI 移到 AI 服务，在「显示 Token 用量」之前
+呈现；九语言文案迁入 `settings.providers`，删除依赖旧位置的「与上一项互不影响」。
+沿用 `chat.editMode` 与既有设置加载、保存和失败读回路径；MCP / CLI 保留外部工具权限。
+验证与限制见下方记录。
+
 2026-10-13：按用户要求移除「通用与外观」中的「在 Dock 中显示」开关和说明，
 同步删除九语言对应文案。后台 `system.showDockIcon` 设置与已有保存值、原生 Dock 策略
 和退出行为保留；此变更仅移除设置页入口，验证见下方记录。
@@ -133,6 +138,20 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 不能靠全清 localStorage 或把密钥写到本地偏好恢复状态。
 
 ## 验证记录
+
+2026-10-13（`test`，基于 `140fc97` 工作树，macOS arm64）：将「允许对话修改」从
+`AgentAccessSection` 移入 `ProvidersSection`，位于 Token 用量开关之前；沿用
+`useSettingsSection` 加载与保存，未就绪时禁用，失败显示错误并重新读取设置。
+输入为 `#/settings?section=providers` 和 `#/settings?section=agentAccess`；预期 AI 服务
+出现对话权限开关，MCP / CLI 仅有外部工具权限，两者仍各写 `chatEditMode` 与
+`agentEditsEnabled`。静态核对模板、事件处理及九语言文案引用符合预期；文案移入
+`settings.providers` 并去掉「与上一项互不影响」，不改保存值或后端门禁。
+完整 `./scripts/gate.sh` 通过：Go 测试 / build / vet、三平台无 cgo 核心交叉构建、
+前端 267 项单测 / typecheck / build、文档检查通过，`gofmt -l .` 无输出；Windows
+安装器夹具 6 项通过、10 项因需 Windows 主机跳过。构建仍有原有 macOS 目标版本警告。
+本次属于 preferences 布局 / chat 设置入口迁移；真实 Wails 开关操作、重启读回和对话
+写入闭环未复验，不扩大 G-host / G-native 或 v1 交付范围。回退：撤销本次提交，
+无数据库迁移或权限值改写。
 
 2026-10-13（`test`，基于 `108f03e` 工作树，macOS arm64）：移除「通用与外观」中的
 Dock 显示开关、对应计算状态与平台判断，删除全部九语言的 `settings.general.showDockIcon`

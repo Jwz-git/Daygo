@@ -69,8 +69,6 @@ export default {
     writeError: '저장하지 못했습니다. 이전 설정으로 되돌렸습니다.',
     editsTitle: '외부 도구의 변경 허용',
     editsHint: 'MCP 클라이언트와 명령줄이 카드, 카테고리, 목표를 편집하도록 허용합니다.',
-    chatEditsTitle: '채팅의 변경 허용',
-    chatEditsHint: '앱 안의 채팅이 카드, 카테고리, 목표를 편집하도록 허용합니다. 위 설정과는 별개입니다.',
   },
   general: {
     notificationsUnavailable: '현재 이 환경에서는 시스템 알림을 사용할 수 없습니다.',
@@ -180,6 +178,8 @@ export default {
     directoryUnavailable: '사용할 수 없음',
   },
   providers: {
+    chatEditsTitle: '채팅의 변경 허용',
+    chatEditsHint: '앱 안의 채팅이 카드, 카테고리, 목표를 편집하도록 허용합니다.',
     title: 'AI 서비스',
     description: '서비스 주소, API 유형, 모델 이름을 입력하면 직접 쓰는 AI 서비스를 연결할 수 있습니다.',
     empty: '아직 AI 서비스가 없습니다.',

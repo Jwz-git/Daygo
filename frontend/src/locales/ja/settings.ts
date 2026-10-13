@@ -69,8 +69,6 @@ export default {
     writeError: '保存できませんでした。以前の設定に戻しました。',
     editsTitle: '外部ツールによる変更を許可',
     editsHint: 'MCP クライアントとコマンドラインによるカード、カテゴリ、目標の編集を許可します。',
-    chatEditsTitle: 'チャットによる変更を許可',
-    chatEditsHint: 'アプリ内チャットがカード、カテゴリ、目標を編集できるようにします。上の設定とは独立しています。',
   },
   general: {
     notificationsUnavailable: 'この環境では現在、システム通知を利用できません。',
@@ -180,6 +178,8 @@ export default {
     directoryUnavailable: '利用できません',
   },
   providers: {
+    chatEditsTitle: 'チャットによる変更を許可',
+    chatEditsHint: 'アプリ内チャットがカード、カテゴリ、目標を編集できるようにします。',
     title: 'AI サービス',
     description: 'サービスの URL、API の種類、モデル名を入力すると、自分の AI サービスを接続できます。',
     empty: 'AI サービスがまだありません。',
