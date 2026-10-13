@@ -93,6 +93,19 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 
 ### 当前代码证据
 
+**2026-10-13 `test` / `main` 指向统一（macOS arm64）**：输入为 `test` 的 `ebc81b7` 与抓取后的
+`origin/main` 的 `4957729`；两者从 `bf49b34` 分叉。在 `test` 工作树合并远端 `main`，无冲突，
+保留验收文档 / 临时脚本清理记录及网站同步 / 手动部署入口；先统一本地分支指向，验证后创建
+合并提交，再使两分支指向同一合并节点并原子推送，远端以 `git ls-remote origin
+refs/heads/test refs/heads/main` 复核。合并工作树 `./scripts/gate.sh` 通过：Go 内部测试 / vet /
+无 cgo 构建与三平台核心交叉构建，前端 267 项测试 / 0 失败 / 0 跳过、typecheck / build，
+文档 69 篇 / 0 问题；Windows 安装器 16 项中 6 项通过、10 项需 Windows 主机而跳过。
+`npm --prefix web ci`、网站 7 项单测与 build 通过；`gofmt -l .` 无输出，工作树 / 暂存差异
+检查通过。Wails 引导构建保留既有 deployment target / UserNotifications 告警；未执行真实
+宿主 / Provider / Pages 部署 / 安装升级或长期观察，不扩大历史验收范围。
+回退：对合并提交执行 `git revert -m 1 <merge_commit>` 可恢复合并前 `test` 内容；若需恢复
+合并前远端 `main` 内容则用 `-m 2`，保留历史并让两分支指向同一回退提交。
+
 **2026-10-13 临时脚本清理（`test`，基于 `ff181c3` 工作树，macOS arm64）**：输入为脚本清单、
 当前磁盘与 CI / Wails / npm / 文档引用；删除未跟踪的 README 一次性生成器、两个文档同步脚本
 和 Swift / HTML 进度条探针，共 5 个本地临时文件。21 个仍有维护用途的脚本入口保留，

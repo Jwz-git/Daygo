@@ -32,6 +32,11 @@ Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路
 构建 / Pages 项目路径与浏览器验证范围见本册验证记录和 [网页说明](../../web/README.md)。
 正式 Release 触发的部署工作流保持原入口，本次替换不改变桌面功能或 G-native 验收范围。
 
+**2026-10-13 分支整合后的网页状态**：合入 `main` 的 `4957729`，保留 10-12 同步的来源
+`712b864`；Dayflow 独立设计参考章节与图片已移除，页尾致谢保留。Release 下载与隐私文案
+沿用本仓库实现，Pages 工作流新增手动部署所选分支的入口，普通 push 仍不触发部署。
+范围见 [网页说明](../../web/README.md)，本轮整合验证见 [09 当前代码证据](../09-roadmap.md#当前代码证据)。
+
 实现进度：部分实现。已有 [Wails 配置](../../cmd/daygo/wails.json)、macOS / Linux 开发构建链，
 以及 Windows 的 `scripts/dev.ps1` / `scripts/build.ps1` 入口；Windows 构建会校验 EXE 与必需的
 `daygo_windows_native.dll` 同时产出。打包入口方面，`scripts/package-macos.sh` 产出签名 DMG，

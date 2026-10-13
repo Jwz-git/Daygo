@@ -1,10 +1,5 @@
 # Daygo site · design notes
 
-Imported design notes for the pinned source version in [README.md](README.md).
-These describe the website replica; they do not certify parity with every current desktop component.
-
-> **Daygo takes design inspiration from [Dayflow](https://dayflow.so)** ([source](https://github.com/JerryZLiu/Dayflow)) and is built with Go + Wails + Vue for macOS and Windows. The hero pill, inspiration section and footer credit Dayflow as a design reference.
->
 > **One scroll = one day.** The page runs from sunrise (06:00) to midnight. The sky, the sun and the nav clock follow the scroll; when the sun sets the whole page — including the app window — switches to Daygo's dark appearance.
 
 ## 1. Structure
@@ -17,8 +12,7 @@ These describe the website replica; they do not certify parity with every curren
 | 周报 / Weekly | 14:00 | "Most used per category" treemap + "Time between categories and apps" sankey |
 | 对话 / Chat (preview) | 16:00 | The chat panel answering a question |
 | 原理 / How | 18:40 dusk | Screenshots flow into an AI lens and come out as timeline cards |
-| 设计参考 / Inspiration | 19:30 | Dayflow as a design reference alongside Daygo and its Go · Wails · Vue stack |
-| 隐私 / Privacy | 20:30 night | Four short points: local first, custom models, blocked apps, keys in Keychain |
+| 隐私 / Privacy | 20:30 night | Four short points: local first, your own model, blocked apps, keys in Keychain |
 | 下载 / Download | 23:00 midnight | Stars, moon, app icon, download buttons |
 
 Only the opening shows the whole window; every other feature is one component on its own.
@@ -35,7 +29,7 @@ Sample data (`src/data.js`) is anonymous but shaped like a real day: gaps betwee
 
 ## Language
 
-`中 / EN` in the nav switches everything — site copy, app strings, sample data, date and duration formats — and remembers the choice. The first visit defaults to English, matching the imported implementation.
+`中 / EN` in the nav switches everything — site copy, app strings, sample data, date and duration formats — and remembers the choice. The first visit follows the browser language.
 
 ## Type
 
@@ -81,6 +75,5 @@ src/styles.css    site styles
 ```bash
 npm run dev     # http://127.0.0.1:5180
 npm run build   # dist/, deployable to any static host
+npm run deploy  # build and push to gh-pages
 ```
-
-Deployment follows the parent repository’s [release workflow](../.github/workflows/deploy-web.yml), documented in [README.md](README.md). The upstream local gh-pages deployment script is not used here.

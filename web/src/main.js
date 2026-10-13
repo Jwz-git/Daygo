@@ -153,7 +153,6 @@ function measure() {
     [sec('#weekly') + vh * 0.3, 14 * 60],
     [sec('#chat') + vh * 0.3, 16 * 60],
     [sec('#how') + vh * 0.2, 18 * 60 + 40],
-    [sec('#origin') + vh * 0.2, 19 * 60 + 30],
     [sec('#privacy') + vh * 0.1, 20 * 60 + 30],
     [sec('#download'), 22 * 60 + 40],
     [docMax, 23 * 60 + 50],
