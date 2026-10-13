@@ -1571,6 +1571,8 @@ Windows 的静态库 / DLL 必须与 Go 桥一起重建。System ABI 1.6 另提�
 显示 modeless 提示前显式调用 `NSAlert.layout()`，正文完整换行且只显示配置的一个按钮；
 不阻塞系统事件泵，System 关闭时移除；收尾失败的退出选择仍在独立 Wails 退出回调中等待。
 
+2026-10-13：前端设置页已移除 Dock 显示开关；以下后台字段与策略保留，继续尊重已有保存值。
+
 `system.showDockIcon` 在启动及设置持久化后驱动 macOS 激活策略；关闭时窗口仍可显示，但从
 Dock / Cmd+Tab 隐去。软退出单独隐藏窗口并请求 accessory，重开按已保存偏好恢复策略。
 进入 accessory 前确认状态栏恢复入口可用，否则保留 regular；原生失败不记为已应用，并在

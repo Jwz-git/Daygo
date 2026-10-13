@@ -74,8 +74,6 @@ export default {
   },
   general: {
     notificationsUnavailable: 'Les notifications système ne sont pas disponibles dans cet environnement pour le moment.',
-    showDockIcon: "Afficher dans le Dock",
-    showDockIconHint: "Sinon, ouvrez Daygo depuis la barre des menus. Cmd+Q masque la fenêtre et poursuit l’enregistrement. Le Dock reste disponible si la barre des menus ne l’est pas.",
     launchAtLogin: 'Ouvrir à l’ouverture de session',
     launchAtLoginHint: 'Ouvre Daygo automatiquement à l’ouverture de session et continue d’enregistrer en arrière-plan.',
     testTools: 'Outils de test',

@@ -74,8 +74,6 @@ export default {
   },
   general: {
     notificationsUnavailable: 'As notificações do sistema estão indisponíveis neste ambiente no momento.',
-    showDockIcon: "Mostrar no Dock",
-    showDockIconHint: "Quando desativado, abra o Daygo pela barra de menus. Cmd+Q oculta a janela e continua gravando. Se a barra de menus estiver indisponível, o Dock permanece disponível.",
     launchAtLogin: 'Abrir ao iniciar sessão',
     launchAtLoginHint: 'Abra o Daygo sozinho quando você entrar no sistema e continue gravando em segundo plano.',
     testTools: 'Ferramentas de teste',

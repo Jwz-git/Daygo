@@ -27,14 +27,12 @@ const testToolsConfigurable = __DAYGO_TEST_TOOLS__
 const { state: systemState, settings: systemSettings, load: loadSystem, persist: persistSystem, writeFailed: systemWriteFailed } =
   useSettingsSection()
 const launchAtLogin = computed(() => systemSettings.value?.system.launchAtLogin ?? false)
-const showDockIcon = computed(() => systemSettings.value?.system.showDockIcon ?? true)
 const journalReminderEnabled = computed(
   () => systemSettings.value?.notifications.journalReminderEnabled ?? false,
 )
 const journalReminderTime = computed(
   () => systemSettings.value?.notifications.journalReminderTime ?? '18:00',
 )
-const dockConfigurable = document.documentElement.dataset.dgPlatform === 'darwin'
 
 onMounted(() => {
   void loadSystem()
@@ -142,15 +140,6 @@ const languageOptions = computed<DgSelectOption<LanguagePreference>[]>(() =>
     />
   </SettingRow>
   <p v-if="systemWriteFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
-
-  <SettingRow v-if="dockConfigurable" :title="t('settings.general.showDockIcon')" :hint="t('settings.general.showDockIconHint')">
-    <SwitchControl
-      :checked="showDockIcon"
-      :disabled="systemState !== 'ready'"
-      :label="t('settings.general.showDockIcon')"
-      @toggle="(next: boolean) => persistSystem({ showDockIcon: next })"
-    />
-  </SettingRow>
 
   <SettingRow
     :title="t('settings.general.journalReminder')"

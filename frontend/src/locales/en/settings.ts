@@ -74,8 +74,6 @@ export default {
   },
   general: {
     notificationsUnavailable: 'System notifications are currently unavailable in this environment.',
-    showDockIcon: "Show in Dock",
-    showDockIconHint: "When off, open Daygo from the menu bar. Cmd+Q hides the window and keeps recording in the background. The Dock stays available if the menu bar is unavailable.",
     launchAtLogin: 'Launch at login',
     launchAtLoginHint: 'Open Daygo automatically when you log in, and keep recording in the background.',
     testTools: 'Test tools',

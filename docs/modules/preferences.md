@@ -13,6 +13,10 @@
 
 ## 当前状态与证据
 
+2026-10-13：按用户要求移除「通用与外观」中的「在 Dock 中显示」开关和说明，
+同步删除九语言对应文案。后台 `system.showDockIcon` 设置与已有保存值、原生 Dock 策略
+和退出行为保留；此变更仅移除设置页入口，验证见下方记录。
+
 2026-10-13 审查补充：停止录制后的跨重启意图尚无设置持久化，行为与键名须先由
 recording 明确（AUD-04）。Chat 导航 / 路由未受 v1 交付门禁控制（AUD-05），应与 delivery
 协调生产范围。`GetCapabilities.appVersion` 固定为 `0.0.0`（AUD-06），能力接口版本来源
@@ -129,6 +133,17 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 不能靠全清 localStorage 或把密钥写到本地偏好恢复状态。
 
 ## 验证记录
+
+2026-10-13（`test`，基于 `108f03e` 工作树，macOS arm64）：移除「通用与外观」中的
+Dock 显示开关、对应计算状态与平台判断，删除全部九语言的 `settings.general.showDockIcon`
+与 `showDockIconHint`。输入为 `#/settings?section=general`；完成标准是该行与说明不再渲染、
+无残余文案引用，其余设置保持原接入。组件模板与引用搜索确认满足此标准。
+完整 `./scripts/gate.sh` 通过：Go 测试 / build / vet、三平台无 cgo 核心交叉构建、
+前端 267 项单测 / typecheck / build、文档检查通过，`gofmt -l .` 无输出；Windows
+安装器夹具 6 项通过、10 项因需 Windows 主机跳过。构建保留原有 macOS 链接目标版本警告。
+本次属于 preferences 设置入口移除；未运行真实 Wails 窗口或 Dock / 退出行为回归，
+不扩大 G-host / G-native 验收范围。保留后台设置、已有保存值和生命周期策略；
+回退为撤销本次提交，无数据库迁移或设置值改写。
 
 2026-10-13（`test`，基于 `002960f` 工作树，macOS arm64）：录制存储页补齐
 `SettingGroup` 导入，恢复录制质量 / 空间上限 / 目录的分组标题与布局；诊断详情改为原生

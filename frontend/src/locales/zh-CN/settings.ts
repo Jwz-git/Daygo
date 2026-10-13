@@ -74,8 +74,6 @@ export default {
   },
   general: {
     notificationsUnavailable: '当前环境暂时无法使用系统通知。',
-    showDockIcon: "在 Dock 中显示",
-    showDockIconHint: "关闭后通过菜单栏打开 Daygo。Cmd+Q 会隐藏窗口并继续后台记录；菜单栏不可用时会保留 Dock。",
     launchAtLogin: '开机自启',
     launchAtLoginHint: '登录电脑后自动打开 Daygo，并在后台继续记录。',
     testTools: '测试工具',

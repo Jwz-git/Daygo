@@ -74,8 +74,6 @@ export default {
   },
   general: {
     notificationsUnavailable: 'Systembenachrichtigungen sind in dieser Umgebung derzeit nicht verfügbar.',
-    showDockIcon: "Im Dock anzeigen",
-    showDockIconHint: "Wenn deaktiviert, öffnest du Daygo über die Menüleiste. Cmd+Q blendet das Fenster aus und zeichnet weiter auf. Ohne Menüleisteneintrag bleibt das Dock verfügbar.",
     launchAtLogin: 'Beim Anmelden starten',
     launchAtLoginHint: 'Daygo beim Anmelden automatisch öffnen und im Hintergrund weiter aufzeichnen.',
     testTools: 'Testwerkzeuge',
