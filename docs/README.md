@@ -45,6 +45,7 @@
 | [plan](modules/plan.md) | 计划时间块、完成标记与开始 / 分心提醒（基础提交 `4dac8b7`，已合入 `test`） |
 | [agent](modules/agent.md) | CLI、agent.sock 与 MCP（基础实现已落盘，v1 不交付） |
 | [chat](modules/chat.md) | 应用内自然语言问答与受控编辑（部分实现，v1 不交付） |
+| [play](modules/play.md) | 由卡片数据生成的拼岛小游戏（仅策划案，未开始） |
 
 新增执行册沿用 [模板](modules/_template.md)。这些功能边界不改变 02 的技术分层。
 
@@ -86,6 +87,7 @@
 | [Windows 录制目录迁移](decisions/recording-directory-windows.md) | Windows 已实现，真实迁移于 10-13 用户确认已验收 | 迁移 recordings/ 树到用户所选空目录；DB / 备份 / 密钥 / 锁留在应用数据目录，segment_path 保持相对根不改写 |
 | [Windows 日记 / 计划通知](decisions/notifications-windows-toast.md) | 已决定并实现；真实送达于 10-13 用户确认已验收 | C++/WinRT、当前用户 AUMID / COM、一次性系统排程与取消、身份与送达边界 |
 | [日记提醒通知](decisions/notifications-journal-reminder.md) | 已决定并实现；原生投递于 10-13 用户确认已验收 | Go 拥有重复调度与一次性原生通知端口、墙钟时刻，文案经 NativeUiLabelsDTO 下发；原生不可用则静默门禁 |
+| [play 玩法选型：方块拼岛](decisions/play-game-style.md) | 提议，待用户确认 | 六类候选对比、调研依据、软上限与无 streak 约束 |
 
 `scripts/check-docs.py` 会检查本目录里所有链接和小节锚点是否存在、有没有“谁都没链接到”
 的孤立文档；它由 `scripts/gate.sh` 调用。它只能证明文档内部自洽，**不能证明文档与代码一致**

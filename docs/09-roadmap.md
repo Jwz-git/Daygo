@@ -48,6 +48,7 @@ Windows 录制目录迁移已落盘：可选择空目录并复制历史录制，
 | [plan 计划与提醒](modules/plan.md) | 计划时间块、完成标记、开始 / 分心系统通知、CLI / MCP / chat 读写 | 部分实现（基础提交 `4dac8b7`，已合入 `test`）：v20 `plan_blocks`、日内 `HH:mm` 换算、派生分钟、四个绑定与 `plan:updated`、四个外部写操作与 `plan` 读、提醒对账循环、macOS `UNUserNotificationCenter` 投递、10-09 Windows 同端口投递、检查器面板与时间栏标记；10-07 派生分钟随时间线 / 目标刷新、隔离迟到周请求 | Go / fake / 前端夹具有历史记录；真实 Wails 计划写入 / 日周展示 / 派生分钟、两平台通知授权与投递、CLI / MCP / socket / chat 往返于 10-13 用户确认已验收（无逐项记录）；点击唤回仍在范围外 |
 | [agent 对外程序化接口](modules/agent.md) | CLI 查询、agent.sock 受控写入、MCP 工具面 | 部分实现：CLI 读 / write 子命令、stdio MCP 六读十一写（计划读写随 plan 加入，10-13 新增合并）、宿主 socket 与共享执行器、来源审计、MCP 配置 / CLI 示例；search 与 Windows 终端 CLI 未实现；v1 不交付；10-13 增量：`card_merge` 受控卡片合并 | Go 协议 / socket / 宿主与前端夹具有历史记录；已实现 CLI / socket / MCP 及新增计划读写的真实客户端闭环于 10-13 用户确认已验收（无逐项记录）；未实现入口不在范围，v1 不交付；本次合并增量自动化记录见对应执行册，真实客户端 / Wails 闭环未运行 |
 | [chat 应用内对话](modules/chat.md) | 自然语言问答与沙箱内受控增删改查 | 部分实现：多会话纯对话、会话级 Provider / 模型、16 个封闭工具（含计划五项）的 agent 循环、只读 / 只读实例双门禁、调用预算 / 取消、`llm_calls` 审计元数据和工具消息 UI；10-13 增量：`card_merge` 受控卡片合并 | Go 回合 / 参数 / 门禁 / 预算 / 取消与前端夹具有历史记录；已实现问答 / 编辑及新增计划工具的真实 Provider / Wails 闭环于 10-13 用户确认已验收（无逐项记录）；search / status / 独立写入审计 / 诊断计数未实现，v1 不交付；本次合并增量自动化记录见对应执行册，真实客户端 / Wails 闭环未运行 |
+| [play 拼岛小游戏](modules/play.md) | 由当日 / 当周卡片生成方块的益智休闲小游戏：每日任务、每周一岛与图册 | 未开始：仅策划案（2026-10-13），玩法选型为提议、待用户确认；是否进 v1 待决 | 未运行 |
 
 ### 9.1.1 本轮验收记录与证据边界
 
@@ -512,6 +513,7 @@ H-1（UI 范围）归每个界面模块；各模块承担自身的 i18n、空态
 | 23 | Chat 会话模型、流式输出、消息留存与 provider 路由 | chat / 产品 + 工程 | **会话模型、流式、provider 路由已决定**：多会话、原子消息、会话级 provider 选择（必选，新会话默认路由链首位，不回退），见 [decisions/chat-session-model.md](decisions/chat-session-model.md)；消息留存与审计来源标记仍待定，与 #15 / #22 一并定 |
 | 24 | Linux 适配器形态 | recording / 工程，delivery 协作 | **已排期**。Linux 桌面壳与构建入口已有初级适配；Secrets 已决定使用 Secret Service / `secret-tool`，见 [Secret Service 决策](decisions/providers-secrets-linux.md)。Capture / System / 状态栏与发布包形态见 [Linux 截图决策](decisions/recording-screen-capture-linux.md)（X11 vs Wayland、Portal 接口及 deb / rpm / AppImage 取舍，逐项决策中）|
 | 25 | Windows 终端 CLI 入口（发布构建为 `-H windowsgui` GUI 子系统，终端无输出；候选：随安装包附带控制台子系统的 `daygo-cli.exe`，或维持仅 MCP） | agent / 工程，delivery 协作 | **待定设计**（2026-09-25 用户确认暂缓）。当前 Windows 设置页只提供 MCP 配置、不展示 CLI；决策前不改安装包内容。见 [agent 执行册](modules/agent.md) |
+| 26 | play 小游戏范围：玩法选型、是否进 v1、`play.enabled` 默认值与二期「今日拼图」 | delivery / 范围，play 协作 | **提议，待用户确认**。候选与调研见 [决策记录](decisions/play-game-style.md)，策划案见 [play 执行册](modules/play.md)；确认前不实现代码、迁移或绑定 |
 
 决定写入 `docs/decisions/<module>-<topic>.md`，记录候选、实验、结果、边界与回退，
 同步相应公共规范。无证据不标为已决定。捕获旧文档路径仅保留历史跳转。
