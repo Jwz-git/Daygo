@@ -676,6 +676,8 @@ func mapCardRegenerationError(err error) error {
 		return apperr.E(apperr.InvalidArgument, "reprocess card: "+err.Error(), err)
 	case errors.Is(err, analysis.ErrWindowInAnalysis):
 		return apperr.E(apperr.Conflict, "reprocess card: "+err.Error(), err)
+	case errors.Is(err, analysis.ErrCardChanged):
+		return apperr.E(apperr.Conflict, "reprocess card: source card was replaced", err)
 	case errors.Is(err, analysis.ErrCardsInvalid):
 		return apperr.E(apperr.ProviderFailed, "reprocess card: "+err.Error(), err)
 	case errors.Is(err, ai.ErrNoProvider):

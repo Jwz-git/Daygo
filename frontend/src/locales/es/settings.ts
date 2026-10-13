@@ -66,7 +66,7 @@ export default {
     copied: 'Copiado',
     writeError: 'No se pudo guardar. Se restauró tu ajuste anterior.',
     editsTitle: 'Permitir que las herramientas externas hagan cambios',
-    editsHint: 'Deja que los clientes MCP y la línea de comandos editen tarjetas, categorías y objetivos.',
+    editsHint: 'Deja que los clientes MCP y la línea de comandos editen y fusionen tarjetas, y editen categorías y objetivos.',
   },
   general: {
     notificationsUnavailable: 'Las notificaciones del sistema no están disponibles en este entorno por ahora.',
@@ -182,7 +182,7 @@ export default {
   },
   providers: {
     chatEditsTitle: 'Permitir que el chat haga cambios',
-    chatEditsHint: 'Deja que el chat de la aplicación edite tarjetas, categorías y objetivos por ti.',
+    chatEditsHint: 'Deja que el chat de la aplicación edite y fusione tarjetas, y edite categorías y objetivos por ti.',
     title: 'Servicios de IA',
     description: 'Introduce la URL del servicio, el tipo de API y el nombre del modelo para conectar tu propio servicio de IA.',
     empty: 'Todavía no hay servicios de IA.',

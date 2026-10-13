@@ -10,7 +10,7 @@
 
 Chat **不借助外部 CLI、agent.sock 或 MCP**：它是宿主内功能（UI → B1 绑定 → chat 服务），
 直接调用与绑定层同源的服务路径。工具读面与 CLI 读命令同源、写面不超出 agent.sock 的
-十个操作（2026-10-03 随 [plan](plan.md) 增加计划四项写与 `plan` 读，基础提交 `4dac8b7`，已合入 `test`），因此三条通道（CLI / 外部 agent / Chat）共享同一套查询与写入语义，不出现第四套。
+十一个操作（10-13 增加 `card_merge`；2026-10-03 随 [plan](plan.md) 增加计划四项写与 `plan` 读，基础提交 `4dac8b7`，已合入 `test`），因此三条通道（CLI / 外部 agent / Chat）共享同一套查询与写入语义，不出现第四套。
 
 非目标：不做通用助手或自由工具执行（工具集封闭）；不执行任意 SQL、不访问文件系统与
 shell；不暴露原始帧、分段路径、密钥或 LLM payload；采用原子消息，token 级流式仅保留为后续候选；
@@ -22,6 +22,10 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；采用原子
 [decisions/chat-session-model](../decisions/chat-session-model.md)。
 
 ## 当前状态与证据
+
+2026-10-13：新增 `card_merge` 工具与提示词规则，沿用每次工具执行重读的 `chat.editMode`。
+先读来源，只合并用户指定的确切 ID；不得以修改 / 删除工具模拟合并或填补空隙。
+工具目录扩为六读十一写；设置说明九语言明确包含合并。验证与限制见下方记录。
 
 2026-10-13：「允许对话修改」设置入口由 MCP / CLI 移至 AI 服务，默认只读与
 服务端 `chat.editMode` 门禁不变；九语言说明移除对旧相邻开关的引用。
@@ -51,10 +55,10 @@ search / status、独立写入审计及留存缺口仍保留；回合 / 协议�
 前端 store / 视图（对话列表在右侧、全局指令与列表并列页签、进入即新会话草稿、对话有
 标题后才入列表）。
 
-agent 切片已落地（迁移 v6 起）：11 工具封闭目录（读 5：timeline / card / daily / weekly /
-categories；写 6 与 §5.9.2 一致）与逐工具 JSON Schema、协议无关信封
+agent 切片已落地（迁移 v6 起）：17 工具封闭目录（读 6：timeline / card / daily / weekly /
+categories / plan；写 11 与 §5.9.2 一致）与逐工具 JSON Schema、协议无关信封
 `{"kind":"answer|tool",…}`（`Strict:false` + Go 侧紧校验，畸形回复纠正重试计入预算）、
-`chat.editMode` 门禁（服务端每回合重读，readonly 下写工具收 `edits_disabled` 工具结果、
+`chat.editMode` 门禁（服务端每次工具执行重读，readonly 下写工具收 `edits_disabled` 工具结果、
 回合继续）+ 只读实例双层守卫（`not_capture_owner`）、预算（8 次调用 / 64 KiB 结果截断 /
 120 s 总时限，取消与总时限共用 context）、`llm_calls` purpose=`chat` 审计行（observer 在
 retry 外层，取消回合的失败 attempt 不丢）、与绑定同源的共享写路径（`internal/app/writes.go`，
@@ -132,6 +136,11 @@ token 级流式输出（已定：原子消息）、消息留存策略、审计�
 捕获与分析；会话数据独立于业务表，清除不伤及时间线。
 
 ## 验证记录
+
+2026-10-13 合并卡片增量（`test`，基于 `f04a6ef` 工作树，macOS arm64）：本地 HTTP Provider 模拟的工具回合在 readonly 下返回 edits_disabled 且不调用执行器，edits 下执行一次并记录合并结果；共享执行器与绑定同库终态 / 事件一致。未运行实际 Provider / Wails 对话。
+完整命令、输入 / 期望 / 实际结果、跳过项与回退边界见 [timeline 本次验证记录](timeline.md#验证记录)。
+本次增量由自动化证明上述范围，不沿用此前用户确认作为真实闭环验收。
+
 
 2026-10-13（`test`，基于 `bf49b34` 工作树；来源：本次用户明确确认全部待验收项已完成）：
 已实现问答 / 受控编辑与新增计划工具的真实 Provider / Wails 闭环，均记为**用户确认已验收，未附逐项运行记录**。

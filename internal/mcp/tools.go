@@ -33,7 +33,7 @@ type toolSpec struct {
 	Write       bool
 }
 
-// catalog is the closed tool set in fixed order: six reads then the ten write
+// catalog is the closed tool set in fixed order: six reads then the eleven write
 // operations of §5.9.2. The write names are sourced from agentbridge.Operations
 // so this face cannot drift from the bridge's accepted set. Argument schemas
 // mirror docs/05 §5.9.2 / §5.12 semantics; the authoritative validation is
@@ -53,7 +53,7 @@ func buildCatalog() []toolSpec {
 	return append(reads, writes...)
 }
 
-// writeToolSpecs builds the ten write specs by iterating
+// writeToolSpecs builds the eleven write specs by iterating
 // agentbridge.Operations, so the names and order are the bridge's, not a
 // second hand-kept list.
 func writeToolSpecs() []toolSpec {
@@ -71,6 +71,8 @@ func writeToolSpecs() []toolSpec {
 			schema(`{"cardId":{"type":"integer","minimum":1},"category":{"type":"string","minLength":1,"maxLength":64},"title":{"type":"string","minLength":1,"maxLength":200}}`, `["cardId"]`)},
 		"card_delete": {"Soft-delete a card; it can be restored by reprocessing.",
 			schema(`{"cardId":{"type":"integer","minimum":1}}`, `["cardId"]`)},
+		"card_merge": {"Merge 2 to 32 existing non-built-in timeline cards. Read their ids and content first. Ranges must be contiguous or overlapping, at most four hours, with no unselected live card overlapping. Supply combined title, summary, existing non-built-in category name and optional detailedSummary. Source cards are soft-deleted; times and evidence are preserved. Returns cardId, mergedCardIds, day, startTs and endTs. Gated by agentEditsEnabled.",
+			schema(`{"cardIds":{"type":"array","items":{"type":"integer","minimum":1,"maximum":9007199254740991},"minItems":2,"maxItems":32,"uniqueItems":true},"title":{"type":"string","minLength":1,"maxLength":200},"summary":{"type":"string","minLength":1,"maxLength":4000},"detailedSummary":{"type":"string","maxLength":16000},"category":{"type":"string","minLength":1,"maxLength":64}}`, `["cardIds","title","summary","category"]`)},
 		"goal_set": {"Set one logical day's goal: focus minutes, distraction limit, skip flag, focus/distraction category ids.",
 			schema(`{"day":{"type":"string","pattern":"`+dayPattern+`"},"focusTargetMinutes":{"type":"integer","minimum":0},"distractionLimitMinutes":{"type":"integer","minimum":0},"isSkipped":{"type":"boolean"},"focusCategoryIds":{"type":"array","items":{"type":"string","minLength":1},"maxItems":32,"uniqueItems":true},"distractionCategoryIds":{"type":"array","items":{"type":"string","minLength":1},"maxItems":32,"uniqueItems":true}}`, `["day"]`)},
 		"plan_add": {"Add a plan block to one logical day. start/end are 24-hour HH:mm; times before 04:00 belong to the next calendar date of that day and end 04:00 means the end of the day. title required; notes free text; categoryId optional; remind (default true) notifies at the start.",

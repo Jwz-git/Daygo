@@ -73,6 +73,19 @@ func (e chatToolExecutor) dispatch(ctx context.Context, call chat.ToolCall) (jso
 		return toolOKEnvelope()
 	case chat.ToolGoalSet:
 		return e.goalSet(ctx, call.Arguments)
+	case chat.ToolCardMerge:
+		if err := chat.ValidateWriteArguments(call.Tool, call.Arguments); err != nil {
+			return nil, toolError(apperr.InvalidArgument, "invalid card_merge arguments.")
+		}
+		var input MergeCardsInputDTO
+		if err := json.Unmarshal(call.Arguments, &input); err != nil {
+			return nil, toolError(apperr.InvalidArgument, "invalid card_merge arguments.")
+		}
+		result, err := backend.mergeCards(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
 	case chat.ToolPlan:
 		return e.planResult(ctx, stringField(call.Arguments, "day"))
 	case chat.ToolPlanAdd:

@@ -15,6 +15,11 @@
 
 ## 当前状态与证据
 
+2026-10-13：新增共享 `MergeCards` 绑定与原子存储路径，连续 / 重叠的 2–32 张卡片
+合并为人工编辑新行，保留来源软删除记录与证据；拒绝空隙、超过四小时、内置分类和未选中
+重叠卡片。使用持久化时间并处理跨凌晨 4 点，与分析 / 单卡重新生成串行化，已替换来源
+不能重新生成覆盖新卡。字段见 [05 §5.9.2](../05-interface-contract.md#592-agent-bridge写入通道)，验证见下方记录。
+
 2026-10-13 审查补充：搜索仍未实现（AUD-07）；空闲纯函数已有夹具，生产帧空闲字段
 为 NULL，快速路径不生效（AUD-01）。结构 / 时间覆盖通过不能证明活动分类、时间分配或摘要
 事实准确；后续补匿名标注集与分类错误、时间偏差、遗漏对照（AUD-08），不要求文本完全一致。
@@ -171,6 +176,32 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 事务改写失败不提交，不以删除卡片重建的方式回退。schema 回退遵循 data 的备份恢复策略。
 
 ## 验证记录
+
+2026-10-13 卡片合并增量（`test`，基于 `f04a6ef` 工作树，macOS arm64）：
+
+- 输入 / 期望：匿名相邻、重叠与跨凌晨 4 点卡片 → 一个受保护的新行，源卡软删除且原文、
+  视频与反馈行保留；新行不继承旧评分 / 审阅。重复或同时使用旧 ID → 仅一次提交，其余 `not_found`。
+  重复 ID、缺失来源、空隙、超过四小时、内置分类、未知目标、无效 metadata、未选中重叠行、
+  注入插入失败 → 整笔不改原卡。纽约 DST 回拨同名时钟端点 → 保持一小时的真实 Unix 区间；
+  加德满都跨 4 点 → 两日投影均可见。自动分析不能覆盖新行，陈旧来源不能重新生成覆盖新卡。
+- 先写存储 / 工具目录 / 绑定 / 串行化夹具，再实现；无实现时编译或目录断言失败。
+  工具目录预期由 16 项显式改为 17 项（六读十一写），额外一项是 `card_merge`；未更改已有
+  单卡重新生成夹具的期望。DTO 黄金 JSON、同源绑定 / 执行器终态与事件、只读实例拒绝、
+  对话只读 / edits、真实匿名 socket 默认拒绝 / 开启成功 / 重放拒绝与无参数审计、MCP 严格
+  schema / stdio 转发和 CLI socket 转发均通过。本次对话 Provider 为本地 HTTP 模拟服务器。
+- `CGO_ENABLED=0 go test ./internal/storage ./internal/analysis ./internal/chat ./internal/app ./internal/mcp ./internal/agentcli ./internal/agentbridge` 通过。
+  `CGO_ENABLED=0 go test ./internal/storage -run TestMergeCards -count=1` 通过（含反馈保留、并发重放、DST）。
+  `CGO_ENABLED=0 go test ./internal/app -run 'CardMergeDTOGolden|CardMergeToolMatchesBinding|CardMergeBinding' -count=1` 通过。
+- `go test -race ./internal/storage ./internal/analysis ./internal/chat ./internal/app ./internal/mcp -run 'MergeCards|CardMerge|CardMutation|RegenerateCardRejectsSourceMerged' -count=1` 通过。
+- `./scripts/gate.sh` 通过：核心 build / 全 `internal` 测试 / vet、前端 269 项单测 / typecheck / build、
+  三平台无 cgo 核心交叉构建、69 份文档链接检查。`gofmt -l .` 无输出，`git diff --check` 通过。
+  Windows 安装器 16 项中 6 通过、10 因缺 Windows 主机跳过，跳过不计通过。
+  原生通知部署目标警告与 race 链接器 LC_DYSYMTAB 警告仍出现，未涉及该部分源码。
+- 限制：真实 Wails 对话、实际 Provider、外部 MCP 客户端与 Windows / Linux 主机测试未运行；
+  交叉构建只证明编译。本次增量未沿用此前用户确认作为验收证据。
+  回退可关闭各通道既有修改权限或回退本次代码；无 schema 迁移，既有合并行仍可读取，
+  回退代码不会自动拆回已合并卡片。源卡记录未物理删除。
+
 
 2026-10-13（`test`，基于 `bf49b34` 工作树；来源：本次用户明确确认全部待验收项已完成）：
 提示词 / 默认预算 / token 终止与失败批次恢复、退出取消、人工输入保护、媒体和后续界面增量的真实 Provider / Wails 闭环，均记为**用户确认已验收，未附逐项运行记录**。

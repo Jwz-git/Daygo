@@ -11,6 +11,8 @@ import (
 	"github.com/Jwz-git/Daygo/internal/agentbridge"
 	"github.com/Jwz-git/Daygo/internal/agentcli"
 	"github.com/Jwz-git/Daygo/internal/agentread"
+	"github.com/Jwz-git/Daygo/internal/ai"
+	"github.com/Jwz-git/Daygo/internal/chat"
 )
 
 type fakeReader struct {
@@ -197,6 +199,46 @@ func TestToolsCallWriteErrorMapsCode(t *testing.T) {
 		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"card_delete","arguments":{"cardId":1}}}`)
 	if !strings.Contains(line, `"isError":true`) || !strings.Contains(line, agentbridge.CodeEditsDisabled) {
 		t.Fatalf("write error should be an isError result carrying the code: %s", line)
+	}
+}
+
+func TestCardMergeSchemaAndSocketForwarding(t *testing.T) {
+	var mergeSchema json.RawMessage
+	for _, tool := range catalog {
+		if tool.Name == "card_merge" {
+			mergeSchema = tool.InputSchema
+		}
+	}
+	if len(mergeSchema) == 0 {
+		t.Fatal("missing merge schema")
+	}
+	for _, fixture := range []struct {
+		args  string
+		valid bool
+	}{
+		{`{"cardIds":[1,2],"title":"Merged","summary":"s","category":"Coding"}`, true},
+		{`{"cardIds":[1,1],"title":"Merged","summary":"s","category":"Coding"}`, false},
+		{`{"cardIds":[1],"title":"Merged","summary":"s","category":"Coding"}`, false},
+		{`{"cardIds":[1,2],"title":"Merged","category":"Coding"}`, false},
+		{`{"cardIds":[1,2],"title":"Merged","summary":"s","category":"Coding","startTs":1}`, false},
+	} {
+		if got := chat.ValidateWriteArguments("card_merge", json.RawMessage(fixture.args)) == nil; got != fixture.valid {
+			t.Fatalf("chat accepted=%v args=%s", got, fixture.args)
+		}
+		if got := ai.ValidateJSON(json.RawMessage(fixture.args), ai.OutputSchema{Schema: mergeSchema}) == nil; got != fixture.valid {
+			t.Fatalf("MCP accepted=%v args=%s", got, fixture.args)
+		}
+	}
+	writer := &fakeWriter{resp: json.RawMessage(`{"cardId":3,"mergedCardIds":[1,2]}`)}
+	request := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"card_merge","arguments":{"cardIds":[1,2],"title":"Merged","summary":"s","category":"Coding"}}}`
+	line := roundtrip(t, fakeReader{}, writer, request)
+	if writer.gotOp != "card_merge" || writer.gotSource != agentbridge.SourceMCP || !strings.Contains(string(writer.gotArgs), `"cardIds":[1,2]`) || strings.Contains(line, `"isError":true`) {
+		t.Fatalf("forwarded=%+v response=%s", writer, line)
+	}
+	writer.err = agentbridge.Errorf(agentbridge.CodeEditsDisabled, "disabled")
+	line = roundtrip(t, fakeReader{}, writer, request)
+	if !strings.Contains(line, `"isError":true`) || !strings.Contains(line, "edits_disabled") {
+		t.Fatal(line)
 	}
 }
 

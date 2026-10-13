@@ -528,6 +528,11 @@ WHERE ((start_ts < :to AND end_ts > :from) OR (start_ts >= :from AND start_ts < 
 编辑来源；旧软删除行不标记，迁移前人工删除无法可靠识别。详情见
 [人工输入保留决策](decisions/timeline-human-card-preservation.md)。
 
+`MergeCards` 是显式人工写入：单事务软删除指定来源并插入受保护的新行，不新增迁移。
+时间取已存 Unix 秒，拒绝空隙、超过 4 小时、内置分类或覆盖未选中卡片。来源的原文、完整
+metadata、视频和反馈保持在旧行，新行不继承评分 / 审阅或视频路径；显示证据与来源 ID
+保存在新 metadata。字段和串行化契约见 [05 §5.9.2](05-interface-contract.md#592-agent-bridge写入通道)。
+
 其余存活卡片在改写中吸收，`System` 回退卡也不例外；失败状态仍由 `analysis_batches` 承载。
 用户明确单卡「重新生成」使用 `ReplaceCardsInRange` 的显式替换规则，可替换人工卡并使旧反馈
 退出统计；不能把该方法用于自动分析或批次重处理。

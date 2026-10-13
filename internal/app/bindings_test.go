@@ -60,6 +60,7 @@ var contractBindings = []string{
 	"ListProviderModels",
 	"ListProviders",
 	"MoveRecordingDirectory",
+	"MergeCards",
 	"OpenCaptureTestFolder",
 	"PickApplication",
 	"PickRecordingDirectory",

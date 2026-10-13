@@ -142,6 +142,41 @@ func TestAgentLoopReadonlyGateRefusesWriteTool(t *testing.T) {
 	}
 }
 
+func TestAgentLoopCardMergeUsesExistingEditGate(t *testing.T) {
+	for _, mode := range []string{"readonly", "edits"} {
+		t.Run(mode, func(t *testing.T) {
+			executor := &fakeExecutor{result: func(call ToolCall) ToolResult {
+				if call.Tool != ToolCardMerge {
+					t.Errorf("tool=%s", call.Tool)
+				}
+				return okResult(`{"cardId":3,"mergedCardIds":[1,2],"day":"2026-09-12","startTs":1,"endTs":2}`)
+			}}
+			service, _, _ := agentService(t, mode, executor,
+				`{"kind":"tool","tool":"card_merge","arguments":{"cardIds":[1,2],"title":"Merged","summary":"s","category":"Coding"}}`,
+				`{"kind":"answer","answer":"Done."}`)
+			conversation, _ := service.NewConversation(context.Background())
+			if err := service.Send(context.Background(), conversation.ID, "Merge cards 1 and 2"); err != nil {
+				t.Fatal(err)
+			}
+			waitTurn(t, service, conversation.ID)
+			messages, err := service.Messages(context.Background(), conversation.ID, 0, 0)
+			if err != nil || len(messages) != 4 {
+				t.Fatalf("messages=%+v err=%v", messages, err)
+			}
+			if messages[2].ToolName != ToolCardMerge || messages[2].Role != RoleToolRes {
+				t.Fatalf("result=%+v", messages[2])
+			}
+			if mode == "readonly" {
+				if executor.callCount() != 0 || !strings.Contains(messages[2].Content, "edits_disabled") {
+					t.Fatalf("readonly result=%+v calls=%d", messages[2], executor.callCount())
+				}
+			} else if executor.callCount() != 1 || !strings.Contains(messages[2].Content, `"cardId":3`) {
+				t.Fatalf("write result=%+v calls=%d", messages[2], executor.callCount())
+			}
+		})
+	}
+}
+
 // Unknown tools and malformed arguments are closed errors fed back to the
 // model; the turn survives both.
 func TestAgentLoopUnknownToolAndBadArguments(t *testing.T) {

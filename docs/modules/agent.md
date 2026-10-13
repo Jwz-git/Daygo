@@ -23,6 +23,11 @@
 
 ## 当前状态与证据
 
+2026-10-13：新增 `card_merge` 写操作，CLI `daygo write card_merge` 与 MCP 写工具均经
+现有 socket / 宿主执行器；沿用默认关闭的外部修改权限，不新增开关。读面六项、写面十一项，
+合并约束与输出见 [05 §5.9.2](../05-interface-contract.md#592-agent-bridge写入通道)。
+本次增量不由历史验收覆盖，自动化与限制见下方记录。
+
 2026-10-13：MCP / CLI 设置页移除「访问权限」分组标题与说明；外部工具修改开关、
 默认关闭和服务端权限校验保持原行为。验证见 [preferences 验证记录](preferences.md#验证记录)。
 
@@ -44,7 +49,7 @@
   `agentEditsEnabled`、`source` 来源标记与 `agent-writes.log`（只记时间 / 来源 / 操作，不记参数）。
 - 宿主接线：`app.Run` 仅在读写实例上监听 `<支持目录>/agent.sock`；handler 先用 chat 工具的
   严格 schema 校验参数，再交给与 chat 同源的共享执行器，因此同校验、同事件（UI 自动刷新）。
-- MCP：`daygo mcp` stdio 服务，六读十写（2026-10-03 随 [plan](plan.md) 增加 `plan` 读与 `plan_add` `plan_update` `plan_complete` `plan_delete`，基础提交 `4dac8b7`，已合入 `test`），读走只读库、写走 socket（[决策](../decisions/agent-mcp-transport.md)）。
+- MCP：`daygo mcp` stdio 服务，六读十一写（10-13 新增 `card_merge`）；计划工具（2026-10-03 随 [plan](plan.md) 增加 `plan` 读与 `plan_add` `plan_update` `plan_complete` `plan_delete`，基础提交 `4dac8b7`，已合入 `test`），读走只读库、写走 socket（[决策](../decisions/agent-mcp-transport.md)）。
 - 设置页「Agent 访问」：`GetAgentConnection` 返回当前可执行文件绝对路径与 socket 是否在监听，
   页面据此给出可复制的 MCP 客户端配置和 CLI 读 / 写示例，不假定 `daygo` 在 PATH 上；
   路径位于 App Translocation 或磁盘映像（`/Volumes/`）时提示先移入「应用程序」，因为该路径重启即失效。
@@ -109,6 +114,11 @@ Windows 终端 CLI 入口（是否附带 `daygo-cli.exe`，[09 §9.8 #25](../09-
 捕获与分析；socket 删除重建无数据损失。决策记录保留候选与回退路径。
 
 ## 验证记录
+
+2026-10-13 合并卡片增量（`test`，基于 `f04a6ef` 工作树，macOS arm64）：CLI socket 转发、MCP schema / stdio 转发、匿名真实 socket 默认权限拒绝 / 开启合并 / 重放拒绝及脱敏审计均通过；未运行实际外部 MCP 客户端。
+完整命令、输入 / 期望 / 实际结果、跳过项与回退边界见 [timeline 本次验证记录](timeline.md#验证记录)。
+本次增量由自动化证明上述范围，不沿用此前用户确认作为真实闭环验收。
+
 
 2026-10-13（`test`，基于 `bf49b34` 工作树；来源：本次用户明确确认全部待验收项已完成）：
 已实现 CLI / socket / MCP 面及新增计划读写的真实客户端往返，均记为**用户确认已验收，未附逐项运行记录**。

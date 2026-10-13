@@ -7,9 +7,9 @@ import (
 )
 
 // The catalog is the closed set from docs/05 §5.12: five readable commands
-// (search and status deferred) plus the plan read, then exactly the ten §5.9.2
-// write operations, no more, no less. The plan tools were added deliberately
-// with the plan module (docs/modules/plan.md).
+// (search and status deferred) plus the plan read, then exactly the eleven
+// §5.9.2 writes. Card merging deliberately adds one operation to the prior
+// sixteen-tool catalog.
 func TestToolCatalogIsTheClosedSet(t *testing.T) {
 	want := []struct {
 		name  string
@@ -26,6 +26,7 @@ func TestToolCatalogIsTheClosedSet(t *testing.T) {
 		{ToolCategoryRemove, true},
 		{ToolCardUpdate, true},
 		{ToolCardDelete, true},
+		{"card_merge", true},
 		{ToolGoalSet, true},
 		{ToolPlanAdd, true},
 		{ToolPlanUpdate, true},
@@ -71,6 +72,7 @@ func TestValidateToolArguments(t *testing.T) {
 		{ToolCategoryAdd, `{"name":"Deep Work","colorHex":"#FF0000","sortOrder":3,"isIdle":false}`, "category add full"},
 		{ToolCategoryAdd, `{"name":"Deep Work"}`, "category add minimal"},
 		{ToolCardUpdate, `{"cardId":7,"category":"Coding"}`, "card update category"},
+		{"card_merge", `{"cardIds":[1,2],"title":"Merged","summary":"s","category":"Focus Work"}`, "merge minimal"},
 		{ToolGoalSet, `{"day":"2026-09-12","focusTargetMinutes":120,"focusCategoryIds":["a","b"]}`, "goal set"},
 		{ToolPlan, `{"day":"2026-09-12"}`, "plan day"},
 		{ToolPlanAdd, `{"day":"2026-09-12","start":"9:00","end":"10:30","title":"Write API"}`, "plan add minimal"},
@@ -100,6 +102,11 @@ func TestValidateToolArguments(t *testing.T) {
 		{ToolTimeline, `{"day":"2026-09-12","limit":5}`, "unknown field"},
 		{ToolCard, `{"cardId":0}`, "cardId below minimum"},
 		{ToolCard, `{"cardId":3.5}`, "cardId not an integer"},
+		{"card_merge", `{"cardIds":[1],"title":"Merged","summary":"s","category":"Focus Work"}`, "merge too few"},
+		{"card_merge", `{"cardIds":[1,1],"title":"Merged","summary":"s","category":"Focus Work"}`, "merge duplicate"},
+		{"card_merge", `{"cardIds":[1,2.5],"title":"Merged","summary":"s","category":"Focus Work"}`, "merge fractional id"},
+		{"card_merge", `{"cardIds":[1,2],"title":"Merged","summary":"s","category":"Focus Work","start":"09:00"}`, "merge arbitrary time"},
+		{"card_merge", `{"cardIds":[1,2],"title":"Merged","category":"Focus Work"}`, "merge missing summary"},
 		{ToolCategoryAdd, `{"name":""}`, "empty name"},
 		{ToolCategoryAdd, `{"name":"X","colorHex":"red"}`, "bad colorHex"},
 		{ToolGoalSet, `{"focusTargetMinutes":120}`, "missing day"},
@@ -176,7 +183,7 @@ func TestAgentSystemPrompt(t *testing.T) {
 		"2026-09-12", "2026-09-07",
 		ToolTimeline, ToolCard, ToolDaily, ToolWeekly, ToolCategories,
 		ToolCategoryAdd, ToolCategoryUpdate, ToolCategoryRemove,
-		ToolCardUpdate, ToolCardDelete, ToolGoalSet,
+		ToolCardUpdate, ToolCardDelete, "card_merge", ToolGoalSet,
 		ToolPlan, ToolPlanAdd, ToolPlanUpdate, ToolPlanComplete, ToolPlanDelete,
 		"readonly",
 	} {

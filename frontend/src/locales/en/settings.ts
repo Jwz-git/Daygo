@@ -66,7 +66,7 @@ export default {
     copied: 'Copied',
     writeError: 'Couldn’t save. Your previous setting was restored.',
     editsTitle: 'Allow external tools to make changes',
-    editsHint: 'Let MCP clients and the CLI edit cards, categories, and goals.',
+    editsHint: 'Let MCP clients and the CLI edit and merge cards, and edit categories and goals.',
   },
   general: {
     notificationsUnavailable: 'System notifications are currently unavailable in this environment.',
@@ -182,7 +182,7 @@ export default {
   },
   providers: {
     chatEditsTitle: 'Allow chat to make changes',
-    chatEditsHint: 'Let in-app chat edit cards, categories, and goals for you.',
+    chatEditsHint: 'Let in-app chat edit and merge cards, and edit categories and goals for you.',
     title: 'AI services',
     description: 'Enter a service URL, API type, and model name to connect your own AI service.',
     empty: 'No AI services yet.',

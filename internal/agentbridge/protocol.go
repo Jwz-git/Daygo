@@ -1,5 +1,5 @@
 // Package agentbridge is the agent write channel (docs/05 §5.9.2): a 0600 Unix
-// socket that accepts one JSON request per connection, runs the ten write
+// socket that accepts one JSON request per connection, runs the eleven write
 // operations through a host-supplied Handler, and returns one JSON response.
 // It is transport and protocol only — the Handler (internal/app) owns the
 // shared service path, so external writes take the same validation, capture
@@ -25,6 +25,7 @@ var Operations = []string{
 	"category_remove",
 	"card_update",
 	"card_delete",
+	"card_merge",
 	"goal_set",
 	"plan_add",
 	"plan_update",

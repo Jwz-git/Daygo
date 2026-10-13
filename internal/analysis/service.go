@@ -1198,6 +1198,23 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 	s.cardsMu.Lock()
 	defer s.cardsMu.Unlock()
 
+	// An agent merge may have replaced this source while regeneration waited
+	// for the same lock. Never rewrite the stale source window over that merge.
+	liveCards, err := s.cfg.Cards.CardsInRange(ctx, windowStart, windowEnd)
+	if err != nil {
+		return err
+	}
+	current := false
+	for _, live := range liveCards {
+		if live.ID == card.ID {
+			current = true
+			break
+		}
+	}
+	if !current {
+		return ErrCardChanged
+	}
+
 	// A live batch over the same window will rewrite these cards when it lands,
 	// which would silently discard this regeneration's result. The check runs
 	// UNDER cardsMu: a batch that transitions to pending/processing between an

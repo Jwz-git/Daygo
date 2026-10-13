@@ -3,7 +3,7 @@ package chat
 import "encoding/json"
 
 // ToolSpec is one entry in the closed tool catalog (docs/05 §5.12). The write
-// face is exactly the ten operations of §5.9.2 and the read face mirrors the
+// face is exactly the eleven operations of §5.9.2 and the read face mirrors the
 // §5.9.1 commands this build can serve; search and status are deferred with
 // their CLI semantics. Arguments is a strict JSON Schema (additionalProperties
 // false) the service validates before execution.
@@ -27,6 +27,7 @@ const (
 	ToolCategoryRemove = "category_remove"
 	ToolCardUpdate     = "card_update"
 	ToolCardDelete     = "card_delete"
+	ToolCardMerge      = "card_merge"
 	ToolGoalSet        = "goal_set"
 	ToolPlan           = "plan"
 	ToolPlanAdd        = "plan_add"
@@ -190,6 +191,28 @@ var toolCatalog = []ToolSpec{
 			"type":"object",
 			"properties":{"cardId":{"type":"integer","minimum":1}},
 			"required":["cardId"],
+			"additionalProperties":false
+		}`),
+		Write: true,
+	},
+	{
+		Name: ToolCardMerge,
+		Description: "Merge 2 to 32 existing timeline cards into one card. Read their ids and content first; " +
+			"cardIds must be distinct and their time ranges contiguous or overlapping, with no unselected " +
+			"live card in the range and a total span of at most four hours. Built-in System/Idle cards cannot " +
+			"be merged. Supply a combined title, summary, existing non-built-in category name and optional " +
+			"detailedSummary. Times and evidence come from the sources; source cards are soft-deleted. " +
+			"Returns cardId, mergedCardIds, day, startTs and endTs. Write operation, gated by the sandbox.",
+		Arguments: json.RawMessage(`{
+			"type":"object",
+			"properties":{
+				"cardIds":{"type":"array","items":{"type":"integer","minimum":1,"maximum":9007199254740991},"minItems":2,"maxItems":32,"uniqueItems":true},
+				"title":{"type":"string","minLength":1,"maxLength":200},
+				"summary":{"type":"string","minLength":1,"maxLength":4000},
+				"detailedSummary":{"type":"string","maxLength":16000},
+				"category":{"type":"string","minLength":1,"maxLength":64}
+			},
+			"required":["cardIds","title","summary","category"],
 			"additionalProperties":false
 		}`),
 		Write: true,

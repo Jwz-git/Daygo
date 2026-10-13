@@ -67,6 +67,16 @@ func TestWriteForwardsThroughSocket(t *testing.T) {
 	}
 }
 
+func TestWriteForwardsCardMerge(t *testing.T) {
+	handler := &fakeWrites{enabled: true}
+	startBridge(t, handler)
+	args := `{"cardIds":[1,2],"title":"Merged","summary":"s","category":"Coding"}`
+	code, _, errOut := runCLI("write", "card_merge", args, "--json")
+	if code != exitOK || errOut != "" || handler.lastOp != "card_merge" || handler.lastArg != args {
+		t.Fatalf("exit=%d err=%s op=%s args=%s", code, errOut, handler.lastOp, handler.lastArg)
+	}
+}
+
 func TestWriteGateAndErrorCodes(t *testing.T) {
 	handler := &fakeWrites{}
 	startBridge(t, handler)

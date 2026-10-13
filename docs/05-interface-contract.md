@@ -285,6 +285,7 @@ export function toApiError(e: unknown): ApiError {
 | `UpdateCardSummary(cardID int64, text string) error` | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
 | `UpdateCardDetailedSummary(cardID int64, text string) error` | timeline | cards / 写入锁 | 写·幂等（空串清除） | `timeline:updated` | `not_found` |
 | `DeleteCard(cardID int64) error` | timeline | cards / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` |
+| `MergeCards(input MergeCardsInputDTO) (MergeCardsResultDTO, error)` | timeline | cards / 分类 / 写入锁 / 分析串行化 | 写·非幂等（原 ID 重放返回 `not_found`） | `timeline:updated` | `invalid_argument` `not_found` `not_capture_owner` `database_error` |
 | `RetryBatches(batchIDs []int64) error` | timeline | 批次 / provider-client / media-read | 写·非幂等 | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `not_found` `conflict` |
 | `StopRetries(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（封顶 attempts） | `timeline:updated` | `not_found` `invalid_argument` |
 | `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
@@ -1760,13 +1761,31 @@ JSON 输出（`--json`）规则：
 | 响应 | `{"ok":true,"data":{...}}` 或 `{"ok":false,"error":{"code":"...","message":"..."}}` |
 | 上限 | 请求与响应各 1 MB |
 | 门禁 | `system.agentEditsEnabled` 为 false 时返回 `edits_disabled`，且**服务端独立校验**，不信任客户端检查 |
-| 操作 | `category_add` `category_update` `category_remove` `card_update` `card_delete` `goal_set` `plan_add` `plan_update` `plan_complete` `plan_delete` |
+| 操作 | `category_add` `category_update` `category_remove` `card_update` `card_delete` `card_merge` `goal_set` `plan_add` `plan_update` `plan_complete` `plan_delete` |
 | 错误码 | `protocol_error` `protocol_mismatch` `edits_disabled` `invalid_argument` `not_found` `unknown_operation` `internal_error` |
 | 来源 | `source` 封闭为 `agent.sock` / `cli` / `mcp`，省略默认 `agent.sock`；未知值报 `protocol_error`；仅作审计标签，不是授权证明 |
 | 审计 | 每次成功写入追加 `agent-writes.log`，只记时间 / 来源 / 操作，不记参数；UI / chat 当前不经过此日志 |
 
 **写入必须与绑定层走同一条服务路径**（同样的校验、同样的事件），否则外部 agent 改了数据
 而 UI 不刷新，或绕过了分类名校验。
+
+`card_merge` 与 `MergeCards` 共用宿主执行器、捕获所有权守卫和单事务 repository：
+
+- 输入 `MergeCardsInputDTO`：`cardIds: number[]`（2–32 个不同的正整数，工具边界不超过
+  9007199254740991）、`title: string`（1–200 字符）、`summary: string`（1–4000 字符）、
+  `category: string`（1–64 字符的既有用户分类名称）、可选 `detailedSummary: string`（最多 16000 字符）。
+  必填文本不能全为空白；拒绝额外字段，不接收 AI 推算的时间。
+- 先查询实际 ID / 内容，只合并用户指定的卡片。来源与目标均不得是内置分类；所有来源须存活。
+  来源范围须连续或重叠、总跨度不超过 4 小时，且不能覆盖未选中的存活卡片；任一拒绝或存储失败
+  均整笔回滚。原 ID 重放返回 `not_found`，不能再次合并。
+- 时间沿用持久化 `start_ts` / `end_ts`，按凌晨 4 点重算逻辑日，跨日分别发送时间线失效事件。
+  新行标记为人工编辑，选中原行软删除并标记人工编辑；不删除原文、metadata、反馈或视频。
+  新行继承最早可用批次来源，合并活动点 / 分心记录与最多两个去重应用，不继承旧评分、审阅或视频路径。
+  自动分析保护新行；与分析 / 显式重新生成共用串行锁，已被替换的来源重新生成返回 `conflict`。
+- 输出 `MergeCardsResultDTO`：`cardId`（新 ID）、`mergedCardIds`（输入顺序）、`day`、
+  `startTs`、`endTs`（Unix 秒）；不返回文件路径、raw metadata 或 LLM payload。
+- 对话每次执行重读 `chat.editMode`；CLI / MCP 经 socket 每次重读 `system.agentEditsEnabled`，
+  仍默认关闭。沿用各自既有权限，不新增开关；外部成功写入审计只记时间 / 来源 / `card_merge`。
 
 ### 5.9.3 MCP 服务器
 
@@ -1781,7 +1800,7 @@ MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当�
 | 约束 | 值 | 理由 |
 |------|-----|------|
 | 工具读面 | 与 §5.9.1 CLI 同源；已实现 timeline / card / daily / weekly / categories / plan 六读，search 未实现 | 一套查询语义，两处实现会漂移；不能把目标 search 写成当前工具 |
-| 工具写面 | 操作集不超出 §5.9.2 的十个操作 | 不为 MCP 引入绑定层没有的写能力 |
+| 工具写面 | 操作集不超出 §5.9.2 的十一个操作 | 不为 MCP 引入绑定层没有的写能力 |
 | 写入路径 | 与绑定层同一条服务路径：同校验、同事件、同 `edits_disabled` 门禁（服务端独立校验） | 外部写入后 UI 必须刷新；门禁不能靠客户端自律 |
 | 输出信封 | 复用 `schema_version`（初始 1），JSON 规则同 §5.9.1（键排序、时间格式、空值省略） | 一个版本域服务所有对外 JSON，diff 门禁共用 |
 | 时间与日期 | 同 §5.5.1 五种表示；`today` / `yesterday` 别名只在入口层解析，MCP 客户端不得自行推算逻辑日 | 与前端同一规则：客户端自算 4 点边界必然错一天 |
@@ -1794,7 +1813,7 @@ MCP 让外部 LLM 客户端（Claude Desktop、Claude Code 等）把 Daygo 当�
 |--------|------|-----------|
 | 传输与进程模型 | **stdio**：MCP 客户端拉起 `daygo mcp` 子进程 | 独立进程，与 CLI 同构：读走只读 DB（`SQLITE_OPEN_READONLY` + `query_only`，`DAYGO_DB` 可覆盖），写走 `agent.sock`。无需端口与鉴权，权限模型沿用 0600 socket + `agentEditsEnabled` |
 | | **Streamable HTTP**：宿主内常驻服务 | 读写可直达服务层（等价于又一个绑定层消费者），但需要本地回环监听、端口选择与鉴权设计，扩大攻击面 |
-| 工具粒度与命名 | 已选逐命令映射（`daygo_timeline` …），粗粒度查询保留为候选 | 已实现六读十写；命名进 `schema_version` 冻结范围 |
+| 工具粒度与命名 | 已选逐命令映射（`daygo_timeline` …），粗粒度查询保留为候选 | 已实现六读十一写；命名进 `schema_version` 冻结范围 |
 | 审计归属 | 已实现 `source=mcp` 的外部写入审计 | 仅覆盖 socket / CLI / MCP；UI / chat 独立写入审计仍未实现 |
 
 无论选哪种候选，上表"已定约束"不变；特别是**stdio 形态的 MCP 写入与 CLI 写入一样只能经
@@ -1873,7 +1892,7 @@ CGO_ENABLED=0 go build ./... && CGO_ENABLED=0 go test ./internal/...
 Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分类 / 搜索，并在沙箱授权内
 完成增删改查。它**不属于 B6 对外接口**：不经 CLI、`agent.sock` 或 MCP，是宿主内功能
 （B1 绑定 + `internal/chat` 服务直接调用与绑定层同源的服务路径）。但工具面与 B6 **同源**：
-读面等于 §5.9.1 的读命令语义，写面不超出 §5.9.2 的十个操作——三条通道共享一套查询与
+读面等于 §5.9.1 的读命令语义，写面不超出 §5.9.2 的十一个操作——三条通道共享一套查询与
 写入语义，不出现第四套。v1 不交付；执行册见 [modules/chat](modules/chat.md)。
 
 **实现状态**见 [09 §9.1](09-roadmap.md#91-模块总表) chat 行与
@@ -1885,7 +1904,7 @@ Chat 让用户在应用内用自然语言查询时间线 / 日报 / 周报 / 分
 |------|-----|------|
 | 形态 | 宿主内 chat 服务（`internal/chat`）+ B1 绑定 | 用户在应用内发起，无需外部进程或第二条协议 |
 | 工具读面 | timeline / card / daily / weekly / categories / plan（**已实现**）；search 缓后，语义随 §5.9.1 一并定案 | 与 CLI / MCP 一套查询语义 |
-| 工具写面 | 恰为 §5.9.2 的十个操作：`category_add` `category_update` `category_remove` `card_update` `card_delete` `goal_set` `plan_add` `plan_update` `plan_complete` `plan_delete`（**已实现**；计划四项随 plan 模块加入） | 不为 chat 引入绑定层没有的写能力 |
+| 工具写面 | 恰为 §5.9.2 的十一个操作：`category_add` `category_update` `category_remove` `card_update` `card_delete` `card_merge` `goal_set` `plan_add` `plan_update` `plan_complete` `plan_delete`（**已实现**；计划四项随 plan 模块加入） | 不为 chat 引入绑定层没有的写能力 |
 | 写入路径 | 与绑定层同一条服务路径：同校验、同事件；实例不持写入锁时写工具一律拒绝 | 同源；只读实例不因 chat 破坏 |
 | 沙箱门禁 | 设置 `chat.editMode`：`readonly`（默认）/ `edits`；**服务端独立校验**，UI 不承担门禁 | 与 `system.agentEditsEnabled` 分离——那是 `agent.sock` 外部通道的开关，两者独立生效 |
 | 工具调用机制 | 协议无关 JSON 模式：模型经结构化输出返回信封 `{"kind":"answer\|tool","answer","tool","arguments"}`（`Strict:false`，语义校验在 Go 侧）；不依赖各家原生 function-calling API | 三协议统一，复用 `internal/ai` 现有能力 |
