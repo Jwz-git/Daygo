@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFrameLoop, createPausableTimers } from '../src/motion.js';
+import { createFrameLoop, createPausableTimers, createScrollActivity } from '../src/motion.js';
 
 function frames() {
   const pending = new Map();
@@ -54,6 +54,33 @@ test('rebuilding owners leaves only the current frame loop', () => {
   loop.destroy();
 });
 
+test('limits rendering frequency and paints the latest state instead of dropping it', () => {
+  const env = frames();
+  let state = 0;
+  const painted = [];
+  const loop = createFrameLoop(() => { painted.push(state); return false; }, { ...env, minInterval: 1000 / 30 });
+  loop.request(); env.flush(0);
+  state = 1; loop.request(); env.flush(8);
+  state = 2; loop.request(); env.flush(16);
+  assert.deepEqual(painted, [0]);
+  env.flush(34);
+  assert.deepEqual(painted, [0, 2]);
+  assert.equal(env.pending.size, 0);
+});
+
+test('a continuous animation respects the frame budget and resumes immediately after hiding', () => {
+  const env = frames();
+  let calls = 0;
+  const loop = createFrameLoop(() => { calls++; return true; }, { ...env, minInterval: 1000 / 30 });
+  loop.request(); env.flush(0); env.flush(8); env.flush(16); env.flush(34);
+  assert.equal(calls, 2);
+  loop.setEnabled(false); env.flush(40);
+  loop.setEnabled(true); env.flush(41);
+  assert.equal(calls, 3);
+  loop.destroy();
+  assert.equal(env.pending.size, 0);
+});
+
 function timers() {
   let time = 0, id = 0;
   const pending = new Map();
@@ -95,5 +122,28 @@ test('timers created while paused wait, and destroyed owners never mutate again'
   scope.schedule(() => calls++, 100);
   scope.destroy(); scope.setEnabled(true); scope.schedule(() => calls++, 0); env.advance(1000);
   assert.equal(calls, 1);
+  assert.equal(env.pending.size, 0);
+});
+
+test('continuous scroll pauses decorations once and restores them only after input settles', () => {
+  const env = timers();
+  const states = [];
+  const activity = createScrollActivity(value => states.push(value), { ...env, delay: 160 });
+  activity.update(); env.advance(100); activity.update(); env.advance(159);
+  assert.deepEqual(states, [true]);
+  assert.equal(env.pending.size, 1);
+  env.advance(1);
+  assert.deepEqual(states, [true, false]);
+  assert.equal(env.pending.size, 0);
+});
+
+test('hiding or destroying scroll activity cancels delayed restoration', () => {
+  const env = timers();
+  const states = [];
+  const activity = createScrollActivity(value => states.push(value), env);
+  activity.update(); activity.reset(); env.advance(1000);
+  assert.deepEqual(states, [true, false]);
+  activity.update(); activity.destroy(); activity.update(); env.advance(1000);
+  assert.deepEqual(states, [true, false, true, false]);
   assert.equal(env.pending.size, 0);
 });

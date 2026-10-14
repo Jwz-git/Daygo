@@ -1,11 +1,10 @@
-import Lenis from 'lenis';
 import './app.css';
 import './styles.css';
 import { createApp, mountDaily, mountWeekly, mountChat } from './app.js';
 import { CARDS, CATS } from './data.js';
 import { t, L, getLang, setLang, onLang, fmt12 } from './i18n.js';
 import { loadReleaseDownloads } from './downloads.js';
-import { createFrameLoop } from './motion.js';
+import { createFrameLoop, createScrollActivity } from './motion.js';
 import { createSkyPainter } from './sky.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -16,13 +15,9 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t *
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const root = document.documentElement;
-let pageLoop, dirty = true, scrollRunning = false, stageVisible = true;
+let pageLoop, dirty = true, stageVisible = true;
 function invalidate() { dirty = true; pageLoop?.request(); }
-function wakeScroll() {
-  // Lenis' external clock must not include the time our frame loop spent asleep.
-  if (lenis && !scrollRunning) lenis.time = performance.now();
-  pageLoop?.request();
-}
+function wakeScroll() { pageLoop?.request(); }
 
 loadReleaseDownloads().then((downloads) => {
   $$('a[data-download]').forEach((anchor) => {
@@ -31,14 +26,8 @@ loadReleaseDownloads().then((downloads) => {
   });
 });
 
-/* ───────── Smooth scroll ───────── */
-const lenis = reduced ? null : new Lenis({ lerp: 0.09, wheelMultiplier: 0.9 });
-const scrollY = () => (lenis ? lenis.scroll : window.scrollY);
-const scrollTo = (y) => {
-  wakeScroll();
-  if (lenis) lenis.scrollTo(y, { duration: 1.4, easing: (x) => 1 - Math.pow(1 - x, 4) });
-  else window.scrollTo({ top: y, behavior: reduced ? 'auto' : 'smooth' });
-};
+/* ───────── Native scroll ───────── */
+const scrollTo = y => window.scrollTo({ top: y, behavior: reduced ? 'instant' : 'smooth' });
 $$('a[href^="#"]').forEach((a) => a.addEventListener('click', (e) => {
   const id = a.getAttribute('href');
   const t = id === '#top' ? 0 : id === '#product' ? M.chapterStart[0] + 2 : $(id) && $(id).getBoundingClientRect().top + window.scrollY;
@@ -83,6 +72,7 @@ function buildFeatures() {
   $$('[data-mount]').forEach((host) => {
     const f = FEATS[host.dataset.mount];
     if (!f) return;
+    feats.get(host)?.destroy?.();
     feats.set(host, f(host));
     // after a language switch, sections already seen show their finished state
     if (played.has(host)) feats.get(host).play(); else featIO.observe(host);
@@ -276,7 +266,12 @@ function updateStage(y) {
 /* ───────── Pipeline (dusk section) ───────── */
 const frames = $('[data-frames]'), pcards = $('[data-cards]'), lens = $('.pipe__lens');
 const SHOT_APPS = [['vscode', CATS.focus.color, '#1f2330'], ['claude', CATS.focus.color, '#faf9f5'], ['messages', CATS.comm.color, '#ffffff'], ['notes', CATS.personal.color, '#fffaf0'], ['safari', CATS.research.color, '#ffffff'], ['youtube', CATS.distraction.color, '#141418'], ['terminal', CATS.focus.color, '#1b1b1f']];
-let pipeOn = false, pipeVisible = false, shotI = 0, cardI = 0, pipeTimer = null;
+let pipeOn = false, pipeVisible = false, scrolling = false, shotI = 0, cardI = 0, pipeTimer = null;
+const scrollActivity = createScrollActivity(active => {
+  scrolling = active;
+  root.classList.toggle('is-scrolling', active);
+  pipeLoop(pipeVisible && !reduced && !document.hidden && !scrolling);
+});
 function spawnShot() {
   const [app, c, bg] = SHOT_APPS[shotI++ % SHOT_APPS.length];
   const s = document.createElement('div');
@@ -326,7 +321,7 @@ $$('.tile-g').forEach((tile) => tile.addEventListener('pointermove', (e) => {
 const io = new IntersectionObserver((entries) => entries.forEach((en) => {
   if (en.target.classList.contains('pipe')) {
     pipeVisible = en.isIntersecting;
-    pipeLoop(pipeVisible && !reduced && !document.hidden);
+    pipeLoop(pipeVisible && !reduced && !document.hidden && !scrolling);
   }
   if (en.isIntersecting) en.target.classList.add('is-in');
 }), { threshold: 0.18 });
@@ -342,20 +337,18 @@ const visibilityIO = new IntersectionObserver(entries => entries.forEach(en => {
 }));
 [stage, hero, mount, ...$$('.sec')].forEach(el => visibilityIO.observe(el));
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) scrollActivity.reset();
   root.classList.toggle('page-hidden', document.hidden);
   app?.setActive(stageVisible && !document.hidden);
-  pipeLoop(pipeVisible && !reduced && !document.hidden);
-  scrollRunning = false;
-  if (lenis) lenis.time = performance.now();
+  pipeLoop(pipeVisible && !reduced && !document.hidden && !scrolling);
   pageLoop.setEnabled(!document.hidden);
   if (!document.hidden) invalidate();
 });
 mount.addEventListener('pointerdown', invalidate);
 
 let lastY = null, lastStageY = null, lastMinute = null;
-pageLoop = createFrameLoop(t => {
-  lenis?.raf(t);
-  const y = scrollY();
+pageLoop = createFrameLoop(() => {
+  const y = window.scrollY;
   if (dirty || y !== lastY) {
     // Once the pinned stage has ended, further page scrolling cannot change it.
     const stageY = clamp(y, M.stageTop, M.stageEnd);
@@ -365,12 +358,13 @@ pageLoop = createFrameLoop(t => {
     dirty = false;
     lastY = y;
   }
-  scrollRunning = lenis?.isScrolling === 'smooth';
-  return scrollRunning;
-});
-lenis?.on('virtual-scroll', wakeScroll);
-lenis?.on('scroll', wakeScroll);
-window.addEventListener('scroll', wakeScroll, { passive: true });
+  return false;
+}, { minInterval: 1000 / 30 });
+window.addEventListener('scroll', () => {
+  if (document.hidden) return;
+  scrollActivity.update();
+  wakeScroll();
+}, { passive: true });
 
 if (!reduced && matchMedia('(pointer: fine)').matches) {
   $$('.magnetic').forEach((b) => {
@@ -400,4 +394,4 @@ new ResizeObserver(() => { clearTimeout(roT); roT = setTimeout(measure, 150); })
 root.classList.toggle('page-hidden', document.hidden);
 pageLoop.setEnabled(!document.hidden);
 pageLoop.request();
-if (import.meta.env.DEV) window.__daygo = { lenis, M, get app() { return app; } };
+if (import.meta.env.DEV) window.__daygo = { M, get app() { return app; } };

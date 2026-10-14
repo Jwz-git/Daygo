@@ -66,12 +66,17 @@ GitHub Actions；确认 `github-pages` environment 的 deployment branch/tag rul
 ## 动画与资源占用
 
 2026-10-14 的优化保留滚动天空、时间线生成、详情播放器与流水线演示。
-页面与时间线改为按需请求动画帧：滚动 / 布局变化触发，平滑滚动与轨道位移收敛后停止；
-语言 / 宽窄布局重建时销毁旧时间线的帧、定时任务和播放器。
+滚轮 / 触摸 / 键盘滚动交给浏览器原生处理，锚点使用原生平滑滚动；已移除 Lenis 依赖。
+页面演示按需更新，最多约 30 次 / 秒；时间线直接跟随页面进度，不再另跑轨道缓动循环。
+最后一条滚动状态仍会补绘，静止时停止请求帧；语言 / 宽窄布局重建销毁旧定时任务和播放器。
 时间线所在舞台离屏或页面隐藏时暂停生成任务，回到可见状态后按剩余延迟恢复；
 离屏装饰与后台 CSS 动画暂停，后台流水线停止生成截图。
 星空在加载与尺寸变化时绘制一次，随滚动淡入；标题渐变保持静态，生成状态灯改为透明度动画。
 不再持续闪烁星空或平移文字渐变。
+滚动期间暂停状态灯、AI 镜头与下载图标的循环装饰，并停止流水线生成；
+最后一个滚动事件后 160ms 恢复。昼夜文字 / 导航颜色直接切换，减少整页继承颜色渐变。
+周报悬停只在进入 / 离开时修改高亮；非选中格子以透明度变暗，不再渐变背景和阴影。
+提示框内容复用，位置更新合并为最多约 30 次 / 秒的 transform，重建时取消旧任务。
 
 滚动期间的天空更新由 `src/sky.js` 隔离在背景元素上，逐帧只修改透明度与 transform，
 不再把天空变量写到 `html` 触发整页继承样式重算。天空复用两层固定渐变，跨调色板区间
@@ -79,7 +84,7 @@ GitHub Actions；确认 `github-pages` environment 的 deployment branch/tag rul
 因此中间色由渐变叠层混合，仍保留原来的十二个天空色阶、昼夜切换与时钟。
 
 `npm --prefix web run test:unit` 包含动画帧合并 / 收敛、暂停恢复与重建销毁夹具，
-以及天空色阶边界、双层复用、逐帧只合成与日月可见性的正式单元测试。
+以及天空色阶边界、双层复用、逐帧只合成、限频最终状态、装饰恢复与提示框复用的正式单元测试。
 浏览器检查从 `npm --prefix web run dev` 或生产预览入口开始：在首页、反复中英 / 宽窄布局
 切换后和夜景下载区静止采样，再检查滚动唤醒、卡片生成完成后展开、播放器离屏停止、
 后台暂停恢复及减少动态效果的手机布局。每个位置等待 2.5 秒后采样 3 秒，区分
@@ -90,6 +95,5 @@ Windows / Edge 无头浏览器的测量结果与证据边界见
 [delivery 验证记录](../docs/modules/delivery.md#验证记录)。主线程任务时间不是整机 CPU、
 GPU 或内存指标；macOS / Safari、真实后台切换及线上部署需另外验收。
 调度依据：[Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)、
-[requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)；
-Lenis 时钟与滚动状态按锁文件的 1.3.26 源码 / 类型核对。
+[requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)。
 合成方式参考 [Chrome 团队动画性能指南](https://web.dev/articles/animations-guide)。

@@ -4,7 +4,8 @@
 import { CATS, CARDS, PENDING, NOW, PLANS, STANDUP, WEEK, CHAT } from './data.js';
 import { L, t, getLang, dur, durCompact, fmt12, fmt24, hourLabel, hourTick } from './i18n.js';
 import { squarify, sankeyLayout, ribbon, gradientStops, appColor, SANKEY_WIDTH, SANKEY_HEIGHT, SANKEY_BAR, SANKEY_COLUMNS } from './charts.js';
-import { createFrameLoop, createPausableTimers } from './motion.js';
+import { createPausableTimers } from './motion.js';
+import { createChartTooltip } from './interaction.js';
 
 const ICONS = new Set(['messages', 'notes', 'vscode', 'github', 'chrome', 'safari', 'terminal', 'youtube', 'discord', 'finder', 'claude', 'gemini', 'daygo', 'xcode']);
 const el = (html) => { const tp = document.createElement('template'); tp.innerHTML = html.trim(); return tp.content.firstElementChild; };
@@ -153,7 +154,7 @@ export function createApp({ compact = false } = {}) {
                 <button class="copy-button" data-copy><span class="copy-button__content"><i class="ic ic--copy"></i>${t('tl.copy')}</span></button>
               </div>
             </div>
-            <aside class="inspector" data-lenis-prevent>
+            <aside class="inspector">
               <div class="insp-view is-active" data-view="overview"></div>
               <div class="insp-view" data-view="detail"></div>
             </aside>
@@ -367,44 +368,41 @@ export function createApp({ compact = false } = {}) {
   $$('[data-nav]').forEach((b) => b.addEventListener('click', () => navCb(b.dataset.nav)));
 
   /* track scroll is driven by the page (one scroll = one day) */
-  let target = 0, current = 0;
+  let target = 0;
   const startTop = () => yOf(9 * 60) - 14;
   const endTop = () => Math.max(startTop(), yOf(NOW) + 120 - scroller.clientHeight);
-  target = current = startTop();
-  scroller.scrollTop = current;
-  const trackLoop = createFrameLoop(() => {
-    current = reduced ? target : current + (target - current) * 0.14;
-    if (Math.abs(target - current) < 0.3) current = target;
-    if (Math.abs(scroller.scrollTop - current) > 0.3) scroller.scrollTop = current;
+  target = startTop();
+  scroller.scrollTop = target;
+  function updateTrack() {
+    if (!active || destroyed) return;
+    if (Math.abs(scroller.scrollTop - target) > 0.3) scroller.scrollTop = target;
     generateNext();
-    return current !== target;
-  });
+  }
 
   return {
     el: root,
     start() {
       placeThumb();
       playDonut(overview.querySelector('.donut'));
-      later(() => { genReady = true; trackLoop.request(); }, generated.size ? 0 : 700);
+      later(() => { genReady = true; updateTrack(); }, generated.size ? 0 : 700);
     },
     setActive(value) {
       if (destroyed || value === active) return;
       active = value;
       timers.setEnabled(value);
-      trackLoop.setEnabled(value);
+      if (value) updateTrack();
       if (!value) pl?.stop();
     },
     destroy() {
       destroyed = true;
       timers.destroy();
-      trackLoop.destroy();
       pl?.stop();
     },
     onNavigate(cb) { navCb = cb; },
     progress(p) {
       const k = Math.min(1, Math.max(0, (p - 0.08) / 0.8));
       target = startTop() + (endTop() - startTop()) * (k * k * (3 - 2 * k));
-      trackLoop.request();
+      updateTrack();
       lastP = p;
       if (p > 0.86) resolvePending();
       demoDetail(p);
@@ -508,16 +506,7 @@ function weekModel() {
 function chartTip(container) {
   const tip = el('<div class="wk-tip" hidden></div>');
   container.appendChild(tip);
-  return {
-    show(e, html) {
-      const r = container.getBoundingClientRect();
-      tip.innerHTML = html;
-      tip.style.left = `${e.clientX - r.left}px`;
-      tip.style.top = `${e.clientY - r.top}px`;
-      tip.hidden = false;
-    },
-    hide() { tip.hidden = true; },
-  };
+  return createChartTooltip(tip, container);
 }
 
 export function mountWeekly(host) {
@@ -534,7 +523,9 @@ export function mountWeekly(host) {
   const TYPES = { large: { name: 22, detail: 12, delta: 10.5, gap: 4, padding: 12, paddingX: 22 }, medium: { name: 18, detail: 11.5, delta: 10, gap: 3, padding: 10, paddingX: 16 }, compact: { name: 14.5, detail: 10.5, delta: 9.5, gap: 2, padding: 6, paddingX: 10 } };
   const pct = (r) => `left:${(r.x / WIDTH) * 100}%;top:${(r.y / HEIGHT) * 100}%;width:${(r.width / WIDTH) * 100}%;height:${(r.height / HEIGHT) * 100}%`;
   const badge = (m) => (m === null || m === 0 ? null : `${m > 0 ? '+' : '-'} ${Math.abs(m)}m`);
+  let tooltip = null;
   function buildTreemap() {
+    tooltip?.destroy();
     const scale = tm.clientWidth / WIDTH || 1;
     const typeOf = (r) => { const w = r.width * scale, h = r.height * scale; return w >= 160 && h >= 110 ? TYPES.large : w >= 90 && h >= 54 ? TYPES.medium : TYPES.compact; };
     const modeOf = (r, app, ty) => {
@@ -561,20 +552,24 @@ export function mountWeekly(host) {
     }
     tm.innerHTML = html;
     const tip = chartTip(tm);
+    tooltip = tip;
     tm.querySelectorAll('.tm__tile').forEach((tile) => {
-      tile.addEventListener('pointermove', (e) => {
+      const c = cats.find((x) => x.key === tile.dataset.cat), ch = tile.dataset.change;
+      const shareTxt = getLang() === 'zh' ? `占${c.name}的 ${tile.dataset.share}%` : `${tile.dataset.share}% of ${c.name}`;
+      const chTxt = ch === '' ? (getLang() === 'zh' ? '上周未使用' : 'Not used last week') : (getLang() === 'zh' ? `较上周 ${+ch > 0 ? '+' : '−'}${dur(Math.abs(+ch))}` : `${+ch > 0 ? '+' : '−'}${dur(Math.abs(+ch))} vs last week`);
+      const html = `<b>${tile.dataset.app}</b><span>${c.name} · ${dur(+tile.dataset.min)}</span><span>${shareTxt}</span><span>${chTxt}</span>`;
+      tile.addEventListener('pointerenter', () => {
         tm.classList.add('has-hover');
-        tm.querySelectorAll('.tm__tile.is-hovered').forEach((x) => x !== tile && x.classList.remove('is-hovered'));
         tile.classList.add('is-hovered');
-        const c = cats.find((x) => x.key === tile.dataset.cat), ch = tile.dataset.change;
-        const shareTxt = getLang() === 'zh' ? `占${c.name}的 ${tile.dataset.share}%` : `${tile.dataset.share}% of ${c.name}`;
-        const chTxt = ch === '' ? (getLang() === 'zh' ? '上周未使用' : 'Not used last week') : (getLang() === 'zh' ? `较上周 ${+ch > 0 ? '+' : '−'}${dur(Math.abs(+ch))}` : `${+ch > 0 ? '+' : '−'}${dur(Math.abs(+ch))} vs last week`);
-        tip.show(e, `<b>${tile.dataset.app}</b><span>${c.name} · ${dur(+tile.dataset.min)}</span><span>${shareTxt}</span><span>${chTxt}</span>`);
+      });
+      tile.addEventListener('pointermove', (e) => {
+        tip.show(e, html);
       });
       tile.addEventListener('pointerleave', () => { tm.classList.remove('has-hover'); tile.classList.remove('is-hovered'); tip.hide(); });
     });
   }
-  new ResizeObserver(() => buildTreemap()).observe(tm);
+  const treemapObserver = new ResizeObserver(() => buildTreemap());
+  treemapObserver.observe(tm);
 
   /* sankey — WeeklySankeyCard, Dayflow geometry in 1748×933 */
   const sk = host.querySelector('[data-sk]');
@@ -642,7 +637,7 @@ export function mountWeekly(host) {
     p.addEventListener('pointerleave', () => !pinned && focus(null));
   });
   sk.addEventListener('click', () => { pinned = null; focus(null); });
-  return { play() { host.classList.add('is-in'); } };
+  return { play() { host.classList.add('is-in'); }, destroy() { tooltip?.destroy(); treemapObserver.disconnect(); } };
 }
 
 /* ───────── Chat ───────── */

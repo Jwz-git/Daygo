@@ -60,10 +60,12 @@ The star canvas is rendered once on load and resize, with opacity following dusk
 
 - Easing: `cubic-bezier(.22,1,.36,1)` for settle, `cubic-bezier(.32,.72,0,1)` (the app's `--dg-ease-glide`) for movement
 - Headline lines rise out of a mask with a blur; sections reveal with rise + unblur
-- Lenis smooth scroll; magnetic primary buttons; shine sweep on hover
-- `prefers-reduced-motion`: no smooth scroll, animations collapse to their end state
+- Browser-native wheel / touch / keyboard scrolling and smooth anchor navigation; Lenis is removed. Magnetic primary buttons and the shine sweep remain.
+- `prefers-reduced-motion`: instant anchor navigation, animations collapse to their end state
 - Frame loops sleep when scrolling settles. Timeline generation wakes on card completion, pauses offscreen / when hidden, and retains the remaining delay on resume. Language and compact-layout rebuilds destroy the previous timeline owner.
 - Decorative CSS animations pause offscreen and when the document is hidden. The title gradient is static; generating indicators animate opacity rather than background colours and shadows. The pipeline runs only while visible and the document is foreground.
+- Page-driven demo updates are limited to about 30 renders per second with a trailing update; the timeline follows that progress directly without a second easing loop. Infinite status / lens / icon decoration and pipeline generation pause while scrolling, then resume after 160ms of inactivity. Text and navigation theme colours switch directly instead of an inherited colour tween.
+- Weekly treemap highlighting changes on entry / exit and dims other tiles with opacity. Tooltip content is reused; pointer updates are coalesced into transforms at about 30 updates per second. Rebuilding the weekly component destroys its tooltip and ResizeObserver.
 
 ## 6. Files
 
@@ -72,6 +74,7 @@ index.html        structure and copy
 src/main.js       scroll, sky, pinned hero, feature mounts, pipeline, reveals
 src/motion.js     demand frame loop and pausable owner timers
 src/sky.js        two-layer palette blending, sun/moon transforms and opacity
+src/interaction.js coalesced chart tooltip updates and content reuse
 src/app.js        timeline window + feature components
 src/charts.js     treemap + sankey geometry (ported)
 src/i18n.js       zh / en copy and formatters

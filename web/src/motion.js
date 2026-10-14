@@ -2,13 +2,17 @@
 export function createFrameLoop(render, {
   requestFrame = callback => requestAnimationFrame(callback),
   cancelFrame = id => cancelAnimationFrame(id),
+  minInterval = 0,
 } = {}) {
-  let pending = null, enabled = true, destroyed = false;
+  let pending = null, enabled = true, destroyed = false, lastRender = null;
   function request() {
     if (!enabled || destroyed || pending !== null) return;
     pending = requestFrame(time => {
       pending = null;
-      if (enabled && !destroyed && render(time)) request();
+      if (!enabled || destroyed) return;
+      if (lastRender !== null && time - lastRender < minInterval) { request(); return; }
+      lastRender = time;
+      if (render(time)) request();
     });
   }
   function cancel() { if (pending !== null) cancelFrame(pending); pending = null; }
@@ -17,9 +21,28 @@ export function createFrameLoop(render, {
     setEnabled(value) {
       if (destroyed || value === enabled) return;
       enabled = value;
-      if (enabled) request(); else cancel();
+      if (enabled) { lastRender = null; request(); } else cancel();
     },
     destroy() { destroyed = true; cancel(); },
+  };
+}
+
+export function createScrollActivity(onChange, {
+  setTimer = (callback, delay) => setTimeout(callback, delay),
+  clearTimer = id => clearTimeout(id), delay = 160,
+} = {}) {
+  let active = false, pending = null, destroyed = false;
+  function setActive(value) { if (value !== active) { active = value; onChange(value); } }
+  function reset() { if (pending !== null) clearTimer(pending); pending = null; setActive(false); }
+  return {
+    update() {
+      if (destroyed) return;
+      setActive(true);
+      if (pending !== null) clearTimer(pending);
+      pending = setTimer(() => { pending = null; setActive(false); }, delay);
+    },
+    reset,
+    destroy() { reset(); destroyed = true; },
   };
 }
 
