@@ -74,20 +74,11 @@ GitHub Actions；确认 `github-pages` environment 的 deployment branch/tag rul
 不再持续闪烁星空或平移文字渐变。
 
 `npm --prefix web run test:unit` 包含动画帧合并 / 收敛、暂停恢复与重建销毁夹具。
-浏览器回归可在已有 Playwright 环境运行（不属于 `npm ci` 的依赖）：
-
-```bash
-# 先在另一个终端启动 npm --prefix web run dev
-node web/tests/performance.browser.cjs http://127.0.0.1:5180 optimized
-```
-
-脚本默认 Windows 使用 Edge，其它平台使用 Playwright Chromium；可用 `PLAYWRIGHT_CHANNEL`
-指定已安装的浏览器。需从仓库根目录执行，并确保 Node 能解析 Playwright
-（本轮通过 `NODE_PATH` 使用宿主提供的包）。输出到忽略的 `.tmp/`。
-每个位置等待 2.5 秒后采样 3 秒，统计动画帧回调、画布重绘和 CDP 主线程任务时间。
-覆盖桌面静止 / 反复重建、滚动唤醒、离屏 / 合成页面隐藏与恢复、卡片生成完成后展开、
-播放器离屏停止、减少动态效果的手机布局。`baseline` 参数仅供未优化版本采集对照，
-不执行新增行为断言；优化断言不得用此参数跳过。
+浏览器检查从 `npm --prefix web run dev` 或生产预览入口开始：在首页、反复中英 / 宽窄布局
+切换后和夜景下载区静止采样，再检查滚动唤醒、卡片生成完成后展开、播放器离屏停止、
+后台暂停恢复及减少动态效果的手机布局。每个位置等待 2.5 秒后采样 3 秒，区分
+JS 动画帧回调、画布重绘与浏览器主线程任务时间。本轮一次性诊断脚本及输出只在本地
+忽略目录保留，不作为仓库测试入口提交；正式单元测试继续随实现维护。
 
 Windows / Edge 无头浏览器的测量结果与证据边界见
 [delivery 验证记录](../docs/modules/delivery.md#验证记录)。主线程任务时间不是整机 CPU、
