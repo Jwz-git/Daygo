@@ -62,3 +62,36 @@ GitHub Actions；确认 `github-pages` environment 的 deployment branch/tag rul
 实现依据：[GitHub Pages 自定义工作流](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
 配套网页部署与下载链路于 2026-10-13 用户确认已验收，未附 Pages / CI 逐项运行记录；
 本轮未重新部署或改动服务端配置，统一证据边界见 [09 §9.1.1](../docs/09-roadmap.md#911-本轮验收记录与证据边界)。
+
+## 动画与资源占用
+
+2026-10-14 的优化保留滚动天空、时间线生成、详情播放器与流水线演示。
+页面与时间线改为按需请求动画帧：滚动 / 布局变化触发，平滑滚动与轨道位移收敛后停止；
+语言 / 宽窄布局重建时销毁旧时间线的帧、定时任务和播放器。
+时间线所在舞台离屏或页面隐藏时暂停生成任务，回到可见状态后按剩余延迟恢复；
+离屏装饰与后台 CSS 动画暂停，后台流水线停止生成截图。
+星空在加载与尺寸变化时绘制一次，随滚动淡入；标题渐变保持静态，生成状态灯改为透明度动画。
+不再持续闪烁星空或平移文字渐变。
+
+`npm --prefix web run test:unit` 包含动画帧合并 / 收敛、暂停恢复与重建销毁夹具。
+浏览器回归可在已有 Playwright 环境运行（不属于 `npm ci` 的依赖）：
+
+```bash
+# 先在另一个终端启动 npm --prefix web run dev
+node web/tests/performance.browser.cjs http://127.0.0.1:5180 optimized
+```
+
+脚本默认 Windows 使用 Edge，其它平台使用 Playwright Chromium；可用 `PLAYWRIGHT_CHANNEL`
+指定已安装的浏览器。需从仓库根目录执行，并确保 Node 能解析 Playwright
+（本轮通过 `NODE_PATH` 使用宿主提供的包）。输出到忽略的 `.tmp/`。
+每个位置等待 2.5 秒后采样 3 秒，统计动画帧回调、画布重绘和 CDP 主线程任务时间。
+覆盖桌面静止 / 反复重建、滚动唤醒、离屏 / 合成页面隐藏与恢复、卡片生成完成后展开、
+播放器离屏停止、减少动态效果的手机布局。`baseline` 参数仅供未优化版本采集对照，
+不执行新增行为断言；优化断言不得用此参数跳过。
+
+Windows / Edge 无头浏览器的测量结果与证据边界见
+[delivery 验证记录](../docs/modules/delivery.md#验证记录)。主线程任务时间不是整机 CPU、
+GPU 或内存指标；macOS / Safari、真实后台切换及线上部署需另外验收。
+调度依据：[Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)、
+[requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)；
+Lenis 时钟与滚动状态按锁文件的 1.3.26 源码 / 类型核对。

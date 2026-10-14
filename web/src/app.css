@@ -328,8 +328,10 @@ svg.gl--fill { fill: currentColor; stroke: none; }
 .gen-card--now { position: absolute; right: 14px; left: 2px; z-index: 3; }
 .gen-card__text { overflow: hidden; text-overflow: ellipsis; }
 .gen-card__spinner { display: grid; flex: none; grid-template-columns: repeat(3, 4px); gap: 0.5px; }
-.gen-card__spinner i { width: 4px; height: 4px; border-radius: 1px; background: rgba(67, 93, 151, 0.18); animation: gen-wave 1.5s ease-in-out infinite; }
-@keyframes gen-wave { 0%, 70%, 100% { background: rgba(67, 93, 151, 0.18); box-shadow: none; } 18% { background: #b884bc; } 32% { background: #f6be74; box-shadow: 0 0 3px rgba(246, 190, 116, 0.9); } 48% { background: #435d97; box-shadow: none; } }
+.gen-card__spinner i { width: 4px; height: 4px; border-radius: 1px; background: #b884bc; animation: gen-wave 1.5s ease-in-out infinite; }
+.gen-card__spinner i:nth-child(3n + 2) { background: #f6be74; }
+.gen-card__spinner i:nth-child(3n) { background: #435d97; }
+@keyframes gen-wave { 0%, 70%, 100% { opacity: 0.25; } 32% { opacity: 1; } }
 
 /* Timeline footer: review badge centred, copy button bottom right */
 .timeline-footer { position: relative; z-index: 5; display: flex; grid-row: 1; grid-column: 1; align-items: flex-end; justify-content: flex-end; align-self: end; padding: 0 24px 17px; pointer-events: none; }

@@ -29,7 +29,7 @@ Sample data (`src/data.js`) is anonymous but shaped like a real day: gaps betwee
 
 ## Language
 
-`中 / EN` in the nav switches everything — site copy, app strings, sample data, date and duration formats — and remembers the choice. The first visit follows the browser language.
+`中 / EN` in the nav switches everything — site copy, app strings, sample data, date and duration formats — and remembers the choice. The first visit defaults to English.
 
 ## Type
 
@@ -52,18 +52,23 @@ One set for both appearances, matching Daygo's default categories (`--cat-*` in 
 
 `main.js` maps scroll position to minutes of the day through anchors (section tops), then interpolates a 12-stop palette (`SKY`) into `--sky-top/mid/bot` and `--sun`. The sun travels an arc from 06:00 to 19:10; a horizon haze strengthens when the sun is low; stars (canvas) and the moon fade in after dusk. At 17:50 `html.is-night` and `data-dg-appearance="dark"` flip together.
 
+The star canvas is rendered once on load and resize, with opacity following dusk; it does not continuously twinkle. Sky and stage styles update only when scroll position or layout changes.
+
 ## 5. Motion
 
 - Easing: `cubic-bezier(.22,1,.36,1)` for settle, `cubic-bezier(.32,.72,0,1)` (the app's `--dg-ease-glide`) for movement
 - Headline lines rise out of a mask with a blur; sections reveal with rise + unblur
 - Lenis smooth scroll; magnetic primary buttons; shine sweep on hover
 - `prefers-reduced-motion`: no smooth scroll, animations collapse to their end state
+- Frame loops sleep when scrolling settles. Timeline generation wakes on card completion, pauses offscreen / when hidden, and retains the remaining delay on resume. Language and compact-layout rebuilds destroy the previous timeline owner.
+- Decorative CSS animations pause offscreen and when the document is hidden. The title gradient is static; generating indicators animate opacity rather than background colours and shadows. The pipeline runs only while visible and the document is foreground.
 
 ## 6. Files
 
 ```
 index.html        structure and copy
 src/main.js       scroll, sky, pinned hero, feature mounts, pipeline, reveals
+src/motion.js     demand frame loop and pausable owner timers
 src/app.js        timeline window + feature components
 src/charts.js     treemap + sankey geometry (ported)
 src/i18n.js       zh / en copy and formatters
@@ -75,5 +80,5 @@ src/styles.css    site styles
 ```bash
 npm run dev     # http://127.0.0.1:5180
 npm run build   # dist/, deployable to any static host
-npm run deploy  # build and push to gh-pages
+npm run preview # http://localhost:5181; Pages deployment follows README.md
 ```

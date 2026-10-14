@@ -61,9 +61,7 @@ h1, h2, h3, p { margin: 0; }
   background-clip: text;
   color: transparent;
   background-size: 200% 100%;
-  animation: grad-pan 8s ease-in-out infinite alternate;
 }
-@keyframes grad-pan { to { background-position: 100% 0; } }
 
 /* ───────── Sky ───────── */
 .sky { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
@@ -269,6 +267,12 @@ html.is-night .pipe__core svg { fill: #ffb27a; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
   [data-anim] { opacity: 1; transform: none; filter: none; }
+}
+
+.motion-paused, .motion-paused *, .motion-paused::before, .motion-paused::after,
+.motion-paused *::before, .motion-paused *::after,
+html.page-hidden *, html.page-hidden *::before, html.page-hidden *::after {
+  animation-play-state: paused !important;
 }
 
 /* Latin pages set display titles in Instrument Serif, as the app does for period titles */

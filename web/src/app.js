@@ -4,6 +4,7 @@
 import { CATS, CARDS, PENDING, NOW, PLANS, STANDUP, WEEK, CHAT } from './data.js';
 import { L, t, getLang, dur, durCompact, fmt12, fmt24, hourLabel, hourTick } from './i18n.js';
 import { squarify, sankeyLayout, ribbon, gradientStops, appColor, SANKEY_WIDTH, SANKEY_HEIGHT, SANKEY_BAR, SANKEY_COLUMNS } from './charts.js';
+import { createFrameLoop, createPausableTimers } from './motion.js';
 
 const ICONS = new Set(['messages', 'notes', 'vscode', 'github', 'chrome', 'safari', 'terminal', 'youtube', 'discord', 'finder', 'claude', 'gemini', 'daygo', 'xcode']);
 const el = (html) => { const tp = document.createElement('template'); tp.innerHTML = html.trim(); return tp.content.firstElementChild; };
@@ -109,6 +110,9 @@ const yOf = (m) => (m - DAY_START) * PPM;
 const generated = new Set(); // cards already generated survive a rebuild (language, layout)
 
 export function createApp({ compact = false } = {}) {
+  const timers = createPausableTimers();
+  const later = timers.schedule;
+  let active = true, destroyed = false;
   const zh = getLang() === 'zh';
   const cards = [...CARDS];
   const usedCats = Object.keys(CATS).filter((k) => cards.some((c) => c.cat === k) || PENDING.cat === k);
@@ -224,7 +228,7 @@ export function createApp({ compact = false } = {}) {
     c.classList.remove('is-waiting');
   }
   function generateNext() {
-    if (!genReady || genBusy) return;
+    if (destroyed || !active || !genReady || genBusy) return;
     const top = scroller.scrollTop, bottom = top + scroller.clientHeight;
     while (queue.length) {
       const c = queue[0], y = parseFloat(c.style.top), h = parseFloat(c.style.height);
@@ -236,14 +240,15 @@ export function createApp({ compact = false } = {}) {
       genBusy = true;
       const g = el(`<div class="range range--gen" style="top:${y}px;height:${h}px"><div class="gen-card range__status">${spinner()}${h >= 26 ? `<span class="gen-card__text">${t('tl.generating')}</span>` : ''}</div></div>`);
       events.appendChild(g);
-      setTimeout(() => {
+      later(() => {
         g.classList.add('is-out');
-        setTimeout(() => g.remove(), 380);
+        later(() => g.remove(), 380);
         reveal(c);
         c.classList.add('is-new');
         c.addEventListener('animationend', () => c.classList.remove('is-new'), { once: true });
         genBusy = false;
-        setTimeout(generateNext, fast ? 40 : 160);
+        demoDetail(lastP);
+        later(generateNext, fast ? 40 : 160);
       }, fast ? 240 : 640);
       return;
     }
@@ -256,7 +261,7 @@ export function createApp({ compact = false } = {}) {
     if (resolved || queue.length) return;
     resolved = true;
     processing.classList.add('is-out');
-    setTimeout(() => {
+    later(() => {
       processing.remove();
       cards.push(PENDING);
       const c = cardEl(PENDING);
@@ -340,6 +345,16 @@ export function createApp({ compact = false } = {}) {
     if (v === 'overview') playDonut(overview.querySelector('.donut'));
   }
 
+  function demoDetail(p) {
+    if (touched) return;
+    // Generation can finish after scrolling has settled; no polling is needed.
+    if (p > 0.3 && p < 0.72 && selected === null) {
+      const mid = DAY_START + (target + scroller.clientHeight / 2) / PPM;
+      const pick = cards.filter((c) => c.cat !== 'distraction' && isReady(c)).sort((a, b) => Math.abs((a.start + a.end) / 2 - mid) - Math.abs((b.start + b.end) / 2 - mid))[0];
+      if (pick) selectCard(pick.id);
+    } else if ((p <= 0.22 || p >= 0.8) && selected !== null) closeDetail();
+  }
+
   const verdicts = new Map();
 
   const copy = $('[data-copy]');
@@ -347,7 +362,7 @@ export function createApp({ compact = false } = {}) {
     const content = copy.firstElementChild;
     content.innerHTML = `${I.check}${t('tl.copied')}`;
     copy.classList.add('is-copied');
-    setTimeout(() => { content.innerHTML = `<i class="ic ic--copy"></i>${t('tl.copy')}`; copy.classList.remove('is-copied'); }, 1400);
+    later(() => { content.innerHTML = `<i class="ic ic--copy"></i>${t('tl.copy')}`; copy.classList.remove('is-copied'); }, 1400);
   });
   $$('[data-nav]').forEach((b) => b.addEventListener('click', () => navCb(b.dataset.nav)));
 
@@ -357,35 +372,42 @@ export function createApp({ compact = false } = {}) {
   const endTop = () => Math.max(startTop(), yOf(NOW) + 120 - scroller.clientHeight);
   target = current = startTop();
   scroller.scrollTop = current;
-  function tick() {
-    current += (target - current) * 0.14;
+  const trackLoop = createFrameLoop(() => {
+    current = reduced ? target : current + (target - current) * 0.14;
     if (Math.abs(target - current) < 0.3) current = target;
-    scroller.scrollTop = current;
+    if (Math.abs(scroller.scrollTop - current) > 0.3) scroller.scrollTop = current;
     generateNext();
-    requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
+    return current !== target;
+  });
 
   return {
     el: root,
     start() {
       placeThumb();
       playDonut(overview.querySelector('.donut'));
-      setTimeout(() => { genReady = true; }, generated.size ? 0 : 700);
+      later(() => { genReady = true; trackLoop.request(); }, generated.size ? 0 : 700);
+    },
+    setActive(value) {
+      if (destroyed || value === active) return;
+      active = value;
+      timers.setEnabled(value);
+      trackLoop.setEnabled(value);
+      if (!value) pl?.stop();
+    },
+    destroy() {
+      destroyed = true;
+      timers.destroy();
+      trackLoop.destroy();
+      pl?.stop();
     },
     onNavigate(cb) { navCb = cb; },
     progress(p) {
       const k = Math.min(1, Math.max(0, (p - 0.08) / 0.8));
       target = startTop() + (endTop() - startTop()) * (k * k * (3 - 2 * k));
+      trackLoop.request();
       lastP = p;
       if (p > 0.86) resolvePending();
-      if (touched) return;
-      // demo: open whichever card sits in the middle of the view, once per pass
-      if (p > 0.3 && p < 0.72 && selected === null) {
-        const mid = DAY_START + (target + scroller.clientHeight / 2) / PPM;
-        const pick = cards.filter((c) => c.cat !== 'distraction' && isReady(c)).sort((a, b) => Math.abs((a.start + a.end) / 2 - mid) - Math.abs((b.start + b.end) / 2 - mid))[0];
-        if (pick) selectCard(pick.id);
-      } else if ((p <= 0.22 || p >= 0.8) && selected !== null) closeDetail();
+      demoDetail(p);
     },
   };
 }
