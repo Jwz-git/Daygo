@@ -50,7 +50,9 @@ One set for both appearances, matching Daygo's default categories (`--cat-*` in 
 
 ## 4. Sky
 
-`main.js` maps scroll position to minutes of the day through anchors (section tops), then interpolates a 12-stop palette (`SKY`) into `--sky-top/mid/bot` and `--sun`. The sun travels an arc from 06:00 to 19:10; a horizon haze strengthens when the sun is low; stars (canvas) and the moon fade in after dusk. At 17:50 `html.is-night` and `data-dg-appearance="dark"` flip together.
+`main.js` maps scroll position to minutes of the day through anchors (section tops). `sky.js` blends two fixed gradient layers from the 12-stop palette (`SKY`), replacing their backgrounds only when the palette interval changes. It does not write per-frame inherited variables to `html`. The sun travels an arc from 06:00 to 19:10; a horizon haze strengthens when the sun is low; stars (canvas) and the moon fade in after dusk. At 17:50 `html.is-night` and `data-dg-appearance="dark"` flip together.
+
+The sun, glow and haze keep fixed warm colours so scrolling changes only leaf opacity and transforms. Sun and moon movement use transforms instead of left/top. Intermediate sky colours are produced by layer blending; the twelve palette stops remain unchanged. Exactly two gradient layers are reused, rather than allocating one full-viewport layer per stop.
 
 The star canvas is rendered once on load and resize, with opacity following dusk; it does not continuously twinkle. Sky and stage styles update only when scroll position or layout changes.
 
@@ -69,6 +71,7 @@ The star canvas is rendered once on load and resize, with opacity following dusk
 index.html        structure and copy
 src/main.js       scroll, sky, pinned hero, feature mounts, pipeline, reveals
 src/motion.js     demand frame loop and pausable owner timers
+src/sky.js        two-layer palette blending, sun/moon transforms and opacity
 src/app.js        timeline window + feature components
 src/charts.js     treemap + sankey geometry (ported)
 src/i18n.js       zh / en copy and formatters

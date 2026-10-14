@@ -73,7 +73,13 @@ GitHub Actions；确认 `github-pages` environment 的 deployment branch/tag rul
 星空在加载与尺寸变化时绘制一次，随滚动淡入；标题渐变保持静态，生成状态灯改为透明度动画。
 不再持续闪烁星空或平移文字渐变。
 
-`npm --prefix web run test:unit` 包含动画帧合并 / 收敛、暂停恢复与重建销毁夹具。
+滚动期间的天空更新由 `src/sky.js` 隔离在背景元素上，逐帧只修改透明度与 transform，
+不再把天空变量写到 `html` 触发整页继承样式重算。天空复用两层固定渐变，跨调色板区间
+才更换背景；太阳、光晕与地平线雾保持固定暖色，日月位置通过 transform 移动。
+因此中间色由渐变叠层混合，仍保留原来的十二个天空色阶、昼夜切换与时钟。
+
+`npm --prefix web run test:unit` 包含动画帧合并 / 收敛、暂停恢复与重建销毁夹具，
+以及天空色阶边界、双层复用、逐帧只合成与日月可见性的正式单元测试。
 浏览器检查从 `npm --prefix web run dev` 或生产预览入口开始：在首页、反复中英 / 宽窄布局
 切换后和夜景下载区静止采样，再检查滚动唤醒、卡片生成完成后展开、播放器离屏停止、
 后台暂停恢复及减少动态效果的手机布局。每个位置等待 2.5 秒后采样 3 秒，区分
@@ -86,3 +92,4 @@ GPU 或内存指标；macOS / Safari、真实后台切换及线上部署需另�
 调度依据：[Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)、
 [requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame)；
 Lenis 时钟与滚动状态按锁文件的 1.3.26 源码 / 类型核对。
+合成方式参考 [Chrome 团队动画性能指南](https://web.dev/articles/animations-guide)。

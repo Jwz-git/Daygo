@@ -6,6 +6,7 @@ import { CARDS, CATS } from './data.js';
 import { t, L, getLang, setLang, onLang, fmt12 } from './i18n.js';
 import { loadReleaseDownloads } from './downloads.js';
 import { createFrameLoop } from './motion.js';
+import { createSkyPainter } from './sky.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -230,27 +231,13 @@ function drawStars() {
 
 const clock = $('.nav__time');
 const meta = $('meta[name="theme-color"]');
+const paintBackdrop = createSkyPainter({
+  layers: $$('.sky__layer'), sun: $('.sky__sun'), glow: $('.sky__glow'),
+  disc: $('.sky__sun i'), haze: $('.sky__haze'), moon: $('.sky__moon'), stars,
+}, SKY);
 let lastNight = null, lastClock = '';
 function paintSky(m) {
-  const [top, mid, bot, sun] = skyAt(m);
-  const st = root.style;
-  st.setProperty('--sky-top', top);
-  st.setProperty('--sky-mid', mid);
-  st.setProperty('--sky-bot', bot);
-  st.setProperty('--sun', sun);
-  // the sun arcs from sunrise (06:00) to sunset (19:10)
-  const f = (m - 360) / (1150 - 360);
-  const alt = Math.sin(Math.PI * clamp(f, -0.08, 1.08));
-  st.setProperty('--sun-x', `${lerp(26, 82, clamp(f, 0, 1))}%`);
-  st.setProperty('--sun-y', `${96 - alt * 74}%`);
-  const lowSun = 1 - clamp(alt * 1.6);
-  st.setProperty('--haze', (0.25 + 0.6 * lowSun) * (1 - smooth(1170, 1260, m)));
-  st.setProperty('--sun-glow', 1 - smooth(1140, 1200, m));
-  st.setProperty('--sun-disc', 1 - smooth(1130, 1175, m));
-  const night = smooth(1120, 1240, m);
-  st.setProperty('--moon', smooth(1190, 1290, m));
-  st.setProperty('--moon-y', `${lerp(34, 14, smooth(1190, 1440, m))}vh`);
-  stars.style.opacity = night;
+  paintBackdrop(m);
 
   const isNight = m >= 1070;
   if (isNight !== lastNight) {
@@ -260,7 +247,7 @@ function paintSky(m) {
   }
   const mm = Math.round(m);
   const label = `${String(Math.floor(mm / 60) % 24).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`;
-  if (label !== lastClock) { lastClock = label; clock.textContent = label; meta.content = top; }
+  if (label !== lastClock) { lastClock = label; clock.textContent = label; meta.content = skyAt(m)[0]; }
 }
 
 /* ───────── Stage choreography ───────── */

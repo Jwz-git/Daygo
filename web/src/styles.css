@@ -1,4 +1,4 @@
-/* Daygo site — one scroll is one day. Sky colours are written by main.js. */
+/* Daygo site — one scroll is one day. Sky leaf styles are written by sky.js. */
 
 :root {
   --ink: #1d1d22;
@@ -11,9 +11,6 @@
   --g2: #d96bb0;
   --g3: #7b7cf0;
   --sun: #ffb27a;
-  --sky-top: #9fb3e6;
-  --sky-mid: #f2d6d6;
-  --sky-bot: #ffd0ad;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --glide: cubic-bezier(0.32, 0.72, 0, 1);
   --font: 'Figtree', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
@@ -65,13 +62,14 @@ h1, h2, h3, p { margin: 0; }
 
 /* ───────── Sky ───────── */
 .sky { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.sky__grad { position: absolute; inset: 0; background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 58%, var(--sky-bot) 100%); }
+.sky__grad, .sky__layer { position: absolute; inset: 0; }
+.sky__layer:last-child { opacity: 0; will-change: opacity; }
 .sky__stars { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
-.sky__haze { position: absolute; left: var(--sun-x, 50%); bottom: -38vh; width: 160vw; height: 70vh; border-radius: 50%; transform: translateX(-50%); background: radial-gradient(closest-side, var(--sun), transparent); opacity: var(--haze, 0.6); filter: blur(10px); }
-.sky__sun { position: absolute; left: var(--sun-x, 50%); top: var(--sun-y, 90%); width: 0; height: 0; }
-.sky__sun::before { content: ''; position: absolute; left: -36vmin; top: -36vmin; width: 72vmin; height: 72vmin; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--sun) 80%, transparent), transparent 62%); opacity: var(--sun-glow, 0.9); }
-.sky__sun i { position: absolute; left: -7vmin; top: -7vmin; width: 14vmin; height: 14vmin; border-radius: 50%; background: radial-gradient(circle at 40% 38%, color-mix(in srgb, var(--sun) 30%, #fff), color-mix(in srgb, var(--sun) 85%, #fff) 55%, var(--sun)); box-shadow: 0 0 60px 10px color-mix(in srgb, var(--sun) 60%, transparent); opacity: var(--sun-disc, 1); }
-.sky__moon { position: absolute; right: 14vw; top: var(--moon-y, 30vh); width: 9vmin; height: 9vmin; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fbf7ea, #ded8c8 70%); box-shadow: 0 0 40px 6px rgba(240, 236, 220, 0.25), inset -1.6vmin -1vmin 0 rgba(0, 0, 20, 0.08); opacity: var(--moon, 0); }
+.sky__haze { position: absolute; left: 0; bottom: -38vh; width: 160vw; height: 70vh; border-radius: 50%; transform: translate3d(calc(50vw - 50%), 0, 0); background: radial-gradient(closest-side, #ffb27a, transparent); opacity: 0.6; filter: blur(10px); }
+.sky__sun { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+.sky__glow { position: absolute; left: -36vmin; top: -36vmin; width: 72vmin; height: 72vmin; border-radius: 50%; background: radial-gradient(circle, rgba(255, 210, 160, 0.8), transparent 62%); opacity: 0.9; }
+.sky__sun i { position: absolute; left: -7vmin; top: -7vmin; width: 14vmin; height: 14vmin; border-radius: 50%; background: radial-gradient(circle at 40% 38%, #fff2e3, #ffdeb8 55%, #ffd2a0); box-shadow: 0 0 60px 10px rgba(255, 210, 160, 0.6); opacity: 1; }
+.sky__moon { position: absolute; right: 14vw; top: 0; width: 9vmin; height: 9vmin; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fbf7ea, #ded8c8 70%); box-shadow: 0 0 40px 6px rgba(240, 236, 220, 0.25), inset -1.6vmin -1vmin 0 rgba(0, 0, 20, 0.08); opacity: 0; }
 
 /* ───────── Nav ───────── */
 .nav {
