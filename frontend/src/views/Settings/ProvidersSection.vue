@@ -73,6 +73,7 @@ async function confirmRemove(id: string): Promise<void> {
       <p class="head__hint">{{ t('settings.providers.description') }}</p>
     </div>
     <div class="head__actions">
+      <RouterLink class="dg-button dg-button--small" :to="{ name: 'training' }">{{ t('training.title') }}</RouterLink>
       <RouterLink class="dg-button dg-button--small" :to="{ name: 'model-playground' }">
         {{ t('modelPlayground.title') }}
       </RouterLink>

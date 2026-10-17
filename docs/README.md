@@ -49,6 +49,8 @@
 
 新增执行册沿用 [模板](modules/_template.md)。这些功能边界不改变 02 的技术分层。
 
+训练数据增量：[本地训练样本工作流](training-data.md)，默认关闭，需独立验收。
+
 ## 决策记录
 
 `docs/decisions/<module>-<topic>.md` 记录已经做出的选择：候选、实验、结果、边界与回退。

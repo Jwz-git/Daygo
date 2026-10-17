@@ -13,6 +13,7 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-rou
  * path strings.
  */
 const routes: RouteRecordRaw[] = [
+ {path:'/training',name:'training',component:()=>import('@/views/Training/TrainingView.vue'),meta:{navKey:'settings'}},
   {
     path: '/model-tests',
     name: 'model-playground',

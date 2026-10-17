@@ -1979,3 +1979,34 @@ type ChatMessageDTO struct {
 | provider 路由 | **已定：会话级选择（必选）** | `chat_conversations.provider_id` 存用户显式选择；新会话默认路由链首位；不回退到链 |
 | 消息留存 | 无限期 vs 按天数 / 条数上限（仍待定） | 上限策略与 [07 §7.6](07-privacy-security.md#76-数据留存与删除) 的留存原则一并定 |
 | 审计来源标记 | `agent-writes.log` 中区分 UI / agent.sock / MCP / chat 来源（仍待定） | 与 §5.9.3 的候选共通，一并定 |
+
+
+## 5.13 本地训练样本（2026-10-17 增量）
+
+归属 timeline / providers / data / preferences；[工作流](training-data.md)、[决策](decisions/training-sample-collection.md)。
+全部方法包括读和导出均要求可写捕获所有者，否则 not_capture_owner；绑定不返回凭据或原始录制路径。
+ID 为 32 位小写十六进制；未知 / 路径形式拒绝。所有写操作成功后发 training:updated（空对象、仅失效通知）。
+采集落盘及失败计数也发该事件。读后渲染，禁止乐观批准标签。
+
+| 方法 | 输入 / 返回 | 约束 |
+|---|---|---|
+| `GetTrainingStatus()` | active / until / limit / captured / skipped / failed | 仅本次宿主运行状态；until 为 Unix 秒 |
+| `StartTrainingCapture(TrainingStartDTO)` | minutes / limit / consent | 1–480 分钟，1–100 条，consent 必须 true |
+| `StopTrainingCapture()` | 无 | 丢弃尚未写入队列，不取消正常分析 |
+| `ListTrainingSamples()` | TrainingSummary[] | 不含正文 / 图片 |
+| `GetTrainingSample(id)` | TrainingSampleDTO | prompt / schema 字符串、图片 data URL、原始 / 教师答案、label、review 状态 |
+| `ReviewTrainingSample(TrainingReviewDTO)` | id / revision / label / privacyApproved / verdict | verdict=pending/accepted/rejected；accepted 校验 Schema、帧范围、卡片分类与时长 |
+| `DeleteTrainingSample(id)` | 无 | 只删此样本，已导出副本独立存在 |
+| `RelabelTrainingSample(TrainingTeacherDTO)` | id / revision / providerId / model / consent | 单次指定 Provider，无回退；重标注撤销审核，最多四次历史 |
+| `ExportTrainingSamples(ids)` | 本地 ZIP 路径 | 1–100 个不重复 ID，全部已接受且隐私批准，再验标签合法性 |
+| `OpenTrainingExports()` | 无 | 仅打开固定 training/exports 目录，不接受调用方路径 |
+
+TrainingSampleDTO：id、revision、purpose、model、prompt、schema、images、candidate、teachers、label、
+verdict、privacyApproved、group；teachers 每项 provider / model / actualModel / protocol / answer / createdAt。
+TrainingSummary：id / purpose / createdAt / model / verdict / privacyApproved / revision。
+这里的 model 是请求模型；候选不意味着真实语义正确或正式卡片事务成功。导出为本地文件，不产生上传。
+已有错误码：invalid_argument（格式、审核与配额）、conflict（修订冲突）、not_found、not_capture_owner、
+database_error（无存储）、provider_failed、native_unavailable；错误不回显正文与底层路径。
+
+内部 ai.Request.Training 仅为本地 provenance，不发送给 Provider：窗口 Unix 秒、IANA 时区、语言、模式与允许分类。
+仅初始有完整证据的请求填写，纠错请求 nil；转录实际图片顺序不变。采集器独立于 AttemptObserver 与 llm_calls。

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/ai"
@@ -81,6 +82,15 @@ func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, erro
 				defer cancel()
 				sink.RecordAttempt(dbCtx, attempt)
 			}))
+		if collector := a.backend.trainingSnapshot(); collector != nil {
+			provider = collector.Wrap(provider, row.ID, model, row.Protocol, func(result ai.Result) ai.Result {
+				if secret != "" {
+					result.Text = strings.ReplaceAll(result.Text, secret, "[redacted]")
+					result.Model = strings.ReplaceAll(result.Model, secret, "[redacted]")
+				}
+				return result
+			})
+		}
 		provider = ai.WithRetry(provider, ai.DefaultRetryPolicy())
 		entries = append(entries, ai.ChainEntry{ID: chainEntryID(row.ID, model), Provider: provider})
 	}
@@ -197,6 +207,14 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 	b.analysisDone = make(chan struct{})
 	done := b.analysisDone
 	b.timelineTaskMu.Unlock()
-	go func() { defer close(done); service.Run(runCtx) }()
+	collector := b.ensureTraining()
+	go func() {
+		defer close(done)
+		collectorDone := make(chan struct{})
+		go func() { defer close(collectorDone); collector.Run(runCtx) }()
+		service.Run(runCtx)
+		cancel()
+		<-collectorDone
+	}()
 	return service, nil
 }

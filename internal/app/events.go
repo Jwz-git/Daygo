@@ -6,6 +6,7 @@ package app
 type EventName string
 
 const (
+	EventTrainingUpdated     EventName = "training:updated"
 	EventTimelineUpdated     EventName = "timeline:updated"
 	EventJournalUpdated      EventName = "journal:updated"
 	EventGoalUpdated         EventName = "goal:updated"
@@ -22,6 +23,7 @@ const (
 )
 
 var eventNames = [...]EventName{
+	EventTrainingUpdated,
 	EventTimelineUpdated,
 	EventJournalUpdated,
 	EventGoalUpdated,

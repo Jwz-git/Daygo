@@ -17,6 +17,7 @@ import (
 	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	daytime "github.com/Jwz-git/Daygo/internal/timeutil"
+	"github.com/Jwz-git/Daygo/internal/training"
 )
 
 const (
@@ -59,6 +60,8 @@ func (nopEmitter) Emit(EventName, any) {}
 // a binding method stays unexported, however inconvenient; bindings_test.go
 // fails when the two disagree.
 type Backend struct {
+	trainingMu           sync.Mutex
+	training             *training.Service
 	clock                Clock
 	system               platform.System
 	capture              platform.Capture

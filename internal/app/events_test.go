@@ -4,6 +4,7 @@ import "testing"
 
 func TestEventNameContract(t *testing.T) {
 	want := []EventName{
+		"training:updated",
 		"timeline:updated",
 		"journal:updated",
 		"goal:updated",
@@ -35,7 +36,7 @@ func TestEventNameContract(t *testing.T) {
 	}
 
 	got[0] = "mutated"
-	if EventNames()[0] != EventTimelineUpdated {
+	if EventNames()[0] != EventTrainingUpdated {
 		t.Fatal("EventNames exposed mutable package state")
 	}
 }

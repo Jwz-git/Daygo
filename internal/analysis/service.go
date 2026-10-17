@@ -875,6 +875,7 @@ func (s *Service) transcribeGroup(ctx context.Context, chain *ai.Chain,
 	}
 
 	request := ai.Request{
+		Training:        &domain.TrainingContext{Start: group[0].CapturedAt.Unix(), End: group[len(group)-1].CapturedAt.Unix(), Zone: timeutil.ZoneName(s.loc()), Language: s.cfg.Language(ctx), Mode: "transcribe"},
 		Purpose:         ai.PurposeTranscribe,
 		Parts:           parts,
 		Output:          &transcribeOutput,
@@ -1063,9 +1064,10 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		var request ai.Request
 		if attempt == 1 {
 			request = ai.Request{
-				Purpose: ai.PurposeCards,
-				Parts:   []ai.Part{ai.TextPart(cardsPrompt(batch.Start, batch.End, existing, obs, categories, s.cfg.Language(ctx), mode))},
-				Output:  &cardsOutput,
+				Training: trainingContext(rewriteStart, batch.End, s.loc(), s.cfg.Language(ctx), mode, categories),
+				Purpose:  ai.PurposeCards,
+				Parts:    []ai.Part{ai.TextPart(cardsPrompt(batch.Start, batch.End, existing, obs, categories, s.cfg.Language(ctx), mode))},
+				Output:   &cardsOutput,
 			}
 		} else {
 			request = ai.Request{
@@ -1347,9 +1349,10 @@ func (s *Service) generateScopedCards(ctx context.Context, chain *ai.Chain, card
 		var request ai.Request
 		if attempt == 1 {
 			request = ai.Request{
-				Purpose: ai.PurposeCards,
-				Parts:   []ai.Part{ai.TextPart(cardsPrompt(windowStart, windowEnd, existing, obs, categories, s.cfg.Language(ctx), cardModeScoped))},
-				Output:  &cardsOutput,
+				Training: trainingContext(windowStart, windowEnd, s.loc(), s.cfg.Language(ctx), cardModeScoped, categories),
+				Purpose:  ai.PurposeCards,
+				Parts:    []ai.Part{ai.TextPart(cardsPrompt(windowStart, windowEnd, existing, obs, categories, s.cfg.Language(ctx), cardModeScoped))},
+				Output:   &cardsOutput,
 			}
 		} else {
 			request = ai.Request{

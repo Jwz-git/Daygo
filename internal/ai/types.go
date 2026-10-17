@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Jwz-git/Daygo/internal/domain"
 	"time"
 )
 
@@ -85,9 +86,11 @@ type OutputSchema struct {
 }
 
 type Request struct {
-	Purpose Purpose
-	Parts   []Part
-	Output  *OutputSchema
+	// Training is local provenance, never serialized to a Provider. Nil excludes correction-only requests.
+	Training *domain.TrainingContext
+	Purpose  Purpose
+	Parts    []Part
+	Output   *OutputSchema
 	// MaxImages caps the image parts of this request; 0 means MaxImages. The
 	// caller derives it from the provider chain so a gateway with a lower
 	// limit never receives an over-sized request.
