@@ -226,19 +226,18 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Dayflow's glass control and paused capsule (DayflowTheme.swift), toned
-   down: the reference #FFD2B9 fill and its #FF8D40 gradient read too deep
-   and too bright beside Daygo's surfaces, so both sit lower in saturation
-   and nearer Daygo's own accent (#ff9f6f). Kept local: no token carries
-   these hues. */
+/* Dayflow's PausePillView colors (DayflowTheme.swift, refreshed style):
+   idle is the "glass" control (controlFill / controlBorder / controlInnerGlow,
+   0.75px border), paused is the primary "Set goals" button, which Daygo's
+   --dg-button-primary-* tokens already carry with the same values. */
 .pp {
-  --pp-fill: #fbe3d6;
-  --pp-border: #ecdcd4;
-  --pp-glow: #fff3ed;
+  --pp-fill: #ffd2b9;
+  --pp-border: #ead5cd;
+  --pp-glow: #ffece6;
   --pp-text: #606060;
-  --pp-paused: linear-gradient(180deg, #f7bea4 0%, #ec9c74 50%, #e8946a 76%, #f0b294 100%);
-  --pp-paused-border: #f6d6c4;
-  --pp-paused-shine: rgba(255, 236, 222, 0.42);
+  --pp-paused: var(--dg-button-primary-fill);
+  --pp-paused-border: var(--dg-button-primary-border);
+  --pp-paused-glow: rgba(255, 220, 203, 0.9);
   --pp-chip-border: rgba(225, 225, 225, 0.8);
   --pp-chip-fill: linear-gradient(320deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.56) 38%, rgba(255, 255, 255, 0.44) 100%);
   --pp-chip-text: #333333;
@@ -254,13 +253,11 @@ onBeforeUnmount(() => {
 }
 
 :root[data-dg-appearance='dark'] .pp {
-  --pp-fill: rgba(226, 160, 121, 0.26);
-  --pp-border: #6f5446;
-  --pp-glow: rgba(243, 182, 152, 0.32);
+  --pp-fill: rgba(226, 160, 121, 0.4);
+  --pp-border: #875c46;
+  --pp-glow: rgba(243, 182, 152, 0.5);
   --pp-text: #ffffff;
-  --pp-paused: linear-gradient(180deg, #c98a6c 0%, #b8704f 50%, #b26a49 76%, #c18468 100%);
-  --pp-paused-border: #8f6450;
-  --pp-paused-shine: rgba(255, 220, 196, 0.22);
+  --pp-paused-glow: rgba(255, 135, 77, 0.9);
   --pp-chip-border: rgba(136, 136, 136, 0.8);
   --pp-chip-fill: rgba(255, 255, 255, 0.15);
   --pp-chip-text: #ffffff;
@@ -313,7 +310,8 @@ onBeforeUnmount(() => {
 
 .pp__fill {
   background: var(--pp-fill);
-  box-shadow: inset 0 0 3px 1px var(--pp-glow);
+  /* InnerGlow(radius: 3): a 3pt band inside the edge, blurred by 3pt. */
+  box-shadow: inset 0 0 6px 1.5px var(--pp-glow);
   transition: opacity 350ms ease-in-out;
 }
 
@@ -323,24 +321,23 @@ onBeforeUnmount(() => {
   box-shadow: none;
 }
 
-/* The paused capsule's inner shine runs along the left and right edges only. */
+/* Paused: the primary button's inner glow and its 1px border. */
 .pp__shine {
   opacity: 0;
-  box-shadow:
-    inset 3px 0 5px var(--pp-paused-shine),
-    inset -3px 0 5px var(--pp-paused-shine);
+  box-shadow: inset 0 0 0 1px var(--pp-paused-border), inset 0 0 6px 1.5px var(--pp-paused-glow);
   transition: opacity 350ms ease-in-out;
 }
 
 .pp__border {
   box-shadow: inset 0 0 0 0.75px var(--pp-border);
-  transition: box-shadow 350ms ease-in-out;
+  transition: opacity 350ms ease-in-out;
 }
 
-.pp.is-paused .pp__fill { opacity: 0; }
+
+.pp.is-paused .pp__fill:not(.pp__fill--paused),
+.pp.is-paused .pp__border { opacity: 0; }
 .pp.is-paused .pp__fill--paused,
 .pp.is-paused .pp__shine { opacity: 1; }
-.pp.is-paused .pp__border { box-shadow: inset 0 0 0 0.75px var(--pp-paused-border); }
 
 .pp__hit {
   position: absolute;
@@ -442,13 +439,13 @@ onBeforeUnmount(() => {
 
 .pp__chip.is-infinite { font-size: 12px; font-weight: 500; }
 
-/* Hover lays Dayflow's orange gradient over the chip. */
+/* Hover lays Dayflow's chipHover gradient over the chip. */
 .pp__chip::before {
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: linear-gradient(320deg, rgba(247, 190, 164, 0.9) 0%, rgba(236, 156, 116, 0.9) 42%, rgba(232, 148, 106, 0.9) 100%);
+  background: linear-gradient(320deg, rgba(255, 179, 144, 0.82) 0%, rgba(255, 159, 106, 0.82) 42%, rgba(255, 141, 64, 0.82) 100%);
   content: '';
   opacity: 0;
   transition: opacity 150ms ease;
