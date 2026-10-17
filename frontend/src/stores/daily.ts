@@ -162,6 +162,7 @@ function categoryRows(day: TimelineDayDTO, cards: TimelineCardDTO[]): CategoryDT
       sortOrder: known.length + extras.size,
       isSystem: false,
       isIdle: card.isIdle,
+      archetype: 'forge',
       createdAtTs: 0,
       updatedAtTs: 0,
     })

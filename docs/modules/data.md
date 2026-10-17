@@ -167,6 +167,15 @@ Windows 跨盘 / 拔盘 / 重启恢复 / 长时录制迁移、整段清理、维
 10 项需 Windows 主机而跳过。中途 API 指针归一化的 typecheck 发现生成类含 `convertValues`
 方法，显式排除后完整门禁重跑通过。未运行真实用户数据、真实 Wails 诊断页或长期争用观察。回退：撤销本次提交，数据库 schema 不变。
 
+- **2026-10-17 v25 首次引导标记（`test`）**：仅当库中已有 provider / 截图 / 卡片 / 任一设置时插入
+  `system.onboardingCompleted=true`（`ON CONFLICT DO NOTHING`），全新库不写。匿名 `v24-onboarding-source.db`（生成器 `writeV24`）
+  验证升级写入且其余数据不变、全新库重开仍未设置。详见 [delivery 验证记录](delivery.md#验证记录)。
+
+- **2026-10-17 v24 分类元类型（`test`）**：`categories` 追加带 CHECK 的 `archetype`（常量默认，
+  原地追加不重建表），按名称回填；匿名 `v23-category-archetype-source.db` 由生成器 `writeV23` 复现，升级后其余列
+  不变、集合外取值被 schema 拒绝。`CGO_ENABLED=0 go test ./internal/storage` 通过；仅匿名库，未迁移真实用户库；
+  回退须恢复升级前备份。详见 [timeline 验证记录](timeline.md#验证记录)。
+
 - **2026-10-05 v23 人工卡片保护**：追加编辑标记，旧存活卡片保守标记以避免猜测编辑来源；
   新卡默认 0，旧软删除行不标记。提交匿名 `v22-human-card-source.db` 与可复现生成器，
   升级 / 反馈保留 / 重启读回夹具通过，storage / analysis / app / insight 测试与定向 race 通过。

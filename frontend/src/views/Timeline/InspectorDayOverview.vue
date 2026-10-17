@@ -128,6 +128,7 @@ const categoryTotals = computed<CategoryTotal[]>(() => {
       sortOrder: 999,
       isSystem: false,
       isIdle: false,
+      archetype: 'forge',
       createdAtTs: 0,
       updatedAtTs: 0,
     }

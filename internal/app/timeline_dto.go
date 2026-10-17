@@ -85,13 +85,26 @@ type RangeDTO struct {
 }
 
 type CategoryDTO struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	ColorHex    string `json:"colorHex"`
-	Details     string `json:"details"`
-	SortOrder   int    `json:"sortOrder"`
-	IsSystem    bool   `json:"isSystem"`
-	IsIdle      bool   `json:"isIdle"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	ColorHex  string `json:"colorHex"`
+	Details   string `json:"details"`
+	SortOrder int    `json:"sortOrder"`
+	IsSystem  bool   `json:"isSystem"`
+	IsIdle    bool   `json:"isIdle"`
+	// Archetype is one of forge / sanctum / nexus / camp / order; an empty
+	// value on write means forge, any other value is invalid_argument.
+	Archetype   string `json:"archetype"`
 	CreatedAtTs int64  `json:"createdAtTs"`
 	UpdatedAtTs int64  `json:"updatedAtTs"`
+}
+
+// CategoryPresetDTO is one row of ApplyCategoryPreset: the preset carries
+// only what a category's identity does not — storage matches rows to the
+// existing set by name and keeps ids, idle flags and order.
+type CategoryPresetDTO struct {
+	Name      string `json:"name"`
+	ColorHex  string `json:"colorHex"`
+	Details   string `json:"details"`
+	Archetype string `json:"archetype"`
 }

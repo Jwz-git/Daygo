@@ -239,7 +239,7 @@ func (e chatToolExecutor) categoryAdd(ctx context.Context, args json.RawMessage)
 		}
 		next = append(next, domain.Category{
 			ID: c.ID, Name: c.Name, ColorHex: c.ColorHex, Details: c.Details,
-			SortOrder: c.SortOrder, IsIdle: c.IsIdle,
+			SortOrder: c.SortOrder, IsIdle: c.IsIdle, Archetype: c.Archetype,
 		})
 		if c.SortOrder > maxOrder {
 			maxOrder = c.SortOrder
@@ -298,7 +298,7 @@ func (e chatToolExecutor) categoryUpdate(ctx context.Context, args json.RawMessa
 		if c.ID != categoryID {
 			next = append(next, domain.Category{
 				ID: c.ID, Name: c.Name, ColorHex: c.ColorHex, Details: c.Details,
-				SortOrder: c.SortOrder, IsIdle: c.IsIdle,
+				SortOrder: c.SortOrder, IsIdle: c.IsIdle, Archetype: c.Archetype,
 			})
 			continue
 		}
@@ -309,6 +309,7 @@ func (e chatToolExecutor) categoryUpdate(ctx context.Context, args json.RawMessa
 			Details:   c.Details,
 			SortOrder: c.SortOrder,
 			IsIdle:    c.IsIdle,
+			Archetype: c.Archetype,
 		}
 		if v, ok := optionalString(args, "name"); ok {
 			for _, other := range categories {
@@ -356,7 +357,7 @@ func (e chatToolExecutor) categoryRemove(ctx context.Context, args json.RawMessa
 		if c.ID != categoryID {
 			next = append(next, domain.Category{
 				ID: c.ID, Name: c.Name, ColorHex: c.ColorHex, Details: c.Details,
-				SortOrder: c.SortOrder, IsIdle: c.IsIdle,
+				SortOrder: c.SortOrder, IsIdle: c.IsIdle, Archetype: c.Archetype,
 			})
 			continue
 		}

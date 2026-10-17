@@ -166,7 +166,8 @@ function isSettingsFixture(value: unknown): value is SettingsDTO {
     typeof value.system.launchAtLogin === 'boolean' &&
     typeof value.system.showDockIcon === 'boolean' &&
     typeof value.system.agentEditsEnabled === 'boolean' &&
-    typeof value.system.testToolsEnabled === 'boolean'
+    typeof value.system.testToolsEnabled === 'boolean' &&
+    typeof value.system.onboardingCompleted === 'boolean'
   )
 }
 
@@ -204,6 +205,7 @@ export function applyDevelopmentSettingsPatch(
   if (patch.showDockIcon !== undefined) next.system.showDockIcon = patch.showDockIcon
   if (patch.agentEditsEnabled !== undefined) next.system.agentEditsEnabled = patch.agentEditsEnabled
   if (patch.testToolsEnabled !== undefined) next.system.testToolsEnabled = patch.testToolsEnabled
+  if (patch.onboardingCompleted !== undefined) next.system.onboardingCompleted = patch.onboardingCompleted
   if (patch.chatMemory !== undefined) next.chat.memory = patch.chatMemory
   if (patch.journalReminderEnabled !== undefined) {
     next.notifications.journalReminderEnabled = patch.journalReminderEnabled

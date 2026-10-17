@@ -349,7 +349,18 @@ input[type='number']::-webkit-outer-spin-button {
   }
 }
 
+/*
+ * The one button family (Dayflow's primary / secondary surfaces, as the daily
+ * report uses them). Every text button in the app is a .dg-button plus at
+ * most one size (--sm, --lg) and one role (--primary, --danger,
+ * --danger-subtle) modifier, and --block to fill its row. Components set
+ * layout (margins, min-width) only, never their own fills or borders.
+ */
 .dg-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-height: 32px;
   padding: 6px 14px;
   border: none;
@@ -398,6 +409,51 @@ input[type='number']::-webkit-outer-spin-button {
 .dg-button--primary:not(:disabled):active {
   background: var(--dg-button-primary-hover);
   box-shadow: inset 0 2px 4px rgba(15, 34, 60, 0.22);
+}
+
+.dg-button svg { flex: none; }
+
+/* Sizes. */
+.dg-button--sm {
+  gap: 4px;
+  min-height: 26px;
+  padding: 3px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.dg-button--lg {
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 22px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dg-button--block { width: 100%; }
+
+/* Confirmed destructive action: the filled danger surface. */
+.dg-button--danger {
+  background: var(--dg-danger);
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.25), 0 0 0 1px color-mix(in srgb, var(--dg-danger) 70%, #ffffff);
+  color: #ffffff;
+}
+
+.dg-button--danger:not(:disabled):hover {
+  background: color-mix(in srgb, var(--dg-danger) 88%, #000000);
+}
+
+.dg-button--danger:not(:disabled):active {
+  background: color-mix(in srgb, var(--dg-danger) 82%, #000000);
+  box-shadow: inset 0 2px 4px rgba(60, 10, 10, 0.25);
+}
+
+/* The first step of a destructive action: a secondary button in danger ink. */
+.dg-button--danger-subtle { color: var(--dg-danger); }
+
+.dg-button--danger-subtle:not(:disabled):hover {
+  background: color-mix(in srgb, var(--dg-danger) 8%, var(--dg-button-secondary-hover));
 }
 
 .dg-button:focus-visible {

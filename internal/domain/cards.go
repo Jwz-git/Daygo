@@ -67,8 +67,40 @@ type Category struct {
 	ColorHex      string
 	Details       string
 	SortOrder     int
-	IsSystem      bool // built-in, cannot be deleted
-	IsIdle        bool // counts toward idle rather than tracked time
+	IsSystem      bool   // built-in, cannot be deleted
+	IsIdle        bool   // counts toward idle rather than tracked time
+	Archetype     string // closed visual role (CategoryArchetypes); never sent to the LLM
 	CreatedAtUnix int64
 	UpdatedAtUnix int64
+}
+
+// Category archetypes (docs/03 §3.3.3). The set is closed: storage rejects
+// any other value, and an empty value means DefaultCategoryArchetype.
+const (
+	ArchetypeForge   = "forge"   // creating / producing
+	ArchetypeSanctum = "sanctum" // taking in / thinking
+	ArchetypeNexus   = "nexus"   // connecting / communicating
+	ArchetypeCamp    = "camp"    // resting / recharging
+	ArchetypeOrder   = "order"   // chores / managing
+
+	DefaultCategoryArchetype = ArchetypeForge
+)
+
+// CategoryArchetypes lists every valid archetype in display order.
+func CategoryArchetypes() []string {
+	return []string{ArchetypeForge, ArchetypeSanctum, ArchetypeNexus, ArchetypeCamp, ArchetypeOrder}
+}
+
+// NormalizeCategoryArchetype maps the empty string to the default and reports
+// whether the result is a member of the closed set.
+func NormalizeCategoryArchetype(value string) (string, bool) {
+	if value == "" {
+		return DefaultCategoryArchetype, true
+	}
+	for _, a := range CategoryArchetypes() {
+		if value == a {
+			return value, true
+		}
+	}
+	return value, false
 }

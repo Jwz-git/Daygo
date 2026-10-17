@@ -1,5 +1,5 @@
 import type { app } from '../../wailsjs/go/models'
-import { APP_THEMES, PROVIDER_PROTOCOLS } from '@/api/dto'
+import { APP_THEMES, CATEGORY_ARCHETYPES, PROVIDER_PROTOCOLS } from '@/api/dto'
 import type {
   AppSitesDTO, ChatMessageDTO, DailyRecapDTO, JournalDayDTO, PlanDayDTO,
   ProviderDTO, SettingsDTO, TimelineDayDTO, WeeklyDashboardDTO, WireDTO,
@@ -50,6 +50,10 @@ export function normalizeTimelineDay(value: WireDTO<app.TimelineDayDTO>): Timeli
       videoSummaryUrl: card.videoSummaryUrl ?? null,
       appSites: normalizeAppSites(card.appSites),
       distractions: card.distractions.map((item) => ({ ...item, videoSummaryUrl: item.videoSummaryUrl ?? null })),
+    })),
+    categories: value.categories.map((category) => ({
+      ...category,
+      archetype: oneOf(category.archetype, CATEGORY_ARCHETYPES, 'archetype'),
     })),
   }
 }

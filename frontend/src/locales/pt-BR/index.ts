@@ -11,5 +11,7 @@ import test from './test'
 import timeline from './timeline'
 import weekly from './weekly'
 import recording from './recording'
+import presets from './presets'
+import onboarding from './onboarding'
 
-export default { tokenUsage, common, nav, native, recording, timeline, daily, weekly, chat, settings, captureTest, test, modelPlayground }
+export default { tokenUsage, common, nav, native, recording, timeline, daily, weekly, chat, settings, captureTest, test, modelPlayground, presets, onboarding }

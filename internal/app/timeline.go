@@ -277,6 +277,7 @@ func (b *Backend) GetTimelineDay(day string) (TimelineDayDTO, error) {
 			SortOrder:   c.SortOrder,
 			IsSystem:    c.IsSystem,
 			IsIdle:      c.IsIdle,
+			Archetype:   c.Archetype,
 			CreatedAtTs: c.CreatedAtUnix,
 			UpdatedAtTs: c.UpdatedAtUnix,
 		})
@@ -476,10 +477,60 @@ func categoryDTOsToDomain(rows []CategoryDTO) ([]domain.Category, error) {
 		}
 		out = append(out, domain.Category{
 			ID: r.ID, Name: r.Name, ColorHex: r.ColorHex, Details: r.Details,
-			SortOrder: r.SortOrder, IsIdle: r.IsIdle,
+			SortOrder: r.SortOrder, IsIdle: r.IsIdle, Archetype: r.Archetype,
 		})
 	}
 	return out, nil
+}
+
+// ApplyCategoryPreset replaces the user category set with the profession
+// preset picked in the first-run guide (docs/05 §5.2.1). It is a first-run
+// operation only: once system.onboardingCompleted is set it returns conflict,
+// so the category set of a user with history is never rewritten wholesale.
+// Same-named categories keep their id and stored name, so no card is renamed;
+// categories already referenced by cards, plans or goals are kept.
+func (b *Backend) ApplyCategoryPreset(categories []CategoryPresetDTO) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	access, err := b.settingsAccess()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	snapshot, err := access.Load(ctx)
+	if err != nil {
+		return mapStorageError("apply category preset", err)
+	}
+	if snapshot.OnboardingCompleted {
+		return apperr.E(apperr.Conflict, "category presets are only offered during onboarding", nil)
+	}
+	rows := make([]domain.Category, 0, len(categories))
+	for _, c := range categories {
+		rows = append(rows, domain.Category{
+			Name: c.Name, ColorHex: c.ColorHex, Details: c.Details, Archetype: c.Archetype,
+		})
+	}
+	if err := b.store().Categories().ApplyPreset(ctx, rows); err != nil {
+		return mapStorageError("apply category preset", err)
+	}
+	return nil
+}
+
+// ApplyCategoryPalette recolors the user categories in display order,
+// cycling through colors ("#RRGGBB"), in one transaction. Built-ins keep
+// their colors.
+func (b *Backend) ApplyCategoryPalette(colors []string) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	if err := b.store().Categories().ApplyPalette(ctx, colors); err != nil {
+		return mapStorageError("apply category palette", err)
+	}
+	return nil
 }
 
 // RetryBatches requeues failed batches by explicit user action: status back

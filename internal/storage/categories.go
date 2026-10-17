@@ -31,7 +31,7 @@ func (r *CategoryRepo) List(ctx context.Context) ([]domain.Category, error) {
 	var out []domain.Category
 	err := r.store.Read(ctx, "categories list", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `
-			SELECT id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at
+			SELECT id, name, color_hex, details, sort_order, is_system, is_idle, archetype, created_at, updated_at
 			FROM categories
 			ORDER BY sort_order, name`)
 		if err != nil {
@@ -58,7 +58,7 @@ func (r *CategoryRepo) ByName(ctx context.Context, name string) (domain.Category
 	var c domain.Category
 	err := r.store.Read(ctx, "categories by name", func(ctx context.Context, tx *sql.Tx) error {
 		row := tx.QueryRowContext(ctx, `
-			SELECT id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at
+			SELECT id, name, color_hex, details, sort_order, is_system, is_idle, archetype, created_at, updated_at
 			FROM categories WHERE name = ?`, name)
 		var err error
 		c, err = scanCategory(row)
@@ -101,6 +101,11 @@ func (r *CategoryRepo) Save(ctx context.Context, cats []domain.Category) error {
 			return newError(KindConstraint, fmt.Sprintf(
 				"save categories: row %d (%q) claims is_system; built-ins are assigned by the database", i, c.Name))
 		}
+		archetype, ok := domain.NormalizeCategoryArchetype(c.Archetype)
+		if !ok {
+			return newError(KindConstraint, fmt.Sprintf("save categories: row %d has an unknown archetype %q", i, c.Archetype))
+		}
+		cats[i].Archetype = archetype
 		if c.ID == "" {
 			id, err := newCategoryID()
 			if err != nil {
@@ -120,88 +125,94 @@ func (r *CategoryRepo) Save(ctx context.Context, cats []domain.Category) error {
 		if err != nil {
 			return err
 		}
-
-		// Merge the built-ins into the input so the write set always contains
-		// them; their identity is fixed and cannot come from the caller.
-		merged := make([]domain.Category, 0, len(cats)+len(existing))
-		for _, e := range existing {
-			if e.IsSystem {
-				if ids[e.ID] {
-					return newError(KindConstraint, "save categories: built-in category id cannot be overwritten")
-				}
-				merged = append(merged, e)
-			}
-		}
-		merged = append(merged, cats...)
-
-		if err := checkCategoryNames(merged); err != nil {
-			return err
-		}
-
-		// Names that survive under a different id are renames: the card rows
-		// must follow the name before it is released, or cards would point at
-		// a category that no longer exists under that string.
-		byID := make(map[string]domain.Category, len(existing))
-		for _, e := range existing {
-			byID[e.ID] = e
-		}
-		renames := make(map[string]string) // old name -> new name
-		for _, c := range cats {
-			e, ok := byID[c.ID]
-			if !ok || e.Name == c.Name {
-				continue
-			}
-			renames[e.Name] = c.Name
-		}
-
-		// Only genuinely removed IDs are deleted. Recreating a surviving ID
-		// would fire plan ON DELETE SET NULL and violate goal foreign keys.
-		for _, e := range existing {
-			if !e.IsSystem && !ids[e.ID] {
-				if _, err := tx.ExecContext(ctx, `DELETE FROM categories WHERE id = ?`, e.ID); err != nil {
-					return wrap("delete removed category", err)
-				}
-			}
-		}
-		// Release renamed names without releasing identity. Temporary names
-		// permit swaps/chains despite UNIQUE(name); nothing sees them outside
-		// this transaction and card rewrites still use the original names.
-		occupied := make(map[string]bool, len(existing)+len(merged))
-		for _, c := range existing {
-			occupied[c.Name] = true
-		}
-		for _, c := range merged {
-			occupied[c.Name] = true
-		}
-		for _, c := range cats {
-			if e, ok := byID[c.ID]; ok && e.Name != c.Name {
-				var temporary string
-				for {
-					id, err := newCategoryID()
-					if err != nil {
-						return err
-					}
-					temporary = "__daygo_category_" + id
-					if !occupied[temporary] {
-						break
-					}
-				}
-				occupied[temporary] = true
-				if _, err := tx.ExecContext(ctx, `UPDATE categories SET name = ? WHERE id = ?`, temporary, c.ID); err != nil {
-					return wrap("release renamed category name", err)
-				}
-			}
-		}
-		for i := range merged {
-			if err := upsertCategory(ctx, tx, merged[i], at); err != nil {
-				return err
-			}
-		}
-		if err := rewriteCardsForRenames(ctx, tx, renames, at); err != nil {
-			return err
-		}
-		return nil
+		return saveCategoriesTx(ctx, tx, existing, cats, ids, at)
 	})
+}
+
+// saveCategoriesTx is Save's transaction body: cats are validated user rows
+// with ids assigned, ids their id set, existing the current rows read inside
+// tx. ApplyPreset reuses it so a preset lands under the same rules.
+func saveCategoriesTx(ctx context.Context, tx *sql.Tx, existing, cats []domain.Category, ids map[string]bool, at int64) error {
+	// Merge the built-ins into the input so the write set always contains
+	// them; their identity is fixed and cannot come from the caller.
+	merged := make([]domain.Category, 0, len(cats)+len(existing))
+	for _, e := range existing {
+		if e.IsSystem {
+			if ids[e.ID] {
+				return newError(KindConstraint, "save categories: built-in category id cannot be overwritten")
+			}
+			merged = append(merged, e)
+		}
+	}
+	merged = append(merged, cats...)
+
+	if err := checkCategoryNames(merged); err != nil {
+		return err
+	}
+
+	// Names that survive under a different id are renames: the card rows
+	// must follow the name before it is released, or cards would point at
+	// a category that no longer exists under that string.
+	byID := make(map[string]domain.Category, len(existing))
+	for _, e := range existing {
+		byID[e.ID] = e
+	}
+	renames := make(map[string]string) // old name -> new name
+	for _, c := range cats {
+		e, ok := byID[c.ID]
+		if !ok || e.Name == c.Name {
+			continue
+		}
+		renames[e.Name] = c.Name
+	}
+
+	// Only genuinely removed IDs are deleted. Recreating a surviving ID
+	// would fire plan ON DELETE SET NULL and violate goal foreign keys.
+	for _, e := range existing {
+		if !e.IsSystem && !ids[e.ID] {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM categories WHERE id = ?`, e.ID); err != nil {
+				return wrap("delete removed category", err)
+			}
+		}
+	}
+	// Release renamed names without releasing identity. Temporary names
+	// permit swaps/chains despite UNIQUE(name); nothing sees them outside
+	// this transaction and card rewrites still use the original names.
+	occupied := make(map[string]bool, len(existing)+len(merged))
+	for _, c := range existing {
+		occupied[c.Name] = true
+	}
+	for _, c := range merged {
+		occupied[c.Name] = true
+	}
+	for _, c := range cats {
+		if e, ok := byID[c.ID]; ok && e.Name != c.Name {
+			var temporary string
+			for {
+				id, err := newCategoryID()
+				if err != nil {
+					return err
+				}
+				temporary = "__daygo_category_" + id
+				if !occupied[temporary] {
+					break
+				}
+			}
+			occupied[temporary] = true
+			if _, err := tx.ExecContext(ctx, `UPDATE categories SET name = ? WHERE id = ?`, temporary, c.ID); err != nil {
+				return wrap("release renamed category name", err)
+			}
+		}
+	}
+	for i := range merged {
+		if err := upsertCategory(ctx, tx, merged[i], at); err != nil {
+			return err
+		}
+	}
+	if err := rewriteCardsForRenames(ctx, tx, renames, at); err != nil {
+		return err
+	}
+	return nil
 }
 
 // rewriteCardsForRenames applies every category rename to timeline_cards in a
@@ -258,7 +269,7 @@ func checkCategoryNames(cats []domain.Category) error {
 // loadCategories reads the full current set inside the caller's transaction.
 func loadCategories(ctx context.Context, tx *sql.Tx) ([]domain.Category, error) {
 	rows, err := tx.QueryContext(ctx, `
-		SELECT id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at
+		SELECT id, name, color_hex, details, sort_order, is_system, is_idle, archetype, created_at, updated_at
 		FROM categories`)
 	if err != nil {
 		return nil, wrap("load categories", err)
@@ -293,14 +304,18 @@ func upsertCategory(ctx context.Context, tx *sql.Tx, c domain.Category, at int64
 	if c.IsIdle {
 		isIdle = 1
 	}
+	archetype, ok := domain.NormalizeCategoryArchetype(c.Archetype)
+	if !ok {
+		return newError(KindConstraint, fmt.Sprintf("upsert category %q: unknown archetype %q", c.Name, c.Archetype))
+	}
 	_, err := tx.ExecContext(ctx, `
-		INSERT INTO categories (id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO categories (id, name, color_hex, details, sort_order, is_system, is_idle, archetype, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name, color_hex = excluded.color_hex, details = excluded.details,
 			sort_order = excluded.sort_order, is_system = excluded.is_system,
-			is_idle = excluded.is_idle, updated_at = excluded.updated_at`,
-		c.ID, c.Name, c.ColorHex, c.Details, c.SortOrder, isSystem, isIdle, at, at)
+			is_idle = excluded.is_idle, archetype = excluded.archetype, updated_at = excluded.updated_at`,
+		c.ID, c.Name, c.ColorHex, c.Details, c.SortOrder, isSystem, isIdle, archetype, at, at)
 	if err != nil {
 		return wrap("upsert category "+c.Name, err)
 	}
@@ -329,7 +344,7 @@ func scanCategory(row scanner) (domain.Category, error) {
 	var isSystem, isIdle int
 	var details string
 	if err := row.Scan(&c.ID, &c.Name, &c.ColorHex, &details, &c.SortOrder,
-		&isSystem, &isIdle, &c.CreatedAtUnix, &c.UpdatedAtUnix); err != nil {
+		&isSystem, &isIdle, &c.Archetype, &c.CreatedAtUnix, &c.UpdatedAtUnix); err != nil {
 		return c, wrap("scan category", err)
 	}
 	c.Details = details

@@ -11,6 +11,8 @@ import (
 // and belongs in the same commit as the documentation update (docs/05 §5.10.2).
 var contractBindings = []string{
 	"AddProvider",
+	"ApplyCategoryPalette",
+	"ApplyCategoryPreset",
 	"CancelChatTurn",
 	"CancelRecordingDirectoryMove",
 	"CaptureTest",

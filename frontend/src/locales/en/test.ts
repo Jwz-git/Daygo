@@ -13,4 +13,9 @@ export default {
     note: 'Clears all recordings and timeline history. AI services and other settings are not affected.',
     failed: 'Couldn’t clear. Nothing was changed.',
   },
+  onboarding: {
+    title: 'First-run guide',
+    action: 'Preview the guide',
+    note: 'Opens the new-user guide as a preview: categories are not replaced and the completion state does not change; AI service and preference changes are still saved.',
+  },
 }

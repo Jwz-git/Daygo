@@ -212,7 +212,8 @@ Provider、通知送达、安装升级或长期观察，不提升 G-host / G-loo
 [preferences](modules/preferences.md)、[recording](modules/recording.md) 的验证记录。
 
 本轮保留明确规划或待定设计：空闲采样端口、Windows toast、Linux Capture / System、
-搜索、录制后即时日报、视频合成、统一首次引导与遥测消费者，均不能视为已打通。
+搜索、录制后即时日报、视频合成与遥测消费者，均不能视为已打通。首次引导已有前端实现
+（2026-10-17 `test`，见 [delivery 验证记录](modules/delivery.md#验证记录)），真机授权 / 重启与升级路径未实测，不能视为已验收。
 `batch:progress` / `recording:warning` 保留为尚无发送方的契约；`appVersion` 当前仍为
 未注入构建信息的 `0.0.0`，版本字段与 `apiRevision` 未有前端消费者。已实现的 agent / chat
 保留，v1 交付范围不因清理改写；正式签名与真实通知投递仍受既有门禁约束。

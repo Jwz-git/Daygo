@@ -245,6 +245,13 @@ async function onCategoriesSaved(): Promise<void> {
 
 async function closeReview(): Promise<void> {
   showReview.value = false
+/* A preset or palette wrote through its own binding; the manager stays open
+   and re-reads the set the refetched day carries. */
+async function onCategoriesApplied(): Promise<void> {
+  await timeline.load(routeDay())
+  if (viewMode.value === 'week') await loadWeek({ silent: true })
+}
+
   // Categories may have changed; refetch so the track and inspector agree.
   await timeline.load(routeDay())
 }
@@ -790,6 +797,7 @@ onBeforeUnmount(() => {
     <!-- Category manager wizard -->
     <Teleport to="body">
       <div v-if="showCategoryManager" class="modal-backdrop" @click.self="showCategoryManager = false">
+          @applied="onCategoriesApplied"
         <CategoryManagerModal
           v-if="day !== null"
           :categories="day.categories"

@@ -13,4 +13,9 @@ export default {
     note: 'Apaga todas as gravações e o histórico organizado. Os serviços de IA e as outras configurações não são afetados.',
     failed: 'Não foi possível apagar. Nada foi alterado.',
   },
+  onboarding: {
+    title: 'Guia inicial',
+    action: 'Visualizar o guia',
+    note: 'Abre o guia de novos usuários como prévia: as categorias não são substituídas e o estado de conclusão não muda; as alterações no serviço de IA e nas preferências continuam sendo salvas.',
+  },
 }

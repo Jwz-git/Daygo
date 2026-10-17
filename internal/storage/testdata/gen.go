@@ -97,6 +97,12 @@ func main() {
 	if err := writeV22(outDir); err != nil {
 		log.Fatalf("v22-human-card-source.db: %v", err)
 	}
+	if err := writeV23(outDir); err != nil {
+		log.Fatalf("v23-category-archetype-source.db: %v", err)
+	}
+	if err := writeV24(outDir); err != nil {
+		log.Fatalf("v24-onboarding-source.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -1174,6 +1180,78 @@ func writeV22(outDir string) error {
 		`INSERT INTO card_reviews(card_id,day,verdict,minutes,created_at,updated_at) VALUES (900,'2026-09-12','focus',15,100,100)`,
 		`INSERT INTO card_ratings(card_id,rating,created_at,updated_at) VALUES (901,'up',100,100)`,
 		`PRAGMA user_version = 22`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV23 builds a version-23 database from the v22 fixture by adding the
+// card edit marker exactly as the v23 migration does, plus anonymous user
+// categories whose names exercise every branch of the v24 archetype backfill:
+// case and outer spaces are ignored, and an unknown name keeps the default.
+func writeV23(outDir string) error {
+	data, err := os.ReadFile(filepath.Join(outDir, "v22-human-card-source.db"))
+	if err != nil {
+		return err
+	}
+	fixture := filepath.Join(outDir, "v23-category-archetype-source.db")
+	if err := os.WriteFile(fixture, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+fixture)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for _, stmt := range []string{
+		`ALTER TABLE timeline_cards ADD COLUMN is_user_edited INTEGER NOT NULL DEFAULT 0 CHECK (is_user_edited IN (0,1))`,
+		`UPDATE timeline_cards SET is_user_edited=1 WHERE is_deleted=0`,
+		`INSERT INTO categories (id, name, color_hex, details, sort_order, is_system, is_idle, created_at, updated_at) VALUES
+		 ('00000000-0000-4000-8000-000000000101', 'Coding', '#111111', 'anonymous', 3, 0, 0, 100, 100),
+		 ('00000000-0000-4000-8000-000000000102', ' reading ', '#222222', 'anonymous', 4, 0, 0, 100, 100),
+		 ('00000000-0000-4000-8000-000000000103', 'MEETINGS', '#333333', 'anonymous', 5, 0, 0, 100, 100),
+		 ('00000000-0000-4000-8000-000000000104', 'Break', '#444444', 'anonymous', 6, 0, 0, 100, 100),
+		 ('00000000-0000-4000-8000-000000000105', 'Admin', '#555555', 'anonymous', 7, 0, 0, 100, 100),
+		 ('00000000-0000-4000-8000-000000000106', 'Side Project', '#666666', 'anonymous', 8, 0, 0, 100, 100)`,
+		`PRAGMA user_version = 23`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV24 builds a version-24 database from the v23 fixture by adding the
+// category archetype column and its backfill result, exactly as the v24
+// migration leaves it. The fixture holds providers and cards but no
+// app_settings row, so the v25 migration must mark onboarding done from the
+// data alone rather than from a setting someone already wrote.
+func writeV24(outDir string) error {
+	data, err := os.ReadFile(filepath.Join(outDir, "v23-category-archetype-source.db"))
+	if err != nil {
+		return err
+	}
+	fixture := filepath.Join(outDir, "v24-onboarding-source.db")
+	if err := os.WriteFile(fixture, data, 0o600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+fixture)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for _, stmt := range []string{
+		`ALTER TABLE categories ADD COLUMN archetype TEXT NOT NULL DEFAULT 'forge'
+			CHECK (archetype IN ('forge', 'sanctum', 'nexus', 'camp', 'order'))`,
+		`UPDATE categories SET archetype = 'order' WHERE name IN ('System', 'Admin')`,
+		`UPDATE categories SET archetype = 'camp' WHERE name IN ('Idle', 'Break')`,
+		`UPDATE categories SET archetype = 'sanctum' WHERE name = ' reading '`,
+		`UPDATE categories SET archetype = 'nexus' WHERE name = 'MEETINGS'`,
+		`PRAGMA user_version = 24`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			return err

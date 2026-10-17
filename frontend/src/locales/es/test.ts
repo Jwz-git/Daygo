@@ -13,4 +13,9 @@ export default {
     note: 'Borra todas las grabaciones y el historial de la cronología. Los servicios de IA y los demás ajustes no se ven afectados.',
     failed: 'No se pudo borrar. No se cambió nada.',
   },
+  onboarding: {
+    title: 'Guía inicial',
+    action: 'Ver la guía',
+    note: 'Abre la guía para nuevos usuarios como vista previa: no se reemplazan las categorías ni cambia el estado de finalización; los cambios del servicio de IA y de las preferencias sí se guardan.',
+  },
 }

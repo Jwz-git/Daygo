@@ -27,7 +27,8 @@
     "launchAtLogin": false,
     "showDockIcon": true,
     "agentEditsEnabled": false,
-    "testToolsEnabled": false
+    "testToolsEnabled": false,
+    "onboardingCompleted": true
   },
   "chat": {
     "memory": ""

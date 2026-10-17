@@ -13,4 +13,9 @@ export default {
     note: 'Efface tous les enregistrements et l’historique de la chronologie. Les services d’IA et les autres réglages ne sont pas affectés.',
     failed: 'Échec de la suppression. Rien n’a été modifié.',
   },
+  onboarding: {
+    title: 'Guide de démarrage',
+    action: 'Prévisualiser le guide',
+    note: 'Ouvre le guide des nouveaux utilisateurs en aperçu : les catégories ne sont pas remplacées et l’état d’achèvement ne change pas ; les modifications du service d’IA et des préférences sont tout de même enregistrées.',
+  },
 }

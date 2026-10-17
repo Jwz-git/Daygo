@@ -31,6 +31,7 @@ function settingsWith(showTokenUsage: boolean) {
       showDockIcon: true,
       agentEditsEnabled: false,
       testToolsEnabled: false,
+      onboardingCompleted: true,
     },
   }
 }

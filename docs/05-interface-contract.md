@@ -289,6 +289,8 @@ export function toApiError(e: unknown): ApiError {
 | `RetryBatches(batchIDs []int64) error` | timeline | 批次 / provider-client / media-read | 写·非幂等 | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `not_found` `conflict` |
 | `StopRetries(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（封顶 attempts） | `timeline:updated` | `not_found` `invalid_argument` |
 | `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
+| `ApplyCategoryPreset(categories []CategoryPresetDTO) error` | timeline | 分类 / 设置 / 写入锁 | 写·幂等（仅首次引导：按名更新 / 新建预设行，删除无引用的其余用户分类；引导完成后拒绝） | —（匹配保留存储名，不改写卡片） | `invalid_argument` `conflict` `not_capture_owner` |
+| `ApplyCategoryPalette(colors []string) error` | timeline | 分类 / 写入锁 | 写·幂等（按显示顺序循环着色用户分类） | — | `invalid_argument` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
 | `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `invalid_argument` `conflict` |
 | `ReprocessCard(cardID int64) error` | timeline | observations / cards / 写入锁 | 写·非幂等（重写该卡片自己的时间窗） | `timeline:updated` | `invalid_argument` `conflict` `provider_failed` `provider_not_configured` `not_found` |
@@ -868,6 +870,7 @@ type SystemSettingsDTO struct {
     ShowDockIcon      bool `json:"showDockIcon"`
     AgentEditsEnabled bool `json:"agentEditsEnabled"` // 控制 agent.sock，见 §5.9
     TestToolsEnabled  bool `json:"testToolsEnabled"`  // 显示侧边栏测试页（捕获测试、数据清理）；默认 false
+    OnboardingCompleted bool `json:"onboardingCompleted"` // 首次引导完成 / 跳过；v25 为已在使用的库预置 true
 }
 
 // AgentConnectionDTO 供设置页生成 MCP 客户端配置与 CLI 示例（§5.9.3）。
@@ -898,6 +901,7 @@ type SettingsPatchDTO struct {
     ShowDockIcon           *bool     `json:"showDockIcon"`
     AgentEditsEnabled      *bool     `json:"agentEditsEnabled"`
     TestToolsEnabled       *bool     `json:"testToolsEnabled"`
+    OnboardingCompleted    *bool     `json:"onboardingCompleted"`
     AnalyticsOptIn         *bool     `json:"analyticsOptIn"`
     CrashReportingOptIn    *bool     `json:"crashReportingOptIn"`
 }
@@ -910,8 +914,17 @@ type CategoryDTO struct {
     SortOrder   int    `json:"sortOrder"`
     IsSystem    bool   `json:"isSystem"`
     IsIdle      bool   `json:"isIdle"`
+    Archetype   string `json:"archetype"` // forge | sanctum | nexus | camp | order；写入空串即 forge
     CreatedAtTs int64  `json:"createdAtTs"`
     UpdatedAtTs int64  `json:"updatedAtTs"`
+}
+
+// ApplyCategoryPreset 的一行：只带名称、颜色、说明与元类型；id / 空闲标记 / 顺序由存储层按名匹配决定。
+type CategoryPresetDTO struct {
+    Name      string `json:"name"`
+    ColorHex  string `json:"colorHex"` // "#RRGGBB"
+    Details   string `json:"details"`
+    Archetype string `json:"archetype"`
 }
 
 // ---------- Provider ----------

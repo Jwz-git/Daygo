@@ -23,6 +23,15 @@
   font-display: swap;
 }
 
+/* Its italic, for the launch wordmark. Same family, so font-style picks it. */
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('../assets/fonts/InstrumentSerif-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: block;
+}
+
 :root {
   /*
    * --dg-font-cjk carries the CJK fallback face and is swapped per writing

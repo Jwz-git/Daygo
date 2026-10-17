@@ -12,7 +12,7 @@ const settings = {
   storage: { recordingsLimitBytes: 0 }, appearance: { theme: 'system', language: '' },
   llm: { showTokenUsage: false }, chat: { memory: '', editMode: 'readonly' },
   notifications: { journalReminderEnabled: false, journalReminderTime: '18:00' },
-  system: { launchAtLogin: false, showDockIcon: true, agentEditsEnabled: false, testToolsEnabled: false },
+  system: { launchAtLogin: false, showDockIcon: true, agentEditsEnabled: false, testToolsEnabled: false, onboardingCompleted: true },
   telemetry: { analyticsOptIn: false, crashReportingOptIn: false },
 }
 

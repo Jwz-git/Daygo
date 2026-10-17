@@ -152,10 +152,11 @@ func settingsToDTO(s settings.Snapshot) SettingsDTO {
 			EditMode: s.ChatEditMode,
 		},
 		System: SystemSettingsDTO{
-			LaunchAtLogin:     s.LaunchAtLogin,
-			ShowDockIcon:      s.ShowDockIcon,
-			AgentEditsEnabled: s.AgentEditsEnabled,
-			TestToolsEnabled:  s.TestToolsEnabled,
+			LaunchAtLogin:       s.LaunchAtLogin,
+			ShowDockIcon:        s.ShowDockIcon,
+			AgentEditsEnabled:   s.AgentEditsEnabled,
+			TestToolsEnabled:    s.TestToolsEnabled,
+			OnboardingCompleted: s.OnboardingCompleted,
 		},
 		Telemetry: TelemetrySettingsDTO{
 			AnalyticsOptIn:      s.AnalyticsOptIn,
@@ -184,6 +185,7 @@ func patchFromDTO(p SettingsPatchDTO) settings.Patch {
 		ShowDockIcon:           p.ShowDockIcon,
 		AgentEditsEnabled:      p.AgentEditsEnabled,
 		TestToolsEnabled:       p.TestToolsEnabled,
+		OnboardingCompleted:    p.OnboardingCompleted,
 		AnalyticsOptIn:         p.AnalyticsOptIn,
 		CrashReportingOptIn:    p.CrashReportingOptIn,
 	}

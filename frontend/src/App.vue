@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView } from 'vue-router'
 
@@ -7,7 +7,10 @@ import { setNativeUiLabels } from '@/api/native'
 import { setStatusItemLabels } from '@/api/recording'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import FatalErrorOverlay from '@/components/FatalErrorOverlay.vue'
+import LaunchSplash from '@/components/LaunchSplash.vue'
 import AppShell from '@/layout/AppShell.vue'
+import { useOnboardingStore } from '@/stores/onboarding'
+import OnboardingFlow from '@/views/Onboarding/OnboardingFlow.vue'
 import { useTestToolsStore } from '@/stores/testTools'
 import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
 import { useUIVisibilityStore } from '@/stores/uiVisibility'
@@ -25,6 +28,12 @@ if (__DAYGO_TEST_TOOLS__) void testTools.initialize()
 // a report rather than reacting to a late default.
 const tokenUsageVisibility = useTokenUsageVisibilityStore()
 void tokenUsageVisibility.initialize()
+
+// The first-run guide decides behind the launch splash, so the splash lifts
+// onto whichever of the two is due rather than flashing the shell first.
+const onboarding = useOnboardingStore()
+void onboarding.initialize()
+const showSplash = ref(true)
 
 // Native surfaces (the menu-bar item, the application picker, the updater's
 // install refusal) render outside the webview, so vue-i18n cannot reach them.
@@ -125,5 +134,7 @@ watch(
       </ErrorBoundary>
     </RouterView>
   </AppShell>
+  <OnboardingFlow v-if="onboarding.status === 'pending'" />
+  <LaunchSplash v-if="showSplash" @done="showSplash = false" />
   <FatalErrorOverlay />
 </template>

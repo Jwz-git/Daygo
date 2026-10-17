@@ -69,7 +69,7 @@
 技术层职责（规划）：
 
 - `internal/play`：纯函数——方块生成、任务派生、落子合法性、计分。不依赖 Wails、不含 SQL。
-- `internal/storage/play.go`：岛屿与落子 repository；schema 变更走版本化迁移（当前最新 v23，新增应为 v24 起）。
+- `internal/storage/play.go`：岛屿与落子 repository；schema 变更走版本化迁移（当前最新 v25，新增应为 v26 起）。
 - `internal/app`：绑定与 DTO（草案 `GetPlayWeek(weekStart)`、`PlacePlayTile(...)`、事件 `play:updated`），
   只读实例写方法返回 `not_capture_owner`，游戏降级为只看。契约落地前须先写入 05。
 - 前端：`views/Play/`、`stores/play.ts`、`api/play.ts`；SVG 方格 + CSS 过渡，不新增依赖；写后等事件重拉；
@@ -111,7 +111,7 @@
 |---|---|---|
 | 是否进入 v1 交付，或与 agent / chat 一样 v1 不交付 | 用户 / delivery 范围 | 切片 2 开始前 |
 | `play.enabled` 默认开或关；侧栏入口是否默认显示 | 用户 / preferences | 切片 5 前 |
-| 自定义分类的地貌映射由用户选择，还是按颜色就近自动 | 用户 / 设计 | 切片 2 前 |
+| 自定义分类的地貌映射由用户选择，还是按颜色就近自动（v24 起分类已带用户可选的 `archetype` 五类元类型，可作为映射输入，见 [03 §3.3.3](../03-data-model.md#333-分类)；最终映射仍待定） | 用户 / 设计 | 切片 2 前 |
 | 是否做二期「今日拼图」 | 用户 | 一期真实闭环后 |
 
 ## 验证记录

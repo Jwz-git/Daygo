@@ -26,6 +26,9 @@ export const CAPTURE_HEIGHTS = [720, 1080] as const
 export const PROVIDER_PROTOCOLS = ['openai', 'openai_responses', 'anthropic'] as const
 export type ProviderProtocol = (typeof PROVIDER_PROTOCOLS)[number]
 export type PlanBlockStatus = 'planned' | 'done' | 'skipped'
+/** A category's closed visual role (docs/03 §3.3.3); never sent to the model. */
+export const CATEGORY_ARCHETYPES = ['forge', 'sanctum', 'nexus', 'camp', 'order'] as const
+export type CategoryArchetype = (typeof CATEGORY_ARCHETYPES)[number]
 
 export type LLMSettingsDTO = WireDTO<app.LLMSettingsDTO>
 export type CaptureSettingsDTO = WireDTO<app.CaptureSettingsDTO>
@@ -59,7 +62,8 @@ export type ProviderModelsRequest = Replace<Partial<WireDTO<app.ProviderModelsRe
 export type ProviderModelsResult = WireDTO<app.ProviderModelsResultDTO>
 
 export type DayContextDTO = WireDTO<app.DayContextDTO>
-export type CategoryDTO = WireDTO<app.CategoryDTO>
+export type CategoryDTO = Replace<WireDTO<app.CategoryDTO>, { archetype: CategoryArchetype }>
+export type CategoryPresetDTO = Replace<WireDTO<app.CategoryPresetDTO>, { archetype: CategoryArchetype }>
 export type AppSitesDTO = Nullable<app.AppSitesDTO, 'primary' | 'secondary'>
 export type DistractionDTO = Nullable<app.DistractionDTO, 'videoSummaryUrl'>
 export type ActivityPointDTO = WireDTO<app.ActivityPointDTO>
@@ -71,7 +75,7 @@ export type CardMediaFrameDTO = WireDTO<app.CardMediaFrameDTO>
 export type CardMediaDTO = WireDTO<app.CardMediaDTO>
 export type TimelineFailureDTO = WireDTO<app.TimelineFailureDTO>
 export type RangeDTO = WireDTO<app.RangeDTO>
-export type TimelineDayDTO = Replace<WireDTO<app.TimelineDayDTO>, { cards: TimelineCardDTO[] }>
+export type TimelineDayDTO = Replace<WireDTO<app.TimelineDayDTO>, { cards: TimelineCardDTO[]; categories: CategoryDTO[] }>
 export type DailyRecapDTO = Nullable<app.DailyRecapDTO, 'generatedAtTs'>
 export type JournalDayDTO = Nullable<app.JournalDayDTO, 'intentions' | 'notes' | 'goals' | 'reflections' | 'updatedAtTs'>
 export type GoalCategoryRefDTO = WireDTO<app.GoalCategoryRefDTO>

@@ -60,6 +60,9 @@ type SystemSettingsDTO struct {
 	// TestToolsEnabled reveals the sidebar test page, which gathers the
 	// test-only features (capture test, history reset). Default off.
 	TestToolsEnabled bool `json:"testToolsEnabled"`
+	// OnboardingCompleted is set once the first-run guide finishes or is
+	// skipped. v25 marks it for databases that were already in use.
+	OnboardingCompleted bool `json:"onboardingCompleted"`
 }
 
 // ChatSettingsDTO carries the global chat memory: user-authored free text
@@ -97,6 +100,7 @@ type SettingsPatchDTO struct {
 	ShowDockIcon           *bool     `json:"showDockIcon"`
 	AgentEditsEnabled      *bool     `json:"agentEditsEnabled"`
 	TestToolsEnabled       *bool     `json:"testToolsEnabled"`
+	OnboardingCompleted    *bool     `json:"onboardingCompleted"`
 	AnalyticsOptIn         *bool     `json:"analyticsOptIn"`
 	CrashReportingOptIn    *bool     `json:"crashReportingOptIn"`
 }

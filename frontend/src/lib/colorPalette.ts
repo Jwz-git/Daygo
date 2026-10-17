@@ -38,3 +38,60 @@ export function spectrumPalette(angle: number, normalizedRadius: number): string
     return hslToHex(hue, 100, lightness)
   })
 }
+
+/*
+ * Category theme palettes: six mid-tone colors each, ordered so neighbours
+ * contrast and none washes out on the light or the dark timeline. Applying a
+ * palette recolors the user categories in display order, cycling (the
+ * ApplyCategoryPalette binding); a profession preset takes its palette's
+ * colors by position. Names are i18n keys under presets.palette.names.
+ */
+export const CATEGORY_PALETTE_IDS = [
+  'daygo-classic',
+  'forest-moss',
+  'cyber-neon',
+  'nordic-mist',
+  'sunset-clay',
+] as const
+export type CategoryPaletteId = (typeof CATEGORY_PALETTE_IDS)[number]
+
+export interface CategoryPalette {
+  id: CategoryPaletteId
+  /** Key under presets.palette.names. */
+  nameKey: string
+  colors: readonly string[]
+}
+
+export const CATEGORY_PALETTES: readonly CategoryPalette[] = [
+  {
+    id: 'daygo-classic',
+    nameKey: 'daygoClassic',
+    colors: ['#6A7EFF', '#FF9A6C', '#4CC4E6', '#B884F2', '#F2B33D', '#5DBE96'],
+  },
+  {
+    id: 'forest-moss',
+    nameKey: 'forestMoss',
+    colors: ['#4F8A62', '#86B89A', '#C9A15B', '#6F9C9A', '#B5707E', '#98A65E'],
+  },
+  {
+    id: 'cyber-neon',
+    nameKey: 'cyberNeon',
+    colors: ['#6366F1', '#06B6D4', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6'],
+  },
+  {
+    id: 'nordic-mist',
+    nameKey: 'nordicMist',
+    colors: ['#5E81AC', '#88C0D0', '#A3BE8C', '#EBCB8B', '#D08770', '#B48EAD'],
+  },
+  {
+    id: 'sunset-clay',
+    nameKey: 'sunsetClay',
+    colors: ['#D0624C', '#E59866', '#E3BE6A', '#6C9A8B', '#546A7B', '#9E6B8E'],
+  },
+]
+
+export function categoryPalette(id: CategoryPaletteId): CategoryPalette {
+  const palette = CATEGORY_PALETTES.find((candidate) => candidate.id === id)
+  if (palette === undefined) throw new Error(`unknown category palette: ${id}`)
+  return palette
+}

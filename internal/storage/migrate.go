@@ -739,6 +739,78 @@ var migrations = []migration{
 			return err
 		},
 	},
+	{
+		version: 24,
+		name:    "categories: add archetype column",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// archetype is the closed visual role a renderer maps a category
+			// onto, independent of its free-text name (docs/03 §3.3.3). A
+			// constant default lets SQLite append the column in place; the
+			// CHECK keeps the set closed at the schema, not only in Go.
+			if _, err := tx.ExecContext(ctx, `ALTER TABLE categories ADD COLUMN archetype TEXT NOT NULL DEFAULT 'forge'
+				CHECK (archetype IN ('forge', 'sanctum', 'nexus', 'camp', 'order'))`); err != nil {
+				return wrap("add v24 categories archetype", err)
+			}
+			// Backfill from the names the seeds and common custom sets use.
+			// Matching is on the trimmed, lowercased name; anything else keeps
+			// the forge default rather than a guess.
+			for archetype, names := range categoryArchetypeBackfill {
+				args := make([]any, 0, len(names)+1)
+				args = append(args, archetype)
+				placeholders := ""
+				for i, name := range names {
+					if i > 0 {
+						placeholders += ", "
+					}
+					placeholders += "?"
+					args = append(args, name)
+				}
+				if _, err := tx.ExecContext(ctx,
+					`UPDATE categories SET archetype = ? WHERE lower(trim(name)) IN (`+placeholders+`)`,
+					args...); err != nil {
+					return wrap("backfill v24 category archetype "+archetype, err)
+				}
+			}
+			return nil
+		},
+	},
+	{
+		version: 25,
+		name:    "app_settings: mark onboarding done for databases in use",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			// The first-run guide shows while system.onboardingCompleted is
+			// unset. A database that already holds a provider, a capture, a
+			// card or any setting belongs to someone past their first run, so
+			// it is marked done here; a fresh database (every table empty at
+			// this point of the chain) keeps the key unset and gets the guide.
+			// The key and its JSON encoding are the settings layer's contract
+			// (internal/settings KeySystemOnboardingCompleted), restated here
+			// because migrations must not import it.
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO app_settings (key, value, updated_at)
+				SELECT 'system.onboardingCompleted', 'true', 0
+				WHERE EXISTS (SELECT 1 FROM providers)
+				   OR EXISTS (SELECT 1 FROM screenshots)
+				   OR EXISTS (SELECT 1 FROM timeline_cards)
+				   OR EXISTS (SELECT 1 FROM app_settings)
+				ON CONFLICT(key) DO NOTHING`); err != nil {
+				return wrap("mark v25 onboarding completed", err)
+			}
+			return nil
+		},
+	},
+}
+
+// categoryArchetypeBackfill maps lowercased category names to the archetype
+// v24 assigns them. It covers the built-ins (System, Idle), the v12 starter
+// set, and the usual short names of a hand-made set. The lists are disjoint.
+// Frozen with v24: a later change here would reach no existing database.
+var categoryArchetypeBackfill = map[string][]string{
+	"forge":   {"focus work", "work", "coding", "dev", "development", "design"},
+	"sanctum": {"learning", "research", "study", "reading"},
+	"nexus":   {"communication", "meeting", "meetings", "chat"},
+	"camp":    {"idle", "personal", "distraction", "entertainment", "break", "rest"},
+	"order":   {"system", "other", "admin", "ops"},
 }
 
 // seedStarterCategories inserts the starter user category set. Fixed IDs (like

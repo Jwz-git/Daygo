@@ -9,6 +9,7 @@ import { useTestToolsStore } from '@/stores/testTools'
 import { useCapabilitiesStore } from '@/stores/capabilities'
 
 import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
+import { LANGUAGE_LABELS } from '@/lib/languageLabels'
 
 import SettingRow from './SettingRow.vue'
 import SwitchControl from './SwitchControl.vue'
@@ -61,23 +62,6 @@ function onJournalReminderTimeChange(event: Event): void {
 function onToggleTestTools(next: boolean): void {
   testToolsFailed.value = false
   void testTools.setEnabled(next).then((succeeded) => { testToolsFailed.value = !succeeded })
-}
-
-/**
- * Endonyms, deliberately not translated: someone looking for their language
- * has to recognise it in a UI they cannot currently read. Order follows
- * SUPPORTED_LOCALES so the list is not alphabetical in any one language.
- */
-const LANGUAGE_LABELS: Record<Exclude<LanguagePreference, ''>, string> = {
-  'zh-CN': '简体中文',
-  'zh-Hant': '繁體中文',
-  en: 'English',
-  ja: '日本語',
-  ko: '한국어',
-  de: 'Deutsch',
-  fr: 'Français',
-  es: 'Español',
-  'pt-BR': 'Português (Brasil)',
 }
 
 function themeLabel(theme: AppTheme): string {

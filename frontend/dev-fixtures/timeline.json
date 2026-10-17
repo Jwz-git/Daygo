@@ -24,6 +24,7 @@
         "sortOrder": 1,
         "isSystem": false,
         "isIdle": false,
+        "archetype": "forge",
         "createdAtTs": 1789070400,
         "updatedAtTs": 1789070400
       },
@@ -35,6 +36,7 @@
         "sortOrder": 2,
         "isSystem": false,
         "isIdle": false,
+        "archetype": "nexus",
         "createdAtTs": 1789070400,
         "updatedAtTs": 1789070400
       },
@@ -46,6 +48,7 @@
         "sortOrder": 3,
         "isSystem": false,
         "isIdle": false,
+        "archetype": "order",
         "createdAtTs": 1789070400,
         "updatedAtTs": 1789070400
       },
@@ -57,6 +60,7 @@
         "sortOrder": 4,
         "isSystem": false,
         "isIdle": true,
+        "archetype": "camp",
         "createdAtTs": 1789070400,
         "updatedAtTs": 1789070400
       }

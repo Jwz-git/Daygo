@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 
 import PageHeader from '@/components/PageHeader.vue'
 import { clearHistoryData, getTimelineActionAvailability, getTimelineCapabilities } from '@/api/timeline'
+import { useOnboardingStore } from '@/stores/onboarding'
 import { useTestToolsStore } from '@/stores/testTools'
 import MacCaptureTestPanel from './MacCaptureTestPanel.vue'
 import WindowsRecorderTestPanel from './WindowsRecorderTestPanel.vue'
@@ -14,6 +15,7 @@ type TestPlatform = 'macos' | 'windows'
 const { t } = useI18n()
 const router = useRouter()
 const testTools = useTestToolsStore()
+const onboarding = useOnboardingStore()
 
 // The rail hides this page while the toggle is off; a stale #/test hash or
 // turning the toggle off while already here must not leave the page reachable.
@@ -89,6 +91,16 @@ async function clearHistory(): Promise<void> {
         </div>
         <MacCaptureTestPanel v-if="platform === 'macos'" />
         <WindowsRecorderTestPanel v-else />
+      </section>
+
+      <section class="test__section">
+        <div class="section-heading">
+          <h2>{{ t('test.onboarding.title') }}</h2>
+        </div>
+        <div class="tool-row">
+          <button type="button" class="dg-button" @click="onboarding.startPreview()">{{ t('test.onboarding.action') }}</button>
+        </div>
+        <p class="tool-note">{{ t('test.onboarding.note') }}</p>
       </section>
 
       <section class="test__section">

@@ -13,4 +13,9 @@ export default {
     note: 'Löscht alle Aufzeichnungen und alle aufbereiteten Verläufe. KI-Dienste und andere Einstellungen sind nicht betroffen.',
     failed: 'Löschen fehlgeschlagen. Es wurde nichts geändert.',
   },
+  onboarding: {
+    title: 'Ersteinrichtung',
+    action: 'Einrichtung ansehen',
+    note: 'Öffnet die Einrichtung für neue Nutzer als Vorschau: Kategorien werden nicht ersetzt und der Abschlussstatus bleibt unverändert; Änderungen an KI-Dienst und Einstellungen werden trotzdem gespeichert.',
+  },
 }

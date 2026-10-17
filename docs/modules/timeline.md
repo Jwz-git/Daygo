@@ -93,7 +93,7 @@ fresh 历史上下文与 ongoing 改写范围分开描述，多卡边界不再�
   `ReprocessCard`（后者同步重写该卡片**自己的时间窗**，复用窗内已存 observations、
   不重新转录取图，两侧相邻卡不动，详见 [04 §4.3.5](../04-data-flow.md#435-单卡重写)）、分类整体覆盖
   （重命名同事务改写卡片）、分类管理向导（未改动的默认分类按界面语言显示，编辑并保存即
-  改写为本地文案）、失败 / 处理中状态、当前日 15 秒实时跟随与 4 点边界自动
+  改写为本地文案；职业预设、主题色板与分类元类型 `archetype` 见下方 2026-10-17 记录）、失败 / 处理中状态、当前日 15 秒实时跟随与 4 点边界自动
   重拉、帧回放（`GetCardMedia` + `/media/frame`）、周视图（hover 展开、日历选择）、
   卡片审查流；审阅判断已持久化（`card_reviews`），支持在详情页读取 / 修改并刷新当日统计；
   摘要拇指评分已持久化（`card_ratings`），详情页可投上 / 下并再次点击撤销，两者都不改写卡片，
@@ -422,3 +422,15 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
 - **2026-10-12（`test`）饼图玻璃透光**：扇区 `fill-opacity` 0.88（悬停扇区为 1），环带叠一层左上起渐隐的白色高光
   （screen 混合，只提亮不改色）与外缘细反光线（顶部 0.38、40% 处淡出，按用户反馈由 0.85 / 65% 调淡）；深色主题减半。
   前端 typecheck、build 通过，外观由用户人工检查。
+- **2026-10-17（`test`）分类元类型、首次引导预设与主题色板**：v24 迁移为 `categories` 追加
+  `archetype`（`forge` / `sanctum` / `nexus` / `camp` / `order`，schema CHECK 封闭，按名称回填，见
+  [03 §3.3.3](../03-data-model.md#333-分类)）；新绑定 `ApplyCategoryPalette`（单事务按顺序着色）与只供首次引导使用的
+  `ApplyCategoryPreset`（引导完成后返回 `conflict`）。按用户决定，**职业预设不进分类向导**（整套替换会带来删除与引用问题），
+  只在新用户引导里出现，内容取自 Dayflow `OnboardingCategoryPreset` 的七个角色（名称、说明与起始配色一致，九语言本地化，
+  元类型为 Daygo 自加）。分类向导保留第二步的 5 套色板（草稿有未保存修改时先确认）与编辑行的元类型选择器。
+  删除分类后旧卡片保留原分类名、显示为灰色 `#7D7A84`，行为不变。
+  证据：匿名 v23 夹具 `v23-category-archetype-source.db` 验证回填与 CHECK；storage / app 测试覆盖预设保留被卡片 / 计划 /
+  目标引用的分类、非法颜色 / 元类型 / 内置名拒绝且不写入、引导完成后拒绝、色板循环与内置色不变、只读实例
+  `not_capture_owner`；`categoryPresets.test.ts` 以 Dayflow 英文名称为夹具并检查九语言文案齐全不重名，
+  `colorPalette.test.ts` 检查色板格式与亮度。`CGO_ENABLED=0 go test ./internal/storage ./internal/app`、前端 typecheck / unit 通过；
+  外观由用户人工检查，真实 Wails 窗口与既有用户库升级未实测。

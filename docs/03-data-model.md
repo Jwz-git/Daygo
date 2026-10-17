@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 23`）有十九张业务表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 25`）有十九张业务表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -13,7 +13,8 @@
 > `providers.model` → `providers.models` JSON 数组（v17，单供应商多模型）、`card_ratings`（v18），
 > 移除 `journal_entries.summary`（v19，保留用户输入）、计划的 `plan_blocks`（v20），以及
 > `providers.user_agent`（v21，User-Agent 覆盖），以及 `chat_messages.error_code`（v22，
-> 回合失败原因码）、`timeline_cards.is_user_edited`（v23，自动改写保留人工输入）。本文其余表
+> 回合失败原因码）、`timeline_cards.is_user_edited`（v23，自动改写保留人工输入）、`categories.archetype`（v24，
+分类视觉元类型），以及为已在使用的库写入 `system.onboardingCompleted`（v25）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 
@@ -235,9 +236,23 @@ CREATE TABLE categories (
   is_system   INTEGER NOT NULL DEFAULT 0,   -- 内置，不可删除
   is_idle     INTEGER NOT NULL DEFAULT 0,   -- 该分类计入空闲而非跟踪时长
   created_at  INTEGER NOT NULL,
-  updated_at  INTEGER NOT NULL
+  updated_at  INTEGER NOT NULL,
+  archetype   TEXT    NOT NULL DEFAULT 'forge'  -- v24 追加；封闭集合，见下
+              CHECK (archetype IN ('forge', 'sanctum', 'nexus', 'camp', 'order'))
 );
 ```
+
+`archetype` 是分类的视觉元类型（创造 / 思考 / 连接 / 休憩 / 秩序），把用户自由命名与渲染层
+资产解耦，**不进入 LLM 提示**。写入空串按 `forge` 处理，集合外的值在 storage 与 schema 两层都拒绝。
+v24 按去空格、小写后的名称回填内置与 v12 起始分类及常见短名（`System`→`order`、`Idle`→`camp`、
+`Focus Work`→`forge`、`Communication`→`nexus`、`Learning` / `Research`→`sanctum`、
+`Distraction` / `Personal`→`camp` 等，表见 `migrate.go` 的 `categoryArchetypeBackfill`），其余保持默认。
+
+职业预设（`ApplyCategoryPreset`）**只在首次引导中提供**：`system.onboardingCompleted` 已设置后绑定返回
+`conflict`。它按名称（忽略大小写与首尾空格）匹配已有用户分类：命中者保留 id、存储名与空闲标记，只改颜色 /
+说明 / 元类型，因此不触发卡片改名；未命中者新建；其余用户分类除**被卡片（含软删除）、计划块或每日目标引用**者外
+一律删除，有引用的保留在预设之后。预设内容取自 Dayflow 的 `OnboardingCategoryPreset`（七个角色）。主题色板
+（`ApplyCategoryPalette`）按显示顺序循环为用户分类重新着色，内置分类颜色不变。两者都是单事务。
 
 `timeline_cards.category` 存的是**名称字符串**而不是外键，因为它同时是给 LLM 的输出约束
 （模型被要求从名称列表里选一个）。代价是重命名分类必须同步改写已有卡片——这是一次事务，
@@ -423,6 +438,7 @@ decisions/providers-multi-model.md）。模型无独立身份，只是附在 pro
 | `system.showDockIcon` | bool | `true` |
 | `system.agentEditsEnabled` | bool | `false` |
 | `system.testToolsEnabled` | bool | `false` |
+| `system.onboardingCompleted` | bool（首次引导完成或跳过；v25 为已有 provider / 截图 / 卡片 / 任一设置的库写入 `true`，全新库保持未设置以显示引导） | `false` |
 | `telemetry.analyticsOptIn` | bool | `false` |
 | `telemetry.crashReportingOptIn` | bool | `false` |
 | `providers.routing` | `{"chain": [{"providerId","model"}, …]}`（有序，`chain[0]` 为主，按对去重，上限 8；`model` 为空跟随该 provider 的首个模型） | `{"chain":[]}` |
