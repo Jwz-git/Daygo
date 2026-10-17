@@ -78,6 +78,12 @@ const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
 const showCategoryManager = ref(false)
+/* The wizard asks before discarding draft edits, so a backdrop click goes through it. */
+const categoryManager = ref<InstanceType<typeof CategoryManagerModal> | null>(null)
+function onCategoryBackdrop(): void {
+  if (categoryManager.value === null) showCategoryManager.value = false
+  else categoryManager.value.requestClose()
+}
 let dayRefreshTimer: number | null = null
 
 /*
@@ -783,9 +789,10 @@ onBeforeUnmount(() => {
 
     <!-- Category manager wizard -->
     <Teleport to="body">
-      <div v-if="showCategoryManager" class="modal-backdrop" @click.self="showCategoryManager = false">
+      <div v-if="showCategoryManager" class="modal-backdrop" @click.self="onCategoryBackdrop">
         <CategoryManagerModal
           v-if="day !== null"
+          ref="categoryManager"
           :categories="day.categories"
           :can-write="capabilities?.canWrite ?? false"
           @close="showCategoryManager = false"
