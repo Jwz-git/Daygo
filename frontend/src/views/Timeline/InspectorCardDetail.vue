@@ -539,7 +539,7 @@ watch(
       </button>
       <button
         type="button"
-        class="dg-button inspector__delete"
+        class="dg-button dg-button--danger"
         :disabled="props.pendingAction !== null"
         @click="confirmDeletion"
       >
@@ -555,7 +555,7 @@ watch(
       </button>
       <button
         type="button"
-        class="dg-button inspector__regenerate"
+        class="dg-button dg-button--primary"
         :disabled="props.pendingAction !== null"
         @click="confirmReprocess"
       >
@@ -567,7 +567,7 @@ watch(
       <button
         v-if="props.card.batchId !== null"
         type="button"
-        class="dg-button inspector__regenerate"
+        class="dg-button"
         :disabled="!canReprocess || props.pendingAction !== null"
         :title="canReprocess ? t('timeline.reprocess.card') : t('timeline.reprocess.cardUnavailable')"
         @click="confirmingReprocess = true"
@@ -577,7 +577,7 @@ watch(
       </button>
       <button
         type="button"
-        class="dg-button inspector__delete"
+        class="dg-button dg-button--danger-subtle"
         :disabled="!props.canWrite || !props.actions.deleteCard || props.pendingAction !== null"
         :title="props.actions.deleteCard ? t('common.action.delete') : t('timeline.inspector.actionsUnavailable')"
         @click="confirmingDelete = true"
@@ -858,20 +858,6 @@ watch(
 /* Regenerate: sits in the action row beside delete, re-running the LLM on the
    card's batch. Accent-tinted on hover to read as the constructive counterpart
    to the destructive delete. */
-.inspector__regenerate {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.inspector__regenerate:hover:not(:disabled) {
-  border-color: var(--dg-accent);
-  color: var(--dg-accent);
-  background: var(--dg-accent-subtle);
-}
-
-.inspector__regenerate:disabled { opacity: 0.5; cursor: not-allowed; }
-
 .reprocess-icon { width: 14px; height: 14px; flex-shrink: 0; }
 
 .rating {

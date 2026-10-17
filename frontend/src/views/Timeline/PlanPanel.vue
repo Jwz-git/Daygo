@@ -167,7 +167,7 @@ const errorText = computed(() => {
       <button
         v-if="canWrite && plan.available && draft === null"
         type="button"
-        class="inspector__tile-action"
+        class="dg-button dg-button--sm inspector__tile-action"
         @click="openNew"
       >
         <DgIcon name="plus" :size="11" />
@@ -252,8 +252,8 @@ const errorText = computed(() => {
               </p>
               <div v-if="pendingDelete === block.id" class="plan-item__confirm" role="alert">
                 <span>{{ t('timeline.plan.deleteConfirm') }}</span>
-                <button type="button" class="dg-button" @click="pendingDelete = null">{{ t('common.action.cancel') }}</button>
-                <button type="button" class="dg-button dg-button--danger" :disabled="plan.pending" @click="confirmDelete(block.id)">{{ t('common.action.delete') }}</button>
+                <button type="button" class="dg-button dg-button--sm" @click="pendingDelete = null">{{ t('common.action.cancel') }}</button>
+                <button type="button" class="dg-button dg-button--sm dg-button--danger" :disabled="plan.pending" @click="confirmDelete(block.id)">{{ t('common.action.delete') }}</button>
               </div>
             </div>
             <div v-if="canWrite && pendingDelete !== block.id" class="plan-item__actions">
@@ -534,13 +534,6 @@ const errorText = computed(() => {
 }
 
 .plan-item__confirm span { flex: 1; min-width: 8em; }
-.plan-item__confirm .dg-button { min-height: 26px; padding: 3px 10px; font-size: 12px; }
-
-.dg-button--danger {
-  background: var(--dg-danger);
-  box-shadow: none;
-  color: #ffffff;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .plan-item,

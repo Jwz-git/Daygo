@@ -296,7 +296,7 @@ function submit(): void {
       </label>
       <button
         type="button"
-        class="dg-button dg-button--primary goal-save"
+        class="dg-button dg-button--sm dg-button--primary goal-save"
         :disabled="!canSave"
         @click="submit"
       >
@@ -494,12 +494,6 @@ function submit(): void {
   color: var(--dg-text-secondary);
   font-size: 12px;
   cursor: pointer;
-}
-
-.goal-save {
-  min-height: 30px;
-  padding: 5px 14px;
-  font-size: 12px;
 }
 
 .goal-empty {

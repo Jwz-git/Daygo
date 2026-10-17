@@ -7,6 +7,10 @@ export default {
     capturing: '記録中',
     paused: '記録を一時停止中',
   },
+  pill: {
+    pausedFor: 'Daygo は一時停止中 {time}',
+    pausedIndefinitely: 'Daygo は無期限に一時停止中',
+  },
   action: {
     pause: '一時停止',
     resume: '再開',

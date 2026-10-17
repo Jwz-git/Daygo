@@ -122,13 +122,13 @@ function onDismiss(): void {
             <li>{{ t('recording.permission.step3') }}</li>
           </ol>
           <div class="recording-permission__actions">
-            <button type="button" class="recording-permission__btn is-secondary" @click="onDismiss">
+            <button type="button" class="dg-button" @click="onDismiss">
               {{ t('recording.permission.dismiss') }}
             </button>
-            <button type="button" class="recording-permission__btn is-secondary" @click="onOpenSettings">
+            <button type="button" class="dg-button" @click="onOpenSettings">
               {{ t('recording.permission.openSettings') }}
             </button>
-            <button type="button" class="recording-permission__btn is-primary" @click="onRelaunch">
+            <button type="button" class="dg-button dg-button--primary" @click="onRelaunch">
               {{ t('recording.permission.relaunch') }}
             </button>
           </div>
@@ -281,24 +281,7 @@ function onDismiss(): void {
   gap: 8px;
 }
 
-.recording-permission__btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: opacity var(--dg-motion-base) ease;
-}
 
-.recording-permission__btn:hover { opacity: 0.85; }
 
-.recording-permission__btn.is-secondary {
-  background: var(--dg-hover-fill);
-  color: var(--dg-text-primary);
-}
 
-.recording-permission__btn.is-primary {
-  background: var(--dg-accent);
-  color: #fff;
-}
 </style>

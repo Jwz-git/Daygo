@@ -112,7 +112,7 @@ watch(
       </button>
       <button
         type="button"
-        class="dg-button inspector__delete"
+        class="dg-button dg-button--danger"
         :disabled="props.pendingAction !== null"
         @click="emit('dismiss', props.failure.batchIds); confirmingDelete = false"
       >
@@ -141,7 +141,7 @@ watch(
       </button>
       <button
         type="button"
-        class="dg-button inspector__danger"
+        class="dg-button dg-button--danger-subtle"
         :disabled="!canDelete || props.pendingAction !== null"
         :title="canDelete ? t('timeline.failure.delete') : t('timeline.failure.deleteUnavailable')"
         @click="confirmingDelete = true"

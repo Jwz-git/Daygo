@@ -7,6 +7,10 @@ export default {
     capturing: '기록 중',
     paused: '기록 일시 정지됨',
   },
+  pill: {
+    pausedFor: 'Daygo 일시 정지 {time}',
+    pausedIndefinitely: 'Daygo 무기한 일시 정지',
+  },
   action: {
     pause: '일시 정지',
     resume: '재개',

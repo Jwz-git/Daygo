@@ -57,6 +57,8 @@ export const useTimelineStore = defineStore('timeline', () => {
   const selectedFailureTs = ref<number | null>(null)
   const categoryFilter = ref<string | null>(null)
   const usingDevelopmentFixture = ref(false)
+  /** A day switch is in flight while the previous day stays on screen. */
+  const switching = ref(false)
   const pendingAction = ref<TimelineAction | null>(null)
   const pendingCardID = ref<number | null>(null)
   const actionError = ref<unknown>(null)
@@ -115,10 +117,24 @@ export const useTimelineStore = defineStore('timeline', () => {
    * edit/delete confirmation does not unmount the track and lose scroll
    * position. It degrades to a full load whenever no day is on screen.
    */
-  async function load(requestedDay = '', options: { silent?: boolean } = {}): Promise<void> {
+  async function load(requestedDay = '', options: { silent?: boolean; keep?: boolean } = {}): Promise<void> {
     const version = ++requestVersion
-    const silent = options.silent === true && day.value !== null && loading.value === false
-    if (!silent) {
+    const onScreen = day.value !== null && loading.value === false
+    const silent = options.silent === true && onScreen
+    /*
+     * keep: a day switch. The previous day stays rendered (no loading state,
+     * so the track and the inspector are not torn down and rebuilt) and the
+     * new context and day are committed together once both arrive. Unlike a
+     * silent refresh, a failure is surfaced, never left behind a stale day.
+     */
+    const keep = !silent && options.keep === true && onScreen
+    if (keep) {
+      switching.value = true
+      error.value = null
+      actionError.value = null
+      failedAction.value = null
+      failedCardID.value = null
+    } else if (!silent) {
       loading.value = true
       unavailable.value = false
       error.value = null
@@ -128,10 +144,12 @@ export const useTimelineStore = defineStore('timeline', () => {
       usingDevelopmentFixture.value = false
     }
 
+    let fetchedContext: DayContextDTO | null = null
     try {
       const nextContext = await getDayContext(requestedDay)
       if (version !== requestVersion) return
-      context.value = nextContext
+      fetchedContext = nextContext
+      if (!keep) context.value = nextContext
 
       const [nextDay, nextCapabilities] = await Promise.all([
         getTimelineDay(nextContext.day),
@@ -139,6 +157,7 @@ export const useTimelineStore = defineStore('timeline', () => {
       ])
       if (version !== requestVersion) return
 
+      context.value = nextContext
       day.value = nextDay
       capabilities.value = nextCapabilities
       if (selectedCardID.value !== null && selectedCard.value === null) {
@@ -152,6 +171,11 @@ export const useTimelineStore = defineStore('timeline', () => {
       // A failed silent refresh keeps the stale day on screen; the next
       // explicit load or event re-pull surfaces the error normally.
       if (silent) return
+      // A failed switch must not leave the previous day posing as the new one.
+      if (keep) {
+        day.value = null
+        if (fetchedContext !== null) context.value = fetchedContext
+      }
       if (cause instanceof TimelineUnavailableError) {
         const fixture = await getTimelineDevelopmentFixture()
         if (version !== requestVersion) return
@@ -168,7 +192,10 @@ export const useTimelineStore = defineStore('timeline', () => {
         error.value = cause
       }
     } finally {
-      if (version === requestVersion) loading.value = false
+      if (version === requestVersion) {
+        loading.value = false
+        switching.value = false
+      }
     }
   }
 
@@ -296,6 +323,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     selectedCardID,
     categoryFilter,
     usingDevelopmentFixture,
+    switching,
     pendingAction,
     pendingCardID,
     actionError,

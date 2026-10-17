@@ -269,7 +269,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
           >
             <button
               type="button"
-              class="drawer__new"
+              class="dg-button dg-button--primary dg-button--block drawer__new"
               @click="perform(store.newConversation); emit('close')"
             >
               <DgIcon name="plus" :size="14" />
@@ -398,7 +398,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
               </Transition>
               <button
                 type="button"
-                class="memory__save"
+                class="dg-button dg-button--sm dg-button--primary memory__save"
                 :disabled="!memoryLoaded || memorySaving"
                 @click="saveMemory"
               >
@@ -415,14 +415,14 @@ const hasConversations = computed(() => grouped.value.length > 0)
             <div class="confirm-bar__actions">
               <button
                 type="button"
-                class="confirm-bar__btn confirm-bar__btn--ghost"
+                class="dg-button dg-button--sm"
                 @click="pendingRemoveId = null"
               >
                 {{ t('common.action.cancel') }}
               </button>
               <button
                 type="button"
-                class="confirm-bar__btn confirm-bar__btn--danger"
+                class="dg-button dg-button--sm dg-button--danger"
                 @click="confirmRemove"
               >
                 {{ t('common.action.delete') }}
@@ -593,34 +593,9 @@ const hasConversations = computed(() => grouped.value.length > 0)
 
 /* ---- conversations pane ---- */
 
-.drawer__new {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 8px;
-  background: var(--dg-accent-fill);
-  color: var(--dg-accent-text);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    transform var(--dg-motion-fast) ease,
-    filter var(--dg-motion-base) ease,
-    opacity var(--dg-motion-base) ease;
-}
+.drawer__new { flex: none; }
 
-.drawer__new:hover {
-  filter: brightness(1.06);
-}
 
-.drawer__new:active {
-  transform: scale(0.985);
-}
 
 .drawer__scroll {
   flex: 1;
@@ -840,33 +815,9 @@ const hasConversations = computed(() => grouped.value.length > 0)
   transform: translateY(2px);
 }
 
-.memory__save {
-  padding: 6px 14px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 7px;
-  background: var(--dg-accent-fill);
-  color: var(--dg-accent-text);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    filter var(--dg-motion-base) ease,
-    transform var(--dg-motion-fast) ease,
-    opacity var(--dg-motion-base) ease;
-}
 
-.memory__save:hover:not(:disabled) {
-  filter: brightness(1.06);
-}
 
-.memory__save:active:not(:disabled) {
-  transform: scale(0.96);
-}
 
-.memory__save:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 /* ============================================================
    Confirm bar (floating above body)
@@ -905,39 +856,10 @@ const hasConversations = computed(() => grouped.value.length > 0)
   flex: none;
 }
 
-.confirm-bar__btn {
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--dg-chip-border);
-  background: var(--dg-track-fill);
-  color: var(--dg-text-secondary);
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background var(--dg-motion-base) ease,
-    color var(--dg-motion-base) ease,
-    transform var(--dg-motion-fast) ease;
-}
 
-.confirm-bar__btn:active {
-  transform: scale(0.96);
-}
 
-.confirm-bar__btn--ghost:hover {
-  background: var(--dg-control-fill);
-  color: var(--dg-text-primary);
-}
 
-.confirm-bar__btn--danger {
-  background: var(--dg-danger-fill);
-  border-color: transparent;
-  color: var(--dg-danger-text);
-}
 
-.confirm-bar__btn--danger:hover {
-  filter: brightness(1.08);
-}
 
 .confirm-pop-enter-active,
 .confirm-pop-leave-active {

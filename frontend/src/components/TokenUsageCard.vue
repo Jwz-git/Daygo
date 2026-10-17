@@ -65,7 +65,7 @@ const pie = computed(() => {
       <DgSelect v-model="kind" class="kind-select" size="sm" :options="kindOptions" :aria-label="t('tokenUsage.chartType')" />
     </header>
     <p v-if="state === 'loading' && !usage">{{ t('tokenUsage.loading') }}</p>
-    <div v-else-if="state === 'failed'"><p>{{ t('tokenUsage.failed') }}</p><button @click="reload">{{ t('common.action.retry') }}</button></div>
+    <div v-else-if="state === 'failed'"><p>{{ t('tokenUsage.failed') }}</p><button type="button" class="dg-button dg-button--sm" @click="reload">{{ t('common.action.retry') }}</button></div>
     <template v-else>
       <div class="totals">
         <strong>{{ number(totals.input + totals.output) }}</strong>

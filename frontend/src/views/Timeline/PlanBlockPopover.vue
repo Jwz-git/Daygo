@@ -129,7 +129,7 @@ onBeforeUnmount(() => {
       <footer v-if="canWrite" class="plan-pop__actions">
         <button
           type="button"
-          class="plan-pop__action plan-pop__action--primary"
+          class="dg-button dg-button--sm dg-button--primary"
           :disabled="pending"
           @click="emit('status', block.status === 'done' ? 'planned' : 'done')"
         >
@@ -138,13 +138,13 @@ onBeforeUnmount(() => {
         </button>
         <button
           type="button"
-          class="plan-pop__action"
+          class="dg-button dg-button--sm"
           :disabled="pending"
           @click="emit('status', block.status === 'skipped' ? 'planned' : 'skipped')"
         >
           {{ block.status === 'skipped' ? t('timeline.plan.restore') : t('timeline.plan.skip') }}
         </button>
-        <button type="button" class="plan-pop__action" @click="emit('edit')">
+        <button type="button" class="dg-button dg-button--sm" @click="emit('edit')">
           <DgIcon name="pencil" :size="12" />
           {{ t('common.action.edit') }}
         </button>
@@ -293,30 +293,7 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--dg-timeline-grid);
 }
 
-.plan-pop__action {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 28px;
-  padding: 4px 10px;
-  border: none;
-  border-radius: 7px;
-  background: var(--dg-hover-fill);
-  color: var(--dg-text-primary);
-  font-size: 12px;
-  font-weight: 550;
-  cursor: pointer;
-  transition: background-color var(--dg-motion-fast) ease;
-}
 
-.plan-pop__action:hover:not(:disabled) { background: var(--dg-hover-fill-strong); }
-.plan-pop__action:disabled { opacity: 0.55; cursor: default; }
-.plan-pop__action:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 
-.plan-pop__action--primary {
-  background: var(--dg-button-primary-fill);
-  color: var(--dg-button-primary-text);
-}
 
-.plan-pop__action--primary:hover:not(:disabled) { background: var(--dg-button-primary-hover); }
 </style>

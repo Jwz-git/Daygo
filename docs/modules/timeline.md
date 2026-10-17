@@ -434,3 +434,11 @@ fake 能证明确定性逻辑，不能证明 LLM 文本一致、真实截图或�
   `not_capture_owner`；`categoryPresets.test.ts` 以 Dayflow 英文名称为夹具并检查九语言文案齐全不重名，
   `colorPalette.test.ts` 检查色板格式与亮度。`CGO_ENABLED=0 go test ./internal/storage ./internal/app`、前端 typecheck / unit 通过；
   外观由用户人工检查，真实 Wails 窗口与既有用户库升级未实测。
+- **2026-10-17（`test`）暂停胶囊、切换日期与按钮统一**：顶栏暂停按钮改为复刻 Dayflow
+  `PausePillView` 的 `PausePill.vue`（点击弹性展开出 ∞ / 1 小时 / 30 分钟 / 15 分钟，选定后收缩成橙色「继续」并在左侧显示
+  暂停倒计时，再点恢复；宽度按渲染内容测量以适配九语言；悬停 / 按下缩放走合成层，避免文字抖动）。切换日期改为
+  `load(day, { keep: true })`：旧日期保留在屏上、新上下文与数据一并提交，时间线与检查器不再卸载重建；超过 160ms 的切换
+  只淡化时间线；计划 store 也不再先清空列表。时间线、分类向导、引导、录制权限面板、致命错误层、聊天抽屉与设置里的
+  操作按钮统一为 `base.css` 的 `.dg-button` 家族（新增 `--sm` / `--lg` / `--block` / `--danger` / `--danger-subtle`），
+  移除各处自绘的底色 / 虚线框 / 未定义变量。证据：`timelineDaySwitch.test.ts` 覆盖切换中不进入 loading、原子提交、
+  失败落到新日期，以及计划列表不闪空；前端 typecheck / unit / build 通过。外观与动效由用户人工检查。

@@ -7,6 +7,10 @@ export default {
     capturing: 'Aufzeichnung läuft',
     paused: 'Aufzeichnung pausiert',
   },
+  pill: {
+    pausedFor: 'Daygo pausiert für {time}',
+    pausedIndefinitely: 'Daygo unbegrenzt pausiert',
+  },
   action: {
     pause: 'Pausieren',
     resume: 'Fortsetzen',

@@ -105,7 +105,7 @@ async function copy(id: SnippetId, text: string): Promise<void> {
           <pre><code>{{ mcpSnippet }}</code></pre>
           <button
             type="button"
-            class="snippet__copy"
+            class="dg-button dg-button--sm snippet__copy"
             :class="{ 'is-done': copied === 'mcp' }"
             @click="copy('mcp', mcpSnippet)"
           >
@@ -124,7 +124,7 @@ async function copy(id: SnippetId, text: string): Promise<void> {
             <pre><code>{{ readSnippet }}</code></pre>
             <button
               type="button"
-              class="snippet__copy"
+              class="dg-button dg-button--sm snippet__copy"
               :class="{ 'is-done': copied === 'read' }"
               @click="copy('read', readSnippet)"
             >
@@ -138,7 +138,7 @@ async function copy(id: SnippetId, text: string): Promise<void> {
             <pre><code>{{ writeSnippet }}</code></pre>
             <button
               type="button"
-              class="snippet__copy"
+              class="dg-button dg-button--sm snippet__copy"
               :class="{ 'is-done': copied === 'write' }"
               @click="copy('write', writeSnippet)"
             >
@@ -316,33 +316,13 @@ async function copy(id: SnippetId, text: string): Promise<void> {
   padding-bottom: 12px;
 }
 
-.snippet__copy {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 58px;
-  padding: 4px 10px;
-  border: none;
-  border-radius: 6px;
-  background: var(--dg-button-secondary-fill);
-  color: var(--dg-button-secondary-text);
-  font-size: 12px;
-  font-weight: 550;
-  transition: background var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
-}
+.snippet__copy { position: absolute; top: 6px; right: 6px; min-width: 58px; }
 
-.snippet__copy:hover {
-  background: var(--dg-button-secondary-hover);
-}
 
 .snippet__copy.is-done {
   color: var(--dg-success);
 }
 
-.snippet__copy:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--dg-focus-ring);
-}
 
 .write-error {
   color: var(--dg-danger);

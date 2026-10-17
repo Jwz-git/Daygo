@@ -7,6 +7,10 @@ export default {
     capturing: 'Grabando',
     paused: 'Grabación en pausa',
   },
+  pill: {
+    pausedFor: 'Daygo en pausa durante {time}',
+    pausedIndefinitely: 'Daygo en pausa indefinida',
+  },
   action: {
     pause: 'Pausar',
     resume: 'Reanudar',

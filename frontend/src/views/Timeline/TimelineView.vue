@@ -24,6 +24,7 @@ import { useTimelineStore } from '@/stores/timeline'
 import { getReviewTotals } from '@/api/review'
 import CardReviewFlow from './CardReviewFlow.vue'
 import CategoryManagerModal from './CategoryManagerModal.vue'
+import PausePill from './PausePill.vue'
 import { ZERO_REVIEW_TOTALS, type ReviewTotals } from './review'
 import PlanBlockPopover from './PlanBlockPopover.vue'
 import TimelineInspector from './TimelineInspector.vue'
@@ -58,6 +59,7 @@ const {
   capabilities,
   dayNavigationAvailable,
   usingDevelopmentFixture,
+  switching,
   pendingAction,
   pendingCardID,
   actionError,
@@ -243,8 +245,6 @@ async function onCategoriesSaved(): Promise<void> {
   if (viewMode.value === 'week') await loadWeek({ silent: true })
 }
 
-async function closeReview(): Promise<void> {
-  showReview.value = false
 /* A preset or palette wrote through its own binding; the manager stays open
    and re-reads the set the refetched day carries. */
 async function onCategoriesApplied(): Promise<void> {
@@ -252,6 +252,8 @@ async function onCategoriesApplied(): Promise<void> {
   if (viewMode.value === 'week') await loadWeek({ silent: true })
 }
 
+async function closeReview(): Promise<void> {
+  showReview.value = false
   // Categories may have changed; refetch so the track and inspector agree.
   await timeline.load(routeDay())
 }
@@ -484,7 +486,10 @@ onMounted(() => {
   window.addEventListener('focus', refreshWhenWindowReturns)
   document.addEventListener('visibilitychange', refreshWhenWindowReturns)
 })
-watch(() => route.query.day, () => { void timeline.load(routeDay()) }, { immediate: true })
+// A date change keeps the current day on screen until the next one arrives
+// (keep), so the track and the inspector update in place instead of being
+// torn down behind a loading panel and rebuilt.
+watch(() => route.query.day, () => { void timeline.load(routeDay(), { keep: true }) }, { immediate: true })
 watch([viewMode, weekKeys], () => {
   if (viewMode.value !== 'week') return
   void loadWeek()
@@ -563,18 +568,7 @@ onBeforeUnmount(() => {
       </template>
 
       <template #trail>
-        <button
-          v-if="showPauseButton"
-          type="button"
-          class="pause-pill"
-          :disabled="recording.pendingAction !== null"
-          :title="recording.lifecycle === 'paused' ? t('recording.action.resume') : t('recording.action.pause')"
-          @click="recording.perform(recording.lifecycle === 'paused' ? 'resume' : 'pause')"
-        >
-          <DgIcon v-if="recording.lifecycle !== 'paused'" name="pause" :size="11" />
-          <DgIcon v-else name="play" :size="11" />
-          <span>{{ recording.lifecycle === 'paused' ? t('recording.action.resume') : t('recording.action.pause') }}</span>
-        </button>
+        <PausePill v-if="showPauseButton" />
         <DevelopmentBadge v-if="usingDevelopmentFixture">{{ t('timeline.developmentFixture') }}</DevelopmentBadge>
         <div v-if="day && localizedTimeZone" class="day-meta">
           <span>{{ localizedTimeZone }}</span>
@@ -679,7 +673,7 @@ onBeforeUnmount(() => {
         </div>
       </Transition>
       <Transition name="mode-day">
-        <div v-if="viewMode === 'day'" key="day" class="timeline-body__day">
+        <div v-if="viewMode === 'day'" key="day" class="timeline-body__day" :class="{ 'is-switching': switching }">
           <TimelineStatePanel
             v-if="!hasTrack"
             class="timeline-body__state"
@@ -761,7 +755,7 @@ onBeforeUnmount(() => {
               </Transition>
               <button
                 type="button"
-                class="copy-button"
+                class="dg-button dg-button--sm copy-button"
                 :class="{ 'is-copied': copyState === 'copied', 'is-failed': copyState === 'failed' }"
                 :disabled="cards.length === 0"
                 :title="t('timeline.copy.action')"
@@ -797,13 +791,13 @@ onBeforeUnmount(() => {
     <!-- Category manager wizard -->
     <Teleport to="body">
       <div v-if="showCategoryManager" class="modal-backdrop" @click.self="showCategoryManager = false">
-          @applied="onCategoriesApplied"
         <CategoryManagerModal
           v-if="day !== null"
           :categories="day.categories"
           :can-write="capabilities?.canWrite ?? false"
           @close="showCategoryManager = false"
           @saved="onCategoriesSaved"
+          @applied="onCategoriesApplied"
         />
       </div>
     </Teleport>
@@ -941,6 +935,12 @@ onBeforeUnmount(() => {
 /* Explicit cells: the footer overlays the track's cell. */
 .timeline-body__day > .timeline-body__track { grid-row: 1; grid-column: 1; }
 .timeline-body__day > .timeline-body__inspector { grid-row: 1; grid-column: 2; }
+
+/* While a date switch is in flight the previous track stays put; only a slow
+   switch (past the delay) dims it, so a fast one shows no flash at all. The
+   inspector is left alone — it updates in place when the new day lands. */
+.timeline-body__day > .timeline-body__track { transition: opacity 160ms ease; }
+.timeline-body__day.is-switching > .timeline-body__track { opacity: 0.6; transition-delay: 160ms; }
 
 /*
  * Day/week switch, after Dayflow's MainView: both panes animate at once.
@@ -1085,35 +1085,6 @@ onBeforeUnmount(() => {
   box-shadow: var(--dg-segment-thumb-shadow);
 }
 
-/* Warm pill echoing the reference recording control; kept local because no
-   palette token carries the warm recording hue. */
-.pause-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 15px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(232, 128, 74, 0.2);
-  color: #b25a22;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--dg-motion-fast) ease, transform var(--dg-motion-base) var(--dg-ease-glide);
-}
-
-:root[data-dg-appearance='dark'] .pause-pill {
-  background: rgba(232, 128, 74, 0.16);
-  color: #eda06c;
-}
-
-.pause-pill svg { width: 11px; height: 11px; }
-.pause-pill:hover:not(:disabled) { background: rgba(232, 128, 74, 0.3); }
-.pause-pill:active:not(:disabled) { transform: scale(0.96); }
-.pause-pill:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
-.pause-pill:disabled { opacity: 0.55; cursor: default; }
-
 @media (max-width: 1000px) {
   .timeline-body__day,
   .timeline-body__week-pane,
@@ -1170,33 +1141,13 @@ onBeforeUnmount(() => {
 .timeline-footer > * { pointer-events: auto; }
 
 /* Dayflow's copyTimelineButton: the theme's secondary button, 26pt tall. */
+/* A .dg-button--sm; it only fixes its width so the copied / failed states
+   swap in place without the footer reflowing. */
 .copy-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   min-width: 122px;
-  height: 26px;
-  padding: 0 8px;
   overflow: hidden;
-  border: 1px solid var(--dg-button-secondary-border);
-  border-radius: 7px;
-  background: var(--dg-button-secondary-fill);
-  color: var(--dg-button-secondary-text);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: transform 300ms cubic-bezier(0.34, 1.4, 0.64, 1), background-color var(--dg-motion-fast) ease;
 }
 
-:root[data-dg-appearance='dark'] .copy-button {
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-}
-
-.copy-button:hover:not(:disabled) { transform: scale(1.02); background: var(--dg-button-secondary-hover); }
-.copy-button:active:not(:disabled) { transform: scale(0.97); transition-duration: 120ms; }
-.copy-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
-.copy-button:disabled { opacity: 0.5; cursor: default; }
 .copy-button.is-copied { color: var(--dg-success); }
 .copy-button.is-failed { color: var(--dg-danger); }
 
@@ -1237,6 +1188,9 @@ onBeforeUnmount(() => {
 
 :root[data-dg-appearance='dark'] .review-badge { box-shadow: inset 0 0 0 1.5px #ffd9d4, 0 2px 4px rgba(0, 0, 0, 0.35); }
 
+/* Composited, so the hover scale moves a bitmap instead of re-rasterizing
+   the label (which reads as the text shaking). */
+.review-badge { will-change: transform; backface-visibility: hidden; }
 .review-badge:hover { transform: translateX(-50%) scale(1.02); }
 .review-badge:active { transform: translateX(-50%) scale(0.97); transition-duration: 120ms; }
 .review-badge:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px #ffd9d4, 0 0 0 3px var(--dg-focus-ring); }

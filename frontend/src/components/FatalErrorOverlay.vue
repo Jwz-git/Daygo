@@ -48,13 +48,13 @@ async function copyDetails(): Promise<void> {
         <p class="fatal__message">{{ fatalError.message }}</p>
         <pre v-if="fatalError.detail" class="fatal__detail">{{ fatalError.detail }}</pre>
         <div class="fatal__actions">
-          <button type="button" class="fatal__button fatal__button--primary" @click="reloadApp">
+          <button type="button" class="dg-button dg-button--primary" @click="reloadApp">
             {{ t('common.fatal.reload') }}
           </button>
-          <button type="button" class="fatal__button" @click="copyDetails">
+          <button type="button" class="dg-button" @click="copyDetails">
             {{ copied ? t('common.fatal.copied') : t('common.fatal.copy') }}
           </button>
-          <button type="button" class="fatal__button" @click="clearFatalError">
+          <button type="button" class="dg-button" @click="clearFatalError">
             {{ t('common.fatal.dismiss') }}
           </button>
         </div>
@@ -144,30 +144,9 @@ async function copyDetails(): Promise<void> {
   margin-top: 4px;
 }
 
-.fatal__button {
-  min-height: 32px;
-  padding: 6px 14px;
-  border: 1px solid var(--dg-chip-border);
-  border-radius: 8px;
-  color: var(--dg-text-primary);
-  font-size: 12px;
-  font-weight: 550;
-}
 
-.fatal__button:hover {
-  background: var(--dg-hover-fill);
-}
 
-.fatal__button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--dg-focus-ring);
-}
 
-.fatal__button--primary {
-  border-color: transparent;
-  background: var(--dg-accent);
-  color: #fff;
-}
 
 .fatal-enter-active,
 .fatal-leave-active {

@@ -47,19 +47,30 @@ export const usePlanStore = defineStore('plan', () => {
 
   const available = computed(() => hasPlanBinding())
 
+  /*
+   * Switching days keeps the previous list on screen until the new one
+   * arrives, then swaps day and blocks together — clearing first made the
+   * plan panel blink empty on every date change. `requestedDay` is the day
+   * being shown or fetched, so an event re-pull mid-switch follows the new
+   * day instead of re-requesting the old one.
+   */
+  let requestedDay: string | null = null
+
   async function load(nextDay: string): Promise<void> {
     if (nextDay === '') return
     const version = ++requestVersion
-    if (day.value !== nextDay) blocks.value = []
-    day.value = nextDay
+    requestedDay = nextDay
     loading.value = true
     loadFailed.value = false
     try {
       const result = await getPlanDay(nextDay)
       if (version !== requestVersion) return
+      day.value = nextDay
       blocks.value = result.blocks
     } catch {
       if (version !== requestVersion) return
+      if (day.value !== nextDay) blocks.value = []
+      day.value = nextDay
       loadFailed.value = true
     } finally {
       if (version === requestVersion) loading.value = false
@@ -123,7 +134,8 @@ export const usePlanStore = defineStore('plan', () => {
   function startListening(): void {
     if (stopEvents !== null) return
     const reload = (changed: string | null) => {
-      if (day.value !== null && (changed === null || changed === day.value)) void load(day.value)
+      const current = requestedDay ?? day.value
+      if (current !== null && (changed === null || changed === current)) void load(current)
       if (changed === null) void loadWeek(Object.keys(week.value))
       else void reloadWeekDay(changed)
     }

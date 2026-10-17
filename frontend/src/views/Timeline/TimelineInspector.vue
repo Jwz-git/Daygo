@@ -217,25 +217,8 @@ const { t } = useI18n()
   font-variant-numeric: tabular-nums;
 }
 
-/* A quiet text action at the end of a tile's title row. */
-.inspector :deep(.inspector__tile-action) {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 3px 9px;
-  border: none;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--dg-accent) 12%, transparent);
-  color: var(--dg-accent-text);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color var(--dg-motion-fast) ease;
-}
-
-.inspector :deep(.inspector__tile-action:hover) { background: color-mix(in srgb, var(--dg-accent) 20%, transparent); }
-.inspector :deep(.inspector__tile-action:focus-visible) { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+/* A small action at the end of a tile's title row (a .dg-button--sm). */
+.inspector :deep(.inspector__tile-action) { margin-left: auto; }
 
 .inspector :deep(.inspector__tile-note) {
   margin: 0;
@@ -247,13 +230,6 @@ const { t } = useI18n()
 
 .inspector :deep(.inspector__failure-note) { margin-top: 8px; color: var(--dg-text-muted); font-size: 11px; }
 
-.inspector :deep(.inspector__danger) { color: var(--dg-danger); }
-
-.inspector :deep(.inspector__danger:not(:disabled):hover) {
-  background: color-mix(in srgb, var(--dg-danger) 9%, transparent);
-}
-
-.inspector :deep(.inspector__delete) { border-color: color-mix(in srgb, var(--dg-danger) 34%, transparent); color: var(--dg-danger); }
 .inspector :deep(.inspector__error) { margin: 4px 0 12px; color: var(--dg-danger); font-size: 11px; }
 
 /* Switching between cards: the outgoing detail shrinks away, the incoming

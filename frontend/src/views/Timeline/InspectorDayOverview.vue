@@ -334,7 +334,7 @@ const reviewMinutesTotal = computed(() =>
     <header class="inspector__tile-head">
       <h3 class="inspector__tile-title">{{ t('daily.goal.title') }}</h3>
       <template v-if="!goalUnavailable && !goalFailed && canWrite">
-        <button v-if="editingGoal" type="button" class="inspector__tile-action goal-tile__collapse" @click="editingGoal = false">
+        <button v-if="editingGoal" type="button" class="dg-button dg-button--sm inspector__tile-action goal-tile__collapse" @click="editingGoal = false">
           {{ t('daily.goal.progress.collapse') }}
         </button>
         <button
@@ -347,7 +347,7 @@ const reviewMinutesTotal = computed(() =>
         >
           <DgIcon name="pencil" :size="11" />
         </button>
-        <button v-else type="button" class="inspector__tile-action" @click="editingGoal = true">
+        <button v-else type="button" class="dg-button dg-button--sm inspector__tile-action" @click="editingGoal = true">
           {{ t('daily.goal.progress.setGoals') }}
         </button>
       </template>
@@ -423,7 +423,7 @@ const reviewMinutesTotal = computed(() =>
     <p class="inspector__failure-note">{{ t('timeline.failure.retryHint') }}</p>
     <button
       type="button"
-      class="dg-button inspector__retry"
+      class="dg-button"
       :disabled="!canRetry || props.pendingAction !== null"
       :title="canRetry ? t('timeline.failure.retryAll', { count: failuresWithBatches.length }) : t('timeline.failure.retryUnavailable')"
       @click="emit('retry', allFailedBatchIds)"
@@ -433,7 +433,7 @@ const reviewMinutesTotal = computed(() =>
     <button
       v-if="canStopAll"
       type="button"
-      class="dg-button inspector__retry"
+      class="dg-button"
       :disabled="props.pendingAction !== null"
       :title="t('timeline.failure.stopAll')"
       @click="emit('stopRetries', retryableFailedBatchIds)"
@@ -445,7 +445,7 @@ const reviewMinutesTotal = computed(() =>
   <section v-if="props.actions.reprocessDay" class="overview-reprocess">
     <button
       type="button"
-      class="dg-button inspector__reprocess"
+      class="dg-button dg-button--block"
       :disabled="!props.canWrite || props.pendingAction !== null"
       :title="props.canWrite ? t('timeline.reprocess.action') : t('timeline.inspector.actionsUnavailable')"
       @click="emit('reprocess')"
@@ -716,10 +716,6 @@ const reviewMinutesTotal = computed(() =>
 .goal-tile__edit:hover { background: var(--dg-hover-fill-strong); color: var(--dg-text-primary); }
 .goal-tile__edit:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 
-.inspector__tile-action.goal-tile__collapse {
-  background: var(--dg-hover-fill);
-  color: var(--dg-text-secondary);
-}
 
 /* Progress ⇄ editor: a short fade with a slight drop, so expanding reads as
    the tile opening rather than a jump cut. */
@@ -740,33 +736,6 @@ const reviewMinutesTotal = computed(() =>
 }
 
 .overview-reprocess { margin-top: 12px; padding-bottom: 4px; }
-
-.inspector__retry { color: var(--dg-text-secondary); }
-
-.inspector__reprocess {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px dashed var(--dg-timeline-grid-strong);
-  border-radius: 12px;
-  background: transparent;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-}
-
-.inspector__reprocess:hover:not(:disabled) {
-  border-color: var(--dg-accent);
-  color: var(--dg-accent);
-  background: color-mix(in srgb, var(--dg-accent) 8%, transparent);
-}
-
-.inspector__reprocess:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 .reprocess-icon {
   width: 14px;

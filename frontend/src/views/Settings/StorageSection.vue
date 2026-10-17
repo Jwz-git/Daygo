@@ -251,12 +251,12 @@ function onLimitChange(event: Event): void {
       <code class="directory">{{ recordingDirectory || t('settings.storage.directoryUnavailable') }}</code>
     </SettingRow>
     <SettingRow v-if="isWindows" :title="t('settings.storage.moveTitle')" :hint="t('settings.storage.moveHint')">
-      <button v-if="!moving" type="button" :disabled="state !== 'ready'" @click="chooseDirectory">{{ t('settings.storage.moveButton') }}</button>
-      <button v-else type="button" @click="cancelMove">{{ t('settings.storage.moveCancel') }}</button>
+      <button v-if="!moving" type="button" class="dg-button" :disabled="state !== 'ready'" @click="chooseDirectory">{{ t('settings.storage.moveButton') }}</button>
+      <button v-else type="button" class="dg-button" @click="cancelMove">{{ t('settings.storage.moveCancel') }}</button>
     </SettingRow>
     <p v-if="isWindows && moving" role="status">{{ t('settings.storage.moving') }}</p>
     <p v-if="isWindows && !directoryAvailable" role="alert">{{ t('settings.storage.directoryDisconnected') }}</p>
-    <p v-if="isWindows && pendingTarget && !moving" role="status">{{ t('settings.storage.moveInterrupted', { target: pendingTarget }) }} <button type="button" @click="performMove(pendingTarget)">{{ t('settings.storage.moveRetry') }}</button></p>
+    <p v-if="isWindows && pendingTarget && !moving" role="status">{{ t('settings.storage.moveInterrupted', { target: pendingTarget }) }} <button type="button" class="dg-button dg-button--sm" @click="performMove(pendingTarget)">{{ t('settings.storage.moveRetry') }}</button></p>
     <p v-if="isWindows && cleanupPending && !moving" role="status">{{ t('settings.storage.cleanupPending') }}</p>
     <p v-if="isWindows && moveFailed" role="alert">{{ t('settings.storage.moveFailed') }}</p>
   </SettingGroup>

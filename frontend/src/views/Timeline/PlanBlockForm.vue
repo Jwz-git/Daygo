@@ -86,8 +86,8 @@ const categoryOptions = computed<DgSelectOption[]>(() => [
     </div>
     <p v-if="error" class="plan-form__error" role="alert">{{ error }}</p>
     <div class="plan-form__actions">
-      <button type="button" class="dg-button" @click="emit('cancel')">{{ t('common.action.cancel') }}</button>
-      <button type="submit" class="dg-button dg-button--primary" :disabled="pending">{{ t('common.action.save') }}</button>
+      <button type="button" class="dg-button dg-button--sm" @click="emit('cancel')">{{ t('common.action.cancel') }}</button>
+      <button type="submit" class="dg-button dg-button--sm dg-button--primary" :disabled="pending">{{ t('common.action.save') }}</button>
     </div>
   </form>
 </template>
@@ -178,9 +178,4 @@ const categoryOptions = computed<DgSelectOption[]>(() => [
   margin-top: 2px;
 }
 
-.plan-form__actions .dg-button {
-  min-height: 28px;
-  padding: 4px 12px;
-  font-size: 12px;
-}
 </style>

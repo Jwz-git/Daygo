@@ -7,6 +7,10 @@ export default {
     capturing: '正在记录',
     paused: '录制已暂停',
   },
+  pill: {
+    pausedFor: 'Daygo 已暂停 {time}',
+    pausedIndefinitely: 'Daygo 已无限期暂停',
+  },
   action: {
     pause: '暂停',
     resume: '继续',
