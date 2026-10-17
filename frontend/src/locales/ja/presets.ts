@@ -1,21 +1,4 @@
 export default {
-  discardNote: '保存していない変更は破棄されます。',
-  apply: '適用',
-  cancel: 'キャンセル',
-  applying: '適用中…',
-  failed: '適用できませんでした。カテゴリは変更されていません。',
-  palette: {
-    title: 'カラーパレット',
-    hint: 'パレットを選ぶと、すべてのカテゴリを順番に塗り直します。',
-    confirmBody: '「{name}」ですべてのカテゴリを塗り直します。',
-    names: {
-      daygoClassic: 'Daygo クラシック',
-      forestMoss: '静かな森',
-      cyberNeon: 'サイバーネオン',
-      nordicMist: '北欧ミスト',
-      sunsetClay: '夕焼けテラコッタ',
-    },
-  },
   archetype: {
     label: 'アーキタイプ',
     hint: '3D ワールドでこのカテゴリがどんな建物や景観になるかを決めます。',

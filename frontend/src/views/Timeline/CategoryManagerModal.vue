@@ -3,16 +3,11 @@ import DgIcon from '@/components/DgIcon.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { applyCategoryPalette, saveCategories } from '@/api/timeline'
+import { saveCategories } from '@/api/timeline'
 import { CATEGORY_ARCHETYPES, type CategoryArchetype, type CategoryDTO } from '@/api/dto'
 import ColorCanvasPicker from '@/components/ColorCanvasPicker.vue'
 import { categoryDetails, categoryLabel } from '@/lib/categoryLabel'
-import {
-  CATEGORY_PALETTES,
-  SWATCH_COUNT,
-  spectrumPalette,
-  type CategoryPalette,
-} from '@/lib/colorPalette'
+import { SWATCH_COUNT, spectrumPalette } from '@/lib/colorPalette'
 import { safeCategoryColor } from './layout'
 
 /*
@@ -28,12 +23,8 @@ import { safeCategoryColor } from './layout'
  * Committing an edit writes that copy into the draft: from 完成 on, the
  * category is the user's own text and its cards are renamed with it.
  *
- * Theme palettes (step 2) are different: a click writes through
- * ApplyCategoryPalette at once (recolors in order) and emits `applied`, so the
- * parent refetches and the draft resets to the new set. With unsaved draft
- * edits it asks first, since the reset discards them. Profession presets are
- * not offered here: they replace the whole set and belong to the first-run
- * guide only.
+ * Profession presets are not offered here: they replace the whole set and
+ * belong to the first-run guide only.
  */
 const props = defineProps<{
   categories: CategoryDTO[]
@@ -43,7 +34,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   saved: []
-  applied: []
 }>()
 
 const { t } = useI18n()
@@ -69,10 +59,6 @@ const archetypeDraft = ref<CategoryArchetype>('forge')
 const saving = ref(false)
 const error = ref<string | null>(null)
 
-/* The palette write awaiting confirmation; only asked while the draft is dirty. */
-const pending = ref<CategoryPalette | null>(null)
-const applying = ref(false)
-
 watch(
   () => props.categories,
   () => {
@@ -90,52 +76,9 @@ watch(
         updatedAtTs: category.updatedAtTs,
       }))
     editingIndex.value = null
-    pending.value = null
   },
   { immediate: true, deep: false },
 )
-
-/** Unsaved edits in the draft, which a palette write would discard. */
-const dirty = computed(() => {
-  const stored = props.categories.filter((category) => !category.isSystem)
-  if (editingIndex.value !== null || stored.length !== draft.value.length) return true
-  return draft.value.some((row, index) => {
-    const original = stored[index]
-    return original === undefined || original.id !== row.id || original.name !== row.name ||
-      original.details !== row.details || original.colorHex !== row.colorHex ||
-      original.archetype !== row.archetype
-  })
-})
-
-function paletteName(palette: CategoryPalette): string {
-  return t(`presets.palette.names.${palette.nameKey}`)
-}
-
-function choosePalette(palette: CategoryPalette): void {
-  if (dirty.value) {
-    pending.value = palette
-    return
-  }
-  void runApply(palette)
-}
-
-async function runApply(palette: CategoryPalette): Promise<void> {
-  applying.value = true
-  error.value = null
-  try {
-    await applyCategoryPalette(palette.colors)
-    pending.value = null
-    emit('applied')
-  } catch {
-    error.value = t('presets.failed')
-  } finally {
-    applying.value = false
-  }
-}
-
-function confirmPending(): void {
-  if (pending.value !== null) void runApply(pending.value)
-}
 
 /*
  * Color stage, ported from the reference implementation: the canvas sets a
@@ -322,25 +265,6 @@ async function finish(): Promise<void> {
       </template>
 
       <template v-else>
-        <section class="wizard__palettes" :aria-label="t('presets.palette.title')">
-          <h3 class="wizard__section-title">{{ t('presets.palette.title') }}</h3>
-          <p class="wizard__section-hint">{{ t('presets.palette.hint') }}</p>
-          <button
-            v-for="palette in CATEGORY_PALETTES"
-            :key="palette.id"
-            type="button"
-            class="wizard__palette"
-            :class="{ 'is-pending': pending?.id === palette.id }"
-            :disabled="!canWrite || applying"
-            @click="choosePalette(palette)"
-          >
-            <span class="wizard__palette-dots" aria-hidden="true">
-              <i v-for="color in palette.colors" :key="color" :style="{ background: color }"></i>
-            </span>
-            <span class="wizard__palette-name">{{ paletteName(palette) }}</span>
-          </button>
-        </section>
-
         <ColorCanvasPicker class="wizard__canvas" @change="onPaletteChange" />
 
         <div class="wizard__swatches" role="list" :aria-label="t('timeline.manage2.step2Title')">
@@ -365,17 +289,6 @@ async function finish(): Promise<void> {
           {{ draggingColor ? t('timeline.manage2.colorDropHint') : t('timeline.manage2.colorDragHint') }}
         </p>
       </template>
-
-      <div v-if="pending !== null" class="wizard__confirm" role="alertdialog" :aria-label="t('presets.apply')">
-        <p>{{ t('presets.palette.confirmBody', { name: paletteName(pending) }) }}</p>
-        <p v-if="dirty" class="wizard__confirm-note">{{ t('presets.discardNote') }}</p>
-        <div class="wizard__confirm-actions">
-          <button type="button" class="dg-button dg-button--sm" :disabled="applying" @click="pending = null">{{ t('presets.cancel') }}</button>
-          <button type="button" class="dg-button dg-button--sm dg-button--primary" :disabled="applying || !canWrite" @click="confirmPending">
-            {{ applying ? t('presets.applying') : t('presets.apply') }}
-          </button>
-        </div>
-      </div>
     </div>
 
     <div class="wizard__main">
@@ -732,87 +645,7 @@ async function finish(): Promise<void> {
 .wizard__primary { min-width: 104px; }
 .wizard__primary svg { width: 11px; height: 11px; }
 
-/* ---- Palettes ---- */
-.wizard__palettes {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.wizard__section-title {
-  margin: 0;
-  color: var(--dg-text-primary);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.wizard__section-hint {
-  margin: -4px 0 2px;
-  color: var(--dg-text-muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.wizard__palette {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--dg-text-primary);
-  font-size: 12px;
-  font-weight: 550;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--dg-motion-fast) ease, border-color var(--dg-motion-fast) ease;
-}
-
-.wizard__palette:hover:not(:disabled) { background: var(--dg-hover-fill); }
-.wizard__palette.is-pending { border-color: var(--dg-accent); }
-
-.wizard__palette-dots { display: inline-flex; flex: none; }
-
-.wizard__palette-dots i {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1.5px var(--dg-surface);
-}
-
-.wizard__palette-dots i + i { margin-left: -4px; }
-
-.wizard__palette:disabled { opacity: 0.55; cursor: default; }
-
-.wizard__palette:focus-visible,
 .wizard-row__archetype:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
-
-.wizard__confirm {
-  display: grid;
-  gap: 8px;
-  margin-top: 16px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--dg-accent) 30%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--dg-accent) 7%, var(--dg-surface));
-}
-
-.wizard__confirm p {
-  margin: 0;
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.wizard__confirm .wizard__confirm-note { color: var(--dg-danger); font-size: 11px; }
-
-.wizard__confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-}
 
 /* ---- Archetype ---- */
 .wizard-row__archetype-field {

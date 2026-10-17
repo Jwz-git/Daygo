@@ -116,40 +116,6 @@ func (r *CategoryRepo) ApplyPreset(ctx context.Context, preset []domain.Category
 	})
 }
 
-// ApplyPalette recolors the user categories in display order, cycling
-// through colors, in one transaction. Built-ins keep their colors.
-func (r *CategoryRepo) ApplyPalette(ctx context.Context, colors []string) error {
-	if len(colors) == 0 {
-		return newError(KindConstraint, "apply category palette: palette is empty")
-	}
-	for i, c := range colors {
-		if !isHexColor(c) {
-			return newError(KindConstraint, fmt.Sprintf("apply category palette: color %d is invalid: %q", i, c))
-		}
-	}
-	at := r.store.now().Unix()
-	return r.store.Write(ctx, "categories apply palette", func(ctx context.Context, tx *sql.Tx) error {
-		existing, err := loadCategories(ctx, tx)
-		if err != nil {
-			return err
-		}
-		var user []domain.Category
-		for _, e := range existing {
-			if !e.IsSystem {
-				user = append(user, e)
-			}
-		}
-		sortCategories(user)
-		for i, c := range user {
-			if _, err := tx.ExecContext(ctx, `UPDATE categories SET color_hex = ?, updated_at = ? WHERE id = ?`,
-				colors[i%len(colors)], at, c.ID); err != nil {
-				return wrap("apply palette to category "+c.Name, err)
-			}
-		}
-		return nil
-	})
-}
-
 // categoryReferenced reports whether any card (live or retired), plan block
 // or day goal still points at c. Such a category is history, not clutter.
 func categoryReferenced(ctx context.Context, tx *sql.Tx, c domain.Category) (bool, error) {

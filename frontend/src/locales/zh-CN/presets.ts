@@ -1,21 +1,4 @@
 export default {
-  discardNote: '尚未保存的修改会被丢弃。',
-  apply: '应用',
-  cancel: '取消',
-  applying: '正在应用…',
-  failed: '应用失败，分类没有改动。',
-  palette: {
-    title: '主题色板',
-    hint: '点选一套色板，按顺序为所有分类重新配色。',
-    confirmBody: '将用「{name}」为所有分类重新配色。',
-    names: {
-      daygoClassic: 'Daygo 经典暖阳',
-      forestMoss: '静谧森林',
-      cyberNeon: '极客霓虹',
-      nordicMist: '北欧莫兰迪',
-      sunsetClay: '落日陶土',
-    },
-  },
   archetype: {
     label: '元类型',
     hint: '用于决定该分类在 3D 世界中的建筑与自然景观形态。',

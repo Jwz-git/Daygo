@@ -6,7 +6,7 @@ import (
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 )
 
-func TestApplyCategoryPresetAndPaletteBindings(t *testing.T) {
+func TestApplyCategoryPresetBinding(t *testing.T) {
 	backend, _ := writerBackendWithStore(t, t.TempDir())
 
 	if err := backend.ApplyCategoryPreset([]CategoryPresetDTO{
@@ -31,19 +31,6 @@ func TestApplyCategoryPresetAndPaletteBindings(t *testing.T) {
 		t.Fatalf("categories after preset = %+v", day.Categories)
 	}
 
-	if err := backend.ApplyCategoryPalette([]string{"#4A7C59"}); err != nil {
-		t.Fatalf("ApplyCategoryPalette: %v", err)
-	}
-	day, err = backend.GetTimelineDay("2026-09-12")
-	if err != nil {
-		t.Fatalf("GetTimelineDay: %v", err)
-	}
-	for _, c := range day.Categories {
-		if !c.IsSystem && c.ColorHex != "#4A7C59" {
-			t.Fatalf("%q color = %q after palette", c.Name, c.ColorHex)
-		}
-	}
-
 	// SaveCategories carries the archetype both ways and rejects unknown ones.
 	next := []CategoryDTO{}
 	for _, c := range day.Categories {
@@ -64,7 +51,6 @@ func TestApplyCategoryPresetAndPaletteBindings(t *testing.T) {
 	next[0].Archetype = "castle"
 	assertAppCode(t, backend.SaveCategories(next), apperr.InvalidArgument)
 	assertAppCode(t, backend.ApplyCategoryPreset(nil), apperr.InvalidArgument)
-	assertAppCode(t, backend.ApplyCategoryPalette([]string{"blue"}), apperr.InvalidArgument)
 
 	// Once the first-run guide is done, presets are refused and nothing changes.
 	done := true
@@ -89,5 +75,4 @@ func TestCategoryPresetWritesRefuseReadOnlyInstance(t *testing.T) {
 	backend := newBackend(fixedClock{}, nil, openTestStore(t, dir, false), false, false)
 	backend.setEventEmitter(&recordingEmitter{})
 	assertAppCode(t, backend.ApplyCategoryPreset([]CategoryPresetDTO{{Name: "X", ColorHex: "#111111"}}), apperr.NotCaptureOwner)
-	assertAppCode(t, backend.ApplyCategoryPalette([]string{"#111111"}), apperr.NotCaptureOwner)
 }

@@ -1,21 +1,4 @@
 export default {
-  discardNote: 'Les modifications non enregistrées seront perdues.',
-  apply: 'Appliquer',
-  cancel: 'Annuler',
-  applying: 'Application…',
-  failed: 'Impossible d’appliquer. Tes catégories n’ont pas changé.',
-  palette: {
-    title: 'Palettes de couleurs',
-    hint: 'Choisis une palette pour recolorer toutes les catégories dans l’ordre.',
-    confirmBody: 'Recolore toutes les catégories avec « {name} ».',
-    names: {
-      daygoClassic: 'Daygo classique',
-      forestMoss: 'Mousse forestière',
-      cyberNeon: 'Néon cyber',
-      nordicMist: 'Brume nordique',
-      sunsetClay: 'Argile du couchant',
-    },
-  },
   archetype: {
     label: 'Archétype',
     hint: 'Détermine les bâtiments et le paysage que devient cette catégorie dans le monde 3D.',

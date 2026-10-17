@@ -245,13 +245,6 @@ async function onCategoriesSaved(): Promise<void> {
   if (viewMode.value === 'week') await loadWeek({ silent: true })
 }
 
-/* A preset or palette wrote through its own binding; the manager stays open
-   and re-reads the set the refetched day carries. */
-async function onCategoriesApplied(): Promise<void> {
-  await timeline.load(routeDay())
-  if (viewMode.value === 'week') await loadWeek({ silent: true })
-}
-
 async function closeReview(): Promise<void> {
   showReview.value = false
   // Categories may have changed; refetch so the track and inspector agree.
@@ -797,7 +790,6 @@ onBeforeUnmount(() => {
           :can-write="capabilities?.canWrite ?? false"
           @close="showCategoryManager = false"
           @saved="onCategoriesSaved"
-          @applied="onCategoriesApplied"
         />
       </div>
     </Teleport>

@@ -2,10 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  CATEGORY_PALETTES,
-  CATEGORY_PALETTE_IDS,
   SWATCH_COUNT,
-  categoryPalette,
   paletteLightness,
   paletteSpread,
   spectrumPalette,
@@ -61,33 +58,4 @@ test('the spectrum palette is eight hues at 45° steps from the drag angle', () 
     '#5C0000', '#5C4500', '#2E5C00', '#005C17',
     '#005C5C', '#00175C', '#2E005C', '#5C0045',
   ])
-})
-
-test('category theme palettes are five sets of six distinct #RRGGBB colors', () => {
-  assert.deepEqual(CATEGORY_PALETTES.map((palette) => palette.id), [...CATEGORY_PALETTE_IDS])
-  for (const palette of CATEGORY_PALETTES) {
-    assert.equal(palette.colors.length, 6, `${palette.id} has ${palette.colors.length} colors`)
-    for (const color of palette.colors) assert.match(color, /^#[0-9A-F]{6}$/, `${palette.id}: ${color}`)
-    const unique = new Set(palette.colors.map((color) => color.toUpperCase()))
-    assert.equal(unique.size, palette.colors.length, `${palette.id} repeats a color`)
-    assert.equal(categoryPalette(palette.id), palette)
-  }
-})
-
-test('every palette color reads on both the light and the dark timeline', () => {
-  // Relative luminance (WCAG): the mid-tone band keeps a category legible as
-  // a bar on the near-white light track and the near-black dark one alike.
-  function luminance(hex: string): number {
-    const channel = (offset: number): number => {
-      const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255
-      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-    }
-    return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
-  }
-  for (const palette of CATEGORY_PALETTES) {
-    for (const color of palette.colors) {
-      const value = luminance(color)
-      assert.ok(value >= 0.07 && value <= 0.65, `${palette.id} ${color} luminance ${value.toFixed(3)}`)
-    }
-  }
 })

@@ -159,28 +159,3 @@ func TestApplyPresetRejectsBadInputWithoutWriting(t *testing.T) {
 		}
 	}
 }
-
-func TestApplyPaletteCyclesUserCategoriesInOrder(t *testing.T) {
-	s := openWriter(t, newDir(t))
-	ctx := context.Background()
-	palette := []string{"#4A7C59", "#8FC0A9", "#C8D5B9", "#D9AE61"}
-	if err := s.Categories().ApplyPalette(ctx, palette); err != nil {
-		t.Fatal(err)
-	}
-	got := categoriesByName(t, s)
-	// Starter order: Focus Work, Communication, Learning, Research, Distraction, Personal.
-	for name, want := range map[string]string{
-		"Focus Work": "#4A7C59", "Communication": "#8FC0A9", "Learning": "#C8D5B9",
-		"Research": "#D9AE61", "Distraction": "#4A7C59", "Personal": "#8FC0A9",
-		"System": "#8E8E93", "Idle": "#C7C7CC",
-	} {
-		if got[name].ColorHex != want {
-			t.Fatalf("%q color = %q, want %q", name, got[name].ColorHex, want)
-		}
-	}
-	assertKind(t, s.Categories().ApplyPalette(ctx, nil), KindConstraint)
-	assertKind(t, s.Categories().ApplyPalette(ctx, []string{"#4A7C59", "#zzzzzz"}), KindConstraint)
-	if got := categoriesByName(t, s); got["Focus Work"].ColorHex != "#4A7C59" {
-		t.Fatal("rejected palette changed a color")
-	}
-}

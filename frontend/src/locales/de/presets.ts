@@ -1,21 +1,4 @@
 export default {
-  discardNote: 'Ungespeicherte Änderungen gehen verloren.',
-  apply: 'Anwenden',
-  cancel: 'Abbrechen',
-  applying: 'Wird angewendet …',
-  failed: 'Konnte nicht angewendet werden. Deine Kategorien sind unverändert.',
-  palette: {
-    title: 'Farbpaletten',
-    hint: 'Wähle eine Palette, um alle Kategorien der Reihe nach neu einzufärben.',
-    confirmBody: 'Färbt alle Kategorien mit „{name}“ neu ein.',
-    names: {
-      daygoClassic: 'Daygo Klassik',
-      forestMoss: 'Waldmoos',
-      cyberNeon: 'Cyber-Neon',
-      nordicMist: 'Nordischer Nebel',
-      sunsetClay: 'Abendton',
-    },
-  },
   archetype: {
     label: 'Archetyp',
     hint: 'Bestimmt, zu welchen Gebäuden und welcher Landschaft diese Kategorie in der 3D-Welt wird.',

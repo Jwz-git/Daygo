@@ -518,21 +518,6 @@ func (b *Backend) ApplyCategoryPreset(categories []CategoryPresetDTO) error {
 	return nil
 }
 
-// ApplyCategoryPalette recolors the user categories in display order,
-// cycling through colors ("#RRGGBB"), in one transaction. Built-ins keep
-// their colors.
-func (b *Backend) ApplyCategoryPalette(colors []string) error {
-	if err := b.requireTimelineWrite(); err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
-	defer cancel()
-	if err := b.store().Categories().ApplyPalette(ctx, colors); err != nil {
-		return mapStorageError("apply category palette", err)
-	}
-	return nil
-}
-
 // RetryBatches requeues failed batches by explicit user action: status back
 // to pending with the failure info cleared and the attempt counter reset
 // (docs/05 §5.2.1). It returns immediately; the scheduler picks the batches

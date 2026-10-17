@@ -1,21 +1,4 @@
 export default {
-  discardNote: 'Unsaved changes will be discarded.',
-  apply: 'Apply',
-  cancel: 'Cancel',
-  applying: 'Applying…',
-  failed: 'Could not apply. Your categories are unchanged.',
-  palette: {
-    title: 'Color palettes',
-    hint: 'Pick a palette to recolor every category in order.',
-    confirmBody: 'Recolors every category with “{name}”.',
-    names: {
-      daygoClassic: 'Daygo Classic',
-      forestMoss: 'Forest Moss',
-      cyberNeon: 'Cyber Neon',
-      nordicMist: 'Nordic Mist',
-      sunsetClay: 'Sunset Clay',
-    },
-  },
   archetype: {
     label: 'Archetype',
     hint: 'Decides which buildings and landscape this category becomes in the 3D world.',

@@ -1,21 +1,4 @@
 export default {
-  discardNote: 'As alterações não salvas serão descartadas.',
-  apply: 'Aplicar',
-  cancel: 'Cancelar',
-  applying: 'Aplicando…',
-  failed: 'Não foi possível aplicar. Suas categorias não mudaram.',
-  palette: {
-    title: 'Paletas de cores',
-    hint: 'Escolha uma paleta para recolorir todas as categorias em ordem.',
-    confirmBody: 'Recolore todas as categorias com “{name}”.',
-    names: {
-      daygoClassic: 'Daygo clássico',
-      forestMoss: 'Musgo da floresta',
-      cyberNeon: 'Neon cibernético',
-      nordicMist: 'Névoa nórdica',
-      sunsetClay: 'Argila do pôr do sol',
-    },
-  },
   archetype: {
     label: 'Arquétipo',
     hint: 'Define em quais construções e paisagens esta categoria se transforma no mundo 3D.',

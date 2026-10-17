@@ -1,21 +1,4 @@
 export default {
-  discardNote: '尚未儲存的修改會被捨棄。',
-  apply: '套用',
-  cancel: '取消',
-  applying: '正在套用…',
-  failed: '套用失敗，分類沒有變更。',
-  palette: {
-    title: '主題色盤',
-    hint: '點選一套色盤，依順序為所有分類重新配色。',
-    confirmBody: '將用「{name}」為所有分類重新配色。',
-    names: {
-      daygoClassic: 'Daygo 經典暖陽',
-      forestMoss: '靜謐森林',
-      cyberNeon: '極客霓虹',
-      nordicMist: '北歐莫蘭迪',
-      sunsetClay: '落日陶土',
-    },
-  },
   archetype: {
     label: '元類型',
     hint: '用於決定該分類在 3D 世界中的建築與自然景觀形態。',

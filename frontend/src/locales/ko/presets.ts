@@ -1,21 +1,4 @@
 export default {
-  discardNote: '저장하지 않은 변경 사항은 사라집니다.',
-  apply: '적용',
-  cancel: '취소',
-  applying: '적용 중…',
-  failed: '적용하지 못했습니다. 카테고리는 바뀌지 않았습니다.',
-  palette: {
-    title: '색상 팔레트',
-    hint: '팔레트를 고르면 모든 카테고리를 순서대로 다시 칠합니다.',
-    confirmBody: '「{name}」(으)로 모든 카테고리를 다시 칠합니다.',
-    names: {
-      daygoClassic: 'Daygo 클래식',
-      forestMoss: '고요한 숲',
-      cyberNeon: '사이버 네온',
-      nordicMist: '북유럽 안개',
-      sunsetClay: '노을 테라코타',
-    },
-  },
   archetype: {
     label: '원형',
     hint: '3D 세계에서 이 카테고리가 어떤 건물과 풍경이 될지 정합니다.',

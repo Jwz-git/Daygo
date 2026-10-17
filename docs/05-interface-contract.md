@@ -290,7 +290,6 @@ export function toApiError(e: unknown): ApiError {
 | `StopRetries(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（封顶 attempts） | `timeline:updated` | `not_found` `invalid_argument` |
 | `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
 | `ApplyCategoryPreset(categories []CategoryPresetDTO) error` | timeline | 分类 / 设置 / 写入锁 | 写·幂等（仅首次引导：按名更新 / 新建预设行，删除无引用的其余用户分类；引导完成后拒绝） | —（匹配保留存储名，不改写卡片） | `invalid_argument` `conflict` `not_capture_owner` |
-| `ApplyCategoryPalette(colors []string) error` | timeline | 分类 / 写入锁 | 写·幂等（按显示顺序循环着色用户分类） | — | `invalid_argument` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
 | `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `invalid_argument` `conflict` |
 | `ReprocessCard(cardID int64) error` | timeline | observations / cards / 写入锁 | 写·非幂等（重写该卡片自己的时间窗） | `timeline:updated` | `invalid_argument` `conflict` `provider_failed` `provider_not_configured` `not_found` |

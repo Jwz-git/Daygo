@@ -11,7 +11,6 @@ import type {
 type TimelineBackend = GeneratedBindings<
   | 'SaveCategories'
   | 'ApplyCategoryPreset'
-  | 'ApplyCategoryPalette'
   | 'GetCapabilities'
   | 'GetDayContext'
   | 'GetTimelineDay'
@@ -126,10 +125,6 @@ export async function saveCategories(categories: CategoryDTO[]): Promise<void> {
 /** First-run only: the backend refuses once onboarding is complete. */
 export async function applyCategoryPreset(rows: CategoryPresetDTO[]): Promise<void> {
   return requiredMethod('ApplyCategoryPreset')(rows)
-}
-
-export async function applyCategoryPalette(colors: readonly string[]): Promise<void> {
-  return requiredMethod('ApplyCategoryPalette')([...colors])
 }
 
 export async function updateCardCategory(cardID: number, category: string): Promise<void> {
