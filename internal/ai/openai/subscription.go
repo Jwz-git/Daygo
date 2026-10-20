@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -72,12 +73,18 @@ func (c *SubscriptionClient) Generate(ctx context.Context, req ai.Request) (ai.R
 		raw, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 		return ai.Result{}, subscriptionError(response.StatusCode, raw)
 	}
-	if !strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
-		return ai.Result{}, ai.NewError(ai.ErrorInvalidOutput, "subscription did not return a stream", 0, nil)
+	// Some plan responses omit this header. The event parser and completed
+	// status below still have to prove that the body is a successful stream.
+	if header := response.Header.Get("Content-Type"); header != "" {
+		mediaType, _, err := mime.ParseMediaType(header)
+		if err != nil || mediaType != "text/event-stream" {
+			return ai.Result{}, ai.NewError(ai.ErrorInvalidOutput, "subscription did not return a stream", 0, nil)
+		}
 	}
 	scanner := bufio.NewScanner(io.LimitReader(response.Body, maxResponseBytes+1))
 	scanner.Buffer(make([]byte, 4096), maxResponseBytes)
 	var event strings.Builder
+	var output subscriptionStreamOutput
 	total := 0
 	consume := func() (ai.Result, error, bool) {
 		if event.Len() == 0 {
@@ -85,14 +92,15 @@ func (c *SubscriptionClient) Generate(ctx context.Context, req ai.Request) (ai.R
 		}
 		raw := event.String()
 		event.Reset()
-		var e struct {
-			Type     string          `json:"type"`
-			Response json.RawMessage `json:"response"`
-		}
+		var e subscriptionEvent
 		if json.Unmarshal([]byte(raw), &e) != nil {
 			return ai.Result{}, ai.NewError(ai.ErrorInvalidOutput, "invalid subscription event", 0, nil), true
 		}
 		switch e.Type {
+		case "response.output_text.delta", "response.output_text.done", "response.output_item.done", "response.refusal.delta", "response.refusal.done":
+			if err := output.add(e); err != nil {
+				return ai.Result{}, err, true
+			}
 		case "response.failed", "error":
 			return ai.Result{}, subscriptionError(0, []byte(raw)), true
 		case "response.completed", "response.incomplete":
@@ -103,7 +111,15 @@ func (c *SubscriptionClient) Generate(ctx context.Context, req ai.Request) (ai.R
 			if e.Type == "response.completed" && state.Status != "completed" {
 				return ai.Result{}, ai.NewError(ai.ErrorInvalidOutput, "subscription response did not complete", 0, nil), true
 			}
-			safe := strings.ReplaceAll(string(e.Response), token, "[redacted]")
+			body := e.Response
+			if e.Type == "response.completed" {
+				var err error
+				body, err = output.complete(body)
+				if err != nil {
+					return ai.Result{}, err, true
+				}
+			}
+			safe := strings.ReplaceAll(string(body), token, "[redacted]")
 			result, err := parseResponsesResponse([]byte(safe), req.Output)
 			if e.Type == "response.incomplete" && err == nil {
 				return ai.Result{Usage: result.Usage}, ai.NewError(ai.ErrorInvalidOutput, "subscription response did not complete", 0, nil), true

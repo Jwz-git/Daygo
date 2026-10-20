@@ -463,6 +463,8 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 ChatGPT 订阅实现与安全边界见 [接入决策](decisions/providers-chatgpt-subscription.md)。
 `chatgpt` 固定官方 endpoint，生成采用 SSE、`store:false` / `stream:true`，不发送
 `max_output_tokens`；只有 `response.completed` 且完成状态通过检查才成功。
+正文按索引从流事件收集，终态未重复携带 output 时补入；终态完整 output 优先，避免重复。
+允许缺少 Content-Type 的有效事件流，显式非 SSE 类型仍拒绝；失败或中断不返回局部正文。
 `subscription_sharing_usage_limit_exceeded` 沿用外部 `rate_limited`，附加不可原样重试原因并
 暂停本订阅的新请求，既有用户配置的回退链继续适用。模型目录为独立的 `models[].slug` /
 `visibility` 形状。订阅 token 不经 `ProviderInputDTO.Secret`；API Key CRUD 拒绝创建或

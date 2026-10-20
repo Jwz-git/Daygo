@@ -36,6 +36,10 @@
 - Responses 强制 `store:false` / `stream:true`；按流完整终态判断成功，图片与 Schema 沿用
   显式映射和本地校验。省略此路径不支持的 `max_output_tokens`，因此现有输出预算在订阅
   路径不生效；保留超时、响应字节与图片上限。API Key 三协议维持原有预算行为。
+  10-20 实测响应可缺少 Content-Type，且 completed.response 不重复携带 output；允许缺头
+  但仍须解析出成功终态，显式错误 MIME 拒绝。按 output_index / content_index 收集正文，
+  text.done 替代 delta、item.done 替代其文本片段、完整终态 output 优先，防止重复或乱序；
+  只有成功 completed 才补入缺省 output，拒绝 / 中断 / incomplete 不输出局部文本。
 - 额度耗尽持久暂停该订阅的新请求，用户在管理用量后显式恢复；不推测重置时间。
   既有用户配置的回退链继续适用，不自动创建或授权新的 API 计费路径。
 - 设置与引导共用配置组件。新增服务首屏严格只显示「ChatGPT 订阅」「配置API Key」

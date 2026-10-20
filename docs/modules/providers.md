@@ -17,6 +17,12 @@ anthropic 三种 API Key 协议，另有 `chatgpt` 订阅 OAuth Responses 变体
 
 ## 当前状态与证据
 
+2026-10-20 订阅对话解析修正（基于 `a1f894d` 的 `test` 工作树）：真实匿名请求复现
+HTTP 200、Content-Type 缺失、正文在流事件中而 completed.response.output 为空；旧版因此
+返回 invalid_output。现兼容缺头的有效事件流，收集有索引的正文并在成功终态补齐缺省
+output；仍保留 Schema、拒绝、截断、额度与完成状态校验。已有授权的匿名文本请求已通过，
+不据此提升 OAuth / 真实 Wails / 图像分析 / 长期调用验收。
+
 2026-10-20 两选项首屏修正（基于 `fa3bd82` 的 `test` 工作树）：新增服务不再默认展开
 订阅表单，初始选择区只显示「ChatGPT 订阅」「配置API Key」。选定后进入对应表单，返回
 恢复二选一并卸载当前表单；编辑已有服务直接进入其原有配置。设置和首次引导共用此行为。
@@ -254,6 +260,27 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-10-20（订阅对话解析修正；基于 `a1f894d` 的 `test` 工作树，macOS arm64）**：
+  输入为固定匿名问候、生产对话信封 Schema、已配置订阅的首模型 `gpt-6-luna`；只读配置与
+  系统凭据，不刷新 token、不读历史消息、不写用户数据库、不发送截图。只记录事件类型、
+  长度及状态，不保留 token 或回复正文。修复前返回 invalid_output；元数据显示 HTTP 200、
+  Content-Type 缺失、completed output 0 项、text.done 正文 34 字节。修复后相同请求的
+  正文与 JSON 校验通过。该证据仅证明已有授权下的一次匿名文本推理，不证明 OAuth 全流程。
+  先固定三个失败夹具（缺头 text.done、item.done、仅 delta + 稀疏成功终态），再实现；
+  增加索引排序、重复消除、失败后不返回局部文本、拒绝、错误 MIME、信封不合规与凭据回显
+  防护。既有成功流夹具补全协议要求的 output_index / content_index，成功预期不变。
+  新增 chat 服务经真实工厂 / 订阅客户端、匿名流传输与临时数据库的工具调用 → 结果 →
+  最终回答夹具，断言两次请求、一次工具执行与四条消息；不触及真实用户数据。
+  `CGO_ENABLED=0 go test ./internal/ai/openai ./internal/chat -count=1` 通过。
+  `CGO_ENABLED=1 go test -race ./internal/ai/openai ./internal/chat -run 'TestSubscription|TestChatGPTSubscription' -count=1`
+  通过。`./scripts/gate.sh` 退出 0：Go 内部测试 / vet / build、三平台核心交叉构建、
+  前端 293 项单测 / typecheck / build、文档 75 篇 0 问题通过；Windows 安装器 16 项中
+  6 项通过、10 项需 Windows 主机而跳过。交叉构建不表示目标平台执行。门禁格式检查列出
+  8 个忽略目录中的 Go 文件：本轮临时诊断脚本随后已格式化，其余 7 个既有文件未改动；
+  独立 `git ls-files -z '*.go' | xargs -0 gofmt -l` 无输出，本次新增 Go 文件亦已格式化。
+  `git diff --check` 通过；真实 Wails 页面发送 / 应用重启与 Windows 真机未运行。
+  回退为撤销本次解析提交，无迁移和凭据格式变更；回退后旧解析失败会重新出现。
 
 - **2026-10-20（两选项首屏修正；基于 `fa3bd82` 的 `test` 工作树，macOS arm64）**：
   用户要求选择层只有「ChatGPT 订阅」「配置API Key」。先加真实 SFC 夹具，复现旧版

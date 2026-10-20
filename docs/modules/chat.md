@@ -23,6 +23,15 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；采用原子
 
 ## 当前状态与证据
 
+2026-10-20：订阅对话的 invalid_output 已由固定匿名请求复现为 SSE 读取问题：响应缺少
+Content-Type 且成功终态不重复正文。providers 层补齐事件正文读取，chat 的工具信封 / 校验 /
+权限不变。新增 `TestChatGPTSubscriptionToolTurnWithSparseCompletion`，用真实客户端工厂、
+匿名订阅流与临时数据库验证工具调用 → 工具结果 → 最终回答，期望两次 HTTP、一次工具执行、
+四条消息；本机 `CGO_ENABLED=0 go test ./internal/ai/openai ./internal/chat -count=1` 通过。
+真实已有授权下的匿名文本 / 信封请求修复前失败、修复后通过；不使用真实历史或截图，不写
+用户数据库。详细门禁与限制见 [providers 本轮记录](providers.md#验证记录)，不代表真实
+Wails 对话操作或 v1 交付门禁完成。回退为撤销本次解析提交，不改存储和权限契约。
+
 2026-10-13：新增 `card_merge` 工具与提示词规则，沿用每次工具执行重读的 `chat.editMode`。
 先读来源，只合并用户指定的确切 ID；不得以修改 / 删除工具模拟合并或填补空隙。
 工具目录扩为六读十一写；设置说明九语言明确包含合并。验证与限制见下方记录。
