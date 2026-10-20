@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"context"
 	"net/http"
 
 	daygoai "github.com/Jwz-git/Daygo/internal/ai"
@@ -17,7 +18,9 @@ type Config struct {
 	Secret   string
 	// UserAgent overrides the User-Agent header on every request to this
 	// provider. Empty keeps the Go/SDK default.
-	UserAgent string
+	UserAgent   string
+	TokenSource func(context.Context) (string, error)
+	OnError     func(context.Context, error)
 }
 
 // NewClient builds the protocol client for cfg. The returned provider is bare:
@@ -26,6 +29,19 @@ type Config struct {
 func NewClient(httpClient *http.Client, cfg Config) (daygoai.Provider, error) {
 	httpClient = withUserAgent(httpClient, cfg.UserAgent)
 	switch cfg.Protocol {
+	case daygoai.ProtocolChatGPT:
+		if cfg.Endpoint != openai.SubscriptionEndpoint {
+			return nil, daygoai.NewError(daygoai.ErrorInvalidRequest, "ChatGPT requires the official endpoint", 0, nil)
+		}
+		token := cfg.TokenSource
+		if token == nil {
+			return nil, daygoai.NewError(daygoai.ErrorAuthentication, "ChatGPT requires OAuth authorization", 0, nil)
+		}
+		client, err := openai.NewSubscriptionClient(httpClient, cfg.Model, token)
+		if err != nil {
+			return nil, err
+		}
+		return subscriptionObserver{Provider: client, onError: cfg.OnError}, nil
 	case daygoai.ProtocolOpenAIChat:
 		return openai.NewClient(httpClient, cfg.Endpoint, cfg.Model, cfg.Secret)
 	case daygoai.ProtocolOpenAIResponses:
@@ -68,4 +84,17 @@ func withUserAgent(client *http.Client, userAgent string) *http.Client {
 	clone := *client
 	clone.Transport = userAgentTransport{base: base, userAgent: userAgent}
 	return &clone
+}
+
+type subscriptionObserver struct {
+	daygoai.Provider
+	onError func(context.Context, error)
+}
+
+func (p subscriptionObserver) Generate(ctx context.Context, req daygoai.Request) (daygoai.Result, error) {
+	result, err := p.Provider.Generate(ctx, req)
+	if err != nil && p.onError != nil {
+		p.onError(ctx, err)
+	}
+	return result, err
 }

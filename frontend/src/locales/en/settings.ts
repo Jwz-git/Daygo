@@ -184,7 +184,7 @@ export default {
     chatEditsTitle: 'Allow chat to make changes',
     chatEditsHint: 'Let in-app chat edit and merge cards, and edit categories and goals for you.',
     title: 'AI services',
-    description: 'Enter a service URL, API type, and model name to connect your own AI service.',
+    description: "Connect your AI service with a ChatGPT subscription or an API key.",
     empty: 'No AI services yet.',
     emptyHint: 'Add an AI service and Daygo can start organizing your timeline.',
     add: 'Add service',

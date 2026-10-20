@@ -90,7 +90,7 @@ func validateProviderInput(p ProviderInputDTO) (validatedProviderInput, error) {
 		return validatedProviderInput{}, apperr.E(apperr.InvalidArgument, "display name is required", nil)
 	}
 	proto := daygoai.Protocol(strings.TrimSpace(p.Protocol))
-	if !proto.Valid() {
+	if !proto.Valid() || proto == daygoai.ProtocolChatGPT {
 		return validatedProviderInput{}, apperr.E(apperr.InvalidArgument, "unknown provider protocol", nil)
 	}
 	endpoint, err := normalizeTestEndpoint(p.Endpoint)
@@ -181,7 +181,12 @@ func (b *Backend) ListProviders() ([]ProviderDTO, error) {
 			MaxImages:   row.MaxImages,
 			UserAgent:   row.UserAgent,
 		}
-		if b.secrets != nil {
+		if row.Protocol == "chatgpt" {
+			manager, err := b.chatgptManager()
+			if err == nil {
+				_, dto.HasSecret, _ = manager.Account(ctx, row.ID)
+			}
+		} else if b.secrets != nil {
 			// Presence only: the value is fetched and discarded right here.
 			getCtx, getCancel := context.WithTimeout(context.Background(), providersTimeout)
 			_, getErr := b.secrets.Get(getCtx, row.ID)
@@ -248,6 +253,15 @@ func (b *Backend) UpdateProvider(id string, p ProviderInputDTO) error {
 	if strings.TrimSpace(id) == "" {
 		return apperr.E(apperr.InvalidArgument, "provider id is required", nil)
 	}
+	checkCtx, checkCancel := context.WithTimeout(context.Background(), providersTimeout)
+	old, checkErr := repo.Get(checkCtx, id)
+	checkCancel()
+	if checkErr != nil {
+		return mapStorageError("get provider", checkErr)
+	}
+	if old.Protocol == "chatgpt" {
+		return apperr.E(apperr.InvalidArgument, "ChatGPT subscriptions require their dedicated configuration", nil)
+	}
 	v, err := validateProviderInput(p)
 	if err != nil {
 		return err
@@ -289,6 +303,27 @@ func (b *Backend) DeleteProvider(id string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
 	defer cancel()
+
+	row, getErr := repo.Get(ctx, id)
+	if getErr != nil {
+		return mapStorageError("get provider", getErr)
+	}
+	if row.Protocol == "chatgpt" {
+		if err := b.chatgptOwner(); err != nil {
+			return err
+		}
+		manager, err := b.chatgptManager()
+		if err != nil {
+			return err
+		}
+		_, connected, _ := manager.Account(ctx, id)
+		if connected {
+			return apperr.E(apperr.Conflict, "disconnect ChatGPT before deleting this provider", nil)
+		}
+		if err := manager.Forget(ctx, id); err != nil && !secrets.IsNotFound(err) {
+			return apperr.E(apperr.NativeUnavailable, "deleting ChatGPT credentials failed", nil)
+		}
+	}
 
 	// Prune routing before deleting the row: SetProviderRouting validates ids
 	// against the table, so the order matters.
@@ -428,6 +463,17 @@ func (b *Backend) DeleteProviderSecret(id string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), providersTimeout)
 	defer cancel()
+	repo, err := b.providerStore()
+	if err != nil {
+		return err
+	}
+	row, err := repo.Get(ctx, id)
+	if err != nil {
+		return mapStorageError("get provider", err)
+	}
+	if row.Protocol == "chatgpt" {
+		return apperr.E(apperr.InvalidArgument, "ChatGPT subscriptions must be disconnected", nil)
+	}
 	if err := b.secrets.Delete(ctx, id); err != nil && !secrets.IsNotFound(err) {
 		return apperr.E(apperr.NativeUnavailable, "deleting the stored api key failed", nil)
 	}

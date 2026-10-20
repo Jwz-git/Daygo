@@ -21,7 +21,7 @@ export default {
   },
   provider: {
     title: 'Connect an AI service',
-    body: 'Daygo needs an AI service to understand your screenshots. Enter its address, model and key; the key is kept only in the system keychain.',
+    body: "Daygo needs an AI service to understand screenshots. Choose a ChatGPT subscription or configure an API key. Credentials stay in the system keychain.",
     configured: 'Added: {name}',
     add: 'Add an AI service',
     addAnother: 'Add another',

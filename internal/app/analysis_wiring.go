@@ -10,7 +10,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/analysis"
 	"github.com/Jwz-git/Daygo/internal/platform"
 	platformfactory "github.com/Jwz-git/Daygo/internal/platform/factory"
-	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
@@ -58,17 +57,11 @@ func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, erro
 			// A provider with no configured model cannot serve a request.
 			continue
 		}
-		secret, err := a.backend.secrets.Get(ctx, slot.ProviderID)
-		if err != nil && !secrets.IsNotFound(err) {
+		cfg, err := a.backend.providerClientConfig(ctx, row, model)
+		if err != nil {
 			return nil, err
 		}
-		provider, err := factory.NewClient(nil, factory.Config{
-			Protocol:  ai.Protocol(row.Protocol),
-			Endpoint:  row.Endpoint,
-			Model:     model,
-			Secret:    secret,
-			UserAgent: row.UserAgent,
-		})
+		provider, err := factory.NewClient(nil, cfg)
 		if err != nil {
 			continue
 		}

@@ -185,7 +185,7 @@ async function submit(): Promise<void> {
 }
 
 const protocolOptions = computed<DgSelectOption<ProviderProtocol>[]>(() =>
-  PROVIDER_PROTOCOLS.map((option) => ({ value: option, label: protocolLabel(option) })),
+  PROVIDER_PROTOCOLS.filter((protocol) => protocol !== 'chatgpt').map((option) => ({ value: option, label: protocolLabel(option) })),
 )
 
 function onProtocolChange(next: ProviderProtocol): void {

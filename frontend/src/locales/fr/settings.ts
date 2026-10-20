@@ -184,7 +184,7 @@ export default {
     chatEditsTitle: 'Autoriser la discussion à modifier',
     chatEditsHint: 'Permet à la discussion intégrée de modifier et fusionner les cartes, et de modifier les catégories et les objectifs à votre place.',
     title: 'Services d’IA',
-    description: 'Saisissez l’URL du service, le type d’API et le nom du modèle pour connecter votre propre service d’IA.',
+    description: "Connectez votre service IA avec un abonnement ChatGPT ou une clé API.",
     empty: 'Aucun service d’IA pour le moment.',
     emptyHint: 'Ajoutez un service d’IA et Daygo pourra commencer à organiser votre chronologie.',
     add: 'Ajouter un service',

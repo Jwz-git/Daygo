@@ -11,6 +11,13 @@ import (
 // and belongs in the same commit as the documentation update (docs/05 §5.10.2).
 var contractBindings = []string{
 	"AddProvider",
+	"BeginChatGPTLogin",
+	"ConfirmChatGPTPlan",
+	"CancelChatGPTLogin",
+	"GetChatGPTConnection",
+	"SaveChatGPTProvider",
+	"DisconnectChatGPT",
+	"ResumeChatGPTSubscription",
 	"ApplyCategoryPreset",
 	"CancelChatTurn",
 	"CancelRecordingDirectoryMove",

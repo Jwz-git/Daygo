@@ -21,7 +21,7 @@ export default {
   },
   provider: {
     title: '连接 AI 服务',
-    body: 'Daygo 需要一个 AI 服务来理解截图。填写服务地址、模型和密钥；密钥只保存在系统钥匙串里。',
+    body: "Daygo 需要 AI 服务来理解截图。选择 ChatGPT 订阅或配置API Key，授权凭据只保存在系统钥匙串中。",
     configured: '已添加：{name}',
     add: '添加 AI 服务',
     addAnother: '再添加一个',

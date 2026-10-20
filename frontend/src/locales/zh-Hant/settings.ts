@@ -184,7 +184,7 @@ export default {
     chatEditsTitle: '允許對話修改',
     chatEditsHint: '允許應用程式內的對話幫你修改、合併卡片，以及修改分類和目標。',
     title: 'AI 服務',
-    description: '填寫服務網址、介面類型和模型名稱，即可接入你自己的 AI 服務。',
+    description: "選擇 ChatGPT 訂閱或設定API Key，連接你的 AI 服務。",
     empty: '還沒有加入 AI 服務。',
     emptyHint: '加入一個 AI 服務後，Daygo 就能開始整理你的時間軸。',
     add: '加入服務',

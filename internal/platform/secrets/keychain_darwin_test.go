@@ -5,8 +5,10 @@ package secrets
 import (
 	"context"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The real-keychain tests run only when explicitly opted in: they touch the
@@ -72,5 +74,35 @@ func TestKeychainNotFoundIsTypedAndSanitized(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "apikeys") {
 		t.Fatalf("error leaks the service name: %q", err.Error())
+	}
+}
+
+// Exercise the same bounded bundle used by OAuth with anonymous values only.
+func TestBundleKeychainRoundTrip(t *testing.T) {
+	k := realKeychain(t)
+	v := NewBundleStore(k)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	id := "daygo-test-chatgpt-bundle-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	t.Cleanup(func() { _ = v.Delete(context.Background(), id) })
+	first := strings.Repeat("anonymous-oauth-fixture-", 600)
+	if err := v.Set(ctx, id, first); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := v.Get(ctx, id); err != nil || got != first {
+		t.Fatal("anonymous bundle readback failed")
+	}
+	second := strings.Repeat("anonymous-replacement-", 400)
+	if err := v.Set(ctx, id, second); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := v.Get(ctx, id); err != nil || got != second {
+		t.Fatal("anonymous bundle rotation failed")
+	}
+	if err := v.Delete(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Get(ctx, id); !IsNotFound(err) {
+		t.Fatal("deleted bundle remained readable")
 	}
 }

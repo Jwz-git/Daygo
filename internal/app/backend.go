@@ -65,6 +65,9 @@ type Backend struct {
 	applicationInspector platform.ApplicationInspector
 	applicationPicker    applicationPicker
 	secrets              platform.Secrets
+	chatgptMu            sync.Mutex
+	chatgptState         chatgptRuntime
+	chatgptOpenURL       func(string) error
 	updater              platform.Updater
 	storage              *storage.Store
 	recorder             *recorder.Recorder
@@ -812,6 +815,7 @@ func (b *Backend) permissionState(op string, query func(ctx context.Context) (pl
 }
 
 func (b *Backend) shutdown() {
+	b.cancelChatGPTAttempt("")
 	b.stopTimelineTasks()
 	_ = b.CancelRecordingDirectoryMove()
 	b.moveMu.RLock()

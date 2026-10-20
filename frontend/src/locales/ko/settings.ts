@@ -184,7 +184,7 @@ export default {
     chatEditsTitle: '채팅의 변경 허용',
     chatEditsHint: '앱 안의 채팅이 카드를 편집·병합하고 카테고리와 목표를 편집하도록 허용합니다.',
     title: 'AI 서비스',
-    description: '서비스 주소, API 유형, 모델 이름을 입력하면 직접 쓰는 AI 서비스를 연결할 수 있습니다.',
+    description: "ChatGPT 구독 또는 API 키로 AI 서비스를 연결하세요.",
     empty: '아직 AI 서비스가 없습니다.',
     emptyHint: 'AI 서비스를 추가하면 Daygo가 타임라인을 정리하기 시작합니다.',
     add: '서비스 추가',

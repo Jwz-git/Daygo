@@ -26,6 +26,7 @@ export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
   openai: 'https://api.openai.com/v1',
   openai_responses: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com',
+chatgpt: 'https://api.openai.com/v1',
 }
 
 export type ProviderField = 'displayName' | 'endpoint' | 'models' | 'maxImages' | 'userAgent'
@@ -352,5 +353,6 @@ export const useProvidersStore = defineStore('providers', () => {
     remove,
     setChain,
     clearSecret,
+    refresh,
   }
 })

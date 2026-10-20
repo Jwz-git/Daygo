@@ -15,7 +15,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/ai"
 	"github.com/Jwz-git/Daygo/internal/ai/factory"
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
-	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 )
 
 // ProviderPlaygroundRequestDTO holds one transient user-selected input, never a path or key.
@@ -108,14 +107,15 @@ func (b *Backend) TryProvider(req ProviderPlaygroundRequestDTO) (ProviderPlaygro
 	if err != nil {
 		return ProviderPlaygroundResultDTO{}, err
 	}
-	secret, err := b.secrets.Get(ctx, row.ID)
+	cfg, err := b.providerClientConfig(ctx, row, model)
 	if err != nil {
-		if secrets.IsNotFound(err) {
-			return ProviderPlaygroundResultDTO{}, apperr.E(apperr.InvalidArgument, "no api key stored for this provider", nil)
-		}
-		return ProviderPlaygroundResultDTO{}, apperr.E(apperr.NativeUnavailable, "reading the stored api key failed", nil)
+		return ProviderPlaygroundResultDTO{}, apperr.E(apperr.NativeUnavailable, "reading provider credentials failed", nil)
 	}
-	provider, err := factory.NewClient(&http.Client{}, factory.Config{Protocol: ai.Protocol(row.Protocol), Endpoint: row.Endpoint, Model: model, Secret: secret, UserAgent: row.UserAgent})
+	if row.Protocol != "chatgpt" && cfg.Secret == "" {
+		return ProviderPlaygroundResultDTO{}, apperr.E(apperr.InvalidArgument, "no api key stored for this provider", nil)
+	}
+	secret := cfg.Secret
+	provider, err := factory.NewClient(&http.Client{}, cfg)
 	if err != nil {
 		return ProviderPlaygroundResultDTO{ErrorCode: string(ai.ErrorKindOf(err))}, nil
 	}

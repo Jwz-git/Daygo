@@ -21,7 +21,7 @@ export default {
   },
   provider: {
     title: 'KI-Dienst verbinden',
-    body: 'Daygo braucht einen KI-Dienst, um deine Bildschirmfotos zu verstehen. Gib Adresse, Modell und Schlüssel ein; der Schlüssel liegt nur im Schlüsselbund des Systems.',
+    body: "Daygo benötigt einen KI-Dienst zur Bildanalyse. Ein ChatGPT-Abonnement oder einen API-Schlüssel wählen. Zugangsdaten bleiben ausschließlich im System-Schlüsselbund.",
     configured: 'Hinzugefügt: {name}',
     add: 'KI-Dienst hinzufügen',
     addAnother: 'Weiteren hinzufügen',

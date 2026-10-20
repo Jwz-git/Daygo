@@ -156,7 +156,7 @@ CREATE TABLE llm_calls (
   purpose            TEXT    NOT NULL,
   attempt_no         INTEGER NOT NULL,
   provider_id        TEXT    NOT NULL,
-  protocol           TEXT    NOT NULL,   -- openai | openai_responses | anthropic
+  protocol           TEXT    NOT NULL,   -- openai | openai_responses | anthropic | chatgpt
   requested_model    TEXT    NOT NULL,
   actual_model       TEXT,
   started_at         INTEGER NOT NULL,
@@ -401,7 +401,7 @@ CREATE TABLE app_settings (
 CREATE TABLE providers (
   id           TEXT PRIMARY KEY,   -- 生成的不透明标识
   display_name TEXT NOT NULL,
-  protocol     TEXT NOT NULL,      -- openai | openai_responses | anthropic
+  protocol     TEXT NOT NULL,      -- openai | openai_responses | anthropic | chatgpt
   endpoint     TEXT NOT NULL,      -- 绝对 http(s) 基地址，不含凭据
   models       TEXT NOT NULL DEFAULT '[]',  -- v17：JSON 字符串数组，同一 endpoint/key 下的有序模型列表（至少 1 个，上限 20）
   max_images   INTEGER NOT NULL DEFAULT 0,   -- v11：单请求图片上限，0 = ai.MaxImages 默认；与模型无关，按 provider 计
@@ -410,6 +410,11 @@ CREATE TABLE providers (
   updated_at   INTEGER NOT NULL
 );
 ```
+
+`chatgpt` 是 2026-10-20 新增的订阅协议值，复用此表，不升级 schema。
+其 endpoint 固定官方地址；OAuth token、账号 / client 映射、宿主 ID、首次使用确认与
+额度暂停状态都在系统凭据存储，不在此表或 app_settings。
+见 [ChatGPT 订阅决策](decisions/providers-chatgpt-subscription.md)。
 
 v21 给 `providers` 追加 `user_agent`：部分网关按 User-Agent 识别或放行客户端，空串保持默认行为。
 写入前在 `internal/app` 校验（≤512、仅可打印 ASCII、拒绝 CR/LF）——它是出站 HTTP 头，

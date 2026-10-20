@@ -184,7 +184,7 @@ export default {
     chatEditsTitle: 'Permitir que a conversa faça alterações',
     chatEditsHint: 'Deixe a conversa dentro do aplicativo editar e mesclar cartões, além de editar categorias e metas para você.',
     title: 'Serviços de IA',
-    description: 'Informe o endereço do serviço, o tipo de API e o nome do modelo para conectar o seu próprio serviço de IA.',
+    description: "Conecte seu serviço de IA com uma assinatura do ChatGPT ou uma chave de API.",
     empty: 'Nenhum serviço de IA ainda.',
     emptyHint: 'Adicione um serviço de IA e o Daygo já pode começar a organizar a sua linha do tempo.',
     add: 'Adicionar serviço',

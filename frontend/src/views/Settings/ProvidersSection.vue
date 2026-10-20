@@ -7,7 +7,7 @@ import type { ProviderDTO, ProviderProtocol } from '@/api/dto'
 import { useProvidersStore } from '@/stores/providers'
 import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
 
-import ProviderForm from './ProviderForm.vue'
+import ProviderSetup from './ProviderSetup.vue'
 import ProviderRoutingChain from './ProviderRoutingChain.vue'
 import SettingRow from './SettingRow.vue'
 import SwitchControl from './SwitchControl.vue'
@@ -43,7 +43,7 @@ function onToggleTokenUsage(next: boolean): void {
 }
 
 function protocolLabel(protocol: ProviderProtocol): string {
-  return t(`settings.providers.protocol.${protocol}`)
+  return protocol === 'chatgpt' ? t('chatgpt.subscription') : t(`settings.providers.protocol.${protocol}`)
 }
 
 function isPrimary(provider: ProviderDTO): boolean {
@@ -89,12 +89,12 @@ async function confirmRemove(id: string): Promise<void> {
   </header>
 
   <Transition name="fold">
-    <ProviderForm v-if="editing === 'new'" :provider="null" @done="editing = null" />
+    <ProviderSetup v-if="editing === 'new'" :provider="null" @done="editing = null" />
   </Transition>
 
   <ul v-if="!store.isEmpty" class="services">
     <li v-for="provider in store.providers" :key="provider.id" class="service">
-      <ProviderForm v-if="editing === provider.id" :provider="provider" @done="editing = null" />
+      <ProviderSetup v-if="editing === provider.id" :provider="provider" @done="editing = null" />
 
       <template v-else>
         <div class="service__main">
@@ -116,7 +116,7 @@ async function confirmRemove(id: string): Promise<void> {
               :class="provider.hasSecret ? 'is-configured' : 'is-missing'"
             >
               <DgIcon :name="provider.hasSecret ? 'lock' : 'close'" :size="11" />
-              {{ provider.hasSecret ? t('settings.providers.secret.configured') : t('settings.providers.secret.missing') }}
+              {{ provider.protocol === 'chatgpt' ? (provider.hasSecret ? t('chatgpt.connected') : t('chatgpt.disconnected')) : (provider.hasSecret ? t('settings.providers.secret.configured') : t('settings.providers.secret.missing')) }}
             </span>
             <span v-if="provider.maxImages > 0" class="service__images">
               {{ t('settings.providers.form.maxImages') }} {{ t('settings.providers.form.maxImagesValue', { count: provider.maxImages }) }}
@@ -153,7 +153,7 @@ async function confirmRemove(id: string): Promise<void> {
             {{ t('common.action.edit') }}
           </button>
           <button
-            v-if="provider.hasSecret"
+            v-if="provider.hasSecret && provider.protocol !== 'chatgpt'"
             type="button"
             class="icon-button"
             :title="t('settings.providers.secret.clear')"
@@ -165,6 +165,7 @@ async function confirmRemove(id: string): Promise<void> {
           <button
             type="button"
             class="icon-button icon-button--danger"
+:disabled="provider.protocol === 'chatgpt' && provider.hasSecret"
             :title="t('common.action.delete')"
             :aria-label="t('common.action.delete')"
             @click="pendingRemoveId = provider.id"

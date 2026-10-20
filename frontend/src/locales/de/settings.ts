@@ -184,7 +184,7 @@ export default {
     chatEditsTitle: 'Chat Änderungen erlauben',
     chatEditsHint: 'Lass den Chat in der App Karten bearbeiten und zusammenführen sowie Kategorien und Ziele für dich bearbeiten.',
     title: 'KI-Dienste',
-    description: 'Gib Dienstadresse, API-Typ und Modellnamen ein, um deinen eigenen KI-Dienst anzubinden.',
+    description: "Den KI-Dienst mit einem ChatGPT-Abonnement oder API-Schlüssel verbinden.",
     empty: 'Noch keine KI-Dienste.',
     emptyHint: 'Füge einen KI-Dienst hinzu, dann kann Daygo beginnen, deine Zeitleiste aufzubereiten.',
     add: 'Dienst hinzufügen',

@@ -8,7 +8,6 @@ import (
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/chat"
-	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
@@ -428,17 +427,19 @@ func (p backendProviders) entryByID(ctx context.Context, repo *storage.ProviderR
 	if resolved == "" {
 		return chat.ProviderEntry{}, fmt.Errorf("provider %s has no configured model", id)
 	}
-	secret, err := p.backend.secrets.Get(ctx, id)
-	if err != nil && !secrets.IsNotFound(err) {
+	cfg, err := p.backend.providerClientConfig(ctx, row, resolved)
+	if err != nil {
 		return chat.ProviderEntry{}, err
 	}
 	return chat.ProviderEntry{
-		ID:        row.ID,
-		Protocol:  row.Protocol,
-		Endpoint:  row.Endpoint,
-		Model:     resolved,
-		Secret:    secret,
-		UserAgent: row.UserAgent,
+		ID:          row.ID,
+		Protocol:    row.Protocol,
+		Endpoint:    row.Endpoint,
+		Model:       resolved,
+		Secret:      cfg.Secret,
+		TokenSource: cfg.TokenSource,
+		OnError:     cfg.OnError,
+		UserAgent:   row.UserAgent,
 	}, nil
 }
 

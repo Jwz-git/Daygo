@@ -65,15 +65,21 @@ Provider 条件满足时会自动录制，没有跨重启停止记忆。此为�
 | 项 | 规则 |
 |----|------|
 | 存放位置 | 系统钥匙串，service `io.github.jwz-git.daygo.apikeys.<provider>` |
-| 访问方式 | macOS 用 `security` CLI，Windows 用 Credential Manager，Linux 用 Secret Service / `secret-tool`；均不让密钥进入前端或命令参数。见 [macOS 决策](decisions/providers-secrets-keychain.md) 与 [Linux 决策](decisions/providers-secrets-linux.md) |
+| 访问方式 | macOS 用 `security` CLI，Windows 用 Credential Manager，Linux 用 Secret Service / `secret-tool`；密钥不进入前端；macOS 既有 `security -w` 写入会短暂经过 argv，已接受的边界见对应决策 §4，不能宣称无进程参数暴露。见 [macOS 决策](decisions/providers-secrets-keychain.md) 与 [Linux 决策](decisions/providers-secrets-linux.md) |
 | 跨界方向 | **只写不读。** 没有任何绑定方法返回密钥内容 |
-| 前端可见性 | 只有 `ProviderDTO.hasSecret` 布尔值 |
+| 前端可见性 | API Key 仅 `ProviderDTO.hasSecret`；ChatGPT 订阅另有经验证的账号显示信息、模型与连接 / 用量暂停状态，均无 token |
 | 绑定就绪前 | 只驻留进程内存；`hasSecret` 由内存派生，**不从磁盘读回**，这样重启后不会谎称"已配置" |
 | localStorage | **禁止**。`frontend/src/storage/` 是全应用唯一的 localStorage 调用方，且明文写着密钥不得进入该层 |
 | 日志与错误 | 绝不出现。`TryProvider` / `ListProviderModels` 的返回不得回显密钥或完整请求体 |
 | 仓库 | 绝不写入被 Git 跟踪的文件、夹具、日志或快照 |
 
-清空密钥只能经 `DeleteProviderSecret`。`ProviderInputDTO.Secret` 为空串表示"保持不变"——
+ChatGPT 订阅使用独立凭据 bundle，access / refresh / ID token 全留在系统凭据存储；
+UI 不接收 OAuth URL、code、state 或 token。`DisconnectChatGPT` 尝试远端撤销并清除
+当前本地 token；无法确认远端撤销时提示用户前往 ChatGPT 设置断开。
+分块写入 / manifest 及可能的无引用残留块边界见
+[ChatGPT 订阅决策](decisions/providers-chatgpt-subscription.md)。
+
+API Key 清空只能经 `DeleteProviderSecret`；订阅必须经独立断开入口。`ProviderInputDTO.Secret` 为空串表示"保持不变"——
 把"留空"解释成"清空"会让用户在改端口号时意外丢掉密钥。
 
 ## 7.4 遥测与崩溃上报

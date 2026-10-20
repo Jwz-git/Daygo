@@ -127,12 +127,14 @@ type Store interface {
 // ProviderRepo + keychain + settings.Routing; the interface keeps the chat
 // package free of storage and platform imports.
 type ProviderEntry struct {
-	ID        string
-	Protocol  string
-	Endpoint  string
-	Model     string
-	Secret    string
-	UserAgent string
+	ID          string
+	Protocol    string
+	Endpoint    string
+	Model       string
+	Secret      string
+	UserAgent   string
+	TokenSource func(context.Context) (string, error)
+	OnError     func(context.Context, error)
 }
 
 type Providers interface {
@@ -472,11 +474,13 @@ func (s *Service) buildChain(entries []ProviderEntry) *ai.Chain {
 	chainEntries := make([]ai.ChainEntry, 0, len(entries))
 	for _, entry := range entries {
 		provider, err := factory.NewClient(nil, factory.Config{
-			Protocol:  ai.Protocol(entry.Protocol),
-			Endpoint:  entry.Endpoint,
-			Model:     entry.Model,
-			Secret:    entry.Secret,
-			UserAgent: entry.UserAgent,
+			Protocol:    ai.Protocol(entry.Protocol),
+			Endpoint:    entry.Endpoint,
+			Model:       entry.Model,
+			Secret:      entry.Secret,
+			TokenSource: entry.TokenSource,
+			OnError:     entry.OnError,
+			UserAgent:   entry.UserAgent,
 		})
 		if err != nil {
 			// A broken entry would fail every Generate anyway; the honest move

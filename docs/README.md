@@ -73,6 +73,7 @@
 | [data 实例锁：flock / LockFileEx 锁文件](decisions/data-locking.md) | 已决定 | 写入锁与捕获所有者锁的跨平台实现、候选与回退 |
 | [data 备份保留份数：7 份](decisions/data-backup-retention.md) | 已决定 | 轮换策略、`VACUUM INTO` 的理由与边界 |
 | [data 损坏恢复](decisions/data-corruption-recovery.md) | 已决定 | 备份识别、恢复流程与只读降级 |
+| [ChatGPT 订阅](decisions/providers-chatgpt-subscription.md) | 已决定，增量验证单列 | 官方 OSS OAuth、套餐调用、系统凭据与设置 / 首次引导共用入口 |
 | [providers 回退链](decisions/providers-fallback-chain.md) | 已决定 | 有序路由、粘性回退与重试语义 |
 | [providers 单供应商多模型](decisions/providers-multi-model.md) | 已决定 | `models` JSON 列、路由「供应商+模型」对、链复合计数键 |
 | [providers 密钥：Keychain / Credential Manager](decisions/providers-secrets-keychain.md) | 已决定 | `security` CLI / Credential Manager 访问、service 命名与只写不读 |

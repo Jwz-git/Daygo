@@ -184,7 +184,7 @@ export default {
     chatEditsTitle: 'チャットによる変更を許可',
     chatEditsHint: 'アプリ内チャットによるカードの編集・結合と、カテゴリ・目標の編集を許可します。',
     title: 'AI サービス',
-    description: 'サービスの URL、API の種類、モデル名を入力すると、自分の AI サービスを接続できます。',
+    description: "ChatGPT サブスクリプションまたは API キーで AI サービスに接続します。",
     empty: 'AI サービスがまだありません。',
     emptyHint: 'AI サービスを追加すると、Daygo がタイムラインの整理を始められます。',
     add: 'サービスを追加',

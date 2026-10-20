@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import DgIcon from '@/components/DgIcon.vue'
 import { useProvidersStore } from '@/stores/providers'
-import ProviderForm from '@/views/Settings/ProviderForm.vue'
+import ProviderSetup from '@/views/Settings/ProviderSetup.vue'
 
 import OnboardingStep from './OnboardingStep.vue'
 
@@ -35,7 +35,7 @@ onMounted(async () => {
     </ul>
 
     <div v-if="adding" class="ob-form">
-      <ProviderForm :provider="null" @done="adding = false" />
+      <ProviderSetup :provider="null" @done="adding = false" />
     </div>
     <button v-else-if="!store.unavailable" type="button" class="dg-button ob-add" @click="adding = true">
       + {{ store.isEmpty ? t('onboarding.provider.add') : t('onboarding.provider.addAnother') }}

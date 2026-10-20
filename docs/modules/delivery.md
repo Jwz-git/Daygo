@@ -16,6 +16,13 @@ Windows 安装器、安装升级及原待验收身份于 10-13 用户确认已�
 
 ## 当前状态与证据
 
+2026-10-20 首次引导 AI 服务步骤改为复用 `ProviderSetup`，与设置页共用
+「ChatGPT 订阅 / 配置API Key」和同一 Go 授权 / 保存路径；不另建设置或授权状态。
+订阅入口及验证边界见 [providers 执行册](providers.md#当前状态与证据) 和
+[接入决策](../decisions/providers-chatgpt-subscription.md)。此次不生成 release 产物，
+真实 Wails 授权、升级后重启与长期调用单独待验收。
+
+
 2026-10-13 审查补充：常规 push / PR 完整核心 CI 未接入；现有门禁的 `gofmt -l .`
 不自动拒绝未格式化文件（AUD-03）。文档规定 v1 不交付 agent / chat，但默认生产入口仍含
 Chat 导航 / 路由及 CLI / MCP 分派，范围收口尚未实现（AUD-05）。能力接口版本固定为
@@ -165,6 +172,16 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
+
+- **2026-10-20（引导订阅入口；基于 `4e71575` 的 `test` 工作树，macOS arm64）**：
+  输入为同一 `ProviderSetup` 在 AI 服务页与首次引导中的匿名 Wails 状态；预期同名入口、
+  相同 OAuth / 首次套餐说明 / 模型选择 / 保存行为，不另建设置。
+  真实 SFC 的 Chrome 匿名夹具分别完成保存读回，未确认时保存禁用，页面异常 0、无横向溢出，
+  浅 / 深色截图已查看；九语言键检查与前端 290 项单测 / typecheck / build 通过。
+  完整门禁、格式输出边界、凭据 smoke、真实账号 / Wails / Windows / 长期未验证项统一见
+  [providers 验证记录](providers.md#验证记录)。未替换已安装应用，不生成 release。
+  回退：先断开订阅，再撤销本次提交，无 schema 迁移。
+
 
 2026-10-20（Windows 构建依赖文档，基于 `test` 的 `1a75381` 隔离工作树，Windows）：
 核对 `windows-common.ps1`、`build.ps1`、`dev.ps1`、`native/windows/build.ps1`、

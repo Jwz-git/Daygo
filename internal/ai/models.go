@@ -40,6 +40,12 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAg
 	var requestURL string
 	var header func(*http.Request)
 	switch protocol {
+	case ProtocolChatGPT:
+		if endpoint != "https://api.openai.com/v1" {
+			return nil, NewError(ErrorInvalidRequest, "ChatGPT requires the official endpoint", 0, nil)
+		}
+		requestURL = endpoint + "/models"
+		header = func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+secret) }
 	case ProtocolAnthropicMessages:
 		base, err := AnthropicBaseURL(endpoint)
 		if err != nil {
@@ -71,7 +77,11 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAg
 		request.Header.Set("User-Agent", userAgent)
 	}
 
-	response, err := http.DefaultClient.Do(request)
+	client := *http.DefaultClient
+	if protocol == ProtocolChatGPT {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, modelsTransportError(ctx, err)
 	}
@@ -83,6 +93,19 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAg
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, modelsStatusError(response.StatusCode)
+	}
+
+	if protocol == ProtocolChatGPT {
+		models, err := parseSubscriptionModels(body)
+		if err != nil {
+			return nil, err
+		}
+		for _, model := range models {
+			if secret != "" && strings.Contains(model, secret) {
+				return nil, NewError(ErrorInvalidOutput, "ChatGPT model catalog contains a credential", 0, nil)
+			}
+		}
+		return models, nil
 	}
 
 	// Both protocol families return {"data": [{"id": "..."}, ...]}.
@@ -138,4 +161,29 @@ func modelsStatusError(status int) error {
 		kind = ErrorUnavailable
 	}
 	return NewError(kind, message, status, nil)
+}
+
+// ChatGPT returns a distinct account-scoped catalog. Preserve display order.
+func parseSubscriptionModels(body []byte) ([]string, error) {
+	var p struct {
+		Models []struct {
+			Slug       string `json:"slug"`
+			Visibility string `json:"visibility"`
+		} `json:"models"`
+	}
+	if json.Unmarshal(body, &p) != nil || p.Models == nil {
+		return nil, NewError(ErrorInvalidOutput, "ChatGPT model catalog is invalid", 0, nil)
+	}
+	out := make([]string, 0, len(p.Models))
+	seen := map[string]bool{}
+	for _, m := range p.Models {
+		if m.Visibility == "list" && strings.TrimSpace(m.Slug) != "" && !seen[m.Slug] {
+			out = append(out, m.Slug)
+			seen[m.Slug] = true
+			if len(out) == maxModels {
+				break
+			}
+		}
+	}
+	return out, nil
 }

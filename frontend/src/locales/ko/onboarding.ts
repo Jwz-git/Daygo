@@ -21,7 +21,7 @@ export default {
   },
   provider: {
     title: 'AI 서비스 연결',
-    body: '스크린샷을 이해하려면 AI 서비스가 필요합니다. 주소, 모델, 키를 입력하세요. 키는 시스템 키체인에만 저장됩니다.',
+    body: "Daygo는 스크린샷을 이해하기 위해 AI 서비스가 필요합니다. ChatGPT 구독 또는 API 키를 선택하세요. 자격 증명은 시스템 키체인에만 저장됩니다.",
     configured: '추가됨: {name}',
     add: 'AI 서비스 추가',
     addAnother: '하나 더 추가',

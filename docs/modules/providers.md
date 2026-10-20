@@ -5,7 +5,7 @@
 用户可为一个 Provider 配置名称、协议、地址、**多个模型**与密钥，编排有序回退链
 （条目为「供应商 + 模型」对，主 + 多备用），获取模型列表，逐模型测试连接，重启后仍能
 判断密钥是否已配置。负责 U7、F-S1–4；支持 openai（Chat Completions）、openai_responses、
-anthropic 三种协议。
+anthropic 三种 API Key 协议，另有 `chatgpt` 订阅 OAuth Responses 变体。
 本模块交付可供 timeline / daily / chat 消费的客户端，不拥有分批、卡片、摘要内容或批次状态。
 
 公共依据：[05 Provider 绑定](../05-interface-contract.md#provider)、
@@ -16,6 +16,17 @@ anthropic 三种协议。
 [decisions/providers-secrets-keychain](../decisions/providers-secrets-keychain.md)。
 
 ## 当前状态与证据
+
+2026-10-20 ChatGPT 订阅增量（基于 `4e71575` 的 `test` 工作树）：
+新增官方 OSS 动态注册、PKCE / state / nonce / JWKS 身份验证、系统凭据 bundle 与串行
+refresh rotation、撤销 / 重授权；订阅固定官方地址，不能通过 API Key CRUD 创建或改写。
+图文 / Schema 映射复用 Responses，单独接入 SSE 完成终态、模型目录形状与订阅错误；
+此路径省略不支持的输出预算字段，额度耗尽后持久暂停并由用户显式恢复。
+AI 服务和首次引导共用「ChatGPT 订阅 / 配置API Key」选择，首次套餐说明只确认一次，
+提供管理用量与远端撤销未确认提示；九语言同步。
+[设计与边界](../decisions/providers-chatgpt-subscription.md)、[公共契约](../05-interface-contract.md#provider)。
+验证记录见下方；真实账号及长期调用尚未验收，不扩张 10-13 历史确认范围。
+
 
 2026-10-13：AI 服务设置页接入从 MCP / CLI 迁来的「允许对话修改」开关；
 仍由 chat 的 `chat.editMode` 控制，独立于外部工具权限，不改变 Provider 调用与密钥行为。
@@ -238,6 +249,42 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-10-20（ChatGPT 订阅；基于 `4e71575` 的 `test` 工作树，macOS arm64）**：
+  - 输入 / 期望：匿名 OAuth 回调、RSA 签名 ID token、替换 refresh token、系统凭据夹具与
+    SSE 响应；预期只有 state / PKCE / nonce / issuer / audience / 签名 / 有效期 / 授权范围
+    均通过后可用，未完成流不输出内容，额度耗尽不原样重试，令牌不跨绑定或落库。
+    新增夹具先于相应实现；没有修改已有夹具的期望来放行失败。
+  - 实际：`CGO_ENABLED=0 go test ./internal/ai/... ./internal/app ./internal/chat ./internal/platform/secrets`
+    通过；`CGO_ENABLED=0 go test ./internal/analysis -run TestSubscriptionProductionSchemas -count=1`
+    通过，真实生产转录 / 卡片 Schema 经订阅客户端与匿名传输夹具往返，图片为内存生成的
+    单像素 PNG；字段顺序按 JSON 语义核对。新绑定覆盖首次说明确认、模型目录约束、首服务
+    路由、API Key 越界拒绝与断开后删除；不使用真实账号 / 数据库 / 截图。
+  - `CGO_ENABLED=1 go test -race ./internal/ai/chatgpt ./internal/ai/openai ./internal/app -run 'TestAuthorization|TestRefresh|TestSubscription|TestIDToken|TestChatGPT|TestDisconnect' -count=1`
+    通过；8 个并发取 token 请求仅刷新一次，Manager 重建可读回并刷新，暂停跨 Manager
+    重建保留；远端撤销超时后使用独立有界上下文清除本地 token。无实际 HTTP 响应的本地
+    暂停不伪造 HTTP 429。app race 链接有 macOS `LC_DYSYMTAB` 告警，测试通过。
+  - `DAYGO_KEYCHAIN_TEST=1 CGO_ENABLED=0 go test ./internal/platform/secrets -run '^TestBundleKeychainRoundTrip$' -count=1`
+    通过（约 1.5 秒）：在当前 macOS 系统钥匙串写入、轮换、读回和删除随机测试 ID 下的大于
+    Windows 单条上限的匿名值；清理测试条目。证明 macOS CLI 凭据存储读写，不证明已签名
+    Wails 应用、Windows Credential Manager 或真实 OAuth token 的实际授权。
+  - `./scripts/gate.sh` 退出 0：Go 内部测试 / vet / `CGO_ENABLED=0` build、linux / darwin /
+    windows 核心交叉构建，前端 290 项单测 / typecheck / build，文档 75 篇 0 问题通过；
+    Windows 安装器 16 项中 6 项通过、10 项要求 Windows 主机而跳过，不记为通过。
+    Wails 引导成功，既有 deployment target / UserNotifications 可用性告警保留。
+    `gofmt -l .` 列出 7 个本轮未改动的忽略目录 `.tmp/` 诊断文件，不能将脚本的 `gofmt: clean`
+    文案当作全目录格式通过；`git ls-files -z '*.go' | xargs -0 gofmt -l` 对本次已暂存的全部
+    版本管理 Go 源码无输出。`git diff --check` 与文档检查通过。
+  - 匿名 Chrome 无头浏览器运行真实 SFC（模拟 Wails 状态绑定）：设置页和首次引导均显示
+    「ChatGPT 订阅 / 配置API Key」，完成首次说明前保存禁用、确认、选模型、保存与配置
+    读回；设置页另切换到 API Key 表单。两入口均无横向溢出，Runtime exception 0。浅 / 深色截图已人工查看；这不是
+    真实 Wails OAuth 闭环或外观持久化重启验收。一次性脚本、输出与截图留在 `.tmp/`，不提交。
+  - 限制 / 门禁：真实 Plus / Pro 账号、实际地区 / 工作区准入、真实 Provider 的图文结构化
+    转录 → 卡片、真实应用重启后的刷新 / 撤销、Windows 真机凭据与长期额度消耗未运行；
+    Docker daemon 不可用，未额外运行 Linux 主机测试，交叉构建只证明编译。
+    不提升 G-native / G-loop 历史验收，也不替换已安装应用或生成 release。
+  - 回退：先断开并删除订阅服务，再撤销本次提交；无 schema 迁移，已有 API Key 服务保持可用。
+
 
 2026-10-13（`test`，基于 `bf49b34` 工作树；来源：本次用户明确确认全部待验收项已完成）：
 模型测试与试用、combobox 候选 / 手填、User-Agent、Token 用量开关与三协议地址 / Schema / 响应状态修复的真实 Provider / Wails 闭环，均记为**用户确认已验收，未附逐项运行记录**。

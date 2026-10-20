@@ -460,9 +460,25 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
 
 #### Provider
 
+ChatGPT 订阅实现与安全边界见 [接入决策](decisions/providers-chatgpt-subscription.md)。
+`chatgpt` 固定官方 endpoint，生成采用 SSE、`store:false` / `stream:true`，不发送
+`max_output_tokens`；只有 `response.completed` 且完成状态通过检查才成功。
+`subscription_sharing_usage_limit_exceeded` 沿用外部 `rate_limited`，附加不可原样重试原因并
+暂停本订阅的新请求，既有用户配置的回退链继续适用。模型目录为独立的 `models[].slug` /
+`visibility` 形状。订阅 token 不经 `ProviderInputDTO.Secret`；API Key CRUD 拒绝创建或
+改写订阅，清密钥入口也拒绝它。删除已连接订阅返回 `conflict`，须先断开并显示远端撤销结果。
+
+
 | 方法 | 负责模块 | 接入条件 | 类型 | 事件 | 主要错误码 |
 |------|----------|----------|------|------|-----------|
 | `ListProviders() ([]ProviderDTO, error)` | providers | Provider repository / settings-access | 读 | — | — |
+| `BeginChatGPTLogin(providerID string) (string, error)` | providers | 写入与捕获所有权 / 系统凭据 / 浏览器 | 写·非幂等（空 ID 新建待授权连接；已有 ID 重新授权；最多一个待完成流程，5 分钟超时） | —（轮询状态） | `not_capture_owner` `conflict` `invalid_argument` `native_unavailable` |
+| `GetChatGPTConnection(id string) (ChatGPTConnectionDTO, error)` | providers | 待授权流程或已保存订阅 / 凭据状态 | 读（不刷新 token） | — | `not_found` `invalid_argument` `native_unavailable` |
+| `CancelChatGPTLogin(id string) error` | providers | 写入与捕获所有权 / 待授权流程 | 写·幂等（取消并等待回调退出；未保存的新连接尽力撤销与删除凭据） | — | `not_capture_owner` |
+| `ConfirmChatGPTPlan(id string) error` | providers | 写入与捕获所有权 / 凭据 | 写·幂等（首次套餐使用说明已确认） | — | `not_capture_owner` `not_found` `native_unavailable` |
+| `SaveChatGPTProvider(id, name string, models []string) error` | providers | 写入与捕获所有权 / 完成授权 / Provider repository | 写·幂等（首次保存要求确认套餐使用及目录中的模型；首个服务成为路由主项） | `settings:changed` | `not_capture_owner` `invalid_argument` `conflict` `database_error` |
+| `DisconnectChatGPT(id string) (bool, error)` | providers | 写入与捕获所有权 / 凭据 | 写·幂等（尝试撤销 renewable session 后清除本地 token、保留 client 映射；bool 表示远端撤销已确认） | `settings:changed` | `not_capture_owner` `invalid_argument` `not_found` `native_unavailable` |
+| `ResumeChatGPTSubscription(id string) error` | providers | 写入与捕获所有权 / 凭据 | 写·幂等（用户检查用量后显式解除暂停，不承诺额度已恢复） | `settings:changed` | `not_capture_owner` `invalid_argument` `not_found` `native_unavailable` |
 | `AddProvider(p ProviderInputDTO) (string, error)` | providers | Provider repository / settings-access | 写·非幂等 | `settings:changed` | `invalid_argument` `native_unavailable` |
 | `UpdateProvider(id string, p ProviderInputDTO) error` | providers | Provider repository / settings-access | 写·幂等 | `settings:changed` | `not_found` `invalid_argument` `native_unavailable` |
 | `DeleteProvider(id string) error` | providers | Provider repository / settings-access；连带剪除路由链、钥匙串条目与会话级 provider 绑定 | 写·幂等 | `settings:changed` | `not_found` |
@@ -936,10 +952,22 @@ type CategoryPresetDTO struct {
 // OpenAI 两协议与模型列表接受基地址及完整 /chat/completions、/responses、/models 地址，
 // 先去末尾斜杠再去请求路径，并在发送时兼容旧记录；保留版本 / 网关前缀与路径转义。
 // 不猜测 /v1；OpenAI 官方地址需配置 https://api.openai.com/v1。
+// ChatGPT 订阅是固定官方地址的 OAuth Responses 变体，不经 API Key 草稿创建 / 修改。
+// GetChatGPTConnection 不返回 OAuth URL、code、state、nonce 或任何 token。
+type ChatGPTConnectionDTO struct {
+    ProviderID        string   `json:"providerId"`
+    State             string   `json:"state"` // waiting / ready / error / connected / disconnected
+    ErrorCode         string   `json:"errorCode"` // 封闭错误标签，无上游正文
+    Email             string   `json:"email"` // 仅经 ID token 验证的账号显示信息
+    Models            []string `json:"models"` // 可见模型 slug，保持服务端顺序
+    Paused            bool     `json:"paused"` // 额度耗尽后暂停，跨重启保留
+    NeedsConfirmation bool     `json:"needsConfirmation"` // 首次使用套餐说明，凭据记录持久化
+}
+
 type ProviderDTO struct {
     ID          string   `json:"id"`
     DisplayName string   `json:"displayName"`
-    Protocol    string   `json:"protocol"` // openai | openai_responses | anthropic
+    Protocol    string   `json:"protocol"` // openai / openai_responses / anthropic / chatgpt // openai | openai_responses | anthropic
     Endpoint    string   `json:"endpoint"` // 绝对 http(s) 基地址，不含凭据
     Models      []string `json:"models"`   // → providers.models：有序模型列表，至少 1 个
     MaxImages   int      `json:"maxImages"` // → providers.max_images：单请求图片上限，0 = 默认

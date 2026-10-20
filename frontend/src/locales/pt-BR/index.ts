@@ -1,3 +1,4 @@
+import chatgpt from './chatgpt'
 import tokenUsage from './tokenUsage'
 import captureTest from './captureTest'
 import modelPlayground from './modelPlayground'
@@ -14,4 +15,4 @@ import recording from './recording'
 import presets from './presets'
 import onboarding from './onboarding'
 
-export default { tokenUsage, common, nav, native, recording, timeline, daily, weekly, chat, settings, captureTest, test, modelPlayground, presets, onboarding }
+export default { chatgpt, tokenUsage, common, nav, native, recording, timeline, daily, weekly, chat, settings, captureTest, test, modelPlayground, presets, onboarding }

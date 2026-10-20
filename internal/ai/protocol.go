@@ -11,8 +11,10 @@ const (
 	ProtocolOpenAIResponses Protocol = "openai_responses"
 	// ProtocolAnthropicMessages is the Anthropic Messages protocol.
 	ProtocolAnthropicMessages Protocol = "anthropic"
+	// ProtocolChatGPT is the OAuth-scoped ChatGPT plan Responses variant.
+	ProtocolChatGPT Protocol = "chatgpt"
 )
 
 func (p Protocol) Valid() bool {
-	return p == ProtocolOpenAIChat || p == ProtocolOpenAIResponses || p == ProtocolAnthropicMessages
+	return p == ProtocolOpenAIChat || p == ProtocolOpenAIResponses || p == ProtocolAnthropicMessages || p == ProtocolChatGPT
 }

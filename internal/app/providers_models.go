@@ -54,7 +54,19 @@ func (b *Backend) ListProviderModels(req ProviderModelsRequestDTO) (ProviderMode
 		if err != nil {
 			return ProviderModelsResultDTO{}, mapStorageError("get provider", err)
 		}
-		stored, err := b.secrets.Get(ctx, id)
+		var stored string
+		if row.Protocol == "chatgpt" {
+			if err := b.chatgptOwner(); err != nil {
+				return ProviderModelsResultDTO{}, err
+			}
+			manager, e := b.chatgptManager()
+			if e != nil {
+				return ProviderModelsResultDTO{}, e
+			}
+			stored, err = manager.Token(ctx, id)
+		} else {
+			stored, err = b.secrets.Get(ctx, id)
+		}
 		if err != nil {
 			if secrets.IsNotFound(err) {
 				return ProviderModelsResultDTO{}, apperr.E(apperr.InvalidArgument, "no api key stored for this provider", nil)
@@ -67,6 +79,9 @@ func (b *Backend) ListProviderModels(req ProviderModelsRequestDTO) (ProviderMode
 		userAgent = row.UserAgent
 	} else {
 		protocol = daygoai.Protocol(strings.TrimSpace(req.Protocol))
+		if protocol == daygoai.ProtocolChatGPT {
+			return ProviderModelsResultDTO{}, apperr.E(apperr.InvalidArgument, "ChatGPT model listing requires a saved subscription", nil)
+		}
 		// Strip a pasted request-path suffix exactly as AddProvider /
 		// UpdateProvider do; otherwise a draft that saves fine would double the
 		// path here and 404.

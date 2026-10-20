@@ -21,7 +21,7 @@ export default {
   },
   provider: {
     title: 'Conectar un servicio de IA',
-    body: 'Daygo necesita un servicio de IA para entender tus capturas. Indica su dirección, modelo y clave; la clave solo se guarda en el llavero del sistema.',
+    body: "Daygo necesita un servicio de IA para entender las capturas. Elige una suscripción a ChatGPT o una clave API. Las credenciales quedan en el llavero del sistema.",
     configured: 'Añadido: {name}',
     add: 'Añadir un servicio de IA',
     addAnother: 'Añadir otro',

@@ -158,6 +158,8 @@ type ErrorKind string
 // ErrTokenLimit marks an explicit protocol token/context limit, rather than
 // inferring truncation from usage or treating it as a transient parse error.
 // Replaying an unchanged request is not a provider-level recovery strategy.
+var ErrSubscriptionLimit = errors.New("ChatGPT subscription usage limit reached")
+
 var ErrTokenLimit = errors.New("provider generation reached a token limit")
 
 const (
@@ -223,7 +225,7 @@ func RetryAfterOf(err error) time.Duration {
 }
 
 func Retryable(err error) bool {
-	if errors.Is(err, ErrTokenLimit) {
+	if errors.Is(err, ErrTokenLimit) || errors.Is(err, ErrSubscriptionLimit) {
 		return false
 	}
 	switch ErrorKindOf(err) {
