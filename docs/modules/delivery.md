@@ -166,6 +166,17 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 
 ## 验证记录
 
+2026-10-20（Windows 构建依赖文档，基于 `test` 的 `1a75381` 隔离工作树，Windows）：
+核对 `windows-common.ps1`、`build.ps1`、`dev.ps1`、`native/windows/build.ps1`、
+`package-windows.ps1`、Wails 配置及发布工作流，在 [脚本说明](../../scripts/README.md#windows-build-dependencies)
+补全现有双编译器依赖（MinGW-w64 / binutils 与 MSVC C++）、SDK 26100、PowerShell、WebView2，
+区分 NSIS / signtool / Python 的使用范围，并补充 PATH / SDK 检查和自动下载的 Wails / WinSparkle 说明；
+根 README 增加入口。未调整工具链版本、构建脚本或依赖锁文件。
+`python scripts/check-docs.py` 检查 71 个 Markdown、0 问题；`git diff --check` 通过。
+本次仅核对源码与文档，未安装工具、执行完整原生编译或生成 release 产物，不新增 G-native 验收结论。
+回退：撤回本次文档提交，不影响构建行为或用户数据。
+
+
 2026-10-14（delivery 配套网页交互 CPU，`test`、基于 `fe01446` 的工作树，Windows，
 Node 24.15.0 / npm 11.12.1，Edge 151.0.4129.86 无头，1440×900）：
 用户报告实际 Edge 交互时 CPU 20%+；上一轮只量化主线程，不能据此认定该反馈已解决。

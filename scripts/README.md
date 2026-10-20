@@ -93,6 +93,57 @@ invocation. After the 2026-09-14 cleanup:
 Adding a new helper (e.g. a future `darwin_sdk_path` resolver) belongs in
 `bootstrap-frontend.sh` so the three dev scripts pick it up automatically.
 
+## Windows build dependencies
+
+The existing Windows entry points target `windows/amd64`. The following inventory is based on
+[windows-common.ps1](windows-common.ps1), [the native build](../native/windows/build.ps1),
+[build.ps1](build.ps1) and [the packager](package-windows.ps1); it does not change the toolchain.
+
+| Dependency | Required for / setup |
+|---|---|
+| Git for Windows | Checkout and source revision metadata; make `git` available in PATH. Git Bash is also needed to run `gate.sh`, but not the PowerShell build entry points. |
+| Go | Version requirement comes from [go.mod](../go.mod) (currently `go 1.25.0`). Use the Windows amd64 toolchain; the desktop native build needs cgo, unlike the `CGO_ENABLED=0` core gate. |
+| Node.js and npm | The existing bootstrap specifies Node 20.19+ or 22.12+; release CI uses Node 22. Use npm and the existing lockfile. `build.ps1` runs `npm ci`; `dev.ps1` runs `npm install`. |
+| MinGW-w64 x64 GCC and binutils | Put `gcc`, `g++`, `ar` and `objdump` from the same x64 toolchain in PATH. GCC serves Go cgo, `g++` / `ar` build `libdaygo_capture.a`, and `objdump` checks the EXE for unbundled MinGW runtime DLLs. Release CI currently installs the Chocolatey `mingw` package. |
+| Visual Studio 2022 C++ tools | Install the **Desktop development with C++** workload (Build Tools is sufficient), including MSVC x64/x86 tools (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`). These compile the C++20/C++/WinRT capture and notification helper `daygo_windows_native.dll`; MinGW alone does not build it. The script finds Visual Studio through `vswhere.exe` and invokes `vcvars64.bat`, so `cl.exe` need not be on the initial PowerShell PATH. |
+| Windows SDK 10.0.26100 | Select this SDK in Visual Studio Installer, including its headers and libraries. The native script looks for `windows.ui.interop.h` under `Windows Kits\10\Include`; merely having an older SDK is insufficient for the complete helper DLL. |
+| Windows PowerShell | Entry points and Wails hooks invoke `powershell` with `-NoProfile -ExecutionPolicy Bypass`; PowerShell 7 alone does not replace that executable. |
+| WebView2 Runtime | Required to run the Wails desktop UI and `dev.ps1`. This is a runtime dependency, separate from the native compiler / Windows SDK. The NSIS installer has a WebView2 bootstrap path; a local source build should have the runtime installed already. |
+| NSIS (`makensis`) | Needed for `package-windows.ps1` and installer compilation fixtures, not the ordinary `build.ps1` EXE build. The packager searches PATH and standard NSIS install directories. |
+| Windows SDK `signtool` | Needed only when signing is configured. Add the SDK's `bin\<version>\x64` directory to PATH and supply the existing certificate configuration; unsigned local compilation does not require a certificate. |
+| Python 3 | Needed for documentation and installer fixture checks, not desktop compilation. On Windows invoke `python` directly; `gate.sh` looks for `python3` and skips those checks when it is unavailable. |
+
+Both native compiler families are needed for a complete build. If the SDK header is absent,
+`native/windows/build.ps1` can warn and produce only the baseline archive, but `scripts/build.ps1`
+subsequently rejects a missing `daygo_windows_native.dll`. That warning is not evidence of a complete build.
+The script's header discovery is not an exact SDK version validator; also check the installed SDK in
+Visual Studio Installer. Full Windows runtime requirements are listed in the [project README](../README.md#下载与安装).
+
+Wails does not need a separate global installation: the scripts use
+`go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0`. The native script downloads WinSparkle 0.9.4,
+verifies its pinned SHA-256 and copies the x64 `WinSparkle.dll` to `build/bin` automatically.
+Allow initial access to Go modules, the npm registry and the WinSparkle GitHub release; do not manually
+substitute a different DLL. Keep `Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll` together.
+
+From a new PowerShell session at the repository root, check discovery before building:
+
+```powershell
+Get-Command git, go, node, npm, gcc, g++, ar, objdump, powershell
+go version
+node --version
+npm --version
+gcc -dumpmachine  # expect an x86_64 Windows target, not i686
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include" -Filter windows.ui.interop.h -Recurse
+```
+
+The last two checks must find a C++ installation and the SDK header; they do not compile or validate
+native behavior. For local development use `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1`;
+for an EXE build use the same command with `scripts/build.ps1`. These entry points build native components
+before generating bindings and preparing the embedded frontend bundle. Do not start a clean checkout
+with a bare `go build ./...` or `npm run build`, which lack that bootstrap sequence.
+
 ## Windows acceptance packaging
 
 Run the release-candidate path only on Windows with MinGW-w64, Visual Studio 2022 C++ tools,
