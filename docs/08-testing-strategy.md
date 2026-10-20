@@ -338,11 +338,18 @@ MC-12 / WC-8 的 24 小时观察是本表的前置条件，不是它的替代。
 
 ```bash
 native/darwin/build.sh
-DAYGO_NATIVE_MEMORY=1 go test -a ./internal/platform/darwin -run '^TestNativeDecodeMemoryPlateau$' -count=1 -v
+DAYGO_NATIVE_MEMORY=1 go test -a ./internal/platform/darwin -run '^TestNative(DecodeMemoryPlateau|SegmentWriterMemoryPlateau)$' -count=1 -v
 ```
 
 600 次读取分别在 300 / 600 次后静置 3 秒并回收 Go 堆；每次启动三个独立进程，
 每个进程增量不超过 5 MiB。该门禁不代表 24 小时 / 14 天通过，不在生产定时触发 GC。
+
+2026-10-20 新增 writer 门禁：每段 4 张匿名 1080p 合成帧，连续写入并收尾 16 段；在 8 / 16
+段后静置 3 秒，分别读取 `heap --noContent` 的 AVAssetWriter 计数与 `vmmap` footprint。
+三个独立进程各须满足残留 writer 至多 1 个、8→16 段增量至多 8 MiB；只复用一个段的解码
+门禁不能覆盖此问题。`runtime.LockOSThread` 模拟长驻 Go 线程而不依赖 AppKit 事件循环释放
+临时对象，Go GC 仍只用于隔离原生保留。前后实测见
+[recording 本轮证据](modules/recording.md#2026-10-20-分段收尾内存回归)。
 
 真实 UI 对照使用同一机器、配置、原生工具链及匿名隔离资料，依次跑未修改版本与候选版本，
 不在真实用户库运行测试 / 迁移。基准版本为 `d39c16b`，候选版本以实际 commit 记录。

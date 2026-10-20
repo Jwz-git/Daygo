@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"sync"
@@ -161,6 +162,91 @@ func TestNativeDecodeMemoryPlateau(t *testing.T) {
 				at300 = value
 			} else if value-at300 > 5 {
 				t.Fatalf("300→600 retained %.2f MiB, limit 5 MiB", value-at300)
+			}
+		}
+	}
+}
+
+// Finalized writers must release their encoder sessions as segments rotate.
+// The decode gate above reuses one segment and cannot detect writer retention.
+func TestNativeSegmentWriterMemoryPlateau(t *testing.T) {
+	if os.Getenv("DAYGO_NATIVE_WRITER_MEMORY_CHILD") != "1" {
+		if os.Getenv("DAYGO_NATIVE_MEMORY") != "1" {
+			t.Skip("set DAYGO_NATIVE_MEMORY=1 for the three-process writer retention gate")
+		}
+		for run := 1; run <= 3; run++ {
+			cmd := exec.Command(os.Args[0], "-test.run=^TestNativeSegmentWriterMemoryPlateau$", "-test.v")
+			cmd.Env = append(os.Environ(), "DAYGO_NATIVE_WRITER_MEMORY_CHILD=1")
+			out, err := cmd.CombinedOutput()
+			t.Logf("run %d:\n%s", run, out)
+			if err != nil {
+				t.Fatalf("writer memory run %d: %v", run, err)
+			}
+		}
+		return
+	}
+
+	// Exercise the C ABI on a long-lived Go thread without an AppKit run loop.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	dir := t.TempDir()
+	if err := segmentCloseActive(); err != nil {
+		t.Fatal(err)
+	}
+	var at8 float64
+	for segment := 1; segment <= 16; segment++ {
+		for frame := 0; frame < 4; frame++ {
+			if _, err := testFrameAppendSynthetic(dir, 1920, 1080, frame); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := segmentCloseActive(); err != nil {
+			t.Fatal(err)
+		}
+		if segment != 8 && segment != 16 {
+			continue
+		}
+		time.Sleep(3 * time.Second)
+		debug.FreeOSMemory() // Isolate native retention; never a production strategy.
+		heap, err := exec.Command("heap", "--noContent", strconv.Itoa(os.Getpid())).Output()
+		if err != nil {
+			t.Fatalf("inspect native writer count: %v", err)
+		}
+		writers := 0
+		match := regexp.MustCompile(`(?m)^\s*(\d+)\s+\d+\s+[\d.]+\s+AVAssetWriter\s+ObjC\s+AVFCore\s*$`).FindSubmatch(heap)
+		if len(match) > 1 {
+			writers, err = strconv.Atoi(string(match[1]))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		vm, err := exec.Command("vmmap", "-summary", strconv.Itoa(os.Getpid())).Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		memory := regexp.MustCompile(`(?m)^Physical footprint:\s+([0-9.]+)([KMG])`).FindSubmatch(vm)
+		if len(memory) != 3 {
+			t.Fatal("vmmap omitted physical footprint")
+		}
+		value, err := strconv.ParseFloat(string(memory[1]), 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch string(memory[2]) {
+		case "K":
+			value /= 1024
+		case "G":
+			value *= 1024
+		}
+		t.Logf("closed segments=%d retained writers=%d settled footprint=%.2f MiB", segment, writers, value)
+		if segment == 8 {
+			at8 = value
+		} else {
+			if writers > 1 {
+				t.Errorf("finalized writers retained=%d, want <=1", writers)
+			}
+			if value-at8 > 8 {
+				t.Errorf("8→16 closed segments retained %.2f MiB, limit 8 MiB", value-at8)
 			}
 		}
 	}

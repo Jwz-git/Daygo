@@ -38,6 +38,14 @@ final class SegmentWriter: @unchecked Sendable {
     }
 
     func finishActive() throws {
+        // Finalization also creates autoreleased helpers that retain media
+        // resources. Capture callers may run outside AppKit's event loop.
+        try autoreleasepool {
+            try finishActiveInPool()
+        }
+    }
+
+    private func finishActiveInPool() throws {
         lock.lock()
         guard let current = active else {
             lock.unlock()
@@ -50,6 +58,18 @@ final class SegmentWriter: @unchecked Sendable {
     }
 
     func append(
+        image: CGImage,
+        capturedAt: Date,
+        recordingsDir: String
+    ) throws -> (segmentRelPath: String, frameIndex: Int, fileSize: UInt64, width: Int, height: Int) {
+        // Cover writer creation and rollover as well as pixel conversion; the
+        // inner per-frame pool alone cannot release those AVFoundation helpers.
+        try autoreleasepool {
+            try appendInPool(image: image, capturedAt: capturedAt, recordingsDir: recordingsDir)
+        }
+    }
+
+    private func appendInPool(
         image: CGImage,
         capturedAt: Date,
         recordingsDir: String

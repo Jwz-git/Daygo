@@ -25,6 +25,10 @@ Windows 端可从设置页迁移全部历史录制到空目录；录制停写、
 
 ## 当前状态与证据
 
+2026-10-20：修复 macOS 分段 writer 创建 / 滚动 / 收尾缺少完整 autoreleasepool 边界导致的
+原生对象保留；三进程匿名原生夹具通过。已安装版未替换，真实 Wails 与长期回归尚未运行，
+不扩大历史验收。输入、前后测量及门禁范围见[本轮内存回归](#2026-10-20-分段收尾内存回归)。
+
 2026-10-13 审查补充：真实空闲采样未接入，分段 / legacy 捕获均写 NULL（AUD-01）；
 已有错误可见 / 重试，但独立缺帧看门狗未实现，适配调用不返回的风险未复现（AUD-02）；
 手动停止不跨重启保存，满足启动条件会再次录制，属于已接受的初版行为（AUD-04）。
@@ -268,6 +272,68 @@ G-host/G-native 失败限制原生接入与大规模 UI；核心状态机、fixt
 恢复外壳。禁止以清空数据目录代替恢复。
 
 ## 验证记录
+
+### 2026-10-20 分段收尾内存回归
+
+范围：recording / macOS HEVC writer 生命周期，`test`、基于 `3b5c922` 的修复工作树；
+macOS 26.0.1 / arm64，Go 1.25.14、Swift 6.2.3。对应 G-core 与匿名 macOS 原生回归，
+不替代真实 Wails、G-host 或 24 小时 / 14 天观察。
+
+现场只读诊断：已安装 Daygo 0.3.6（未核验其源码 commit，已运行约 3 天）的主进程
+footprint 约 678 MiB，IOSurface 驻留约 579 MiB；`heap --noContent` 发现 41 个
+AVAssetWriter / VTCompressionSession。临时暂停并收尾、关闭窗口后主进程仍约 678 MiB，
+恢复窗口与录制后已由 UI 确认正在记录。未在真实用户库运行测试、迁移或媒体读取夹具。
+采样、临时探针及原始输出仅留在忽略目录 `.tmp/memory-20261020/`，不提交。
+
+夹具先于实现添加：`TestNativeSegmentWriterMemoryPlateau` 在独立进程、长驻 Go 原生线程上，
+逐段追加 4 张匿名 1920×1080 合成帧并显式收尾；分别在 8 / 16 段后静置 3 秒，回收 Go 堆
+仅用于隔离原生保留，采集 `heap --noContent` 和 `vmmap -summary`。预先设定完成后 writer
+至多 1 个、8→16 段 footprint 增量至多 8 MiB；期望值没有随失败修改，不在生产调用 GC。
+旧实现在同一正式夹具中由 298.3 增至 600.0 MiB，writer 从 8 增至 16，两个断言均失败。
+单独移除完成回调的 writer 引用仍失败；最终保留原回调、10 秒超时及错误处理，只将
+autoreleasepool 从逐帧像素转换扩展到完整追加（含创建 / 滚动）与显式收尾操作。
+
+重建 universal archive 后执行：
+
+```bash
+native/darwin/build.sh
+DAYGO_NATIVE_MEMORY=1 go test -a ./internal/platform/darwin -run '^TestNativeSegmentWriterMemoryPlateau$' -count=1 -v
+```
+
+三个独立进程均通过，8 / 16 段后的 writer 计数均为 0：
+
+| 进程 | 8 段 footprint | 16 段 footprint | 增量 |
+|---|---:|---:|---:|
+| 1 | 15.1 MiB | 15.7 MiB | 0.6 MiB |
+| 2 | 15.3 MiB | 15.5 MiB | 0.2 MiB |
+| 3 | 15.2 MiB | 15.8 MiB | 0.6 MiB |
+
+初始工作树门禁：`./scripts/gate.sh` 退出 0；无 cgo Go build / internal 单测 / vet、三平台
+无 cgo 核心交叉构建、前端 269 项测试 / typecheck / build 和文档 74 篇 / 0 问题通过。
+Windows 安装器夹具 6 项通过、10 项因需 Windows 主机跳过，不记为 Windows 实测。
+格式检查单独复核：`git ls-files '*.go' | xargs gofmt -l` 无输出，`git diff --check`
+通过；`gofmt -l .` 仍列出 7 个既有忽略目录 `.tmp/` 探针（未修改），因此不将脚本打印的
+`gofmt: clean` 记为全树格式通过。
+
+最终原生整组：`DAYGO_NATIVE_MEMORY=1 go test -a ./internal/platform/darwin -run '^TestNative' -count=1 -v` 通过（7 个顶层用例，含三种合成系统暂停事件、并发 / 缩略图 / 错误恢复、
+解码三进程内存门禁、writer 三进程门禁、追加往返 / legacy、分辨率滚动与 200 次重复解码）。
+该次 writer 三进程的 8→16 段增量分别为 0.3 / 0.5 / 0.2 MiB，残留 writer 均为 0；
+解码 300→600 次 footprint 分别为 17.6→17.9、17.4→17.7、17.6→18.4 MiB。
+既有 Swift 弃用 / Sendable 编译告警保留，未注入真实编码器卡死 / 收尾超时。
+
+推送前同步：远端 `test` 已前进到 `4b5896a`，本轮提交无冲突 rebase，其原生实现和测试与
+原始已验证版本一致。集成后的 `./scripts/gate.sh` 再次退出 0：前端 287 项测试通过，Go /
+三平台无 cgo 核心构建、typecheck / build、74 篇文档检查通过；安装器仍为 6 通过 / 10 跳过，
+跟踪 Go 文件格式与 `git diff --check` 通过，既有忽略目录格式例外同上。
+相同的全量 `TestNative` 命令在 rebase 后再次通过：writer 三进程 8 / 16 段 footprint
+分别为 14.8→15.3、15.2→15.4、15.4→15.8 MiB，writer 均为 0；解码三进程
+300→600 次分别为 17.6→17.8、17.1→17.6、17.5→18.2 MiB。
+
+限制：上述结果证明匿名真实编码器的分段收尾保留被消除，不是整个应用的内存预算。
+未替换或重启已安装应用，不能声称其当前占用已降低；真实截图、Provider、Wails 关窗捕获、
+跨休眠和长期曲线仍需使用包含本修复的应用独立回归。Windows 无代码变更、未运行主机原生验证。
+回退：整体还原本轮 Swift / 回归测试 / 文档提交，重建原生库和应用；无 schema、设置或 ABI 变更。
+
 
 2026-10-13（`test`，基于 `bf49b34` 工作树；来源：本次用户明确确认全部待验收项已完成）：
 已实现捕获、隐私双保护、分段恢复、宿主 / Dock / 菜单与生命周期增量、Windows 目录迁移及长期观察，均记为**用户确认已验收，未附逐项运行记录**。
