@@ -30,7 +30,9 @@ watch(() => connection.value?.models, (models) => {
 })
 let stopEvents: (() => void) | undefined
 onMounted(() => {
-  void setup.load()
+  // A new form mounts only after the user chooses the subscription option.
+  // Existing subscriptions only load status; reauthorization stays explicit.
+  void (props.provider ? setup.load() : setup.start())
   stopEvents = onSettingsChanged((keys) => { if (keys.includes('providers.routing')) void setup.load() })
 })
 onBeforeUnmount(() => { stopEvents?.(); setup.dispose() })
@@ -43,11 +45,10 @@ async function disconnect(): Promise<void> { await setup.disconnect(); await pro
 <template>
   <form class="chatgpt-form" @submit.prevent="save">
     <p class="hint">{{ t('chatgpt.description') }}</p>
-    <div class="actions">
+    <div v-if="provider || failed || connection?.state === 'error' || connection?.state === 'disconnected'" class="actions">
       <button type="button" class="dg-button dg-button--primary" :disabled="working || waiting" @click="setup.start()">
-        {{ provider ? t('chatgpt.reauthorize') : t('chatgpt.continue') }}
+        {{ t('chatgpt.reauthorize') }}
       </button>
-      <a class="dg-button" href="https://chatgpt.com/settings/usage" target="_blank" rel="noopener noreferrer">{{ t('chatgpt.manage') }}</a>
     </div>
     <p v-if="waiting" role="status">{{ t('chatgpt.waiting') }}</p>
     <p v-else-if="connection?.state === 'connected' || connection?.state === 'ready'" class="connected" role="status">
@@ -85,7 +86,6 @@ async function disconnect(): Promise<void> { await setup.disconnect(); await pro
 .chatgpt-form { display: grid; gap: 14px; padding: 18px 2px; min-width: 0; width: 100%; font-size: 13px; }
 .hint { color: var(--dg-text-secondary); line-height: 1.6; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.actions a { text-decoration: none; }
 .field { display: grid; gap: 6px; }
 .models { display: flex; flex-wrap: wrap; gap: 10px 18px; border: none; padding: 8px 0; margin: 0; }
 .model { display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
