@@ -115,6 +115,8 @@ cd Daygo
 ./scripts/gate.sh   # 引导、构建、Go / 前端测试与文档检查
 ```
 
+Windows 编译除 Go、Node.js/npm 外，还需 MinGW-w64（含 binutils）、Visual Studio 2022 C++ 工具及 Windows SDK 26100；运行界面需 WebView2 Runtime。各项用途、PATH 检查及仅打包 / 签名时需要的依赖见 [Windows 构建依赖](scripts/README.md#windows-build-dependencies)。
+
 门禁会按顺序准备前端产物与 Wails 绑定。各平台开发命令见 [脚本入口](scripts/README.md)，设计与贡献约定见 [设计文档](docs/README.md) 和 [AGENTS.md](AGENTS.md)。
 
 反馈问题请提交 [Issue](https://github.com/Jwz-git/Daygo/issues)，附上系统、应用版本、复现步骤与脱敏错误信息；请勿上传真实截图、数据库或 API Key。
