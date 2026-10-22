@@ -187,6 +187,8 @@ export default {
     description: "ChatGPT 구독 또는 API 키로 AI 서비스를 연결하세요.",
     empty: '아직 AI 서비스가 없습니다.',
     emptyHint: 'AI 서비스를 추가하면 Daygo가 타임라인을 정리하기 시작합니다.',
+    columnApi: 'API Key 서비스',
+    columnEmpty: '아직 없음',
     add: '서비스 추가',
     removeConfirm: '「{name}」을 삭제할까요?',
     showTokenUsage: '토큰 사용량 표시',

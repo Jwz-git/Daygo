@@ -187,6 +187,8 @@ export default {
     description: "Conecta tu servicio de IA con una suscripción a ChatGPT o una clave API.",
     empty: 'Todavía no hay servicios de IA.',
     emptyHint: 'Añade un servicio de IA y Daygo podrá empezar a organizar tu cronología.',
+    columnApi: 'Servicios con API Key',
+    columnEmpty: 'Aún no hay ninguno',
     add: 'Añadir servicio',
     removeConfirm: '¿Eliminar «{name}»?',
     showTokenUsage: 'Mostrar uso de tokens',

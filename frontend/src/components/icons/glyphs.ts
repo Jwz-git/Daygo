@@ -14,9 +14,12 @@
  *     here on a 24-unit grid to the same shapes and weights: line glyphs for
  *     the plain symbols, solid shapes where Dayflow uses the `.fill` variant.
  *
- * App and site brand marks (AppSiteIcon) are not part of this set.
+ * App and site brand marks (AppSiteIcon) are not part of this set, except the
+ * ChatGPT mark, reused from AppSiteIcon's bundled file as a tinted template for
+ * the subscription choice.
  */
 
+import chatgptMarkAsset from '@/assets/favicons/chatgpt.svg'
 import calendarAsset from '@/assets/icons/dayflow/calendar.png'
 import chatAsset from '@/assets/icons/dayflow/chat.svg'
 import copyAsset from '@/assets/icons/dayflow/copy.svg'
@@ -101,6 +104,7 @@ export const glyphs = {
   bars: vector({ d: 'M5 14.5a1.5 1.5 0 0 1 3 0V19a1.5 1.5 0 0 1-3 0ZM10.5 9a1.5 1.5 0 0 1 3 0v10a1.5 1.5 0 0 1-3 0ZM16 5.5a1.5 1.5 0 0 1 3 0V19a1.5 1.5 0 0 1-3 0Z', filled: true }),
   layers: vector({ d: 'M12 3.5 3.5 8 12 12.5 20.5 8Z' }, { d: 'M3.5 12 12 16.5 20.5 12M3.5 16 12 20.5 20.5 16' }),
   link: vector({ d: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1' }, { d: 'M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1' }),
+  chatgpt: asset(chatgptMarkAsset),
   sparkle: vector({ d: 'M10 3c.7 4.4 2.6 6.3 7 7-4.4.7-6.3 2.6-7 7-.7-4.4-2.6-6.3-7-7 4.4-.7 6.3-2.6 7-7ZM18 14.5c.3 1.9 1.1 2.7 3 3-1.9.3-2.7 1.1-3 3-.3-1.9-1.1-2.7-3-3 1.9-.3 2.7-1.1 3-3Z', filled: true }),
   image: vector({ d: 'M6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11A2.5 2.5 0 0 1 6.5 4Z' }, { d: 'M4 16l4.5-4.5 4 4 2.5-2.5L20 18M15.5 8.5h.01' }),
   lock: vector({ d: 'M7 10h10a2.5 2.5 0 0 1 2.5 2.5V18a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 1 4.5 18v-5.5A2.5 2.5 0 0 1 7 10Z', filled: true }, { d: 'M8 10V7.5a4 4 0 0 1 8 0V10' }),

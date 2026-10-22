@@ -187,6 +187,8 @@ export default {
     description: "Connect your AI service with a ChatGPT subscription or an API key.",
     empty: 'No AI services yet.',
     emptyHint: 'Add an AI service and Daygo can start organizing your timeline.',
+    columnApi: 'API Key services',
+    columnEmpty: 'None yet',
     add: 'Add service',
     removeConfirm: 'Delete "{name}"?',
     showTokenUsage: 'Show token usage',

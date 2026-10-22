@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createRenderer, nextTick } from 'vue'
-import { createPinia } from 'pinia'
+import { createPinia, type Pinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
+import OnboardingProvider from '../src/views/Onboarding/OnboardingProvider.vue'
 import ProviderSetup from '../src/views/Settings/ProviderSetup.vue'
+import { useOnboardingStore } from '../src/stores/onboarding'
+import { useProvidersStore } from '../src/stores/providers'
 import zhCN from '../src/locales/zh-CN'
 import type { ChatGPTConnection, ProviderDTO } from '../src/api/dto'
 
@@ -21,10 +24,10 @@ interface Node {
 }
 function node(kind: string, text = ''): Node { return { kind, text, children: [], parent: null, props: {}, tagName: kind.toUpperCase(), addEventListener() {}, removeEventListener() {}, scrollIntoView() {}, focus() {} } }
 function all(root: Node): Node[] { return [root, ...root.children.flatMap(all)] }
-function text(root: Node): string { return root.kind === 'comment' ? '' : root.text + root.children.map(text).join('') }
+function text(root: Node): string { return root.kind === 'comment' || root.kind === 'svg' ? '' : root.text + root.children.map(text).join('') }
 async function settle(): Promise<void> { for (let i = 0; i < 8; i++) await Promise.resolve(); await nextTick(); await nextTick() }
 
-function mount(provider: ProviderDTO | null = null, begin?: () => Promise<string>) {
+function mount(provider: ProviderDTO | null = null, begin?: () => Promise<string>, component: typeof ProviderSetup | typeof OnboardingProvider = ProviderSetup, seed?: (pinia: Pinia) => void) {
   const previousWindow = globalThis.window
   const previousDocument = globalThis.document
   globalThis.window = new EventTarget() as unknown as Window & typeof globalThis
@@ -58,8 +61,10 @@ function mount(provider: ProviderDTO | null = null, begin?: () => Promise<string
     patchProp: (element, key, _old, value) => { element.props[key] = value },
   })
   const root = node('root')
-  const app = renderer.createApp(ProviderSetup, { provider })
-  app.use(createPinia()).use(createI18n({ legacy: false, locale: 'zh-CN', messages: { 'zh-CN': zhCN } }))
+  const app = renderer.createApp(component as typeof ProviderSetup, { provider })
+  const pinia = createPinia()
+  seed?.(pinia)
+  app.use(pinia).use(createI18n({ legacy: false, locale: 'zh-CN', messages: { 'zh-CN': zhCN } }))
   app.mount(root)
   return {
     root,
@@ -151,5 +156,41 @@ test('editing an API key provider opens its existing form directly', () => {
     assert.ok(all(view.root).some((element) => element.kind === 'form'))
     assert.equal(view.buttons().includes('ChatGPT 订阅'), false)
     assert.equal(view.buttons().includes('配置API Key'), false)
+  } finally { view.dispose() }
+})
+
+test('onboarding lists both choices straight away when no service exists, even without bindings', async () => {
+  const view = mount(null, undefined, OnboardingProvider)
+  try {
+    await settle()
+    const labels = view.buttons().map((label) => label.trim())
+    assert.ok(labels.includes('ChatGPT 订阅'))
+    assert.ok(labels.includes('配置API Key'))
+    assert.equal(labels.some((label) => label.startsWith('+')), false)
+  } finally { view.dispose() }
+})
+
+test('onboarding preview starts as a first run even when services already exist', async () => {
+  const saved: ProviderDTO = { id: 'saved', displayName: 'Anonymous saved', protocol: 'openai', endpoint: 'https://example.invalid/v1', models: ['fixture'], maxImages: 0, userAgent: '', hasSecret: true }
+  const view = mount(null, undefined, OnboardingProvider, (pinia) => {
+    useProvidersStore(pinia).providers = [saved]
+    useOnboardingStore(pinia).startPreview()
+  })
+  try {
+    await settle()
+    const labels = view.buttons().map((label) => label.trim())
+    assert.ok(labels.includes('ChatGPT 订阅'))
+    assert.ok(labels.includes('配置API Key'))
+    assert.equal(text(view.root).includes('Anonymous saved'), false)
+  } finally { view.dispose() }
+})
+
+test('without a preview the existing services are listed and the form stays closed', async () => {
+  const saved: ProviderDTO = { id: 'saved', displayName: 'Anonymous saved', protocol: 'openai', endpoint: 'https://example.invalid/v1', models: ['fixture'], maxImages: 0, userAgent: '', hasSecret: true }
+  const view = mount(null, undefined, OnboardingProvider, (pinia) => { useProvidersStore(pinia).providers = [saved] })
+  try {
+    await settle()
+    assert.ok(text(view.root).includes('Anonymous saved'))
+    assert.equal(view.buttons().map((label) => label.trim()).includes('ChatGPT 订阅'), false)
   } finally { view.dispose() }
 })

@@ -187,6 +187,8 @@ export default {
     description: "ChatGPT サブスクリプションまたは API キーで AI サービスに接続します。",
     empty: 'AI サービスがまだありません。',
     emptyHint: 'AI サービスを追加すると、Daygo がタイムラインの整理を始められます。',
+    columnApi: 'API Key サービス',
+    columnEmpty: 'まだありません',
     add: 'サービスを追加',
     removeConfirm: '「{name}」を削除しますか？',
     showTokenUsage: 'トークン使用量を表示',

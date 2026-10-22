@@ -187,6 +187,8 @@ export default {
     description: "Den KI-Dienst mit einem ChatGPT-Abonnement oder API-Schlüssel verbinden.",
     empty: 'Noch keine KI-Dienste.',
     emptyHint: 'Füge einen KI-Dienst hinzu, dann kann Daygo beginnen, deine Zeitleiste aufzubereiten.',
+    columnApi: 'API-Key-Dienste',
+    columnEmpty: 'Noch keine',
     add: 'Dienst hinzufügen',
     removeConfirm: '„{name}“ löschen?',
     showTokenUsage: 'Token-Nutzung anzeigen',

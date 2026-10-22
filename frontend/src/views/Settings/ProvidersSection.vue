@@ -16,8 +16,8 @@ import { useSettingsSection } from './useSettingsSection'
 /*
  * AI services, laid out like the other settings sections: a title row with
  * the page actions, then flat rows with hairline separators. One service is
- * one row; adding opens the form above the list, editing opens it in place of
- * the row. Models are chips that open the model test page for that pair.
+ * one row, in the ChatGPT subscription group or the API key group, stacked; adding
+ * and editing open the form above the columns. Models are chips that open the model test page for that pair.
  */
 const { t } = useI18n()
 const store = useProvidersStore()
@@ -41,6 +41,14 @@ function onToggleTokenUsage(next: boolean): void {
   tokenUsageFailed.value = false
   void tokenUsage.setShowTokenUsage(next).then((succeeded) => { tokenUsageFailed.value = !succeeded })
 }
+
+const editingProvider = computed(() => store.providers.find((provider) => provider.id === editing.value) ?? null)
+
+/* Subscription and API key services sit in their own columns. */
+const columns = computed(() => [
+  { id: 'subscription', icon: 'chatgpt', title: t('chatgpt.subscription'), items: store.providers.filter((provider) => provider.protocol === 'chatgpt') },
+  { id: 'api', icon: 'key', title: t('settings.providers.columnApi'), items: store.providers.filter((provider) => provider.protocol !== 'chatgpt') },
+] as const)
 
 function protocolLabel(protocol: ProviderProtocol): string {
   return protocol === 'chatgpt' ? t('chatgpt.subscription') : t(`settings.providers.protocol.${protocol}`)
@@ -89,93 +97,103 @@ async function confirmRemove(id: string): Promise<void> {
   </header>
 
   <Transition name="fold">
-    <ProviderSetup v-if="editing === 'new'" :provider="null" @done="editing = null" />
+    <ProviderSetup
+      v-if="editing === 'new' || (editing !== null && editingProvider)"
+      :key="editing"
+      :provider="editing === 'new' ? null : editingProvider"
+      @done="editing = null"
+    />
   </Transition>
 
-  <ul v-if="!store.isEmpty" class="services">
-    <li v-for="provider in store.providers" :key="provider.id" class="service">
-      <ProviderSetup v-if="editing === provider.id" :provider="provider" @done="editing = null" />
+  <div v-if="!store.isEmpty" class="columns">
+    <section v-for="column in columns" :key="column.id" class="column">
+      <h3 class="column__title">
+        <DgIcon :name="column.icon" :size="14" />
+        {{ column.title }}
+      </h3>
+      <ul v-if="column.items.length > 0" class="services">
+        <li v-for="provider in column.items" :key="provider.id" class="service">
+          <div class="service__main">
+            <div class="service__title-row">
+              <h3 class="service__name">{{ provider.displayName }}</h3>
+              <span v-if="isPrimary(provider)" class="badge badge--primary">
+                {{ t('settings.providers.routing.primaryBadge') }}
+              </span>
+              <span v-else-if="isFallback(provider)" class="badge badge--fallback">
+                {{ t('settings.providers.routing.fallbackBadge') }}
+              </span>
+              <span class="service__protocol">{{ protocolLabel(provider.protocol) }}</span>
+            </div>
 
-      <template v-else>
-        <div class="service__main">
-          <div class="service__title-row">
-            <h3 class="service__name">{{ provider.displayName }}</h3>
-            <span v-if="isPrimary(provider)" class="badge badge--primary">
-              {{ t('settings.providers.routing.primaryBadge') }}
-            </span>
-            <span v-else-if="isFallback(provider)" class="badge badge--fallback">
-              {{ t('settings.providers.routing.fallbackBadge') }}
-            </span>
-            <span class="service__protocol">{{ protocolLabel(provider.protocol) }}</span>
-          </div>
-
-          <p class="service__meta">
-            <span class="service__endpoint">{{ provider.endpoint }}</span>
-            <span
-              class="service__key"
-              :class="provider.hasSecret ? 'is-configured' : 'is-missing'"
-            >
-              <DgIcon :name="provider.hasSecret ? 'lock' : 'close'" :size="11" />
-              {{ provider.protocol === 'chatgpt' ? (provider.hasSecret ? t('chatgpt.connected') : t('chatgpt.disconnected')) : (provider.hasSecret ? t('settings.providers.secret.configured') : t('settings.providers.secret.missing')) }}
-            </span>
-            <span v-if="provider.maxImages > 0" class="service__images">
-              {{ t('settings.providers.form.maxImages') }} {{ t('settings.providers.form.maxImagesValue', { count: provider.maxImages }) }}
-            </span>
-          </p>
-
-          <!-- Each model chip opens the model test page for this pair. -->
-          <ul class="service__models" :aria-label="t('settings.providers.form.models')">
-            <li v-for="model in provider.models" :key="model">
-              <RouterLink
-                class="model-chip"
-                :to="{ name: 'model-playground', query: { providerId: provider.id, model } }"
-                :title="t('modelPlayground.title')"
+            <p class="service__meta">
+              <span v-if="provider.protocol !== 'chatgpt'" class="service__endpoint">{{ provider.endpoint }}</span>
+              <span
+                class="service__key"
+                :class="provider.hasSecret ? 'is-configured' : 'is-missing'"
               >
-                {{ model }}
-                <DgIcon name="arrowRight" :size="10" />
-              </RouterLink>
-            </li>
-          </ul>
+                <DgIcon :name="provider.hasSecret ? 'lock' : 'close'" :size="11" />
+                {{ provider.protocol === 'chatgpt' ? (provider.hasSecret ? t('chatgpt.connected') : t('chatgpt.disconnected')) : (provider.hasSecret ? t('settings.providers.secret.configured') : t('settings.providers.secret.missing')) }}
+              </span>
+              <span v-if="provider.maxImages > 0" class="service__images">
+                {{ t('settings.providers.form.maxImages') }} {{ t('settings.providers.form.maxImagesValue', { count: provider.maxImages }) }}
+              </span>
+            </p>
 
-          <div v-if="pendingRemoveId === provider.id" class="service__confirm" role="alert">
-            <span>{{ t('settings.providers.removeConfirm', { name: provider.displayName }) }}</span>
-            <button type="button" class="dg-button dg-button--small" @click="pendingRemoveId = null">
-              {{ t('common.action.cancel') }}
+            <!-- Each model chip opens the model test page for this pair. -->
+            <ul class="service__models" :aria-label="t('settings.providers.form.models')">
+              <li v-for="model in provider.models" :key="model">
+                <RouterLink
+                  class="model-chip"
+                  :to="{ name: 'model-playground', query: { providerId: provider.id, model } }"
+                  :title="t('modelPlayground.title')"
+                >
+                  {{ model }}
+                  <DgIcon name="arrowRight" :size="10" />
+                </RouterLink>
+              </li>
+            </ul>
+
+            <div v-if="pendingRemoveId === provider.id" class="service__confirm" role="alert">
+              <span>{{ t('settings.providers.removeConfirm', { name: provider.displayName }) }}</span>
+              <button type="button" class="dg-button dg-button--small" @click="pendingRemoveId = null">
+                {{ t('common.action.cancel') }}
+              </button>
+              <button type="button" class="dg-button dg-button--small dg-button--danger" @click="confirmRemove(provider.id)">
+                {{ t('common.action.delete') }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="pendingRemoveId !== provider.id" class="service__actions">
+            <button type="button" class="dg-button dg-button--small" @click="startEdit(provider)">
+              {{ t('common.action.edit') }}
             </button>
-            <button type="button" class="dg-button dg-button--small dg-button--danger" @click="confirmRemove(provider.id)">
-              {{ t('common.action.delete') }}
+            <button
+              v-if="provider.hasSecret && provider.protocol !== 'chatgpt'"
+              type="button"
+              class="icon-button"
+              :title="t('settings.providers.secret.clear')"
+              :aria-label="t('settings.providers.secret.clear')"
+              @click="store.clearSecret(provider.id)"
+            >
+              <DgIcon name="key" :size="14" />
+            </button>
+            <button
+              type="button"
+              class="icon-button icon-button--danger"
+              :disabled="provider.protocol === 'chatgpt' && provider.hasSecret"
+              :title="t('common.action.delete')"
+              :aria-label="t('common.action.delete')"
+              @click="pendingRemoveId = provider.id"
+            >
+              <DgIcon name="trash" :size="14" />
             </button>
           </div>
-        </div>
-
-        <div v-if="pendingRemoveId !== provider.id" class="service__actions">
-          <button type="button" class="dg-button dg-button--small" @click="startEdit(provider)">
-            {{ t('common.action.edit') }}
-          </button>
-          <button
-            v-if="provider.hasSecret && provider.protocol !== 'chatgpt'"
-            type="button"
-            class="icon-button"
-            :title="t('settings.providers.secret.clear')"
-            :aria-label="t('settings.providers.secret.clear')"
-            @click="store.clearSecret(provider.id)"
-          >
-            <DgIcon name="key" :size="14" />
-          </button>
-          <button
-            type="button"
-            class="icon-button icon-button--danger"
-:disabled="provider.protocol === 'chatgpt' && provider.hasSecret"
-            :title="t('common.action.delete')"
-            :aria-label="t('common.action.delete')"
-            @click="pendingRemoveId = provider.id"
-          >
-            <DgIcon name="trash" :size="14" />
-          </button>
-        </div>
-      </template>
-    </li>
-  </ul>
+        </li>
+      </ul>
+      <p v-else class="column__empty">{{ t('settings.providers.columnEmpty') }}</p>
+    </section>
+  </div>
 
   <div v-else-if="editing !== 'new'" class="empty">
     <p class="empty__title">{{ t('settings.providers.empty') }}</p>
@@ -266,6 +284,35 @@ async function confirmRemove(id: string): Promise<void> {
 
 .dg-button--danger:not(:disabled):hover {
   background: color-mix(in srgb, var(--dg-danger) 86%, #ffffff);
+}
+
+/* Two groups stacked: ChatGPT subscription, then API key services. */
+.columns {
+  display: flex;
+  flex-direction: column;
+}
+
+.column {
+  min-width: 0;
+}
+
+.column__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 2px 4px;
+  border-bottom: 1px solid var(--dg-timeline-grid);
+  color: var(--dg-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.column__title svg { color: var(--dg-accent-text); }
+
+.column__empty {
+  padding: 15px 2px;
+  color: var(--dg-text-muted);
+  font-size: 12px;
 }
 
 /* Services: flat rows with hairlines, like SettingRow. */

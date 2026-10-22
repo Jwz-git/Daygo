@@ -187,6 +187,8 @@ export default {
     description: "選擇 ChatGPT 訂閱或設定API Key，連接你的 AI 服務。",
     empty: '還沒有加入 AI 服務。',
     emptyHint: '加入一個 AI 服務後，Daygo 就能開始整理你的時間軸。',
+    columnApi: 'API Key 服務',
+    columnEmpty: '尚無',
     add: '加入服務',
     removeConfirm: '確定刪除「{name}」？',
     showTokenUsage: '顯示 Token 用量',
