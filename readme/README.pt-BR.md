@@ -124,3 +124,9 @@ Relate problemas em uma [Issue](https://github.com/Jwz-git/Daygo/issues) com o s
 Publicado sob a [MIT License](../LICENSE).
 
 <sub>Inspirado por <a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> (MIT, © 2025 Jerry Liu).</sub>
+
+## Atualizações futuras, conforme o tempo e a vontade
+
+- Migração para Wails v3 GA
+- Desenvolvimento da funcionalidade de plugins
+- Suporte ao Linux

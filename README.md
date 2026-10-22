@@ -126,3 +126,9 @@ Windows 编译除 Go、Node.js/npm 外，还需 MinGW-w64（含 binutils）、Vi
 本项目基于 [MIT License](LICENSE) 开源。
 
 <sub>由 <a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> 启发（MIT，© 2025 Jerry Liu）。</sub>
+
+## 后期随缘更新工作：
+
+- wails v3 GA迁移
+- “插件”功能开发
+- linux端适配

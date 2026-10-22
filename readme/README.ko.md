@@ -124,3 +124,9 @@ cd Daygo
 [MIT License](../LICENSE)로 공개합니다.
 
 <sub><a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a>에서 영감을 받았습니다(MIT, © 2025 Jerry Liu).</sub>
+
+## 시간과 의욕이 생길 때 진행할 향후 업데이트
+
+- Wails v3 GA로 마이그레이션
+- 플러그인 기능 개발
+- Linux 지원

@@ -124,3 +124,9 @@ Comunica los problemas mediante una [Issue](https://github.com/Jwz-git/Daygo/iss
 Publicado bajo [MIT License](../LICENSE).
 
 <sub>Inspirado en <a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> (MIT, © 2025 Jerry Liu).</sub>
+
+## Futuras actualizaciones, según el tiempo y las ganas
+
+- Migración a Wails v3 GA
+- Desarrollo de la función de complementos
+- Compatibilidad con Linux

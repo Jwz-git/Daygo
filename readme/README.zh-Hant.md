@@ -124,3 +124,9 @@ cd Daygo
 本專案以 [MIT License](../LICENSE) 開源。
 
 <sub>由 <a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> 啟發（MIT，© 2025 Jerry Liu）。</sub>
+
+## 後期隨緣更新工作：
+
+- Wails v3 GA 遷移
+- 「外掛」功能開發
+- Linux 端適配
