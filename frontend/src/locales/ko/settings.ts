@@ -209,7 +209,6 @@ export default {
       model: '모델',
       models: '모델',
       modelsHint: '모델 이름을 직접 입력하거나 “모델 가져오기”를 누른 뒤 목록에서 원하는 모델을 체크하세요. 최대 20개까지 추가할 수 있습니다.',
-      modelAria: '모델 {index}',
       addModel: '모델 추가',
       removeModel: '이 모델 삭제',
       maxImages: '요청당 최대 이미지 수',

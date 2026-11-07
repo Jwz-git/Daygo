@@ -17,7 +17,6 @@ interface HostNode {
   props: Record<string, unknown>
   text: string
   tagName: string
-  value?: string
   focus: () => void
   addEventListener: () => void
   removeEventListener: () => void
@@ -102,7 +101,9 @@ function mountForm(list: (request: ProviderModelsRequest) => Promise<ProviderMod
     root, requests,
     find,
     button: (label: string) => find((element) => element.kind === 'button' && content(element).trim() === label),
-    modelInputs: () => collect(root).filter((element) => element.kind === 'input' && String(element.props.class).includes('model-list__input')),
+    removeModel: (model: string) => find((element) => element.kind === 'button' && element.props['aria-label'] === `移除该模型 ${model}`),
+    tags: () => collect(root).filter((element) => element.props.class === 'model-tag'),
+    modelInputs: () => collect(root).filter((element) => element.kind === 'input' && String(element.props.class).includes('model-entry__input')),
     options: () => collect(root).filter((element) => element.props.type === 'checkbox'),
     submitted: () => submitted,
     dispose() { app.unmount(); Object.assign(globalThis, previous) },
@@ -123,19 +124,24 @@ test('fetching populates candidates without adding models; picks and unrelated e
     // The wrapper now sends the complete generated Go input with empty unused
     // fields; empty secret still means the stored key never crosses to Vue.
     assert.deepEqual(form.requests, [{ providerId: saved.id, protocol: '', endpoint: '', secret: '', userAgent: '' }], 'stored key stays in Go')
-    assert.equal(form.modelInputs().length, 1, 'listing must not configure every fetched model')
-    assert.equal(form.modelInputs()[0]!.value, 'custom-model')
+    assert.equal(form.modelInputs().length, 0, 'the fetched list replaces the empty manual field')
+    assert.ok(!content(form.root).includes('可手动输入模型名称'))
+    assert.deepEqual(form.tags().map(content), ['custom-model'])
     assert.deepEqual(form.options().map((option) => option.props.value), success.models)
     event(form.options()[0]!, 'onChange', { target: { checked: true } })
     await settle()
     event(form.options()[1]!, 'onChange', { target: { checked: true } })
     await settle()
     assert.deepEqual(form.options().map((option) => option.props.checked), [true, true])
-    event(form.options()[0]!, 'onChange', { target: { checked: false } })
+    assert.deepEqual(form.tags().map(content), ['custom-model', 'fixture-small', 'fixture-large'])
+    const nodes = collect(form.root)
+    assert.ok(nodes.indexOf(form.tags()[2]!) < nodes.findIndex((element) => element.kind === 'summary'))
+    event(form.removeModel('fixture-small'), 'onClick')
     const name = form.find((element) => element.props.placeholder === '例如：公司网关')
     event(name, 'onUpdate:modelValue', 'Renamed')
     await settle()
     assert.deepEqual(form.options().map((option) => option.props.checked), [false, true])
+    assert.deepEqual(form.tags().map(content), ['custom-model', 'fixture-large'])
     await event(form.find((element) => element.kind === 'form'), 'onSubmit', { preventDefault() {} })
     assert.deepEqual(form.submitted()?.models, ['custom-model', 'fixture-large'])
   } finally { form.dispose() }
@@ -147,7 +153,7 @@ test('typing, clearing and immediately saving use the current manual model value
     try {
       const input = form.modelInputs()[0]!
       await settle()
-      assert.equal(input.value, 'custom-model')
+      event(form.removeModel('custom-model'), 'onClick')
       event(input, 'onUpdate:modelValue', typed)
       await event(form.find((element) => element.kind === 'form'), 'onSubmit', { preventDefault() {} })
       await settle()
@@ -180,6 +186,9 @@ test('filtering keeps checked models and enforces the 20-model limit', async () 
     event(search, 'onUpdate:modelValue', '')
     await settle()
     assert.equal(form.options()[0]!.props.checked, true)
+    event(form.removeModel('fixture-0'), 'onClick')
+    await settle()
+    assert.equal(form.options()[19]!.props.disabled, false)
     assert.equal(form.submitted(), undefined)
   } finally { form.dispose() }
 })
@@ -219,8 +228,12 @@ test('empty or failed listings keep manual model entry available', async () => {
       await settle()
       const input = form.modelInputs()[0]!
       event(input, 'onUpdate:modelValue', 'fallback-model')
+      await settle()
+      event(form.button('添加模型'), 'onClick')
+      await settle()
+      assert.deepEqual(form.tags().map(content), ['custom-model', 'fallback-model'])
       await event(form.find((element) => element.kind === 'form'), 'onSubmit', { preventDefault() {} })
-      assert.deepEqual(form.submitted()?.models, ['fallback-model'])
+      assert.deepEqual(form.submitted()?.models, ['custom-model', 'fallback-model'])
     } finally { form.dispose() }
   }
 })

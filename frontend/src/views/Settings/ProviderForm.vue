@@ -42,6 +42,8 @@ const editingId = computed(() => props.provider?.id ?? null)
 const errors = ref<ProviderErrors>({})
 const draft = reactive<ProviderDraft>(props.provider === null ? emptyDraft() : draftOf(props.provider))
 
+draft.models = [...new Set(draft.models.map((model) => model.trim()).filter(Boolean))]
+
 const nameInput = ref<HTMLInputElement | null>(null)
 
 const modelPlaceholder = computed(() =>
@@ -68,31 +70,34 @@ const filteredModelOptions = computed(() => {
   const query = modelQuery.value.trim().toLowerCase()
   return modelOptions.value.filter((model) => model.toLowerCase().includes(query))
 })
-const selectedModels = computed(() => new Set(draft.models.map((model) => model.trim())))
+const selectedModels = computed(() => new Set(draft.models))
+const manualModel = ref('')
 const canAddModel = computed(() => draft.models.length < MAX_PROVIDER_MODELS)
-const blankModelIndex = computed(() => draft.models.findIndex((model) => model.trim() === ''))
-const canPickModel = computed(() => canAddModel.value || blankModelIndex.value !== -1)
+const pendingModel = computed(() => {
+  const model = manualModel.value.trim()
+  return selectedModels.value.has(model) ? '' : model
+})
+const canPickModel = computed(() =>
+  draft.models.length + Number(pendingModel.value !== '') < MAX_PROVIDER_MODELS,
+)
+
+function removeModel(model: string): void {
+  draft.models = draft.models.filter((value) => value !== model)
+}
 
 function toggleModel(model: string, event: Event): void {
-  if ((event.target as HTMLInputElement).checked) {
-    if (selectedModels.value.has(model) || !canPickModel.value) return
-    if (blankModelIndex.value === -1) draft.models.push(model)
-    else draft.models[blankModelIndex.value] = model
+  if (!(event.target as HTMLInputElement).checked) {
+    removeModel(model)
     return
   }
-  draft.models = draft.models.filter((value) => value.trim() !== model)
-  if (draft.models.length === 0) draft.models.push('')
+  if (selectedModels.value.has(model) || !canPickModel.value) return
+  draft.models.push(model)
 }
 
-function addModelRow(): void {
-  if (!canAddModel.value) return
-  draft.models.push('')
-}
-
-function removeModelRow(index: number): void {
-  draft.models.splice(index, 1)
-  // The list never goes empty: a lone blank row keeps one editable field.
-  if (draft.models.length === 0) draft.models.push('')
+function addManualModel(): void {
+  if (!canAddModel.value || pendingModel.value === '') return
+  draft.models.push(pendingModel.value)
+  manualModel.value = ''
 }
 
 // Only source changes invalidate candidates. Editing the selection keeps the list available.
@@ -185,6 +190,7 @@ function closeForm(): void {
 }
 
 async function submit(): Promise<void> {
+  addManualModel()
   const id = editingId.value
   const failures = id === null ? await store.add(draft) : await store.update(id, draft)
 
@@ -294,10 +300,6 @@ function applyUserAgentPreset(key: string): void {
         <div class="form__label-row">
           <span class="dg-field-label">{{ t('settings.providers.form.models') }}</span>
           <span class="form__inline-actions">
-            <button type="button" class="link-button" :disabled="!canAddModel" @click="addModelRow">
-              <DgIcon name="plus" :size="12" />
-              {{ t('settings.providers.form.addModel') }}
-            </button>
             <button
               type="button"
               class="link-button"
@@ -309,6 +311,20 @@ function applyUserAgentPreset(key: string): void {
             </button>
           </span>
         </div>
+        <ul v-if="draft.models.length" class="model-tags">
+          <li v-for="model in draft.models" :key="model" class="model-tag">
+            <span>{{ model }}</span>
+            <button
+              type="button"
+              class="model-tag__remove"
+              :aria-label="`${t('settings.providers.form.removeModel')} ${model}`"
+              :title="t('settings.providers.form.removeModel')"
+              @click="removeModel(model)"
+            >
+              <DgIcon name="close" :size="12" />
+            </button>
+          </li>
+        </ul>
         <details v-if="modelOptions.length" class="model-picker" open>
           <summary class="dg-input model-picker__trigger">
             {{ t('settings.providers.models.choose') }}
@@ -339,28 +355,27 @@ function applyUserAgentPreset(key: string): void {
             </div>
           </div>
         </details>
-        <ul class="model-list">
-          <li v-for="(model, index) in draft.models" :key="index" class="model-list__row">
-            <input
-              v-model="draft.models[index]"
-              class="dg-input dg-input--mono model-list__input"
-              type="text"
-              spellcheck="false"
-              :placeholder="modelPlaceholder"
-              :aria-label="t('settings.providers.form.modelAria', { index: index + 1 })"
-            />
-            <button
-              type="button"
-              class="icon-button"
-              :disabled="draft.models.length === 1 && model.trim() === ''"
-              :aria-label="t('settings.providers.form.removeModel')"
-              :title="t('settings.providers.form.removeModel')"
-              @click="removeModelRow(index)"
-            >
-              <DgIcon name="minus" :size="14" />
-            </button>
-          </li>
-        </ul>
+        <div v-if="!modelOptions.length || pendingModel" class="model-entry">
+          <input
+            v-model="manualModel"
+            class="dg-input dg-input--mono model-entry__input"
+            type="text"
+            spellcheck="false"
+            :disabled="!canAddModel"
+            :placeholder="modelPlaceholder"
+            :aria-label="t('settings.providers.form.models')"
+            @keydown.enter.prevent="addManualModel"
+          />
+          <button
+            type="button"
+            class="link-button"
+            :disabled="!canAddModel || pendingModel === ''"
+            @click="addManualModel"
+          >
+            <DgIcon name="plus" :size="12" />
+            {{ t('settings.providers.form.addModel') }}
+          </button>
+        </div>
         <p v-if="errors.models" class="form__error">{{ errorText('models') }}</p>
         <p v-else-if="modelsState.phase === 'fetching'" class="form__hint" role="status" aria-live="polite">
           {{ t('settings.providers.models.fetching') }}
@@ -381,7 +396,7 @@ function applyUserAgentPreset(key: string): void {
         >
           {{ t('settings.providers.models.empty') }}
         </p>
-        <p v-else class="form__hint">{{ t('settings.providers.form.modelsHint') }}</p>
+        <p v-else-if="!modelOptions.length" class="form__hint">{{ t('settings.providers.form.modelsHint') }}</p>
       </div>
 
       <label class="form__cell">
@@ -547,53 +562,67 @@ function applyUserAgentPreset(key: string): void {
   background: var(--dg-hover-fill);
 }
 
-.model-list {
+.model-tags {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.model-list__row {
-  display: flex;
+.model-tag {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--dg-chip-border);
+  border-radius: 999px;
+  background: var(--dg-chip-fill);
+  color: var(--dg-text-primary);
+  font-family: var(--dg-font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
-.model-list__input {
-  flex: 1;
-  min-width: 0;
-}
-
-.icon-button {
+.model-tag__remove {
   display: inline-grid;
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 50%;
   background: transparent;
   color: var(--dg-text-muted);
   cursor: pointer;
   place-items: center;
 }
 
-.icon-button:not(:disabled):hover {
+.model-tag__remove:hover {
   background: var(--dg-hover-fill);
   color: var(--dg-text-primary);
 }
 
-.icon-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.icon-button:focus-visible {
+.model-tag__remove:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
+}
+
+.model-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-entry .link-button {
+  flex: none;
+}
+
+.model-entry__input {
+  flex: 1;
+  min-width: 0;
 }
 
 .form__error,

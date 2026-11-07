@@ -209,7 +209,6 @@ export default {
       model: 'Model',
       models: 'Models',
       modelsHint: 'Type a model name, or fetch models and check the ones you want. Add up to 20 models.',
-      modelAria: 'Model {index}',
       addModel: 'Add model',
       removeModel: 'Remove this model',
       maxImages: 'Max images per request',

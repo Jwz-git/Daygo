@@ -209,7 +209,6 @@ export default {
       model: '模型',
       models: '模型',
       modelsHint: '可手動輸入模型名稱，或按「取得模型」後在下拉清單中勾選；最多加入 20 個模型。',
-      modelAria: '模型 {index}',
       addModel: '加入模型',
       removeModel: '移除這個模型',
       maxImages: '單次最多圖片數',

@@ -209,7 +209,6 @@ export default {
       model: 'Modelo',
       models: 'Modelos',
       modelsHint: 'Escribe un nombre de modelo u obtén la lista y marca los que quieras. Puedes añadir hasta 20 modelos.',
-      modelAria: 'Modelo {index}',
       addModel: 'Añadir modelo',
       removeModel: 'Quitar este modelo',
       maxImages: 'Máximo de imágenes por solicitud',
