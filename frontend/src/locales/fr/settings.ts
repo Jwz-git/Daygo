@@ -208,7 +208,7 @@ export default {
       endpoint: 'URL du service',
       model: 'Modèle',
       models: 'Modèles',
-      modelsHint: 'Saisissez un nom de modèle ou cliquez sur « Récupérer les modèles » pour choisir dans la liste. Ajoutez jusqu’à 20 modèles.',
+      modelsHint: 'Saisissez un nom de modèle ou récupérez la liste et cochez les modèles souhaités. Ajoutez jusqu’à 20 modèles.',
       modelAria: 'Modèle {index}',
       addModel: 'Ajouter un modèle',
       removeModel: 'Supprimer ce modèle',
@@ -254,6 +254,9 @@ export default {
       keychain: 'Les clés sont conservées uniquement dans le trousseau du système (le Gestionnaire d’identifiants sous Windows), nulle part ailleurs. Après suppression, vous devrez la saisir à nouveau.',
     },
     models: {
+      choose: 'Sélectionner les modèles',
+      search: 'Rechercher des modèles',
+      noMatches: 'Aucun modèle correspondant',
       fetch: 'Récupérer les modèles',
       fetching: 'Récupération de la liste des modèles…',
       empty: 'Aucun modèle trouvé. Saisissez un nom de modèle manuellement.',

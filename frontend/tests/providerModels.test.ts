@@ -8,7 +8,7 @@ import type { ProviderDTO, ProviderInput, ProviderModelsRequest, ProviderModelsR
 import ProviderForm from '../src/views/Settings/ProviderForm.vue'
 import zhCN from '../src/locales/zh-CN'
 
-// Exercise the real form and combobox, using Vue's host renderer as in the
+// Exercise the real form and model picker, using Vue's host renderer as in the
 // player fixture. No real provider, keychain or user database is touched.
 interface HostNode {
   kind: string
@@ -17,6 +17,7 @@ interface HostNode {
   props: Record<string, unknown>
   text: string
   tagName: string
+  value?: string
   focus: () => void
   addEventListener: () => void
   removeEventListener: () => void
@@ -101,8 +102,8 @@ function mountForm(list: (request: ProviderModelsRequest) => Promise<ProviderMod
     root, requests,
     find,
     button: (label: string) => find((element) => element.kind === 'button' && content(element).trim() === label),
-    combos: () => collect(root).filter((element) => element.kind === 'input' && element.props.role === 'combobox'),
-    options: () => collect(root).filter((element) => element.props.role === 'option'),
+    modelInputs: () => collect(root).filter((element) => element.kind === 'input' && String(element.props.class).includes('model-list__input')),
+    options: () => collect(root).filter((element) => element.props.type === 'checkbox'),
     submitted: () => submitted,
     dispose() { app.unmount(); Object.assign(globalThis, previous) },
   }
@@ -122,33 +123,32 @@ test('fetching populates candidates without adding models; picks and unrelated e
     // The wrapper now sends the complete generated Go input with empty unused
     // fields; empty secret still means the stored key never crosses to Vue.
     assert.deepEqual(form.requests, [{ providerId: saved.id, protocol: '', endpoint: '', secret: '', userAgent: '' }], 'stored key stays in Go')
-    assert.equal(form.combos().length, 1, 'listing must not configure every fetched model')
-    assert.equal(form.combos()[0]!.props.value, 'custom-model')
-    event(form.combos()[0]!, 'onFocus')
+    assert.equal(form.modelInputs().length, 1, 'listing must not configure every fetched model')
+    assert.equal(form.modelInputs()[0]!.value, 'custom-model')
+    assert.deepEqual(form.options().map((option) => option.props.value), success.models)
+    event(form.options()[0]!, 'onChange', { target: { checked: true } })
     await settle()
-    assert.deepEqual(form.options().map(content), success.models)
-    event(form.options()[1]!.children[0]!, 'onClick')
+    event(form.options()[1]!, 'onChange', { target: { checked: true } })
     await settle()
-    assert.equal(form.combos()[0]!.props.value, 'fixture-large')
+    assert.deepEqual(form.options().map((option) => option.props.checked), [true, true])
+    event(form.options()[0]!, 'onChange', { target: { checked: false } })
     const name = form.find((element) => element.props.placeholder === '例如：公司网关')
     event(name, 'onUpdate:modelValue', 'Renamed')
-    await event(form.button('添加模型'), 'onClick')
     await settle()
-    event(form.combos()[1]!, 'onFocus')
-    await settle()
-    assert.deepEqual(form.options().map(content), success.models)
+    assert.deepEqual(form.options().map((option) => option.props.checked), [false, true])
+    await event(form.find((element) => element.kind === 'form'), 'onSubmit', { preventDefault() {} })
+    assert.deepEqual(form.submitted()?.models, ['custom-model', 'fixture-large'])
   } finally { form.dispose() }
 })
 
-test('typing, clearing and immediately saving use the current combobox value', async () => {
+test('typing, clearing and immediately saving use the current manual model value', async () => {
   for (const typed of ['manual-model', '']) {
     const form = mountForm(async () => success)
     try {
-      const combo = form.combos()[0]!
-      event(combo, 'onFocus')
+      const input = form.modelInputs()[0]!
       await settle()
-      assert.equal(combo.props.value, 'custom-model', 'focusing must preserve the editable value')
-      event(combo, 'onInput', { target: { value: typed } })
+      assert.equal(input.value, 'custom-model')
+      event(input, 'onUpdate:modelValue', typed)
       await event(form.find((element) => element.kind === 'form'), 'onSubmit', { preventDefault() {} })
       await settle()
       if (typed !== '') assert.deepEqual(form.submitted()?.models, [typed])
@@ -160,25 +160,26 @@ test('typing, clearing and immediately saving use the current combobox value', a
   }
 })
 
-test('keyboard filters and selects a candidate without submitting the form', async () => {
-  const form = mountForm(async () => success)
+test('filtering keeps checked models and enforces the 20-model limit', async () => {
+  const candidates = Array.from({ length: 21 }, (_, index) => `fixture-${index}`)
+  const form = mountForm(async () => ({ ...success, models: candidates }))
   try {
     await event(form.button('获取模型'), 'onClick')
     await settle()
-    const combo = form.combos()[0]!
-    event(combo, 'onFocus')
-    event(combo, 'onInput', { target: { value: 'large' } })
+    for (const candidate of candidates.slice(0, 19)) {
+      const option = form.find((element) => element.props.type === 'checkbox' && element.props.value === candidate)
+      event(option, 'onChange', { target: { checked: true } })
+      await settle()
+    }
+    assert.equal(form.options()[19]!.props.disabled, true)
+    assert.equal(form.options()[0]!.props.disabled, false)
+    const search = form.find((element) => element.props.type === 'search')
+    event(search, 'onUpdate:modelValue', 'fixture-20')
     await settle()
-    assert.deepEqual(form.options().map(content), ['fixture-large'])
-    let prevented = 0
-    const key = (value: string) => ({ key: value, preventDefault() { prevented++ } })
-    event(combo, 'onKeydown', key('ArrowDown'))
+    assert.deepEqual(form.options().map((option) => option.props.value), ['fixture-20'])
+    event(search, 'onUpdate:modelValue', '')
     await settle()
-    event(combo, 'onKeydown', key('Enter'))
-    await settle()
-    assert.equal(combo.props.value, 'fixture-large')
-    assert.equal(combo.props['aria-expanded'], false)
-    assert.equal(prevented, 2)
+    assert.equal(form.options()[0]!.props.checked, true)
     assert.equal(form.submitted(), undefined)
   } finally { form.dispose() }
 })
@@ -198,10 +199,8 @@ test('changing source fields clears candidates and discards results from the pre
       resolve(success)
       await pending
       await settle()
-      event(form.combos()[0]!, 'onFocus')
-      await settle()
       assert.deepEqual(form.options(), [], `${field}: late response must not repopulate the list`)
-      assert.equal(form.combos().length, 1)
+      assert.equal(form.modelInputs().length, 1)
       if (field === 'endpoint') {
         assert.equal(form.button('获取模型').props.disabled, true, 'stored key cannot go to a changed destination')
       }
@@ -218,9 +217,8 @@ test('empty or failed listings keep manual model entry available', async () => {
     try {
       await event(form.button('获取模型'), 'onClick')
       await settle()
-      const combo = form.combos()[0]!
-      event(combo, 'onFocus')
-      event(combo, 'onInput', { target: { value: 'fallback-model' } })
+      const input = form.modelInputs()[0]!
+      event(input, 'onUpdate:modelValue', 'fallback-model')
       await event(form.find((element) => element.kind === 'form'), 'onSubmit', { preventDefault() {} })
       assert.deepEqual(form.submitted()?.models, ['fallback-model'])
     } finally { form.dispose() }
@@ -242,8 +240,6 @@ test('source edits clear completed candidates and newer fetches win over late fa
     const secret = form.find((element) => element.kind === 'input' && element.props.type === 'password')
     event(secret, 'onUpdate:modelValue', 'fixture-new-key')
     await settle()
-    event(form.combos()[0]!, 'onFocus')
-    await settle()
     assert.deepEqual(form.options(), [], 'completed candidates belong to the previous key')
     const old = event(form.button('获取模型'), 'onClick')
     event(form.button('获取模型'), 'onClick')
@@ -254,6 +250,6 @@ test('source edits clear completed candidates and newer fetches win over late fa
     rejectOld(new Error('anonymous failure'))
     await old
     await settle()
-    assert.deepEqual(form.options().map(content), ['new-source-model'])
+    assert.deepEqual(form.options().map((option) => option.props.value), ['new-source-model'])
   } finally { form.dispose() }
 })

@@ -208,7 +208,7 @@ export default {
       endpoint: 'Service URL',
       model: 'Model',
       models: 'Models',
-      modelsHint: 'Type a model name, or click “Fetch models” and choose from the dropdown. Add up to 20 models.',
+      modelsHint: 'Type a model name, or fetch models and check the ones you want. Add up to 20 models.',
       modelAria: 'Model {index}',
       addModel: 'Add model',
       removeModel: 'Remove this model',
@@ -254,6 +254,9 @@ export default {
       keychain: 'Keys are stored only in the system keychain (Credential Manager on Windows) and nowhere else. After clearing, you’ll need to enter it again.',
     },
     models: {
+      choose: 'Select models',
+      search: 'Search models',
+      noMatches: 'No matching models',
       fetch: 'Fetch models',
       fetching: 'Fetching model list…',
       empty: 'No models found. Enter a model name manually.',

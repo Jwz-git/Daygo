@@ -208,7 +208,7 @@ export default {
       endpoint: 'Dienstadresse',
       model: 'Modell',
       models: 'Modelle',
-      modelsHint: 'Gib einen Modellnamen ein oder klicke auf „Modelle abrufen“ und wähle aus der Liste. Bis zu 20 Modelle sind möglich.',
+      modelsHint: 'Gib einen Modellnamen ein oder rufe die Modellliste ab und markiere die gewünschten Modelle. Bis zu 20 Modelle sind möglich.',
       modelAria: 'Modell {index}',
       addModel: 'Modell hinzufügen',
       removeModel: 'Dieses Modell entfernen',
@@ -254,6 +254,9 @@ export default {
       keychain: 'Schlüssel werden ausschließlich im Systemschlüsselbund (unter Windows in der Anmeldeinformationsverwaltung) gespeichert und nirgendwo sonst. Nach dem Löschen musst du ihn erneut eingeben.',
     },
     models: {
+      choose: 'Modelle auswählen',
+      search: 'Modelle suchen',
+      noMatches: 'Keine passenden Modelle',
       fetch: 'Modelle abrufen',
       fetching: 'Modellliste wird abgerufen…',
       empty: 'Keine Modelle gefunden. Gib einen Modellnamen manuell ein.',

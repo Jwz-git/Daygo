@@ -199,8 +199,9 @@ Provider CRUD / 路由链 / 密钥绑定（主要在 `internal/app/providers.go`
 前端 store 已以 Go 绑定为权威来源，写后重拉；表单支持多模型增删与逐模型测试，回退链编辑器
 以单一有序列表编排「供应商 + 模型」对；旧 localStorage 记录只在后端列表为空时做一次性
 无密钥迁移（单模型折为一元列表），成功后删除。`hasSecret` 仅由后端检查钥匙串后返回。
-模型列表查询与每 Provider 图片上限（v11，per-provider、与模型无关）也已接入；10-05 模型列表
-仅作为 combobox 候选，由用户逐项选择或手填，来源不变时保留候选。每 Provider 的
+模型列表查询与每 Provider 图片上限（v11，per-provider、与模型无关）也已接入。获取模型后
+展开一个可搜索的下拉列表，可连续勾选或取消勾选，候选仅在来源变化时失效。勾选同步到
+可手填的模型列表，最多 20 个，保存时才写入。设置与首次引导共用该表单。每 Provider 的
 User-Agent 覆盖已落地（v21 `providers.user_agent`，空串 = Go/SDK 默认；`internal/ai/factory`
 经 RoundTripper 对三协议统一注入，`ai.ListModels` 同步携带）。真实网络集成、完整 Wails 重启
 闭环与升级身份验证经用户确认已验收。
@@ -265,6 +266,16 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
 ## 验证记录
+
+- **2026-11-07（模型下拉多选；基于 `8f96626` 的 `test` 工作树，macOS arm64）**：
+  匿名 Vue host renderer 与 Wails 绑定夹具使用已有自定义模型的服务和匿名候选。
+  将逐行单选预期调整为同一列表连续勾选两项、取消一项，保存时保留自定义模型和仍勾选的项。
+  另覆盖搜索保留选中项、20 个模型上限、获取失败时手填、候选来源变化与迟到结果。
+  旧实现运行新夹具失败，修改后 `npm --prefix frontend run test:unit` 299/299 通过。
+  `./scripts/gate.sh` 退出 0，Go 测试 / vet / 三平台核心交叉构建、前端类型检查与构建、
+  文档检查通过；Windows 安装器夹具通过 6 项、因缺 Windows 主机跳过 10 项。
+  gofmt 只列出 12 个既有忽略目录下的临时 Go 文件，跟踪的 Go 文件格式检查无输出。
+  本次未操作真实桌面窗口或请求真实 Provider。回退可撤销本次提交，无需数据迁移。
 
 - **2026-10-20（订阅直达授权；基于 `93de0f3` 的 `test` 工作树，macOS arm64）**：
   输入 / 期望：新服务首屏仍只有两个选择，点击订阅一次调用 BeginChatGPTLogin，授权前

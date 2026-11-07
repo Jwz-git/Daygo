@@ -208,7 +208,7 @@ export default {
       endpoint: '서비스 주소',
       model: '모델',
       models: '모델',
-      modelsHint: '모델 이름을 직접 입력하거나 “모델 가져오기”를 누른 뒤 드롭다운에서 선택하세요. 최대 20개까지 추가할 수 있습니다.',
+      modelsHint: '모델 이름을 직접 입력하거나 “모델 가져오기”를 누른 뒤 목록에서 원하는 모델을 체크하세요. 최대 20개까지 추가할 수 있습니다.',
       modelAria: '모델 {index}',
       addModel: '모델 추가',
       removeModel: '이 모델 삭제',
@@ -254,6 +254,9 @@ export default {
       keychain: '키는 시스템 키체인(Windows에서는 자격 증명 관리자)에만 저장되고 다른 곳에는 기록되지 않습니다. 지운 뒤에는 다시 입력해야 합니다.',
     },
     models: {
+      choose: '모델 선택 (복수 선택 가능)',
+      search: '모델 검색',
+      noMatches: '일치하는 모델 없음',
       fetch: '모델 가져오기',
       fetching: '모델 목록을 가져오는 중…',
       empty: '모델을 가져오지 못했습니다. 모델 이름을 직접 입력하세요.',

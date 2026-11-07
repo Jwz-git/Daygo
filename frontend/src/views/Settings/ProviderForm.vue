@@ -3,7 +3,6 @@ import DgIcon from '@/components/DgIcon.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import ComboBox from '@/components/ComboBox.vue'
 import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 
 import {
@@ -59,14 +58,31 @@ type ModelsState =
 
 const modelsState = ref<ModelsState>({ phase: 'idle' })
 
-/** Dropdown options for each model combobox; free text stays allowed. */
+const modelQuery = ref('')
 const modelOptions = computed(() => {
   const state = modelsState.value
   if (state.phase !== 'done' || !state.result.ok) return []
-  return state.result.models.map((model) => ({ value: model, label: model }))
+  return [...new Set(state.result.models)]
 })
-
+const filteredModelOptions = computed(() => {
+  const query = modelQuery.value.trim().toLowerCase()
+  return modelOptions.value.filter((model) => model.toLowerCase().includes(query))
+})
+const selectedModels = computed(() => new Set(draft.models.map((model) => model.trim())))
 const canAddModel = computed(() => draft.models.length < MAX_PROVIDER_MODELS)
+const blankModelIndex = computed(() => draft.models.findIndex((model) => model.trim() === ''))
+const canPickModel = computed(() => canAddModel.value || blankModelIndex.value !== -1)
+
+function toggleModel(model: string, event: Event): void {
+  if ((event.target as HTMLInputElement).checked) {
+    if (selectedModels.value.has(model) || !canPickModel.value) return
+    if (blankModelIndex.value === -1) draft.models.push(model)
+    else draft.models[blankModelIndex.value] = model
+    return
+  }
+  draft.models = draft.models.filter((value) => value.trim() !== model)
+  if (draft.models.length === 0) draft.models.push('')
+}
 
 function addModelRow(): void {
   if (!canAddModel.value) return
@@ -77,15 +93,9 @@ function removeModelRow(index: number): void {
   draft.models.splice(index, 1)
   // The list never goes empty: a lone blank row keeps one editable field.
   if (draft.models.length === 0) draft.models.push('')
-
 }
 
-function setModel(index: number, value: string): void {
-  draft.models[index] = value
-}
-
-// Only source changes invalidate candidates; picking, adding or removing a
-// model must leave the fetched list available for the other rows.
+// Only source changes invalidate candidates. Editing the selection keeps the list available.
 let modelsRevision = 0
 watch(
   () => [draft.protocol, draft.endpoint, draft.secret, draft.userAgent],
@@ -127,6 +137,7 @@ function modelsFailureText(result: ProviderModelsResult): string {
 async function fetchModels(): Promise<void> {
   if (modelsState.value.phase === 'fetching' || !canFetchModels.value) return
   const revision = ++modelsRevision
+  modelQuery.value = ''
   modelsState.value = { phase: 'fetching' }
   try {
     const result = await listProviderModels(
@@ -298,15 +309,45 @@ function applyUserAgentPreset(key: string): void {
             </button>
           </span>
         </div>
+        <details v-if="modelOptions.length" class="model-picker" open>
+          <summary class="dg-input model-picker__trigger">
+            {{ t('settings.providers.models.choose') }}
+          </summary>
+          <div class="model-picker__panel">
+            <input
+              v-model="modelQuery"
+              class="dg-input"
+              type="search"
+              :aria-label="t('settings.providers.models.search')"
+              :placeholder="t('settings.providers.models.search')"
+              @keydown.enter.prevent
+            />
+            <div class="model-picker__options">
+              <label v-for="model in filteredModelOptions" :key="model" class="model-picker__option">
+                <input
+                  type="checkbox"
+                  :value="model"
+                  :checked="selectedModels.has(model)"
+                  :disabled="!canPickModel && !selectedModels.has(model)"
+                  @change="toggleModel(model, $event)"
+                />
+                <span>{{ model }}</span>
+              </label>
+              <p v-if="filteredModelOptions.length === 0" class="form__hint" role="status">
+                {{ t('settings.providers.models.noMatches') }}
+              </p>
+            </div>
+          </div>
+        </details>
         <ul class="model-list">
           <li v-for="(model, index) in draft.models" :key="index" class="model-list__row">
-            <ComboBox
-              :model-value="model"
-              class="model-list__combo"
-              :options="modelOptions"
+            <input
+              v-model="draft.models[index]"
+              class="dg-input dg-input--mono model-list__input"
+              type="text"
+              spellcheck="false"
               :placeholder="modelPlaceholder"
               :aria-label="t('settings.providers.form.modelAria', { index: index + 1 })"
-              @update:model-value="(value) => setModel(index, value)"
             />
             <button
               type="button"
@@ -474,6 +515,38 @@ function applyUserAgentPreset(key: string): void {
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
+.model-picker__trigger {
+  cursor: pointer;
+}
+
+.model-picker__panel {
+  display: grid;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 8px;
+  border: 1px solid var(--dg-card-border);
+  border-radius: 8px;
+}
+
+.model-picker__options {
+  max-height: 180px;
+  overflow: auto;
+}
+
+.model-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  font-family: var(--dg-font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.model-picker__option:hover {
+  background: var(--dg-hover-fill);
+}
+
 .model-list {
   display: flex;
   flex-direction: column;
@@ -489,7 +562,7 @@ function applyUserAgentPreset(key: string): void {
   gap: 6px;
 }
 
-.model-list__combo {
+.model-list__input {
   flex: 1;
   min-width: 0;
 }

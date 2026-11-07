@@ -208,7 +208,7 @@ export default {
       endpoint: 'URL del servicio',
       model: 'Modelo',
       models: 'Modelos',
-      modelsHint: 'Escribe un nombre de modelo o pulsa «Obtener modelos» para elegir en la lista. Puedes añadir hasta 20 modelos.',
+      modelsHint: 'Escribe un nombre de modelo u obtén la lista y marca los que quieras. Puedes añadir hasta 20 modelos.',
       modelAria: 'Modelo {index}',
       addModel: 'Añadir modelo',
       removeModel: 'Quitar este modelo',
@@ -254,6 +254,9 @@ export default {
       keychain: 'Las claves se guardan solo en el llavero del sistema (el Administrador de credenciales en Windows) y en ningún otro sitio. Después de borrarla, tendrás que volver a introducirla.',
     },
     models: {
+      choose: 'Seleccionar modelos',
+      search: 'Buscar modelos',
+      noMatches: 'No hay modelos coincidentes',
       fetch: 'Obtener modelos',
       fetching: 'Obteniendo la lista de modelos…',
       empty: 'No se encontró ningún modelo. Escribe un nombre de modelo a mano.',

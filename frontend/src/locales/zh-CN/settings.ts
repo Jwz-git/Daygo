@@ -208,7 +208,7 @@ export default {
       endpoint: '服务地址',
       model: '模型',
       models: '模型',
-      modelsHint: '可手动输入模型名称，或点击“获取模型”后从下拉列表选择；最多添加 20 个模型。',
+      modelsHint: '可手动输入模型名称，或点击“获取模型”后在下拉列表中勾选；最多添加 20 个模型。',
       modelAria: '模型 {index}',
       addModel: '添加模型',
       removeModel: '移除该模型',
@@ -254,6 +254,9 @@ export default {
       keychain: '密钥只保存在系统的钥匙串（Windows 为凭据管理器）中，不会写入其他地方。清除后需要重新填写。',
     },
     models: {
+      choose: '选择模型（可多选）',
+      search: '搜索模型',
+      noMatches: '没有匹配的模型',
       fetch: '获取模型',
       fetching: '正在获取模型列表…',
       empty: '没有获取到模型，请手动填写模型名称。',
