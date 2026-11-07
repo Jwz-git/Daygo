@@ -199,6 +199,7 @@ export default {
       openai: 'OpenAI Chat Completions',
       openai_responses: 'OpenAI Responses',
       anthropic: 'Anthropic',
+      gemini: 'Google Gemini',
     },
     form: {
       addTitle: '添加 AI 服务',
@@ -211,6 +212,7 @@ export default {
       modelsHint: '可手动输入模型名称，或点击“获取模型”后在下拉列表中勾选；最多添加 20 个模型。',
       addModel: '添加模型',
       removeModel: '移除该模型',
+      geminiVideoHint: '时间线分析优先发送完整的原始视频分段，分段不符合发送条件时使用截图。',
       maxImages: '单次最多图片数',
       maxImagesHint: '0 表示使用默认值（5 张）。如果服务限制更严格请调小。',
       maxImagesValue: '{count} 张',
@@ -218,6 +220,7 @@ export default {
         openai: '例如：gpt-4o-mini',
         openai_responses: '例如：gpt-4o',
         anthropic: '例如：claude-sonnet-4-5',
+        gemini: '例如：gemini-2.5-flash',
       },
       apiKey: 'API 密钥',
       apiKeyPlaceholder: '粘贴密钥',

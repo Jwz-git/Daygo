@@ -17,8 +17,9 @@ const DefaultChainThreshold = 3
 // counters, so entries can be swapped without losing demotion history;
 // Provider is expected to be pre-wrapped with WithRetry.
 type ChainEntry struct {
-	ID       string
-	Provider Provider
+	ID           string
+	Provider     Provider
+	PrefersVideo bool
 }
 
 // Chain routes Generate calls through an ordered provider list with cycling
@@ -107,9 +108,26 @@ func (c *Chain) ActiveID() string {
 	return c.entries[c.cursor].ID
 }
 
-// Generate implements Provider by walking the chain (see the type comment for
-// the full semantics).
+// PrefersVideo reports whether any entry can use the alternate video request.
+func (c *Chain) PrefersVideo() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, entry := range c.entries {
+		if entry.PrefersVideo {
+			return true
+		}
+	}
+	return false
+}
+
+// Generate implements Provider using a fixed request for every entry.
 func (c *Chain) Generate(ctx context.Context, request Request) (Result, error) {
+	return c.GeneratePrepared(ctx, func(bool) (Request, error) { return request, nil })
+}
+
+// GeneratePrepared selects the request for each target before its retry
+// wrapper runs. A local preparation error is not counted against the target.
+func (c *Chain) GeneratePrepared(ctx context.Context, prepare func(prefersVideo bool) (Request, error)) (Result, error) {
 	c.mu.Lock()
 	entries := append([]ChainEntry(nil), c.entries...)
 	start := c.cursor
@@ -133,6 +151,13 @@ func (c *Chain) Generate(ctx context.Context, request Request) (Result, error) {
 			return Result{}, lastErr
 		}
 
+		request, err := prepare(entry.PrefersVideo)
+		if err != nil {
+			return Result{}, err
+		}
+		if err := ctx.Err(); err != nil {
+			return Result{}, canceledError(err)
+		}
 		result, err := entry.Provider.Generate(ctx, request)
 		if err == nil {
 			c.recordSuccess(entry.ID, index)

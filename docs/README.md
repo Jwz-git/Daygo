@@ -56,6 +56,7 @@
 
 | 决策 | 状态 | 内容 |
 |---|---|---|
+| [Gemini 原生协议与原始视频分段](decisions/providers-gemini-video.md) | 有限实现 | 仅直传本批完整的已收尾 MP4，保留截图回退 |
 | [屏幕截屏：单次调用契约与原生 ABI](decisions/recording-screen-capture.md) | 契约已冻结 | 跨平台原始规格、Go `Capture` 契约、C ABI v1 与真机门禁 |
 | [屏幕截屏 v2：macOS 实现与上层调用](decisions/recording-screen-capture-v2.md) | 有限实现 | Swift / cgo 路径、调用不变量、错误处理、调试与 recorder 接入边界 |
 | [屏幕录制授权：弹框 + 跳设置 + 提示重启](decisions/recording-screen-recording-permission.md) | 有限实现 | 启用时请求、preflight/request/跳设置 ABI、前端闸门与重启生效 |

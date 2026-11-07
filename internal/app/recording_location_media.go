@@ -75,3 +75,16 @@ func (m locationMedia) ProbeSegment(ctx context.Context, path string) (platform.
 	defer unlock()
 	return media.ProbeSegment(ctx, path)
 }
+
+func (m locationMedia) ReadAnalysisSegment(ctx context.Context, path string, frameCount, maxBytes int) ([]byte, error) {
+	media, unlock, err := m.current(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	reader, ok := media.(platform.AnalysisSegmentReader)
+	if !ok {
+		return nil, fmt.Errorf("media: original segments unavailable")
+	}
+	return reader.ReadAnalysisSegment(ctx, path, frameCount, maxBytes)
+}

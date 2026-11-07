@@ -6,6 +6,7 @@ import (
 
 	daygoai "github.com/Jwz-git/Daygo/internal/ai"
 	"github.com/Jwz-git/Daygo/internal/ai/anthropic"
+	"github.com/Jwz-git/Daygo/internal/ai/gemini"
 	"github.com/Jwz-git/Daygo/internal/ai/openai"
 )
 
@@ -46,6 +47,8 @@ func NewClient(httpClient *http.Client, cfg Config) (daygoai.Provider, error) {
 		return openai.NewClient(httpClient, cfg.Endpoint, cfg.Model, cfg.Secret)
 	case daygoai.ProtocolOpenAIResponses:
 		return openai.NewResponsesClient(httpClient, cfg.Endpoint, cfg.Model, cfg.Secret)
+	case daygoai.ProtocolGemini:
+		return gemini.NewClient(httpClient, cfg.Endpoint, cfg.Model, cfg.Secret)
 	case daygoai.ProtocolAnthropicMessages:
 		return anthropic.NewClient(httpClient, cfg.Endpoint, cfg.Model, cfg.Secret)
 	default:

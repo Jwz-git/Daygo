@@ -26,6 +26,7 @@ export const DEFAULT_ENDPOINTS: Record<ProviderProtocol, string> = {
   openai: 'https://api.openai.com/v1',
   openai_responses: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com',
+  gemini: 'https://generativelanguage.googleapis.com/v1beta',
 chatgpt: 'https://api.openai.com/v1',
 }
 

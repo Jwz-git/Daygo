@@ -80,6 +80,8 @@ func (c *ResponsesClient) requestBody(request daygoai.Request) ([]byte, error) {
 		switch part.Kind() {
 		case daygoai.PartText:
 			content = append(content, map[string]any{"type": "input_text", "text": part.Text()})
+		case daygoai.PartVideo:
+			return nil, daygoai.NewError(daygoai.ErrorUnsupportedFeature, "provider protocol does not support video", 0, nil)
 		case daygoai.PartImage:
 			encoded := base64.StdEncoding.EncodeToString(part.Bytes())
 			content = append(content, map[string]any{

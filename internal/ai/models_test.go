@@ -230,3 +230,17 @@ func TestListModelsRejectsUnknownProtocol(t *testing.T) {
 		t.Fatalf("kind = %v, want invalid_request", ErrorKindOf(err))
 	}
 }
+
+func TestListGeminiFiltersModelsWithoutGenerateContent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1beta/models" || r.URL.Query().Get("pageSize") != "1000" || r.Header.Get("x-goog-api-key") != "fixture-key" {
+			t.Error("incorrect Gemini catalog request")
+		}
+		_, _ = w.Write([]byte(`{"models":[{"name":"models/embed-only","supportedGenerationMethods":["embedContent"]},{"name":"models/fixture-model","supportedGenerationMethods":["generateContent"]}]}`))
+	}))
+	defer server.Close()
+	got, err := ListModels(context.Background(), ProtocolGemini, server.URL, "fixture-key", "")
+	if err != nil || len(got) != 1 || got[0] != "fixture-model" {
+		t.Fatalf("unexpected Gemini model list: %v, %v", got, err)
+	}
+}

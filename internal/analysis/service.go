@@ -64,14 +64,21 @@ type FrameSource interface {
 	FrameBytes(ctx context.Context, segmentPath string, frameIndex int) ([]byte, error)
 }
 
+// SegmentVideoSource reads an original MP4 only after checking that the
+// number of video samples matches the frames authorized for the request.
+type SegmentVideoSource interface {
+	ReadAnalysisSegment(ctx context.Context, segmentPath string, frameCount, maxBytes int) ([]byte, error)
+}
+
 // Config assembles a Service. Now/TickInterval are injectable for tests.
 type Config struct {
-	Store      Store
-	Cards      CardStore
-	Categories CategorySource
-	Providers  ChainSource
-	Media      FrameSource
-	Language   func(ctx context.Context) string
+	Store        Store
+	Cards        CardStore
+	Categories   CategorySource
+	Providers    ChainSource
+	Media        FrameSource
+	SegmentVideo SegmentVideoSource
+	Language     func(ctx context.Context) string
 	// ActiveSegment reports the recording segment currently being written, or
 	// "" when none is active. A batch whose frames still live in that segment is
 	// deferred rather than processed: its container is unfinalized and its frames
@@ -819,12 +826,7 @@ func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 	if cap := s.cfg.Providers.ImageCap(ctx); cap > 0 && cap < targetSamples {
 		targetSamples = cap
 	}
-	sampled := sampleFrames(frames, targetSamples)
-
-	// The image cap comes from the chain source, not the request: grouping
-	// must size every group so ANY chain entry can serve it, since fallback
-	// may hand a group to a provider with a lower gateway limit mid-flight.
-	groups := groupFrames(sampled, targetSamples)
+	groups := planTranscriptionGroups(frames, targetSamples, s.cfg.SegmentVideo != nil && chain.PrefersVideo())
 	type outcome struct {
 		obs []storage.Observation
 		err error
@@ -835,11 +837,11 @@ func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 
 	for i, group := range groups {
 		wg.Add(1)
-		go func(i int, group []storage.AnalysisFrame) {
+		go func(i int, group transcriptionGroup) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			obs, err := s.transcribeGroup(ctx, chain, group)
+			obs, err := s.transcribeGroupWithVideo(ctx, chain, group.images, group.video)
 			results[i] = outcome{obs: obs, err: err}
 		}(i, group)
 	}
@@ -855,32 +857,48 @@ func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 	return all, nil
 }
 
-func (s *Service) transcribeGroup(ctx context.Context, chain *ai.Chain,
-	group []storage.AnalysisFrame) ([]storage.Observation, error) {
+func (s *Service) transcribeGroupWithVideo(ctx context.Context, chain *ai.Chain,
+	images, video []storage.AnalysisFrame) ([]storage.Observation, error) {
 
-	prompt := transcribePrompt(group, s.cfg.Language(ctx))
-	parts := []ai.Part{ai.TextPart(prompt)}
-	for _, f := range group {
-		data, err := s.cfg.Media.FrameBytes(ctx, f.SegmentPath, f.FrameIndex)
-		if err != nil {
-			// No segment paths in the message: it lands verbatim in
-			// failure_note and the batch:failed event.
-			return nil, fmt.Errorf("read frame %d of batch: %w", f.FrameIndex, err)
+	language := s.cfg.Language(ctx)
+	imageRequest := sync.OnceValues(func() (ai.Request, error) {
+		parts := []ai.Part{ai.TextPart(transcribePrompt(images, language))}
+		for _, frame := range images {
+			data, err := s.cfg.Media.FrameBytes(ctx, frame.SegmentPath, frame.FrameIndex)
+			if err != nil {
+				return ai.Request{}, fmt.Errorf("read frame %d of batch: %w", frame.FrameIndex, err)
+			}
+			part, err := ai.ImagePart(ai.MediaJPEG, data)
+			if err != nil {
+				return ai.Request{}, fmt.Errorf("prepare frame %d for transcription: %w", frame.FrameIndex, err)
+			}
+			parts = append(parts, part)
 		}
-		part, err := ai.ImagePart(ai.MediaJPEG, data)
+		return ai.Request{Purpose: ai.PurposeTranscribe, Parts: parts, Output: &transcribeOutput, MaxOutputTokens: 3072}, nil
+	})
+	videoRequest := sync.OnceValue(func() *ai.Request {
+		data, err := s.cfg.SegmentVideo.ReadAnalysisSegment(ctx, video[0].SegmentPath, len(video), ai.MaxVideoBytes)
 		if err != nil {
-			return nil, fmt.Errorf("prepare frame %d for transcription: %w", f.FrameIndex, err)
+			return nil
 		}
-		parts = append(parts, part)
-	}
-
-	request := ai.Request{
-		Purpose:         ai.PurposeTranscribe,
-		Parts:           parts,
-		Output:          &transcribeOutput,
-		MaxOutputTokens: 3072,
-	}
-	result, err := chain.Generate(ctx, request)
+		part, err := ai.VideoPart(data)
+		if err != nil {
+			return nil
+		}
+		parts := []ai.Part{ai.TextPart(transcribeMediaPrompt(video, language, true)), part}
+		return &ai.Request{Purpose: ai.PurposeTranscribe, Parts: parts, Output: &transcribeOutput, MaxOutputTokens: 3072}
+	})
+	group := images
+	result, err := chain.GeneratePrepared(ctx, func(prefersVideo bool) (ai.Request, error) {
+		if prefersVideo && len(video) != 0 {
+			if request := videoRequest(); request != nil {
+				group = video
+				return *request, nil
+			}
+		}
+		group = images
+		return imageRequest()
+	})
 	if err != nil {
 		return nil, err
 	}

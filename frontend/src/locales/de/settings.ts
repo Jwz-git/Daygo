@@ -199,6 +199,7 @@ export default {
       openai: 'OpenAI Chat Completions',
       openai_responses: 'OpenAI Responses',
       anthropic: 'Anthropic',
+      gemini: 'Google Gemini',
     },
     form: {
       addTitle: 'KI-Dienst hinzufügen',
@@ -211,6 +212,7 @@ export default {
       modelsHint: 'Gib einen Modellnamen ein oder rufe die Modellliste ab und markiere die gewünschten Modelle. Bis zu 20 Modelle sind möglich.',
       addModel: 'Modell hinzufügen',
       removeModel: 'Dieses Modell entfernen',
+      geminiVideoHint: 'Die Zeitleistenanalyse sendet geeignete Original-Videosegmente und verwendet für andere Segmente Bildschirmfotos.',
       maxImages: 'Max. Bilder pro Anfrage',
       maxImagesHint: '0 verwendet den Standardwert (5). Verringere den Wert, wenn dein Dienst strenger ist.',
       maxImagesValue: '{count} Bilder',
@@ -218,6 +220,7 @@ export default {
         openai: 'z. B. gpt-4o-mini',
         openai_responses: 'z. B. gpt-4o',
         anthropic: 'z. B. claude-sonnet-4-5',
+        gemini: 'z. B. gemini-2.5-flash',
       },
       apiKey: 'API-Schlüssel',
       apiKeyPlaceholder: 'Schlüssel einfügen',

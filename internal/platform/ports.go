@@ -43,6 +43,12 @@ type Media interface {
 	ProbeSegment(ctx context.Context, path string) (SegmentInfo, error)
 }
 
+// AnalysisSegmentReader reads a sealed original MP4 with exactly the
+// requested number of video samples, subject to the request byte budget.
+type AnalysisSegmentReader interface {
+	ReadAnalysisSegment(ctx context.Context, segmentPath string, frameCount, maxBytes int) ([]byte, error)
+}
+
 // System contains OS integration points other than capture, media and secrets.
 type System interface {
 	ScreenRecordingPermission(ctx context.Context) (PermissionState, error)

@@ -115,6 +115,8 @@ fresh 历史上下文与 ongoing 改写范围分开描述，多卡边界不再�
 **当前边界（2026-10-13 复核）**：auth 批次 UI 标志说"不会自动重试"但 `RequeueFailed`
 仍按状态 / 冷却 / 尝试次数重排，未按 `failure_kind` 排除（语义需决策）；Retry-After 无抖动
 （多组同限流时刻齐重试）。转录图片上限已按 Provider `maxImages` 接入。
+Gemini 转录优先使用当前批完整覆盖的已收尾原始 MP4 分段，模型输出的帧索引映射回真实采集时间。
+其他情况使用截图，详见 [视频分段决策](../decisions/providers-gemini-video.md)。
 人工编辑被相邻批次回滚的旧缺陷已于 10-05 修复，不再列为未修；自动改写保护人工编辑 /
 审阅 / 评分 / 删除，显式单卡重新生成仍可替换，见[人工输入保留决策](../decisions/timeline-human-card-preservation.md)。
 

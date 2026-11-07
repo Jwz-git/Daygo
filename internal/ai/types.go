@@ -10,6 +10,7 @@ import (
 
 const (
 	MaxImages     = 5
+	MaxVideoBytes = 8 << 20
 	MaxImageBytes = 5 << 20
 	MaxTotalBytes = 20 << 20
 )
@@ -38,11 +39,13 @@ type PartKind string
 const (
 	PartText  PartKind = "text"
 	PartImage PartKind = "image"
+	PartVideo PartKind = "video"
 )
 
 type MediaType string
 
 const (
+	MediaMP4  MediaType = "video/mp4"
 	MediaJPEG MediaType = "image/jpeg"
 	MediaPNG  MediaType = "image/png"
 	MediaWebP MediaType = "image/webp"
@@ -67,6 +70,13 @@ func ImagePart(mediaType MediaType, data []byte) (Part, error) {
 		return Part{}, NewError(ErrorInvalidRequest, "image size is outside the allowed range", 0, nil)
 	}
 	return Part{kind: PartImage, mediaType: mediaType, data: append([]byte(nil), data...)}, nil
+}
+
+func VideoPart(data []byte) (Part, error) {
+	if len(data) == 0 || len(data) > MaxVideoBytes {
+		return Part{}, NewError(ErrorInvalidRequest, "video size is outside the allowed range", 0, nil)
+	}
+	return Part{kind: PartVideo, mediaType: MediaMP4, data: append([]byte(nil), data...)}, nil
 }
 
 func (p Part) Kind() PartKind       { return p.kind }
@@ -101,7 +111,7 @@ func (r Request) Validate() error {
 	if len(r.Parts) == 0 {
 		return NewError(ErrorInvalidRequest, "request must contain at least one part", 0, nil)
 	}
-	images := 0
+	images, videos := 0, 0
 	totalBytes := 0
 	for _, part := range r.Parts {
 		switch part.kind {
@@ -115,9 +125,18 @@ func (r Request) Validate() error {
 			}
 			images++
 			totalBytes += len(part.data)
+		case PartVideo:
+			if part.mediaType != MediaMP4 || len(part.data) == 0 || len(part.data) > MaxVideoBytes {
+				return NewError(ErrorInvalidRequest, "invalid video part", 0, nil)
+			}
+			videos++
+			totalBytes += len(part.data)
 		default:
 			return NewError(ErrorInvalidRequest, "unknown part kind", 0, nil)
 		}
+	}
+	if videos > 1 || (videos == 1 && images > 0) {
+		return NewError(ErrorInvalidRequest, "a video request must contain one video and no images", 0, nil)
 	}
 	if images > ClampMaxImages(r.MaxImages) || totalBytes > MaxTotalBytes {
 		return NewError(ErrorInvalidRequest, "image limits exceeded", 0, nil)

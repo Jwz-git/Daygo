@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,6 +47,13 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAg
 		}
 		requestURL = endpoint + "/models"
 		header = func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+secret) }
+	case ProtocolGemini:
+		base, err := GeminiBaseURL(endpoint)
+		if err != nil {
+			return nil, err
+		}
+		requestURL = base + "models?pageSize=1000"
+		header = func(r *http.Request) { r.Header.Set("x-goog-api-key", secret) }
 	case ProtocolAnthropicMessages:
 		base, err := AnthropicBaseURL(endpoint)
 		if err != nil {
@@ -78,7 +86,7 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAg
 	}
 
 	client := *http.DefaultClient
-	if protocol == ProtocolChatGPT {
+	if protocol == ProtocolChatGPT || protocol == ProtocolGemini {
 		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	}
 	response, err := client.Do(request)
@@ -106,6 +114,29 @@ func ListModels(ctx context.Context, protocol Protocol, endpoint, secret, userAg
 			}
 		}
 		return models, nil
+	}
+
+	if protocol == ProtocolGemini {
+		var payload struct {
+			Models []struct {
+				Name                       string
+				SupportedGenerationMethods []string
+			}
+		}
+		if err := json.Unmarshal(body, &payload); err != nil || payload.Models == nil {
+			return nil, NewError(ErrorInvalidOutput, "Gemini model catalog is invalid", response.StatusCode, nil)
+		}
+		models := make([]string, 0, len(payload.Models))
+		for _, entry := range payload.Models {
+			id, ok := strings.CutPrefix(entry.Name, "models/")
+			if ok && id != "" && (secret == "" || !strings.Contains(id, secret)) &&
+				slices.Contains(entry.SupportedGenerationMethods, "generateContent") {
+				models = append(models, id)
+			}
+		}
+		sort.Strings(models)
+		models = slices.Compact(models)
+		return models[:min(len(models), maxModels)], nil
 	}
 
 	// Both protocol families return {"data": [{"id": "..."}, ...]}.

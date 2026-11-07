@@ -199,6 +199,7 @@ export default {
       openai: 'OpenAI Chat Completions',
       openai_responses: 'OpenAI Responses',
       anthropic: 'Anthropic',
+      gemini: 'Google Gemini',
     },
     form: {
       addTitle: 'AI 서비스 추가',
@@ -211,6 +212,7 @@ export default {
       modelsHint: '모델 이름을 직접 입력하거나 “모델 가져오기”를 누른 뒤 목록에서 원하는 모델을 체크하세요. 최대 20개까지 추가할 수 있습니다.',
       addModel: '모델 추가',
       removeModel: '이 모델 삭제',
+      geminiVideoHint: '타임라인 분석은 전송 조건에 맞는 원본 동영상 구간을 보내고, 나머지는 스크린샷을 사용합니다.',
       maxImages: '요청당 최대 이미지 수',
       maxImagesHint: '0이면 기본값(5장)을 씁니다. 서비스 제한이 더 엄격하면 낮추세요.',
       maxImagesValue: '{count}장',
@@ -218,6 +220,7 @@ export default {
         openai: '예: gpt-4o-mini',
         openai_responses: '예: gpt-4o',
         anthropic: '예: claude-sonnet-4-5',
+        gemini: '예: gemini-2.5-flash',
       },
       apiKey: 'API 키',
       apiKeyPlaceholder: '키 붙여넣기',

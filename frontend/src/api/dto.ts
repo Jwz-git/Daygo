@@ -23,7 +23,7 @@ export const APP_THEMES = ['system', 'light', 'dark'] as const
 export type AppTheme = (typeof APP_THEMES)[number]
 export const CAPTURE_INTERVAL_SECONDS = [1, 5, 10, 20, 30, 60] as const
 export const CAPTURE_HEIGHTS = [720, 1080] as const
-export const PROVIDER_PROTOCOLS = ['openai', 'openai_responses', 'anthropic', 'chatgpt'] as const
+export const PROVIDER_PROTOCOLS = ['openai', 'openai_responses', 'anthropic', 'gemini', 'chatgpt'] as const
 export type ProviderProtocol = (typeof PROVIDER_PROTOCOLS)[number]
 export type PlanBlockStatus = 'planned' | 'done' | 'skipped'
 /** A category's closed visual role (docs/03 §3.3.3); never sent to the model. */

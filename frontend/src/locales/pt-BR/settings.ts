@@ -199,6 +199,7 @@ export default {
       openai: 'OpenAI Chat Completions',
       openai_responses: 'OpenAI Responses',
       anthropic: 'Anthropic',
+      gemini: 'Google Gemini',
     },
     form: {
       addTitle: 'Adicionar serviço de IA',
@@ -211,6 +212,7 @@ export default {
       modelsHint: 'Digite um nome de modelo ou busque a lista e marque os modelos desejados. Adicione até 20 modelos.',
       addModel: 'Adicionar modelo',
       removeModel: 'Remover este modelo',
+      geminiVideoHint: 'A análise da linha do tempo envia os segmentos de vídeo originais elegíveis e usa capturas para os demais.',
       maxImages: 'Máximo de imagens por requisição',
       maxImagesHint: '0 usa o padrão (5). Diminua se o seu serviço for mais restrito.',
       maxImagesValue: '{count} imagens',
@@ -218,6 +220,7 @@ export default {
         openai: 'por exemplo: gpt-4o-mini',
         openai_responses: 'por exemplo: gpt-4o',
         anthropic: 'por exemplo: claude-sonnet-4-5',
+        gemini: 'por exemplo: gemini-2.5-flash',
       },
       apiKey: 'Chave de API',
       apiKeyPlaceholder: 'Cole a chave',

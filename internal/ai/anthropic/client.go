@@ -53,6 +53,8 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 		switch part.Kind() {
 		case daygoai.PartText:
 			blocks = append(blocks, anthropicsdk.NewTextBlock(part.Text()))
+		case daygoai.PartVideo:
+			return daygoai.Result{}, daygoai.NewError(daygoai.ErrorUnsupportedFeature, "provider protocol does not support video", 0, nil)
 		case daygoai.PartImage:
 			blocks = append(blocks, anthropicsdk.NewImageBlockBase64(
 				string(part.MediaType()), base64.StdEncoding.EncodeToString(part.Bytes()),

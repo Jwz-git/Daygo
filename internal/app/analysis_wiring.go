@@ -75,7 +75,9 @@ func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, erro
 				sink.RecordAttempt(dbCtx, attempt)
 			}))
 		provider = ai.WithRetry(provider, ai.DefaultRetryPolicy())
-		entries = append(entries, ai.ChainEntry{ID: chainEntryID(row.ID, model), Provider: provider})
+		entries = append(entries, ai.ChainEntry{
+			ID: chainEntryID(row.ID, model), Provider: provider, PrefersVideo: cfg.Protocol == ai.ProtocolGemini,
+		})
 	}
 	return ai.NewChain(entries, 0), nil
 }
@@ -146,13 +148,15 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 	if media == nil {
 		media = platformfactory.NewMedia(recordingsRoot)
 	}
+	segmentVideo, _ := media.(platform.AnalysisSegmentReader)
 	service, err := analysis.New(analysis.Config{
-		Store:      store.Analysis(),
-		Cards:      store.Cards(),
-		Categories: store.Categories(),
-		Providers:  analysisChainSource{backend: b},
-		Media:      mediaFrameSource{media: media},
-		Language:   analysisLanguage(b),
+		Store:        store.Analysis(),
+		Cards:        store.Cards(),
+		Categories:   store.Categories(),
+		Providers:    analysisChainSource{backend: b},
+		Media:        mediaFrameSource{media: media},
+		SegmentVideo: segmentVideo,
+		Language:     analysisLanguage(b),
 		// Defer batches whose frames still live in the segment the recorder is
 		// actively writing: that container is unfinalized and undecodable, so
 		// processing now would fail on a frameDecode error until the segment

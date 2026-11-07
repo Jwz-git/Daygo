@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
+	"github.com/Jwz-git/Daygo/internal/platform/mediafile"
 )
 
 var _ platform.Media = (*Media)(nil)
@@ -72,4 +73,8 @@ func (m *Media) ProbeSegment(ctx context.Context, segmentPath string) (platform.
 
 func (m *Media) EncodeVideo(_ context.Context, _ platform.EncodeRequest) (platform.EncodeResult, error) {
 	return platform.EncodeResult{}, fmt.Errorf("media: video encoding awaits the codec decision")
+}
+
+func (m *Media) ReadAnalysisSegment(ctx context.Context, path string, frameCount, maxBytes int) ([]byte, error) {
+	return mediafile.ReadAnalysisSegment(ctx, m.root, path, frameCount, maxBytes)
 }

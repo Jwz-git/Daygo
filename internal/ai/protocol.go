@@ -13,8 +13,10 @@ const (
 	ProtocolAnthropicMessages Protocol = "anthropic"
 	// ProtocolChatGPT is the OAuth-scoped ChatGPT plan Responses variant.
 	ProtocolChatGPT Protocol = "chatgpt"
+	// ProtocolGemini is the Gemini Developer API generateContent protocol.
+	ProtocolGemini Protocol = "gemini"
 )
 
 func (p Protocol) Valid() bool {
-	return p == ProtocolOpenAIChat || p == ProtocolOpenAIResponses || p == ProtocolAnthropicMessages || p == ProtocolChatGPT
+	return p == ProtocolOpenAIChat || p == ProtocolOpenAIResponses || p == ProtocolAnthropicMessages || p == ProtocolChatGPT || p == ProtocolGemini
 }

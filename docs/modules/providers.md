@@ -265,7 +265,23 @@ providers 协作，在策略 / UI 接入前统一，见 09 §9.8。
 回退：禁用未验证调用路径、恢复原 store 接入，保留旧无密钥记录与新库；
 不把密钥退回 localStorage，不在回退时删除用户已有钥匙串条目。
 
+Gemini 原生接口使用 API Key，支持获取生成模型以及文本、图片和结构化请求。时间线对 Gemini
+条目默认发送符合覆盖与大小条件的原始 MP4，其他条目仍使用截图。详情见
+[Gemini 原始视频分段决策](../decisions/providers-gemini-video.md)。配置沿用模型多选，试用页面仍可发文本和图片。
+
 ## 验证记录
+
+- **2026-11-07（Gemini 原生协议与原始视频分段，基于 `c9102c7` 的 `test` 工作树，macOS arm64）**：
+  匿名 HTTP 夹具确认模型列表只保留 `generateContent` 候选，生成请求通过头部携带匿名密钥，
+  发送内联 `video/mp4` 和 JSON Schema。转录夹具确认视频与图片回退分别使用对应帧索引，
+  映射到真实采集时间。文件夹具覆盖样本数不符、超限、碎片化和越界路径。
+  `go test -a ./internal/platform/darwin -run '^TestNativeReadAnalysisSegmentKeepsOriginalHEVC$' -count=1`
+  通过：原生录制两帧，拒绝未收尾和有额外样本的读取，收尾后读回与原始 HEVC 字节一致。
+  `./scripts/gate.sh` 退出 0，Go / vet / 三平台核心交叉构建、前端 299 项单测 / 类型检查 / 构建、
+  文档检查通过；Windows 安装器 6 项通过、10 项因缺 Windows 主机跳过。gofmt 仅列出
+  12 个既有本地临时 Go 文件，跟踪文件格式检查无输出。
+  未使用真实用户画面、Gemini 账户或 Windows 主机，真实模型解码与 Wails 闭环待验证。
+  回退先从路由和设置中移除 Gemini 服务，再撤销提交，无需迁移录制。
 
 - **2026-11-07（已选模型标签；基于 `2de00f7` 的 `test` 工作树，macOS arm64）**：
   匿名 Vue host renderer 夹具使用一个已保存模型和两个候选。预期标签出现在下拉框之前，

@@ -282,6 +282,10 @@ function applyUserAgentPreset(key: string): void {
         <p v-else-if="isPlainHttp" class="form__warning">{{ t('settings.providers.form.httpWarning') }}</p>
       </label>
 
+      <p v-if="draft.protocol === 'gemini'" class="form__cell--wide form__hint">
+        {{ t('settings.providers.form.geminiVideoHint') }}
+      </p>
+
       <!-- The key sits before the models: fetching the model list needs it. -->
       <label class="form__cell form__cell--wide">
         <span class="dg-field-label">{{ t('settings.providers.form.apiKey') }}</span>

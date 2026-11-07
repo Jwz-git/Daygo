@@ -3,6 +3,7 @@
 package darwin
 
 import (
+	"bytes"
 	"context"
 	"image"
 	"image/color"
@@ -212,5 +213,40 @@ func TestNativeSegmentRepeatedSingleFrameDecode(t *testing.T) {
 		if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
 			t.Fatalf("decode %d returned invalid JPEG", i)
 		}
+	}
+}
+
+func TestNativeReadAnalysisSegmentKeepsOriginalHEVC(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	if err := segmentCloseActive(); err != nil {
+		t.Fatal(err)
+	}
+	first, err := testFrameAppendSynthetic(dir, 64, 48, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = segmentCloseActive() })
+	second, err := testFrameAppendSynthetic(dir, 64, 48, 1)
+	if err != nil || second.SegmentPath != first.SegmentPath || second.FrameIndex != 1 {
+		t.Fatalf("could not append second fixture frame: %v", err)
+	}
+	reader := NewMedia(dir).(platform.AnalysisSegmentReader)
+	if _, err := reader.ReadAnalysisSegment(ctx, first.SegmentPath, 2, 1<<20); err == nil {
+		t.Fatal("accepted unfinalized segment")
+	}
+	if err := segmentCloseActive(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reader.ReadAnalysisSegment(ctx, first.SegmentPath, 1, 1<<20); err == nil {
+		t.Fatal("accepted segment with an extra frame")
+	}
+	got, err := reader.ReadAnalysisSegment(ctx, first.SegmentPath, 2, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(filepath.Join(dir, first.SegmentPath))
+	if err != nil || !bytes.Equal(got, want) || !bytes.Contains(got, []byte("hvc1")) {
+		t.Fatalf("original HEVC bytes were not preserved: %v", err)
 	}
 }

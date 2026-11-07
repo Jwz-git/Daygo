@@ -142,6 +142,7 @@ const SHARED_WORDING = new Set([
   'MCP CLI',
   'OpenAI Chat Completions',
   'OpenAI Responses',
+  'Google Gemini',
   'Anthropic',
   'Windows Recorder',
   // The User-Agent field's own label and preset names stay in English: they

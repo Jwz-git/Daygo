@@ -164,7 +164,7 @@ fake 的覆盖以 §5.7.4 为准。
   | `PermissionState` | `granted` `denied` `not_determined` |
   | `BatchStatus` | `pending` `processing` `succeeded` `failed` `failed_empty` `skipped_short` |
   | `JournalStatus` | `draft` `intentions_set` `complete` |
-  | `ProviderProtocol` | `openai`（Chat Completions） `openai_responses` `anthropic`（Messages） |
+  | `ProviderProtocol` | `openai`（Chat Completions） `openai_responses` `anthropic`（Messages） `gemini`（Google Gemini） |
   | `AppTheme` | `system` `light` `dark` |
 
 - 集合方法必须有**确定的排序**和**明确的上限**，否则黄金测试无法比较：
@@ -969,7 +969,7 @@ type ChatGPTConnectionDTO struct {
 type ProviderDTO struct {
     ID          string   `json:"id"`
     DisplayName string   `json:"displayName"`
-    Protocol    string   `json:"protocol"` // openai / openai_responses / anthropic / chatgpt // openai | openai_responses | anthropic
+    Protocol    string   `json:"protocol"` // openai / openai_responses / anthropic / gemini / chatgpt
     Endpoint    string   `json:"endpoint"` // 绝对 http(s) 基地址，不含凭据
     Models      []string `json:"models"`   // → providers.models：有序模型列表，至少 1 个
     MaxImages   int      `json:"maxImages"` // → providers.max_images：单请求图片上限，0 = 默认
@@ -1416,14 +1416,14 @@ type ReplaceResult struct {
    Responses 正数映射 `max_output_tokens`，0 时省略；Anthropic 必须传 `max_tokens`，
    0 的卡片请求保留 8192，其它 0 请求为 4096。卡片生成 / 纠错采用 0，不替模型猜统一额度，
    见 [输出预算决策](decisions/timeline-output-budget.md)。
-2. 三种协议都发送原生 schema：openai（Chat Completions）与 openai_responses 分别使用
+2. API Key 协议均发送原生 schema：openai（Chat Completions）与 openai_responses 分别使用
    `response_format` 和 `text.format`，anthropic 使用 `output_config.format`；返回后仍须
    本地提取 / 修复 JSON 并验证**原始 schema**。Anthropic 发送副本将不支持的数值边界、
    字符串长度、`maxItems` / `uniqueItems` 和大于 1 的 `minItems` 移入字段 description，
    原始约束仍在本地校验；保留原生结构化输出与受支持的 `minItems: 0/1`。
    SDK 不加载环境 / profile 凭据或自定义请求头，仅使用 Daygo 配置的地址与系统密钥。
-   兼容端明确拒绝结构化参数时返回 `unsupported_feature`，
-   不得静默降级为无约束文本。协议封闭集为 `openai` / `openai_responses` / `anthropic`，
+   Gemini 使用 `generationConfig.responseMimeType` / `responseJsonSchema`。兼容端明确拒绝
+   结构化参数时可返回 `unsupported_feature`，各协议均不得静默降级为无约束文本。API Key 协议封闭集为 `openai` / `openai_responses` / `anthropic` / `gemini`，
    由 `internal/ai` 的 `Protocol` 类型与 factory 统一构造。
    生成响应须先检查完成状态，再提取 / 校验正文：Chat Completions 显式 `finish_reason`
    仅接受 `stop`，拒绝非空 `message.refusal`；Responses 显式顶层 / message `status`

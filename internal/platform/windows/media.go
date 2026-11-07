@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
+	"github.com/Jwz-git/Daygo/internal/platform/mediafile"
 )
 
 type Media struct{ root string }
@@ -65,4 +66,8 @@ func (m *Media) ProbeSegment(ctx context.Context, segmentPath string) (platform.
 
 func (*Media) EncodeVideo(context.Context, platform.EncodeRequest) (platform.EncodeResult, error) {
 	return platform.EncodeResult{}, fmt.Errorf("windows media: video encoding awaits the codec decision")
+}
+
+func (m *Media) ReadAnalysisSegment(ctx context.Context, path string, frameCount, maxBytes int) ([]byte, error) {
+	return mediafile.ReadAnalysisSegment(ctx, m.root, path, frameCount, maxBytes)
 }
