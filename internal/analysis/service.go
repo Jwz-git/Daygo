@@ -885,7 +885,7 @@ func (s *Service) transcribeGroupWithVideo(ctx context.Context, chain *ai.Chain,
 		if err != nil {
 			return nil
 		}
-		parts := []ai.Part{ai.TextPart(transcribeMediaPrompt(video, language, true)), part}
+		parts := []ai.Part{ai.TextPart(transcribeVideoPrompt(video, language)), part}
 		return &ai.Request{Purpose: ai.PurposeTranscribe, Parts: parts, Output: &transcribeOutput, MaxOutputTokens: 3072}
 	})
 	group := images

@@ -3,6 +3,7 @@ package analysis
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,13 +53,16 @@ func TestTranscribeOriginalVideoAndImageFallback(t *testing.T) {
 			gemini := segmentProviderFixture(func(req ai.Request) (ai.Result, error) {
 				calls++
 				if mode == "partial" {
-					if req.Parts[1].Kind() != ai.PartImage {
+					if req.Parts[1].Kind() != ai.PartImage || !strings.Contains(req.Parts[0].Text(), "independent screenshots") {
 						t.Fatal("partial segment must use screenshots")
 					}
 					return response, nil
 				}
 				if len(req.Parts) != 2 || req.Parts[1].Kind() != ai.PartVideo || string(req.Parts[1].Bytes()) != "original-fixture-mp4" {
 					t.Fatal("Gemini must receive the original video bytes")
+				}
+				if !strings.Contains(req.Parts[0].Text(), "playback 1s: frame 1, captured at 10:01 AM") {
+					t.Fatal("video request is missing the playback-to-capture mapping")
 				}
 				if mode == "fallback" {
 					return ai.Result{}, ai.NewError(ai.ErrorInvalidRequest, "fixture rejection", 400, nil)
@@ -67,7 +71,8 @@ func TestTranscribeOriginalVideoAndImageFallback(t *testing.T) {
 			})
 			images := segmentProviderFixture(func(req ai.Request) (ai.Result, error) {
 				calls++
-				if len(req.Parts) != 3 || req.Parts[1].Kind() != ai.PartImage || req.Parts[2].Kind() != ai.PartImage {
+				if len(req.Parts) != 3 || req.Parts[1].Kind() != ai.PartImage || req.Parts[2].Kind() != ai.PartImage ||
+					!strings.Contains(req.Parts[0].Text(), "frame 1: captured at 10:03 AM") {
 					t.Fatal("fallback must receive screenshots only")
 				}
 				return response, nil

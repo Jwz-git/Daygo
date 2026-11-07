@@ -209,3 +209,49 @@ func TestScopedCorrectionRetainsOutputLanguage(t *testing.T) {
 		t.Fatalf("corrections=%d, want 2", corrections)
 	}
 }
+
+func TestTranscriptionPromptsMatchTheirEvidence(t *testing.T) {
+	first := time.Date(2026, 11, 7, 10, 0, 0, 0, time.UTC)
+	frames := []storage.AnalysisFrame{{CapturedAt: first}, {CapturedAt: first.Add(3 * time.Minute)}}
+	images := transcribePrompt(frames, "zh-CN")
+	video := transcribeVideoPrompt(frames, "zh-CN")
+	for _, phrase := range []string{"independent screenshots", "between screenshots", "frame 1: captured at 10:03 AM"} {
+		if !strings.Contains(images, phrase) {
+			t.Errorf("image prompt missing %q", phrase)
+		}
+	}
+	for _, phrase := range []string{"one screenshot per playback second", "playback 1s: frame 1, captured at 10:03 AM", "compare earlier and later visible states"} {
+		if !strings.Contains(video, phrase) {
+			t.Errorf("video prompt missing %q", phrase)
+		}
+	}
+	if strings.Contains(images, "playback second") || strings.Contains(video, "independent screenshots") {
+		t.Error("transcription prompts mix media-specific instructions")
+	}
+	for _, prompt := range []string{images, video} {
+		if !strings.Contains(prompt, "Write observations in zh-CN.") {
+			t.Error("transcription prompt dropped the requested language")
+		}
+		if err := ai.ValidateJSON(promptBlock(t, prompt, "output_example"), transcribeOutput); err != nil {
+			t.Fatalf("transcription example does not match schema: %v", err)
+		}
+	}
+}
+
+func TestCardPromptsGroundApplicationRelationshipsAndResults(t *testing.T) {
+	prompts := []string{
+		cardsPrompt(base, base.Add(15*time.Minute), nil, nil, nil, "", cardModeScoped),
+		cardsCorrectionPrompt(`{"cards":[]}`, []string{"anonymous issue"}, cardModeScoped, base, base.Add(15*time.Minute)),
+	}
+	for _, prompt := range prompts {
+		for _, phrase := range []string{
+			"Do not infer that one app is built into another",
+			"Distinguish a discussion or proposed change from an applied change",
+			"Never fill a time range with a paraphrase of the summary",
+		} {
+			if !strings.Contains(prompt, phrase) {
+				t.Errorf("card prompt missing %q", phrase)
+			}
+		}
+	}
+}
