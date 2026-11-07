@@ -26,7 +26,7 @@ npm --prefix web run preview
 构建产物为 `web/dist/`。Vite 使用相对资源路径，适配 GitHub Pages 项目路径。
 开发地址为 `http://127.0.0.1:5180`，生产预览地址为 `http://localhost:5181`。
 仓库不提交 `node_modules/` 或 `dist/`。导入时移除来源的本地 `deploy` 命令，
-沿用下文的 Release 部署工作流。
+使用下文的手动部署工作流。
 
 ## 下载链接
 
@@ -42,22 +42,19 @@ npm --prefix web run preview
 匿名单测覆盖版本更新、平台匹配、资产未齐、地址校验和接口失败；部署前也执行这些单测。
 接口依据：[GitHub Get the latest release](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)。
 
-## Release 部署
+## 手动部署
 
-[部署工作流](../.github/workflows/deploy-web.yml) 在正式 Release 的 `published` 事件后
-检出对应 tag，安装锁文件中的依赖、构建网页，上传 Pages artifact 并部署。
-草稿、预发布和普通 push 不部署；可在 Actions 中重跑失败任务。
-也可在 Actions 页面手动运行（`workflow_dispatch`），此时部署所选分支当前提交的网页，
-不依赖新 Release；`github-pages` environment 须允许该分支（当前允许 `main`）。
-网页与安装器工作流独立，网页部署不等待安装器资产或 appcast 完成。
+网页更新时，在 GitHub 的 Actions → Deploy website → Run workflow 中选择允许部署的分支
+（当前配置为 `main`）。[部署工作流](../.github/workflows/deploy-web.yml) 检出该分支触发时
+的提交，测试并构建 `web/`，上传 Pages artifact 后部署。正式 Release 发布和普通 push
+均无网页部署触发器。下载按钮仍在页面刷新时读取最新正式版资产。
 
 首次启用前，在仓库 Settings → Pages → Build and deployment 将 Source 设为
-GitHub Actions；确认 `github-pages` environment 的 deployment branch/tag rules
-允许正式发布 tag（例如 `v*`）。工作流和 `web/` 必须已包含在发布 tag 中。
+GitHub Actions，并在 `github-pages` environment 放行用于部署的分支。
 默认项目地址为 `https://jwz-git.github.io/Daygo/`，实际地址以部署任务输出为准。
 
-不再使用本地脚本强制推送 `gh-pages`。失败时检查 Actions 日志后重跑；需回退网页时，
-重跑已验证的旧 Release 部署工作流会重新部署该 tag 的网页，不修改 Release 资产。
+需要回退网页时，可以重跑已验证的手动部署运行。旧 tag 中的工作流仍采用当时的配置；
+后续发布应从包含手动部署改动的提交创建 tag。
 
 实现依据：[GitHub Pages 自定义工作流](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
 配套网页部署与下载链路于 2026-10-13 用户确认已验收，未附 Pages / CI 逐项运行记录；

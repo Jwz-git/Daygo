@@ -73,7 +73,7 @@ Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路
 下载按钮读取最新正式 Release，直接绑定已上传的 macOS arm64 DMG / Windows amd64 EXE；
 发布新版本后刷新网页更新链接，资产未齐或接口失败时回退到最新 Release 页面。
 构建 / Pages 项目路径与浏览器验证范围见本册验证记录和 [网页说明](../../web/README.md)。
-正式 Release 触发的部署工作流保持原入口，本次替换不改变桌面功能或 G-native 验收范围。
+网页构建独立于桌面应用交付。2026-11-07 将网页部署改为仅手动触发，刷新网页仍可获取最新正式版下载链接。
 
 **2026-10-13 分支整合后的网页状态**：合入 `main` 的 `4957729`，保留 10-12 同步的来源
 `712b864`；Dayflow 独立设计参考章节与图片已移除，页尾致谢保留。Release 下载与隐私文案
@@ -199,6 +199,12 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
+
+- **2026-11-07（Pages 改为手动部署；基于 `18162aa` 的 `test` 工作树，macOS arm64）**：
+  网页工作流只订阅 `workflow_dispatch`，检出触发提交。核对桌面 Release 工作流无差异；
+  `actionlint v1.7.12`、网页 24 项单测和构建、文档检查与 `git diff --check` 通过。
+  未发布 Release 或触发真实 Pages 部署。后续从包含本次修改的提交创建发布 tag，
+  撤销本次提交可恢复 Release 部署触发器。
 
 - **2026-10-20（引导订阅入口；基于 `4e71575` 的 `test` 工作树，macOS arm64）**：
   输入为同一 `ProviderSetup` 在 AI 服务页与首次引导中的匿名 Wails 状态；预期同名入口、

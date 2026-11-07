@@ -1,8 +1,6 @@
-name: Deploy release website
+name: Deploy website
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -14,12 +12,10 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || (github.event.release.draft == false && github.event.release.prerelease == false)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name || github.sha }}
           persist-credentials: false
 
       - uses: actions/setup-node@v4
