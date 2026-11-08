@@ -69,11 +69,6 @@ export default {
     editsHint: 'Lass MCP-Clients und die Kommandozeile Karten bearbeiten und zusammenführen sowie Kategorien und Ziele bearbeiten.',
   },
   general: {
-    dockShortcut: 'Im Dock behalten',
-    dockShortcutHint: 'Wenn Daygo im Dock fixiert ist, bleibt das Symbol beim Schließen des Fensters erhalten und der Aktivitätspunkt verschwindet.',
-    dockShortcutAction: 'Symbol zum Ziehen anzeigen',
-    dockShortcutDrag: 'Ziehe das Symbol in den App-Bereich des Docks.',
-    dockShortcutError: 'Das Daygo-Symbol zum Ziehen konnte nicht angezeigt werden.',
     notificationsUnavailable: 'Systembenachrichtigungen sind in dieser Umgebung derzeit nicht verfügbar.',
     launchAtLogin: 'Beim Anmelden starten',
     launchAtLoginHint: 'Daygo beim Anmelden automatisch öffnen und im Hintergrund weiter aufzeichnen.',

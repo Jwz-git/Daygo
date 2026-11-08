@@ -69,11 +69,6 @@ export default {
     editsHint: 'MCP 클라이언트와 명령줄이 카드를 편집·병합하고 카테고리와 목표를 편집하도록 허용합니다.',
   },
   general: {
-    dockShortcut: 'Dock에 유지',
-    dockShortcutHint: 'Daygo를 고정하면 창을 닫아도 아이콘이 남고 실행 표시 점은 사라집니다.',
-    dockShortcutAction: '드래그할 아이콘 표시',
-    dockShortcutDrag: '아이콘을 Dock의 앱 영역으로 드래그하세요.',
-    dockShortcutError: '드래그할 Daygo 아이콘을 표시할 수 없습니다.',
     notificationsUnavailable: '현재 이 환경에서는 시스템 알림을 사용할 수 없습니다.',
     launchAtLogin: '로그인 시 실행',
     launchAtLoginHint: '로그인하면 Daygo를 자동으로 열고 백그라운드에서 계속 기록합니다.',

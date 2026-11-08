@@ -653,7 +653,7 @@ type DayContextDTO struct {
 type CapabilitiesDTO struct {
     CanWrite        bool     `json:"canWrite"`        // 是否持有写入锁
     IsCaptureOwner  bool     `json:"isCaptureOwner"`  // 是否持有捕获所有者锁
-    Features        []string `json:"features"`        // 当前值："settings"；有数据库加 "storage","timeline"；有原生投递加 "notifications"；有 macOS 拖放入口加 "dock_shortcut"
+    Features        []string `json:"features"`        // 当前值："settings"；有数据库加 "storage","timeline"；有原生投递加 "notifications"
     AppVersion      string   `json:"appVersion"`
     APIRevision     int      `json:"apiRevision"` // 见 §5.10.1
 }
@@ -662,7 +662,6 @@ type CapabilitiesDTO struct {
 // Windows 需同目录 DLL 的通知 ABI 与当前用户桌面身份初始化成功；旧 / 缺 DLL 保持不可用。
 // System 的可选 NotificationAvailability 无授权副作用地报告此能力；无 reporter 视为不可用。
 // UI 无能力时禁用日记 / 计划提醒，已有偏好保留；授权状态仍由 GetPermissionState 查询。
-// dock_shortcut 仅用于非 App Translocation 的 macOS .app；与写入所有权无关。
 
 type DiagnosticsDTO struct {
     DatabasePath      string `json:"databasePath"`
@@ -1624,12 +1623,6 @@ Windows 的静态库 / DLL 必须与 Go 桥一起重建。System ABI 1.6 另提�
 2026-11-08：macOS System ABI 1.7 增加红叉事件 `window_close_requested`（原生值 12）。
 主窗口红叉隐藏应用后上送，Cmd+H 无此事件。应用菜单 JSON 中 `quit` 对应 Cmd+Q，
 替代原 `background` 字段。Go 桥和 macOS 静态库随宿主一起重建。
-
-macOS System ABI 1.8 新增 `dg_dock_shortcut_available` / `dg_dock_shortcut_show`。
-`ShowDockShortcut(title, hint)` 只接受两个非空的本地化 UTF-8 字符串，每项最多 512 字节。
-原生面板的拖放源是当前进程的 `.app` bundle URL，由系统在用户放到 Dock 时固定。
-不接受前端路径，不读取或写入 Dock 偏好。面板非模态，System 停止时关闭。
-无原生能力时返回 `native_unavailable`，文案不合法时返回 `invalid_argument`。
 
 `system.showDockIcon` 在启动及设置持久化后驱动 macOS 激活策略；关闭时窗口仍可显示，但从
 Dock / Cmd+Tab 隐去。红叉隐藏窗口并请求 accessory，重开按已保存偏好恢复策略。

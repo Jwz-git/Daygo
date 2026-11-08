@@ -262,7 +262,6 @@ func dg_relaunch() -> Int32 {
 func dg_system_stop() {
     activationRunOnMain {
         dismissResidentMessage()
-        dismissDockShortcut()
         appliedActivationPolicy = nil
         windowCloseAction.uninstall()
     }

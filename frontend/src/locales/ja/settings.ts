@@ -69,11 +69,6 @@ export default {
     editsHint: 'MCP クライアントとコマンドラインによるカードの編集・結合と、カテゴリ・目標の編集を許可します。',
   },
   general: {
-    dockShortcut: 'Dockに追加',
-    dockShortcutHint: 'Daygoを固定すると、ウインドウを閉じてもアイコンが残り、起動中を示す点が消えます。',
-    dockShortcutAction: 'ドラッグ用アイコンを表示',
-    dockShortcutDrag: 'アイコンをDockのアプリ領域にドラッグしてください。',
-    dockShortcutError: 'Daygoのドラッグ用アイコンを表示できませんでした。',
     notificationsUnavailable: 'この環境では現在、システム通知を利用できません。',
     launchAtLogin: 'ログイン時に起動',
     launchAtLoginHint: 'ログイン時に Daygo を自動で開き、バックグラウンドで記録を続けます。',

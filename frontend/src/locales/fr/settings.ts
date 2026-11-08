@@ -69,11 +69,6 @@ export default {
     editsHint: 'Permet aux clients MCP et à la ligne de commande de modifier et fusionner les cartes, et de modifier les catégories et les objectifs.',
   },
   general: {
-    dockShortcut: 'Garder dans le Dock',
-    dockShortcutHint: 'Épinglez Daygo pour garder son icône dans le Dock et masquer le point quand vous fermez la fenêtre.',
-    dockShortcutAction: 'Afficher l’icône à glisser',
-    dockShortcutDrag: 'Faites glisser l’icône vers la zone des apps du Dock.',
-    dockShortcutError: 'Impossible d’afficher l’icône Daygo à faire glisser.',
     notificationsUnavailable: 'Les notifications système ne sont pas disponibles dans cet environnement pour le moment.',
     launchAtLogin: 'Ouvrir à l’ouverture de session',
     launchAtLoginHint: 'Ouvre Daygo automatiquement à l’ouverture de session et continue d’enregistrer en arrière-plan.',

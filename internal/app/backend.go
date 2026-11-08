@@ -689,9 +689,6 @@ func (b *Backend) GetCapabilities() (CapabilitiesDTO, error) {
 // interpreting failures (docs/05 §5.2.1).
 func (b *Backend) features() []string {
 	features := []string{"settings"}
-	if dock, ok := b.system.(dockShortcutPresenter); ok && dock.DockShortcutAvailable() {
-		features = append(features, "dock_shortcut")
-	}
 	if b.storage != nil {
 		// Persistence is real only when a database is actually open.
 		features = append(features, "storage", "timeline")

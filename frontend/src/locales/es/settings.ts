@@ -69,11 +69,6 @@ export default {
     editsHint: 'Deja que los clientes MCP y la línea de comandos editen y fusionen tarjetas, y editen categorías y objetivos.',
   },
   general: {
-    dockShortcut: 'Mantener en el Dock',
-    dockShortcutHint: 'Fija Daygo para conservar su icono en el Dock y ocultar el punto al cerrar la ventana.',
-    dockShortcutAction: 'Mostrar icono para arrastrar',
-    dockShortcutDrag: 'Arrastra el icono a la zona de apps del Dock.',
-    dockShortcutError: 'No se pudo mostrar el icono de Daygo para arrastrar.',
     notificationsUnavailable: 'Las notificaciones del sistema no están disponibles en este entorno por ahora.',
     launchAtLogin: 'Abrir al iniciar sesión',
     launchAtLoginHint: 'Abre Daygo automáticamente al iniciar sesión y sigue grabando en segundo plano.',
