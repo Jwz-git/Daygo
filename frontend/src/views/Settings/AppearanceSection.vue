@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { AppTheme } from '@/api/dto'
+import { showDockShortcut } from '@/api/system'
 import { SYSTEM_LANGUAGE, type LanguagePreference } from '@/i18n/locales'
 import { useAppearanceStore } from '@/stores/appearance'
 import { useTestToolsStore } from '@/stores/testTools'
@@ -20,6 +21,8 @@ const appearance = useAppearanceStore()
 const testTools = useTestToolsStore()
 const capabilities = useCapabilitiesStore()
 const testToolsFailed = ref(false)
+const dockShortcutFailed = ref(false)
+const dockShortcutAvailable = computed(() => capabilities.capabilities?.features.includes('dock_shortcut') ?? false)
 
 // The toggle only reveals a page that ships in dev/opt-in builds; hide it in
 // the production installer so there is no dead switch behind an absent page.
@@ -42,6 +45,15 @@ onMounted(() => {
 
 function onToggleLaunchAtLogin(next: boolean): void {
   void persistSystem({ launchAtLogin: next })
+}
+
+async function openDockShortcut(): Promise<void> {
+  dockShortcutFailed.value = false
+  try {
+    await showDockShortcut(t('settings.general.dockShortcut'), t('settings.general.dockShortcutDrag'))
+  } catch {
+    dockShortcutFailed.value = true
+  }
 }
 
 function onToggleJournalReminder(next: boolean): void {
@@ -124,6 +136,17 @@ const languageOptions = computed<DgSelectOption<LanguagePreference>[]>(() =>
     />
   </SettingRow>
   <p v-if="systemWriteFailed" class="write-error" role="alert">{{ t('settings.general.writeError') }}</p>
+
+  <SettingRow
+    v-if="dockShortcutAvailable"
+    :title="t('settings.general.dockShortcut')"
+    :hint="t('settings.general.dockShortcutHint')"
+  >
+    <button class="dg-button" type="button" @click="openDockShortcut">
+      {{ t('settings.general.dockShortcutAction') }}
+    </button>
+  </SettingRow>
+  <p v-if="dockShortcutFailed" class="write-error" role="alert">{{ t('settings.general.dockShortcutError') }}</p>
 
   <SettingRow
     :title="t('settings.general.journalReminder')"

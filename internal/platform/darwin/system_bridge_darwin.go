@@ -199,6 +199,18 @@ func showStatusMessage(message platform.StatusMessage) error {
 	}
 	return nil
 }
+
+func (*System) DockShortcutAvailable() bool { return C.dg_dock_shortcut_available() == 1 }
+
+func (*System) ShowDockShortcut(title, hint string) error {
+	cTitle, cHint := C.CString(title), C.CString(hint)
+	defer C.free(unsafe.Pointer(cTitle))
+	defer C.free(unsafe.Pointer(cHint))
+	if code := C.dg_dock_shortcut_show(cTitle, cHint); code != 0 {
+		return fmt.Errorf("show dock shortcut ABI failed: %d", int32(code))
+	}
+	return nil
+}
 func boolToUint(v bool) uint32 {
 	if v {
 		return 1

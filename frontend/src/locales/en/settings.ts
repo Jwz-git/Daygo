@@ -69,6 +69,11 @@ export default {
     editsHint: 'Let MCP clients and the CLI edit and merge cards, and edit categories and goals.',
   },
   general: {
+    dockShortcut: 'Keep in Dock',
+    dockShortcutHint: 'Pin Daygo so its icon stays in the Dock and the running dot disappears when you close the window.',
+    dockShortcutAction: 'Show draggable icon',
+    dockShortcutDrag: 'Drag the icon to the apps area of the Dock.',
+    dockShortcutError: 'Could not show the draggable Daygo icon.',
     notificationsUnavailable: 'System notifications are currently unavailable in this environment.',
     launchAtLogin: 'Launch at login',
     launchAtLoginHint: 'Open Daygo automatically when you log in, and keep recording in the background.',

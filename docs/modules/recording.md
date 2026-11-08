@@ -403,3 +403,22 @@ Windows 安装器夹具 6 项通过、10 项因需 Windows 主机跳过，不记
 - 本轮未替换已安装客户端，未验证真实 TCC 授权重启、更新器或 IT-14 十分钟连续离散捕获。
 
 回退可撤销本次提交并重建 macOS Go 宿主与静态库；无 schema 或用户数据迁移。
+
+### 2026-11-08 Dock 拖放
+
+基于 `e65ab5c` 工作树，范围为 recording 宿主及 preferences 设置入口。macOS 用户在
+「设置 → 通用与外观 → 在 Dock 中保留」打开原生面板，拖动 Daygo 图标到 Dock 应用区。
+macOS 负责固定项目，关窗继续走 accessory 激活策略。非 macOS / 非 bundle 环境隐藏入口；
+App Translocation 环境也不下发能力。
+
+- macOS 26.0.1 arm64，`bash native/darwin/build.sh` 和 `bash native/darwin/system-smoke.sh`
+  通过。匿名原生夹具确认 `.app` 拖放 URL、面板可见、关闭时清理、裸可执行文件不可用。
+- 在匿名 Wails 包用 Accessibility 打开设置入口，鼠标拖放面板图标后观察到系统新增且仅新增
+  一个测试包固定项。另一次通过系统菜单固定后，红叉保持同一 PID、隐藏窗口、图标仍在、
+  `AXIsApplicationRunning=false`；点击图标恢复同一 PID 的窗口，运行标记恢复。
+  Dock 自动隐藏下的自动化拖放未稳定复跑，验证结束后移除匿名固定项。
+- `./scripts/gate.sh` 通过，前端 300 项，Windows 安装器夹具 6 项通过、10 项需要 Windows。
+  Go cgo 定向 race 通过，覆盖能力门禁、绑定文案校验、后台状态和恢复。
+- 匿名 Wails 夹具禁用捕获且使用独立目录，未替换已安装客户端，未重新运行 G-host 十分钟录制门禁。
+
+回退可撤销本次提交并重建 Go / macOS 原生库。用户固定的项目由 Dock 管理。

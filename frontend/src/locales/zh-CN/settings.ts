@@ -69,6 +69,11 @@ export default {
     editsHint: '允许通过 MCP 或命令行修改、合并卡片，以及修改分类和目标。',
   },
   general: {
+    dockShortcut: '在 Dock 中保留',
+    dockShortcutHint: '固定 Daygo 后，关闭窗口时图标仍会保留，图标下的运行圆点会消失。',
+    dockShortcutAction: '显示可拖动图标',
+    dockShortcutDrag: '把图标拖到 Dock 的应用区域。',
+    dockShortcutError: '无法显示可拖动的 Daygo 图标。',
     notificationsUnavailable: '当前环境暂时无法使用系统通知。',
     launchAtLogin: '开机自启',
     launchAtLoginHint: '登录电脑后自动打开 Daygo，并在后台继续记录。',

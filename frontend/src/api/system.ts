@@ -4,6 +4,7 @@ import {
   RelaunchForPermission,
   RequestScreenRecordingPermission,
   SetPermissionRestartArmed,
+  ShowDockShortcut,
 } from '../../wailsjs/go/app/Backend'
 import type { app } from '../../wailsjs/go/models'
 
@@ -38,6 +39,11 @@ export async function requestScreenRecordingPermission(): Promise<void> {
 /** Opens one of the allowed system-settings panes. */
 export async function openSystemSettings(pane: SettingsPane): Promise<void> {
   if (hasBridge()) return OpenSystemSettings(pane)
+  throw new Error(WAILS_UNAVAILABLE)
+}
+
+export async function showDockShortcut(title: string, hint: string): Promise<void> {
+  if (hasBridge()) return ShowDockShortcut(title, hint)
   throw new Error(WAILS_UNAVAILABLE)
 }
 

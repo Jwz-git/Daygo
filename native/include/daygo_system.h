@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 #define DG_SYSTEM_ABI_MAJOR 1u
-#define DG_SYSTEM_ABI_MINOR 7u
+#define DG_SYSTEM_ABI_MINOR 8u
 typedef void (*dg_system_event_callback_v1)(uint32_t kind, int64_t at_unix_ns, void *user_data);
 enum { DG_SYSTEM_SLEEP=1, DG_SYSTEM_WAKE=2, DG_SYSTEM_SCREEN_LOCKED=3, DG_SYSTEM_SCREEN_UNLOCKED=4, DG_SYSTEM_SCREENSAVER_START=5, DG_SYSTEM_SCREENSAVER_STOP=6, DG_SYSTEM_DISPLAYS_CHANGED=7, DG_SYSTEM_APPLICATION_ACTIVATED=8, DG_SYSTEM_APPLICATION_HIDDEN=9, DG_SYSTEM_APPLICATION_UNHIDDEN=10, DG_SYSTEM_SHUTDOWN=11 };
 /* macOS main window's red close button, distinct from Hide and Quit. */
@@ -32,6 +32,10 @@ int32_t dg_application_menu_labels_set(uint32_t requested_abi_major, const char 
 /* macOS nonblocking host-owned message, flat UTF-8 JSON {title,message,button}.
    At most one is displayed, and dg_system_stop dismisses it. Max 8192 bytes. */
 int32_t dg_status_message_show(uint32_t requested_abi_major, const char *message_json);
+/* macOS modeless drag source for the current app bundle. Copy the two UTF-8
+   labels (max 512 bytes each) before queueing presentation on the main thread. */
+int32_t dg_dock_shortcut_available(void);
+int32_t dg_dock_shortcut_show(const char *title, const char *hint);
 /* Returns a DG_PERMISSION_* state (>=0), or a negative value on internal error. */
 int32_t dg_screen_recording_permission_query(void);
 /* Triggers the system prompt on first use; a no-op once denied. Returns

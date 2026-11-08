@@ -10,6 +10,7 @@ xcrun swiftc -swift-version 6 -parse-as-library -D DAYGO_NATIVE_TESTS \
   "$task_root/native/darwin/Sources/StatusItemABI.swift" \
   "$task_root/native/darwin/Sources/ApplicationMenuABI.swift" \
   "$task_root/native/darwin/Sources/ResidentMessageABI.swift" \
+  "$task_root/native/darwin/Sources/DockShortcut.swift" \
   "$task_root/native/darwin/system_smoke.swift" -o "$task_output/system-smoke"
 "$task_output/system-smoke"
 # Repeat in an anonymous app bundle, without Daygo's identity or user data.

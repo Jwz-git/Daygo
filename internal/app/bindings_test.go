@@ -97,6 +97,7 @@ var contractBindings = []string{
 	"SetRecording",
 	"SetStatusItemLabels",
 	"SetWindowBackground",
+	"ShowDockShortcut",
 	"PollSystemEvents",
 	"ReprocessCard",
 	"ReprocessDay",

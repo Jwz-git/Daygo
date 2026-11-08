@@ -122,7 +122,10 @@ struct SystemSmoke {
     precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_ACCESSORY)) == 0)
     precondition(app.setActivationPolicy(.regular))
     NotificationCenter.default.post(name: NSApplication.didFinishLaunchingNotification, object: app)
-    RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+    let deadline = Date().addingTimeInterval(1)
+    while app.activationPolicy() != .accessory && Date() < deadline {
+      RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+    }
     precondition(app.activationPolicy() == .accessory)
     app.hide(nil)
     precondition(observed.closeCount() == 0)
@@ -135,7 +138,18 @@ struct SystemSmoke {
       name: NSWorkspace.willPowerOffNotification, object: NSWorkspace.shared)
     precondition(observed.count() == 1)
     precondition(message.withCString { dg_status_message_show(DG_SYSTEM_ABI_MAJOR, $0) } == 0)
+    let shortcutResult = "Dock fixture".withCString { title in
+      "Drag the fixture icon".withCString { hint in dg_dock_shortcut_show(title, hint) }
+    }
+    if Bundle.main.bundleURL.pathExtension == "app" {
+      precondition(dg_dock_shortcut_available() == 1 && shortcutResult == 0)
+      let (panel, url) = dockShortcutForSmoke()!
+      precondition(panel.isVisible && panel.title == "Dock fixture" && url == Bundle.main.bundleURL)
+    } else {
+      precondition(dg_dock_shortcut_available() == 0 && shortcutResult < 0)
+    }
     dg_system_stop()
+    precondition(dockShortcutForSmoke() == nil)
     precondition(closeButton.action == originalCloseAction)
     precondition(residentMessageForSmoke() == nil)
     NSWorkspace.shared.notificationCenter.post(
