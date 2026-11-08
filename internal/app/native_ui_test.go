@@ -22,11 +22,11 @@ func TestApplicationMenuCopyUsesDefaultsAndForwardsLocale(t *testing.T) {
 	sys := &applicationMenuSinkFixture{System: fake.NewSystem()}
 	b := NewBackend(sys, nil)
 	b.pushApplicationMenuCopy()
-	if sys.labels.Background != defaultNativeUiLabels().ApplicationMenu.Background {
+	if sys.labels.Quit != defaultNativeUiLabels().ApplicationMenu.Quit {
 		t.Fatal("native app menu had no startup copy")
 	}
 	labels := defaultNativeUiLabels()
-	labels.ApplicationMenu.Background = "Fixture background"
+	labels.ApplicationMenu.Quit = "Fixture quit"
 	if err := b.SetNativeUiLabels(labels); err != nil {
 		t.Fatal(err)
 	}

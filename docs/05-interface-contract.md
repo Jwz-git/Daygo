@@ -310,10 +310,10 @@ export function toApiError(e: unknown): ApiError {
 - `RetryBatches` / `ReprocessDay` 立即返回，结果经 `timeline:updated` / `batch:failed` 通知后重新拉取（`batch:progress` 规划中，当前不发送）：
   `RetryBatches` 重置 `attempts` 并清空失败信息后回到 `pending`；调用方传入的
   id 里只要有一个不是失败终态的批次，整个调用返回 `invalid_argument` 且不落任何改动。
-- 真正退出（状态栏退出、更新重启、系统退出）取消本次进程的手动 `RetryBatches` /
+- 真正退出（macOS Dock / Cmd+Q、状态栏退出、更新重启、系统退出）取消本次进程的手动 `RetryBatches` /
   `ReprocessDay` / `ReprocessCard` 任务。先取消请求并等待写入任务结束，再恢复未完成手动批次的
   原终态；失败批次封顶 `attempts`，下次启动不会自动继续。已成功结果保留，未完成任务不改卡片。
-  关闭窗口 / 软退出继续后台任务。手动批次原状态只保存在本次进程内存，强杀 / 崩溃仍沿用
+  关闭窗口后继续后台任务。手动批次原状态只保存在本次进程内存，强杀 / 崩溃仍沿用
   `processing` 启动恢复；自动新分析批次也沿用恢复规则。退出恢复写入失败时记录诊断，不能保证取消持久化。
 - `StopRetries` 是 `RetryBatches` 的反向操作：把失败批次的 `attempts` 封顶到
   `MaxBatchAttempts`（不改状态、不删行、不发 LLM 调用），于是冷却重排（`RequeueFailed`）
@@ -421,7 +421,7 @@ type NativeUiLabelsDTO struct {                                     // §5.5.1
   自行渲染安装提示的适配器不实现该端口，下发被跳过。
 - `applicationMenu` 经可选 `ApplicationMenuCopySink` 下发 20 个标题（完整字段见
   `internal/platform/types.go`），仅替换既有菜单项文案，保留 selector、快捷键和 responder chain。
-  Cmd+Q 的应用菜单标题明确为“留在后台继续记录”；Dock 系统菜单的“退出”仍由系统渲染。
+  Cmd+Q 的应用菜单标题为“退出 Daygo”（`quit`）；Dock 的“退出”由 macOS 渲染。
 - `journalReminderTitle` / `journalReminderBody` 是**日记提醒通知**的文案。提醒的重复语义由 Go
   拥有（端口 `ScheduleNotification` 是一次性通知，见 §5.7），调度器在读写实例上运行、按设置对账、
   以稳定 id `journal-reminder` 覆盖或取消；提醒设置提交 / 原生文案变化立即唤醒对账，
@@ -591,7 +591,7 @@ type ProviderPlaygroundResultDTO struct {
 
 `SetPermissionRestartArmed` 武装 / 解除「授权重启」意图（进程内标志，重启后自然复位）：前端在授权引导层
 出现时武装、关闭时解除。武装后的下一次退出——包括 macOS 授权后自弹的「退出并重开」——是**完全退出 +
-自动重启**，而非常驻 Agent 平时的软退出隐藏（见
+自动重启**，与平时关窗留后台的路径分离（见
 [生命周期退出模型](decisions/lifecycle-quit-model.md) 与
 [屏幕录制授权](decisions/recording-screen-recording-permission.md)）。`RelaunchForPermission`
 直接执行「收尾录制 → 调度自重启 → 真退出」，供引导层的「重启使授权生效」按钮调用；无桌面外壳时返回
@@ -1239,8 +1239,8 @@ Windows 的错误、取消与关闭更新弹窗回调均清除 `checking`。安�
 
 `GetUIVisibility() UIVisibilityDTO` 返回 `{visible: boolean}`；`ui:visibility-changed`
 同形载荷，仅在有效状态改变时发出。app 维护应用隐藏与窗口 order-out 两个独立来源；
-macOS `didHide` / `didUnhide` 经 System 事件泵处理，软退出 / 显式重开由 Wails 入口处理。
-普通激活 / 失焦不构成隐藏；既有退出、录制状态和业务订阅不变。前端单一订阅先安装事件，
+macOS 红叉与 Cmd+H 均由 `didHide` / `didUnhide` 更新应用隐藏状态，红叉另上送 `window_close_requested` 触发 Dock 策略。
+普通激活 / 失焦不构成隐藏；隐藏不改变录制状态和业务订阅。前端单一订阅先安装事件，
 再读快照；事件或较新的快照请求使旧快照失效，结合 `document.visibilityState` 驱动媒体。
 隐藏只暂停媒体时钟并移除像素元素，不卸载路由、播放器或编辑状态；重开保留播放意图与进度。
 
@@ -1620,10 +1620,14 @@ Windows 的静态库 / DLL 必须与 Go 桥一起重建。System ABI 1.6 另提�
 
 2026-10-13：前端设置页已移除 Dock 显示开关；以下后台字段与策略保留，继续尊重已有保存值。
 
+2026-11-08：macOS System ABI 1.7 增加红叉事件 `window_close_requested`（原生值 12）。
+主窗口红叉隐藏应用后上送，Cmd+H 无此事件。应用菜单 JSON 中 `quit` 对应 Cmd+Q，
+替代原 `background` 字段。Go 桥和 macOS 静态库随宿主一起重建。
+
 `system.showDockIcon` 在启动及设置持久化后驱动 macOS 激活策略；关闭时窗口仍可显示，但从
-Dock / Cmd+Tab 隐去。软退出单独隐藏窗口并请求 accessory，重开按已保存偏好恢复策略。
+Dock / Cmd+Tab 隐去。红叉隐藏窗口并请求 accessory，重开按已保存偏好恢复策略。
 进入 accessory 前确认状态栏恢复入口可用，否则保留 regular；原生失败不记为已应用，并在
-下一次显式重开重试。重开仍会显示窗口并清除软退出恢复标记，不因 Dock 策略失败而在后续
+下一次显式重开重试。重开仍会显示窗口并清除后台恢复标记，不因 Dock 策略失败而在后续
 普通激活时重复显示窗口。设置保存成功而应用失败时提示该区别，不回滚已保存偏好。
 
 

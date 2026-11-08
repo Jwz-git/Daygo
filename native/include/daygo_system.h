@@ -5,9 +5,11 @@
 extern "C" {
 #endif
 #define DG_SYSTEM_ABI_MAJOR 1u
-#define DG_SYSTEM_ABI_MINOR 6u
+#define DG_SYSTEM_ABI_MINOR 7u
 typedef void (*dg_system_event_callback_v1)(uint32_t kind, int64_t at_unix_ns, void *user_data);
 enum { DG_SYSTEM_SLEEP=1, DG_SYSTEM_WAKE=2, DG_SYSTEM_SCREEN_LOCKED=3, DG_SYSTEM_SCREEN_UNLOCKED=4, DG_SYSTEM_SCREENSAVER_START=5, DG_SYSTEM_SCREENSAVER_STOP=6, DG_SYSTEM_DISPLAYS_CHANGED=7, DG_SYSTEM_APPLICATION_ACTIVATED=8, DG_SYSTEM_APPLICATION_HIDDEN=9, DG_SYSTEM_APPLICATION_UNHIDDEN=10, DG_SYSTEM_SHUTDOWN=11 };
+/* macOS main window's red close button, distinct from Hide and Quit. */
+enum { DG_SYSTEM_WINDOW_CLOSE_REQUESTED=12 };
 enum { DG_ACTIVATION_REGULAR=0, DG_ACTIVATION_ACCESSORY=1, DG_ACTIVATION_PROHIBITED=2 };
 /* Screen-recording authorization. Preflight cannot tell a fresh not-determined
    state from an explicit denial, so the query never returns DENIED on macOS;

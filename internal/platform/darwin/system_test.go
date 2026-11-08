@@ -66,6 +66,12 @@ func TestSystemEventKindMapsApplicationActivation(t *testing.T) {
 	}
 }
 
+func TestSystemEventKindMapsWindowClose(t *testing.T) {
+	if got := systemEventKind(12); got != platform.EventWindowCloseRequested {
+		t.Fatalf("systemEventKind(12) = %q, want %q", got, platform.EventWindowCloseRequested)
+	}
+}
+
 func TestSystemEventKindMapsApplicationVisibility(t *testing.T) {
 	for input, want := range map[uint32]platform.SystemEventKind{9: platform.EventApplicationHidden, 10: platform.EventApplicationUnhidden} {
 		if got := systemEventKind(input); got != want || !got.Paired() {

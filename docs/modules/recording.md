@@ -25,6 +25,9 @@ Windows 端可从设置页迁移全部历史录制到空目录；录制停写、
 
 ## 当前状态与证据
 
+2026-11-08：macOS 主窗口红叉关窗后继续录制并隐藏 Dock 运行标记；Dock「退出」、Cmd+Q
+和状态栏退出按同一安全收尾流程终止进程。见[本轮宿主回归](#2026-11-08-macos-关窗与退出回归)。
+
 2026-10-20：修复 macOS 分段 writer 创建 / 滚动 / 收尾缺少完整 autoreleasepool 边界导致的
 原生对象保留；三进程匿名原生夹具通过。已安装版未替换，真实 Wails 与长期回归尚未运行，
 不扩大历史验收。输入、前后测量及门禁范围见[本轮内存回归](#2026-10-20-分段收尾内存回归)。
@@ -375,3 +378,24 @@ Windows 安装器夹具 6 项通过、10 项因需 Windows 主机跳过，不记
 - **2026-10-12（`test`）暂停菜单与权限弹窗配色**：两处引用了未定义的 `--dg-surface-raised` / `--dg-surface-sunken`，
   浅色主题下落到近黑后备色而文字为深色；现改用 `.dg-popover` / `--dg-surface` / `--dg-hover-fill`。前端 typecheck、
   build 通过，外观由用户人工检查。
+
+
+### 2026-11-08 macOS 关窗与退出回归
+
+基于 `c850f8b` 的工作树。范围为 recording 宿主与原生菜单。匿名夹具输入为主窗口红叉、
+普通应用隐藏、菜单栏重开、普通退出与已武装的授权重启。红叉与退出路由分别见
+[生命周期退出模型](../decisions/lifecycle-quit-model.md)。
+
+- macOS 26.0.1 arm64，`bash native/darwin/build.sh` 和 `bash native/darwin/system-smoke.sh`
+  通过；后者在独立进程与匿名 App bundle 核对红叉、普通隐藏、窗口恢复、菜单文案与关机事件。
+- 用 `CGO_ENABLED=1 go build -tags production -overlay … ./cmd/daygo` 构建匿名 Wails 包，
+  overlay 只隔离数据目录、关闭截图并标识测试窗口及可见性日志。通过 macOS Accessibility
+  点击红叉、菜单栏「打开 Daygo」、应用菜单「隐藏」和 Dock 右键「退出」。同一 PID 在关窗后
+  存活，屏幕可见窗口及 Dock 项各从 1 变为 0；重开均恢复到 1。普通隐藏保留 Dock 项。
+  Dock「退出」、应用菜单 Cmd+Q 对应项和菜单栏「停止录制并退出 Daygo」均终止进程。
+  可见性回调在隐藏与重开后分别返回 false 和 true。
+- `./scripts/gate.sh` 通过 Go 核心、三平台纯 Go 构建、前端 300 项、文档与匿名 Windows 安装器
+  夹具（6 项通过，10 项需要 Windows 而跳过）。本机 cgo 生命周期定向 race 通过。
+- 本轮未替换已安装客户端，未验证真实 TCC 授权重启、更新器或 IT-14 十分钟连续离散捕获。
+
+回退可撤销本次提交并重建 macOS Go 宿主与静态库；无 schema 或用户数据迁移。

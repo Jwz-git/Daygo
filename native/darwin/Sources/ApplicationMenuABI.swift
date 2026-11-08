@@ -7,7 +7,7 @@ import Foundation
   guard let menu = NSApp.mainMenu else { return }
   let selectors = [
     "hide:": "hide", "hideOtherApplications:": "hideOthers", "unhideAllApplications:": "showAll",
-    "Quit": "background",
+    "Quit": "quit",
     "undo:": "undo", "redo:": "redo", "cut:": "cut", "copy:": "copy", "paste:": "paste",
     "pasteAsRichText:": "pasteMatch",
     "delete:": "delete", "selectAll:": "selectAll", "startSpeaking:": "startSpeaking",
@@ -54,7 +54,7 @@ func dg_application_menu_labels_set(_ requested: UInt32, _ raw: UnsafePointer<CC
     return -1
   }
   let keys = [
-    "hide", "hideOthers", "showAll", "background", "edit", "undo", "redo", "cut", "copy", "paste",
+    "hide", "hideOthers", "showAll", "quit", "edit", "undo", "redo", "cut", "copy", "paste",
     "pasteMatch", "delete", "selectAll", "speech", "startSpeaking", "stopSpeaking", "window",
     "minimize", "zoom", "fullScreen",
   ]

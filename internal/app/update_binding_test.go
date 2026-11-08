@@ -199,12 +199,8 @@ func TestUpdateCancellationReleasesRecordingStartGate(t *testing.T) {
 	}
 }
 
-// Sparkle's "Install and Relaunch" terminates the app through the same path as
-// Cmd+Q. Unless the relaunch is authorized first, the resident-agent soft quit
-// swallows it: the process stays alive and the installer waits until the user
-// quits from the status item. The authorizer must turn that one termination
-// into a real quit, and must disarm a pending permission relaunch so the
-// updater's relaunch is the only new instance.
+// Sparkle's "Install and Relaunch" uses the same path as Cmd+Q. The authorizer
+// disarms any pending permission relaunch so only the updater starts a new instance.
 func TestUpdateRelaunchAuthorizesRealQuit(t *testing.T) {
 	updater := &relaunchingUpdater{coordinatedUpdater: coordinatedUpdater{Updater: fake.NewUpdater()}}
 	b := newBackend(fixedClock{}, nil, nil, true, true)

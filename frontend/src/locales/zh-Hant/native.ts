@@ -24,7 +24,7 @@ export default {
     hide: "隱藏 Daygo",
     hideOthers: "隱藏其他應用程式",
     showAll: "顯示全部",
-    background: "留在背景繼續記錄",
+    quit: "結束 Daygo",
     edit: "編輯",
     undo: "復原",
     redo: "重做",

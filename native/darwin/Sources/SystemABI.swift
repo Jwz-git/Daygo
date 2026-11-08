@@ -53,6 +53,9 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
         DispatchQueue.main.async {
             applyApplicationMenuCopy()
             restoreAppliedActivationPolicy()
+            if let window = NSApp.mainWindow ?? NSApp.windows.first(where: { $0.styleMask.contains(.closable) }) {
+                windowCloseAction.install(on: window)
+            }
         }
     }
     state.lock.lock(); state.observers.append(menuObserver); state.lock.unlock()
@@ -91,6 +94,39 @@ private func activationRunOnMain(_ body: @Sendable @escaping @MainActor () -> Vo
 }
 
 @MainActor private var appliedActivationPolicy: NSApplication.ActivationPolicy?
+@MainActor private let windowCloseAction = WindowCloseAction()
+
+// Wails handles both termination sources in OnBeforeClose. The native red
+// button has its own target so it can keep Wails' app-hide behavior and signal
+// the background transition without treating Cmd+H as a window close.
+@MainActor private final class WindowCloseAction: NSObject {
+    private weak var button: NSButton?
+    private weak var originalTarget: AnyObject?
+    private var originalAction: Selector?
+
+    func install(on window: NSWindow) {
+        guard let close = window.standardWindowButton(.closeButton), close !== button else { return }
+        uninstall()
+        button = close
+        originalTarget = close.target
+        originalAction = close.action
+        close.target = self
+        close.action = #selector(hideWindow(_:))
+    }
+
+    func uninstall() {
+        if let button, button.target === self {
+            button.action = originalAction
+            button.target = originalTarget
+        }
+        button = nil
+    }
+
+    @objc private func hideWindow(_ sender: NSButton) {
+        NSApp.hide(sender)
+        emit(UInt32(DG_SYSTEM_WINDOW_CLOSE_REQUESTED))
+    }
+}
 
 @MainActor private func restoreAppliedActivationPolicy() {
     if let target = appliedActivationPolicy { _ = NSApp.setActivationPolicy(target) }
@@ -227,6 +263,7 @@ func dg_system_stop() {
     activationRunOnMain {
         dismissResidentMessage()
         appliedActivationPolicy = nil
+        windowCloseAction.uninstall()
     }
     let workspace = NSWorkspace.shared.notificationCenter
     let distributed = DistributedNotificationCenter.default()

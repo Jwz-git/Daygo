@@ -57,7 +57,7 @@ func defaultNativeUiLabels() NativeUiLabelsDTO {
 		ApplicationPickerFilter: "Windows 应用 (*.exe)",
 		UpdateOwnerRequired:     "只有持有捕获所有权的 Daygo 实例才能安装更新。",
 		ApplicationMenu: platform.ApplicationMenuLabels{
-			Hide: "隐藏 Daygo", HideOthers: "隐藏其他应用", ShowAll: "显示全部", Background: "留在后台继续记录", Edit: "编辑", Undo: "撤销", Redo: "重做", Cut: "剪切", Copy: "复制", Paste: "粘贴", PasteMatch: "粘贴并匹配样式", Delete: "删除", SelectAll: "全选", Speech: "语音", StartSpeaking: "开始朗读", StopSpeaking: "停止朗读", Window: "窗口", Minimize: "最小化", Zoom: "缩放", FullScreen: "全屏",
+			Hide: "隐藏 Daygo", HideOthers: "隐藏其他应用", ShowAll: "显示全部", Quit: "退出 Daygo", Edit: "编辑", Undo: "撤销", Redo: "重做", Cut: "剪切", Copy: "复制", Paste: "粘贴", PasteMatch: "粘贴并匹配样式", Delete: "删除", SelectAll: "全选", Speech: "语音", StartSpeaking: "开始朗读", StopSpeaking: "停止朗读", Window: "窗口", Minimize: "最小化", Zoom: "缩放", FullScreen: "全屏",
 		},
 		JournalReminderTitle: "记一下今天的日记",
 		JournalReminderBody:  "花几分钟记录今天的进展和明天的计划。",
@@ -105,7 +105,7 @@ func (b *Backend) pushApplicationMenuCopy() {
 		return
 	}
 	labels := b.nativeLabels.get().ApplicationMenu
-	if labels.Background == "" {
+	if labels.Quit == "" {
 		labels = defaultNativeUiLabels().ApplicationMenu
 	}
 	if err := sink.SetApplicationMenuLabels(context.Background(), labels); err != nil {

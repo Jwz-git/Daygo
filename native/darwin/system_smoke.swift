@@ -4,15 +4,22 @@ import Foundation
 private final class ObservedEvents: @unchecked Sendable {
   let lock = NSLock()
   var shutdowns = 0
+  var windowCloses = 0
   func record(_ kind: UInt32) {
     lock.lock()
     defer { lock.unlock() }
     if kind == UInt32(DG_SYSTEM_SHUTDOWN) { shutdowns += 1 }
+    if kind == UInt32(DG_SYSTEM_WINDOW_CLOSE_REQUESTED) { windowCloses += 1 }
   }
   func count() -> Int {
     lock.lock()
     defer { lock.unlock() }
     return shutdowns
+  }
+  func closeCount() -> Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return windowCloses
   }
 }
 private let observed = ObservedEvents()
@@ -107,6 +114,9 @@ struct SystemSmoke {
     precondition(residentMessageForSmoke() == nil)
     precondition("{}".withCString { dg_status_message_show(DG_SYSTEM_ABI_MAJOR, $0) } < 0)
     precondition(dg_system_start(DG_SYSTEM_ABI_MAJOR, onEvent, nil) == 0)
+    window.makeKeyAndOrderFront(nil)
+    let closeButton = window.standardWindowButton(.closeButton)!
+    let originalCloseAction = closeButton.action
     // Wails sets regular during launch. Reapply an already requested policy
     // after that lifecycle boundary, independently of frontend startup timing.
     precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_ACCESSORY)) == 0)
@@ -114,18 +124,26 @@ struct SystemSmoke {
     NotificationCenter.default.post(name: NSApplication.didFinishLaunchingNotification, object: app)
     RunLoop.current.run(until: Date().addingTimeInterval(0.02))
     precondition(app.activationPolicy() == .accessory)
+    app.hide(nil)
+    precondition(observed.closeCount() == 0)
+    app.unhide(nil)
+    closeButton.performClick(nil)
+    precondition(app.isHidden && observed.closeCount() == 1)
+    app.unhide(nil)
+    precondition(window.isVisible)
     NSWorkspace.shared.notificationCenter.post(
       name: NSWorkspace.willPowerOffNotification, object: NSWorkspace.shared)
     precondition(observed.count() == 1)
     precondition(message.withCString { dg_status_message_show(DG_SYSTEM_ABI_MAJOR, $0) } == 0)
     dg_system_stop()
+    precondition(closeButton.action == originalCloseAction)
     precondition(residentMessageForSmoke() == nil)
     NSWorkspace.shared.notificationCenter.post(
       name: NSWorkspace.willPowerOffNotification, object: NSWorkspace.shared)
     precondition(observed.count() == 1)
     window.orderOut(nil)
     print(
-      "native system smoke: main/worker idempotent policy, visible-window roundtrip, status availability/deduplication, feedback layout/dismissal, main-menu localization, shutdown routing and teardown passed"
+      "native system smoke: main/worker policy, window close and reopen, status item, feedback, main-menu localization, shutdown and teardown passed"
     )
   }
 
@@ -161,7 +179,7 @@ struct SystemSmoke {
     menu.addItem(editRoot)
     app.mainMenu = menu
     let keys = [
-      "hide", "hideOthers", "showAll", "background", "edit", "undo", "redo", "cut", "copy", "paste",
+      "hide", "hideOthers", "showAll", "quit", "edit", "undo", "redo", "cut", "copy", "paste",
       "pasteMatch", "delete", "selectAll", "speech", "startSpeaking", "stopSpeaking", "window",
       "minimize", "zoom", "fullScreen",
     ]
@@ -172,7 +190,7 @@ struct SystemSmoke {
       precondition(
         json.withCString { dg_application_menu_labels_set(DG_SYSTEM_ABI_MAJOR, $0) } == 0)
       precondition(
-        quit.title == "\(prefix)-background" && editRoot.title == "\(prefix)-edit"
+        quit.title == "\(prefix)-quit" && editRoot.title == "\(prefix)-edit"
           && undo.title == "\(prefix)-undo")
       precondition(
         quit.action == NSSelectorFromString("Quit") && quit.keyEquivalent == "q"

@@ -7,7 +7,7 @@ type UIVisibilityDTO struct {
 }
 
 // Native app hiding and Wails window order-out are independent. An app-unhide
-// must not accidentally resume an ordered-out soft-quit window.
+// must not accidentally resume a window independently marked hidden.
 type uiVisibilityState struct {
 	mu           sync.Mutex
 	appHidden    bool

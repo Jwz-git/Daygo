@@ -52,6 +52,53 @@ func TestSystemHideUnhideRoutesWithoutActivationSideEffects(t *testing.T) {
 	sys.Emit(platform.EventApplicationUnhidden)
 	waitUIVisibility(t, b, true)
 }
+
+func TestNativeWindowCloseDropsDockAndCanReopen(t *testing.T) {
+	sys := &visibilityFixtureSystem{System: fake.NewSystem(), events: make(chan platform.SystemEvent, 4)}
+	b := NewBackend(sys, nil)
+	ctx := t.Context()
+	restored := make(chan error, 1)
+	b.setActivationAction(func() {
+		b.restoreOnActivation(func() { restored <- b.exitBackground(ctx) })
+	})
+	b.startSystemEventPump()
+	defer close(sys.events)
+
+	sys.Emit(platform.EventApplicationHidden)
+	waitUIVisibility(t, b, false)
+	if b.needsWindowRestore() || sys.ActivationPolicyCalls() != 0 {
+		t.Fatal("ordinary app hide must preserve the Dock and activation handling")
+	}
+	b.armPermissionRestart()
+	sys.Emit(platform.EventWindowCloseRequested)
+	deadline := time.Now().Add(time.Second)
+	for {
+		if got, _ := sys.ActivationPolicy(); got == platform.ActivationAccessory {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("window close did not switch to accessory")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !b.needsWindowRestore() || !b.permissionRestartArmed() || b.quitAllowed() || b.GetUIVisibility().Visible {
+		t.Fatal("window close must stay in the background without triggering quit or relaunch")
+	}
+	sys.Emit(platform.EventApplicationActivated)
+	select {
+	case err := <-restored:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("activation did not restore the backgrounded window")
+	}
+	sys.Emit(platform.EventApplicationUnhidden)
+	waitUIVisibility(t, b, true)
+	if got, _ := sys.ActivationPolicy(); got != platform.ActivationRegular || b.needsWindowRestore() {
+		t.Fatalf("reopen: policy=%q, backgrounded=%v", got, b.needsWindowRestore())
+	}
+}
 func waitUIVisibility(t *testing.T, b *Backend, visible bool) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)

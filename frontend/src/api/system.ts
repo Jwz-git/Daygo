@@ -44,9 +44,7 @@ export async function openSystemSettings(pane: SettingsPane): Promise<void> {
 /*
  * Arms or disarms the permission-change restart. While armed, the next quit —
  * including macOS's own "Quit & Reopen" prompt after the user changes the
- * screen-recording grant — fully terminates and relaunches instead of the
- * resident agent's usual soft-quit-to-background. The flag lives in the running
- * process and resets on relaunch.
+ * screen-recording grant — terminates and relaunches. The flag resets on relaunch.
  */
 export async function setPermissionRestartArmed(armed: boolean): Promise<void> {
   if (hasBridge()) return SetPermissionRestartArmed(armed)

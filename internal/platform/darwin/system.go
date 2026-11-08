@@ -148,6 +148,8 @@ func systemEventKind(k uint32) platform.SystemEventKind {
 		return platform.EventApplicationUnhidden
 	case 11:
 		return platform.EventSystemShutdown
+	case 12:
+		return platform.EventWindowCloseRequested
 	}
 	return ""
 }

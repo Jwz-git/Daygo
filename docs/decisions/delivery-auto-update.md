@@ -93,7 +93,7 @@ Sparkle 负责：下载归档 → 校验 **EdDSA 签名** → 验证可用的应
 本轮匿名原生回调夹具已通过，真实 Sparkle 下载 / 安装重启增量未复测，见
 [delivery 验证记录](../modules/delivery.md#验证记录)。
 
-「更新重启」是区别于软退出 / 真退出的**独立生命周期事件**（[生命周期退出模型](lifecycle-quit-model.md)
+「更新重启」是区别于关窗留后台 / 普通退出的**独立生命周期事件**（[生命周期退出模型](lifecycle-quit-model.md)
 已把它列为独立事件）。Sparkle 在替换 bundle 前会终止进程，因此重启前**必须**同步完成：
 
 - 经 recording 的收尾协议收尾或安全移交当前分段（`platform.SegmentCloser.CloseActiveSegment`），

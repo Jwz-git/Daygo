@@ -194,7 +194,7 @@ type ApplicationMenuLabels struct {
 	Hide          string `json:"hide"`
 	HideOthers    string `json:"hideOthers"`
 	ShowAll       string `json:"showAll"`
-	Background    string `json:"background"`
+	Quit          string `json:"quit"`
 	Edit          string `json:"edit"`
 	Undo          string `json:"undo"`
 	Redo          string `json:"redo"`

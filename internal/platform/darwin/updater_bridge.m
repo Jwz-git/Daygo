@@ -54,10 +54,8 @@ static NSString *installRefusedMessage;
         dgGoUpdaterCancelled();
     }
 }
-/* Sparkle calls -[NSApp terminate:] right after this. Daygo turns ordinary
-   termination into a soft quit (hide), which would leave the installer waiting
-   for a process that never exits; Go marks this one termination as a real
-   quit before it arrives. */
+/* Sparkle calls -[NSApp terminate:] right after this. Go disarms any pending
+   permission relaunch so only Sparkle starts the replacement process. */
 - (void)updaterWillRelaunchApplication:(SPUUpdater *)updater {
     dgGoUpdaterWillRelaunch();
 }

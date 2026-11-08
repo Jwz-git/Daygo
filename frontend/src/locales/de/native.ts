@@ -24,7 +24,7 @@ export default {
     hide: "Daygo ausblenden",
     hideOthers: "Andere ausblenden",
     showAll: "Alle einblenden",
-    background: "Im Hintergrund weiter aufzeichnen",
+    quit: "Daygo beenden",
     edit: "Bearbeiten",
     undo: "Widerrufen",
     redo: "Wiederholen",

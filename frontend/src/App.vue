@@ -94,7 +94,7 @@ watch(
         hide: t('native.applicationMenu.hide'),
         hideOthers: t('native.applicationMenu.hideOthers'),
         showAll: t('native.applicationMenu.showAll'),
-        background: t('native.applicationMenu.background'),
+        quit: t('native.applicationMenu.quit'),
         edit: t('native.applicationMenu.edit'),
         undo: t('native.applicationMenu.undo'),
         redo: t('native.applicationMenu.redo'),

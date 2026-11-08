@@ -45,10 +45,8 @@ export const useRecordingStore = defineStore('recording', () => {
    * Show or hide the grant-and-restart guidance, keeping the native
    * permission-restart intent in sync. Arming while the guidance is up makes
    * the next quit — Cmd+Q, Dock, or macOS's own "Quit & Reopen" prompt after
-   * the user flips the grant — a full terminate-and-relaunch rather than the
-   * resident agent's soft-quit-to-background. The native flag is process-local
-   * and resets on relaunch, so a failed sync (no Wails host, shell gone) is
-   * safe to ignore.
+   * the user flips the grant — a terminate-and-relaunch. The flag resets on
+   * relaunch, so a failed sync when the shell is absent is safe to ignore.
    */
   function setPermissionGuidance(required: boolean): void {
     permissionRequired.value = required

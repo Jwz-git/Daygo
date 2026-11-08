@@ -24,7 +24,7 @@ export default {
     hide: "Daygo を隠す",
     hideOthers: "ほかのアプリを隠す",
     showAll: "すべて表示",
-    background: "バックグラウンドで記録を続ける",
+    quit: "Daygoを終了",
     edit: "編集",
     undo: "取り消す",
     redo: "やり直す",

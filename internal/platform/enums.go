@@ -117,6 +117,7 @@ const (
 	EventScreensaverStop      SystemEventKind = "screensaver_stop"
 	EventDisplaysChanged      SystemEventKind = "displays_changed"
 	EventApplicationActivated SystemEventKind = "application_activated"
+	EventWindowCloseRequested SystemEventKind = "window_close_requested"
 	EventApplicationHidden    SystemEventKind = "application_hidden"
 	EventApplicationUnhidden  SystemEventKind = "application_unhidden"
 	EventSystemShutdown       SystemEventKind = "system_shutdown"

@@ -24,7 +24,7 @@ export default {
     hide: "Hide Daygo",
     hideOthers: "Hide Others",
     showAll: "Show All",
-    background: "Continue recording in background",
+    quit: "Quit Daygo",
     edit: "Edit",
     undo: "Undo",
     redo: "Redo",

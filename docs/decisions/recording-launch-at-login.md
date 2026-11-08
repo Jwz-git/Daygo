@@ -41,7 +41,7 @@ App 最低系统为 **macOS 14.0**（`scripts/package-macos.sh:39` `MACOS_MIN_VE
 | `SMLoginItemSetEnabled` | 否决 | macOS 13 起废弃；需要单独打包 login-item helper，复杂且不受长期支持。 |
 | `LSSharedFileList` | 否决 | macOS 10.11 起废弃的半私有 API，行为不稳定。 |
 | `SMAppService.agent`（LaunchAgent plist） | 否决（本次） | 面向后台 agent / daemon，以 launchd 常驻语义拉起，`KeepAlive` 等行为与 Daygo 自有的
-[生命周期 / 软退出模型](lifecycle-quit-model.md) 冲突。若未来要"登录即无窗后台常驻"再单独评估。 |
+[生命周期退出模型](lifecycle-quit-model.md) 冲突。若未来要"登录即无窗后台常驻"再单独评估。 |
 
 ## 3. macOS 承载机制（官方确认）
 

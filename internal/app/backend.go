@@ -83,16 +83,12 @@ type Backend struct {
 	activationActionMu sync.RWMutex
 	activationAction   func()
 	uiVisibility       uiVisibilityState
-	// allowQuit gates the Wails OnBeforeClose hook. It stays false so Cmd+Q,
-	// the Dock "Quit" item and closing the window are downgraded to a
-	// background soft-quit; only the status-bar Quit sets it (requestQuit)
-	// before runtime.Quit, letting that one path terminate for real. See
-	// docs/decisions/lifecycle-quit-model.md.
+	// allowQuit marks an explicit termination that takes precedence over a
+	// permission relaunch or the non-macOS fallback to hiding the window.
 	allowQuit          atomic.Bool
 	systemShuttingDown atomic.Bool
-	// pendingPermissionRestart arms the next quit to be a real termination with
-	// an automatic relaunch, instead of the resident-agent soft-quit. The
-	// frontend sets it while the screen-recording permission guidance is up, so
+	// pendingPermissionRestart arms the next quit to terminate with an
+	// automatic relaunch. The frontend sets it during permission guidance, so
 	// macOS's own "Quit & Reopen" (and the guidance's own restart button) fully
 	// terminate and come back with the new TCC grant in effect. See
 	// docs/decisions/recording-screen-recording-permission.md.
@@ -121,7 +117,7 @@ type Backend struct {
 	planReminderMu sync.Mutex
 	planReminder   planReminderState
 	planNudge      chan struct{}
-	// backgrounded tracks a soft quit independently of the saved Dock preference.
+	// backgrounded tracks a resident window hide separately from the saved Dock preference.
 	backgroundMu      sync.Mutex
 	backgrounded      bool
 	activationApplied bool
@@ -346,6 +342,10 @@ func (b *Backend) startSystemEventPump() {
 				b.setApplicationHidden(true)
 			case platform.EventApplicationUnhidden:
 				b.setApplicationHidden(false)
+			case platform.EventWindowCloseRequested:
+				if err := b.enterBackground(context.Background()); err != nil {
+					log.Printf("drop dock icon on window close unavailable: %v", err)
+				}
 			case platform.EventSystemShutdown:
 				b.requestSystemShutdown()
 			}
@@ -447,25 +447,41 @@ func (b *Backend) setActivationAction(handler func()) {
 	b.activationActionMu.Unlock()
 }
 
-// requestQuit marks the next quit attempt as a real termination. The status-bar
-// Quit calls it before runtime.Quit so OnBeforeClose lets the process exit;
-// every other quit path leaves the flag false and soft-quits to background.
+// requestQuit marks an explicit termination with no permission relaunch.
 func (b *Backend) requestQuit() { b.allowQuit.Store(true) }
 
 // authorizeUpdateRelaunch runs just before the updater terminates the app to
-// install and relaunch. Without it OnBeforeClose treats that termination as a
-// Cmd+Q soft quit and keeps the process alive, so the installer waits until the
-// user quits from the status item. The updater relaunches the new build itself,
-// so a pending permission relaunch is disarmed to avoid a second instance. It
-// only marks the quit as allowed: the updater's own termination request is the
-// single path that ends the process.
+// install and relaunch. The updater relaunches the new build itself, so a
+// pending permission relaunch is disarmed to avoid a second instance. The
+// updater's own termination request is the path that ends the process.
 func (b *Backend) authorizeUpdateRelaunch() {
 	b.disarmPermissionRestart()
 	b.requestQuit()
 }
 
-// quitAllowed reports whether a real termination was requested.
+// quitAllowed reports whether an explicit termination override was requested.
 func (b *Backend) quitAllowed() bool { return b.allowQuit.Load() }
+
+type quitIntent int
+
+const (
+	quitBackground quitIntent = iota
+	quitTerminate
+	quitRelaunchForPermission
+)
+
+func (b *Backend) quitIntent(macOS bool) quitIntent {
+	if b.quitAllowed() {
+		return quitTerminate
+	}
+	if b.permissionRestartArmed() {
+		return quitRelaunchForPermission
+	}
+	if macOS {
+		return quitTerminate
+	}
+	return quitBackground
+}
 
 // System termination must never be downgraded to a hide or permission relaunch.
 func (b *Backend) requestSystemShutdown() {
@@ -520,7 +536,7 @@ func (b *Backend) shutdownRequest() func() {
 // armPermissionRestart / disarmPermissionRestart / permissionRestartArmed gate
 // whether the next quit becomes a full terminate-and-relaunch. The frontend arms
 // it while the permission guidance is visible and disarms it when the guidance
-// is dismissed, so an ordinary Cmd+Q outside that flow still soft-quits.
+// is dismissed, so an ordinary quit outside that flow does not relaunch.
 func (b *Backend) armPermissionRestart()        { b.pendingPermissionRestart.Store(true) }
 func (b *Backend) disarmPermissionRestart()     { b.pendingPermissionRestart.Store(false) }
 func (b *Backend) permissionRestartArmed() bool { return b.pendingPermissionRestart.Load() }
@@ -549,7 +565,7 @@ func (b *Backend) beginPermissionRestart() error {
 	return nil
 }
 
-// enterBackground marks a soft quit even if the Dock policy cannot be applied.
+// enterBackground marks a resident window hide even if Dock policy cannot be applied.
 func (b *Backend) enterBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
 	defer b.backgroundMu.Unlock()
@@ -557,7 +573,7 @@ func (b *Backend) enterBackground(ctx context.Context) error {
 	return b.applyDockPolicyLocked(ctx, true)
 }
 
-// exitBackground clears the soft-quit intent before restoring the saved Dock policy.
+// exitBackground clears the window restore intent before applying the saved Dock policy.
 func (b *Backend) exitBackground(ctx context.Context) error {
 	b.backgroundMu.Lock()
 	defer b.backgroundMu.Unlock()
@@ -566,7 +582,7 @@ func (b *Backend) exitBackground(ctx context.Context) error {
 	return b.applyDockPolicyLocked(ctx, false)
 }
 
-// The preference and soft-quit are separate: an accessory app can have a visible
+// The preference and resident hide are separate: an accessory app can have a visible
 // window. All policy transitions are serialized and only successful calls stick.
 func (b *Backend) applyDockPreference(ctx context.Context, show bool) error {
 	b.backgroundMu.Lock()
@@ -618,7 +634,7 @@ func (b *Backend) loadDockPreference(ctx context.Context) {
 	}
 }
 
-// restoreOnActivation handles only pending soft quits; ordinary activation is owned by AppKit.
+// restoreOnActivation handles pending window restores; ordinary activation is owned by AppKit.
 func (b *Backend) restoreOnActivation(show func()) {
 	if show == nil || !b.needsWindowRestore() {
 		return
@@ -626,7 +642,7 @@ func (b *Backend) restoreOnActivation(show func()) {
 	show()
 }
 
-// needsWindowRestore reports whether a soft quit is still pending.
+// needsWindowRestore reports whether the app hid its window to stay in the background.
 func (b *Backend) needsWindowRestore() bool {
 	b.backgroundMu.Lock()
 	defer b.backgroundMu.Unlock()

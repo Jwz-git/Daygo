@@ -24,7 +24,7 @@ export default {
     hide: "Daygo 가리기",
     hideOthers: "다른 앱 가리기",
     showAll: "모두 보기",
-    background: "백그라운드에서 계속 기록",
+    quit: "Daygo 종료",
     edit: "편집",
     undo: "실행 취소",
     redo: "다시 실행",

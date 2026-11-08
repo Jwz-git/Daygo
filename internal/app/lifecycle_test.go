@@ -35,7 +35,25 @@ func TestApplicationActivationRoutesToWindowAction(t *testing.T) {
 func TestQuitAllowedDefaultsFalse(t *testing.T) {
 	b := NewBackend(fake.NewSystem(), nil)
 	if b.quitAllowed() {
-		t.Fatal("a fresh backend must not allow real termination; Cmd+Q/Dock quit soft-quit to background")
+		t.Fatal("a fresh backend must have no explicit quit override")
+	}
+}
+
+func TestDesktopQuitIntent(t *testing.T) {
+	b := NewBackend(fake.NewSystem(), nil)
+	if got := b.quitIntent(true); got != quitTerminate {
+		t.Fatalf("ordinary macOS quit must terminate, got %v", got)
+	}
+	if got := b.quitIntent(false); got != quitBackground {
+		t.Fatalf("other hosts must keep their existing fallback, got %v", got)
+	}
+	b.armPermissionRestart()
+	if got := b.quitIntent(true); got != quitRelaunchForPermission {
+		t.Fatalf("permission restart must relaunch, got %v", got)
+	}
+	b.requestQuit()
+	if got := b.quitIntent(true); got != quitTerminate {
+		t.Fatalf("explicit termination must take precedence over permission restart, got %v", got)
 	}
 }
 
@@ -101,7 +119,7 @@ func TestBackgroundTransitionsAreIdempotent(t *testing.T) {
 		t.Fatalf("enterBackground: %v", err)
 	}
 	if calls := sys.ActivationPolicyCalls(); calls != 1 {
-		t.Fatalf("a repeated soft-quit must not re-push the accessory policy, got %d calls", calls)
+		t.Fatalf("repeated backgrounding must not re-push the accessory policy, got %d calls", calls)
 	}
 	if err := b.exitBackground(ctx); err != nil {
 		t.Fatalf("exitBackground: %v", err)
@@ -114,12 +132,9 @@ func TestBackgroundTransitionsAreIdempotent(t *testing.T) {
 	}
 }
 
-// Only a soft-quit leaves the window ordered out with the app in the
-// background. Every other activation is the system bringing the app forward on
-// its own, where re-showing the window makes it flash and vanish — and where
-// showWindow's own activateIgnoringOtherApps calls would re-post the very
-// notification that triggered it.
-func TestActivationRestoresOnlyAfterSoftQuit(t *testing.T) {
+// Normal AppKit activation owns the foreground transition. Re-showing in that
+// path can cause a flash or re-post the very notification that triggered it.
+func TestActivationRestoresOnlyAfterBackgrounding(t *testing.T) {
 	sys := fake.NewSystem()
 	b := NewBackend(sys, nil)
 	ctx := context.Background()
@@ -135,7 +150,7 @@ func TestActivationRestoresOnlyAfterSoftQuit(t *testing.T) {
 	}
 	b.restoreOnActivation(show)
 	if shown != 1 {
-		t.Fatal("an activation after a soft-quit must restore the window")
+		t.Fatal("an activation after backgrounding must restore the window")
 	}
 	if err := b.exitBackground(ctx); err != nil {
 		t.Fatalf("exitBackground: %v", err)
@@ -159,7 +174,7 @@ func TestBackgroundTransitionsNilSystem(t *testing.T) {
 func TestPermissionRestartDefaultsDisarmed(t *testing.T) {
 	b := NewBackend(fake.NewSystem(), nil)
 	if b.permissionRestartArmed() {
-		t.Fatal("a fresh backend must not arm the permission restart; an ordinary Cmd+Q soft-quits")
+		t.Fatal("a fresh backend must not arm the permission restart")
 	}
 }
 
@@ -175,7 +190,7 @@ func TestArmAndDisarmPermissionRestart(t *testing.T) {
 		t.Fatalf("SetPermissionRestartArmed(false): %v", err)
 	}
 	if b.permissionRestartArmed() {
-		t.Fatal("disarming must return the next quit to a background soft-quit")
+		t.Fatal("disarming must restore ordinary quit behavior")
 	}
 }
 

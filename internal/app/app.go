@@ -296,8 +296,7 @@ func Run() error {
 				}
 				_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{Type: runtime.ErrorDialog, Title: labels.ActionFailedTitle, Message: nativeActionErrorMessage(err, labels), Buttons: []string{labels.OK}, DefaultButton: labels.OK, CancelButton: labels.OK})
 			}
-			// Activation only has to undo a soft-quit. See restoreOnActivation
-			// for why every other activation must be left to the system.
+			// Reopen a backgrounded window; leave ordinary activation to the system.
 			backend.setActivationAction(func() { backend.restoreOnActivation(showWindow) })
 			backend.setStatusAction(func(action string) {
 				switch action {
@@ -339,15 +338,12 @@ func Run() error {
 		OnShutdown: func(ctx context.Context) {
 			backend.shutdown()
 		},
-		// Daygo is a resident agent: Cmd+Q and the Dock "Quit" item must not
-		// end the process. Wails routes every quit attempt (window close is
-		// intercepted separately by HideWindowOnClose) through this hook, and
-		// returning true keeps the app alive. Only the status-bar Quit sets
-		// requestQuit first, so that one path returns false and terminates.
-		// The soft-quit hides the window and drops the Dock icon, leaving the
-		// status item as the way back (docs/decisions/lifecycle-quit-model.md).
+		// The close button hides the resident window. On macOS, Wails routes
+		// Dock Quit and Cmd+Q here for safe termination. Returning true keeps
+		// the app alive.
 		OnBeforeClose: func(ctx context.Context) (prevent bool) {
-			if backend.quitAllowed() {
+			switch backend.quitIntent(goruntime.GOOS == "darwin") {
+			case quitTerminate:
 				if err := backend.prepareTermination(backend.stopRecorder); err != nil {
 					log.Printf("quit cancelled: recording finalization failed: %s", recordingFailureReason(err))
 					_ = backend.exitBackground(ctx)
@@ -361,14 +357,9 @@ func Run() error {
 					return true
 				}
 				return false
-			}
-			// A permission-change restart must terminate for real and relaunch so
-			// a freshly granted screen-recording permission takes effect. macOS's
-			// own "Quit & Reopen" reaches this hook like any other quit; without
-			// this branch it would be downgraded to a background hide and the new
-			// grant would never apply (docs/decisions/
-			// recording-screen-recording-permission.md).
-			if backend.permissionRestartArmed() {
+			case quitRelaunchForPermission:
+				// macOS's "Quit & Reopen" also arrives here. Relaunch so a fresh
+				// screen-recording permission takes effect.
 				if err := backend.beginPermissionRestart(); err != nil {
 					log.Printf("permission restart cancelled: %v", err)
 					return true

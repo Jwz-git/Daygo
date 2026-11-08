@@ -61,7 +61,7 @@
 | [屏幕截屏 v2：macOS 实现与上层调用](decisions/recording-screen-capture-v2.md) | 有限实现 | Swift / cgo 路径、调用不变量、错误处理、调试与 recorder 接入边界 |
 | [屏幕录制授权：弹框 + 跳设置 + 提示重启](decisions/recording-screen-recording-permission.md) | 有限实现 | 启用时请求、preflight/request/跳设置 ABI、前端闸门与重启生效 |
 | [macOS 签名身份：本地自签名稳定证书](decisions/delivery-macos-signing-identity.md) | 有限实现 | TCC 绑定 DR、ad-hoc 授权失效根因、三条签名路径与自签名证书生成 |
-| [常驻宿主退出模型](decisions/lifecycle-quit-model.md) | 已决定并实现 | 软退出、真退出、更新与关机意图、Dock 偏好及状态栏恢复入口 |
+| [常驻宿主退出模型](decisions/lifecycle-quit-model.md) | 已决定并实现 | 关窗留后台、真退出、更新与关机意图、Dock 偏好及状态栏恢复入口 |
 | [开机自启](decisions/recording-launch-at-login.md) | 已决定并实现 | macOS SMAppService、Windows Run 键；保存意图与 OS 实际注册状态的边界 |
 | [macOS 自动更新](decisions/delivery-auto-update.md) | 已决定并实现 | Sparkle、签名 appcast、安装前收尾与发行身份门禁 |
 | [Windows 自动更新](decisions/delivery-auto-update-windows.md) | 已决定并实现 | WinSparkle、NSIS 与共用 appcast |
