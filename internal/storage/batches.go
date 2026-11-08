@@ -455,6 +455,39 @@ func (r *AnalysisRepo) DeleteBatches(ctx context.Context, ids []int64, now time.
 		[]any{now.Unix()})
 }
 
+// DeleteFailedBatchesInRange dismisses the failures visible in [from, to).
+// Match and update in one statement so an auto-requeued batch is left alone
+// without preventing the other failures from being dismissed.
+func (r *AnalysisRepo) DeleteFailedBatchesInRange(ctx context.Context, from, to, now time.Time) ([]Batch, error) {
+	if r == nil || r.store == nil {
+		return nil, fmt.Errorf("analysis: store unavailable")
+	}
+	var dismissed []Batch
+	err := r.store.Write(ctx, "analysis delete failures in range", func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `
+			UPDATE analysis_batches SET is_deleted = 1, updated_at = ?
+			WHERE `+visibleFailedBatchesInRange+`
+			RETURNING id, start_ts, end_ts, status, failure_kind, failure_note, attempts, created_at, updated_at`,
+			now.Unix(), BatchFailed, BatchFailedEmpty, to.Unix(), from.Unix())
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			batch, err := scanBatch(rows)
+			if err != nil {
+				return err
+			}
+			dismissed = append(dismissed, batch)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dismissed, nil
+}
+
 // updateFailedBatches applies per-id an UPDATE whose parameter list is
 // setArgs followed by the id, inside one transaction. Every id must name an
 // existing, non-deleted batch in a failed state — anything else is a

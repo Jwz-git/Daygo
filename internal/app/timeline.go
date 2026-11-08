@@ -700,6 +700,45 @@ func (b *Backend) DeleteBatches(batchIDs []int64) error {
 	return nil
 }
 
+// DeleteDayFailures dismisses the failed time ranges visible on one logical
+// day. The batch rows and their screenshot membership remain in storage.
+func (b *Backend) DeleteDayFailures(day string) error {
+	if err := b.requireTimelineWrite(); err != nil {
+		return err
+	}
+	store := b.store()
+	if store == nil {
+		if err := b.storageFailure(); err != nil {
+			return mapStorageError("delete day failures", err)
+		}
+		return apperr.E(apperr.DatabaseError, "delete day failures requires a database", nil)
+	}
+	loc := store.Location()
+	start, end, err := timeutil.DayWindow(day, loc)
+	if err != nil {
+		return apperr.E(apperr.InvalidArgument, "day must use yyyy-MM-dd", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
+	defer cancel()
+	batches, err := store.Analysis().DeleteFailedBatchesInRange(ctx, start, end, b.clock.Now())
+	if err != nil {
+		return mapStorageError("delete day failures", err)
+	}
+	// Re-pull the requested day even when retries already moved its failures
+	// out of the failed state before the write.
+	affected := map[string]bool{day: true}
+	for _, batch := range batches {
+		// A batch that spans 4 AM appears in both day views. The end
+		// is exclusive, so ending exactly at 4 AM doesn't touch the next day.
+		affected[timeutil.LogicalDay(batch.Start, loc)] = true
+		affected[timeutil.LogicalDay(batch.End.Add(-time.Second), loc)] = true
+	}
+	for day := range affected {
+		b.emitTimelineInvalidation(day)
+	}
+	return nil
+}
+
 // mapCardRegenerationError turns a failed single-card rewrite into a binding
 // error. The analysis layer's own messages are fixed sanitized strings and
 // never carry provider bodies or paths, so they pass through; the sentinel

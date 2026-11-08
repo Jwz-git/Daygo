@@ -32,6 +32,7 @@ var contractBindings = []string{
 	"DeleteProviderSecret",
 	"DeleteCard",
 	"DeleteBatches",
+	"DeleteDayFailures",
 	"GetCapabilities",
 	"GetChatMessages",
 	"GetDailyRecap",

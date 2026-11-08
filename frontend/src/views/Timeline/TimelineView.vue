@@ -66,6 +66,7 @@ const {
   failedAction,
   failedCardID,
   actionAvailability,
+  canDeleteDayFailures,
 } = storeToRefs(timeline)
 const { locale, t } = useI18n()
 const cardReprocessFailureKey = computed(() =>
@@ -73,7 +74,10 @@ const cardReprocessFailureKey = computed(() =>
     ? cardRegenerationFailureKey(actionError.value)
     : null,
 )
-const generalActionFailed = computed(() => actionError.value !== null && failedAction.value !== 'reprocess-card')
+const deleteDayFailuresFailed = computed(() => failedAction.value === 'delete-day-failures')
+const generalActionFailed = computed(() =>
+  actionError.value !== null && failedAction.value !== 'reprocess-card' && !deleteDayFailuresFailed.value,
+)
 const route = useRoute()
 const router = useRouter()
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
@@ -597,6 +601,17 @@ onBeforeUnmount(() => {
       </button>
       <span class="filter-bar__spacer"></span>
       <button
+        v-if="viewMode === 'day' && canDeleteDayFailures"
+        type="button"
+        class="dg-button dg-button--sm dg-button--danger-subtle delete-day-failures"
+        :disabled="switching || state === 'loading' || pendingAction !== null || day?.day !== context?.day"
+        :aria-busy="pendingAction === 'delete-day-failures'"
+        @click="timeline.deleteDayFailures"
+      >
+        <DgIcon name="trash" :size="14" />
+        {{ t('timeline.failure.deleteDay') }}
+      </button>
+      <button
         type="button"
         class="filter-manage filter-edit"
         :title="t('timeline.manage2.open')"
@@ -606,7 +621,11 @@ onBeforeUnmount(() => {
       >
         <DgIcon name="pencil" :size="14" />
       </button>
-      <span v-if="generalActionFailed && selectedCard === null" class="filter-error" role="alert">
+      <span
+        v-if="(viewMode === 'day' && deleteDayFailuresFailed) || (generalActionFailed && selectedCard === null)"
+        class="filter-error"
+        role="alert"
+      >
         {{ t('timeline.actionFailed') }}
       </span>
     </div>
@@ -865,6 +884,7 @@ onBeforeUnmount(() => {
 }
 .filter-chip i { width: 7px; height: 7px; border-radius: 50%; }
 .filter-bar__spacer { flex: 1; }
+.delete-day-failures { flex: none; white-space: nowrap; }
 /* Hover feedback is fill + colour only — no transform or shadow lift, so the
    chip never floats out of the bar. */
 .filter-manage { color: var(--dg-text-muted); }

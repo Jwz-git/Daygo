@@ -138,6 +138,7 @@ export default {
     stopping: '停止中…',
     delete: 'この時間帯を削除',
     deleteConfirm: 'この時間帯はタイムラインから削除され、再度整理されません（スクリーンショットは残ります）。削除しますか？',
+    deleteDay: 'この日の生成失敗カードを削除',
     deleteUnavailable: '現在は削除できません',
     detail: {
       kind: '原因',

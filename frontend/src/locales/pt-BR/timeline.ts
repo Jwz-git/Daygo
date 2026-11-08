@@ -138,6 +138,7 @@ export default {
     stopping: 'Parando…',
     delete: 'Excluir este intervalo',
     deleteConfirm: 'Este intervalo será removido da sua linha do tempo e não será organizado de novo (as capturas de tela são mantidas). Excluir?',
+    deleteDay: 'Excluir cartões que falharam no dia',
     deleteUnavailable: 'Não é possível excluir agora',
     detail: {
       kind: 'Causa',

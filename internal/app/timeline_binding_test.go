@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -551,6 +552,100 @@ func TestBatchWritesRefuseReadOnlyInstance(t *testing.T) {
 
 	assertAppCode(t, backend.RetryBatches([]int64{1}), apperr.NotCaptureOwner)
 	assertAppCode(t, backend.DeleteBatches([]int64{1}), apperr.NotCaptureOwner)
+	assertAppCode(t, backend.DeleteDayFailures("2026-09-12"), apperr.NotCaptureOwner)
+}
+
+func TestDeleteDayFailuresUsesVisibleLogicalDayAndKeepsOtherData(t *testing.T) {
+	backend, emitter := writerBackendWithStore(t, t.TempDir())
+	seedTimelineDay(t, backend, []domain.CardShell{
+		{Start: "10:00 AM", End: "10:30 AM", Category: "Focus Work", Title: "completed card", Summary: "fixture"},
+	})
+	store := backend.store()
+	start := time.Date(2026, 9, 12, 4, 0, 0, 0, store.Location())
+	end := start.AddDate(0, 0, 1)
+	ctx := context.Background()
+	fixtures := []struct {
+		id         int
+		status     string
+		from, to   time.Time
+		wantDelete bool
+	}{
+		// The original card's own batch failed on reprocessing the same window.
+		{1, "failed", start.Add(6 * time.Hour), start.Add(6*time.Hour + 30*time.Minute), true},
+		{2, "failed", start.Add(-time.Hour), start, false},
+		{3, "failed", start.Add(-time.Minute), start.Add(time.Minute), true},
+		{4, "failed_empty", end.Add(-time.Hour), end, true},
+		{5, "failed", end, end.Add(time.Hour), false},
+		{6, "pending", start, start.Add(time.Minute), false},
+		{7, "processing", start, start.Add(time.Minute), false},
+		{8, "skipped_short", start, start.Add(time.Minute), false},
+		{9, "succeeded", start, start.Add(time.Minute), false},
+	}
+	if err := store.Write(ctx, "seed day failure fixtures", func(ctx context.Context, tx *sql.Tx) error {
+		for _, fixture := range fixtures {
+			_, err := tx.ExecContext(ctx, `
+				INSERT INTO analysis_batches (id, start_ts, end_ts, status, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 0, 0)
+				ON CONFLICT(id) DO UPDATE SET start_ts = excluded.start_ts, end_ts = excluded.end_ts, status = excluded.status`,
+				fixture.id, fixture.from.Unix(), fixture.to.Unix(), fixture.status)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	const day = "2026-09-12"
+	before, err := backend.GetTimelineDay(day)
+	if err != nil || len(before.Failures) != 3 || len(before.Cards) != 1 ||
+		before.Failures[1].StartTs != before.Cards[0].StartTs || before.Failures[1].EndTs != before.Cards[0].EndTs {
+		t.Fatalf("expected an original card and a failed reprocessing of the same range: %+v, err = %v", before, err)
+	}
+	assertAppCode(t, backend.DeleteDayFailures("today"), apperr.InvalidArgument)
+	if err := backend.DeleteDayFailures(day); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Read(ctx, "check day failure fixtures", func(ctx context.Context, tx *sql.Tx) error {
+		for _, fixture := range fixtures {
+			var deleted bool
+			var status string
+			err := tx.QueryRowContext(ctx, "SELECT is_deleted, status FROM analysis_batches WHERE id = ?", fixture.id).Scan(&deleted, &status)
+			if err != nil {
+				return err
+			}
+			if deleted != fixture.wantDelete || status != fixture.status {
+				t.Errorf("batch %d = %s (deleted %v), want %s (deleted %v)", fixture.id, status, deleted, fixture.status, fixture.wantDelete)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	dto, err := backend.GetTimelineDay(day)
+	if err != nil || len(dto.Failures) != 0 || !reflect.DeepEqual(dto.Cards, before.Cards) {
+		t.Fatalf("timeline after delete = %+v, err = %v", dto, err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for emitter.count(EventTimelineUpdated) < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	emitter.mu.Lock()
+	days := map[string]int{}
+	for _, event := range emitter.events {
+		if event.name == EventTimelineUpdated {
+			days[event.payload.(TimelineUpdatedPayload).Day]++
+		}
+	}
+	emitter.mu.Unlock()
+	if len(days) != 2 || days["2026-09-11"] != 1 || days[day] != 1 {
+		t.Fatalf("invalidated days = %v, want only the two affected days", days)
+	}
+	if err := backend.DeleteDayFailures(day); err != nil {
+		t.Fatalf("repeat delete: %v", err)
+	}
 }
 
 func TestSaveCategoriesReplacesSetAndRewritesRenames(t *testing.T) {

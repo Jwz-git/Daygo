@@ -148,6 +148,8 @@ type FailedBatch struct {
 	Attempts    int
 }
 
+const visibleFailedBatchesInRange = `status IN (?, ?) AND is_deleted = 0 AND start_ts < ? AND end_ts > ?`
+
 // FailedBatchesInRange returns failed batches overlapping [from, to). The
 // statuses are the failed terminal states of the batch state machine
 // (docs/03 §3.3.1) — pending and processing batches are reported separately
@@ -160,11 +162,9 @@ func (r *CardRepo) FailedBatchesInRange(ctx context.Context, from, to time.Time)
 			SELECT id, start_ts, end_ts, status,
 			       COALESCE(failure_kind, ''), COALESCE(failure_note, ''), attempts
 			FROM analysis_batches
-			WHERE status IN ('failed', 'failed_empty')
-			  AND is_deleted = 0
-			  AND start_ts < ? AND end_ts > ?
+			WHERE `+visibleFailedBatchesInRange+`
 			ORDER BY start_ts`,
-			to.Unix(), from.Unix())
+			BatchFailed, BatchFailedEmpty, to.Unix(), from.Unix())
 		if err != nil {
 			return err
 		}

@@ -24,6 +24,7 @@ type TimelineBackend = GeneratedBindings<
   | 'ReprocessDay'
   | 'ReprocessCard'
   | 'DeleteBatches'
+  | 'DeleteDayFailures'
   | 'ClearHistoryData'
 >
 
@@ -60,6 +61,7 @@ export interface TimelineActionAvailability {
   reprocessDay: boolean
   reprocessCard: boolean
   deleteBatches: boolean
+  deleteDayFailures: boolean
   clearHistory: boolean
   manageCategories: boolean
 }
@@ -89,6 +91,7 @@ export function getTimelineActionAvailability(): TimelineActionAvailability {
     reprocessDay: typeof current?.ReprocessDay === 'function',
     reprocessCard: typeof current?.ReprocessCard === 'function',
     deleteBatches: typeof current?.DeleteBatches === 'function',
+    deleteDayFailures: typeof current?.DeleteDayFailures === 'function',
     clearHistory: typeof current?.ClearHistoryData === 'function',
     // manageCategories is handled by the UI; no backend binding needed
     manageCategories: false,
@@ -165,6 +168,10 @@ export async function reprocessCard(cardID: number): Promise<void> {
 
 export async function deleteBatches(batchIDs: number[]): Promise<void> {
   return requiredMethod('DeleteBatches')(batchIDs)
+}
+
+export async function deleteDayFailures(day: string): Promise<void> {
+  return requiredMethod('DeleteDayFailures')(day)
 }
 
 export async function clearHistoryData(): Promise<void> {

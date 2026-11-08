@@ -83,7 +83,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 |---|---|---|
 | agent | `GetAgentConnection` | 读写实例启动时监听 `agent.sock`（0600），写入经与 chat 同源的共享执行器（同校验、同事件），每次请求服务端校验 `agentEditsEnabled`，成功写入追加 `agent-writes.log`；绑定只报告可执行路径与 socket 是否在监听 |
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground`、`GetUIVisibility` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
-| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`StopRetries`、`DeleteBatches`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试、停止自动重试或软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`StopRetries`、`DeleteBatches`、`DeleteDayFailures`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试、停止自动重试或软删除，可按所选逻辑日批量软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
 | daily / weekly | `GetTokenUsage` | 全部已记录模型尝试的只读用量；逻辑日按小时、周按逻辑日，统一缓存口径并提示未报告数量 |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
@@ -291,6 +291,7 @@ export function toApiError(e: unknown): ApiError {
 | `SaveCategories(categories []CategoryDTO) error` | timeline | 分类 / 写入锁 | 写·幂等（全量覆盖） | `timeline:updated`（仅改名触及的日期） | `invalid_argument` `not_capture_owner` |
 | `ApplyCategoryPreset(categories []CategoryPresetDTO) error` | timeline | 分类 / 设置 / 写入锁 | 写·幂等（仅首次引导：按名更新 / 新建预设行，删除无引用的其余用户分类；引导完成后拒绝） | —（匹配保留存储名，不改写卡片） | `invalid_argument` `conflict` `not_capture_owner` |
 | `DeleteBatches(batchIDs []int64) error` | timeline | 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `not_found` `invalid_argument` |
+| `DeleteDayFailures(day string) error` | timeline | time / 批次 / 写入锁 | 写·幂等（软删除） | `timeline:updated` | `invalid_argument` `not_capture_owner` `database_error` |
 | `ReprocessDay(day string) error` | timeline | 批次 / 写入锁 | 写·非幂等（终态批次重置回 pending） | `timeline:updated` `batch:failed`（`batch:progress` 规划中） | `invalid_argument` `conflict` |
 | `ReprocessCard(cardID int64) error` | timeline | observations / cards / 写入锁 | 写·非幂等（重写该卡片自己的时间窗） | `timeline:updated` | `invalid_argument` `conflict` `provider_failed` `provider_not_configured` `not_found` |
 | `GetCardVerdict(cardID int64) (string, error)` | timeline | card_reviews | 读 | — | `invalid_argument` `database_error` |
@@ -327,6 +328,9 @@ export function toApiError(e: unknown): ApiError {
   或 provider 调用失败时返回 `provider_failed` 且**不写入任何改动**。
 - `DeleteBatches` 软删除失败批次（`is_deleted = 1`）：行与 `batch_screenshots`
   成员保留，帧不会重新进入未分批集合被再次分析。对时间线表现为失败面板条目消失。
+- `DeleteDayFailures` 以数据库时区的凌晨 4 点计算所选逻辑日，原子软删除与该日窗口相交且
+  写入时仍为 `failed` / `failed_empty` 的批次。保留原活动卡片（包括由被软删除批次生成的旧卡）、
+  截图及批次成员。跨 4 点的失败批次在两侧日期一起消失，均发 `timeline:updated`。没有匹配项时直接成功。
 - `ClearHistoryData` 一键清空录制与分析历史（帧 / 批次 / 观测 / 卡片 / 日记 / 目标 /
   聊天 + recordings 文件），**保留** `app_settings`、`providers`、`categories` 等配置；
   仅限开发测试场景，录制运行中返回 `conflict`。

@@ -29,10 +29,22 @@ function dayOf(context: DayContextDTO): TimelineDayDTO {
 }
 
 const capabilities = { canWrite: true, isCaptureOwner: true, features: ['timeline'], appVersion: 'test', apiRevision: 1 }
+type TimelineUpdate = (payload: { day: string }) => void
 
-function installBackend(backend: Record<string, unknown>): () => void {
+function installBackend(
+  backend: Record<string, unknown>,
+  listenForUpdate?: (callback: TimelineUpdate) => void,
+): () => void {
   const previous = globalThis.window
-  globalThis.window = { go: { app: { Backend: backend } } } as unknown as Window & typeof globalThis
+  globalThis.window = {
+    go: { app: { Backend: backend } },
+    runtime: {
+      EventsOnMultiple(name: string, callback: TimelineUpdate) {
+        if (name === 'timeline:updated') listenForUpdate?.(callback)
+        return () => undefined
+      },
+    },
+  } as unknown as Window & typeof globalThis
   return () => { globalThis.window = previous }
 }
 
@@ -40,18 +52,24 @@ test('a day switch keeps the previous day rendered and commits the next one atom
   const first = contextOf('2026-09-15', 100)
   const second = contextOf('2026-09-16', 100 + 86400)
   let releaseDay: (() => void) | undefined
+  let emitUpdate: TimelineUpdate | undefined
+  const reads: string[] = []
   const restore = installBackend({
     GetDayContext: async (requested: string) => (requested === second.day ? second : first),
     GetTimelineDay: async (key: string) => {
-      if (key === second.day) await new Promise<void>((resolve) => { releaseDay = resolve })
+      reads.push(key)
+      if (key === second.day && releaseDay === undefined) {
+        await new Promise<void>((resolve) => { releaseDay = resolve })
+      }
       return dayOf(key === second.day ? second : first)
     },
     GetCapabilities: async () => capabilities,
-  })
+  }, (callback) => { emitUpdate = callback })
   try {
     setActivePinia(createPinia())
     const store = useTimelineStore()
     await store.load(first.day)
+    store.startEvents()
     assert.equal(store.day?.day, first.day)
 
     const switching = store.load(second.day, { keep: true })
@@ -63,11 +81,15 @@ test('a day switch keeps the previous day rendered and commits the next one atom
     assert.equal(store.context?.day, first.day)
     assert.equal(store.day?.day, first.day)
 
+    // A deletion may finish just as the user leaves the previous day.
+    emitUpdate?.({ day: first.day })
     releaseDay?.()
     await switching
+    await new Promise((resolve) => setTimeout(resolve, 0))
     assert.equal(store.switching, false)
     assert.equal(store.context?.day, second.day)
     assert.equal(store.day?.day, second.day)
+    assert.deepEqual(reads, [first.day, second.day, second.day])
   } finally {
     restore()
   }
@@ -93,6 +115,52 @@ test('a failed day switch shows the failure for the new date', async () => {
     assert.equal(store.context?.day, second.day, 'retry must target the new date')
     assert.equal(store.state, 'failure')
     assert.equal(store.switching, false)
+  } finally {
+    restore()
+  }
+})
+
+test('deleting the displayed day failures uses one write and waits for invalidation', async () => {
+  const first = contextOf('2026-09-15', 100)
+  const failures = [{ batchIds: [1, 2], startTs: 120, endTs: 140, kind: 'invalid_output', message: '', retryable: true }]
+  const requestedDays: string[] = []
+  let emitUpdate: TimelineUpdate | undefined
+  let releaseDelete: (() => void) | undefined
+  let failDelete = true
+  const restore = installBackend({
+    GetDayContext: async () => first,
+    GetTimelineDay: async () => ({ ...dayOf(first), failures: [...failures] }),
+    GetCapabilities: async () => capabilities,
+    DeleteDayFailures: async (day: string) => {
+      requestedDays.push(day)
+      if (failDelete) throw new Error('database_error')
+      await new Promise<void>((resolve) => { releaseDelete = resolve })
+      failures.length = 0
+    },
+  }, (callback) => { emitUpdate = callback })
+  try {
+    setActivePinia(createPinia())
+    const store = useTimelineStore()
+    await store.load(first.day)
+    store.startEvents()
+    store.selectFailure(120)
+    assert.equal(await store.deleteDayFailures(), false)
+    assert.equal(store.failedAction, 'delete-day-failures')
+    assert.equal(store.day?.failures.length, 1)
+
+    failDelete = false
+    const deleting = store.deleteDayFailures()
+    assert.equal(store.pendingAction, 'delete-day-failures')
+    assert.equal(await store.deleteDayFailures(), false, 'suppress duplicate clicks')
+    assert.deepEqual(requestedDays, [first.day, first.day])
+    releaseDelete?.()
+    assert.equal(await deleting, true)
+    assert.equal(store.day?.failures.length, 1)
+    emitUpdate?.({ day: first.day })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    assert.equal(store.day?.failures.length, 0)
+    assert.equal(store.selectedFailure, null)
+    assert.equal(await store.deleteDayFailures(), false, 'empty days require no write')
   } finally {
     restore()
   }

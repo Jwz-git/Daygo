@@ -140,6 +140,7 @@ export default {
     stopping: 'Stopping…',
     delete: 'Delete this time range',
     deleteConfirm: 'This time range will be removed from your timeline and won’t be organized again (screenshots are kept). Delete it?',
+    deleteDay: 'Delete day’s failed cards',
     deleteUnavailable: 'Can’t delete right now',
     detail: {
       kind: 'Cause',

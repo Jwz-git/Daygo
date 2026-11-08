@@ -138,6 +138,7 @@ export default {
     stopping: 'Arrêt…',
     delete: 'Supprimer cette plage horaire',
     deleteConfirm: 'Cette plage horaire sera retirée de votre chronologie et ne sera plus organisée (les captures d’écran sont conservées). La supprimer ?',
+    deleteDay: 'Supprimer les cartes en échec de la journée',
     deleteUnavailable: 'Suppression impossible pour le moment',
     detail: {
       kind: 'Cause',

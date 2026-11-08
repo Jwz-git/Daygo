@@ -11,6 +11,7 @@ import { getTimelineDevelopmentFixture } from '@/api/developmentFixtures'
 import {
   deleteBatches,
   deleteCard,
+  deleteDayFailures as deleteDayFailuresApi,
   getDayContext,
   getTimelineActionAvailability,
   getTimelineCapabilities,
@@ -43,6 +44,7 @@ export type TimelineAction =
   | 'retry-batches'
   | 'stop-retries'
   | 'delete-batches'
+  | 'delete-day-failures'
   | 'reprocess-day'
   | 'reprocess-card'
 
@@ -67,6 +69,7 @@ export const useTimelineStore = defineStore('timeline', () => {
   const actionBindings = getTimelineActionAvailability()
   let requestVersion = 0
   let stopEvents: (() => void) | null = null
+  let refreshAfterSwitch = false
 
   const cards = computed<TimelineCardDTO[]>(() => {
     const entries = day.value?.cards ?? []
@@ -95,11 +98,18 @@ export const useTimelineStore = defineStore('timeline', () => {
       reprocessDay: enabled && actionBindings.reprocessDay,
       reprocessCard: enabled && actionBindings.reprocessCard,
       deleteBatches: enabled && actionBindings.deleteBatches,
+      deleteDayFailures: enabled && actionBindings.deleteDayFailures,
       clearHistory: enabled && actionBindings.clearHistory,
       // Category management is always available in the UI when there are categories
       manageCategories: true,
     }
   })
+
+  const canDeleteDayFailures = computed(() =>
+    capabilities.value?.canWrite === true &&
+    actionAvailability.value.deleteDayFailures &&
+    (day.value?.failures.length ?? 0) > 0,
+  )
 
   const state = computed<TimelineState>(() => {
     if (loading.value) return 'loading'
@@ -195,6 +205,10 @@ export const useTimelineStore = defineStore('timeline', () => {
       if (version === requestVersion) {
         loading.value = false
         switching.value = false
+        if (refreshAfterSwitch) {
+          refreshAfterSwitch = false
+          void load(context.value?.day ?? '', { silent: true })
+        }
       }
     }
   }
@@ -278,6 +292,14 @@ export const useTimelineStore = defineStore('timeline', () => {
     return runAction('delete-batches', () => deleteBatches(batchIDs))
   }
 
+  function deleteDayFailures(): Promise<boolean> {
+    const dayKey = day.value?.day
+    if (!canDeleteDayFailures.value || loading.value || switching.value || dayKey === undefined || dayKey !== context.value?.day) {
+      return Promise.resolve(false)
+    }
+    return runAction('delete-day-failures', () => deleteDayFailuresApi(dayKey))
+  }
+
   function reprocessCurrentDay(day: string): Promise<boolean> {
     return runAction('reprocess-day', () => reprocessDay(day))
   }
@@ -298,9 +320,13 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   function startEvents(): void {
     if (stopEvents !== null) return
-    const reloadCurrentDay = () => void load(context.value?.day ?? '', { silent: true })
+    const reloadCurrentDay = () => {
+      // An invalidation for the outgoing view must not cancel a date switch.
+      if (switching.value) refreshAfterSwitch = true
+      else void load(context.value?.day ?? '', { silent: true })
+    }
     const stopUpdated = onTimelineUpdated((updatedDay) => {
-      if (updatedDay === null || updatedDay === context.value?.day) reloadCurrentDay()
+      if (switching.value || updatedDay === null || updatedDay === context.value?.day) reloadCurrentDay()
     })
     const stopFailed = onBatchFailed(reloadCurrentDay)
     stopEvents = () => {
@@ -312,6 +338,7 @@ export const useTimelineStore = defineStore('timeline', () => {
   function stopListening(): void {
     stopEvents?.()
     stopEvents = null
+    refreshAfterSwitch = false
   }
 
   return {
@@ -330,6 +357,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     failedAction,
     failedCardID,
     actionAvailability,
+    canDeleteDayFailures,
     cards,
     selectedCard,
     selectedFailure,
@@ -345,6 +373,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     retryFailure,
     stopFailureRetries,
     dismissFailure,
+    deleteDayFailures,
     reprocessCurrentDay,
     reprocessCard,
     startEvents,

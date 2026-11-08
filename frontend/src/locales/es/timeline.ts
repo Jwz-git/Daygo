@@ -138,6 +138,7 @@ export default {
     stopping: 'Deteniendo…',
     delete: 'Eliminar esta franja horaria',
     deleteConfirm: 'Esta franja horaria se quitará de tu cronología y no se volverá a organizar (las capturas se conservan). ¿Eliminarla?',
+    deleteDay: 'Eliminar tarjetas fallidas del día',
     deleteUnavailable: 'No se puede eliminar ahora mismo',
     detail: {
       kind: 'Causa',

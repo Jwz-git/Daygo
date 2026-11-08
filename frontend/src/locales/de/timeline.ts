@@ -138,6 +138,7 @@ export default {
     stopping: 'Wird gestoppt…',
     delete: 'Diesen Zeitbereich löschen',
     deleteConfirm: 'Dieser Zeitbereich wird aus deiner Zeitleiste entfernt und nicht erneut aufbereitet (Screenshots bleiben erhalten). Löschen?',
+    deleteDay: 'Fehlgeschlagene Karten des Tages löschen',
     deleteUnavailable: 'Löschen derzeit nicht möglich',
     detail: {
       kind: 'Ursache',

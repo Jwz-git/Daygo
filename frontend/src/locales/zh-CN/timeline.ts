@@ -138,6 +138,7 @@ export default {
     stopping: '正在停止…',
     delete: '删除这个时段',
     deleteConfirm: '这个时段会从时间线上移除，不再重新整理（截图会保留）。确定删除吗？',
+    deleteDay: '删除当天失败卡片',
     deleteUnavailable: '暂时无法删除',
     detail: {
       kind: '失败原因',

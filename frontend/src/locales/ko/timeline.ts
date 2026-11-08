@@ -138,6 +138,7 @@ export default {
     stopping: '중지하는 중…',
     delete: '이 구간 삭제',
     deleteConfirm: '이 구간은 타임라인에서 사라지고 다시 정리되지 않습니다(스크린샷은 유지됩니다). 삭제할까요?',
+    deleteDay: '이 날짜의 생성 실패 카드 삭제',
     deleteUnavailable: '지금은 삭제할 수 없습니다',
     detail: {
       kind: '원인',
