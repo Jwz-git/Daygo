@@ -1,6 +1,6 @@
 module github.com/Jwz-git/Daygo
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.71.0

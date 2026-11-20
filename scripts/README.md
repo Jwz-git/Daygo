@@ -102,7 +102,7 @@ The existing Windows entry points target `windows/amd64`. The following inventor
 | Dependency | Required for / setup |
 |---|---|
 | Git for Windows | Checkout and source revision metadata; make `git` available in PATH. Git Bash is also needed to run `gate.sh`, but not the PowerShell build entry points. |
-| Go | Version requirement comes from [go.mod](../go.mod) (currently `go 1.25.0`). Use the Windows amd64 toolchain; the desktop native build needs cgo, unlike the `CGO_ENABLED=0` core gate. |
+| Go | Use the Windows amd64 toolchain at the version specified in [go.mod](../go.mod). The desktop native build needs cgo. Set `CGO_ENABLED=0` for the core gate. |
 | Node.js and npm | The existing bootstrap specifies Node 20.19+ or 22.12+; release CI uses Node 22. Use npm and the existing lockfile. `build.ps1` runs `npm ci`; `dev.ps1` runs `npm install`. |
 | MinGW-w64 x64 GCC and binutils | Put `gcc`, `g++`, `ar` and `objdump` from the same x64 toolchain in PATH. GCC serves Go cgo, `g++` / `ar` build `libdaygo_capture.a`, and `objdump` checks the EXE for unbundled MinGW runtime DLLs. Release CI currently installs the Chocolatey `mingw` package. |
 | Visual Studio 2022 C++ tools | Install the **Desktop development with C++** workload (Build Tools is sufficient), including MSVC x64/x86 tools (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`). These compile the C++20/C++/WinRT capture and notification helper `daygo_windows_native.dll`; MinGW alone does not build it. The script finds Visual Studio through `vswhere.exe` and invokes `vcvars64.bat`, so `cl.exe` need not be on the initial PowerShell PATH. |
