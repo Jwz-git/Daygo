@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/macOS-14%2B-333333?style=flat-square&logo=apple&logoColor=white" alt="macOS 14+" />
   <img src="https://img.shields.io/badge/Windows-11%2024H2%2B-0078D4?style=flat-square" alt="Windows 11 24H2+" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E7DF7?style=flat-square" alt="MIT License" /></a>
-  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails · Vue 3" />
+  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%203%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails 3 · Vue 3" />
 </p>
 
 <p align="center">
@@ -105,9 +105,11 @@ Daygo 不附带 AI 服务或额度。自动分析需要图像识别与对应协�
 
 ## 参与开发
 
-Go 负责业务逻辑与数据库写入，平台能力通过接口隔离，Vue 通过生成的 Wails 绑定访问 Go。`test` 是日常开发分支，`main` 是稳定分支。
+日常开发分支 `test` 已迁移到 Wails v3.1.0，使用 Go 1.26.10 和 Vue 3。`main` 是稳定分支。迁移的验收范围见 [Wails v3 GA 迁移记录](docs/decisions/wails-v3-migration.md)。
 
-macOS 开发需安装 Go、Node.js/npm 和 Xcode Command Line Tools；Go 版本要求见 [go.mod](go.mod)，Node.js 要求见 [开发入口](scripts/dev.sh)。
+Go 负责业务逻辑与数据库写入，平台能力通过接口隔离，Vue 通过生成的 TypeScript 绑定访问 Go。
+
+开发需要 [go.mod](go.mod) 指定的 Go 版本，以及带 npm 的 Node.js 20.19+（20.x）或 22.12+。macOS 还需 Xcode Command Line Tools。
 
 ```bash
 git clone --branch test https://github.com/Jwz-git/Daygo.git
@@ -115,9 +117,17 @@ cd Daygo
 ./scripts/gate.sh   # 引导、构建、Go / 前端测试与文档检查
 ```
 
+| 平台 | 启动开发应用 |
+|---|---|
+| macOS | `./scripts/dev.sh` |
+| Windows | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev.ps1` |
+| Linux | `./scripts/dev-linux.sh` |
+
 Windows 编译除 Go、Node.js/npm 外，还需 MinGW-w64（含 binutils）、Visual Studio 2022 C++ 工具及 Windows SDK 26100；运行界面需 WebView2 Runtime。各项用途、PATH 检查及仅打包 / 签名时需要的依赖见 [Windows 构建依赖](scripts/README.md#windows-build-dependencies)。
 
-门禁会按顺序准备前端产物与 Wails 绑定。各平台开发命令见 [脚本入口](scripts/README.md)，设计与贡献约定见 [设计文档](docs/README.md) 和 [AGENTS.md](AGENTS.md)。
+Linux 默认使用 GTK4 和 WebKitGTK 6.0 的开发包。Linux arm64 已验证宿主构建，截图与系统集成仍待实现。
+
+门禁会检查 npm 依赖。干净检出时，引导脚本先准备 `dist` 占位文件，再生成 Wails 绑定并构建前端。构建与打包命令见 [脚本入口](scripts/README.md)，设计与贡献约定见 [设计文档](docs/README.md) 和 [AGENTS.md](AGENTS.md)。
 
 反馈问题请提交 [Issue](https://github.com/Jwz-git/Daygo/issues)，附上系统、应用版本、复现步骤与脱敏错误信息；请勿上传真实截图、数据库或 API Key。
 
@@ -127,8 +137,7 @@ Windows 编译除 Go、Node.js/npm 外，还需 MinGW-w64（含 binutils）、Vi
 
 <sub>由 <a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> 启发（MIT，© 2025 Jerry Liu）。</sub>
 
-## 后期随缘更新工作：
+## 后续计划
 
-- wails v3 GA迁移
-- “插件”功能开发
-- linux端适配
+- 插件功能开发
+- Linux 截图与系统集成
