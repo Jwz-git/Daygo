@@ -2,10 +2,10 @@
 # Daygo Windows Packager
 #
 # Builds a windows/amd64 release, wraps it in an NSIS installer
-# (wails build -nsis) and optionally Authenticode-signs the artifacts.
+# (Go + NSIS) and optionally Authenticode-signs the artifacts.
 # The bash counterpart for macOS is scripts/package-macos.sh; this script
 # follows the same steps (build → verify → sign → installer → sign installer)
-# but uses the Windows toolchain (wails build -nsis, makensis, signtool).
+# but uses the Windows toolchain (Go, makensis, signtool).
 #
 # Usage:
 #   ./scripts/package-windows.ps1
@@ -74,7 +74,7 @@ $BinDir = Join-Path $DaygoRootDir 'build\bin'
 $Exe = Join-Path $BinDir "$AppName.exe"
 $Dll = Join-Path $BinDir 'daygo_windows_native.dll'
 $UpdaterDll = Join-Path $BinDir 'WinSparkle.dll'
-# wails build -nsis emits "<name>-<arch>-installer.exe" into build/bin.
+# The NSIS project emits "<name>-<arch>-installer.exe" into build/bin.
 $Installer = Join-Path $BinDir "$AppName-$Arch-installer.exe"
 
 $DistDir = Join-Path $DaygoRootDir 'dist'
@@ -172,7 +172,7 @@ function Invoke-DaygoSigntool {
 Write-Step 'Checking environment'
 
 if ($env:OS -ne 'Windows_NT') {
-    Stop-WithError 'Windows packages must be built on Windows (wails build -nsis, makensis and signtool are Windows-only).'
+    Stop-WithError 'Windows packages must be built on Windows (Go, makensis and signtool are Windows-only).'
 }
 
 Assert-DaygoTool -Name go -Hint 'Install Go from https://go.dev/dl/ or via winget (winget install GoLang.Go).'
@@ -191,7 +191,7 @@ if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
         $env:PATH = "$(Split-Path -Parent $makensisPath);$env:PATH"
     }
 }
-Assert-DaygoTool -Name makensis -Hint 'Install NSIS (winget install NSIS.NSIS) and add it to PATH; wails build -nsis invokes it.'
+Assert-DaygoTool -Name makensis -Hint 'Install NSIS (winget install NSIS.NSIS) and add it to PATH.'
 
 if ($SignMode -ne 'none') {
     Assert-DaygoTool -Name signtool -Hint 'signtool ships with the Windows SDK; run from a Developer Command Prompt or add the SDK bin\x64 to PATH.'
@@ -245,45 +245,19 @@ if (-not (Test-Path -LiteralPath $InstallerProjectSource -PathType Leaf)) {
 New-Item -ItemType Directory -Path (Split-Path -Parent $InstallerProject) -Force | Out-Null
 Copy-Item -LiteralPath $InstallerProjectSource -Destination $InstallerProject -Force
 # The tracked project owns its translated copy and safeguards.
-# Keep both Wails' initial pass and the signed-byte repack on the same inputs.
+# Copy the pinned helper alongside the project's own includes.
 $InstallerSourceDir = Split-Path -Parent $InstallerProjectSource
 $InstallerTargetDir = Split-Path -Parent $InstallerProject
-foreach ($includeName in @('languages.nsh', 'safeguards.nsh')) {
+foreach ($includeName in @('languages.nsh', 'safeguards.nsh', 'wails_tools.nsh')) {
     Copy-Item -LiteralPath (Join-Path $InstallerSourceDir $includeName) -Destination $InstallerTargetDir -Force
 }
 
-# build/windows/info.json is a Wails template; the versioninfo resource is
-# compiled from it. Pin the concrete version for a release build, then restore
-# the tracked template so the working tree is left unchanged.
-$InfoJsonOriginal = $null
-if ($Version -ne 'dev' -and (Test-Path -LiteralPath $InfoJson -PathType Leaf)) {
-    $InfoJsonOriginal = Get-Content -LiteralPath $InfoJson -Raw
-    $patched = $InfoJsonOriginal -replace [regex]::Escape('{{.Info.ProductVersion}}'), $Version
-    Set-Content -LiteralPath $InfoJson -Value $patched -NoNewline
-}
-
-try {
-    Push-Location (Join-Path $DaygoRootDir 'cmd\daygo')
-    try {
-        # -nsis generates build/windows/installer/ templates on first run and
-        # wraps the freshly built EXE. The windows/* preBuildHook compiles the
-        # native capture DLL (see cmd/daygo/wails.json).
-        Invoke-DaygoNative go @(
-            'run', $DaygoWailsPackage, 'build',
-            '-platform', "windows/$Arch",
-            '-nsis',
-            '-installscope', $InstallScope
-        )
-    }
-    finally {
-        Pop-Location
-    }
-}
-finally {
-    if ($null -ne $InfoJsonOriginal) {
-        Set-Content -LiteralPath $InfoJson -Value $InfoJsonOriginal -NoNewline
-    }
-}
+$buildVersion = if ($Version -eq 'dev') { '0.0.0' } else { $Version }
+Build-DaygoWindowsDesktop -Version $buildVersion
+$bootstrapperDirectory = Join-Path $InstallerTargetDir 'tmp'
+New-Item -ItemType Directory -Path $bootstrapperDirectory -Force | Out-Null
+Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' `
+    -OutFile (Join-Path $bootstrapperDirectory 'MicrosoftEdgeWebview2Setup.exe')
 
 Write-Success 'Wails build completed'
 
@@ -305,12 +279,9 @@ if (-not (Test-Path -LiteralPath $Dll -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $UpdaterDll -PathType Leaf)) {
     Stop-WithError "Required WinSparkle updater is missing: $UpdaterDll"
 }
-if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) {
-    Stop-WithError "NSIS installer was not generated: $Installer"
-}
 Assert-DaygoPortableExecutable -Path $Exe
 
-Write-Success 'Executable, capture DLL, updater DLL and installer present'
+Write-Success 'Executable, capture DLL and updater DLL present'
 
 # ─────────────────────────────────────────────────────────────
 # Signing
@@ -331,8 +302,8 @@ if ($SignMode -ne 'none') {
     Write-WarnLine 'Unsigned build. Suitable for local testing; SmartScreen will warn on other machines.'
 }
 
-# The first Wails NSIS pass materialises wails_tools.nsh and the WebView2
-# bootstrapper. Rebuild after signing so the installer contains the final EXE
+# The helper and WebView2 bootstrapper are prepared above. Compile NSIS
+# after signing so the installer contains the final EXE
 # and DLL bytes. The tracked project.nsi explicitly packages the native DLL;
 # the stock Wails template only packages the EXE.
 Write-Step 'Repacking final application artifacts'

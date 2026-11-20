@@ -1,0 +1,26 @@
+version: '3'
+info:
+  companyName: Daygo
+  productName: Daygo
+  productIdentifier: io.github.jwz-git.Daygo
+  version: 0.0.0
+  description: Daygo
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir: [.git, .tmp, node_modules, frontend, build, dist, legacy, web]
+    file: [.DS_Store]
+    watched_extension: ['*.go']
+    git_ignore: true
+  executes:
+    - cmd: go run github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0 task prepare:frontend
+      type: once
+    - cmd: go run github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0 task dev:frontend
+      type: background
+    - cmd: go run github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0 task dev:build
+      type: blocking
+    - cmd: go run github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0 task run
+      type: primary

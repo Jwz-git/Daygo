@@ -1,3 +1,4 @@
+import { desktopBackend } from '@/api/desktopBridge'
 import { normalizeWeeklyDashboard } from '@/api/normalizeDTO'
 import type { GeneratedBindings } from '@/api/generatedBindings'
 import type { WeeklyDashboardDTO } from '@/api/dto'
@@ -5,10 +6,6 @@ import type { WeeklyDashboardDTO } from '@/api/dto'
 type WeeklyBackend = GeneratedBindings<
   | 'GetWeeklyDashboard'
 >
-
-type WeeklyWindow = Window & {
-  go?: { app?: { Backend?: WeeklyBackend } }
-}
 
 export class WeeklyUnavailableError extends Error {
   constructor() {
@@ -18,7 +15,7 @@ export class WeeklyUnavailableError extends Error {
 }
 
 function backend(): WeeklyBackend | null {
-  return (window as WeeklyWindow).go?.app?.Backend ?? null
+  return desktopBackend()
 }
 
 export function hasWeeklyBinding(): boolean {

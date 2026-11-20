@@ -1,4 +1,5 @@
-import { normalizeTimelineDay, normalizeRecap, normalizeJournal } from '@/api/normalizeDTO'
+import { desktopBackend, desktopRuntime } from '@/api/desktopBridge'
+import { normalizeTimelineDay, normalizeGoal, normalizeRecap, normalizeJournal } from '@/api/normalizeDTO'
 import type { GeneratedBindings } from '@/api/generatedBindings'
 import type {
   CapabilitiesDTO,
@@ -22,19 +23,6 @@ type DailyBackend = GeneratedBindings<
   | 'SaveDayGoal'
 >
 
-interface WailsRuntime {
-  EventsOnMultiple?: (
-    eventName: string,
-    callback: (...data: unknown[]) => void,
-    maxCallbacks: number,
-  ) => () => void
-}
-
-type DailyWindow = Window & {
-  go?: { app?: { Backend?: DailyBackend } }
-  runtime?: WailsRuntime
-}
-
 export class DailyUnavailableError extends Error {
   constructor() {
     super('daily_unavailable')
@@ -43,7 +31,7 @@ export class DailyUnavailableError extends Error {
 }
 
 function backend(): DailyBackend | null {
-  return (window as DailyWindow).go?.app?.Backend ?? null
+  return desktopBackend()
 }
 
 export function hasDailyDayBinding(): boolean {
@@ -98,7 +86,9 @@ export async function saveDailyRecap(recap: DailyRecapDTO): Promise<void> {
 
 export async function getDailyCapabilities(): Promise<CapabilitiesDTO | null> {
   const method = backend()?.GetCapabilities
-  return typeof method === 'function' ? method() : null
+  if (typeof method !== 'function') return null
+  const value = await method()
+  return { ...value, features: value.features ?? [] }
 }
 
 export function hasJournalBinding(): boolean {
@@ -132,7 +122,7 @@ export async function saveJournalDay(entry: JournalDayDTO): Promise<void> {
 export async function getDayGoal(day: string): Promise<DayGoalDTO> {
   const method = backend()?.GetDayGoal
   if (typeof method !== 'function') throw new DailyUnavailableError()
-  return method(day)
+  return normalizeGoal(await method(day))
 }
 
 export async function saveDayGoal(goal: DayGoalDTO): Promise<void> {
@@ -149,7 +139,7 @@ function onDailyInvalidated(
   eventName: string,
   callback: (day: string | null) => void,
 ): () => void {
-  const method = (window as DailyWindow).runtime?.EventsOnMultiple
+  const method = desktopRuntime()?.EventsOnMultiple
   if (typeof method !== 'function') return () => undefined
   return method(eventName, (raw: unknown) => {
     if (typeof raw !== 'object' || raw === null) return callback(null)

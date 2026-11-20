@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createPinia, setActivePinia } from 'pinia'
@@ -64,14 +65,14 @@ async function withPlanBackend(
 ): Promise<void> {
   const previousWindow = globalThis.window
   const listeners = new Map<string, (...args: unknown[]) => void>()
-  globalThis.window = {
+  globalThis.window = nativeFixtureWindow({
     go: { app: { Backend: { GetPlanDay: query } } },
     runtime: { EventsOnMultiple: (name: string, callback: (...args: unknown[]) => void) => {
       assert.equal(listeners.has(name), false, `duplicate listener: ${name}`)
       listeners.set(name, callback)
       return () => { listeners.delete(name) }
     } },
-  } as unknown as Window & typeof globalThis
+  } as unknown as Window & typeof globalThis)
   try {
     setActivePinia(createPinia())
     await run(async (name, day) => {

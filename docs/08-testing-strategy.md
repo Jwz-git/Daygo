@@ -424,7 +424,7 @@ npm --prefix frontend run build
 
 **干净检出的依赖安装、绑定生成与前端检查有顺序依赖，Go 命令也依赖引导。** `internal/app` 导入 `frontend`，后者的
 `go:embed all:dist` 在 `dist` 不存在时匹配不到任何文件，**整个模块无法编译**——包括上面
-的 `go build` 与 `go test`。而 `dist` 与 `wailsjs` 都是生成产物、不入库
+的 `go build` 与 `go test`。而 `dist` 与 `bindings` 都是生成产物、不入库
 （`05 §5.5.5` 规则 3），两者又互相依赖：生成绑定需要可编译的 Go 树，可编译又需要 `dist`。
 
 所以在干净环境（新 clone、CI runner）上，**必须先跑一次引导**再执行上述任何命令。

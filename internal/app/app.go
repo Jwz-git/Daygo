@@ -1,3 +1,5 @@
+//go:build daygo_desktop
+
 package app
 
 import (
@@ -9,6 +11,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	goruntime "runtime"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -21,10 +25,8 @@ import (
 	"github.com/Jwz-git/Daygo/internal/recordinglocation"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 // ApplicationSupportDirName is the directory under the user's Application
@@ -52,22 +54,31 @@ func supportDir() (string, error) {
 // should still let the user see the app rather than a process that exits
 // silently. Storage problems surface through GetDiagnostics instead.
 func Run() error {
+	if err := factory.PrepareDesktopHost(); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	var closeResources []func()
+	cleanup := sync.OnceFunc(func() {
+		cancel()
+		for i := len(closeResources) - 1; i >= 0; i-- {
+			closeResources[i]()
+		}
+	})
+	defer cleanup()
 
 	system := factory.NewSystem()
 	if closer, ok := system.(interface{ Close() }); ok {
-		defer closer.Close()
+		closeResources = append(closeResources, closer.Close)
 	}
 	backend := NewBackend(system, nil)
+	backend.hostContext = ctx
 	backend.setCapture(factory.NewCapture())
 	backend.setApplicationInspector(factory.NewApplicationInspector())
 	backend.setSecrets(secrets.New())
-	backend.startSystemEventPump()
-	// OnStartup; before that it drops events, which is correct because a window
-	// that does not exist yet has no listener.
 	emitter := NewWailsEmitter()
 	backend.setEventEmitter(emitter)
+	backend.startSystemEventPump()
 
 	dir, err := supportDir()
 	if err != nil {
@@ -102,8 +113,8 @@ func Run() error {
 		// Frame playback serves screenshots from the recordings directory
 		// next to the database (same root GetRecordingDirectory reports).
 		backend.attachMedia(recordingsRoot)
-		defer func() { _ = store.Close() }()
-		defer backend.stopTimelineTasks()
+		closeResources = append(closeResources, func() { _ = store.Close() })
+		closeResources = append(closeResources, backend.stopTimelineTasks)
 
 		// Maintenance is owned by this context, so cancelling it at shutdown
 		// stops the goroutine. There is no global scheduler to leak
@@ -124,11 +135,11 @@ func Run() error {
 					_ = audit.Close()
 				} else {
 					backend.agentSocketActive.Store(true)
-					defer func() {
+					closeResources = append(closeResources, func() {
 						backend.agentSocketActive.Store(false)
 						_ = bridge.Close()
 						_ = audit.Close()
-					}()
+					})
 				}
 			}
 		}
@@ -213,194 +224,218 @@ func Run() error {
 	backend.setUpdater(factory.NewUpdater())
 	backend.startUpdaterEventPump(ctx)
 
-	appOpts := &options.App{
-		Title:             "Daygo",
-		Width:             1180,
-		Height:            760,
-		Frameless:         platformFrameless(),
-		HideWindowOnClose: true,
-		MinWidth:          880,
-		MinHeight:         600,
-		/*
-		 * Only Windows uses a frameless window with the Vue title bar.
-		 * macOS keeps its native frame and uses mac.TitleBarHidden() to
-		 * preserve traffic lights and rounded corners.
-		 */
-		CSSDragProperty: "--wails-draggable",
-		CSSDragValue:    "drag",
-		// No webview context menu in production. Debug builds force it on
-		// regardless of this flag, so the frontend installs its own
-		// contextmenu guard (frontend/src/main.ts) to keep both builds
-		// behaving the same.
-		EnableDefaultContextMenu: false,
-		// Shown only between window creation and the first webview paint. The
-		// light palette base is the least jarring default: macOS defaults to a
-		// light system appearance, and the app follows it until the user says
-		// otherwise.
-		BackgroundColour: &options.RGBA{R: 233, G: 240, B: 251, A: 1},
-		AssetServer: &assetserver.Options{
-			Assets: frontend.Assets,
-			// Numeric-ID screenshot frames for card playback; everything the
-			// embedded bundle does not claim falls through to this handler.
-			Handler: http.HandlerFunc(backend.serveAsset),
+	windowOptions := desktopWindowOptions(goruntime.GOOS)
+	var host *application.App
+	var window application.Window
+	var quitPreparing, quitPrepared atomic.Bool
+	showWindow := func() {
+		if err := backend.exitBackground(ctx); err != nil {
+			log.Printf("restore dock icon on reopen unavailable: %v", err)
+		}
+		if goruntime.GOOS == "darwin" {
+			application.InvokeSync(host.Show)
+		}
+		window.Show()
+		if goruntime.GOOS == "darwin" {
+			// Unhiding and ordering a window front do not activate the application.
+			window.Focus()
+		}
+		backend.setWindowHidden(false)
+	}
+	host = application.New(application.Options{
+		Name:                        "Daygo",
+		Mac:                         application.MacOptions{ActivationPolicy: application.ActivationPolicyRegular},
+		Windows:                     application.WindowsOptions{DisableQuitOnLastWindowClosed: true},
+		Linux:                       application.LinuxOptions{DisableQuitOnLastWindowClosed: true},
+		DisableDefaultSignalHandler: true,
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(frontend.Assets),
+			Middleware: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					switch req.URL.Path {
+					case "/media/frame", "/media/thumbnail", "/favicon":
+						backend.serveAsset(w, req)
+					default:
+						next.ServeHTTP(w, req)
+					}
+				})
+			},
 		},
-		// System may still be nil when the current platform adapter cannot
-		// start; capability and day methods remain available in that mode.
-		Bind: []any{backend},
-		// OnStartup hands over the Wails context the event emitter needs. It is
-		// installed here rather than at construction because runtime events
-		// require a live context.
-		OnStartup: func(ctx context.Context) {
-			requestShutdown := func() {
-				backend.requestQuit()
-				runtime.Quit(ctx)
+		Services: []application.Service{application.NewServiceWithOptions(backend, application.ServiceOptions{
+			// Error() supplies the public message. Keep the internal cause off the wire.
+			MarshalError: func(error) []byte { return []byte("null") },
+		})},
+		OnShutdown: func() {
+			emitter.setPublisher(nil)
+			cancel()
+			backend.shutdown()
+			cleanup()
+		},
+		ShouldQuit: func() bool {
+			if quitPrepared.Load() {
+				return true
 			}
-			backend.configureUpdateInstall(requestShutdown)
-			backend.setShutdownRequester(requestShutdown)
-			emitter.SetContext(ctx)
-			backend.setWindowContext(ctx)
-			backend.pushApplicationMenuCopy()
-			backend.setApplicationPicker(wailsApplicationPicker{ctx: ctx, labels: backend.nativeLabels.get})
-			updateStatus := func(state recorder.State) {
-				// Status-item setup is an optional platform capability and must not
-				// make the desktop shell's startup depend on native tray availability.
+			if !quitPreparing.CompareAndSwap(false, true) {
+				return false
+			}
+			// The native termination callback can run on the main thread.
+			// Leave that thread available while capture or dialogs complete.
+			go func() {
+				defer quitPreparing.Store(false)
+				if backend.quitIntent(true) == quitRelaunchForPermission {
+					if err := backend.beginPermissionRestart(); err != nil {
+						log.Printf("permission restart cancelled: %v", err)
+						return
+					}
+				} else if err := backend.prepareTermination(backend.stopRecorder); err != nil {
+					log.Printf("quit cancelled: recording finalization failed: %s", recordingFailureReason(err))
+					showWindow()
+					labels := backend.statusLabels.get()
+					dialog := host.Dialog.Warning().SetTitle(labels.ActionFailedTitle).SetMessage(labels.QuitFailed)
+					keepOpen := dialog.AddButton(labels.KeepOpen)
+					quitAnyway := dialog.AddButton(labels.QuitAnyway)
+					allow := false
+					quitAnyway.OnClick(func() { allow = true })
+					dialog.SetDefaultButton(keepOpen).SetCancelButton(keepOpen)
+					dialog.Show()
+					if !allow && !backend.systemShuttingDown.Load() {
+						return
+					}
+				}
+				quitPrepared.Store(true)
+				host.Quit()
+			}()
+			return false
+		},
+	})
+	installDesktopMenu(host, backend.nativeLabels.get().ApplicationMenu)
+	window = host.Window.NewWithOptions(windowOptions)
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		if quitPrepared.Load() {
+			return
+		}
+		event.Cancel()
+		backend.setWindowHidden(true)
+		if goruntime.GOOS == "darwin" {
+			application.InvokeSync(host.Hide)
+		} else {
+			window.Hide()
+		}
+		go func() {
+			if err := backend.enterBackground(ctx); err != nil {
+				log.Printf("drop dock icon on window close unavailable: %v", err)
+			}
+		}()
+	})
+	backend.paintWindowBackground = func(r, g, b uint8) {
+		window.SetBackgroundColour(application.NewRGBA(r, g, b, 255))
+	}
+	backend.pickRecordingDirectory = func() (string, error) {
+		return host.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
+			CanCreateDirectories(true).AttachToWindow(window).PromptForSingleSelection()
+	}
+	backend.chatgptOpenURL = host.Browser.OpenURL
+	backend.setApplicationPicker(wailsApplicationPicker{host: host, window: window, labels: backend.nativeLabels.get})
+
+	requestShutdown := func() {
+		backend.requestQuit()
+		host.Quit()
+	}
+	var ready atomic.Bool
+	host.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		backend.configureUpdateInstall(requestShutdown)
+		backend.setShutdownRequester(requestShutdown)
+		emitter.setPublisher(func(name string, payload any) {
+			host.Event.Emit(name, payload)
+		})
+		backend.pushApplicationMenuCopy()
+		ready.Store(true)
+		updateStatus := func(state recorder.State) {
+			// Status-item setup is an optional platform capability and must not
+			// make the desktop shell's startup depend on native tray availability.
+			if backend.system == nil {
+				return
+			}
+			// Labels come from the frontend (vue-i18n); the state → surface
+			// mapping stays here so the adapter never learns recorder states.
+			item := backend.statusItemPresentation(state)
+			if err := backend.system.SetStatusItem(ctx, item); err != nil {
+				log.Printf("status item update unavailable: %v", err)
+			}
+		}
+		backend.setStatusUpdater(updateStatus)
+		updateStatus(backend.recorderState())
+		backend.loadDockPreference(ctx)
+		reportActionError := func(err error) {
+			showWindow()
+			labels := backend.statusLabels.get()
+			if presenter, ok := backend.system.(platform.StatusMessagePresenter); ok {
+				if err := presenter.ShowStatusMessage(ctx, platform.StatusMessage{Title: labels.ActionFailedTitle, Message: nativeActionErrorMessage(err, labels), Button: labels.OK}); err != nil {
+					log.Printf("native action feedback unavailable")
+				}
+				return
+			}
+			dialog := host.Dialog.Error().SetTitle(labels.ActionFailedTitle).SetMessage(nativeActionErrorMessage(err, labels))
+			ok := dialog.AddButton(labels.OK)
+			dialog.SetDefaultButton(ok).SetCancelButton(ok)
+			dialog.Show()
+		}
+		// Reopen a backgrounded window; leave ordinary activation to the system.
+		backend.setActivationAction(func() { backend.restoreOnActivation(showWindow) })
+		backend.setStatusAction(func(action string) {
+			switch action {
+			case "open":
+				showWindow()
+			case "open_recordings":
 				if backend.system == nil {
 					return
 				}
-				// Labels come from the frontend (vue-i18n); the state → surface
-				// mapping stays here so the adapter never learns recorder states.
-				item := backend.statusItemPresentation(state)
-				if err := backend.system.SetStatusItem(ctx, item); err != nil {
-					log.Printf("status item update unavailable: %v", err)
-				}
-			}
-			backend.setStatusUpdater(updateStatus)
-			updateStatus(backend.recorderState())
-			backend.loadDockPreference(ctx)
-			// Mixing application hiding with window order-out can lose focus in Mission Control.
-			showWindow := func() {
-				if err := backend.exitBackground(ctx); err != nil {
-					log.Printf("restore dock icon on reopen unavailable: %v", err)
-				}
-				runtime.Show(ctx)
-				backend.setWindowHidden(false)
-			}
-			reportActionError := func(err error) {
-				showWindow()
-				labels := backend.statusLabels.get()
-				if presenter, ok := backend.system.(platform.StatusMessagePresenter); ok {
-					if err := presenter.ShowStatusMessage(ctx, platform.StatusMessage{Title: labels.ActionFailedTitle, Message: nativeActionErrorMessage(err, labels), Button: labels.OK}); err != nil {
-						log.Printf("native action feedback unavailable")
-					}
+				dir, err := backend.GetRecordingDirectory()
+				if err != nil {
+					reportActionError(err)
 					return
 				}
-				_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{Type: runtime.ErrorDialog, Title: labels.ActionFailedTitle, Message: nativeActionErrorMessage(err, labels), Buttons: []string{labels.OK}, DefaultButton: labels.OK, CancelButton: labels.OK})
-			}
-			// Reopen a backgrounded window; leave ordinary activation to the system.
-			backend.setActivationAction(func() { backend.restoreOnActivation(showWindow) })
-			backend.setStatusAction(func(action string) {
-				switch action {
-				case "open":
-					showWindow()
-				case "open_recordings":
-					if backend.system == nil {
-						return
-					}
-					dir, err := backend.GetRecordingDirectory()
-					if err != nil {
-						reportActionError(err)
-						return
-					}
-					// The directory only exists after the first capture; create
-					// it so the folder always opens instead of failing silently.
-					if err := os.MkdirAll(dir, 0o755); err != nil {
-						reportActionError(err)
-						return
-					}
-					// Finder, not BrowserOpenURL: Wails' URL validator rejects the
-					// file:// scheme outright, so a file URL never opens the folder.
-					if err := backend.system.RevealPath(ctx, dir); err != nil {
-						reportActionError(err)
-					}
-				case "quit":
-					backend.requestQuit()
-					runtime.Quit(ctx)
-				case "toggle_pause", "pause_15", "pause_30", "pause_60", "pause_indefinite":
-					if err := backend.runStatusRecordingAction(action); err != nil {
-						reportActionError(err)
-					}
+				// The directory only exists after the first capture; create
+				// it so the folder always opens instead of failing silently.
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					reportActionError(err)
+					return
 				}
-			})
-			// After the status action is installed so the status item reflects
-			// the state the auto-start produces.
-			backend.maybeAutoStartRecording()
-		},
-		OnShutdown: func(ctx context.Context) {
-			backend.shutdown()
-		},
-		// The close button hides the resident window. On macOS, Wails routes
-		// Dock Quit and Cmd+Q here for safe termination. Returning true keeps
-		// the app alive.
-		OnBeforeClose: func(ctx context.Context) (prevent bool) {
-			switch backend.quitIntent(goruntime.GOOS == "darwin") {
-			case quitTerminate:
-				if err := backend.prepareTermination(backend.stopRecorder); err != nil {
-					log.Printf("quit cancelled: recording finalization failed: %s", recordingFailureReason(err))
-					_ = backend.exitBackground(ctx)
-					runtime.Show(ctx)
-					backend.setWindowHidden(false)
-					labels := backend.statusLabels.get()
-					choice, _ := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{Type: runtime.WarningDialog, Title: labels.ActionFailedTitle, Message: labels.QuitFailed, Buttons: []string{labels.KeepOpen, labels.QuitAnyway}, DefaultButton: labels.KeepOpen, CancelButton: labels.KeepOpen})
-					if choice == labels.QuitAnyway {
-						return false
-					}
-					return true
+				// Finder, not BrowserOpenURL: Wails' URL validator rejects the
+				// file:// scheme outright, so a file URL never opens the folder.
+				if err := backend.system.RevealPath(ctx, dir); err != nil {
+					reportActionError(err)
 				}
-				return false
-			case quitRelaunchForPermission:
-				// macOS's "Quit & Reopen" also arrives here. Relaunch so a fresh
-				// screen-recording permission takes effect.
-				if err := backend.beginPermissionRestart(); err != nil {
-					log.Printf("permission restart cancelled: %v", err)
-					return true
+			case "quit":
+				requestShutdown()
+			case "toggle_pause", "pause_15", "pause_30", "pause_60", "pause_indefinite":
+				if err := backend.runStatusRecordingAction(action); err != nil {
+					reportActionError(err)
 				}
-				return false
 			}
-			backend.setWindowHidden(true)
-			runtime.Hide(ctx)
-			if err := backend.enterBackground(ctx); err != nil {
-				log.Printf("drop dock icon on background quit unavailable: %v", err)
-			}
-			return true
-		},
-		// Host window options are platform-specific; each lives in an
-		// options_<goos>.go file under a matching build tag.
-		Mac:     platformMacOptions(),
-		Linux:   platformLinuxOptions(),
-		Windows: platformWindowsOptions(),
-	}
+		})
+		// After the status action is installed so the status item reflects
+		// the state the auto-start produces.
+		backend.maybeAutoStartRecording()
+	})
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	signalCtx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
 	go func() {
-		<-sigChan
-		// A terminal Ctrl-C or launchd SIGTERM is a real quit, not a soft
-		// background hide: mark it allowed so OnBeforeClose lets it through, then
-		// ask Wails to quit — OnShutdown runs backend.shutdown(). Before startup
-		// hands over the runtime context there is no event loop to quit, so stop
-		// work directly and exit.
-		backend.systemShuttingDown.Store(true)
-		backend.disarmPermissionRestart()
-		backend.requestQuit()
-		if ctx := backend.windowContext(); ctx != nil {
-			runtime.Quit(ctx)
+		<-signalCtx.Done()
+		if ctx.Err() != nil {
+			return
+		}
+		if ready.Load() {
+			backend.requestSystemShutdown()
 			return
 		}
 		backend.shutdown()
+		cleanup()
 		os.Exit(0)
 	}()
 
-	err = wails.Run(appOpts)
+	err = host.Run()
 	if err != nil {
 		return fmt.Errorf("run Daygo desktop shell: %w", err)
 	}

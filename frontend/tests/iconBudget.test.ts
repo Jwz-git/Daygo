@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { describeApplications } from '../src/api/application'
@@ -7,12 +8,12 @@ test('application budget evicts memo only and oversized results remain usable', 
   const previousWindow = globalThis.window
   const calls: string[][] = []
   const icon = 'data:image/png;base64,' + 'a'.repeat(300_000)
-  globalThis.window = { go: { app: { Backend: {
+  globalThis.window = nativeFixtureWindow({ go: { app: { Backend: {
     DescribeApplications: async (ids: string[]) => {
       calls.push(ids)
       return ids.map((id) => ({ id, name: 'Anonymous', iconDataUrl: id === 'budget-huge' ? icon.repeat(15) : icon }))
     },
-  } } } } as unknown as Window & typeof globalThis
+  } } } } as unknown as Window & typeof globalThis)
   try {
     const ids = Array.from({ length: 40 }, (_, i) => `budget-app-${i}`)
     await describeApplications(ids)
@@ -33,7 +34,7 @@ test('favicon budget supports eviction, oversize bypass and concurrent de-duplic
   const previousReader = globalThis.FileReader
   let calls = 0
   let result = 'data:image/png;base64,' + 'a'.repeat(200_000)
-  globalThis.window = { setTimeout, clearTimeout } as unknown as Window & typeof globalThis
+  globalThis.window = nativeFixtureWindow({ setTimeout, clearTimeout } as unknown as Window & typeof globalThis)
   globalThis.fetch = async () => {
     calls += 1
     return new Response(new Blob(['anonymous'], { type: 'image/png' }))

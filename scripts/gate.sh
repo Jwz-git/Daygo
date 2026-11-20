@@ -8,7 +8,7 @@
 # bootstrap has to run before any Go command — otherwise `go build ./...` fails
 # with "pattern all:dist: no matching files found".
 #
-# The same bootstrap also produces frontend/wailsjs, which vue-tsc needs.
+# The same bootstrap also produces frontend/bindings, which vue-tsc needs.
 
 set -euo pipefail
 
@@ -58,6 +58,7 @@ printf '\n== docs ==\n'
 # must not be the reason a Go/frontend gate cannot run on a machine.
 if command -v python3 >/dev/null 2>&1; then
   python3 scripts/check-docs.py
+  python3 scripts/test-entrypoints.py
   python3 scripts/windows-installer/test_installer.py
 else
   printf 'python3 not found; skipping docs check\n'

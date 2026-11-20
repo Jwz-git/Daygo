@@ -164,7 +164,7 @@ macOS 是当前主线，Windows 与 Linux 是已排期的一等发布目标。ma
 | 空闲采样（第 11 项） | 未实现 | 未实现 | recorder 两条路径均写 NULL，生产空闲短路不生效；端口须先决策 |
 | 通知（第 20 项） | UNUserNotificationCenter 投递 / 排程 / 取消已实现 | C++/WinRT toast 身份 / 排程 / 取消已实现 | 两平台于 10-13 用户确认已验收（未附逐项记录）；能力与授权分别查询，点击唤回未实现 |
 
-构建接线：`cmd/daygo/wails.json` 的 `preBuildHooks` 在对应平台上调用
+构建接线：`scripts/build-desktop.sh` 与 Windows 的构建 / 打包入口在对应平台上调用
 `native/darwin/build.sh` 或 `native/windows/build.ps1`；产物分别是
 `build/native/darwin/universal/libdaygo_capture.a` 与
 `build/native/windows/amd64/libdaygo_capture.a`；Windows 26100 隐私路径另生成并随 EXE 放置

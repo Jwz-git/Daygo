@@ -1,12 +1,10 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 /*
@@ -18,20 +16,6 @@ import (
  * resolved appearance changes, carrying the page's own --dg-window-bg so the
  * backdrop always matches what the page paints.
  */
-func (b *Backend) setWindowContext(ctx context.Context) {
-	b.windowCtxMu.Lock()
-	defer b.windowCtxMu.Unlock()
-	b.windowCtx = ctx
-}
-
-// windowContext returns the Wails runtime context handed over in OnStartup, or
-// nil if startup has not reached that point yet.
-func (b *Backend) windowContext() context.Context {
-	b.windowCtxMu.Lock()
-	defer b.windowCtxMu.Unlock()
-	return b.windowCtx
-}
-
 // SetWindowBackground accepts a "#rrggbb" colour and repaints the native
 // window backdrop with it. A nil window context (headless construction in
 // tests) has nothing to paint, so the call is a no-op rather than an error.
@@ -40,13 +24,9 @@ func (b *Backend) SetWindowBackground(colour string) error {
 	if err != nil {
 		return apperr.E(apperr.InvalidArgument, "invalid window background colour", err)
 	}
-	b.windowCtxMu.Lock()
-	ctx := b.windowCtx
-	b.windowCtxMu.Unlock()
-	if ctx == nil {
-		return nil
+	if paint := b.paintWindowBackground; paint != nil {
+		paint(red, green, blue)
 	}
-	runtime.WindowSetBackgroundColour(ctx, red, green, blue, 255)
 	return nil
 }
 

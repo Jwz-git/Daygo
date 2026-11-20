@@ -1,11 +1,12 @@
+import { hasDesktopBridge } from '@/api/desktopBridge'
 import {
   GetPermissionState,
   OpenSystemSettings,
   RelaunchForPermission,
   RequestScreenRecordingPermission,
   SetPermissionRestartArmed,
-} from '../../wailsjs/go/app/Backend'
-import type { app } from '../../wailsjs/go/models'
+} from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
+import type * as app from '../../bindings/github.com/Jwz-git/Daygo/internal/app/models'
 
 export type PermissionState = app.PermissionDTO
 
@@ -16,7 +17,7 @@ export type SettingsPane = 'screen_recording' | 'notifications' | 'login_items'
 export const WAILS_UNAVAILABLE = 'wails_unavailable'
 
 function hasBridge(): boolean {
-  return (window as { go?: unknown }).go !== undefined
+  return hasDesktopBridge()
 }
 
 /** Reads the observed screen-recording and notifications permission states. */

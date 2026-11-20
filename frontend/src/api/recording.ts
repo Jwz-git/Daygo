@@ -1,5 +1,6 @@
-import { CancelRecordingDirectoryMove, GetRecordingDirectory, GetRecordingDirectoryMigration, GetRecordingState, MoveRecordingDirectory, PauseRecording, PickRecordingDirectory, ResumeRecording, SetRecording, SetStatusItemLabels } from '../../wailsjs/go/app/Backend'
-import type { app } from '../../wailsjs/go/models'
+import { desktopRuntime } from '@/api/desktopBridge'
+import { CancelRecordingDirectoryMove, GetRecordingDirectory, GetRecordingDirectoryMigration, GetRecordingState, MoveRecordingDirectory, PauseRecording, PickRecordingDirectory, ResumeRecording, SetRecording, SetStatusItemLabels } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
+import type * as app from '../../bindings/github.com/Jwz-git/Daygo/internal/app/models'
 
 export type RecordingState = app.RecordingStateDTO
 export type StatusItemLabels = app.StatusItemLabelsDTO
@@ -30,7 +31,7 @@ export async function setStatusItemLabels(labels: StatusItemLabels): Promise<voi
 interface RecordingEventPayload { state?: unknown }
 interface RecordingRuntime { EventsOnMultiple?: (name: string, callback: (...data: unknown[]) => void, maxCallbacks: number) => (() => void) | undefined }
 export function onRecordingState(callback: (state: string) => void): () => void {
-  const runtime = (window as { runtime?: RecordingRuntime }).runtime
+  const runtime = desktopRuntime()
   if (typeof runtime?.EventsOnMultiple !== 'function') return () => undefined
   return runtime.EventsOnMultiple('recording:state', (...data: unknown[]) => {
     const value = data[0]

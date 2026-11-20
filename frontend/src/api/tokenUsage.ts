@@ -1,4 +1,4 @@
-import { GetTokenUsage } from '../../wailsjs/go/app/Backend'
+import { GetTokenUsage } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
 
 export interface TokenUsageBucket {
   startTs: number
@@ -14,5 +14,6 @@ export interface TokenUsage {
   buckets: TokenUsageBucket[]
 }
 export async function getTokenUsage(period: 'day' | 'week', day: string): Promise<TokenUsage> {
-  return GetTokenUsage(period, day)
+  const value = await GetTokenUsage(period, day)
+  return { ...value, buckets: value.buckets ?? [] }
 }

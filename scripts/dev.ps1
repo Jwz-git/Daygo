@@ -6,14 +6,14 @@ $ErrorActionPreference = 'Stop'
 Initialize-DaygoWindowsNative
 Initialize-DaygoFrontend -DependencyMode install
 
-Push-Location (Join-Path $DaygoRootDir 'cmd\daygo')
+Push-Location $DaygoRootDir
 try {
     Write-Host 'Starting wails dev (the first run may take a while to download the Wails CLI)...'
     # Go 1.25's Windows linker can emit malformed PE files for cgo debug
     # builds with DWARF 5 (golang/go#75077). Production builds are unaffected.
     $restoreExperiment = Install-DaygoDwarf5Workaround
     try {
-        & go run $DaygoWailsPackage dev -s @args
+        & go run $DaygoWailsPackage dev @args
         $wailsExitCode = $LASTEXITCODE
     }
     finally {

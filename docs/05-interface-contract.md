@@ -1277,12 +1277,13 @@ macOS 红叉与 Cmd+H 均由 `didHide` / `didUnhide` 更新应用隐藏状态，
 
 ```text
 frontend/
-├── wailsjs/           ★ wails 生成产物（wails.json 的 wailsjsdir 指向这里）
-│   ├── go/app/Backend.{js,d.ts}    绑定方法
-│   ├── go/models.ts                ★ DTO 类型的唯一来源
-│   └── runtime/                    事件与窗口 runtime
+├── bindings/          ★ wails3 生成产物
+│   └── github.com/Jwz-git/Daygo/internal/app/
+│       ├── backend.ts              绑定方法
+│       └── models.ts               ★ DTO 类型的唯一来源
 └── src/
     ├── api/
+    │   ├── desktopBridge.ts ★ 原生环境就绪、绑定访问与事件 data 解包
     │   ├── dto.ts          ★ 生成 DTO 的数据字段派生（枚举 / null 由 wrapper 校验）
     │   ├── providerTest.ts ★ 已有的薄 wrapper（连接探针）
     │   ├── client.ts       ☐ 错误解析（§5.4）、超时、重试策略
@@ -1299,7 +1300,7 @@ frontend/
     └── stores/            ★ Pinia：数据获取、轮询、聚合、事件响应
 ```
 
-★ 已落盘，☐ 目标状态。生成产物在 `frontend/wailsjs/`——**不是** `src/api/generated/`；
+★ 已落盘，☐ 目标状态。生成产物位于 `frontend/bindings/`。
 它与 `frontend/dist/` 都在 `.gitignore` 中，且互为前提（生成绑定要求 Go 树可编译，
 而 `go:embed all:dist` 要求 `dist` 存在）。干净检出必须先跑
 `scripts/bootstrap-frontend.sh`，否则 `vue-tsc` 与 `go build` 都会失败，原因见
@@ -1308,12 +1309,12 @@ frontend/
 1. **组件不得直接 import 生成绑定，也不得订阅事件。** 数据获取与事件响应只发生在 store
    或 `api/` 中；组件只消费 store。
 2. **DTO 类型的唯一来源是生成的 `models.ts`。** 不手写重复的 `interface`。视图模型可以
-   另建类型，但必须由 DTO 类型派生。`WireDTO` 排除生成类的构造 helper，接受 Go 指针的
-   null；`normalizeDTO` 在读取边界将可空字段统一为 null 并校验封闭字符串枚举，未知值抛
-   `invalid_binding_payload: <固定字段名>`，不包含返回值内容。动态 `window.go` 方法签名
+   另建类型，但必须由 DTO 类型派生。`WireDTO` 表达生成的线协议，接受 Go 指针的
+   null；`normalizeDTO` 在读取边界保留标量 null，将空集合转为数组并校验封闭字符串枚举，未知值抛
+   `invalid_binding_payload: <固定字段名>`，不包含返回值内容。原生绑定的方法签名
    通过 `GeneratedBindings` 从生成函数派生，不独立手写。模型列表 UI 的两种请求分支允许
    省略无关字段，wrapper 发送完整 Go DTO，缺失字符串为 Go 零值空串；不读取已存密钥。
-3. **生成产物不入库**（`frontend/wailsjs/` 已在 `.gitignore` 中），因此 CI 必须先执行
+3. **生成产物不入库**（`frontend/bindings/` 已在 `.gitignore` 中），因此 CI 必须先执行
    绑定生成再跑 `vue-tsc`。
 4. **禁止 `any` 跨越 Wails 边界。** 需要逃逸时定义显式的 `unknown` + 解析函数。
 5. 所有写操作调用后**不乐观更新**关键数据（卡片、设置、分类），而是等对应事件后重新拉取。

@@ -157,7 +157,7 @@ internal/platform           端口：Capture / Media / System / Secrets / Update
 该脚本包含下面的 Go / 前端检查、三平台核心交叉构建、文档与 Windows 安装器匿名夹具检查，
 并处理**干净检出必需的引导步骤**：`internal/app` 导入 `frontend`，
 后者的 `go:embed all:dist` 在 `frontend/dist` 不存在时匹配不到文件，整个模块无法编译；
-而 `vue-tsc` 又需要 `frontend/wailsjs` 里的生成绑定，生成绑定本身要求 Go 树可编译。
+而 `vue-tsc` 又需要 `frontend/bindings` 里的生成绑定，生成绑定本身要求 Go 树可编译。
 干净检出上必须先 `./scripts/bootstrap-frontend.sh`（顺序：占位 dist → 生成绑定 → 真实 bundle），
 否则 `go build ./...` 和 `npm run build` 都会失败。
 
@@ -208,8 +208,8 @@ Windows 发布候选必须在 Windows 主机用 `scripts/package-windows.ps1 -Ve
 生成；该入口要求 EXE 与 `daygo_windows_native.dll` 同时存在，签名配置存在时先签二者、再封装并
 签 NSIS，最后输出 SHA-256 验收清单。入口存在不等于 WD、签名身份、安装或升级已验收。
 
-只有走 cgo 的适配器需要它们；`cmd/daygo/wails.json` 的 `preBuildHooks` 会在对应平台的
-Wails 构建前自动调用。手动跑原生 smoke 时先执行脚本，并加 `go run -a`，否则 Go 缓存可能
+只有走 cgo 的适配器需要它们；`scripts/build-desktop.sh` 与 Windows 的构建、打包入口
+在编译带 `daygo_desktop` 标签的宿主前调用对应原生脚本。手动跑原生 smoke 时先执行脚本，并加 `go run -a`，否则 Go 缓存可能
 继续链接旧 archive。核心门禁（`CGO_ENABLED=0`）不需要这两个产物。
 
 修改共享原生 ABI 时同步 Go / Swift / C++ 两侧并重建对应静态库 / DLL；macOS 编译或合成

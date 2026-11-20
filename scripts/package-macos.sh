@@ -159,6 +159,7 @@ step "Preparing frontend"
 
 npm --prefix "$ROOT_DIR/frontend" ci
 daygo_bootstrap
+npm --prefix "$ROOT_DIR/frontend" run build
 
 success "Frontend dependencies, bundle and Wails bindings ready"
 
@@ -189,10 +190,8 @@ export MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN_VERSION"
 export CGO_CFLAGS="${CGO_CFLAGS:-} -mmacosx-version-min=$MACOS_MIN_VERSION"
 export CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=$MACOS_MIN_VERSION -Wl,-rpath,@executable_path/../Frameworks"
 
-run_wails build \
-  -clean \
-  -tags daygo_updater \
-  -platform "darwin/$ARCH"
+DAYGO_SKIP_FRONTEND=1 DAYGO_ARCH="$ARCH" DAYGO_EXTRA_TAGS=daygo_updater DAYGO_VERSION="${VERSION/dev/0.0.0}" \
+  "$SCRIPT_DIR/build-desktop.sh"
 
 success "Wails build completed"
 

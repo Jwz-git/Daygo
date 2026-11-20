@@ -97,10 +97,10 @@ Release。应用内 Sparkle / WinSparkle 是另一条客户端检查与安装路
 滚动时暂停循环装饰、停止流水线，静止 160ms 恢复。周报提示框内容与位置更新复用 / 合并，
 高亮改为透明度；实测进程 CPU 与验收边界见本册最新记录。
 
-实现进度：部分实现。已有 [Wails 配置](../../cmd/daygo/wails.json)、macOS / Linux 开发构建链，
+实现进度：部分实现。已有 [Wails 开发配置](../../build/config.yml)、macOS / Linux 开发构建链，
 以及 Windows 的 `scripts/dev.ps1` / `scripts/build.ps1` 入口；Windows 构建会校验 EXE 与必需的
 `daygo_windows_native.dll` 同时产出。打包入口方面，`scripts/package-macos.sh` 产出签名 DMG，
-`scripts/package-windows.ps1` 走 `wails build -nsis` 产出 NSIS 安装程序并可选 `signtool` 签名。
+`scripts/package-windows.ps1` 编译 Wails v3 宿主，按现有配置用 `signtool` 签 EXE 与 DLL，再由 NSIS 封装并签安装器。
 Windows 流程先签 EXE 与原生 DLL，再用仓库内 NSIS 模板重新封装最终字节并签安装器；模板显式安装
 `daygo_windows_native.dll`，同时输出带源码 commit、文件大小与 SHA-256 的验收清单。
 `package-windows.ps1` 已在真实 Windows 上产出 v0.1.0 amd64 NSIS 安装包，并与 macOS arm64 DMG
@@ -207,6 +207,18 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
 真实 Provider / Credential Manager 身份和长期观察；安装成功不能替代这些门禁。
 
 ## 验证记录
+
+- 2026-11-20 Wails v3.1.0 构建切片（基于 `c07a0cc`，Go 1.26.10）。从独立干净源码档案
+  执行 `npm ci` 和 `./scripts/gate.sh`，含 304 项前端单测、三平台 Go 核心交叉构建、
+  文档、入口分派和 NSIS 匿名夹具，结果通过。NSIS 6 项通过，10 项需 Windows 而跳过。
+  Linux arm64 容器 UTC 纯 Go 测试通过。macOS 26.0.1 arm64 的 `DAYGO_DEV=1
+  ./scripts/build-desktop.sh` 通过，ad-hoc 签名校验和 Bundle ID 核对通过。Windows amd64
+  的 `CGO_ENABLED=0` v3 宿主交叉构建、资源生成和平台测试交叉编译通过。
+  Debian 13 arm64 容器使用 GTK4 4.18.6 和 WebKitGTK 2.54.0 执行带 cgo 的
+  `go build -tags production,daygo_desktop ./cmd/daygo`，输出可执行文件。
+  匿名 macOS 开发包的 v2 → v3 → v2 演练在同一测试库中通过，v2 写浅色主题，
+  v3 读回并写深色，再换回 v2 读到深色。覆盖设置库回读，安装、更新器、通知、
+  TCC 和正式签名身份仍需安装版验收。
 
 - **2026-11-07（Pages 改为手动部署；基于 `18162aa` 的 `test` 工作树，macOS arm64）**：
   网页工作流只订阅 `workflow_dispatch`，检出触发提交。核对桌面 Release 工作流无差异；

@@ -18,7 +18,7 @@ flowchart TD
         API["api/：生成的 Wails 绑定 + 薄 wrapper"]
     end
 
-    WAILS["Wails v2 — 绑定、事件、资源服务器"]
+    WAILS["Wails v3 — 绑定、事件、资源服务器"]
 
     subgraph CORE["Go Core"]
         direction TB
@@ -102,7 +102,7 @@ flowchart TD
 ```text
 Daygo/
 ├── cmd/
-│   └── daygo/                       ★ Wails 入口 + CLI / mcp 子命令 + wails.json
+│   └── daygo/                       ★ Wails 入口 + CLI / mcp 子命令
 │
 ├── internal/
 │   ├── app/                         ★ 生命周期、绑定 API、事件、资源处理器；唯一知道 Wails 的层
@@ -186,7 +186,7 @@ Daygo/
   组件只消费 store。
 - **DTO 类型的唯一来源是生成的 `models.ts`。** 不手写重复 `interface`——手抄一份等于制造
   两个会各自漂移的定义。视图模型可以另建类型，但必须由 DTO 类型派生。
-- **生成产物不入库**（`frontend/wailsjs/` 已在 `.gitignore` 中），因此 CI 必须先生成绑定
+- **生成产物不入库**（`frontend/bindings/` 已在 `.gitignore` 中），因此 CI 必须先生成绑定
   再跑 `vue-tsc`。
 - **禁止 `any` 跨越 Wails 边界。** 需要逃逸时用显式 `unknown` + 解析函数。
 - **写操作后不做乐观更新**（卡片、设置、分类），等对应事件后重新拉取。

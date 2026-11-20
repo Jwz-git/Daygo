@@ -85,7 +85,7 @@ jobs:
       - name: Install build tools
         run: |
           brew install create-dmg
-          go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
       # Import the persisted self-signed identity so every release carries the
       # same designated requirement and the Screen Recording (TCC) grant keyed
@@ -188,7 +188,7 @@ jobs:
         shell: pwsh
         run: |
           choco install mingw nsis -y --no-progress
-          go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
       - name: Package Windows installer
         shell: pwsh

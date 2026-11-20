@@ -1,3 +1,4 @@
+import { desktopRuntime, hasDesktopBridge } from '@/api/desktopBridge'
 import { normalizeChatMessage } from '@/api/normalizeDTO'
 import {
   CancelChatTurn,
@@ -9,7 +10,7 @@ import {
   SendChatMessage,
   SetChatConversationModel,
   SetChatConversationProvider,
-} from '../../wailsjs/go/app/Backend'
+} from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
 
 import type { ChatConversationDTO, ChatMessageDTO } from '@/api/dto'
 import { canUseDevelopmentTestData } from '@/api/developmentFixtures'
@@ -19,7 +20,7 @@ import { listProviders } from '@/api/providers'
 export const WAILS_UNAVAILABLE = 'wails_unavailable'
 
 function hasBridge(): boolean {
-  return (window as { go?: unknown }).go !== undefined
+  return hasDesktopBridge()
 }
 
 /*
@@ -42,7 +43,7 @@ function devState(): DevConversation[] {
 
 export async function listChatConversations(): Promise<ChatConversationDTO[]> {
   if (hasBridge()) {
-    return ListChatConversations()
+    return (await ListChatConversations()) ?? []
   }
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     return devState().map((conversation) => ({ ...conversation.dto }))
@@ -133,7 +134,7 @@ export async function getChatMessages(
   limit: number,
 ): Promise<ChatMessageDTO[]> {
   if (hasBridge()) {
-    return (await GetChatMessages(conversationId, beforeId, limit)).map(normalizeChatMessage)
+    return ((await GetChatMessages(conversationId, beforeId, limit)) ?? []).map(normalizeChatMessage)
   }
   if (import.meta.env.DEV && canUseDevelopmentTestData()) {
     const conversation = devState().find((entry) => entry.dto.id === conversationId)
@@ -249,7 +250,7 @@ function chatUpdatedPayload(value: unknown): string | null {
 /** Subscribe to conversation and message invalidations. The payload is a conversation
  * id only; callers re-pull through getChatMessages. */
 export function onChatUpdated(callback: (conversationId: string) => void): () => void {
-  if (!('runtime' in window) || !isWailsRuntime(window.runtime)) {
+  if (!isWailsRuntime(desktopRuntime())) {
     if (import.meta.env.DEV && canUseDevelopmentTestData()) {
       devChatUpdatedListeners.push(callback)
       return () => {
@@ -258,7 +259,7 @@ export function onChatUpdated(callback: (conversationId: string) => void): () =>
     }
     return () => undefined
   }
-  return window.runtime.EventsOnMultiple('chat:updated', (raw: unknown) => {
+  return desktopRuntime()!.EventsOnMultiple('chat:updated', (raw: unknown) => {
     const conversationId = chatUpdatedPayload(raw)
     if (conversationId !== null) callback(conversationId)
   }, -1) ?? (() => undefined)

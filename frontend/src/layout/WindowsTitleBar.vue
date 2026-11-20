@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import {
-  WindowHide,
-  WindowIsMaximised,
-  WindowMinimise,
-  WindowToggleMaximise,
-} from '../../wailsjs/runtime/runtime'
+  hideDesktopWindow as WindowHide,
+  desktopIsMaximised as WindowIsMaximised,
+  minimiseDesktopWindow as WindowMinimise,
+  toggleDesktopMaximise as WindowToggleMaximise,
+} from '@/api/desktopBridge'
 import appIconUrl from '../../../build/appicon.png'
 
 const maximised = ref(false)

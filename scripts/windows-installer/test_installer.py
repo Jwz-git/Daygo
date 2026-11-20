@@ -82,12 +82,6 @@ class SourceContract(unittest.TestCase):
 
 @unittest.skipUnless(COMPILER, "makensis unavailable: install NSIS to compile fixtures")
 class InstallerFixture(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.wails = Path(subprocess.check_output(
-            ["go", "list", "-m", "-f", "{{.Dir}}", "github.com/wailsapp/wails/v2"],
-            cwd=ROOT, text=True).strip())
-
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="daygo-installer-fixture-")
         self.addCleanup(self.temp.cleanup)
@@ -103,14 +97,9 @@ class InstallerFixture(unittest.TestCase):
         for name in ("project.nsi", "languages.nsh", "safeguards.nsh"):
             shutil.copyfile(SOURCE / name, self.project / name)
         shutil.copyfile(ROOT / "build/windows/icon.ico", self.project.parent / "icon.ico")
-        helper = (self.wails / "pkg/buildassets/build/windows/installer/wails_tools.nsh").read_text()
-        for key, value in {"Name": self.product, "Info.CompanyName": self.product,
-                           "Info.ProductName": self.product, "Info.ProductVersion": "0.0.1",
-                           "Info.Copyright": "Anonymous fixture"}.items():
-            helper = helper.replace("{{." + key + "}}", value)
-        # The real Wails config has no file associations or custom protocols.
-        helper = re.sub(r"{{range [^}]+}}.*?{{end}}", "", helper, flags=re.DOTALL)
-        self.assertNotIn("{{.", helper)
+        helper = (SOURCE / "wails_tools.nsh").read_text()
+        for key in ("INFO_PROJECTNAME", "INFO_COMPANYNAME", "INFO_PRODUCTNAME"):
+            helper = re.sub(r'(!define ' + key + r' )"[^"]+"', r'\1"' + self.product + '"', helper)
         (self.project / "wails_tools.nsh").write_text(helper, encoding="utf-8")
         self.payload = b"anonymous fixture, not a runnable application\n"
         for name in (self.product + ".exe", "daygo_windows_native.dll", "WinSparkle.dll"):

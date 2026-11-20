@@ -337,17 +337,24 @@ func TestWriteWithoutEmitterIsSafe(t *testing.T) {
 	}
 }
 
-// The emitter is a no-op until Wails supplies a context, so an event emitted
-// during early startup is dropped rather than crashing.
-//
-// It deliberately does not install a context here. Wails treats a context it
-// did not hand out as a programming error and terminates the process, so
-// exercising that path would kill the test binary. The property under test is
-// that Emit before SetContext is safe.
-func TestWailsEmitterDropsEventsBeforeContext(t *testing.T) {
+func TestWailsEmitterPublishesOnlyWhileAttached(t *testing.T) {
 	emitter := NewWailsEmitter()
-	emitter.Emit(EventSettingsChanged, SettingsChangedPayload{Keys: []string{"x"}})
-	emitter.Emit(EventSettingsChanged, SettingsChangedPayload{Keys: []string{"x"}})
+	payload := SettingsChangedPayload{Keys: []string{"appearance.theme"}}
+	emitter.Emit(EventSettingsChanged, payload)
+	var published int
+	emitter.setPublisher(func(name string, value any) {
+		published++
+		event, ok := value.(SettingsChangedPayload)
+		if name != string(EventSettingsChanged) || !ok || len(event.Keys) != 1 || event.Keys[0] != payload.Keys[0] {
+			t.Fatalf("unexpected publication %q: %#v", name, value)
+		}
+	})
+	emitter.Emit(EventSettingsChanged, payload)
+	emitter.setPublisher(nil)
+	emitter.Emit(EventSettingsChanged, payload)
+	if published != 1 {
+		t.Fatalf("published %d events, want 1", published)
+	}
 }
 
 // Toggling launch-at-login persists the value and forwards it to the platform,

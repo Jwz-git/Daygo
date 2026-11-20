@@ -89,12 +89,12 @@ Go recorder 夹具验证 UI 隐藏后仍产生捕获提交，UI 事件不启动 
 
 未交付：统一错误模型、localStorage 全量接管迁移，以及遥测行为接入。
 启动项消费者已存在；本轮补齐 macOS Dock 消费者，均由 recording 维护。
-`frontend/src/api/dto.ts` 已改为从 `frontend/wailsjs/go/models.ts` 派生的数据类型；
+`frontend/src/api/dto.ts` 从 Wails v3 生成的 `frontend/bindings/` 中派生 DTO；
 `generatedBindings` 从生成函数派生动态桥签名，`normalizeDTO` 校验封闭枚举并统一指针空值，
 时间线 / 日报 / 周报 / 计划不再维护独立手写签名。主题 / 语言在 Wails 内以 SQLite 为权威来源，只有无桥预览使用 localStorage。存储上限已通过生成绑定接入设置页（识别增强开关已于 2026-10-02 随功能移除；模型输出语言设置已于 2026-10-03 移除，改为跟随界面语言）。
 
 **绑定面已收口**：`SetEventEmitter` 与 `Store` 原本是包内装配用的导出方法，被 Wails 当成
-绑定导出到 `frontend/wailsjs/go/app/Backend.d.ts`（`Store` 还把 `storage.Store` 拉进了生成的
+绑定导出到 `frontend/bindings/github.com/Jwz-git/Daygo/internal/app/backend.ts`（`Store` 还把 `storage.Store` 拉进了生成的
 `models.ts`）。两者已改为非导出，正式契约生成产物现在对应 [05 §5.2.1](../05-interface-contract.md#521-按功能能力的可用性)；
 临时截图联调绑定另列于 recording，不属于设置页面契约。接 ui-bridge 时沿用这条规则：**绑定对象上的导出方法就是前端 API**，
 装配用的入口一律非导出，`internal/app/bindings_test.go` 会在两者不一致时失败。
@@ -147,6 +147,13 @@ db-core 未就绪可推进纯设置和 wrapper fixture；G-host 不阻止维护�
 不能靠全清 localStorage 或把密钥写到本地偏好恢复状态。
 
 ## 验证记录
+
+- 2026-11-20 Wails v3.1.0 迁移（基于 `c07a0cc`，macOS 26.0.1 arm64 / Go 1.26.10）。
+  `wails3 generate bindings` 识别一个 service、97 个方法，`npm --prefix frontend run test:unit`
+  304 项通过，typecheck 和生产 bundle 通过。独立匿名生产 WebView 用 npm runtime 调用
+  能力和设置绑定，保存主题后收到 `settings:changed`，非法窗口颜色返回预期错误码且底层
+  cause 未出现在前端。完整 Vue 窗口与九语言菜单中的当前中文退出项通过原生短测。
+  浏览器替身、真实 WebView 和跨版本安装属于独立证据。
 
 2026-10-13 合并卡片增量（`test`，基于 `f04a6ef` 工作树，macOS arm64）：两处设置文案在九语言明确包含合并；完整门禁前端 269 项单测、typecheck、build 通过。未运行真实 Wails 设置 / 重启回归，既有开关与持久化实现未变。
 完整命令、输入 / 期望 / 实际结果、跳过项与回退边界见 [timeline 本次验证记录](timeline.md#验证记录)。

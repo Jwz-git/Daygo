@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"runtime"
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/platform"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const applicationInspectionTimeout = 15 * time.Second
@@ -18,41 +16,25 @@ type applicationPicker interface {
 	PickApplication() (string, error)
 }
 
-type wailsApplicationPicker struct {
-	ctx context.Context
-	// labels reads the current frontend-supplied copy at call time, so a
-	// language change between startup and the click is already applied.
-	labels func() NativeUiLabelsDTO
+type pickerFilter struct {
+	DisplayName string
+	Pattern     string
 }
 
-func (p wailsApplicationPicker) PickApplication() (string, error) {
-	return wailsruntime.OpenFileDialog(p.ctx, applicationPickerOptions(runtime.GOOS, p.labels()))
+type pickerOptions struct {
+	DefaultDirectory string
+	Title            string
+	Filters          []pickerFilter
 }
 
-// applicationPickerOptions builds the native panel options. The copy comes from
-// the frontend (docs/05 §5.5.1); goos is a parameter so both branches are
-// testable from one host.
-func applicationPickerOptions(goos string, labels NativeUiLabelsDTO) wailsruntime.OpenDialogOptions {
-	options := wailsruntime.OpenDialogOptions{
-		DefaultDirectory: "/Applications",
-		// Wails v2 maps "*.app" to NSOpenPanel.allowedFileTypes, which leaves
-		// application packages disabled on macOS. Leave the panel unfiltered;
-		// ApplicationInspector remains the authoritative fail-closed .app check.
-		ResolvesAliases:            true,
-		TreatPackagesAsDirectories: false,
-	}
+func applicationPickerOptions(goos string, labels NativeUiLabelsDTO) pickerOptions {
 	if goos == "windows" {
-		// The Windows common-item dialog is Explorer's native file picker. The
-		// inspector still validates the chosen file; the filter is only a usable
-		// affordance and not a security boundary.
-		options.DefaultDirectory = ""
-		options.Title = labels.ApplicationPickerTitle
-		options.Filters = []wailsruntime.FileFilter{{
-			DisplayName: labels.ApplicationPickerFilter,
-			Pattern:     "*.exe",
+		return pickerOptions{Title: labels.ApplicationPickerTitle, Filters: []pickerFilter{
+			{DisplayName: labels.ApplicationPickerFilter, Pattern: "*.exe"},
 		}}
 	}
-	return options
+	// Leave the macOS panel unfiltered. The native inspector validates .app packages.
+	return pickerOptions{DefaultDirectory: "/Applications"}
 }
 
 // ApplicationDTO is the display identity of one platform application.

@@ -15,7 +15,20 @@ Dock「退出」、应用菜单「退出 Daygo」（Cmd+Q）及状态栏「停�
 分别保留各自的意图，授权重启由 Daygo 拉起新实例，更新重启由更新器拉起。
 行为对照见 [架构 §2.6.2](../02-architecture.md#262-关闭)。
 
-## 2. Wails 承载机制（v2.15.0）
+## 2. Wails 承载机制
+
+### v3.1.0
+
+- 关闭窗口进入独立的隐藏路径。原生窗口关闭回调和 v3 的 `WindowClosing` hook
+  保留同一窗口，记录关闭标记和 Dock 保护状态。Cmd+H 的普通应用隐藏单独跟踪。
+- 状态栏或待恢复的激活请求先恢复保存的激活策略，在主线程 unhide 应用，并显示、激活主窗口。
+  显式显示处理了 accessory 切换后应用已 unhide、主窗口仍不在屏幕上的情况。
+- Dock、Cmd+Q 及程序退出进入 `ShouldQuit`。回调先取消本次原生退出，异步执行收尾或
+  授权重启，准备成功后重新发起退出。普通收尾失败的默认选项保留应用。系统终止尽力收尾。
+  退出时统一清理 SQLite、agent socket、录制任务和系统事件订阅。
+- 迁移步骤、验证与回退见 [Wails v3 GA 决策](wails-v3-migration.md)。
+
+### v2.15.0 历史实现
 
 - Wails 的 `WindowDelegate.windowShouldClose` 在 `HideWindowOnClose=true` 时调用
   `NSApp.hide`。macOS 适配器在 AppKit 完成启动后给主窗口红叉安装独立 target，执行同样的

@@ -14,7 +14,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type chatgptRuntime struct {
@@ -57,14 +56,6 @@ func (b *Backend) chatgptOwner() error {
 	}
 	return nil
 }
-func (b *Backend) chatgptParent() context.Context {
-	b.windowCtxMu.Lock()
-	defer b.windowCtxMu.Unlock()
-	if b.windowCtx != nil {
-		return b.windowCtx
-	}
-	return context.Background()
-}
 
 // BeginChatGPTLogin opens the system browser. The returned id is opaque, never
 // an authorization code. A new provider is not created until model selection.
@@ -82,7 +73,7 @@ func (b *Backend) BeginChatGPTLogin(providerID string) (string, error) {
 	}
 	existing := providerID != ""
 	if existing {
-		row, err := repo.Get(b.chatgptParent(), providerID)
+		row, err := repo.Get(b.operationContext(), providerID)
 		if err != nil {
 			return "", mapStorageError("get ChatGPT provider", err)
 		}
@@ -100,7 +91,7 @@ func (b *Backend) BeginChatGPTLogin(providerID string) (string, error) {
 		b.chatgptMu.Unlock()
 		return "", apperr.E(apperr.Conflict, "another ChatGPT authorization is active", nil)
 	}
-	ctx, cancel := context.WithTimeout(b.chatgptParent(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(b.operationContext(), 5*time.Minute)
 	a := &chatgptAttempt{id: providerID, existing: existing, cancel: cancel, done: make(chan struct{}), status: ChatGPTConnectionDTO{ProviderID: providerID, State: "waiting", Models: []string{}}}
 	b.chatgptState.attempt = a
 	b.chatgptMu.Unlock()
@@ -109,16 +100,7 @@ func (b *Backend) BeginChatGPTLogin(providerID string) (string, error) {
 		defer cancel()
 		open := b.chatgptOpenURL
 		if open == nil {
-			open = func(raw string) error {
-				b.windowCtxMu.Lock()
-				ctx := b.windowCtx
-				b.windowCtxMu.Unlock()
-				if ctx == nil {
-					return errors.New("desktop runtime unavailable")
-				}
-				runtime.BrowserOpenURL(ctx, raw)
-				return nil
-			}
+			open = func(string) error { return errors.New("desktop runtime unavailable") }
 		}
 		err := manager.Authorize(ctx, providerID, open)
 		status := ChatGPTConnectionDTO{ProviderID: providerID, State: "error", Models: []string{}}
@@ -153,7 +135,7 @@ func (b *Backend) GetChatGPTConnection(id string) (ChatGPTConnectionDTO, error) 
 		status.Models = append([]string{}, status.Models...)
 		b.chatgptMu.Unlock()
 		if status.State == "ready" {
-			ctx, cancel := context.WithTimeout(b.chatgptParent(), providersTimeout)
+			ctx, cancel := context.WithTimeout(b.operationContext(), providersTimeout)
 			defer cancel()
 			status.NeedsConfirmation = manager.NeedsConfirmation(ctx, id)
 		}
@@ -164,7 +146,7 @@ func (b *Backend) GetChatGPTConnection(id string) (ChatGPTConnectionDTO, error) 
 	if err != nil {
 		return ChatGPTConnectionDTO{}, err
 	}
-	ctx, cancel := context.WithTimeout(b.chatgptParent(), providersTimeout)
+	ctx, cancel := context.WithTimeout(b.operationContext(), providersTimeout)
 	defer cancel()
 	row, err := repo.Get(ctx, id)
 	if err != nil {
@@ -237,7 +219,7 @@ func (b *Backend) SaveChatGPTProvider(id, name string, models []string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(b.chatgptParent(), providersTimeout)
+	ctx, cancel := context.WithTimeout(b.operationContext(), providersTimeout)
 	defer cancel()
 	b.chatgptMu.Lock()
 	defer b.chatgptMu.Unlock()
@@ -313,7 +295,7 @@ func (b *Backend) DisconnectChatGPT(id string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	ctx, cancel := context.WithTimeout(b.chatgptParent(), providersTimeout)
+	ctx, cancel := context.WithTimeout(b.operationContext(), providersTimeout)
 	defer cancel()
 	row, err := repo.Get(ctx, id)
 	if err != nil {
@@ -347,7 +329,7 @@ func (b *Backend) ResumeChatGPTSubscription(id string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(b.chatgptParent(), providersTimeout)
+	ctx, cancel := context.WithTimeout(b.operationContext(), providersTimeout)
 	defer cancel()
 	row, err := repo.Get(ctx, id)
 	if err != nil {
@@ -411,7 +393,7 @@ func (b *Backend) ConfirmChatGPTPlan(id string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(b.chatgptParent(), providersTimeout)
+	ctx, cancel := context.WithTimeout(b.operationContext(), providersTimeout)
 	defer cancel()
 	if err := manager.Confirm(ctx, id); err != nil {
 		return apperr.E(apperr.NativeUnavailable, "saving ChatGPT plan confirmation failed", nil)

@@ -42,7 +42,7 @@ jobs:
           choco install nsis -y --no-progress
           if ($LASTEXITCODE -ne 0) { throw 'NSIS installation failed' }
           "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          go mod download github.com/wailsapp/wails/v2
+          go mod download github.com/wailsapp/wails/v3
           if ($LASTEXITCODE -ne 0) { throw 'Wails helper download failed' }
       - name: Compile both scopes and run anonymous install/uninstall fixtures
         shell: pwsh

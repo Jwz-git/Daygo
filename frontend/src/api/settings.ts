@@ -1,5 +1,6 @@
+import { desktopRuntime, hasDesktopBridge } from '@/api/desktopBridge'
 import { normalizeSettings } from '@/api/normalizeDTO'
-import { GetSettings, UpdateSettings } from '../../wailsjs/go/app/Backend'
+import { GetSettings, UpdateSettings } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
 
 import {
   applyDevelopmentSettingsPatch,
@@ -12,7 +13,7 @@ import type { SettingsDTO, SettingsPatch } from '@/api/dto'
 export const WAILS_UNAVAILABLE = 'wails_unavailable'
 
 function hasBridge(): boolean {
-  return (window as { go?: unknown }).go !== undefined
+  return hasDesktopBridge()
 }
 
 /*
@@ -76,8 +77,8 @@ function settingsChangedPayload(value: unknown): SettingsChangedPayload | null {
 }
 
 export function onSettingsChanged(callback: (keys: readonly string[]) => void): () => void {
-  if (!('runtime' in window) || !isWailsRuntime(window.runtime)) return () => undefined
-  return window.runtime.EventsOnMultiple('settings:changed', (raw: unknown) => {
+  if (!isWailsRuntime(desktopRuntime())) return () => undefined
+  return desktopRuntime()!.EventsOnMultiple('settings:changed', (raw: unknown) => {
     const payload = settingsChangedPayload(raw)
     if (payload !== null) callback(payload.keys)
   }, -1) ?? (() => undefined)

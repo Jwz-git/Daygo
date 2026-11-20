@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -29,7 +30,7 @@ function providerFixture(overrides: Partial<ProviderDTO> = {}): ProviderDTO {
 
 function stubWindow(backend: Record<string, unknown>): () => void {
   const previous = globalThis.window
-  globalThis.window = { go: { app: { Backend: backend } } } as unknown as typeof globalThis.window
+  globalThis.window = nativeFixtureWindow({ go: { app: { Backend: backend } } } as unknown as typeof globalThis.window)
   return () => { globalThis.window = previous }
 }
 

@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createPinia, setActivePinia } from 'pinia'
@@ -14,10 +15,10 @@ test('diagnostic refresh retains measured data on failure and retries without in
     storageHealth: { slowQueries: 2, queryErrors: 3, busyErrors: 1, maintenanceErrors: 0 },
   } satisfies DiagnosticsDTO
   let fail = false
-  globalThis.window = { go: { app: { Backend: { GetDiagnostics: async () => {
+  globalThis.window = nativeFixtureWindow({ go: { app: { Backend: { GetDiagnostics: async () => {
     if (fail) throw new Error('daygo:database_error: anonymous failure')
     return value
-  } } } } } as unknown as Window & typeof globalThis
+  } } } } } as unknown as Window & typeof globalThis)
   try {
     setActivePinia(createPinia())
     const store = useDiagnosticsStore()

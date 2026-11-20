@@ -275,7 +275,7 @@ func TestTryProviderPropagatesHostCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.windowCtx = parent
+	b.hostContext = parent
 	result, err := b.TryProvider(ProviderPlaygroundRequestDTO{ProviderID: id, Model: "fixture-model", Text: "fixture"})
 	if err != nil || result.OK || result.ErrorCode != "canceled" {
 		t.Fatalf("cancellation result=%+v err=%v", result, err)

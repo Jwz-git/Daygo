@@ -13,21 +13,22 @@ script owns a responsibility and which one a new contributor should reach for.
 | Script | Role | Caller |
 |---|---|---|
 | `bootstrap-frontend.sh` | Standalone: placeholder dist → bindings → real bundle. Sourced: exports `require_tool`, `webkit_tag`, `run_wails`, `daygo_bootstrap` for the other scripts. | All `dev*` / `build-*` scripts, `gate.sh`, `package-macos.sh` |
-| `dev.sh` | macOS `wails dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline, and recreates the generated `.app` so Dock does not retain a stale application icon. | Local development on macOS |
-| `dev.ps1` | Windows `wails dev` entry; applies the Go 1.25 cgo debug workaround only when needed. | Local development on Windows |
+| `dev.sh` | macOS `wails3 dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline, and recreates the generated `.app` so Dock does not retain a stale application icon. | Local development on macOS |
+| `dev.ps1` | Windows `wails3 dev` entry; applies the Go 1.25 cgo debug workaround only when needed. | Local development on Windows |
 | `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap, PE import guard against unbundled MinGW runtimes, and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1`, `package-windows.ps1` |
 | `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
-| `dev-linux.sh` | Linux `wails dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
-| `build-linux.sh` | Linux `wails build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
-| `package-macos.sh` | macOS packager: bootstrap → `wails build` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Local default is ad-hoc; stable self-signed identity via `DAYGO_DEV_SIGN_IDENTITY`, Developer ID / notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. Release CI requires its pinned self-signed certificate. | macOS release packaging |
+| `dev-linux.sh` | Linux `wails3 dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
+| `build-linux.sh` | Linux `wails3 build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
+| `package-macos.sh` | macOS packager: bootstrap → `build-desktop.sh` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Local default is ad-hoc; stable self-signed identity via `DAYGO_DEV_SIGN_IDENTITY`, Developer ID / notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. Release CI requires its pinned self-signed certificate. | macOS release packaging |
 | `dev-cert-macos.sh` | Creates a reusable local self-signed code-signing certificate; optional password-protected PKCS#12 export outside the repository. Does not notarize or build a release. | Explicit local identity preparation / CI certificate setup |
-| `package-windows.ps1` | Windows packager: bootstrap → Wails/NSIS materialisation → sign EXE + native DLL → repackage those final bytes → sign installer → emit SHA-256 acceptance manifest. The tracked `windows-installer/project.nsi` is required because stock Wails only installs the EXE. Supports `-InstallScope machine|user`; unsigned by default. Certificate file via `DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD`, or installed cert via `DAYGO_WIN_CERT_THUMBPRINT`. Windows-only; host run still required (see delivery module). | Windows release packaging |
+| `package-windows.ps1` | Windows packager: bootstrap → build EXE and DLLs → sign the payload → compile NSIS → sign installer → emit SHA-256 acceptance manifest. The tracked `windows-installer/project.nsi` is required because stock Wails only installs the EXE. Supports `-InstallScope machine|user`; unsigned by default. Certificate file via `DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD`, or installed cert via `DAYGO_WIN_CERT_THUMBPRINT`. Windows-only; host run still required (see delivery module). | Windows release packaging |
 | `bootstrap-updaters.sh` | Downloads Sparkle 2.10.0 into ignored `build/deps`, verifies the pinned SHA-256, and exposes the framework plus signing tools. | macOS release build / appcast job |
 | [`native/darwin/updater-smoke.sh`](../native/darwin/updater-smoke.sh) | Compiles the production Sparkle delegate and invokes anonymous callbacks: discovery/download keep recording, installation finalizes late, failures refuse relaunch, and cancellation resumes once. Requires the bootstrapped framework; no installer, network, screen, or Daygo data is opened. | macOS updater changes (run with `bash`); [callback workflow](../.github/workflows/macos-updater-check.yml) |
 | `generate-appcast.py` | Builds the two-platform RSS appcast from already Ed25519-signed macOS and Windows assets. It never receives the private key. | protected GitHub `release` environment |
 | `windows-installer/project.nsi` | Native Modern UI 2 installer with nine languages, optional desktop shortcut, dependency and in-use-file checks; no custom artwork. Installs `Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll`; uninstall removes only package-owned files and keeps user data. Includes are copied into ignored `build/windows/installer/` at package time. | `package-windows.ps1` |
 | `windows-installer/test_installer.py` | Anonymous fixtures using the pinned Wails helper: translation coverage, both scope compilations (`makensis -WX`), missing-DLL rejection, and Windows-only silent install/uninstall, WebView2 failure/postcondition and locked-file checks. Uses temporary folders and unique registry/product identities, never real Daygo data. | `gate.sh`, Windows installer fixture workflow |
-| `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + docs and installer fixture checks. Python checks skip when `python3` is missing; NSIS compilations skip without `makensis`, Windows execution skips on other hosts. | CI runner, also local pre-commit |
+| `gate.sh` | Headless commit gate: bootstrap + `go build / test / vet / gofmt` + frontend `typecheck / unit / build` + docs, shell entrypoint and installer fixture checks. Python checks skip when `python3` is missing; NSIS compilations skip without `makensis`, Windows execution skips on other hosts. | CI runner, also local pre-commit |
+| `test-entrypoints.py` | Runs macOS dev and Linux dev/build scripts in temporary anonymous checkouts with tool doubles; verifies bootstrap, the pinned Wails CLI dispatch and argument forwarding without launching a GUI or stopping real processes. | `gate.sh`, manual |
 | `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
 | `sample-memory.py` | Read-only macOS fixed-PID RSS / physical-footprint sampler. Checks process start identity, marks missing or reused PIDs, creates CSV exclusively, and collects no activity content. | Manual memory comparisons; see testing strategy |
 
@@ -120,7 +121,7 @@ The script's header discovery is not an exact SDK version validator; also check 
 Visual Studio Installer. Full Windows runtime requirements are listed in the [project README](../README.md#下载与安装).
 
 Wails does not need a separate global installation: the scripts use
-`go run github.com/wailsapp/wails/v2/cmd/wails@v2.15.0`. The native script downloads WinSparkle 0.9.4,
+`go run github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`. The native script downloads WinSparkle 0.9.4,
 verifies its pinned SHA-256 and copies the x64 `WinSparkle.dll` to `build/bin` automatically.
 Allow initial access to Go modules, the npm registry and the WinSparkle GitHub release; do not manually
 substitute a different DLL. Keep `Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll` together.
@@ -154,14 +155,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1 
   -Version 0.1.0 -InstallScope machine -RunSmoke
 ```
 
-The packager deliberately performs two NSIS passes. The first materialises Wails' generated
-`wails_tools.nsh` and WebView2 bootstrapper. It then signs `Daygo.exe` and
-`daygo_windows_native.dll`, rebuilds the installer from those final bytes using the tracked
-project file, and signs the installer. A one-pass `wails build -nsis` is not an equivalent
-release path: Wails' stock template omits the native DLL, and signing after packaging would
-leave the embedded executable unsigned. The resulting `dist/windows-package.json` is evidence
-for artifact identity only; the WD matrix still requires installed-file signature checks,
-interactive and silent install/uninstall, upgrade, and clean-machine startup.
+The packager builds the Go host and copies the pinned NSIS helper. It signs
+`Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll` before invoking
+NSIS, then signs the installer. The resulting `dist/windows-package.json`
+records artifact identity. The WD matrix also verifies installed-file
+signatures, interactive and silent install/uninstall, upgrade, and clean-machine startup.
 
 The installer follows the Windows UI language among the nine supported languages,
 with English as fallback. Custom strings live in `windows-installer/languages.nsh`
@@ -170,7 +168,7 @@ finish page; file details remain available. New desktop shortcuts are opt-in on
 that page; existing shortcuts are retained during an upgrade, and `/S` creates
 only the Start menu shortcut. Machine-scope setup never launches Daygo from its
 elevated token. User-scope setup offers launch only when not running as admin.
-The install scope, product identity and two-pass signing sequence are unchanged.
+The installer preserves the install scope and product identity.
 
 Silent failure codes include 10 (required files inaccessible/in use), 20 (WebView2
 unavailable after bootstrap), 30 (existing update target missing), and the Wails architecture/OS codes 65/64.
@@ -206,9 +204,9 @@ finish pages, optional shortcuts, and upgrade/uninstall while Daygo is resident.
 - If a new diagnostic is needed, put it in `scripts/probe/<topic>.go` or
   `scripts/probe/<topic>.sh`; the directory is created when needed. Do not put
   diagnostic scripts at the `scripts/` root.
-- `dev-*` means "run `wails dev`". `build-*` means "run `wails build`".
+- `dev-*` means "run `wails3 dev`". `build-*` means "run `wails3 build`".
   `package-*` means "build a signed, distributable artifact" (more than a
-  bare `wails build`: signing, notarization, DMG/installer packaging). Its
+  bare `wails3 build`: signing, notarization, DMG/installer packaging). Its
   extension follows the host it runs on — `package-macos.sh` is bash,
   `package-windows.ps1` is PowerShell, because the signing and installer tools
   are host-native.
@@ -257,3 +255,11 @@ between publishing a formal Release and uploading the appcast. After promoting a
 workflow with its tag and check that the appcast exists. Existing installers are reused by the prepare job.
 For an existing published Release whose original event was skipped or missed, use the workflow's manual dispatch with
 its `tag` input. The prepare job checks the live Release state before building.
+
+
+Wails v3 migration: `Taskfile.yml` / `build/config.yml` own build/dev orchestration.
+`build-desktop.sh` explicitly builds macOS / Linux native prerequisites and the desktop host with
+`daygo_desktop`; Windows uses `Build-DaygoWindowsDesktop` in windows-common.ps1.
+The v2 CLI flags (-platform, -nsis, -s for skip frontend) are not forwarded to v3.
+Bindings are generated with `-ts -i -names` into frontend/bindings; the `server` tag is type-analysis only.
+The pinned NSIS helper lives next to project.nsi. See [migration evidence](../docs/decisions/wails-v3-migration.md).

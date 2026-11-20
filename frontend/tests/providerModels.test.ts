@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createRenderer, nextTick } from 'vue'
@@ -56,7 +57,7 @@ function mountForm(list: (request: ProviderModelsRequest) => Promise<ProviderMod
   const previous = { window: globalThis.window, document: globalThis.document }
   let submitted: ProviderInput | undefined
   const requests: ProviderModelsRequest[] = []
-  globalThis.window = Object.assign(new EventTarget(), { go: { app: { Backend: {
+  globalThis.window = nativeFixtureWindow(Object.assign(new EventTarget(), { go: { app: { Backend: {
     ListProviderModels: async (request: ProviderModelsRequest) => {
       requests.push(request)
       return list(request)
@@ -64,7 +65,7 @@ function mountForm(list: (request: ProviderModelsRequest) => Promise<ProviderMod
     UpdateProvider: async (_id: string, input: ProviderInput) => { submitted = input },
     ListProviders: async () => [saved],
     GetProviderRouting: async () => ({ chain: [] }),
-  } } }, setTimeout }) as unknown as typeof globalThis.window
+  } } }, setTimeout }) as unknown as typeof globalThis.window)
   globalThis.document = new EventTarget() as unknown as Document
   const body = node('body')
   const renderer = createRenderer<HostNode, HostNode>({

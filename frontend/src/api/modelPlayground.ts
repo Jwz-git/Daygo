@@ -1,14 +1,15 @@
-import { GetCapabilities, TryProvider } from '../../wailsjs/go/app/Backend'
-import { app } from '../../wailsjs/go/models'
+import { hasDesktopBridge } from '@/api/desktopBridge'
+import { GetCapabilities, TryProvider } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
+import type * as app from '../../bindings/github.com/Jwz-git/Daygo/internal/app/models'
 import type { PlaygroundRequest, PlaygroundResult } from '@/stores/modelPlaygroundSession'
 
 export async function tryProvider(request: PlaygroundRequest): Promise<PlaygroundResult> {
-  if (!('go' in window) || window.go === undefined) throw new Error('wails_unavailable')
-  return TryProvider(new app.ProviderPlaygroundRequestDTO(request))
+  if (!hasDesktopBridge()) throw new Error('wails_unavailable')
+  return TryProvider(request)
 }
 
 export async function playgroundAccess(): Promise<boolean> {
-  if (!('go' in window) || window.go === undefined) throw new Error('wails_unavailable')
+  if (!hasDesktopBridge()) throw new Error('wails_unavailable')
   const capabilities = await GetCapabilities()
   return capabilities.canWrite && capabilities.isCaptureOwner
 }

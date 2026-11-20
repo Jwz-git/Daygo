@@ -11,7 +11,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/recordinglocation"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // PickRecordingDirectory opens the native directory picker. An empty result
@@ -20,13 +19,10 @@ func (b *Backend) PickRecordingDirectory() (string, error) {
 	if runtime.GOOS != "windows" {
 		return "", apperr.E(apperr.NativeUnavailable, "recording directory migration is Windows-only", nil)
 	}
-	b.windowCtxMu.Lock()
-	ctx := b.windowCtx
-	b.windowCtxMu.Unlock()
-	if ctx == nil {
+	if b.pickRecordingDirectory == nil {
 		return "", apperr.E(apperr.NativeUnavailable, "directory picker unavailable", nil)
 	}
-	return wailsruntime.OpenDirectoryDialog(ctx, wailsruntime.OpenDialogOptions{})
+	return b.pickRecordingDirectory()
 }
 
 // MoveRecordingDirectory relocates the entire recordings tree. The destination

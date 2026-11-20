@@ -161,7 +161,7 @@ Section
   CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
   !insertmacro wails.associateFiles
-  !insertmacro wails.associateCustomProtocols
+  # No custom URL protocols are registered by Daygo.
   !insertmacro wails.writeUninstaller
   WriteRegStr SHELL_CONTEXT "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegDWORD SHELL_CONTEXT "${UNINST_KEY}" "InstallerLanguage" $LANGUAGE
@@ -188,7 +188,7 @@ Section "uninstall"
   Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
 
   !insertmacro wails.unassociateFiles
-  !insertmacro wails.unassociateCustomProtocols
+  # No custom URL protocols to unregister.
   # Desktop notification identity is registered by the app for its current
   # user. Never inspect other users' hives in a machine-scope uninstall.
   SetRegView 64

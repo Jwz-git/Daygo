@@ -4,7 +4,7 @@
 # shared host checks and wails invocation; the xcode-select check below is
 # the only piece that stays here because Linux/Windows do not need it.
 #
-# Pass extra arguments through to `wails dev` (e.g. -platform darwin/arm64).
+# Pass extra arguments through to `wails3 dev` (e.g. -port 9246).
 
 set -euo pipefail
 
@@ -42,5 +42,5 @@ npm --prefix "$ROOT_DIR/frontend" install --no-audit --no-fund
 printf 'Running bootstrap (placeholder dist → bindings → bundle)...\n'
 daygo_bootstrap
 
-printf 'Starting wails dev (the first run may take a while to download the Wails CLI)...\n'
+printf 'Starting wails3 dev (the first run may take a while to download the Wails CLI)...\n'
 run_wails dev "$@"

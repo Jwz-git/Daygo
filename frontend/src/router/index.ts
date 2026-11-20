@@ -4,8 +4,8 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-rou
  * Hash history, deliberately.
  *
  * History mode would require the Wails asset server to fall back to index.html
- * for unknown paths. Hash mode behaves identically under `wails dev` (Vite
- * dev server), a `wails build` bundle, and a deep link, and a desktop window
+ * for unknown paths. Hash mode behaves identically under `wails3 dev` (Vite
+ * dev server), a `wails3 build` bundle, and a deep link, and a desktop window
  * gains nothing from clean URLs. Revisit only if the asset-server fallback is
  * confirmed; it is a one-line change.
  *

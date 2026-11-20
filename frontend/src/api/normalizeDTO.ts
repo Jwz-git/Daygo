@@ -1,7 +1,7 @@
-import type { app } from '../../wailsjs/go/models'
+import type * as app from '../../bindings/github.com/Jwz-git/Daygo/internal/app/models'
 import { APP_THEMES, CATEGORY_ARCHETYPES, PROVIDER_PROTOCOLS } from '@/api/dto'
 import type {
-  AppSitesDTO, ChatMessageDTO, DailyRecapDTO, JournalDayDTO, PlanDayDTO,
+  AppSitesDTO, DayGoalDTO, ChatMessageDTO, DailyRecapDTO, JournalDayDTO, PlanDayDTO,
   ProviderDTO, SettingsDTO, TimelineDayDTO, WeeklyDashboardDTO, WireDTO,
 } from '@/api/dto'
 import { SUPPORTED_LOCALES } from '@/i18n/locales'
@@ -16,6 +16,7 @@ export function oneOf<const Values extends readonly string[]>(value: string, val
 export function normalizeSettings(value: WireDTO<app.SettingsDTO>): SettingsDTO {
   return {
     ...value,
+    privacy: { ...value.privacy, blockedApplicationIds: value.privacy.blockedApplicationIds ?? [] },
     appearance: {
       ...value.appearance,
       theme: oneOf(value.appearance.theme, APP_THEMES, 'theme'),
@@ -26,7 +27,7 @@ export function normalizeSettings(value: WireDTO<app.SettingsDTO>): SettingsDTO 
 }
 
 export function normalizeProvider(value: WireDTO<app.ProviderDTO>): ProviderDTO {
-  return { ...value, protocol: oneOf(value.protocol, PROVIDER_PROTOCOLS, 'protocol') }
+  return { ...value, models: value.models ?? [], protocol: oneOf(value.protocol, PROVIDER_PROTOCOLS, 'protocol') }
 }
 
 export function normalizeChatMessage(value: WireDTO<app.ChatMessageDTO>): ChatMessageDTO {
@@ -44,14 +45,18 @@ function normalizeAppSites(value: WireDTO<app.AppSitesDTO> | null | undefined): 
 export function normalizeTimelineDay(value: WireDTO<app.TimelineDayDTO>): TimelineDayDTO {
   return {
     ...value,
-    cards: value.cards.map((card) => ({
+    failures: (value.failures ?? []).map((item) => ({ ...item, batchIds: item.batchIds ?? [] })),
+    processingRanges: (value.processingRanges ?? []).map((item) => ({ ...item, batchIds: item.batchIds ?? [] })),
+    cards: (value.cards ?? []).map((card) => ({
       ...card,
       batchId: card.batchId ?? null,
       videoSummaryUrl: card.videoSummaryUrl ?? null,
       appSites: normalizeAppSites(card.appSites),
-      distractions: card.distractions.map((item) => ({ ...item, videoSummaryUrl: item.videoSummaryUrl ?? null })),
+      activityPoints: card.activityPoints ?? [],
+      otherVideoSummaryUrls: card.otherVideoSummaryUrls ?? [],
+      distractions: (card.distractions ?? []).map((item) => ({ ...item, videoSummaryUrl: item.videoSummaryUrl ?? null })),
     })),
-    categories: value.categories.map((category) => ({
+    categories: (value.categories ?? []).map((category) => ({
       ...category,
       archetype: oneOf(category.archetype, CATEGORY_ARCHETYPES, 'archetype'),
     })),
@@ -59,7 +64,7 @@ export function normalizeTimelineDay(value: WireDTO<app.TimelineDayDTO>): Timeli
 }
 
 export function normalizeRecap(value: WireDTO<app.DailyRecapDTO>): DailyRecapDTO {
-  return { ...value, generatedAtTs: value.generatedAtTs ?? null }
+  return { ...value, highlights: value.highlights ?? [], tasks: value.tasks ?? [], generatedAtTs: value.generatedAtTs ?? null }
 }
 
 export function normalizeJournal(value: WireDTO<app.JournalDayDTO>): JournalDayDTO {
@@ -72,7 +77,7 @@ export function normalizeJournal(value: WireDTO<app.JournalDayDTO>): JournalDayD
 export function normalizePlanDay(value: WireDTO<app.PlanDayDTO>): PlanDayDTO {
   return {
     ...value,
-    blocks: value.blocks.map((block) => ({
+    blocks: (value.blocks ?? []).map((block) => ({
       ...block,
       notes: block.notes ?? null,
       completedAtTs: block.completedAtTs ?? null,
@@ -84,8 +89,13 @@ export function normalizePlanDay(value: WireDTO<app.PlanDayDTO>): PlanDayDTO {
 export function normalizeWeeklyDashboard(value: WireDTO<app.WeeklyDashboardDTO>): WeeklyDashboardDTO {
   return {
     ...value,
-    days: value.days.map((day) => ({
-      ...day, segments: day.segments.map((segment) => ({ ...segment, appSites: normalizeAppSites(segment.appSites) })),
+    categories: value.categories ?? [],
+    days: (value.days ?? []).map((day) => ({
+      ...day, categories: day.categories ?? [], segments: (day.segments ?? []).map((segment) => ({ ...segment, distractions: segment.distractions ?? [], appSites: normalizeAppSites(segment.appSites) })),
     })),
   }
+}
+
+export function normalizeGoal(value: WireDTO<app.DayGoalDTO>): DayGoalDTO {
+ return { ...value, focusCategories: value.focusCategories ?? [], distractionCategories: value.distractionCategories ?? [] }
 }

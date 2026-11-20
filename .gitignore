@@ -124,3 +124,7 @@ $RECYCLE.BIN/
 *.keychain
 *.keychain-db
 .daygo-signing/
+
+# Wails v3 generated bindings and Windows resource objects
+/frontend/bindings/
+/cmd/daygo/*.syso

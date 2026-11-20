@@ -1,3 +1,4 @@
+import { hasDesktopBridge } from '@/api/desktopBridge'
 import {
   ClearCardRating,
   ClearCardReview,
@@ -6,20 +7,20 @@ import {
   GetReviewTotals,
   SaveCardRating,
   SaveCardReview,
-} from '../../wailsjs/go/app/Backend'
+} from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
 
 import { WAILS_UNAVAILABLE } from '@/api/settings'
 import { oneOf } from '@/api/normalizeDTO'
 import type { ReviewTotals, ReviewVerdict, SummaryRating } from '@/views/Timeline/review'
 
 function hasBridge(): boolean {
-  return (window as { go?: unknown }).go !== undefined
+  return hasDesktopBridge()
 }
 
 /** Judged minutes per verdict for one logical day; zeros when never reviewed. */
 export async function getReviewTotals(day: string): Promise<ReviewTotals> {
   if (!hasBridge()) throw new Error(WAILS_UNAVAILABLE)
-  return GetReviewTotals(day)
+  return GetReviewTotals(day).then((value) => ({ ...value, reviewedCardIds: value.reviewedCardIds ?? [] }))
 }
 
 /** Record (or overwrite) the verdict for one card; minutes snapshot server-side. */

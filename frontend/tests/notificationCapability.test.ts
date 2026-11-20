@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createSSRApp } from 'vue'
@@ -13,11 +14,11 @@ test('notification capability is absent until confirmed and retries failed disco
   const previousWindow = globalThis.window
   let fail = true
   let calls = 0
-  globalThis.window = { go: { app: { Backend: { GetCapabilities: async () => {
+  globalThis.window = nativeFixtureWindow({ go: { app: { Backend: { GetCapabilities: async () => {
     calls += 1
     if (fail) throw new Error('anonymous failure')
     return { canWrite: true, isCaptureOwner: true, features: ['notifications'], appVersion: 'test', apiRevision: 1 }
-  } } } } } as unknown as Window & typeof globalThis
+  } } } } } as unknown as Window & typeof globalThis)
   try {
     setActivePinia(createPinia())
     const store = useCapabilitiesStore()

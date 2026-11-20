@@ -1,3 +1,4 @@
+import { desktopBackend, desktopRuntime } from '@/api/desktopBridge'
 import { normalizeTimelineDay } from '@/api/normalizeDTO'
 import type { GeneratedBindings } from '@/api/generatedBindings'
 import type {
@@ -28,19 +29,6 @@ type TimelineBackend = GeneratedBindings<
   | 'ClearHistoryData'
 >
 
-interface WailsRuntime {
-  EventsOnMultiple?: (
-    eventName: string,
-    callback: (...data: unknown[]) => void,
-    maxCallbacks: number,
-  ) => () => void
-}
-
-type WailsWindow = Window & {
-  go?: { app?: { Backend?: TimelineBackend } }
-  runtime?: WailsRuntime
-}
-
 export const TIMELINE_UNAVAILABLE = 'timeline_unavailable'
 
 export class TimelineUnavailableError extends Error {
@@ -67,7 +55,7 @@ export interface TimelineActionAvailability {
 }
 
 function backend(): TimelineBackend | null {
-  return (window as WailsWindow).go?.app?.Backend ?? null
+  return desktopBackend()
 }
 
 export function hasTimelineDayBinding(): boolean {
@@ -118,7 +106,9 @@ export async function getTimelineDay(day: string): Promise<TimelineDayDTO> {
 
 export async function getTimelineCapabilities(): Promise<CapabilitiesDTO | null> {
   const method = backend()?.GetCapabilities
-  return typeof method === 'function' ? method() : null
+  if (typeof method !== 'function') return null
+  const value = await method()
+  return { ...value, features: value.features ?? [] }
 }
 
 export async function saveCategories(categories: CategoryDTO[]): Promise<void> {
@@ -183,7 +173,7 @@ export async function clearHistoryData(): Promise<void> {
  * Wails owns the returned disposer; a missing runtime is a valid no-op state.
  */
 export function onTimelineUpdated(callback: (day: string | null) => void): () => void {
-  const method = (window as WailsWindow).runtime?.EventsOnMultiple
+  const method = desktopRuntime()?.EventsOnMultiple
   if (typeof method !== 'function') return () => undefined
 
   return method(
@@ -204,7 +194,7 @@ export function onTimelineUpdated(callback: (day: string | null) => void): () =>
  * reload their current day instead of deriving one here.
  */
 export function onBatchFailed(callback: () => void): () => void {
-  const method = (window as WailsWindow).runtime?.EventsOnMultiple
+  const method = desktopRuntime()?.EventsOnMultiple
   if (typeof method !== 'function') return () => undefined
   return method('batch:failed', () => callback(), -1)
 }

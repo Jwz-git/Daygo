@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -18,7 +19,7 @@ const settings = {
 
 async function withBackend(backend: Record<string, unknown>, run: () => Promise<void>): Promise<void> {
   const previousWindow = globalThis.window
-  globalThis.window = { go: { app: { Backend: backend } } } as unknown as Window & typeof globalThis
+  globalThis.window = nativeFixtureWindow({ go: { app: { Backend: backend } } } as unknown as Window & typeof globalThis)
   try { await run() } finally { globalThis.window = previousWindow }
 }
 
@@ -101,4 +102,18 @@ test('review read boundaries distinguish no verdict from an unknown value', asyn
     await assert.rejects(getCardVerdict(1), /invalid_binding_payload: verdict/)
     await assert.rejects(getCardRating(1), /invalid_binding_payload: rating/)
   })
+})
+
+test('v3 nil collections normalize to empty arrays without changing scalar nulls', () => {
+  const value = normalizeTimelineDay({
+    day: '2026-10-16', dayStartTs: 1, dayEndTs: 2, cards: null,
+    categories: null, trackedMinutes: 0, idleMinutes: 0, failures: null,
+    processingRanges: null, generatedAtTs: 1,
+  })
+  assert.deepEqual([value.cards, value.categories, value.failures, value.processingRanges], [[], [], [], []])
+  const recap = normalizeRecap({ standupDay: '2026-10-16', highlightsTitle: '', highlights: null,
+    tasksTitle: '', tasks: null, blockersTitle: '', blockersBody: '', generatedAtTs: null })
+  assert.deepEqual(recap.highlights, [])
+  assert.deepEqual(recap.tasks, [])
+  assert.equal(recap.generatedAtTs, null)
 })

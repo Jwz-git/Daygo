@@ -28,6 +28,13 @@ try {
     // as data URLs the way Vite does for small files.
     loader: { '.png': 'dataurl', '.svg': 'dataurl' },
     plugins: [{
+      name: 'wails-v3-runtime-fixture',
+      setup(builder) {
+        builder.onResolve({ filter: /^@wailsio\/runtime$/ }, () => ({
+          path: join(testsDirectory, 'wailsRuntimeFixture.ts'),
+        }))
+      },
+    }, {
       name: 'vue-component-fixtures',
       setup(builder) {
         builder.onLoad({ filter: /\.vue$/ }, async ({ path }) => {

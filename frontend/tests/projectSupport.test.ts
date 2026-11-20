@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -6,7 +7,7 @@ import { openProjectSupport, PROJECT_SUPPORT_URL } from '../src/api/projectSuppo
 test('project support opens the fixed repository in the Wails system browser', () => {
   const previous = globalThis.window
   const opened: string[] = []
-  globalThis.window = { runtime: { BrowserOpenURL: (url: string) => opened.push(url) } } as unknown as Window & typeof globalThis
+  globalThis.window = nativeFixtureWindow({ runtime: { BrowserOpenURL: (url: string) => opened.push(url) } } as unknown as Window & typeof globalThis)
   try {
     assert.equal(openProjectSupport(), true)
     assert.deepEqual(opened, ['https://github.com/Jwz-git/Daygo'])
@@ -20,7 +21,7 @@ test('project support leaves ordinary browser navigation to the link when Wails 
   const previous = globalThis.window
   try {
     for (const stub of [{}, { runtime: {} }, { runtime: null }]) {
-      globalThis.window = stub as Window & typeof globalThis
+      globalThis.window = nativeFixtureWindow(stub as Window & typeof globalThis)
       assert.equal(openProjectSupport(), false)
     }
   } finally {

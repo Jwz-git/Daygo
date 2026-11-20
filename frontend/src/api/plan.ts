@@ -1,3 +1,4 @@
+import { desktopBackend, desktopRuntime } from '@/api/desktopBridge'
 import { normalizePlanDay } from '@/api/normalizeDTO'
 import type { GeneratedBindings } from '@/api/generatedBindings'
 import type { PlanBlockDTO, PlanBlockInputDTO, PlanBlockStatus, PlanDayDTO } from '@/api/dto'
@@ -17,15 +18,6 @@ type PlanBackend = GeneratedBindings<
   | 'DeletePlanBlock'
 >
 
-interface WailsRuntime {
-  EventsOnMultiple?: (eventName: string, callback: (...data: unknown[]) => void, maxCallbacks: number) => () => void
-}
-
-type PlanWindow = Window & {
-  go?: { app?: { Backend?: PlanBackend } }
-  runtime?: WailsRuntime
-}
-
 export class PlanUnavailableError extends Error {
   constructor() {
     super('plan_unavailable')
@@ -34,7 +26,7 @@ export class PlanUnavailableError extends Error {
 }
 
 function backend(): PlanBackend | null {
-  return (window as PlanWindow).go?.app?.Backend ?? null
+  return desktopBackend()
 }
 
 function devPreview(): boolean {
@@ -145,7 +137,7 @@ export function onPlanUpdated(callback: (day: string | null) => void): () => voi
     devListeners.add(callback)
     return () => devListeners.delete(callback)
   }
-  const method = (window as PlanWindow).runtime?.EventsOnMultiple
+  const method = desktopRuntime()?.EventsOnMultiple
   if (typeof method !== 'function') return () => undefined
   return method('plan:updated', (raw: unknown) => {
     const day = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>).day : null

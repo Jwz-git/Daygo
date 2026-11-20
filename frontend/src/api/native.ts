@@ -1,5 +1,5 @@
-import { SetNativeUiLabels } from '../../wailsjs/go/app/Backend'
-import { app } from '../../wailsjs/go/models'
+import { SetNativeUiLabels } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
+import type * as app from '../../bindings/github.com/Jwz-git/Daygo/internal/app/models'
 
 export type NativeUiLabels = Omit<app.NativeUiLabelsDTO, 'convertValues'> & {
   journalReminderTitle: string
@@ -15,7 +15,7 @@ export type NativeUiLabels = Omit<app.NativeUiLabelsDTO, 'convertValues'> & {
  */
 export async function setNativeUiLabels(labels: NativeUiLabels): Promise<void> {
   try {
-    await SetNativeUiLabels(new app.NativeUiLabelsDTO(labels))
+    await SetNativeUiLabels(labels)
   } catch {
     // No native host on this platform.
   }

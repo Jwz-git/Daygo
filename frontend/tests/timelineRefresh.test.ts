@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -34,7 +35,7 @@ test('silent window-return refresh keeps the loaded timeline visible', async () 
   const previousWindow = globalThis.window
   let releaseRefresh: (() => void) | undefined
   let contextCalls = 0
-  globalThis.window = {
+  globalThis.window = nativeFixtureWindow({
     go: {
       app: {
         Backend: {
@@ -56,7 +57,7 @@ test('silent window-return refresh keeps the loaded timeline visible', async () 
         },
       },
     },
-  } as unknown as Window & typeof globalThis
+  } as unknown as Window & typeof globalThis)
 
   try {
     setActivePinia(createPinia())
@@ -79,13 +80,13 @@ test('silent window-return refresh keeps the loaded timeline visible', async () 
 test('failed card regeneration retains the card-scoped error until retry', async () => {
   const previousWindow = globalThis.window
   let shouldFail = true
-  globalThis.window = {
+  globalThis.window = nativeFixtureWindow({
     go: { app: { Backend: {
       ReprocessCard: async () => {
         if (shouldFail) throw new Error('daygo:provider_failed: diagnostic')
       },
     } } },
-  } as unknown as Window & typeof globalThis
+  } as unknown as Window & typeof globalThis)
 
   try {
     setActivePinia(createPinia())

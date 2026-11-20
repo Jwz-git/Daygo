@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -36,7 +37,7 @@ function installBackend(
   listenForUpdate?: (callback: TimelineUpdate) => void,
 ): () => void {
   const previous = globalThis.window
-  globalThis.window = {
+  globalThis.window = nativeFixtureWindow({
     go: { app: { Backend: backend } },
     runtime: {
       EventsOnMultiple(name: string, callback: TimelineUpdate) {
@@ -44,7 +45,7 @@ function installBackend(
         return () => undefined
       },
     },
-  } as unknown as Window & typeof globalThis
+  }) as unknown as Window & typeof globalThis
   return () => { globalThis.window = previous }
 }
 

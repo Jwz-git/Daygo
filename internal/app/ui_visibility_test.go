@@ -1,10 +1,12 @@
 package app
 
 import (
-	"github.com/Jwz-git/Daygo/internal/platform"
-	"github.com/Jwz-git/Daygo/internal/platform/fake"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/Jwz-git/Daygo/internal/platform"
+	"github.com/Jwz-git/Daygo/internal/platform/fake"
 )
 
 func TestUIVisibilityKeepsHideSourcesIndependent(t *testing.T) {
@@ -59,7 +61,15 @@ func TestNativeWindowCloseDropsDockAndCanReopen(t *testing.T) {
 	ctx := t.Context()
 	restored := make(chan error, 1)
 	b.setActivationAction(func() {
-		b.restoreOnActivation(func() { restored <- b.exitBackground(ctx) })
+		b.restoreOnActivation(func() {
+			if b.GetUIVisibility().Visible {
+				restored <- errors.New("native unhide restored the closed window before it was shown")
+				return
+			}
+			err := b.exitBackground(ctx)
+			b.setWindowHidden(false)
+			restored <- err
+		})
 	})
 	b.startSystemEventPump()
 	defer close(sys.events)
@@ -84,6 +94,7 @@ func TestNativeWindowCloseDropsDockAndCanReopen(t *testing.T) {
 	if !b.needsWindowRestore() || !b.permissionRestartArmed() || b.quitAllowed() || b.GetUIVisibility().Visible {
 		t.Fatal("window close must stay in the background without triggering quit or relaunch")
 	}
+	sys.Emit(platform.EventApplicationUnhidden)
 	sys.Emit(platform.EventApplicationActivated)
 	select {
 	case err := <-restored:
@@ -93,7 +104,6 @@ func TestNativeWindowCloseDropsDockAndCanReopen(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("activation did not restore the backgrounded window")
 	}
-	sys.Emit(platform.EventApplicationUnhidden)
 	waitUIVisibility(t, b, true)
 	if got, _ := sys.ActivationPolicy(); got != platform.ActivationRegular || b.needsWindowRestore() {
 		t.Fatalf("reopen: policy=%q, backgrounded=%v", got, b.needsWindowRestore())

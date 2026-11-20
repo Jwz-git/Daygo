@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createRenderer, nextTick } from 'vue'
@@ -42,6 +43,7 @@ function mount(provider: ProviderDTO | null = null, begin?: () => Promise<string
       return { providerId: id, state: provider ? 'connected' : 'waiting', errorCode: '', email: '', models: [], paused: false, needsConfirmation: false }
     },
   } } } })
+  nativeFixtureWindow(globalThis.window)
   globalThis.document = new EventTarget() as unknown as Document
   const body = node('body')
   const renderer = createRenderer<Node, Node>({

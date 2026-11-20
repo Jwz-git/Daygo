@@ -1,4 +1,5 @@
-import { SetWindowBackground } from '../../wailsjs/go/app/Backend'
+import { hasDesktopBridge } from '@/api/desktopBridge'
+import { SetWindowBackground } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
 
 /*
  * The native window backdrop is what shows through wherever the webview has
@@ -8,7 +9,7 @@ import { SetWindowBackground } from '../../wailsjs/go/app/Backend'
  * on the same source of truth, so the resize gap is invisible.
  */
 function hasBridge(): boolean {
-  return (window as { go?: unknown }).go !== undefined
+  return hasDesktopBridge()
 }
 
 export async function syncWindowBackground(): Promise<void> {

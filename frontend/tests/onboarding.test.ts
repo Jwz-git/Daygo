@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -28,7 +29,7 @@ function capabilities(canWrite: boolean) {
 
 async function statusWith(backend: Record<string, unknown>): Promise<string> {
   const previous = globalThis.window
-  globalThis.window = { go: { app: { Backend: backend } } } as unknown as typeof globalThis.window
+  globalThis.window = nativeFixtureWindow({ go: { app: { Backend: backend } } }) as unknown as typeof globalThis.window
   try {
     setActivePinia(createPinia())
     const store = useOnboardingStore()
@@ -56,12 +57,12 @@ test('a completed guide, a read-only instance or a failed read skip it', async (
 test('completing writes the setting, and a failed write still lets the user in', async () => {
   const previous = globalThis.window
   const patches: unknown[] = []
-  globalThis.window = { go: { app: { Backend: {
+  globalThis.window = nativeFixtureWindow({ go: { app: { Backend: {
     UpdateSettings: async (patch: unknown) => {
       patches.push(patch)
       throw new Error('not_capture_owner')
     },
-  } } } } as unknown as typeof globalThis.window
+  } } } }) as unknown as typeof globalThis.window
   try {
     setActivePinia(createPinia())
     const store = useOnboardingStore()
@@ -76,9 +77,9 @@ test('completing writes the setting, and a failed write still lets the user in',
 test('a preview shows the guide without recording completion', async () => {
   const previous = globalThis.window
   const patches: unknown[] = []
-  globalThis.window = { go: { app: { Backend: {
+  globalThis.window = nativeFixtureWindow({ go: { app: { Backend: {
     UpdateSettings: async (patch: unknown) => { patches.push(patch); return settings(true) },
-  } } } } as unknown as typeof globalThis.window
+  } } } }) as unknown as typeof globalThis.window
   try {
     setActivePinia(createPinia())
     const store = useOnboardingStore()

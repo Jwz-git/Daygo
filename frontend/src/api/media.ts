@@ -1,10 +1,11 @@
-import { GetCardMedia } from '../../wailsjs/go/app/Backend'
+import { hasDesktopBridge } from '@/api/desktopBridge'
+import { GetCardMedia } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
 
 import { WAILS_UNAVAILABLE } from '@/api/settings'
 import type { CardMediaDTO } from '@/api/dto'
 
 function hasBridge(): boolean {
-  return (window as { go?: unknown }).go !== undefined
+  return hasDesktopBridge()
 }
 
 /**
@@ -13,6 +14,6 @@ function hasBridge(): boolean {
  * long card never produces an oversized response.
  */
 export async function getCardMedia(cardID: number): Promise<CardMediaDTO> {
-  if (hasBridge()) return GetCardMedia(cardID)
+  if (hasBridge()) return GetCardMedia(cardID).then((value) => ({ ...value, frames: value.frames ?? [] }))
   throw new Error(WAILS_UNAVAILABLE)
 }

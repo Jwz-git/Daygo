@@ -1,21 +1,26 @@
-import type { app } from '../../wailsjs/go/models'
+import type * as app from '../../bindings/github.com/Jwz-git/Daygo/internal/app/models'
 import type { LanguagePreference } from '@/i18n/locales'
 
-/** JSON data from generated models: omit constructor helpers and accept null
- * for Go pointers, which Wails currently generates as optional fields. */
+/** JSON boundary types derived from generated interfaces; optional Go pointer
+ * fields accept null as well as omission. */
 export type WireDTO<T> = T extends readonly (infer Item)[] ? WireDTO<Item>[]
   : T extends object ? {
     [K in keyof T as T[K] extends (...args: never[]) => unknown ? never : K]:
       WireDTO<T[K]> | (undefined extends T[K] ? null : never)
   } : T
 
-type NonNullFields<T> = { [K in keyof T]: Exclude<T[K], null> }
+/** UI collections are normalised to [] at API entry points; scalar pointers
+ * retain null. Generated v3 models describe Go nil slices explicitly. */
+export type ViewDTO<T> = [NonNullable<T>] extends [readonly (infer Item)[]] ? ViewDTO<Item>[]
+ : T extends object ? { [K in keyof T]: ViewDTO<T[K]> } : T
+
+type NonNullFields<T> = { [K in keyof T]: Exclude<T[K], null | undefined> }
 
 type Replace<T, Fields> = Omit<T, keyof Fields> & {
   [K in keyof Fields]: K extends keyof T ? Fields[K] : never
 }
-type Nullable<T, K extends keyof WireDTO<T>> = Omit<WireDTO<T>, K> & {
-  [P in K]-?: NonNullable<WireDTO<T>[P]> | null
+type Nullable<T, K extends keyof ViewDTO<T>> = Omit<ViewDTO<T>, K> & {
+  [P in K]-?: NonNullable<ViewDTO<T>[P]> | null
 }
 
 /** Runtime wrappers validate closed strings; every other field derives from Go. */
@@ -30,73 +35,73 @@ export type PlanBlockStatus = 'planned' | 'done' | 'skipped'
 export const CATEGORY_ARCHETYPES = ['forge', 'sanctum', 'nexus', 'camp', 'order'] as const
 export type CategoryArchetype = (typeof CATEGORY_ARCHETYPES)[number]
 
-export type LLMSettingsDTO = WireDTO<app.LLMSettingsDTO>
-export type CaptureSettingsDTO = WireDTO<app.CaptureSettingsDTO>
-export type PrivacySettingsDTO = WireDTO<app.PrivacySettingsDTO>
-export type StorageSettingsDTO = WireDTO<app.StorageSettingsDTO>
-export type SystemSettingsDTO = WireDTO<app.SystemSettingsDTO>
-export type NotificationSettingsDTO = WireDTO<app.NotificationSettingsDTO>
-export type AppearanceSettingsDTO = Replace<WireDTO<app.AppearanceSettingsDTO>, {
+export type LLMSettingsDTO = ViewDTO<app.LLMSettingsDTO>
+export type CaptureSettingsDTO = ViewDTO<app.CaptureSettingsDTO>
+export type PrivacySettingsDTO = ViewDTO<app.PrivacySettingsDTO>
+export type StorageSettingsDTO = ViewDTO<app.StorageSettingsDTO>
+export type SystemSettingsDTO = ViewDTO<app.SystemSettingsDTO>
+export type NotificationSettingsDTO = ViewDTO<app.NotificationSettingsDTO>
+export type AppearanceSettingsDTO = Replace<ViewDTO<app.AppearanceSettingsDTO>, {
   theme: AppTheme
   language: LanguagePreference
 }>
-export type ChatSettingsDTO = Replace<WireDTO<app.ChatSettingsDTO>, { editMode: 'readonly' | 'edits' }>
+export type ChatSettingsDTO = Replace<ViewDTO<app.ChatSettingsDTO>, { editMode: 'readonly' | 'edits' }>
 /** Telemetry settings remain reserved in Go and have no current UI consumer. */
-export type SettingsDTO = Replace<Omit<WireDTO<app.SettingsDTO>, 'telemetry'>, {
+export type SettingsDTO = Replace<Omit<ViewDTO<app.SettingsDTO>, 'telemetry'>, {
   appearance: AppearanceSettingsDTO
   chat: ChatSettingsDTO
 }>
 /** Absent means unchanged; the UI does not offer the reserved telemetry fields. */
-export type SettingsPatch = Replace<Omit<NonNullFields<WireDTO<app.SettingsPatchDTO>>, 'analyticsOptIn' | 'crashReportingOptIn'>, {
+export type SettingsPatch = Replace<Omit<Partial<NonNullFields<ViewDTO<app.SettingsPatchDTO>>>, 'analyticsOptIn' | 'crashReportingOptIn'>, {
   theme?: AppTheme
   language?: LanguagePreference
   chatEditMode?: 'readonly' | 'edits'
 }>
 
-export type ProviderDTO = Replace<WireDTO<app.ProviderDTO>, { protocol: ProviderProtocol }>
-export type ProviderRoutingEntry = WireDTO<app.ProviderRoutingEntryDTO>
-export type ProviderRoutingDTO = WireDTO<app.ProviderRoutingDTO>
+export type ProviderDTO = Replace<ViewDTO<app.ProviderDTO>, { protocol: ProviderProtocol }>
+export type ProviderRoutingEntry = ViewDTO<app.ProviderRoutingEntryDTO>
+export type ProviderRoutingDTO = ViewDTO<app.ProviderRoutingDTO>
 /** Empty secret means keep the stored key, never clear it. */
-export type ProviderInput = Replace<WireDTO<app.ProviderInputDTO>, { protocol: ProviderProtocol }>
-export type ProviderModelsRequest = Replace<Partial<WireDTO<app.ProviderModelsRequestDTO>>, { protocol?: ProviderProtocol }>
-export type ProviderModelsResult = WireDTO<app.ProviderModelsResultDTO>
+export type ProviderInput = Replace<ViewDTO<app.ProviderInputDTO>, { protocol: ProviderProtocol }>
+export type ProviderModelsRequest = Replace<Partial<ViewDTO<app.ProviderModelsRequestDTO>>, { protocol?: ProviderProtocol }>
+export type ProviderModelsResult = ViewDTO<app.ProviderModelsResultDTO>
 
-export type DayContextDTO = WireDTO<app.DayContextDTO>
-export type CategoryDTO = Replace<WireDTO<app.CategoryDTO>, { archetype: CategoryArchetype }>
-export type CategoryPresetDTO = Replace<WireDTO<app.CategoryPresetDTO>, { archetype: CategoryArchetype }>
+export type DayContextDTO = ViewDTO<app.DayContextDTO>
+export type CategoryDTO = Replace<ViewDTO<app.CategoryDTO>, { archetype: CategoryArchetype }>
+export type CategoryPresetDTO = Replace<ViewDTO<app.CategoryPresetDTO>, { archetype: CategoryArchetype }>
 export type AppSitesDTO = Nullable<app.AppSitesDTO, 'primary' | 'secondary'>
 export type DistractionDTO = Nullable<app.DistractionDTO, 'videoSummaryUrl'>
-export type ActivityPointDTO = WireDTO<app.ActivityPointDTO>
+export type ActivityPointDTO = ViewDTO<app.ActivityPointDTO>
 export type TimelineCardDTO = Replace<Nullable<app.TimelineCardDTO, 'batchId' | 'videoSummaryUrl' | 'appSites'>, {
   appSites: AppSitesDTO | null
   distractions: DistractionDTO[]
 }>
-export type CardMediaFrameDTO = WireDTO<app.CardMediaFrameDTO>
-export type CardMediaDTO = WireDTO<app.CardMediaDTO>
-export type TimelineFailureDTO = WireDTO<app.TimelineFailureDTO>
-export type RangeDTO = WireDTO<app.RangeDTO>
-export type TimelineDayDTO = Replace<WireDTO<app.TimelineDayDTO>, { cards: TimelineCardDTO[]; categories: CategoryDTO[] }>
+export type CardMediaFrameDTO = ViewDTO<app.CardMediaFrameDTO>
+export type CardMediaDTO = ViewDTO<app.CardMediaDTO>
+export type TimelineFailureDTO = ViewDTO<app.TimelineFailureDTO>
+export type RangeDTO = ViewDTO<app.RangeDTO>
+export type TimelineDayDTO = Replace<ViewDTO<app.TimelineDayDTO>, { cards: TimelineCardDTO[]; categories: CategoryDTO[] }>
 export type DailyRecapDTO = Nullable<app.DailyRecapDTO, 'generatedAtTs'>
 export type JournalDayDTO = Nullable<app.JournalDayDTO, 'intentions' | 'notes' | 'goals' | 'reflections' | 'updatedAtTs'>
-export type GoalCategoryRefDTO = WireDTO<app.GoalCategoryRefDTO>
-export type DayGoalDTO = WireDTO<app.DayGoalDTO>
+export type GoalCategoryRefDTO = ViewDTO<app.GoalCategoryRefDTO>
+export type DayGoalDTO = ViewDTO<app.DayGoalDTO>
 
 export type PlanBlockDTO = Replace<Nullable<app.PlanBlockDTO, 'notes' | 'completedAtTs'>, { status: PlanBlockStatus }>
-export type PlanDayDTO = Replace<WireDTO<app.PlanDayDTO>, { blocks: PlanBlockDTO[] }>
+export type PlanDayDTO = Replace<ViewDTO<app.PlanDayDTO>, { blocks: PlanBlockDTO[] }>
 export type PlanBlockInputDTO = Nullable<app.PlanBlockInputDTO, 'notes'>
-export type CapabilitiesDTO = WireDTO<app.CapabilitiesDTO>
-export type ReviewTotalsDTO = WireDTO<app.ReviewTotalsDTO>
-export type CategoryTotalDTO = WireDTO<app.CategoryTotalDTO>
-export type WeeklyIntervalDTO = WireDTO<app.WeeklyIntervalDTO>
-export type WeeklySegmentDTO = Replace<WireDTO<app.WeeklySegmentDTO>, { appSites: AppSitesDTO | null }>
-export type WeeklyDayDTO = Replace<WireDTO<app.WeeklyDayDTO>, { segments: WeeklySegmentDTO[] }>
-export type WeeklyInsightsDTO = WireDTO<app.WeeklyInsightsDTO>
-export type WeeklyDashboardDTO = Replace<WireDTO<app.WeeklyDashboardDTO>, { days: WeeklyDayDTO[] }>
+export type CapabilitiesDTO = ViewDTO<app.CapabilitiesDTO>
+export type ReviewTotalsDTO = ViewDTO<app.ReviewTotalsDTO>
+export type CategoryTotalDTO = ViewDTO<app.CategoryTotalDTO>
+export type WeeklyIntervalDTO = ViewDTO<app.WeeklyIntervalDTO>
+export type WeeklySegmentDTO = Replace<ViewDTO<app.WeeklySegmentDTO>, { appSites: AppSitesDTO | null }>
+export type WeeklyDayDTO = Replace<ViewDTO<app.WeeklyDayDTO>, { segments: WeeklySegmentDTO[] }>
+export type WeeklyInsightsDTO = ViewDTO<app.WeeklyInsightsDTO>
+export type WeeklyDashboardDTO = Replace<ViewDTO<app.WeeklyDashboardDTO>, { days: WeeklyDayDTO[] }>
 
-export type ChatConversationDTO = WireDTO<app.ChatConversationDTO>
-export type ChatMessageDTO = Replace<WireDTO<app.ChatMessageDTO>, {
+export type ChatConversationDTO = ViewDTO<app.ChatConversationDTO>
+export type ChatMessageDTO = Replace<ViewDTO<app.ChatMessageDTO>, {
   role: 'user' | 'assistant' | 'tool_call' | 'tool_result'
   status: 'ok' | 'failed' | 'canceled' | ''
 }>
 
-export type ChatGPTConnection = WireDTO<app.ChatGPTConnectionDTO>
+export type ChatGPTConnection = ViewDTO<app.ChatGPTConnectionDTO>

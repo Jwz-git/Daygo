@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Linux counterpart to the macOS `wails build` and the Windows
+# Linux counterpart to the macOS `wails3 build` and the Windows
 # `native/windows/build.ps1` script.
 #
 # Same shared helpers as dev-linux.sh — only difference is which wails
@@ -35,5 +35,5 @@ npm --prefix "$ROOT_DIR/frontend" ci --no-audit --no-fund
 printf 'Running bootstrap (placeholder dist → bindings → bundle)...\n'
 daygo_bootstrap
 
-printf 'Running wails build with tag %s...\n' "$DAYGO_WAILS_TAG"
+printf 'Running wails3 build with tag %s...\n' "$DAYGO_WAILS_TAG"
 run_wails build "$@"

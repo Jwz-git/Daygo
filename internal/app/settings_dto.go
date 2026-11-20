@@ -85,22 +85,22 @@ type TelemetrySettingsDTO struct {
 // bool or string could not distinguish "leave it" from "set it to false/empty"
 // (docs/05 §5.5.1).
 type SettingsPatchDTO struct {
-	IntervalSeconds        *int      `json:"intervalSeconds"`
-	CaptureHeight          *int      `json:"captureHeight"`
-	BlockedApplicationIDs  *[]string `json:"blockedApplicationIds"`
-	RecordingsLimitBytes   *int64    `json:"recordingsLimitBytes"`
-	JournalReminderEnabled *bool     `json:"journalReminderEnabled"`
-	JournalReminderTime    *string   `json:"journalReminderTime"`
-	Theme                  *string   `json:"theme"`
-	Language               *string   `json:"language"`
-	ShowTokenUsage         *bool     `json:"showTokenUsage"`
-	ChatMemory             *string   `json:"chatMemory"`
-	ChatEditMode           *string   `json:"chatEditMode"`
-	LaunchAtLogin          *bool     `json:"launchAtLogin"`
-	ShowDockIcon           *bool     `json:"showDockIcon"`
-	AgentEditsEnabled      *bool     `json:"agentEditsEnabled"`
-	TestToolsEnabled       *bool     `json:"testToolsEnabled"`
-	OnboardingCompleted    *bool     `json:"onboardingCompleted"`
-	AnalyticsOptIn         *bool     `json:"analyticsOptIn"`
-	CrashReportingOptIn    *bool     `json:"crashReportingOptIn"`
+	IntervalSeconds        *int      `json:"intervalSeconds,omitempty"`
+	CaptureHeight          *int      `json:"captureHeight,omitempty"`
+	BlockedApplicationIDs  *[]string `json:"blockedApplicationIds,omitempty"`
+	RecordingsLimitBytes   *int64    `json:"recordingsLimitBytes,omitempty"`
+	JournalReminderEnabled *bool     `json:"journalReminderEnabled,omitempty"`
+	JournalReminderTime    *string   `json:"journalReminderTime,omitempty"`
+	Theme                  *string   `json:"theme,omitempty"`
+	Language               *string   `json:"language,omitempty"`
+	ShowTokenUsage         *bool     `json:"showTokenUsage,omitempty"`
+	ChatMemory             *string   `json:"chatMemory,omitempty"`
+	ChatEditMode           *string   `json:"chatEditMode,omitempty"`
+	LaunchAtLogin          *bool     `json:"launchAtLogin,omitempty"`
+	ShowDockIcon           *bool     `json:"showDockIcon,omitempty"`
+	AgentEditsEnabled      *bool     `json:"agentEditsEnabled,omitempty"`
+	TestToolsEnabled       *bool     `json:"testToolsEnabled,omitempty"`
+	OnboardingCompleted    *bool     `json:"onboardingCompleted,omitempty"`
+	AnalyticsOptIn         *bool     `json:"analyticsOptIn,omitempty"`
+	CrashReportingOptIn    *bool     `json:"crashReportingOptIn,omitempty"`
 }

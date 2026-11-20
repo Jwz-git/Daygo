@@ -12,19 +12,13 @@ if (Test-Path -LiteralPath $binDir) {
     Remove-Item -LiteralPath $binDir -Recurse -Force
 }
 Initialize-DaygoWindowsNative -RunSmoke:$RunSmoke
-Initialize-DaygoFrontend -DependencyMode ci -ForceBuild
+if ($env:DAYGO_DEV -eq '1') {
+    Push-Location $DaygoRootDir
+    try { Invoke-DaygoNative go @('run', $DaygoWailsPackage, 'generate', 'bindings', '-ts', '-i', '-names', '-f', '-tags=daygo_desktop,server', '-d', 'frontend/bindings', './cmd/daygo') }
+    finally { Pop-Location }
+} else { Initialize-DaygoFrontend -DependencyMode ci -ForceBuild }
 
-Push-Location (Join-Path $DaygoRootDir 'cmd\daygo')
-try {
-    Write-Host 'Building Daygo for windows/amd64...'
-    Invoke-DaygoNative go @(
-        'run', $DaygoWailsPackage, 'build',
-        '-platform', 'windows/amd64'
-    )
-}
-finally {
-    Pop-Location
-}
+Build-DaygoWindowsDesktop
 
 $exe = Join-Path $DaygoRootDir 'build\bin\Daygo.exe'
 $dll = Join-Path $DaygoRootDir 'build\bin\daygo_windows_native.dll'

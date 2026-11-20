@@ -7,12 +7,12 @@ import Foundation
   guard let menu = NSApp.mainMenu else { return }
   let selectors = [
     "hide:": "hide", "hideOtherApplications:": "hideOthers", "unhideAllApplications:": "showAll",
-    "Quit": "quit",
+    "terminate:": "quit",
     "undo:": "undo", "redo:": "redo", "cut:": "cut", "copy:": "copy", "paste:": "paste",
     "pasteAsRichText:": "pasteMatch",
     "delete:": "delete", "selectAll:": "selectAll", "startSpeaking:": "startSpeaking",
     "stopSpeaking:": "stopSpeaking",
-    "performMiniaturize:": "minimize", "performZoom:": "zoom", "enterFullScreenMode:": "fullScreen",
+    "performMiniaturize:": "minimize", "performZoom:": "zoom", "toggleFullScreen:": "fullScreen",
   ]
   func translate(_ menu: NSMenu) {
     for item in menu.items {

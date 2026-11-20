@@ -1,5 +1,6 @@
-import { CheckForUpdates, GetUpdaterState, SetAutomaticUpdateChecks } from '../../wailsjs/go/app/Backend'
-import type { app } from '../../wailsjs/go/models'
+import { desktopRuntime, hasDesktopBridge } from '@/api/desktopBridge'
+import { CheckForUpdates, GetUpdaterState, SetAutomaticUpdateChecks } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
+import type * as app from '../../bindings/github.com/Jwz-git/Daygo/internal/app/models'
 import { WAILS_UNAVAILABLE } from './system'
 
 export type UpdaterState = app.UpdaterStateDTO
@@ -19,11 +20,11 @@ export function parseUpdaterState(value: unknown): UpdaterState | null {
   const lastCheckedAtTs = optionalNumber(row.lastCheckedAtTs)
   if (typeof row.automatic !== 'boolean' || typeof row.checking !== 'boolean') return null
   if (availableVersion === false || lastCheckedAtTs === false) return null
-  return { automatic: row.automatic, checking: row.checking, availableVersion, lastCheckedAtTs }
+  return { automatic: row.automatic, checking: row.checking, availableVersion: availableVersion ?? null, lastCheckedAtTs: lastCheckedAtTs ?? null }
 }
 
 function hasBridge(): boolean {
-  return (window as { go?: unknown }).go !== undefined
+  return hasDesktopBridge()
 }
 
 /**
@@ -67,7 +68,7 @@ interface UpdateRuntime {
  * unsubscribe function; a no-op outside a Wails host.
  */
 export function onUpdateAvailable(callback: (state: UpdaterState) => void): () => void {
-  const runtime = (window as { runtime?: UpdateRuntime }).runtime
+  const runtime = desktopRuntime()
   if (typeof runtime?.EventsOnMultiple !== 'function') return () => undefined
   return runtime.EventsOnMultiple('update:available', (...data: unknown[]) => {
     const value = data[0]

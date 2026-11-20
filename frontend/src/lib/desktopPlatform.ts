@@ -1,15 +1,6 @@
-import { Environment } from '../../wailsjs/runtime/runtime'
+import { desktopEnvironment, hasDesktopBridge } from '@/api/desktopBridge'
 
 export type DesktopPlatform = 'darwin' | 'windows' | 'linux' | 'browser' | 'unknown'
-
-interface RuntimeBridge {
-  Environment: () => Promise<unknown>
-}
-
-function runtimeBridge(value: unknown): value is RuntimeBridge {
-  return typeof value === 'object' && value !== null &&
-    'Environment' in value && typeof value.Environment === 'function'
-}
 
 export function parseDesktopPlatform(value: unknown): DesktopPlatform {
   if (typeof value !== 'object' || value === null || !('platform' in value)) return 'unknown'
@@ -24,11 +15,10 @@ export function parseDesktopPlatform(value: unknown): DesktopPlatform {
 }
 
 export async function resolveDesktopPlatform(): Promise<DesktopPlatform> {
-  const runtime = (window as { runtime?: unknown }).runtime
-  if (!runtimeBridge(runtime)) return 'browser'
+  if (!hasDesktopBridge()) return 'browser'
 
   try {
-    return parseDesktopPlatform(await Environment())
+    return parseDesktopPlatform(await desktopEnvironment())
   } catch {
     return 'unknown'
   }

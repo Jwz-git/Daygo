@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createRenderer, defineComponent, h, nextTick, onMounted, ref } from 'vue'
@@ -34,12 +35,12 @@ test('real player removes hidden images while retaining rate, progress and playb
   let raf = 0
   const callbacks = new Map<number, FrameRequestCallback>()
   const warmed: { src: string }[] = []
-  globalThis.window = Object.assign(new EventTarget(), { go: { app: { Backend: {
+  globalThis.window = nativeFixtureWindow(Object.assign(new EventTarget(), { go: { app: { Backend: {
     GetUIVisibility: async () => ({ visible: true }),
   } } }, runtime: { EventsOnMultiple: (_name: string, callback: (...payload: unknown[]) => void) => {
     nativeEvent = callback
     return () => { nativeEvent = undefined }
-  } } }) as unknown as Window & typeof globalThis
+  } } }) as unknown as Window & typeof globalThis)
   globalThis.document = Object.assign(new EventTarget(), { visibilityState: 'visible', body }) as unknown as Document
   globalThis.Image = class {
     src = ''; onload = null; onerror = null

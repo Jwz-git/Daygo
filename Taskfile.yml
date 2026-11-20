@@ -1,0 +1,47 @@
+version: '3'
+
+env:
+  EXTRA_TAGS: '{{.EXTRA_TAGS | default ""}}'
+
+tasks:
+  build:
+    desc: Build the desktop application
+    cmds:
+      - task: '{{OS}}:build'
+  darwin:build:
+    cmds:
+      - bash scripts/build-desktop.sh
+  linux:build:
+    cmds:
+      - bash scripts/build-desktop.sh
+  windows:build:
+    cmds:
+      - powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
+  prepare:frontend:
+    desc: Install dependencies and generate frontend bindings
+    cmds:
+      - cmd: npm --prefix frontend ci --no-audit --no-fund
+        platforms: [darwin, linux]
+      - cmd: bash scripts/bootstrap-frontend.sh
+        platforms: [darwin, linux]
+      - cmd: powershell -NoProfile -ExecutionPolicy Bypass -Command ". ./scripts/windows-common.ps1; Initialize-DaygoFrontend -DependencyMode ci"
+        platforms: [windows]
+  dev:frontend:
+    desc: Run Vite for the Wails dev watcher
+    dir: frontend
+    cmds:
+      - npm run dev -- --port {{.WAILS_VITE_PORT | default 9245}} --strictPort
+  dev:build:
+    env:
+      DAYGO_DEV: '1'
+    cmds:
+      - task: build
+  run:
+    desc: Run the built desktop application
+    cmds:
+      - cmd: build/bin/Daygo.app/Contents/MacOS/Daygo
+        platforms: [darwin]
+      - cmd: build/bin/Daygo.exe
+        platforms: [windows]
+      - cmd: build/bin/Daygo
+        platforms: [linux]

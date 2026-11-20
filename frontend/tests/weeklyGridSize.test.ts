@@ -1,3 +1,4 @@
+import { nativeFixtureWindow } from './nativeFixtureWindow'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createRenderer, nextTick, type Component } from 'vue'
@@ -51,9 +52,9 @@ function mountChart(component: Component, snapshot: unknown, initialWidth: numbe
   // The host fixture has no CSS animation; complete tooltip transitions
   // immediately while retaining the real component and pointer handlers.
   globalThis.requestAnimationFrame = (callback) => { callback(0); return 1 }
-  globalThis.window = {
+  globalThis.window = nativeFixtureWindow({
     getComputedStyle: () => ({ transitionDelay: '0s', transitionDuration: '0s', animationDelay: '0s', animationDuration: '0s' }),
-  } as unknown as Window & typeof globalThis
+  } as unknown as Window & typeof globalThis)
   globalThis.document = { body: { offsetHeight: 0 } } as unknown as Document
 
   function node(kind: string, text = ''): HostNode {

@@ -1,4 +1,5 @@
-import { GetAgentConnection } from '../../wailsjs/go/app/Backend'
+import { hasDesktopBridge } from '@/api/desktopBridge'
+import { GetAgentConnection } from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
 
 /** How a local MCP / CLI client reaches this Daygo instance (docs/05 §5.9). */
 export interface AgentConnection {
@@ -12,7 +13,7 @@ export interface AgentConnection {
 export const WAILS_UNAVAILABLE = 'wails_unavailable'
 
 function hasBridge(): boolean {
-  return (window as { go?: unknown }).go !== undefined
+  return hasDesktopBridge()
 }
 
 export function parseAgentConnection(value: unknown): AgentConnection {

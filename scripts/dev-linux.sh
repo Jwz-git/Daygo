@@ -2,18 +2,15 @@
 
 # Linux counterpart to scripts/dev.sh (mac) and scripts/dev.ps1 (Windows).
 #
-# Pulls host checks, Wails tag selection, and the wails dev invocation from
+# Pulls host checks, Wails tag selection, and the wails3 dev invocation from
 # scripts/bootstrap-frontend.sh — the same script that runs the placeholder
-# dist → bindings → real bundle pipeline before wails dev starts. Anything
+# dist → bindings → real bundle pipeline before wails3 dev starts. Anything
 # specific to Linux (which package manager the host uses, etc.) stays out:
 # `wails doctor` already reports missing WebKit2GTK headers, and a wrong
 # package-manager guess in a cross-distribution script is more harmful than
 # a missing dependency the user already knows how to install.
 #
-# Two environment overrides are honoured:
-#   DAYGO_LINUX_WEBKIT_TAG=webkit2_40|webkit2_41  force a specific ABI tag.
-#   DAYGO_WAILS_TAG=...                          pass through to `wails dev -tags`
-#                                                (combined with the ABI tag).
+# Set DAYGO_LINUX_WEBKIT_TAG=gtk3 to use the legacy GTK3 host.
 
 set -euo pipefail
 
@@ -29,11 +26,11 @@ printf 'Selected WebKit2GTK build tag: %s\n' "$DAYGO_WAILS_TAG"
 printf 'Syncing frontend dependencies...\n'
 npm --prefix "$ROOT_DIR/frontend" install --no-audit --no-fund
 
-# Bootstrap runs before wails dev because wails dev assumes the placeholder
-# dist + generated wailsjs exist; if the bundle was just rebuilt above it
+# Bootstrap runs before wails3 dev because wails3 dev assumes the placeholder
+# dist + generated bindings exist; if the bundle was just rebuilt above it
 # might still be the placeholder, so we re-run unconditionally here.
 printf 'Running bootstrap (placeholder dist → bindings → bundle)...\n'
 daygo_bootstrap
 
-printf 'Starting wails dev (the first run may take a while to download the Wails CLI)...\n'
+printf 'Starting wails3 dev (the first run may take a while to download the Wails CLI)...\n'
 run_wails dev "$@"

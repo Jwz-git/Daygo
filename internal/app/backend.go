@@ -123,11 +123,10 @@ type Backend struct {
 	activationApplied bool
 	activationPolicy  platform.ActivationPolicy
 	dockHidden        bool
-	// windowCtx is the Wails runtime context handed over in OnStartup; it
-	// scopes WindowSetBackgroundColour calls (window_background.go). It is
-	// nil in headless construction, where those calls become no-ops.
-	windowCtxMu sync.Mutex
-	windowCtx   context.Context
+	// Desktop operations are installed before the backend is bound to a window.
+	hostContext            context.Context
+	paintWindowBackground  func(red, green, blue uint8)
+	pickRecordingDirectory func() (string, error)
 
 	// media reads screenshot pixels for card playback. It is nil until
 	// attachMedia runs during startup (headless construction and runs
@@ -193,6 +192,13 @@ type Backend struct {
 	agentSocketActive  atomic.Bool
 	updatePrepared     atomic.Bool
 	updateWasRecording atomic.Bool
+}
+
+func (b *Backend) operationContext() context.Context {
+	if b.hostContext != nil {
+		return b.hostContext
+	}
+	return context.Background()
 }
 
 // setEventEmitter installs the Wails-backed emitter. It is called once during
@@ -343,6 +349,7 @@ func (b *Backend) startSystemEventPump() {
 			case platform.EventApplicationUnhidden:
 				b.setApplicationHidden(false)
 			case platform.EventWindowCloseRequested:
+				b.setWindowHidden(true)
 				if err := b.enterBackground(context.Background()); err != nil {
 					log.Printf("drop dock icon on window close unavailable: %v", err)
 				}

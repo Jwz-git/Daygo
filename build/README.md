@@ -1,11 +1,11 @@
 # Build Directory
 
-Wails 构建资源与产物目录（Wails v2 默认布局）：
+Wails 构建资源与产物目录（Wails v3，沿用 Daygo 输出路径）：
 
 - `bin/` — 构建产物输出目录（不入库）
-- `darwin/` — macOS 构建文件：`Info.plist`（正式）、`Info.dev.plist`（`wails dev`）
+- `darwin/` — macOS 构建文件：`Info.plist`（开发 / 打包共用；Info.dev.plist 为不再使用的 v2 历史模板）
 - `windows/` — Windows 构建文件：`icon.ico`、`info.json`、`wails.exe.manifest`；
-  `installer/` 是打包时从 `scripts/windows-installer/` 复制并由 Wails 补齐的临时目录
+  `installer/` 是打包时从 `scripts/windows-installer/` 复制并由打包入口补齐的临时目录
 - `native/` — 原生静态库构建产物（`native/darwin/build.sh` 与
   `native/windows/build.ps1` 的输出，不入库）
 - `deps/` — 下载的 Sparkle / WinSparkle 构建依赖（不入库）
@@ -26,3 +26,5 @@ Wails 构建资源与产物目录（Wails v2 默认布局）：
 `scripts/package-windows.ps1`，由入口补齐 Sparkle framework / WinSparkle DLL、原生产物与安装器。
 构建不等于签名身份验收；当前安装升级的用户确认与正式证书缺口见
 [delivery 执行册](../docs/modules/delivery.md)，脚本参数见 [scripts/README.md](../scripts/README.md)。
+
+根 Taskfile 与 [config.yml](config.yml) 编排桌面构建；原生库由 scripts 显式构建，不使用 v2 preBuildHooks。

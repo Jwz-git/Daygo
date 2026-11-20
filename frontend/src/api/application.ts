@@ -1,4 +1,5 @@
-import type { app } from '../../wailsjs/go/models'
+import { hasDesktopBridge } from '@/api/desktopBridge'
+import type * as app from '../../bindings/github.com/Jwz-git/Daygo/internal/app/models'
 import type { WireDTO } from '@/api/dto'
 import {
   DescribeApplications,
@@ -6,7 +7,7 @@ import {
   GetPrivacyCompatibility,
   ListInstalledApplications,
   PickApplication,
-} from '../../wailsjs/go/app/Backend'
+} from '../../bindings/github.com/Jwz-git/Daygo/internal/app/backend'
 
 import { getApplicationNamesDevelopmentFixture } from '@/api/developmentFixtures'
 import { WAILS_UNAVAILABLE, getSettings } from '@/api/settings'
@@ -24,7 +25,7 @@ export type ApplicationDTO = WireDTO<app.ApplicationDTO>
 export type PrivacyCompatibilityDTO = WireDTO<app.PrivacyCompatibilityDTO>
 
 export async function getPrivacyCompatibility(): Promise<PrivacyCompatibilityDTO | null> {
-  if (!('go' in window) || window.go === undefined) return null
+  if (!hasDesktopBridge()) return null
   return GetPrivacyCompatibility()
 }
 
@@ -34,7 +35,7 @@ export async function getPrivacyCompatibility(): Promise<PrivacyCompatibilityDTO
  * reports the unavailable state rather than opening a text prompt.
  */
 export async function pickApplication(): Promise<ApplicationDTO | null> {
-  if (!('go' in window) || window.go === undefined) throw new Error(WAILS_UNAVAILABLE)
+  if (!hasDesktopBridge()) throw new Error(WAILS_UNAVAILABLE)
   return PickApplication()
 }
 
@@ -44,8 +45,8 @@ export async function pickApplication(): Promise<ApplicationDTO | null> {
  * so the browser stand-in is the only path that needs the dev fixture.
  */
 export async function getBlockedApplications(): Promise<ApplicationDTO[]> {
-  if ('go' in window && window.go !== undefined) {
-    return GetBlockedApplications()
+  if (hasDesktopBridge()) {
+    return (await GetBlockedApplications()) ?? []
   }
 
   const settings = await getSettings()
@@ -84,10 +85,10 @@ const identityCache = new LruCache<string, ApplicationDTO>(512, {
 export async function listInstalledApplications(language: string): Promise<ApplicationDTO[]> {
   if (installedCache?.language === language) return installedCache.apps
   let apps: ApplicationDTO[]
-  if (!('go' in window) || window.go === undefined) {
+  if (!hasDesktopBridge()) {
     apps = []
   } else {
-    apps = await ListInstalledApplications(language)
+    apps = (await ListInstalledApplications(language)) ?? []
   }
   installedCache = { language, apps }
   return apps
@@ -112,11 +113,11 @@ export async function describeApplications(ids: string[]): Promise<ApplicationDT
   if (missing.length === 0) return out
 
   let resolvedBatch: ApplicationDTO[]
-  if (!('go' in window) || window.go === undefined) {
+  if (!hasDesktopBridge()) {
     const names = (await getApplicationNamesDevelopmentFixture()) ?? {}
     resolvedBatch = missing.map((id) => ({ id, name: names[id] ?? '', iconDataUrl: '' }))
   } else {
-    resolvedBatch = await DescribeApplications(missing)
+    resolvedBatch = (await DescribeApplications(missing)) ?? []
   }
   for (const application of resolvedBatch) identityCache.set(application.id, application)
   return [...out, ...resolvedBatch]

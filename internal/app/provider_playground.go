@@ -91,13 +91,7 @@ func (b *Backend) TryProvider(req ProviderPlaygroundRequestDTO) (ProviderPlaygro
 	if req.ProviderID == "" || strings.TrimSpace(req.Model) == "" {
 		return ProviderPlaygroundResultDTO{}, apperr.E(apperr.InvalidArgument, "provider and model are required", nil)
 	}
-	b.windowCtxMu.Lock()
-	parent := b.windowCtx
-	b.windowCtxMu.Unlock()
-	if parent == nil {
-		parent = context.Background()
-	}
-	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+	ctx, cancel := context.WithTimeout(b.operationContext(), 30*time.Second)
 	defer cancel()
 	row, err := repo.Get(ctx, req.ProviderID)
 	if err != nil {

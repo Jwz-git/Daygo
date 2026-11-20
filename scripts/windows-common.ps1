@@ -4,8 +4,8 @@ $ErrorActionPreference = 'Stop'
 $DaygoRootDir = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $DaygoFrontendDir = Join-Path $DaygoRootDir 'frontend'
 $DaygoFrontendDist = Join-Path $DaygoFrontendDir 'dist'
-$DaygoWailsVersion = 'v2.15.0'
-$DaygoWailsPackage = "github.com/wailsapp/wails/v2/cmd/wails@$DaygoWailsVersion"
+$DaygoWailsVersion = 'v3.1.0'
+$DaygoWailsPackage = "github.com/wailsapp/wails/v3/cmd/wails3@$DaygoWailsVersion"
 
 function Invoke-DaygoNative {
     param(
@@ -102,9 +102,9 @@ function Initialize-DaygoFrontend {
     }
 
     Write-Host 'Generating Wails frontend bindings...'
-    Push-Location (Join-Path $DaygoRootDir 'cmd\daygo')
+    Push-Location $DaygoRootDir
     try {
-        Invoke-DaygoNative go @('run', $DaygoWailsPackage, 'generate', 'module')
+        Invoke-DaygoNative go @('run', $DaygoWailsPackage, 'generate', 'bindings', '-ts', '-i', '-names', '-f', '-tags=daygo_desktop,server', '-d', 'frontend/bindings', './cmd/daygo')
     }
     finally {
         Pop-Location
@@ -146,5 +146,47 @@ function Restore-DaygoExperiment {
     }
     else {
         $env:GOEXPERIMENT = $Previous
+    }
+}
+
+# Compile directly with Go; Wails v3 no longer accepts v2 build/NSIS flags.
+function Build-DaygoWindowsDesktop {
+    param([string]$Version = '0.0.0')
+    $temporary = Join-Path $DaygoRootDir '.tmp\windows-build'
+    New-Item -ItemType Directory -Path $temporary -Force | Out-Null
+    $info = Join-Path $temporary 'info.json'
+    $metadata = Get-Content -LiteralPath (Join-Path $DaygoRootDir 'build\windows\info.json') -Raw | ConvertFrom-Json
+    $metadata.fixed.file_version = $Version
+    $metadata.info.'0000'.ProductVersion = $Version
+    [System.IO.File]::WriteAllText($info, ($metadata | ConvertTo-Json -Depth 5), (New-Object System.Text.UTF8Encoding($false)))
+    $resource = Join-Path $DaygoRootDir 'cmd\daygo\daygo_windows_amd64.syso'
+    $previousCgo = $env:CGO_ENABLED
+    $previousArch = $env:GOARCH
+    $previousExperiment = Install-DaygoDwarf5Workaround
+    Push-Location $DaygoRootDir
+    try {
+        Invoke-DaygoNative go @('run', $DaygoWailsPackage, 'generate', 'syso', '-arch', 'amd64',
+            '-icon', 'build/windows/icon.ico', '-manifest', 'build/windows/wails.exe.manifest',
+            '-info', $info, '-out', $resource)
+        $env:CGO_ENABLED = '1'
+        $env:GOARCH = 'amd64'
+        $tags = 'daygo_desktop'
+        $linkerFlags = '-H windowsgui'
+        if ($env:DAYGO_DEV -ne '1') {
+            $tags += ',production'
+            $linkerFlags += ' -s -w'
+        }
+        if ($env:EXTRA_TAGS) { $tags += ',' + $env:EXTRA_TAGS }
+        Invoke-DaygoNative go @('build', '-tags', $tags, '-ldflags', $linkerFlags, '-o',
+            (Join-Path $DaygoRootDir 'build\bin\Daygo.exe'), './cmd/daygo')
+    }
+    finally {
+        Pop-Location
+        Remove-Item -LiteralPath $resource -Force -ErrorAction SilentlyContinue
+        if ($null -eq $previousCgo) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue }
+        else { $env:CGO_ENABLED = $previousCgo }
+        if ($null -eq $previousArch) { Remove-Item Env:GOARCH -ErrorAction SilentlyContinue }
+        else { $env:GOARCH = $previousArch }
+        Restore-DaygoExperiment -Previous $previousExperiment
     }
 }
