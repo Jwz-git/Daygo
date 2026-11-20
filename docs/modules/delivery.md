@@ -220,6 +220,13 @@ schema 版本变动必须走 data 的备份恢复计划，不能仅替换二进�
   v3 读回并写深色，再换回 v2 读到深色。覆盖设置库回读，安装、更新器、通知、
   TCC 和正式签名身份仍需安装版验收。
 
+- 2026-11-20，`test` 的 `bc616cf` 在 Windows CI 上通过
+  [安装器 16 项匿名夹具](https://github.com/Jwz-git/Daygo/actions/runs/44701388270)及
+  [通知契约](https://github.com/Jwz-git/Daygo/actions/runs/44701388334)。同一提交的既有
+  macOS 工作树保留了 v2 的 `node_modules`，首次 `./scripts/gate.sh` 因缺少 `@wailsio/runtime`
+  而在 typecheck 失败。门禁增加直接依赖检查后，在同一工作树自动执行 `npm ci`，全套门禁
+  通过，含 304 项前端单测。Windows CI 夹具使用匿名载荷，正式安装升级验收独立记录。
+
 - **2026-11-07（Pages 改为手动部署；基于 `18162aa` 的 `test` 工作树，macOS arm64）**：
   网页工作流只订阅 `workflow_dispatch`，检出触发提交。核对桌面 Release 工作流无差异；
   `actionlint v1.7.12`、网页 24 项单测和构建、文档检查与 `git diff --check` 通过。

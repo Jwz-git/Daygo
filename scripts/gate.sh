@@ -16,12 +16,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 printf '== frontend dependencies ==\n'
-if [[ -d "$ROOT_DIR/frontend/node_modules" ]]; then
-  printf 'node_modules present; skipping install\n'
+if [[ -d "$ROOT_DIR/frontend/node_modules" ]] && npm --prefix frontend ls --depth=0 >/dev/null 2>&1; then
+  printf 'Frontend dependencies installed; skipping npm ci\n'
 else
-  # docs/08 §8.8 lists `npm ci`. It is a clean install from the lockfile, which
-  # is what a fresh runner needs; repeating it on every local run would wipe and
-  # reinstall node_modules for no benefit, so it runs only when absent.
+  # An existing dependency tree may predate the current package manifest.
   npm --prefix frontend ci
 fi
 
