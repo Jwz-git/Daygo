@@ -194,6 +194,13 @@ Windows 跨盘 / 拔盘 / 重启恢复 / 长时录制迁移、整段清理、维
 
 - **2026-09-23 回归修复**：匿名夹具覆盖并发读后写事务、分类交换/链式改名、未超限孤儿文件清理与 URI 特殊字符路径；`./scripts/gate.sh` 通过。真实数据库和长时争用未在本次重跑。
 
+- **2026-11-20 Wails 迁移前的核心基线**（基于 `98bd1ed`）：Linux arm64 / Go 1.26.10
+  在 UTC 下逐条升级匿名 v13、v17、v19 夹具时，三项 `CardsForDay` 断言均返回 0 条，
+  上海时区下通过。macOS arm64 / Go 1.25.6 以 `TZ=UTC CGO_ENABLED=0 go test ./internal/storage
+  -run 'TestMigrateV(13|17|19)Fixture' -count=1` 复现。夹具卡片跨越上海时间 04:00，测试改用
+  已有的固定时区打开方式。修正后同样的三项定向测试均通过，卡片数量与迁移后断言沿用原值。
+  该验证使用匿名库副本，未执行真实用户库迁移。
+
 | 日期 / commit / 环境 | 命令或人工步骤 / 输入 | 期望与实际结果 | 限制 / 下一步 |
 |---|---|---|---|
 | 2026-09-11 / 见本次提交 / macOS arm64 · go1.26.3 · `CGO_ENABLED=0` | `go test ./internal/storage/`、`-race`、`go build ./...`、`go vet ./...`、`gofmt -l .` | 全部通过；DB-1/2/4/6/7/8(smoke)/IT-13 在已实现范围通过 | 非 Linux 实机；`internal/app` 需 `frontend/dist` 才能编译 |

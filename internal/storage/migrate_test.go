@@ -877,7 +877,8 @@ func TestMigrateV13FixtureCreatesReviewTable(t *testing.T) {
 		t.Fatalf("write fixture copy: %v", err)
 	}
 
-	store := openWriter(t, dir)
+	// The persisted timestamps straddle the fixture's Shanghai 4 AM boundary.
+	store := openWriterAt(t, dir, "Asia/Shanghai")
 	if got := userVersionOf(t, store); got != schemaVersion() {
 		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
 	}
@@ -1100,7 +1101,7 @@ func TestMigrateV17FixtureCreatesRatingTable(t *testing.T) {
 	dst := filepath.Join(dir, DatabaseFileName)
 	copyFile(t, fixture, dst)
 
-	store := openWriter(t, dir)
+	store := openWriterAt(t, dir, "Asia/Shanghai")
 	if got := userVersionOf(t, store); got != schemaVersion() {
 		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
 	}
@@ -1219,7 +1220,7 @@ func TestMigrateV19FixtureCreatesPlanTable(t *testing.T) {
 	dst := filepath.Join(dir, DatabaseFileName)
 	copyFile(t, fixture, dst)
 
-	store := openWriter(t, dir)
+	store := openWriterAt(t, dir, "Asia/Shanghai")
 	if got := userVersionOf(t, store); got != schemaVersion() {
 		t.Fatalf("user_version = %d after upgrade, want %d", got, schemaVersion())
 	}
