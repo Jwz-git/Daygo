@@ -271,6 +271,12 @@ Gemini 原生接口使用 API Key，支持获取生成模型以及文本、图�
 
 ## 验证记录
 
+- **2026-11-21（默认图片上限下的原始视频路由，基于 `4fe8e38` 的 `test` 工作树，macOS arm64）**：
+  `CGO_ENABLED=0 go test ./internal/analysis ./internal/ai/... ./internal/platform/mediafile` 通过。
+  匿名 60 帧夹具修正前不读取视频，只发三组截图。修正后完整视频成功时只发一次视频请求；
+  分段覆盖不符或 Gemini 拒绝视频时，回退覆盖首尾的 15 张截图、分三组发送。
+  未向真实 Provider 发送请求。回退为撤销本次提交，无录制或数据库迁移。
+
 - **2026-11-07（Gemini 原生协议与原始视频分段，基于 `c9102c7` 的 `test` 工作树，macOS arm64）**：
   匿名 HTTP 夹具确认模型列表只保留 `generateContent` 候选，生成请求通过头部携带匿名密钥，
   发送内联 `video/mp4` 和 JSON Schema。转录夹具确认视频与图片回退分别使用对应帧索引，

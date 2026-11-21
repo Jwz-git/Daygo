@@ -819,9 +819,8 @@ func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error
 func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 	frames []storage.AnalysisFrame) ([]storage.Observation, error) {
 
-	// Downsample frames to at most DefaultSampledFrames (15 frames evenly spaced
-	// across the batch, matching Dayflow) or the chain's image cap if lower.
-	// This bounds token consumption per batch to ~20k tokens instead of >130k.
+	// Sample at most DefaultSampledFrames per image-only run or video fallback.
+	// A lower configured image cap also lowers that sampling target.
 	targetSamples := DefaultSampledFrames
 	if cap := s.cfg.Providers.ImageCap(ctx); cap > 0 && cap < targetSamples {
 		targetSamples = cap
@@ -841,7 +840,7 @@ func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			obs, err := s.transcribeGroupWithVideo(ctx, chain, group.images, group.video)
+			obs, err := s.transcribePlannedGroup(ctx, chain, group)
 			results[i] = outcome{obs: obs, err: err}
 		}(i, group)
 	}
@@ -858,7 +857,7 @@ func (s *Service) transcribe(ctx context.Context, chain *ai.Chain,
 }
 
 func (s *Service) transcribeGroupWithVideo(ctx context.Context, chain *ai.Chain,
-	images, video []storage.AnalysisFrame) ([]storage.Observation, error) {
+	images, video []storage.AnalysisFrame) ([]storage.Observation, bool, error) {
 
 	language := s.cfg.Language(ctx)
 	imageRequest := sync.OnceValues(func() (ai.Request, error) {
@@ -889,26 +888,29 @@ func (s *Service) transcribeGroupWithVideo(ctx context.Context, chain *ai.Chain,
 		return &ai.Request{Purpose: ai.PurposeTranscribe, Parts: parts, Output: &transcribeOutput, MaxOutputTokens: 3072}
 	})
 	group := images
+	usedVideo := false
 	result, err := chain.GeneratePrepared(ctx, func(prefersVideo bool) (ai.Request, error) {
 		if prefersVideo && len(video) != 0 {
 			if request := videoRequest(); request != nil {
 				group = video
+				usedVideo = true
 				return *request, nil
 			}
 		}
 		group = images
+		usedVideo = false
 		return imageRequest()
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	raw, err := ai.ParseStructuredOutput(result.Text, transcribeOutput)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var envelope transcribeEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return nil, fmt.Errorf("decode transcriptions: %w", err)
+		return nil, false, fmt.Errorf("decode transcriptions: %w", err)
 	}
 
 	var out []storage.Observation
@@ -928,7 +930,7 @@ func (s *Service) transcribeGroupWithVideo(ctx context.Context, chain *ai.Chain,
 			Metadata:    string(metadata),
 		})
 	}
-	return out, nil
+	return out, usedVideo, nil
 }
 
 // appSitesMetadata is the appSites wire shape the binding layer reads out of
