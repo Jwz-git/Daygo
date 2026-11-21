@@ -34,13 +34,13 @@ func (r *CardRepo) CategoryMinutesInRange(ctx context.Context, from, to time.Tim
 			       SUM(MIN(c.end_ts, ?) - MAX(c.start_ts, ?)) / 60.0
 			FROM timeline_cards c
 			LEFT JOIN categories cat ON cat.name = c.category
-			WHERE c.start_ts < ? AND c.end_ts > ?
+			WHERE c.start_ts >= ? AND c.start_ts < ? AND c.end_ts > ?
 			  AND c.is_deleted = 0
 			  AND c.end_ts > c.start_ts
 			  AND (c.end_ts - c.start_ts) <= 14400
 			GROUP BY c.category, COALESCE(cat.is_idle, 0), COALESCE(cat.color_hex, '')
 			ORDER BY c.category`,
-			to.Unix(), from.Unix(), to.Unix(), from.Unix())
+			to.Unix(), from.Unix(), from.Add(-maxCardDuration).Unix(), to.Unix(), from.Unix())
 		if err != nil {
 			return err
 		}
@@ -89,12 +89,11 @@ func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]
 			       COALESCE(c.metadata, '')
 			FROM timeline_cards c
 			LEFT JOIN categories cat ON cat.name = c.category
-			WHERE c.start_ts < ? AND c.end_ts > ?
+			WHERE c.start_ts >= ? AND c.start_ts < ? AND c.end_ts > ?
 			  AND c.is_deleted = 0
 			  AND c.end_ts > c.start_ts
-			  AND (c.end_ts - c.start_ts) <= 14400
-			ORDER BY c.day, c.start_ts`,
-			to.Unix(), from.Unix())
+			  AND (c.end_ts - c.start_ts) <= 14400`,
+			from.Add(-maxCardDuration).Unix(), to.Unix(), from.Unix())
 		if err != nil {
 			return err
 		}
@@ -125,8 +124,8 @@ func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]
 	if err != nil {
 		return nil, err
 	}
-	// Query order is by persisted start day. A card crossing the boundary can
-	// place its second slice before a later card of the first day.
+	// Sort the slices by projected day, which may differ from a card's
+	// persisted start day when the card crosses the boundary.
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Day != out[j].Day {
 			return out[i].Day < out[j].Day

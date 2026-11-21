@@ -189,6 +189,7 @@ func (s *Store) connect(ctx context.Context) error {
 	// contention across more descriptors. The bound also makes "no busy-lock
 	// storms" (DB-8) a property of the configuration rather than of luck.
 	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxOpenConns)
 	s.db = db
 
 	if err := verifyPragmas(ctx, db, s.mode); err != nil {

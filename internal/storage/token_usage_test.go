@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -34,5 +35,23 @@ func TestTokenUsageBoundsAndCacheSemantics(t *testing.T) {
 	empty, err := s.LlmCalls().TokenUsage(ctx, start.Add(-time.Second), start)
 	if err != nil || len(empty) != 0 {
 		t.Fatalf("left boundary: %+v %v", empty, err)
+	}
+}
+
+func TestMigrateV25FixtureAddsUsageTimeIndex(t *testing.T) {
+	dir := newDir(t)
+	copyFile(t, filepath.Join("testdata", "v25-token-usage-source.db"), filepath.Join(dir, DatabaseFileName))
+	store := openWriter(t, dir)
+	ctx := t.Context()
+	if got := userVersionOf(t, store); got < 26 {
+		t.Fatalf("schema version after reopen = %d", got)
+	}
+	var column string
+	if err := store.db.QueryRowContext(ctx, "SELECT name FROM pragma_index_info('idx_llm_calls_started_at')").Scan(&column); err != nil || column != "started_at" {
+		t.Fatalf("time index column = %q, %v", column, err)
+	}
+	samples, err := store.LlmCalls().TokenUsage(ctx, time.Unix(100, 0), time.Unix(101, 0))
+	if err != nil || len(samples) != 1 || samples[0].InputTokens != 42 || samples[0].OutputTokens != 7 {
+		t.Fatalf("pre-index usage after migration = %+v err=%v", samples, err)
 	}
 }

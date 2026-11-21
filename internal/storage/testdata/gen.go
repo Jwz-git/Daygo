@@ -103,6 +103,9 @@ func main() {
 	if err := writeV24(outDir); err != nil {
 		log.Fatalf("v24-onboarding-source.db: %v", err)
 	}
+	if err := writeV25(outDir); err != nil {
+		log.Fatalf("v25-token-usage-source.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -1252,6 +1255,35 @@ func writeV24(outDir string) error {
 		`UPDATE categories SET archetype = 'sanctum' WHERE name = ' reading '`,
 		`UPDATE categories SET archetype = 'nexus' WHERE name = 'MEETINGS'`,
 		`PRAGMA user_version = 24`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV25 hands v26 an anonymous usage row in a complete pre-index database.
+func writeV25(outDir string) error {
+	data, err := os.ReadFile(filepath.Join(outDir, "v24-onboarding-source.db"))
+	if err != nil {
+		return err
+	}
+	fixture := filepath.Join(outDir, "v25-token-usage-source.db")
+	if err := os.WriteFile(fixture, data, 0600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+fixture)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for _, stmt := range []string{
+		`INSERT INTO app_settings (key, value, updated_at) VALUES ('system.onboardingCompleted', 'true', 0)`,
+		`INSERT INTO llm_calls
+			(provider_id, protocol, requested_model, purpose, attempt_no, started_at, finished_at, latency_ms, outcome, input_tokens, output_tokens)
+			VALUES ('anonymous', 'openai', 'fixture', 'cards', 1, 100, 101, 1000, 'success', 42, 7)`,
+		`PRAGMA user_version = 25`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			return err

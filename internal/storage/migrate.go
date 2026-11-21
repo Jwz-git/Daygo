@@ -799,6 +799,14 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 26,
+		name:    "llm calls: index the usage time window",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `CREATE INDEX idx_llm_calls_started_at ON llm_calls (started_at)`)
+			return wrap("index v26 llm call start times", err)
+		},
+	},
 }
 
 // categoryArchetypeBackfill maps lowercased category names to the archetype

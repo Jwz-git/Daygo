@@ -69,7 +69,7 @@
 技术层职责（规划）：
 
 - `internal/play`：纯函数——方块生成、任务派生、落子合法性、计分。不依赖 Wails、不含 SQL。
-- `internal/storage/play.go`：岛屿与落子 repository；schema 变更走版本化迁移（当前最新 v25，新增应为 v26 起）。
+- `internal/storage/play.go`：岛屿与落子 repository；schema 变更走版本化迁移（当前最新 v26，新增应为 v27 起）。
 - `internal/app`：绑定与 DTO（草案 `GetPlayWeek(weekStart)`、`PlacePlayTile(...)`、事件 `play:updated`），
   只读实例写方法返回 `not_capture_owner`，游戏降级为只看。契约落地前须先写入 05。
 - 前端：`views/Play/`、`stores/play.ts`、`api/play.ts`；SVG 方格 + CSS 过渡，不新增依赖；写后等事件重拉；
