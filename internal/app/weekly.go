@@ -85,11 +85,11 @@ func (b *Backend) GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, erro
 	ctx, cancel := context.WithTimeout(context.Background(), timelineTimeout)
 	defer cancel()
 
-	rows, err := store.Cards().CategoryMinutesInRange(ctx, start, end)
+	spans, err := store.Cards().CardSpansInRange(ctx, start, end)
 	if err != nil {
 		return WeeklyDashboardDTO{}, mapStorageError("get weekly dashboard", err)
 	}
-	totals := insight.AggregateWeekly(rows)
+	totals := insight.AggregateWeeklySpans(spans)
 	dto := WeeklyDashboardDTO{
 		WeekStart:      weekStart,
 		WeekStartTs:    start.Unix(),
@@ -108,10 +108,6 @@ func (b *Backend) GetWeeklyDashboard(weekStart string) (WeeklyDashboardDTO, erro
 		})
 	}
 
-	spans, err := store.Cards().CardSpansInRange(ctx, start, end)
-	if err != nil {
-		return WeeklyDashboardDTO{}, mapStorageError("get weekly dashboard", err)
-	}
 	detail := insight.BuildWeeklyDetail(spans, weekStart, loc)
 	for _, day := range detail.Days {
 		dayDTO := WeeklyDayDTO{

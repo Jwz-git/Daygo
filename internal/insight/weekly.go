@@ -28,6 +28,35 @@ type WeeklyTotals struct {
 	Categories     []CategoryTotal
 }
 
+// AggregateWeeklySpans reuses the spans selected for weekly detail. Sum whole
+// seconds across logical days before converting each category to minutes.
+func AggregateWeeklySpans(spans []storage.CardSpan) WeeklyTotals {
+	type categoryDuration struct {
+		colorHex string
+		isIdle   bool
+		seconds  int64
+	}
+	durations := make(map[string]categoryDuration)
+	for _, span := range spans {
+		duration := durations[span.Category]
+		duration.colorHex = span.ColorHex
+		duration.isIdle = span.IsIdle
+		duration.seconds += span.EndTs - span.StartTs
+		durations[span.Category] = duration
+	}
+	rows := make([]storage.CategoryMinutes, 0, len(durations))
+	for name, duration := range durations {
+		rows = append(rows, storage.CategoryMinutes{
+			Name:     name,
+			ColorHex: duration.colorHex,
+			IsIdle:   duration.isIdle,
+			Minutes:  float64(duration.seconds) / 60,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
+	return AggregateWeekly(rows)
+}
+
 // AggregateWeekly folds per-category minutes into weekly totals. The System
 // category is excluded everywhere (it never counts toward tracked time and
 // would break the share denominator); isIdle categories count toward tracked

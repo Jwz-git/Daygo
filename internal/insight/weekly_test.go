@@ -2,10 +2,28 @@ package insight
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/Jwz-git/Daygo/internal/storage"
 )
+
+func TestAggregateWeeklySpansMatchesCategoryMinutes(t *testing.T) {
+	spans := []storage.CardSpan{
+		{Day: "2026-11-16", StartTs: 3, EndTs: 31, Category: "Work", ColorHex: "#123456"},
+		{Day: "2026-11-17", StartTs: 31, EndTs: 62, Category: "Work", ColorHex: "#123456"},
+		{Day: "2026-11-17", StartTs: 62, EndTs: 63, Category: "Idle", IsIdle: true},
+		{Day: "2026-11-17", StartTs: 63, EndTs: 130, Category: "System"},
+	}
+	want := AggregateWeekly([]storage.CategoryMinutes{
+		{Name: "Idle", IsIdle: true, Minutes: 1.0 / 60},
+		{Name: "System", Minutes: 67.0 / 60},
+		{Name: "Work", ColorHex: "#123456", Minutes: 59.0 / 60},
+	})
+	if got := AggregateWeeklySpans(spans); !reflect.DeepEqual(got, want) {
+		t.Fatalf("weekly spans = %+v, want %+v", got, want)
+	}
+}
 
 func TestAggregateWeeklyEmpty(t *testing.T) {
 	got := AggregateWeekly(nil)
