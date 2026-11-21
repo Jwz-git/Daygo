@@ -14,7 +14,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
-	"time"
 
 	"github.com/Jwz-git/Daygo/frontend"
 	"github.com/Jwz-git/Daygo/internal/agentbridge"
@@ -22,7 +21,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
 	"github.com/Jwz-git/Daygo/internal/recorder"
-	"github.com/Jwz-git/Daygo/internal/recordinglocation"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -97,15 +95,6 @@ func Run() error {
 		backend.setStorageError(openErr)
 	} else {
 		backend.attachStorage(store)
-		// Complete a previously committed file cleanup. A failed cleanup leaves
-		// the new root authoritative and is retried on the next launch.
-		if goruntime.GOOS == "windows" {
-			if _, _, phase, err := recordinglocation.Pending(ctx, store.Settings()); err == nil && phase == "committed" {
-				if err := recordinglocation.Finish(ctx, store.Settings()); err != nil {
-					log.Printf("recording location cleanup pending")
-				}
-			}
-		}
 		recordingsRoot, rootErr := backend.recordingRoot(ctx)
 		if rootErr != nil {
 			log.Printf("recording location unavailable: %v", rootErr)
@@ -115,6 +104,7 @@ func Run() error {
 		backend.attachMedia(recordingsRoot)
 		closeResources = append(closeResources, func() { _ = store.Close() })
 		closeResources = append(closeResources, backend.stopTimelineTasks)
+		backend.startCaptureOwnerServices(ctx, dir, recordingsRoot, rootErr, goruntime.GOOS)
 
 		// Maintenance is owned by this context, so cancelling it at shutdown
 		// stops the goroutine. There is no global scheduler to leak
@@ -122,7 +112,6 @@ func Run() error {
 		// The cleanup pass reads the recording limit live from settings: a
 		// failed read returns 0 — the documented "no limit" — so the pass
 		// skips rather than deleting on uncertain ground.
-		settingsAccess := settings.New(store.Settings())
 		if writable, _ := backend.instanceOwnership(); writable {
 			audit, err := os.OpenFile(filepath.Join(dir, "agent-writes.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 			if err != nil {
@@ -142,81 +131,32 @@ func Run() error {
 					})
 				}
 			}
-		}
-		maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{
-			BackupDir: dir,
-			RecordingsRootFunc: func() string {
-				root, err := backend.recordingRoot(ctx)
-				if err != nil {
-					return ""
-				}
-				info, err := os.Stat(root)
-				if err != nil || !info.IsDir() {
-					return ""
-				}
-				return root
-			},
-			CleanupLock: &backend.moveMu,
-			RecordingsLimit: func() int64 {
-				snapshot, err := settingsAccess.Load(ctx)
-				if err != nil {
-					return 0
-				}
-				return snapshot.RecordingsLimitBytes
-			},
-		})
-		go maintainer.Run(ctx)
-
-		// The analysis pipeline runs only on the read-write instance; a
-		// read-only second instance holds neither lock the pipeline's writes
-		// need. Its recordings root is the staging directory the recorder
-		// commits frames into.
-		// A missing external volume must not make Reconcile soft-delete its
-		// committed frames. The pipeline can resume on the next app start.
-		rootAvailable := rootErr == nil
-		if rootAvailable {
-			info, statErr := os.Stat(recordingsRoot)
-			if statErr == nil {
-				rootAvailable = info.IsDir()
-			} else if !os.IsNotExist(statErr) || recordingsRoot != filepath.Join(dir, "recordings") {
-				rootAvailable = false
-			}
+			settingsAccess := settings.New(store.Settings())
+			maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{
+				BackupDir: dir,
+				RecordingsRootFunc: func() string {
+					root, err := backend.recordingRoot(ctx)
+					if err != nil {
+						return ""
+					}
+					info, err := os.Stat(root)
+					if err != nil || !info.IsDir() {
+						return ""
+					}
+					return root
+				},
+				CleanupLock: &backend.moveMu,
+				RecordingsLimit: func() int64 {
+					snapshot, err := settingsAccess.Load(ctx)
+					if err != nil {
+						return 0
+					}
+					return snapshot.RecordingsLimitBytes
+				},
+			})
+			go maintainer.Run(ctx)
 		}
 
-		// Crash recovery first (docs/modules/recording): settle pending
-		// capture intents against the filesystem before the analysis
-		// scheduler looks at frames. A commit the process died before
-		// making is completed here; an intent whose file never landed is
-		// dropped. Failures are logged, not fatal — the UI still works on
-		// committed data.
-		reconcileCtx, reconcileCancel := context.WithTimeout(ctx, 30*time.Second)
-		if rootAvailable {
-			if err := store.Captures().Reconcile(reconcileCtx, recordingsRoot); err != nil {
-				log.Printf("capture reconcile: %v", err)
-			}
-		}
-		reconcileCancel()
-
-		if rootAvailable {
-			if _, err := startAnalysis(ctx, backend, store, recordingsRoot); err != nil {
-				// Analysis failing to start must not take the shell down: the UI
-				// still renders stored cards, and diagnostics reports the gap.
-				log.Printf("analysis pipeline unavailable: %v", err)
-			}
-		}
-
-		// Backfill standups for calendar days that completed while the agent
-		// was not running, then re-scan on a ticker for newly completed days.
-		// Owned by ctx like the analysis pipeline, so shutdown stops it.
-		go backend.runStandupBackfill(ctx)
-
-		// Keep the daily journal reminder in sync with the user's settings.
-		// Only the capture owner schedules notifications, so it is launched from
-		// this RW-only block alongside the analysis pipeline and the backfill.
-		go backend.runJournalReminder(ctx)
-
-		// Plan start notifications and distraction alerts, same ownership rule.
-		go backend.runPlanReminder(ctx)
 	}
 	// Start the updater only after storage ownership is known. Sparkle and
 	// WinSparkle may schedule a check immediately; an early update must not see

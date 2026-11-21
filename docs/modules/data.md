@@ -24,6 +24,9 @@
 
 Windows 录制目录迁移已增加纯 Go 复制、SHA-256 校验、数据库状态提交、重启后继续清理以及旧备份恢复门禁；自动化夹具通过。跨盘、断连及真实录制真机迁移尚无逐项运行记录，见[决策](../decisions/recording-directory-windows.md)。
 
+2026-11-21 启动所有权修正（基于 `8035d6f` 的 `test` 工作树，macOS arm64）：连接层只读的第二实例和未取得捕获锁的写实例均跳过迁移收尾、录制对账、分析和提醒启动，只有写实例启动数据库维护。匿名夹具创建两份相同媒体和已提交迁移状态，分别启动只读、仅可写及持有两把锁的实例。修正前前两者均删除旧副本并启动分析，修正后仅双锁实例执行，两类非所有者均保留旧副本和迁移标记。
+`CGO_ENABLED=0 go test -count=1 ./internal/app ./internal/recordinglocation ./internal/storage -run 'Test(StartupCaptureServicesRequireOwnership|.*ReadOnly.*|.*(DirectoryMove|MovePreservesSource|FinishRejects|FinishKeepsSource).*)'` 和桌面入口 `CGO_ENABLED=0 go build -tags 'daygo_desktop server' ./internal/app` 通过。未在 Windows 宿主执行双实例或跨盘验证。回退为撤销提交，无 schema 迁移。
+
 > **验收状态（2026-10-13）**：本模块此前仍待验收的已实现能力及后续增量均由用户确认已验收，未附逐项运行记录。未实现能力与待定设计保持原状态；历史失败、跳过或未运行结果保留，后续新改动需独立验收。正式身份与签名材料的证据边界见 [09 §9.1.1](../09-roadmap.md#911-本轮验收记录与证据边界)。
 
 实现进度：**部分实现**。切片 1–4 已落盘（切片 3 的 checkpoint / 备份 / 损坏恢复 / 录制清理全部完成），
