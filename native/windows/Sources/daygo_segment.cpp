@@ -442,6 +442,12 @@ HRESULT read_video_frame(const std::wstring& path, uint32_t wanted, std::vector<
       if (SUCCEEDED(hr) && length >= needed) pixels->assign(data, data + needed);
       if (data) buffer->Unlock();
       if (FAILED(hr) || length < needed) return FAILED(hr) ? hr : E_FAIL;
+      // A frame request needs only this sample. The probe still counts the
+      // entire stream when a total is requested.
+      if (!total) {
+        ++count;
+        break;
+      }
     }
     ++count;
   }
