@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"slices"
 	"sync"
 )
 
@@ -37,23 +38,70 @@ type ChainEntry struct {
 type Chain struct {
 	mu        sync.Mutex
 	entries   []ChainEntry
-	cursor    int
 	threshold int
-	failures  map[string]int
+	history   *ChainState
+	state     *chainProgress
+}
+
+// ChainState keeps routing progress across freshly constructed clients. It
+// holds provider IDs and counters only. Each distinct ordered route gets a
+// progress snapshot so requests in flight can finish against the old route.
+type ChainState struct {
+	mu      sync.Mutex
+	ids     []string
+	current *chainProgress
+}
+
+type chainProgress struct {
+	mu       sync.Mutex
+	cursor   int
+	failures map[string]int
 }
 
 // NewChain builds a chain. threshold <= 0 falls back to DefaultChainThreshold.
 // An empty chain is valid to construct but every Generate returns
 // ErrNoProvider.
 func NewChain(entries []ChainEntry, threshold int) *Chain {
+	return (&ChainState{}).NewChain(entries, threshold)
+}
+
+// NewChain uses the current routing progress with this batch's own clients.
+func (s *ChainState) NewChain(entries []ChainEntry, threshold int) *Chain {
 	if threshold <= 0 {
 		threshold = DefaultChainThreshold
 	}
 	return &Chain{
 		entries:   append([]ChainEntry(nil), entries...),
 		threshold: threshold,
-		failures:  make(map[string]int),
+		history:   s,
+		state:     s.forEntries(entries),
 	}
+}
+
+func (s *ChainState) forEntries(entries []ChainEntry) *chainProgress {
+	ids := make([]string, len(entries))
+	for i, entry := range entries {
+		ids[i] = entry.ID
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.current != nil && slices.Equal(s.ids, ids) {
+		return s.current
+	}
+
+	next := &chainProgress{failures: make(map[string]int, len(ids))}
+	if current := s.current; current != nil {
+		current.mu.Lock()
+		if current.cursor < len(s.ids) {
+			next.cursor = max(slices.Index(ids, s.ids[current.cursor]), 0)
+		}
+		for _, id := range ids {
+			next.failures[id] = current.failures[id]
+		}
+		current.mu.Unlock()
+	}
+	s.ids, s.current = ids, next
+	return next
 }
 
 // ErrNoProvider is returned by Generate when the chain holds no entries. It is
@@ -73,28 +121,8 @@ func (c *Chain) Rebuild(entries []ChainEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var cursorID string
-	if c.cursor >= 0 && c.cursor < len(c.entries) {
-		cursorID = c.entries[c.cursor].ID
-	}
 	c.entries = append([]ChainEntry(nil), entries...)
-	c.cursor = 0
-	for i, entry := range c.entries {
-		if entry.ID == cursorID {
-			c.cursor = i
-			break
-		}
-	}
-	// Drop counters for providers no longer in the chain.
-	alive := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
-		alive[entry.ID] = struct{}{}
-	}
-	for id := range c.failures {
-		if _, ok := alive[id]; !ok {
-			delete(c.failures, id)
-		}
-	}
+	c.state = c.history.forEntries(entries)
 }
 
 // ActiveID returns the ID of the entry the cursor currently points at, or ""
@@ -102,10 +130,12 @@ func (c *Chain) Rebuild(entries []ChainEntry) {
 func (c *Chain) ActiveID() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.cursor < 0 || c.cursor >= len(c.entries) {
+	c.state.mu.Lock()
+	defer c.state.mu.Unlock()
+	if c.state.cursor >= len(c.entries) {
 		return ""
 	}
-	return c.entries[c.cursor].ID
+	return c.entries[c.state.cursor].ID
 }
 
 // PrefersVideo reports whether any entry can use the alternate video request.
@@ -129,13 +159,15 @@ func (c *Chain) Generate(ctx context.Context, request Request) (Result, error) {
 // wrapper runs. A local preparation error is not counted against the target.
 func (c *Chain) GeneratePrepared(ctx context.Context, prepare func(prefersVideo bool) (Request, error)) (Result, error) {
 	c.mu.Lock()
-	entries := append([]ChainEntry(nil), c.entries...)
-	start := c.cursor
+	entries, state := c.entries, c.state
 	c.mu.Unlock()
 
 	if len(entries) == 0 {
 		return Result{}, ErrNoProvider
 	}
+	state.mu.Lock()
+	start := state.cursor
+	state.mu.Unlock()
 
 	var lastErr error
 	for offset := range entries {
@@ -160,7 +192,7 @@ func (c *Chain) GeneratePrepared(ctx context.Context, prepare func(prefersVideo 
 		}
 		result, err := entry.Provider.Generate(ctx, request)
 		if err == nil {
-			c.recordSuccess(entry.ID, index)
+			state.recordSuccess(entry.ID, index)
 			return result, nil
 		}
 		// Cancellation may also land mid-flight, inside the provider call
@@ -175,28 +207,28 @@ func (c *Chain) GeneratePrepared(ctx context.Context, prepare func(prefersVideo 
 			return Result{}, lastErr
 		}
 		lastErr = err
-		c.recordFailure(entry.ID, index)
+		state.recordFailure(entry.ID, index, c.threshold, len(entries))
 	}
 	return Result{}, lastErr
 }
 
 // recordSuccess resets the entry's counter and moves the cursor to it. This is
 // the recovery path: a demoted provider that succeeds once is promoted back.
-func (c *Chain) recordSuccess(id string, index int) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.failures[id] = 0
-	c.cursor = index
+func (s *chainProgress) recordSuccess(id string, index int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failures[id] = 0
+	s.cursor = index
 }
 
 // recordFailure increments the entry's consecutive-failure count. Reaching the
 // threshold demotes it: the cursor advances to the next surviving entry and
 // stays there until this one succeeds again.
-func (c *Chain) recordFailure(id string, index int) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.failures[id]++
-	if c.failures[id] >= c.threshold && c.cursor == index && len(c.entries) > 1 {
-		c.cursor = (index + 1) % len(c.entries)
+func (s *chainProgress) recordFailure(id string, index, threshold, size int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failures[id]++
+	if s.failures[id] >= threshold && s.cursor == index && size > 1 {
+		s.cursor = (index + 1) % size
 	}
 }

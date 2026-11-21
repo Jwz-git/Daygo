@@ -34,6 +34,11 @@ func (s mediaFrameSource) FrameBytes(ctx context.Context, segmentPath string, fr
 // attempt observer (llm_calls audit) → retry, wrapped in an ai.Chain.
 type analysisChainSource struct {
 	backend *Backend
+	state   *ai.ChainState
+}
+
+func newAnalysisChainSource(backend *Backend) analysisChainSource {
+	return analysisChainSource{backend: backend, state: &ai.ChainState{}}
 }
 
 func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, error) {
@@ -79,7 +84,10 @@ func (a analysisChainSource) AnalysisChain(ctx context.Context) (*ai.Chain, erro
 			ID: chainEntryID(row.ID, model), Provider: provider, PrefersVideo: cfg.Protocol == ai.ProtocolGemini,
 		})
 	}
-	return ai.NewChain(entries, 0), nil
+	if a.state == nil {
+		return ai.NewChain(entries, 0), nil
+	}
+	return a.state.NewChain(entries, 0), nil
 }
 
 // chainEntryID keys a chain entry by its (provider, model) pair so the failure
@@ -153,7 +161,7 @@ func startAnalysis(ctx context.Context, b *Backend, store *storage.Store, record
 		Store:        store.Analysis(),
 		Cards:        store.Cards(),
 		Categories:   store.Categories(),
-		Providers:    analysisChainSource{backend: b},
+		Providers:    newAnalysisChainSource(b),
 		Media:        mediaFrameSource{media: media},
 		SegmentVideo: segmentVideo,
 		Language:     analysisLanguage(b),

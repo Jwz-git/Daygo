@@ -194,11 +194,42 @@ func TestChainMidFlightCancellationDoesNotCount(t *testing.T) {
 	if secondary.calls != 0 {
 		t.Fatalf("secondary calls = %d; a canceled walk must not continue", secondary.calls)
 	}
-	if chain.failures[chain.entries[0].ID] != 0 {
+	if chain.state.failures[chain.entries[0].ID] != 0 {
 		t.Fatal("mid-flight cancellation counted as a provider failure")
 	}
 	if got := chain.ActiveID(); got != "a" {
 		t.Fatalf("active after mid-flight cancel = %q", got)
+	}
+}
+
+func TestChainStateKeepsFallbackWithFreshClients(t *testing.T) {
+	state := &ChainState{}
+	primary := &countingFailingProvider{}
+	firstFallback := &sequenceProvider{
+		results: []Result{{Text: "first"}},
+		errors:  []error{nil, NewError(ErrorUnavailable, "old fallback is no longer available", 503, nil)},
+	}
+	first := state.NewChain(chainEntries(primary, firstFallback), 0)
+	if _, err := first.Generate(t.Context(), Request{}); err != nil {
+		t.Fatal(err)
+	}
+
+	freshPrimary := &countingFailingProvider{}
+	freshFallback := &sequenceProvider{results: []Result{{Text: "second"}}}
+	second := state.NewChain(chainEntries(freshPrimary, freshFallback), 0)
+	if got, err := second.Generate(t.Context(), Request{}); err != nil || got.Text != "second" || freshPrimary.calls != 0 {
+		t.Fatalf("result=%+v error=%v new primary calls=%d", got, err, freshPrimary.calls)
+	}
+
+	// A new configuration retains state only for entries that survived the
+	// edit. The old batch may still use its own pending request and clients.
+	onlyPrimary := state.NewChain(chainEntries(freshPrimary), 0)
+	if onlyPrimary.ActiveID() != "a" || onlyPrimary.state.failures["a"] != 1 {
+		t.Fatalf("new state has cursor %q and failures %+v", onlyPrimary.ActiveID(), onlyPrimary.state.failures)
+	}
+	_, _ = first.Generate(t.Context(), Request{})
+	if primary.calls != 2 || onlyPrimary.state.failures["a"] != 1 {
+		t.Fatal("the old batch updated the replacement configuration")
 	}
 }
 
