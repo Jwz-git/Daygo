@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -97,7 +97,7 @@ let dayRefreshTimer: number | null = null
  */
 type ViewMode = 'day' | 'week'
 const viewMode = ref<ViewMode>('day')
-const weekDays = ref<(Awaited<ReturnType<typeof getTimelineDay>> | null)[]>([])
+const weekDays = shallowRef<(Awaited<ReturnType<typeof getTimelineDay>> | null)[]>([])
 const weekLoading = ref(false)
 let weekRequestVersion = 0
 

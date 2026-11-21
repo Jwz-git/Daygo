@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 
 import { useUIVisibilityStore } from '@/stores/uiVisibility'
 import type { DayContextDTO, WeeklyDashboardDTO } from '@/api/dto'
@@ -22,10 +22,10 @@ export type WeeklyState = 'loading' | 'unavailable' | 'failure' | 'empty' | 'pop
 
 export const useWeeklyStore = defineStore('weekly', () => {
   const visibility = useUIVisibilityStore()
-  const dashboard = ref<WeeklyDashboardDTO | null>(null)
+  const dashboard = shallowRef<WeeklyDashboardDTO | null>(null)
   // The week before, for the treemap's per-app change only; null when it is
   // unavailable, which simply hides the change badges.
-  const previousDashboard = ref<WeeklyDashboardDTO | null>(null)
+  const previousDashboard = shallowRef<WeeklyDashboardDTO | null>(null)
   const loading = ref(true)
   const unavailable = ref(false)
   const error = ref<unknown>(null)

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
 import type { ChatConversationDTO, ChatMessageDTO } from '@/api/dto'
 import {
@@ -44,9 +44,9 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     setChatConversationProvider, setChatConversationModel,
     listProviders, updateSettings, onSettingsChanged,
   } = { ...chatAPI, ...overrides }
-  const conversations = ref<ChatConversationDTO[]>([])
+  const conversations = shallowRef<ChatConversationDTO[]>([])
   const activeId = ref<string | null>(null)
-  const messages = ref<ChatMessageDTO[]>([])
+  const messages = shallowRef<ChatMessageDTO[]>([])
   /** True while submission is entering the backend or the transcript ends in
    * a non-terminal row. Tool invalidations therefore keep Stop available. */
   const submitting = ref(new Set<string>())

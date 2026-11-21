@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
 import type {
   CapabilitiesDTO,
@@ -390,7 +390,7 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
 export const useDailyStore = defineStore('daily', () => {
   const visibility = useUIVisibilityStore()
   const context = ref<DayContextDTO | null>(null)
-  const day = ref<TimelineDayDTO | null>(null)
+  const day = shallowRef<TimelineDayDTO | null>(null)
   const recap = ref<DailyRecapDTO | null>(null)
   const capabilities = ref<CapabilitiesDTO | null>(null)
   const loading = ref(true)

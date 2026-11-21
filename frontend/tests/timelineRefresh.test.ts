@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createPinia, setActivePinia } from 'pinia'
+import { isReactive } from 'vue'
 
 import type { DayContextDTO, TimelineDayDTO } from '../src/api/dto'
 import { useTimelineStore } from '../src/stores/timeline'
@@ -64,6 +65,7 @@ test('silent window-return refresh keeps the loaded timeline visible', async () 
     const store = useTimelineStore()
     await store.load()
     assert.equal(store.state, 'empty')
+    assert.equal(isReactive(store.day?.cards), false)
 
     const refresh = store.load('', { silent: true })
     await Promise.resolve()
