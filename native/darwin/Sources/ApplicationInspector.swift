@@ -81,44 +81,46 @@ private func inspectApplication(
     resolve: (String) throws -> (identifier: String, name: String, iconPNG: Data?),
     decode: () throws -> String
 ) -> Int32 {
-    guard let infoPointer else {
-        return Int32(DG_APPLICATION_E_INVALID_ARGUMENT)
-    }
+    return autoreleasepool {
+        guard let infoPointer else {
+            return Int32(DG_APPLICATION_E_INVALID_ARGUMENT)
+        }
 
-    let expectedInfoSize = UInt32(MemoryLayout<dg_application_info_v2>.size)
-    guard infoPointer.pointee.struct_size == expectedInfoSize,
-          infoPointer.pointee.reserved0 == 0
-    else {
-        return writeApplicationFailure(.invalidArgument, to: errorPointer)
-    }
-    clearApplicationOutput(infoPointer)
-    zeroApplicationError(errorPointer)
-
-    guard requestedABIMajor == UInt32(DG_APPLICATION_ABI_MAJOR) else {
-        return writeApplicationFailure(.abiMismatch, to: errorPointer)
-    }
-
-    do {
-        let input = try decode()
-        let application = try resolve(input)
-        try writeApplicationString(
-            application.identifier,
-            maximumBytes: maximumApplicationIdentifierBytes,
-            to: &infoPointer.pointee.identifier
-        )
-        try writeApplicationString(
-            application.name,
-            maximumBytes: maximumApplicationNameBytes,
-            to: &infoPointer.pointee.name
-        )
-        try writeApplicationData(application.iconPNG ?? Data(), to: &infoPointer.pointee.icon_png)
-        return Int32(DG_APPLICATION_OK)
-    } catch let failure as ApplicationInspectionFailure {
+        let expectedInfoSize = UInt32(MemoryLayout<dg_application_info_v2>.size)
+        guard infoPointer.pointee.struct_size == expectedInfoSize,
+              infoPointer.pointee.reserved0 == 0
+        else {
+            return writeApplicationFailure(.invalidArgument, to: errorPointer)
+        }
         clearApplicationOutput(infoPointer)
-        return writeApplicationFailure(failure, to: errorPointer)
-    } catch {
-        clearApplicationOutput(infoPointer)
-        return writeApplicationFailure(.native(OSStatus((error as NSError).code)), to: errorPointer)
+        zeroApplicationError(errorPointer)
+
+        guard requestedABIMajor == UInt32(DG_APPLICATION_ABI_MAJOR) else {
+            return writeApplicationFailure(.abiMismatch, to: errorPointer)
+        }
+
+        do {
+            let input = try decode()
+            let application = try resolve(input)
+            try writeApplicationString(
+                application.identifier,
+                maximumBytes: maximumApplicationIdentifierBytes,
+                to: &infoPointer.pointee.identifier
+            )
+            try writeApplicationString(
+                application.name,
+                maximumBytes: maximumApplicationNameBytes,
+                to: &infoPointer.pointee.name
+            )
+            try writeApplicationData(application.iconPNG ?? Data(), to: &infoPointer.pointee.icon_png)
+            return Int32(DG_APPLICATION_OK)
+        } catch let failure as ApplicationInspectionFailure {
+            clearApplicationOutput(infoPointer)
+            return writeApplicationFailure(failure, to: errorPointer)
+        } catch {
+            clearApplicationOutput(infoPointer)
+            return writeApplicationFailure(.native(OSStatus((error as NSError).code)), to: errorPointer)
+        }
     }
 }
 

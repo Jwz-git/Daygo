@@ -1,5 +1,8 @@
 # recording — 常驻录制
 
+2026-11-21 macOS 原生读取（基于 `356e31f` 的 `test` 工作树）：缓存锁只用于访问和发布轨道对象，文件加载在锁外；分段探针及应用检查使用局部自动释放池。`native/darwin/build.sh` 生成 arm64 / x86_64 通用静态库，`go test -a -count=1 ./internal/platform/darwin -run 'Test(Native1080pDecodeOwnershipAndConcurrentSegments|NativeSegmentAppendDecodeAndLegacyFallback|NativeSegmentRepeatedSingleFrameDecode|ApplicationInspectorUsesBundleIdentifierWithoutSignatureGate|ApplicationLookupReportsUnknownIdentifier)$'` 通过。使用匿名合成媒体与应用夹具，未测实际 WebView 或长时内存。回退为撤销提交并重建原生库。
+
+
 2026-11-21 应用身份读取（基于 `6a19895` 的 `test` 工作树，macOS arm64）：前端同语言列表请求与同 ID 图标请求合并，保持请求 ID 顺序；隐私区离页和重新枚举会使旧图标批次失效。macOS 枚举及时释放原生返回缓冲区，枚举与按 ID 回扫使用局部自动释放池。匿名并发绑定夹具修正前发出重复列表请求，修正后同语言一次、重叠 ID 各一次。前端 309 项单测 / 类型检查和匿名 Darwin 应用身份定向测试通过。未测系统应用目录枚举的实际内存或时延。回退为撤销提交。
 
 

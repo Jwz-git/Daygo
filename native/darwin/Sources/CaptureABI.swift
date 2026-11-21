@@ -553,17 +553,19 @@ func dg_segment_probe(
     outInfo.pointee.height = 0
     outInfo.pointee.readable = 0
 
-    do {
-        let recordingsDir = try decodeUTF8(recordingsDirView, maximumBytes: maximumPathBytes, allowEmpty: false)
-        let segmentRelPath = try decodeUTF8(segmentRelPathView, maximumBytes: maximumPathBytes, allowEmpty: false)
-        let probe = SegmentReader.shared.probe(recordingsDir: recordingsDir, segmentRelPath: segmentRelPath)
-        outInfo.pointee.frame_count = UInt32(probe.frameCount)
-        outInfo.pointee.width = UInt32(probe.width)
-        outInfo.pointee.height = UInt32(probe.height)
-        outInfo.pointee.readable = probe.readable ? 1 : 0
-        return Int32(DG_CAPTURE_OK)
-    } catch {
-        return Int32(DG_CAPTURE_E_INVALID_ARGUMENT)
+    return autoreleasepool {
+        do {
+            let recordingsDir = try decodeUTF8(recordingsDirView, maximumBytes: maximumPathBytes, allowEmpty: false)
+            let segmentRelPath = try decodeUTF8(segmentRelPathView, maximumBytes: maximumPathBytes, allowEmpty: false)
+            let probe = SegmentReader.shared.probe(recordingsDir: recordingsDir, segmentRelPath: segmentRelPath)
+            outInfo.pointee.frame_count = UInt32(probe.frameCount)
+            outInfo.pointee.width = UInt32(probe.width)
+            outInfo.pointee.height = UInt32(probe.height)
+            outInfo.pointee.readable = probe.readable ? 1 : 0
+            return Int32(DG_CAPTURE_OK)
+        } catch {
+            return Int32(DG_CAPTURE_E_INVALID_ARGUMENT)
+        }
     }
 }
 

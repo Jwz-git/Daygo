@@ -154,37 +154,43 @@ final class SegmentReader: @unchecked Sendable {
         return (0, 0, 0, false)
     }
 
-    private func getOrCreateCachedAsset(for fileURL: URL) throws -> CachedAsset {
-        lock.lock()
-        defer { lock.unlock() }
+    private func touchCachedAsset(path: String) -> CachedAsset? {
+        guard var existing = cache[path] else { return nil }
+        existing.lastAccessed = Date()
+        cache[path] = existing
+        return existing
+    }
 
+    private func getOrCreateCachedAsset(for fileURL: URL) throws -> CachedAsset {
         let path = fileURL.path
-        if var existing = cache[path] {
-            existing.lastAccessed = Date()
-            cache[path] = existing
+        if let existing = lock.withLock({ touchCachedAsset(path: path) }) {
             return existing
         }
 
+        // Loading a track can do disk I/O. A cache miss for one file must not
+        // hold back reads of other segments that already have a cached track.
         let asset = AVURLAsset(url: fileURL)
         guard let track = asset.tracks(withMediaType: .video).first else {
             throw ScreenshotFailure.io(ENOENT)
         }
 
-        let cached = CachedAsset(
-            url: fileURL,
-            asset: asset,
-            track: track,
-            lastAccessed: Date()
-        )
-
-        if cache.count >= maxCacheEntries {
-            if let oldest = cache.min(by: { $0.value.lastAccessed < $1.value.lastAccessed }) {
+        return lock.withLock {
+            if let existing = touchCachedAsset(path: path) {
+                return existing
+            }
+            let cached = CachedAsset(
+                url: fileURL,
+                asset: asset,
+                track: track,
+                lastAccessed: Date()
+            )
+            if cache.count >= maxCacheEntries,
+               let oldest = cache.min(by: { $0.value.lastAccessed < $1.value.lastAccessed }) {
                 cache.removeValue(forKey: oldest.key)
             }
+            cache[path] = cached
+            return cached
         }
-
-        cache[path] = cached
-        return cached
     }
 }
 
