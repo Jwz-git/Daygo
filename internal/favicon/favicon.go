@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -42,6 +43,9 @@ const (
 	// maxIconBytes caps a favicon response. Real icons are a few KiB; the cap
 	// stops a hostile or broken host from ballooning memory or disk.
 	maxIconBytes = 512 << 10
+	// Each hostname can race multiple sources. Bound the actual HTTP requests
+	// across all hosts, including slower losers while cancellation settles.
+	maxConcurrentRequests = 12
 	// negativeTTL suppresses re-fetching a host that just failed, so a dead
 	// host is not hammered on every card render.
 	negativeTTL = 10 * time.Minute
@@ -69,6 +73,8 @@ type Resolver struct {
 	client   *http.Client
 	cacheDir string
 	group    singleflight.Group
+	requests *semaphore.Weighted
+	disk     diskIconCache
 
 	mu       sync.Mutex
 	memory   *lruCache[Result]    // host -> cached icon (bounded session hot cache)
@@ -94,6 +100,7 @@ func New(cacheDir string) *Resolver {
 	return &Resolver{
 		client:   &http.Client{Transport: transport, Timeout: fetchTimeout},
 		cacheDir: cacheDir,
+		requests: semaphore.NewWeighted(maxConcurrentRequests),
 		memory:   newWeightedLRUCache[Result](memoryCacheCap, memoryCacheBytes, func(result Result) int { return len(result.Data) }),
 		negative: newLRUCache[time.Time](negativeCacheCap),
 	}
@@ -148,7 +155,7 @@ func (r *Resolver) Resolve(ctx context.Context, host string) (Result, error) {
 		}
 		result, ferr := r.fetch(ctx, normalized)
 		if ferr != nil {
-			if ctx.Err() == nil && !errors.Is(ferr, context.Canceled) {
+			if ctx.Err() == nil && !errors.Is(ferr, context.Canceled) && !errors.Is(ferr, errFetchQueued) {
 				r.storeNegative(normalized)
 			}
 			return Result{}, ferr
@@ -236,6 +243,7 @@ func (r *Resolver) fetch(ctx context.Context, host string) (Result, error) {
 	}
 
 	var lastErr error
+	var queued bool
 	for range sources {
 		got := <-results
 		if got.err == nil && len(got.result.Data) > 0 {
@@ -243,7 +251,11 @@ func (r *Resolver) fetch(ctx context.Context, host string) (Result, error) {
 		}
 		if got.err != nil {
 			lastErr = got.err
+			queued = queued || errors.Is(got.err, errFetchQueued)
 		}
+	}
+	if queued {
+		return Result{}, errFetchQueued
 	}
 	if lastErr == nil {
 		lastErr = errNotFound
@@ -253,6 +265,10 @@ func (r *Resolver) fetch(ctx context.Context, host string) (Result, error) {
 
 // request fetches one URL and validates the payload is a non-empty image.
 func (r *Resolver) request(ctx context.Context, target string) (Result, error) {
+	if err := r.requests.Acquire(ctx, 1); err != nil {
+		return Result{}, errFetchQueued
+	}
+	defer r.requests.Release(1)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return Result{}, err
@@ -294,7 +310,13 @@ func (r *Resolver) readDisk(host string) (Result, bool) {
 	if r.cacheDir == "" {
 		return Result{}, false
 	}
-	data, err := os.ReadFile(r.diskPath(host))
+	r.disk.initialize(r.cacheDir)
+	file, err := os.Open(r.diskPath(host))
+	if err != nil {
+		return Result{}, false
+	}
+	defer file.Close()
+	data, err := readCapped(file, maxIconBytes)
 	if err != nil || len(data) == 0 {
 		return Result{}, false
 	}
@@ -309,20 +331,13 @@ func (r *Resolver) writeDisk(host string, result Result) {
 	if r.cacheDir == "" || len(result.Data) == 0 {
 		return
 	}
-	if err := os.MkdirAll(r.cacheDir, 0o755); err != nil {
-		return
-	}
-	path := r.diskPath(host)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, result.Data, 0o644); err != nil {
-		return
-	}
-	_ = os.Rename(tmp, path)
+	r.disk.write(r.cacheDir, r.diskPath(host), result.Data)
 }
 
 // --- helpers ---
 
 var errNotFound = errors.New("favicon: not found")
+var errFetchQueued = errors.New("favicon: canceled while waiting for a request slot")
 
 // hostAliases redirects known renamed/sub-brand hosts to the domain that
 // actually serves the icon, matching Dayflow's FaviconService.hostAliases.

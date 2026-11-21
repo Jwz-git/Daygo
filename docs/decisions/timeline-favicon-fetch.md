@@ -24,9 +24,10 @@
    `URLSession` 天然走系统代理，这也是 Google S2 在被墙网络里仍能取到图标的原因；
 4. 别名表 `hostAliases`（如 `codex.com → chatgpt.com`）与 Dayflow 一致；
 5. 抓取只发送**主机名**，不携带 cookie、referrer、屏幕内容；单次 4 秒超时；
-6. 成功结果**落盘缓存**到 `~/Library/Application Support/Daygo/favicons/<sha256(host)>`
-   （按机器抓一次，不再每次渲染重抓；离线也能显示）；失败在内存负缓存 10 分钟。
-   命中负缓存直接返回，取消不会写入负缓存；
+6. 成功结果**落盘缓存**到 `~/Library/Application Support/Daygo/favicons/<sha256(host)>.ico`。
+   单进程跨主机最多同时发出 12 个图标 HTTP 请求。磁盘缓存首次访问检查 1,024 文件 / 32 MiB
+   预算，写入跨过预算时优先淘汰最早写入的缓存文件。各实例独立记账，共享目录可能暂时超限。
+   失败在内存负缓存 10 分钟，命中负缓存直接返回；取消及排队超时不写负缓存；
 7. 抓取失败或站点无 favicon 时回落到首字母 monogram。
 
 ## 2. 为什么抓取在 Go 侧

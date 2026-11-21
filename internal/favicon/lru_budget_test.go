@@ -44,9 +44,12 @@ func TestWeightedLRUAccountingAndOversizedReplacement(t *testing.T) {
 
 func TestFaviconByteBudgetAndEvictedDiskResolution(t *testing.T) {
 	r := New(t.TempDir())
+	transport := &anonymousIconTransport{}
+	r.client.Transport = transport
 	// Anonymous image payloads exercise the budget before the entry cap.
 	data := append(bytes.Clone(pngPixel), make([]byte, 256<<10)...)
-	for i := 0; i < memoryCacheCap+50; i++ {
+	// Exceed the memory budget while retaining the full fixture on disk.
+	for i := 0; i < 48; i++ {
 		host := fmt.Sprintf("anonymous%d.example", i)
 		result := Result{Data: bytes.Clone(data), ContentType: "image/png"}
 		r.writeDisk(host, result)
@@ -59,7 +62,7 @@ func TestFaviconByteBudgetAndEvictedDiskResolution(t *testing.T) {
 		t.Fatal("oldest icon not evicted")
 	}
 	got, err := r.Resolve(context.Background(), "anonymous0.example")
-	if err != nil || !bytes.Equal(got.Data, data) {
+	if err != nil || !bytes.Equal(got.Data, data) || transport.calls.Load() != 0 {
 		t.Fatalf("evicted disk icon could not resolve: %v", err)
 	}
 	oversized := Result{Data: make([]byte, memoryCacheBytes+1), ContentType: "image/png"}
