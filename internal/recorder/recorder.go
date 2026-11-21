@@ -480,10 +480,10 @@ func (r *Recorder) finishSegment() error {
 			finishErr = fmt.Errorf("recorder: finalize active segment: %w", err)
 		} else {
 			r.mu.Lock()
-			activePath, activeSize := r.lastSegmentPath, r.lastSegmentSize
+			directory, activePath := r.cfg.Directory, r.lastSegmentPath
 			r.mu.Unlock()
 			if activePath != "" {
-				if err := r.cfg.Store.AmortizeSegment(context.Background(), activePath, activeSize); err != nil {
+				if err := r.accountFinalizedSegment(context.Background(), directory, activePath); err != nil {
 					finishErr = fmt.Errorf("recorder: account for finalized segment: %w", err)
 				}
 			}
@@ -514,6 +514,14 @@ func (r *Recorder) finishSegment() error {
 		r.emit(StateCapturing, nil)
 	}
 	return finishErr
+}
+
+func (r *Recorder) accountFinalizedSegment(ctx context.Context, directory, segment string) error {
+	size, err := platform.FinalizedSegmentSize(directory, segment)
+	if err != nil {
+		return err
+	}
+	return r.cfg.Store.AmortizeSegment(ctx, segment, size)
 }
 
 func (r *Recorder) run(ctx context.Context) {
@@ -651,10 +659,8 @@ func (r *Recorder) capture(ctx context.Context) error {
 		}
 		r.mu.Lock()
 		var rolledPath string
-		var rolledSize int64
 		if r.lastSegmentPath != "" && r.lastSegmentPath != result.SegmentPath {
 			rolledPath = r.lastSegmentPath
-			rolledSize = r.lastSegmentSize
 			r.lastSegmentSize = 0
 		}
 		r.lastSegmentPath = result.SegmentPath
@@ -667,7 +673,7 @@ func (r *Recorder) capture(ctx context.Context) error {
 		r.mu.Unlock()
 
 		if rolledPath != "" {
-			if err := r.cfg.Store.AmortizeSegment(ctx, rolledPath, rolledSize); err != nil {
+			if err := r.accountFinalizedSegment(ctx, req.SegmentDirectory, rolledPath); err != nil {
 				// Mirror the finalize path: a disk-accounting failure must not abort
 				// the capture loop, but it also must not vanish, or per-frame size
 				// amortization drifts silently. Surface it through shutdownErr like

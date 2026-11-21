@@ -3,6 +3,8 @@ package recorder
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -55,12 +57,20 @@ func newSystemSegmentRecorder(t *testing.T, capture *systemSegmentCapture) (*Rec
 	return r, store
 }
 
+func seedSystemSegment(t *testing.T, r *Recorder) {
+	t.Helper()
+	r.lastSegmentPath, r.lastSegmentSize = "anonymous-active.mp4", 1000
+	if err := os.WriteFile(filepath.Join(r.cfg.Directory, r.lastSegmentPath), make([]byte, 1000), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSystemPauseFinalizesSegment(t *testing.T) {
 	for _, kind := range []platform.SystemEventKind{platform.EventSleep, platform.EventScreenLocked, platform.EventScreensaverStart} {
 		t.Run(string(kind), func(t *testing.T) {
 			c := &systemSegmentCapture{SegmentCapture: fake.NewSegmentCapture()}
 			r, _ := newSystemSegmentRecorder(t, c)
-			r.lastSegmentPath, r.lastSegmentSize = "segments/anonymous-active.mp4", 1000
+			seedSystemSegment(t, r)
 			r.HandleSystemEvent(platform.SystemEvent{Kind: kind})
 			if r.State() != StatePaused || c.closes != 1 || r.ActiveSegmentPath() != "" {
 				t.Fatalf("state=%s closes=%d active=%q", r.State(), c.closes, r.ActiveSegmentPath())
@@ -108,7 +118,7 @@ func TestSystemFinalizeFailureStaysVisibleAndCanRetry(t *testing.T) {
 	want := errors.New("anonymous finalize failure")
 	c := &systemSegmentCapture{SegmentCapture: fake.NewSegmentCapture(), err: want}
 	r, _ := newSystemSegmentRecorder(t, c)
-	r.lastSegmentPath, r.lastSegmentSize = "segments/anonymous-active.mp4", 1000
+	seedSystemSegment(t, r)
 	r.HandleSystemEvent(platform.SystemEvent{Kind: platform.EventScreenLocked})
 	if !errors.Is(r.LastError(), want) || r.ActiveSegmentPath() == "" {
 		t.Fatal("finalize failure lost its error or active protection")

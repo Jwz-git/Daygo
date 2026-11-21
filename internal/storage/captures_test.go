@@ -179,6 +179,12 @@ func TestAmortizeSegment(t *testing.T) {
 	if size1 != 300 || size2 != 300 {
 		t.Fatalf("sizes = (%d, %d), want (300, 300)", size1, size2)
 	}
+	if err := repo.AmortizeSegment(ctx, seg, 601); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.recordingsUsage(ctx); err != nil || got != 601 {
+		t.Fatalf("accounted %d bytes, want all 601: %v", got, err)
+	}
 }
 
 func TestReconcileMarksUnfinalizedSegmentsDeleted(t *testing.T) {

@@ -271,14 +271,16 @@ func (r *CaptureRepo) AmortizeSegment(ctx context.Context, segmentPath string, t
 		if totalSize <= 0 {
 			return nil
 		}
-		perFrame := totalSize / count
-		if perFrame <= 0 {
-			perFrame = 1
-		}
+		perFrame, remainder := totalSize/count, totalSize%count
+		// Give the first frames any remaining bytes so the shares add up
+		// to the exact file size, including segments with frame index gaps.
 		_, err := tx.ExecContext(ctx, `
 			UPDATE screenshots
-			SET file_size = ?
-			WHERE segment_path = ? AND is_deleted = 0`, perFrame, segmentPath)
+			SET file_size = ? + (id IN (
+				SELECT id FROM screenshots WHERE segment_path = ? AND is_deleted = 0
+				ORDER BY frame_index LIMIT ?
+			))
+			WHERE segment_path = ? AND is_deleted = 0`, perFrame, segmentPath, remainder, segmentPath)
 		return err
 	})
 	if err == nil {

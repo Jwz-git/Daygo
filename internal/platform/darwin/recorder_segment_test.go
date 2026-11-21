@@ -4,6 +4,8 @@ package darwin
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -71,6 +73,14 @@ func TestNativeRecorderSystemPauseFinalizesReadableSegment(t *testing.T) {
 			}
 			if _, err := NewMedia(root).DecodeFrame(t.Context(), platform.DecodeRequest{SegmentPath: segment, FrameIndex: 0}); err != nil {
 				t.Fatal(err)
+			}
+			file, err := os.Stat(filepath.Join(root, filepath.FromSlash(segment)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			stats, err := store.Stats(t.Context())
+			if err != nil || stats.RecordingsBytes != file.Size() {
+				t.Fatalf("accounted %d bytes for %d-byte finalized segment: %v", stats.RecordingsBytes, file.Size(), err)
 			}
 		})
 	}

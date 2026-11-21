@@ -22,6 +22,7 @@ type testStore struct {
 	next, commits, blocked int
 	abandons               int
 	relativePaths          []string
+	segmentSizes           map[string]int64
 }
 
 func (s *testStore) Begin(_ context.Context, relativePath string, _ int, _ time.Time, _ *int, _, _ int, _ bool) (int64, error) {
@@ -49,7 +50,13 @@ func (s *testStore) Abandon(context.Context, int64) error {
 	s.mu.Unlock()
 	return nil
 }
-func (s *testStore) AmortizeSegment(context.Context, string, int64) error {
+func (s *testStore) AmortizeSegment(_ context.Context, segment string, size int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.segmentSizes == nil {
+		s.segmentSizes = make(map[string]int64)
+	}
+	s.segmentSizes[segment] = size
 	return nil
 }
 
@@ -454,6 +461,30 @@ func TestRecorderSegmentCaptureWithCloser(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitState(t, events, StateIdle)
+}
+
+func TestRecorderAccountsForFinalizedRolloverSize(t *testing.T) {
+	dir := t.TempDir()
+	store := &testStore{}
+	r, err := New(Config{
+		Capture: fake.NewSegmentCapture(), Store: store, Directory: dir,
+		Settings: settings.Snapshot{CaptureIntervalSeconds: 10, CaptureHeightPixels: 18},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const rolled = "anonymous-previous.mp4"
+	r.state = StateCapturing
+	r.lastSegmentPath, r.lastSegmentSize = rolled, 10
+	if err := os.WriteFile(filepath.Join(dir, rolled), make([]byte, 97), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.capture(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.segmentSizes[rolled]; got != 97 {
+		t.Fatalf("accounted %d bytes for finalized 97-byte segment", got)
+	}
 }
 
 // #8 regression: a system blocker (sleep/lock/screensaver) arriving during a

@@ -97,6 +97,8 @@ AmortizeSegment 成功才释放），不由逐帧 committed 状态推断。候�
 
 2026-11-21 清理验证（基于 `87d607f` 的 `test` 工作树，macOS arm64）：`CGO_ENABLED=0 go test -count=1 ./internal/storage -run 'Test(Cleanup.*|OrphanSweep.*|CreateBatchRefusesFramesDeletedSinceDiscovery)$'` 通过，含进入目录遍历时取消、新登记的待提交引用、活跃分段与批次租用夹具。另以忽略目录中的匿名 `TestReviewCleanupQuery` 夹具复测 259,200 帧、86,400 有效帧，生产候选查询三轮平均由约 3.89 秒降至 72 毫秒，与对照的 1,438 个候选及顺序一致。该测量仅含候选查询，未测真实录制丢帧。回退为撤销提交，无 schema 迁移。
 
+2026-11-21 收尾记账（基于 `d129fa8` 的 `test` 工作树，macOS arm64）：暂停、停止或滚动分段时读取录制根目录内已收尾文件的实际字节数，整数余数随逐帧份额写入，求和还原总字节。无法确认文件大小时返回错误并保留原有清理保护。匿名 macOS HEVC 夹具修正前记账 1 B、收尾后实际 965–966 B；修正后等于磁盘文件大小。滚段夹具由 10 B 修正为 97 B，两帧均摊夹具由 600 B 修正为 601 B。验证命令为 `go test -count=1 ./internal/platform/darwin ./internal/storage ./internal/recorder -run 'Test(NativeRecorderSystemPauseFinalizesReadableSegment|AmortizeSegment|RecorderAccountsForFinalizedRolloverSize|System.*Segment|SystemFinalizeFailureStaysVisibleAndCanRetry)$'`。Windows 原生和真实宿主回归待测。回退为撤销提交，无 schema 迁移。
+
 | 输入 | 可独立推进 | 真实接入条件 |
 |---|---|---|
 | 03 schema 与 05 repository 契约 | 匿名新库、旧库、损坏库与并发 fixture | db-core 独立门禁；只用隔离测试目录 |
