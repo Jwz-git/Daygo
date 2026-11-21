@@ -14,7 +14,7 @@ export async function playgroundAccess(): Promise<boolean> {
   return capabilities.canWrite && capabilities.isCaptureOwner
 }
 
-export function readImage(file: File): Promise<string> {
+export function readImage(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('imageInvalid'))

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView } from 'vue-router'
 
@@ -10,7 +10,6 @@ import FatalErrorOverlay from '@/components/FatalErrorOverlay.vue'
 import LaunchSplash from '@/components/LaunchSplash.vue'
 import AppShell from '@/layout/AppShell.vue'
 import { useOnboardingStore } from '@/stores/onboarding'
-import OnboardingFlow from '@/views/Onboarding/OnboardingFlow.vue'
 import { useTestToolsStore } from '@/stores/testTools'
 import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
 import { useUIVisibilityStore } from '@/stores/uiVisibility'
@@ -31,6 +30,7 @@ void tokenUsageVisibility.initialize()
 
 // The first-run guide decides behind the launch splash, so the splash lifts
 // onto whichever of the two is due rather than flashing the shell first.
+const OnboardingFlow = defineAsyncComponent(() => import('@/views/Onboarding/OnboardingFlow.vue'))
 const onboarding = useOnboardingStore()
 void onboarding.initialize()
 const showSplash = ref(true)

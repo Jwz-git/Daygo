@@ -13,6 +13,8 @@
 
 ## 当前状态与证据
 
+2026-11-21 前端资产（基于 `fef868e` 的 `test` 工作树，macOS arm64）：18px Windows 标题栏使用 72px 派生图标，五个大图标缩到 128px，正式桌面应用图标不变。模型试用从同源资产读取样图并在内存转换，首次引导按需加载。 `npm --prefix frontend run build` 与 310 项前端单测通过。现有构建前后 `dist/assets` 从 3,662,752 B 降至 2,047,379 B，模型试用 JS 从 126,557 B 降至 8,434 B。未测 Windows 视觉或首次引导实际加载时延。回退为撤销提交。
+
 2026-11-21 隐藏窗口刷新（基于 `b617ede` 的 `test` 工作树，macOS arm64）：录制控件、计时暂停、日 / 周轨道、计划控件与 Token 用量的前端间隔计时器随宿主可见性挂起，重开立即刷新一次。时间线生成动画隐藏时暂停。匿名 Pinia / 宿主事件和计时器夹具覆盖隐藏、重开和卸载，`npm --prefix frontend run test:unit` 307 项及 `npm --prefix frontend run typecheck` 通过。真实宿主持续录制与耗电未测。回退为撤销提交。
 
 2026-11-21 外壳渲染修正（基于 `502513d` 的 `test` 工作树，macOS arm64）：默认主题未呈现指针高光，外壳移除对应的全局指针监听。折射滤镜换强度或卸载时移除原 SVG。匿名 DOM 夹具修正前强度切换未替换节点，修正后切换、关闭及重新挂载均验证通过。`npm --prefix frontend run test:unit` 305 项通过，`npm --prefix frontend run typecheck` 通过。真实 WebView 渲染耗时未测。回退为撤销提交。

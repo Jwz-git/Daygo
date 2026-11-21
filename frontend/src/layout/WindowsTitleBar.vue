@@ -6,7 +6,7 @@ import {
   minimiseDesktopWindow as WindowMinimise,
   toggleDesktopMaximise as WindowToggleMaximise,
 } from '@/api/desktopBridge'
-import appIconUrl from '../../../build/appicon.png'
+import appIconUrl from '@/assets/window-titlebar-icon.png'
 
 const maximised = ref(false)
 

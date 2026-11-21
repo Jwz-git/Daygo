@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import defaultImage from '@/assets/favicons/daygo.png?inline'
+import defaultImage from '@/assets/favicons/daygo.png'
 import { useProvidersStore } from './providers'
 import { createPlaygroundSession, imageFileError } from './modelPlaygroundSession'
 import { playgroundAccess, readImage, tryProvider } from '@/api/modelPlayground'
@@ -36,7 +36,23 @@ export function useModelPlayground() {
     if (!session.busy.value) session.clear()
   })
 
+  async function loadDefaultImage(): Promise<void> {
+    const current = imageGeneration
+    reading.value = true
+    try {
+      const response = await fetch(defaultImage)
+      if (!response.ok) throw new Error('imageInvalid')
+      const dataURL = await readImage(await response.blob())
+      if (!disposed && current === imageGeneration) imageURL.value = dataURL
+    } catch {
+      if (!disposed && current === imageGeneration) imageError.value = 'imageInvalid'
+    } finally {
+      if (!disposed && current === imageGeneration) reading.value = false
+    }
+  }
+
   async function initialize(selectedProvider: unknown, selectedModel: unknown): Promise<void> {
+    if (imageURL.value === defaultImage) void loadDefaultImage()
     try {
       const writable = await playgroundAccess()
       if (disposed) return
