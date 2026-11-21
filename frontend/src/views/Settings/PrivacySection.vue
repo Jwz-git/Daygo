@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ApplicationDTO } from '@/api/application'
@@ -8,13 +8,13 @@ import {
   describeApplications,
   getBlockedApplications,
   getPrivacyCompatibility,
-  listInstalledApplications,
   pickApplication,
   type PrivacyCompatibilityDTO,
 } from '@/api/application'
 import { WAILS_UNAVAILABLE } from '@/api/settings'
 
 import { useSettingsSection } from './useSettingsSection'
+import { createInstalledApplicationPages } from './installedApplicationPages'
 
 type ListState = 'loading' | 'ready' | 'unavailable'
 
@@ -29,45 +29,22 @@ const { state, settings, load, persist, writeFailed } = useSettingsSection()
  */
 const applications = ref<ApplicationDTO[]>([])
 const listState = ref<ListState>('loading')
-const installed = shallowRef<ApplicationDTO[]>([])
-const installedState = ref<ListState>('loading')
-let mounted = true
-let installedRequest = 0
-onBeforeUnmount(() => { mounted = false; installedRequest++ })
+const {
+  installedNames, installedState, navigate, page, pageCount, query, refreshInstalled, shown, total,
+} = createInstalledApplicationPages(locale)
+const installedPanel = ref<HTMLElement | null>(null)
 const selecting = ref(false)
 const pickError = ref('')
 const compatibility = ref<PrivacyCompatibilityDTO | null>(null)
-const query = ref('')
 
 const blockedIds = computed(() => settings.value?.privacy.blockedApplicationIds ?? [])
 const blockedIdSet = computed(() => new Set(blockedIds.value))
-/*
- * Names come from the enumeration, which resolves them in the UI language;
- * tiles outside the installed list (an uninstalled app that is still
- * configured) fall back to what the platform inspector can resolve.
- */
-const installedNames = computed(() => {
-  const names = new Map<string, string>()
-  for (const application of installed.value) names.set(application.id, application.name)
-  return names
-})
 const canEdit = computed(() => state.value === 'ready' && listState.value === 'ready')
 
-const filteredInstalled = computed(() => {
-  const needle = query.value.trim().toLowerCase()
-  if (needle === '') return installed.value
-  return installed.value.filter(
-    (application) =>
-      application.name.toLowerCase().includes(needle) ||
-      application.id.toLowerCase().includes(needle),
-  )
-})
-
 onMounted(() => void loadSection())
-
-// Re-enumerate when the UI language changes so app names follow it; icons are
-// preserved by id because they do not depend on the language.
-watch(locale, () => void refreshInstalled())
+watch([page, query], () => {
+  if (installedPanel.value !== null) installedPanel.value.scrollTop = 0
+})
 
 async function loadSection(): Promise<void> {
 	await load()
@@ -117,54 +94,6 @@ async function syncApplicationsFromSettings(): Promise<void> {
       )
     } catch {
       // Display data only; monogram fallbacks remain until the next refresh.
-    }
-  }
-}
-
-/**
- * Enumerates the installed applications and then resolves their icons in
- * batches. The listing itself is cheap identifier/name pairs; icon payloads
- * are large enough that one batched describe per chunk beats a single
- * oversized call, and a chunk failing only costs its own icons.
- */
-async function refreshInstalled(): Promise<void> {
-  if (!mounted) return
-  const request = ++installedRequest
-  installedState.value = 'loading'
-  try {
-    const listing = await listInstalledApplications(locale.value)
-    if (request !== installedRequest) return
-    const previousIcons = new Map(installed.value.map((application) => [application.id, application.iconDataUrl]))
-    installed.value = listing.map((application) => ({
-      ...application,
-      iconDataUrl: previousIcons.get(application.id) ?? application.iconDataUrl,
-    }))
-    installedState.value = 'ready'
-    await resolveIcons(installed.value, request)
-  } catch {
-    if (request !== installedRequest) return
-    installed.value = []
-    installedState.value = 'unavailable'
-  }
-}
-
-const iconBatchSize = 32
-
-async function resolveIcons(listing: ApplicationDTO[], request: number): Promise<void> {
-  const withoutIcon = listing.filter((application) => application.iconDataUrl === '')
-  for (let start = 0; start < withoutIcon.length; start += iconBatchSize) {
-    const batch = withoutIcon.slice(start, start + iconBatchSize)
-    try {
-      const resolved = await describeApplications(batch.map((application) => application.id))
-      if (request !== installedRequest) return
-      const icons = new Map(resolved.map((application) => [application.id, application.iconDataUrl]))
-      installed.value = installed.value.map((application) => ({
-        ...application,
-        iconDataUrl: icons.get(application.id) ?? application.iconDataUrl,
-      }))
-    } catch {
-      // Icons are display data; a failed batch leaves monogram fallbacks.
-      break
     }
   }
 }
@@ -245,11 +174,7 @@ function labelOf(application: ApplicationDTO): string {
       </span>
     </div>
 
-    <!--
-      Installed applications: search, then a grid of tiles. Clicking a tile
-      adds the application to the privacy list; a tile already on the list
-      shows a badge and stays inert, because removal lives in the blocked row.
-    -->
+    <!-- Search all installed applications; each visible tile toggles its entry. -->
     <div class="privacy__search">
       <input
         v-model="query"
@@ -263,7 +188,7 @@ function labelOf(application: ApplicationDTO): string {
     <div class="privacy__section-head">
       <h3 class="privacy__section-title">{{ t('settings.privacy.installedTitle') }}</h3>
       <span v-if="installedState === 'ready'" class="privacy__section-count">
-        {{ t('settings.privacy.installedCount', { count: filteredInstalled.length }) }}
+        {{ t('settings.privacy.installedCount', { count: total }) }}
       </span>
     </div>
 
@@ -281,12 +206,12 @@ function labelOf(application: ApplicationDTO): string {
         {{ selecting ? t('settings.privacy.selecting') : t('settings.privacy.choose') }}
       </button>
     </div>
-    <p v-else-if="filteredInstalled.length === 0" class="privacy__note">
+    <p v-else-if="total === 0" class="privacy__note">
       {{ t('settings.privacy.searchEmpty') }}
     </p>
-    <div v-else class="privacy__panel dg-scroll" role="listbox" :aria-label="t('settings.privacy.installedTitle')">
+    <div v-else ref="installedPanel" class="privacy__panel dg-scroll" role="group" :aria-label="t('settings.privacy.installedTitle')">
       <button
-        v-for="application in filteredInstalled"
+        v-for="application in shown"
         :key="application.id"
         type="button"
         class="app-tile"
@@ -318,6 +243,16 @@ function labelOf(application: ApplicationDTO): string {
           </span>
         </span>
         <span class="app-tile__name">{{ labelOf(application) }}</span>
+      </button>
+    </div>
+
+    <div v-if="installedState === 'ready' && pageCount > 1" class="privacy__navigation">
+      <button type="button" class="dg-button" :disabled="page === 0" @click="navigate(-1)">
+        {{ t('common.action.previous') }}
+      </button>
+      <span class="privacy__section-count" aria-live="polite">{{ page + 1 }} / {{ pageCount }}</span>
+      <button type="button" class="dg-button" :disabled="page + 1 === pageCount" @click="navigate(1)">
+        {{ t('common.action.next') }}
       </button>
     </div>
 
@@ -467,6 +402,13 @@ function labelOf(application: ApplicationDTO): string {
   padding: 10px;
   border-radius: var(--dg-card-radius);
   background: var(--dg-card-fill);
+}
+
+.privacy__navigation {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .privacy__panel--blocked {
