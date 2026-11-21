@@ -3,22 +3,26 @@
 package favicon
 
 import (
+	"context"
 	"net/url"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // systemProxyURL reads the macOS system HTTPS proxy via `scutil --proxy`, so
 // favicon fetches use the same proxy the OS (and Dayflow's URLSession) would.
 // Go's net/http reads only the *_PROXY environment variables, not the system
-// configuration, so this bridges that gap. It runs once at startup; a nil
+// configuration, so this bridges that gap. It runs once on demand; a nil
 // result means no system proxy is configured.
 //
 // This is a read-only configuration query, not a capture/keychain/host system
 // capability, so it stays local to the favicon network concern rather than
 // going through internal/platform. It degrades to nil off macOS.
 func systemProxyURL() *url.URL {
-	out, err := exec.Command("scutil", "--proxy").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "/usr/sbin/scutil", "--proxy").Output()
 	if err != nil {
 		return nil
 	}

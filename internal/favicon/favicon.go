@@ -101,15 +101,15 @@ func New(cacheDir string) *Resolver {
 
 // proxyResolver returns a Transport proxy function that prefers an
 // environment proxy (HTTPS_PROXY/HTTP_PROXY) and falls back to the platform
-// system proxy resolved once at startup. This mirrors Dayflow, whose URLSession
+// system proxy resolved once on the first fallback. This mirrors Dayflow, whose URLSession
 // honours the macOS system proxy transparently.
 func proxyResolver() func(*http.Request) (*url.URL, error) {
-	sys := systemProxyURL()
+	systemProxy := sync.OnceValue(systemProxyURL)
 	return func(req *http.Request) (*url.URL, error) {
 		if u, err := http.ProxyFromEnvironment(req); err == nil && u != nil {
 			return u, nil
 		}
-		return sys, nil
+		return systemProxy(), nil
 	}
 }
 
@@ -117,6 +117,9 @@ func proxyResolver() func(*http.Request) (*url.URL, error) {
 // found. Concurrent calls for one host share a single fetch. Successful results
 // are cached in memory and on disk; failures are negatively cached in memory.
 func (r *Resolver) Resolve(ctx context.Context, host string) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
 	normalized, err := NormalizeHost(host)
 	if err != nil {
 		return Result{}, err
@@ -126,6 +129,9 @@ func (r *Resolver) Resolve(ctx context.Context, host string) (Result, error) {
 	if hit, ok := r.lookup(normalized); ok {
 		return hit, nil
 	}
+	if r.negativeActive(normalized) {
+		return Result{}, errNotFound
+	}
 
 	value, err, _ := r.group.Do(normalized, func() (any, error) {
 		// Re-check after acquiring the flight: a racing caller may have filled
@@ -133,13 +139,18 @@ func (r *Resolver) Resolve(ctx context.Context, host string) (Result, error) {
 		if hit, ok := r.lookup(normalized); ok {
 			return hit, nil
 		}
+		if r.negativeActive(normalized) {
+			return Result{}, errNotFound
+		}
 		if disk, ok := r.readDisk(normalized); ok {
 			r.storeMemory(normalized, disk)
 			return disk, nil
 		}
 		result, ferr := r.fetch(ctx, normalized)
 		if ferr != nil {
-			r.storeNegative(normalized)
+			if ctx.Err() == nil && !errors.Is(ferr, context.Canceled) {
+				r.storeNegative(normalized)
+			}
 			return Result{}, ferr
 		}
 		r.storeMemory(normalized, result)
@@ -152,25 +163,11 @@ func (r *Resolver) Resolve(ctx context.Context, host string) (Result, error) {
 	return value.(Result), nil
 }
 
-// lookup consults the in-memory hot cache and negative cache. The bool reports
-// a hot-cache hit; a live negative entry returns a sentinel error via ok=false
-// path handled by the caller's fetch (it will be re-negatived cheaply).
+// lookup consults the in-memory cache of successful results.
 func (r *Resolver) lookup(host string) (Result, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if hit, ok := r.memory.get(host); ok {
-		return hit, true
-	}
-	if until, ok := r.negative.get(host); ok {
-		if time.Now().Before(until) {
-			// Represented as a hot "empty" result so callers skip the network
-			// without a disk hit; Resolve treats empty data as not-found below.
-			return Result{}, false
-		}
-		// Expired: drop it so the cache does not retain dead hosts forever.
-		r.negative.delete(host)
-	}
-	return Result{}, false
+	return r.memory.get(host)
 }
 
 func (r *Resolver) storeMemory(host string, result Result) {
@@ -207,9 +204,6 @@ func (r *Resolver) negativeActive(host string) bool {
 // resolve HTML-declared favicons that the root /favicon.ico misses; the direct
 // site hit starts a short head-start later as the aggregator-free fallback.
 func (r *Resolver) fetch(ctx context.Context, host string) (Result, error) {
-	if r.negativeActive(host) {
-		return Result{}, errNotFound
-	}
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 

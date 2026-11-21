@@ -2,9 +2,12 @@ package favicon
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 // a 1x1 PNG, enough for http.DetectContentType to report image/png.
@@ -73,6 +76,32 @@ func TestNegativeCacheWindow(t *testing.T) {
 	r.storeNegative(host)
 	if !r.negativeActive(host) {
 		t.Fatal("host should be negative after storeNegative")
+	}
+}
+
+func TestNegativeResolveKeepsOriginalExpiry(t *testing.T) {
+	r := New(t.TempDir())
+	const host = "dead.example"
+	until := time.Now().Add(time.Minute)
+	r.negative.put(host, until)
+	if _, err := r.Resolve(t.Context(), host); !errors.Is(err, errNotFound) {
+		t.Fatalf("negative resolve: %v", err)
+	}
+	if got, _ := r.negative.get(host); !got.Equal(until) {
+		t.Fatalf("negative hit extended expiry from %v to %v", until, got)
+	}
+}
+
+func TestCanceledResolveDoesNotCreateNegativeEntry(t *testing.T) {
+	r := New(t.TempDir())
+	const host = "canceled.example"
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := r.Resolve(ctx, host); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled resolve: %v", err)
+	}
+	if r.negativeActive(host) {
+		t.Fatal("canceled request populated the negative cache")
 	}
 }
 
