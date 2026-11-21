@@ -1,29 +1,15 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { usePointerHighlight } from '@/lib/pointerHighlight'
+import { onBeforeUnmount, onMounted } from 'vue'
 import { useRefractionFilter } from '@/lib/refractionFilter'
 import { useRecordingStore } from '@/stores/recording'
 import SideRail from './SideRail.vue'
 import WindowsTitleBar from './WindowsTitleBar.vue'
 
 const recording = useRecordingStore()
-const shellRef = ref<HTMLElement | null>(null)
-const pointer = usePointerHighlight(shellRef)
 useRefractionFilter('subtle')
 
-onMounted(() => {
-  recording.startListening()
-  // Mark the shell root as a tracking surface so the pointer-following
-  // specular highlight reads across the panel. Children inherit it; the
-  // highlight mask stays under each child's bounds automatically.
-  if (shellRef.value) pointer.register(shellRef.value)
-})
-onBeforeUnmount(() => {
-  recording.stopListening()
-  if (shellRef.value) pointer.unregister(shellRef.value)
-})
-
-defineExpose({ registerPointer: pointer.register, unregisterPointer: pointer.unregister })
+onMounted(() => recording.startListening())
+onBeforeUnmount(() => recording.stopListening())
 
 const isWindows = document.documentElement.dataset.dgPlatform === 'windows'
 </script>
@@ -31,7 +17,7 @@ const isWindows = document.documentElement.dataset.dgPlatform === 'windows'
 <template>
   <div class="app-frame">
     <WindowsTitleBar v-if="isWindows" />
-    <div ref="shellRef" class="shell">
+    <div class="shell">
       <SideRail />
 
       <main class="panel dg-panel">

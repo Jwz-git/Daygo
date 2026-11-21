@@ -19,7 +19,7 @@ export type RefractionIntensity = 'subtle' | 'normal' | 'off'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
-let installed = false
+let installed: SVGSVGElement | null = null
 let currentIntensity: RefractionIntensity = 'subtle'
 
 function buildSvg(intensity: RefractionIntensity): SVGSVGElement {
@@ -62,7 +62,7 @@ function buildSvg(intensity: RefractionIntensity): SVGSVGElement {
 }
 
 export function installRefractionFilter(intensity: RefractionIntensity = 'subtle'): void {
-  if (installed) return
+  if (installed !== null || intensity === 'off') return
   if (typeof document === 'undefined') return
 
   const reducedMotion =
@@ -75,27 +75,15 @@ export function installRefractionFilter(intensity: RefractionIntensity = 'subtle
 
   const svg = buildSvg(intensity)
   document.body.append(svg)
-  installed = true
+  installed = svg
   currentIntensity = intensity
 }
 
 export function setRefractionIntensity(intensity: RefractionIntensity): void {
-  if (!installed) {
-    installRefractionFilter(intensity)
-    return
-  }
-  if (intensity === 'off') {
-    const existing = document.getElementById('lg-displacement-host')
-    if (existing) existing.remove()
-    installed = false
-    return
-  }
-  if (intensity === currentIntensity) return
-  const existing = document.getElementById('lg-displacement-host')
-  if (existing) existing.remove()
-  buildSvg(intensity)
-  installed = true
-  currentIntensity = intensity
+  if (installed !== null && intensity === currentIntensity) return
+  installed?.remove()
+  installed = null
+  installRefractionFilter(intensity)
 }
 
 /**
