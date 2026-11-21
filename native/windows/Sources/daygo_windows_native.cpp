@@ -33,9 +33,9 @@
 #include <cstdio>
 #include <cwctype>
 #include <iterator>
+#include <list>
 #include <mutex>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -112,8 +112,48 @@ struct ApplicationData {
   std::vector<uint8_t> icon_png;
 };
 
-std::mutex application_cache_mutex;
-std::unordered_map<std::string, ApplicationData> application_cache;
+class ApplicationCache {
+ public:
+  bool lookup(const std::string& identifier, ApplicationData* application) {
+    std::lock_guard lock(mutex_);
+    auto found = find(identifier);
+    if (found == entries_.end()) return false;
+    *application = *found;
+    entries_.splice(entries_.begin(), entries_, found);
+    return true;
+  }
+
+  void remember(const ApplicationData& application) {
+    std::lock_guard lock(mutex_);
+    auto found = find(application.identifier);
+    if (found != entries_.end()) {
+      bytes_ -= found->icon_png.size();
+      entries_.erase(found);
+    }
+    if (application.icon_png.size() > kByteLimit) return;
+    entries_.push_front(application);
+    bytes_ += application.icon_png.size();
+    while (entries_.size() > kEntryLimit || bytes_ > kByteLimit) {
+      bytes_ -= entries_.back().icon_png.size();
+      entries_.pop_back();
+    }
+  }
+
+ private:
+  std::list<ApplicationData>::iterator find(const std::string& identifier) {
+    return std::find_if(entries_.begin(), entries_.end(), [&](const ApplicationData& application) {
+      return application.identifier == identifier;
+    });
+  }
+
+  static constexpr size_t kEntryLimit = 256;
+  static constexpr size_t kByteLimit = 8 * 1024 * 1024;
+  std::mutex mutex_;
+  std::list<ApplicationData> entries_;
+  size_t bytes_ = 0;
+};
+
+ApplicationCache application_cache;
 
 bool utf8_to_wide(const uint8_t* data, uint64_t length, size_t maximum,
                   std::wstring* output) {
@@ -501,14 +541,7 @@ bool find_registered_application(const std::string& identifier,
 
 bool find_application_by_identifier(const std::string& identifier,
                                     ApplicationData* application) {
-  {
-    std::lock_guard lock(application_cache_mutex);
-    const auto found = application_cache.find(identifier);
-    if (found != application_cache.end()) {
-      *application = found->second;
-      return true;
-    }
-  }
+  if (application_cache.lookup(identifier, application)) return true;
   Handle<HANDLE> snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
   if (snapshot) {
     PROCESSENTRY32W process{};
@@ -518,16 +551,14 @@ bool find_application_by_identifier(const std::string& identifier,
         const std::wstring path = process_path(process.th32ProcessID);
         if (!path.empty() && application_identifier(path) == identifier &&
             inspect_path(path, application)) {
-          std::lock_guard lock(application_cache_mutex);
-          application_cache[identifier] = *application;
+          application_cache.remember(*application);
           return true;
         }
       } while (Process32NextW(snapshot.get(), &process));
     }
   }
   if (find_registered_application(identifier, application)) {
-    std::lock_guard lock(application_cache_mutex);
-    application_cache[identifier] = *application;
+    application_cache.remember(*application);
     return true;
   }
   return false;
@@ -852,10 +883,7 @@ __declspec(dllexport) int32_t DG_APPLICATION_CALL dg_application_inspect(
     return application_failure(DG_APPLICATION_E_NOT_APPLICATION,
                                HRESULT_FROM_WIN32(GetLastError()), out_error);
   }
-  {
-    std::lock_guard lock(application_cache_mutex);
-    application_cache[application.identifier] = application;
-  }
+  application_cache.remember(application);
   return write_application(application, out_info, out_error);
 }
 
