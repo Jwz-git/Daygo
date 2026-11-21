@@ -20,7 +20,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
-	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -130,7 +129,6 @@ func Run() error {
 					})
 				}
 			}
-			settingsAccess := settings.New(store.Settings())
 			maintainer := storage.NewMaintainer(store, storage.MaintainerOptions{
 				BackupDir: dir,
 				RecordingsRootFunc: func() string {
@@ -146,7 +144,7 @@ func Run() error {
 				},
 				CleanupLock: &backend.moveMu,
 				RecordingsLimit: func() int64 {
-					snapshot, err := settingsAccess.Load(ctx)
+					snapshot, err := backend.loadSettings(ctx)
 					if err != nil {
 						return 0
 					}

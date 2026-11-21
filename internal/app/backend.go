@@ -15,6 +15,7 @@ import (
 	"github.com/Jwz-git/Daygo/internal/favicon"
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/recorder"
+	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	daytime "github.com/Jwz-git/Daygo/internal/timeutil"
 )
@@ -70,6 +71,7 @@ type Backend struct {
 	chatgptOpenURL       func(string) error
 	updater              platform.Updater
 	storage              *storage.Store
+	preferences          *settings.Settings
 	recorder             *recorder.Recorder
 	recorderMu           sync.Mutex
 	// moveMu excludes capture commands, media reads and cleanup while files move.
@@ -293,7 +295,6 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 	b := &Backend{
 		clock:          clock,
 		system:         system,
-		storage:        store,
 		canWrite:       canWrite,
 		isCaptureOwner: isCaptureOwner,
 		emitter:        nopEmitter{},
@@ -301,6 +302,7 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 		planNudge:      make(chan struct{}, 1),
 		reminderNudge:  make(chan struct{}, 1),
 	}
+	b.attachStorage(store)
 	// Seed the menu bar before the frontend pushes a localized bundle: the
 	// status item is created during OnStartup, ahead of the first webview paint.
 	b.statusLabels.set(defaultStatusItemLabels())
@@ -315,6 +317,10 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 // exists for setStorageError, which can run while bindings are serving.
 func (b *Backend) attachStorage(store *storage.Store) {
 	b.storage = store
+	b.preferences = nil
+	if store != nil {
+		b.preferences = settings.New(store.Settings())
+	}
 }
 
 // setStorageError records a failed open. The error stays internal: diagnostics

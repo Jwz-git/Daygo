@@ -17,7 +17,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
+	"sync/atomic"
 )
 
 // Keys are the contract (docs/05 §5.6.3 rule 1, docs/03 §3.3.5). Renaming one
@@ -130,15 +132,26 @@ type repo interface {
 	Delete(ctx context.Context, key string) error
 }
 
-// Settings is the typed accessor. It holds no state beyond its repository, so
-// the same value serves every caller and there is no cache to invalidate.
+type revisionedRepo interface {
+	SnapshotRevision() (uint64, bool)
+}
+
+type cachedSnapshot struct {
+	revision uint64
+	value    Snapshot
+}
+
+// Settings is the typed accessor. Reuse it for readers sharing a repository.
 type Settings struct {
-	repo repo
+	repo     repo
+	revision revisionedRepo
+	snapshot atomic.Pointer[cachedSnapshot]
 }
 
 // New builds a typed accessor over a repository.
 func New(r repo) *Settings {
-	return &Settings{repo: r}
+	revision, _ := r.(revisionedRepo)
+	return &Settings{repo: r, revision: revision}
 }
 
 // Snapshot is every setting with defaults applied. A key absent from the
@@ -214,11 +227,43 @@ func (e *RoutingEntry) UnmarshalJSON(data []byte) error {
 // build, or edited outside the app, must not reach the rest of the system
 // unvalidated just because it is already stored.
 func (s *Settings) Load(ctx context.Context) (Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return Snapshot{}, err
+	}
+	if s.revision == nil {
+		return s.loadSnapshot(ctx)
+	}
+	revision, cacheable := s.revision.SnapshotRevision()
+	if !cacheable {
+		return s.loadSnapshot(ctx)
+	}
+	if snapshot := s.snapshot.Load(); snapshot != nil && snapshot.revision == revision {
+		return snapshot.value.clone(), nil
+	}
+
+	snapshot, err := s.loadSnapshot(ctx)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if current, cacheable := s.revision.SnapshotRevision(); cacheable && current == revision {
+		s.snapshot.Store(&cachedSnapshot{revision: revision, value: snapshot})
+		return snapshot.clone(), nil
+	}
+	return snapshot, nil
+}
+
+func (s *Settings) loadSnapshot(ctx context.Context) (Snapshot, error) {
 	raw, err := s.repo.GetAll(ctx)
 	if err != nil {
 		return Snapshot{}, err
 	}
 	return s.snapshotFrom(raw), nil
+}
+
+func (s Snapshot) clone() Snapshot {
+	s.BlockedApplicationIDs = slices.Clone(s.BlockedApplicationIDs)
+	s.ProvidersRouting.Chain = slices.Clone(s.ProvidersRouting.Chain)
+	return s
 }
 
 // Get reads one key with its default applied.

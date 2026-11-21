@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/Jwz-git/Daygo/internal/app/apperr"
 	"github.com/Jwz-git/Daygo/internal/recorder"
-	"github.com/Jwz-git/Daygo/internal/settings"
 	"os"
 	"path/filepath"
 	"time"
@@ -21,7 +20,7 @@ func (b *Backend) ensureRecorder() (*recorder.Recorder, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	snapshot, err := settings.New(b.storage.Settings()).Load(ctx)
+	snapshot, err := b.loadSettings(ctx)
 	if err != nil {
 		return nil, mapStorageError("load recording settings", err)
 	}

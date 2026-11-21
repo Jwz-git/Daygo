@@ -449,7 +449,7 @@ type backendChatSettings struct {
 }
 
 func (s backendChatSettings) Memory(ctx context.Context) (string, error) {
-	snapshot, err := settings.New(s.backend.store().Settings()).Load(ctx)
+	snapshot, err := s.backend.loadSettings(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -457,7 +457,7 @@ func (s backendChatSettings) Memory(ctx context.Context) (string, error) {
 }
 
 func (s backendChatSettings) EditMode(ctx context.Context) (string, error) {
-	snapshot, err := settings.New(s.backend.store().Settings()).Load(ctx)
+	snapshot, err := s.backend.loadSettings(ctx)
 	if err != nil {
 		// The gate fails closed: an unreadable setting means readonly.
 		return "", err
@@ -471,7 +471,7 @@ func (s backendChatSettings) EditMode(ctx context.Context) (string, error) {
 // rather than the empty sentinel, which renders as a weak "match the user"
 // instruction and lets the single-language skeleton default to English.
 func (s backendChatSettings) Language(ctx context.Context) (string, error) {
-	snapshot, err := settings.New(s.backend.store().Settings()).Load(ctx)
+	snapshot, err := s.backend.loadSettings(ctx)
 	if err != nil {
 		// An unreadable store has no authoritative language; fall back to
 		// the system default rather than the empty sentinel.

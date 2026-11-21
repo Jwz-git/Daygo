@@ -22,14 +22,21 @@ const settingsTimeout = 10 * time.Second
 // to read or write. Reporting unavailable is the honest answer; inventing
 // in-memory defaults would let the UI show values that would vanish on restart.
 func (b *Backend) settingsAccess() (*settings.Settings, error) {
-	store := b.store()
-	if store == nil {
+	if b.preferences == nil {
 		if err := b.storageFailure(); err != nil {
 			return nil, mapStorageError("open settings", err)
 		}
 		return nil, apperr.E(apperr.DatabaseError, "settings require a database", nil)
 	}
-	return settings.New(store.Settings()), nil
+	return b.preferences, nil
+}
+
+func (b *Backend) loadSettings(ctx context.Context) (settings.Snapshot, error) {
+	access, err := b.settingsAccess()
+	if err != nil {
+		return settings.Snapshot{}, err
+	}
+	return access.Load(ctx)
 }
 
 // GetSettings returns the effective settings with defaults applied.

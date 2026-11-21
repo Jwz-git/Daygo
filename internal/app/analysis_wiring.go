@@ -132,7 +132,7 @@ func (a analysisChainSource) ImageCap(ctx context.Context) int {
 // resolveInterfaceLanguage).
 func analysisLanguage(b *Backend) func(context.Context) string {
 	return func(ctx context.Context) string {
-		snapshot, err := settings.New(b.store().Settings()).Load(ctx)
+		snapshot, err := b.loadSettings(ctx)
 		if err != nil {
 			return settings.DefaultLanguage
 		}

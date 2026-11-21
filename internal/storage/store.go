@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -80,6 +81,10 @@ type Store struct {
 	// the set and the sends, so a notify never races with a Watch teardown.
 	subMu       sync.Mutex
 	subscribers map[chan SettingsChanged]struct{}
+	// Synchronous revision for writer-local snapshots. Channel delivery can
+	// lag or drop notifications during a burst.
+	settingsRevision atomic.Uint64
+	closed           atomic.Bool
 
 	// recoveredFrom records the backup this database was restored from after
 	// corruption, or "" when recovery did not happen. The user is then looking
@@ -165,6 +170,7 @@ func (s *Store) notifySettings(keys []string, at time.Time) {
 	if s == nil || len(keys) == 0 {
 		return
 	}
+	s.settingsRevision.Add(1)
 	s.subMu.Lock()
 	defer s.subMu.Unlock()
 	for ch := range s.subscribers {
@@ -213,6 +219,7 @@ func (s *Store) Close() error {
 	if s == nil {
 		return nil
 	}
+	s.closed.Store(true)
 	var errs []error
 	if s.db != nil {
 		if err := s.db.Close(); err != nil {

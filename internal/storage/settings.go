@@ -29,6 +29,12 @@ func (s *Store) Settings() *SettingsRepo {
 	return &SettingsRepo{store: s}
 }
 
+// SnapshotRevision is usable only by the process holding the database write
+// lock. Other instances must read from SQLite to observe external commits.
+func (r *SettingsRepo) SnapshotRevision() (uint64, bool) {
+	return r.store.settingsRevision.Load(), r.store.mode == ModeReadWrite && !r.store.closed.Load()
+}
+
 // Get returns the raw JSON value stored under key. The second result is false
 // when the key has never been written; callers apply their own default rather
 // than this layer inventing one, because defaults belong to the feature that
@@ -52,6 +58,9 @@ func (r *SettingsRepo) Get(ctx context.Context, key string) (string, bool, error
 // GetAll returns every stored setting. Keys never written are absent from the
 // result; the caller merges its defaults.
 func (r *SettingsRepo) GetAll(ctx context.Context) (map[string]string, error) {
+	if r.store.closed.Load() {
+		return nil, newError(KindEnvironment, "settings database is closed")
+	}
 	out := make(map[string]string)
 	err := r.store.Read(ctx, "settings get all", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, "SELECT key, value FROM "+settingsTable)
