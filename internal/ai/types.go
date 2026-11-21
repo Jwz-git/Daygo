@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,7 +83,11 @@ func VideoPart(data []byte) (Part, error) {
 func (p Part) Kind() PartKind       { return p.kind }
 func (p Part) Text() string         { return p.text }
 func (p Part) MediaType() MediaType { return p.mediaType }
-func (p Part) Bytes() []byte        { return append([]byte(nil), p.data...) }
+
+// Base64 encodes the immutable media payload without making a raw copy.
+func (p Part) Base64() string { return base64.StdEncoding.EncodeToString(p.data) }
+
+func (p Part) Bytes() []byte { return append([]byte(nil), p.data...) }
 
 func (m MediaType) valid() bool {
 	return m == MediaJPEG || m == MediaPNG || m == MediaWebP
@@ -159,8 +164,9 @@ type Usage struct {
 	CacheWriteTokens *int64
 }
 
-// Protocol clients expose Text/JSON/Model only on success. A decoded but
-// unusable response can still return measured Usage for attempt auditing.
+// Protocol clients expose Text/JSON/Model only on success. A non-empty
+// JSON field has already been validated against the requested output schema.
+// An unusable response can still return measured Usage for attempt auditing.
 type Result struct {
 	Text  string
 	JSON  json.RawMessage

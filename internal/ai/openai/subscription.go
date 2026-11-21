@@ -48,15 +48,10 @@ func (c *SubscriptionClient) Generate(ctx context.Context, req ai.Request) (ai.R
 	// Reuse image/schema mapping, with plan-specific transport and budget policy.
 	req.MaxOutputTokens = 0
 	mapper := ResponsesClient{model: c.model}
-	body, err := mapper.requestBody(req)
+	body, err := mapper.requestBody(req, true)
 	if err != nil {
 		return ai.Result{}, err
 	}
-	var payload map[string]json.RawMessage
-	_ = json.Unmarshal(body, &payload)
-	payload["stream"] = json.RawMessage("true")
-	payload["store"] = json.RawMessage("false")
-	body, _ = json.Marshal(payload)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return ai.Result{}, ai.NewError(ai.ErrorInvalidRequest, "cannot create subscription request", 0, nil)

@@ -5,9 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
+
+// StructuredJSON returns the provider's validated structured result when
+// available. Providers that only return Text still pass through validation.
+func (r Result) StructuredJSON(output OutputSchema) (json.RawMessage, error) {
+	if len(r.JSON) != 0 {
+		return r.JSON, nil
+	}
+	return ParseStructuredOutput(r.Text, output)
+}
 
 func ParseStructuredOutput(text string, output OutputSchema) (json.RawMessage, error) {
 	raw, err := extractJSON(text)
@@ -26,18 +36,9 @@ func ParseStructuredOutput(text string, output OutputSchema) (json.RawMessage, e
 // model's envelope, for instance — validate against the same library and the
 // same error kinds instead of growing a second validator.
 func ValidateJSON(raw json.RawMessage, output OutputSchema) error {
-	var schemaValue any
-	if err := decodeJSON(output.Schema, &schemaValue); err != nil {
-		return NewError(ErrorInvalidRequest, "output schema is invalid", 0, err)
-	}
-	compiler := jsonschema.NewCompiler()
-	const schemaURL = "urn:daygo:output-schema"
-	if err := compiler.AddResource(schemaURL, schemaValue); err != nil {
-		return NewError(ErrorInvalidRequest, "output schema cannot be loaded", 0, err)
-	}
-	schema, err := compiler.Compile(schemaURL)
+	schema, err := compiledSchema(output)
 	if err != nil {
-		return NewError(ErrorInvalidRequest, "output schema cannot be compiled", 0, err)
+		return err
 	}
 	var value any
 	if err := decodeJSON(raw, &value); err != nil {
@@ -47,6 +48,48 @@ func ValidateJSON(raw json.RawMessage, output OutputSchema) error {
 		return NewError(ErrorInvalidOutput, "model output does not match schema", 0, err)
 	}
 	return nil
+}
+
+const compiledSchemaLimit = 32
+
+var outputSchemas = struct {
+	sync.Mutex
+	entries map[string]*jsonschema.Schema
+}{entries: make(map[string]*jsonschema.Schema)}
+
+func compiledSchema(output OutputSchema) (*jsonschema.Schema, error) {
+	key := string(output.Schema)
+	outputSchemas.Lock()
+	cached := outputSchemas.entries[key]
+	outputSchemas.Unlock()
+	if cached != nil {
+		return cached, nil
+	}
+
+	var schemaValue any
+	if err := decodeJSON(output.Schema, &schemaValue); err != nil {
+		return nil, NewError(ErrorInvalidRequest, "output schema is invalid", 0, err)
+	}
+	compiler := jsonschema.NewCompiler()
+	const schemaURL = "urn:daygo:output-schema"
+	if err := compiler.AddResource(schemaURL, schemaValue); err != nil {
+		return nil, NewError(ErrorInvalidRequest, "output schema cannot be loaded", 0, err)
+	}
+	schema, err := compiler.Compile(schemaURL)
+	if err != nil {
+		return nil, NewError(ErrorInvalidRequest, "output schema cannot be compiled", 0, err)
+	}
+
+	outputSchemas.Lock()
+	defer outputSchemas.Unlock()
+	if cached := outputSchemas.entries[key]; cached != nil {
+		return cached, nil
+	}
+	if len(outputSchemas.entries) >= compiledSchemaLimit {
+		clear(outputSchemas.entries)
+	}
+	outputSchemas.entries[key] = schema
+	return schema, nil
 }
 
 func extractJSON(text string) (json.RawMessage, error) {

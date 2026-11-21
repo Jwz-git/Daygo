@@ -2,7 +2,6 @@ package anthropic
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"net"
 	"net/http"
@@ -57,7 +56,7 @@ func (c *Client) Generate(ctx context.Context, request daygoai.Request) (daygoai
 			return daygoai.Result{}, daygoai.NewError(daygoai.ErrorUnsupportedFeature, "provider protocol does not support video", 0, nil)
 		case daygoai.PartImage:
 			blocks = append(blocks, anthropicsdk.NewImageBlockBase64(
-				string(part.MediaType()), base64.StdEncoding.EncodeToString(part.Bytes()),
+				string(part.MediaType()), part.Base64(),
 			))
 		}
 	}

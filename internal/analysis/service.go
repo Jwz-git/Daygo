@@ -918,7 +918,7 @@ func (s *Service) transcribeGroupWithVideo(ctx context.Context, chain *ai.Chain,
 	if err != nil {
 		return nil, false, err
 	}
-	raw, err := ai.ParseStructuredOutput(result.Text, transcribeOutput)
+	raw, err := result.StructuredJSON(transcribeOutput)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1112,7 +1112,7 @@ func (s *Service) generateCards(ctx context.Context, chain *ai.Chain, batch stor
 		if err != nil {
 			return nil, rewriteStart, err
 		}
-		raw, err := ai.ParseStructuredOutput(result.Text, cardsOutput)
+		raw, err := result.StructuredJSON(cardsOutput)
 		if err != nil {
 			return nil, rewriteStart, err
 		}
@@ -1398,7 +1398,7 @@ func (s *Service) generateScopedCards(ctx context.Context, chain *ai.Chain, card
 		if err != nil {
 			return nil, err
 		}
-		raw, err := ai.ParseStructuredOutput(result.Text, cardsOutput)
+		raw, err := result.StructuredJSON(cardsOutput)
 		if err != nil {
 			return nil, err
 		}

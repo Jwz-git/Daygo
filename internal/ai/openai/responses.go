@@ -3,7 +3,6 @@ package openai
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -37,7 +36,7 @@ func (c *ResponsesClient) Generate(ctx context.Context, request daygoai.Request)
 	if err := request.Validate(); err != nil {
 		return daygoai.Result{}, err
 	}
-	body, err := c.requestBody(request)
+	body, err := c.requestBody(request, false)
 	if err != nil {
 		return daygoai.Result{}, err
 	}
@@ -74,7 +73,7 @@ func (c *ResponsesClient) Generate(ctx context.Context, request daygoai.Request)
 	return parseResponsesResponse(responseBody, request.Output)
 }
 
-func (c *ResponsesClient) requestBody(request daygoai.Request) ([]byte, error) {
+func (c *ResponsesClient) requestBody(request daygoai.Request, subscription bool) ([]byte, error) {
 	content := make([]map[string]any, 0, len(request.Parts))
 	for _, part := range request.Parts {
 		switch part.Kind() {
@@ -83,7 +82,7 @@ func (c *ResponsesClient) requestBody(request daygoai.Request) ([]byte, error) {
 		case daygoai.PartVideo:
 			return nil, daygoai.NewError(daygoai.ErrorUnsupportedFeature, "provider protocol does not support video", 0, nil)
 		case daygoai.PartImage:
-			encoded := base64.StdEncoding.EncodeToString(part.Bytes())
+			encoded := part.Base64()
 			content = append(content, map[string]any{
 				"type":      "input_image",
 				"image_url": "data:" + string(part.MediaType()) + ";base64," + encoded,
@@ -93,6 +92,10 @@ func (c *ResponsesClient) requestBody(request daygoai.Request) ([]byte, error) {
 	payload := map[string]any{
 		"model": c.model,
 		"input": []any{map[string]any{"role": "user", "content": content}},
+	}
+	if subscription {
+		payload["stream"] = true
+		payload["store"] = false
 	}
 	if request.MaxOutputTokens > 0 {
 		payload["max_output_tokens"] = request.MaxOutputTokens

@@ -271,6 +271,13 @@ Gemini 原生接口使用 API Key，支持获取生成模型以及文本、图�
 
 ## 验证记录
 
+- **2026-11-21（请求编码与响应验证，基于 `41e14ca` 的 `test` 工作树，macOS arm64）**：
+  OpenAI 订阅请求一次序列化便带上流式与不存储标记；OpenAI / Anthropic 对内部不可变媒体直接做 Base64 编码。
+  已校验的 JSON 供分析直接解码，纯文本 Provider 仍走校验；32 项有界缓存按 Schema 内容复用编译结果。
+  匿名夹具覆盖相同 Schema 复用、同名异构 Schema 的隔离、文本回退与原请求标记，
+  `CGO_ENABLED=0 go test -race -count=1 ./internal/ai/... ./internal/analysis` 通过。
+  未测真实 Provider 或堆峰值。回退为撤销提交。
+
 - **2026-11-21（默认图片上限下的原始视频路由，基于 `4fe8e38` 的 `test` 工作树，macOS arm64）**：
   `CGO_ENABLED=0 go test ./internal/analysis ./internal/ai/... ./internal/platform/mediafile` 通过。
   匿名 60 帧夹具修正前不读取视频，只发三组截图。修正后完整视频成功时只发一次视频请求；

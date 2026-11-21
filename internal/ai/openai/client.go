@@ -3,7 +3,6 @@ package openai
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -99,7 +98,7 @@ func (c *Client) requestBody(request daygoai.Request) ([]byte, error) {
 		case daygoai.PartVideo:
 			return nil, daygoai.NewError(daygoai.ErrorUnsupportedFeature, "provider protocol does not support video", 0, nil)
 		case daygoai.PartImage:
-			encoded := base64.StdEncoding.EncodeToString(part.Bytes())
+			encoded := part.Base64()
 			content = append(content, map[string]any{
 				"type":      "image_url",
 				"image_url": map[string]any{"url": "data:" + string(part.MediaType()) + ";base64," + encoded},
