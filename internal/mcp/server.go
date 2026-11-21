@@ -47,20 +47,29 @@ func NewServer(reader Reader, writer Writer, in io.Reader, out io.Writer) *Serve
 // Run serves until in reaches EOF or ctx is cancelled. Malformed lines get a
 // parse-error reply; notifications get none.
 func (s *Server) Run(ctx context.Context) error {
-	r := bufio.NewReader(s.in)
+	const maxRequestBytes = 1 << 20
+	r := bufio.NewReaderSize(s.in, maxRequestBytes+1)
 	for {
-		line, err := r.ReadBytes('\n')
-		if len(bytes.TrimSpace(line)) > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		line, err := r.ReadSlice('\n')
+		if err == bufio.ErrBufferFull || len(line) > maxRequestBytes {
+			s.write(errorResponse(nil, codeParseError, "request frame too large"))
+			for err == bufio.ErrBufferFull && ctx.Err() == nil {
+				_, err = r.ReadSlice('\n')
+			}
+		} else if len(bytes.TrimSpace(line)) > 0 {
 			s.handleLine(ctx, line)
+		}
+		if canceled := ctx.Err(); canceled != nil {
+			return canceled
 		}
 		if err != nil {
 			if err == io.EOF {
 				return nil
 			}
 			return err
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
 		}
 	}
 }

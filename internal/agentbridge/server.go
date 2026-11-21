@@ -19,6 +19,8 @@ const (
 	// connDeadline bounds one request/response exchange so a stalled client
 	// cannot hold a handler goroutine open indefinitely.
 	connDeadline = 10 * time.Second
+	// At most this many connections may hold socket or execution resources.
+	maxConnections = 16
 )
 
 // Handler runs the write operations behind the socket. The host (internal/app)
@@ -104,20 +106,38 @@ func (s *Server) watch(ctx context.Context) {
 }
 
 func (s *Server) acceptLoop(ctx context.Context) {
+	slots := make(chan struct{}, maxConnections)
 	for {
+		select {
+		case slots <- struct{}{}:
+		case <-s.done:
+			return
+		case <-ctx.Done():
+			return
+		}
 		conn, err := s.listener.Accept()
 		if err != nil {
+			<-slots
 			return // listener closed
 		}
-		s.wg.Go(func() { s.handleConn(ctx, conn) })
+		s.wg.Go(func() {
+			defer func() { <-slots }()
+			s.handleConn(ctx, conn)
+		})
 	}
 }
 
 func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	defer func() { _ = conn.Close() }()
-	_ = conn.SetDeadline(time.Now().Add(connDeadline))
+	requestCtx, cancel := context.WithTimeout(ctx, connDeadline)
+	defer cancel()
+	if requestCtx.Err() != nil {
+		return
+	}
+	deadline, _ := requestCtx.Deadline()
+	_ = conn.SetDeadline(deadline)
 
-	resp, source, op, ok := s.process(ctx, conn)
+	resp, source, op, ok := s.process(requestCtx, conn)
 	// Audit before replying: the write already committed inside Execute, so the
 	// record must survive even if the client never reads the response.
 	if ok {

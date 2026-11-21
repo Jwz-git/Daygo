@@ -689,6 +689,7 @@ func (s *Service) NewConversation(ctx context.Context) (Conversation, error) {
 
 // DeleteConversation removes a thread; the store cascades messages.
 func (s *Service) DeleteConversation(ctx context.Context, id string) error {
+	s.Cancel(id)
 	return s.store.DeleteConversation(ctx, id)
 }
 

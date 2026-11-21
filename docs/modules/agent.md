@@ -23,6 +23,8 @@
 
 ## 当前状态与证据
 
+2026-11-21 资源边界（基于 `306e9d2` 的 `test` 工作树，macOS arm64）：socket 最多接受 16 路并发，处理器沿用 10 秒连接预算。MCP 单行上限 1 MiB，超限行分块丢弃后可继续读下一条；stdio 处理仍串行。匿名夹具验证超限拒绝和下一条请求、处理器 deadline，`CGO_ENABLED=0 go test -race -count=1 ./internal/{chat,mcp,agentbridge}` 通过。真实外部客户端未运行。回退为撤销提交。
+
 2026-10-13：新增 `card_merge` 写操作，CLI `daygo write card_merge` 与 MCP 写工具均经
 现有 socket / 宿主执行器；沿用默认关闭的外部修改权限，不新增开关。读面六项、写面十一项，
 合并约束与输出见 [05 §5.9.2](../05-interface-contract.md#592-agent-bridge写入通道)。

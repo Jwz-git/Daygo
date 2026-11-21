@@ -178,11 +178,6 @@ func testService(t *testing.T, providers *fakeProviders, settings *fakeSettings)
 	t.Helper()
 	store := newFakeStore(t)
 	service := New(store, providers, settings, nil, nil)
-	done := make(chan string, 16)
-	service.SetNotifier(func(conversationID string) { done <- conversationID })
-	t.Cleanup(func() { close(done) })
-	// Polling helper instead of exposing internals.
-	t.Cleanup(func() { _ = service })
 	return service, store
 }
 
@@ -618,5 +613,24 @@ func TestBuildChainIsolatesConcurrentTurns(t *testing.T) {
 	}
 	if got := chainY.ActiveID(); got != "py\x1fm" {
 		t.Fatalf("chainY active id = %q, want py\\x1fm", got)
+	}
+}
+
+func TestDeleteConversationCancelsCurrentTurn(t *testing.T) {
+	service, _ := testService(t, newFakeProviders(), &fakeSettings{})
+	conversation, err := service.NewConversation(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	service.mu.Lock()
+	service.inflight[conversation.ID] = cancel
+	service.mu.Unlock()
+	if err := service.DeleteConversation(t.Context(), conversation.ID); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Err() == nil {
+		t.Fatal("deleted conversation still has an uncanceled turn")
 	}
 }

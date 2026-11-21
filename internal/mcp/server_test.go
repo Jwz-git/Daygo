@@ -276,3 +276,16 @@ func TestMalformedLineIsParseError(t *testing.T) {
 		t.Fatalf("parse error id = %s, want null", resp.ID)
 	}
 }
+
+func TestRunRejectsOversizedLineAndReadsNextRequest(t *testing.T) {
+	const budget = 1 << 20
+	input := strings.Repeat(" ", budget+1) + "\n" + `{"jsonrpc":"2.0","id":7,"method":"ping"}` + "\n"
+	var output bytes.Buffer
+	if err := NewServer(fakeReader{}, nil, strings.NewReader(input), &output).Run(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(lines) != 2 || !strings.Contains(lines[0], "request frame too large") || !strings.Contains(lines[1], `"id":7`) {
+		t.Fatalf("expected oversized frame rejection and the next reply, got %q", output.String())
+	}
+}

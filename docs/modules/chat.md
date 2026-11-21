@@ -23,6 +23,8 @@ shell；不暴露原始帧、分段路径、密钥或 LLM payload；采用原子
 
 ## 当前状态与证据
 
+2026-11-21 会话删除（基于 `306e9d2` 的 `test` 工作树，macOS arm64）：删除会话先取消在途回合。匿名夹具修正前删除后仍可运行，修正后 context 已取消。全包 race 首次还发现测试夹具关闭未消费的通知通道与通知发送竞争，移除此夹具中的无消费者通道后，`CGO_ENABLED=0 go test -race -count=1 ./internal/{chat,mcp,agentbridge}` 通过。未测真实 Provider 取消延迟。回退为撤销提交。
+
 2026-10-20：订阅对话的 invalid_output 已由固定匿名请求复现为 SSE 读取问题：响应缺少
 Content-Type 且成功终态不重复正文。providers 层补齐事件正文读取，chat 的工具信封 / 校验 /
 权限不变。新增 `TestChatGPTSubscriptionToolTurnWithSparseCompletion`，用真实客户端工厂、

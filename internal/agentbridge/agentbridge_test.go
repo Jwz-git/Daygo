@@ -241,3 +241,26 @@ func TestOversizeFrameRejected(t *testing.T) {
 		t.Fatalf("resp = %s, want protocol_error for oversize", resp)
 	}
 }
+
+type deadlineHandler struct {
+	fakeHandler
+	deadline chan time.Time
+}
+
+func (h *deadlineHandler) EditsEnabled(ctx context.Context) (bool, error) {
+	deadline, _ := ctx.Deadline()
+	h.deadline <- deadline
+	return true, nil
+}
+
+func TestHandlerReceivesRequestDeadline(t *testing.T) {
+	handler := &deadlineHandler{deadline: make(chan time.Time, 1)}
+	client, _ := startServer(t, handler, nil)
+	if _, err := client.Do(t.Context(), "card_merge", map[string]any{}, SourceSocket); err != nil {
+		t.Fatal(err)
+	}
+	deadline := <-handler.deadline
+	if remaining := time.Until(deadline); remaining <= 0 || remaining > connDeadline {
+		t.Fatalf("unexpected handler deadline: %v", deadline)
+	}
+}
