@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 import type { DayContextDTO, WeeklyDashboardDTO } from '@/api/dto'
 import { getWeeklyDevelopmentFixture } from '@/api/developmentFixtures'
 import { getDailyContext, DailyUnavailableError } from '@/api/daily'
@@ -20,6 +21,7 @@ import { buildWeeklyDistribution } from '@/stores/weeklyDistribution'
 export type WeeklyState = 'loading' | 'unavailable' | 'failure' | 'empty' | 'populated'
 
 export const useWeeklyStore = defineStore('weekly', () => {
+  const visibility = useUIVisibilityStore()
   const dashboard = ref<WeeklyDashboardDTO | null>(null)
   // The week before, for the treemap's per-app change only; null when it is
   // unavailable, which simply hides the change badges.
@@ -30,6 +32,9 @@ export const useWeeklyStore = defineStore('weekly', () => {
   const usingDevelopmentFixture = ref(false)
   const currentWeekStart = ref<string | null>(null)
   let requestVersion = 0
+  let currentRefreshVersion = 0
+  let previousRefreshVersion = 0
+  let pendingChange: string | null | undefined
   let stopEvents: (() => void) | null = null
 
   const state = computed<WeeklyState>(() => {
@@ -44,18 +49,23 @@ export const useWeeklyStore = defineStore('weekly', () => {
     dashboard.value === null ? null : buildWeeklyDistribution(dashboard.value),
   )
 
-  // Dayflow's weekly charts, computed from the same payload (stores/weeklyCharts).
-  const charts = computed(() => {
-    if (dashboard.value === null) return null
-    const facts = weeklyChartFacts(dashboard.value)
-    const previousFacts = previousDashboard.value === null ? [] : weeklyChartFacts(previousDashboard.value)
+  const facts = computed(() => dashboard.value === null ? null : weeklyChartFacts(dashboard.value))
+  const currentCharts = computed(() => {
+    const current = facts.value
+    if (current === null) return null
     return {
-      workflow: buildWorkflow(facts),
-      heatmap: buildHeatmap(facts),
-      context: buildContextCharts(facts),
-      treemap: buildTreemap(facts, previousFacts),
-      sankey: buildSankey(facts),
+      workflow: buildWorkflow(current),
+      heatmap: buildHeatmap(current),
+      context: buildContextCharts(current),
+      sankey: buildSankey(current),
     }
+  })
+  const charts = computed(() => {
+    const current = facts.value
+    const base = currentCharts.value
+    if (current === null || base === null) return null
+    const previous = previousDashboard.value === null ? [] : weeklyChartFacts(previousDashboard.value)
+    return { ...base, treemap: buildTreemap(current, previous) }
   })
   const navigationAvailable = computed(
     () => hasWeeklyBinding() && dashboard.value !== null && !loading.value,
@@ -113,21 +123,25 @@ export const useWeeklyStore = defineStore('weekly', () => {
         error.value = cause
       }
     } finally {
-      if (version === requestVersion) loading.value = false
+      if (version === requestVersion) {
+        loading.value = false
+        flushPendingChange()
+      }
     }
   }
 
   // Best effort: a failure only removes the treemap's change badges, it is
   // never surfaced as a page error.
-  async function loadPreviousWeek(weekStart: string, version: number): Promise<void> {
-    previousDashboard.value = null
+  async function loadPreviousWeek(weekStart: string, version: number, keep = false): Promise<void> {
+    const refresh = ++previousRefreshVersion
+    if (!keep) previousDashboard.value = null
     const target = shiftWeekStart(weekStart, -1)
     if (target === null) return
     try {
       const previous = await getWeeklyDashboard(target)
-      if (version === requestVersion) previousDashboard.value = previous
+      if (version === requestVersion && refresh === previousRefreshVersion) previousDashboard.value = previous
     } catch {
-      if (version === requestVersion) previousDashboard.value = null
+      if (!keep && version === requestVersion && refresh === previousRefreshVersion) previousDashboard.value = null
     }
   }
 
@@ -138,16 +152,51 @@ export const useWeeklyStore = defineStore('weekly', () => {
     if (target !== null) void load(target)
   }
 
+  async function refreshCurrentWeek(weekStart: string): Promise<void> {
+    const version = requestVersion
+    const refresh = ++currentRefreshVersion
+    try {
+      const next = await getWeeklyDashboard(weekStart)
+      if (version === requestVersion && refresh === currentRefreshVersion) dashboard.value = next
+    } catch {
+      // An invalidation does not blank the existing report.
+    }
+  }
+
+  function flushPendingChange(): void {
+    if (!visibility.visible || loading.value || pendingChange === undefined) return
+    const changed = pendingChange
+    pendingChange = undefined
+    const start = dashboard.value?.weekStart
+    if (start === undefined) {
+      void load()
+      return
+    }
+    const end = shiftWeekStart(start, 1)
+    const previous = shiftWeekStart(start, -1)
+    if (changed === null || (end !== null && changed >= start && changed < end)) {
+      void refreshCurrentWeek(start)
+    }
+    if (changed === null || (previous !== null && changed >= previous && changed < start)) {
+      void loadPreviousWeek(start, requestVersion, true)
+    }
+  }
+
   function startEvents(): void {
     if (stopEvents !== null) return
-    stopEvents = onTimelineUpdated(() => {
-      void load(dashboard.value?.weekStart ?? '')
+    const stopUpdates = onTimelineUpdated((day) => {
+      const changed = day || null
+      pendingChange = pendingChange === undefined || pendingChange === changed ? changed : null
+      flushPendingChange()
     })
+    const stopVisibility = watch(() => visibility.visible, flushPendingChange)
+    stopEvents = () => { stopUpdates(); stopVisibility() }
   }
 
   function stopListening(): void {
     stopEvents?.()
     stopEvents = null
+    pendingChange = undefined
   }
 
   return {
