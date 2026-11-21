@@ -1,132 +1,87 @@
 # scripts/
 
-Every entry point that is not part of a normal `go test` / `npm test` run lives
-here. The split is by **role**, not by language — three platform dev scripts
-(`dev.sh`, `dev.ps1`, `dev-linux.sh`), Windows / Linux production build scripts,
-platform packagers (`package-macos.sh` → signed DMG, `package-windows.ps1` →
-signable NSIS installer), one headless CI gate (`gate.sh`),
-shared bootstrap and shell helpers (`bootstrap-frontend.sh`), a docs sanity
-check (`check-docs.py`), and a memory sampler (`sample-memory.py`).
-The README documents the contract for each so it stays obvious which
-script owns a responsibility and which one a new contributor should reach for.
+Entry points outside standard `go test` / `npm test` runs live here, organized by **role** rather than language: platform dev launchers, desktop builders, release packagers, headless commit gates, shared bootstrap helpers, and diagnostic/regression tools.
 
-| Script | Role | Caller |
+> Daygo runs on **Wails v3.1.0** with **Go 1.26.10**. Root [`Taskfile.yml`](../Taskfile.yml) and [`build/config.yml`](../build/config.yml) coordinate `wails3 dev` / task dispatch, while native libraries are built explicitly by the scripts below (no v2 `preBuildHooks`, and v2 flags like `-platform`, `-nsis`, `-s` are not forwarded). See the [Wails v3 GA migration record](../docs/decisions/wails-v3-migration.md).
+
+## Script inventory
+
+### Bootstrap & shared helpers
+
+| Script | Purpose | Typical caller |
 |---|---|---|
-| `bootstrap-frontend.sh` | Standalone: placeholder dist → bindings → real bundle. Sourced: exports `require_tool`, `webkit_tag`, `run_wails`, `daygo_bootstrap` for the other scripts. | All `dev*` / `build-*` scripts, `gate.sh`, `package-macos.sh` |
-| `dev.sh` | macOS `wails3 dev` entry; sources bootstrap for shared helpers, keeps the macOS-only `clang` check inline, and recreates the generated `.app` so Dock does not retain a stale application icon. | Local development on macOS |
-| `dev.ps1` | Windows `wails3 dev` entry; applies the Go 1.25 cgo debug workaround only when needed. | Local development on Windows |
-| `windows-common.ps1` | Shared Windows tool checks, frontend bootstrap, PE import guard against unbundled MinGW runtimes, and Go 1.25 DWARF workaround. | `dev.ps1`, `build.ps1`, `package-windows.ps1` |
-| `build.ps1` | Reproducible `windows/amd64` build; verifies both EXE and helper DLL. `-RunSmoke` additionally runs native smoke tests. | Windows production packaging |
-| `dev-linux.sh` | Linux `wails3 dev` entry; sources bootstrap for `webkit_tag` and the wails invocation. | Local development on Linux |
-| `build-linux.sh` | Linux `wails3 build` entry; identical tag handling to `dev-linux.sh`, replaces `npm install` with `npm ci` because production builds run from a clean clone. | Linux production packaging |
-| `package-macos.sh` | macOS packager: bootstrap → `build-desktop.sh` → `Info.plist` (min-OS / version) → `codesign` → `create-dmg` → optional notarize + staple. Local default is ad-hoc; stable self-signed identity via `DAYGO_DEV_SIGN_IDENTITY`, Developer ID / notarization via `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE`. Release CI requires its pinned self-signed certificate. | macOS release packaging |
-| `dev-cert-macos.sh` | Creates a reusable local self-signed code-signing certificate; optional password-protected PKCS#12 export outside the repository. Does not notarize or build a release. | Explicit local identity preparation / CI certificate setup |
-| `package-windows.ps1` | Windows packager: bootstrap → build EXE and DLLs → sign the payload → compile NSIS → sign installer → emit SHA-256 acceptance manifest. The tracked `windows-installer/project.nsi` is required because stock Wails only installs the EXE. Supports `-InstallScope machine|user`; unsigned by default. Certificate file via `DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD`, or installed cert via `DAYGO_WIN_CERT_THUMBPRINT`. Windows-only; host run still required (see delivery module). | Windows release packaging |
-| `bootstrap-updaters.sh` | Downloads Sparkle 2.10.0 into ignored `build/deps`, verifies the pinned SHA-256, and exposes the framework plus signing tools. | macOS release build / appcast job |
-| [`native/darwin/updater-smoke.sh`](../native/darwin/updater-smoke.sh) | Compiles the production Sparkle delegate and invokes anonymous callbacks: discovery/download keep recording, installation finalizes late, failures refuse relaunch, and cancellation resumes once. Requires the bootstrapped framework; no installer, network, screen, or Daygo data is opened. | macOS updater changes (run with `bash`); [callback workflow](../.github/workflows/macos-updater-check.yml) |
-| `generate-appcast.py` | Builds the two-platform RSS appcast from already Ed25519-signed macOS and Windows assets. It never receives the private key. | protected GitHub `release` environment |
-| `windows-installer/project.nsi` | Native Modern UI 2 installer with nine languages, optional desktop shortcut, dependency and in-use-file checks; no custom artwork. Installs `Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll`; uninstall removes only package-owned files and keeps user data. Includes are copied into ignored `build/windows/installer/` at package time. | `package-windows.ps1` |
-| `windows-installer/test_installer.py` | Anonymous fixtures using the pinned Wails helper: translation coverage, both scope compilations (`makensis -WX`), missing-DLL rejection, and Windows-only silent install/uninstall, WebView2 failure/postcondition and locked-file checks. Uses temporary folders and unique registry/product identities, never real Daygo data. | `gate.sh`, Windows installer fixture workflow |
-| `gate.sh` | Headless commit gate. Runs `npm ci` when direct frontend dependencies are missing or invalid, then checks bootstrap, Go, frontend, docs, shell entrypoints and the installer. Python checks skip when `python3` is missing. NSIS compilations skip without `makensis`, and Windows execution skips on other hosts. | CI runner, also local pre-commit |
-| `test-entrypoints.py` | Runs macOS dev and Linux dev/build scripts in temporary anonymous checkouts with tool doubles; verifies bootstrap, the pinned Wails CLI dispatch and argument forwarding without launching a GUI or stopping real processes. | `gate.sh`, manual |
-| `check-docs.py` | Markdown link + anchor + orphan-document check. Standard library only so it runs on any host. | `gate.sh`, manual |
-| `sample-memory.py` | Read-only macOS fixed-PID RSS / physical-footprint sampler. Checks process start identity, marks missing or reused PIDs, creates CSV exclusively, and collects no activity content. | Manual memory comparisons; see testing strategy |
+| `bootstrap-frontend.sh` | Standalone: placeholder `dist` → Wails TS bindings (`-ts -i -names` with `-tags=daygo_desktop,server`) → frontend build. Sourced: exports `ROOT_DIR`, `WAILS_VERSION`, `require_tool`, `webkit_tag`, `run_wails`, `daygo_bootstrap`. | `dev*.sh`, `build-*.sh`, `gate.sh`, `package-macos.sh` |
+| `windows-common.ps1` | Shared Windows tool checks, native-before-bindings bootstrap, `Build-DaygoWindowsDesktop`, PE import guard against unbundled MinGW DLLs, and Go 1.25 DWARF-5 debug workaround. | `dev.ps1`, `build.ps1`, `package-windows.ps1` |
+| `bootstrap-updaters.sh` | Downloads Sparkle 2.10.0 into ignored `build/deps`, verifies pinned SHA-256, and exposes the framework and signing tools. | macOS release build / appcast job |
 
-The 2026-10-13 user confirmation accepts all previously pending acceptance items for implemented capabilities,
-including later changes, native notifications, installation / upgrades, release workflows, and identity gates,
-without per-case execution records. Certificate, notarization, CI configuration, and artifact signatures were not
-independently checked or added during this documentation update. See the [acceptance record](../docs/09-roadmap.md#911-本轮验收记录与证据边界).
-Historical skipped / failed fixture results remain unchanged. `gofmt -l .` must produce no output; the gate's
-exit code alone does not verify formatting.
+### Local development & desktop builds
 
-## Retired diagnostics
+| Script | Purpose | Typical caller |
+|---|---|---|
+| `dev.sh` | macOS `wails3 dev` launcher; checks `clang`, recreates `build/bin/Daygo.app` (preventing stale Dock icon cache), then runs Wails dev. | Local macOS development |
+| `dev.ps1` | Windows `wails3 dev` launcher; prepares native artifacts + `npm install` and applies the DWARF-5 debug workaround when needed. | Local Windows development |
+| `dev-linux.sh` | Linux `wails3 dev` launcher; detects GTK4/WebKitGTK 6.0 (or legacy `gtk3`) via `webkit_tag`. | Local Linux development |
+| `build-desktop.sh` | Compiles the macOS / Linux desktop host with `daygo_desktop` (plus `production` and `-ldflags '-s -w'` unless `DAYGO_DEV=1`) after building native prerequisites. | `Taskfile.yml`, `package-macos.sh` |
+| `build.ps1` | Reproducible `windows/amd64` build (`npm ci`); verifies `Daygo.exe` and `daygo_windows_native.dll`. Pass `-RunSmoke` to run native smoke tests. | `Taskfile.yml`, Windows packaging |
+| `build-linux.sh` | Production Linux `wails3 build` wrapper using `npm ci` and `webkit_tag`. | Linux production builds |
 
-On 2026-10-07, the old `probe/analysis.go` entry point and its exclusive
-`internal/analysis/probe.go` helper were removed. The entry point read staging
-files directly and rejected every nonzero frame index, so it could not decode
-the current multi-frame recording segments through `platform.Media`. It also
-opened the store with `storage.Open`, rather than a connection restricted to
-read-only access; its old "read-only probe" description was inaccurate.
+### Packaging & release signing
 
-The Qwen-specific `internal/analysis/local_probe_test.go` was also removed. It
-depended on a Windows `APPDATA` path, a fixed model alias and a fixed local
-endpoint; the normal test suite skipped it. Historical Provider observations
-remain in the [providers module](../docs/modules/providers.md#验证记录), with
-the old commands marked as retired. Current pipeline fixtures, the frontend
-unit runner, native smoke tests and installer / updater checks remain active.
+| Script | Purpose | Typical caller |
+|---|---|---|
+| `package-macos.sh` | macOS packager: bootstrap → `build-desktop.sh` → `Info.plist` metadata → `codesign` → `create-dmg` → optional notarize + staple. Defaults to ad-hoc locally; supports `DAYGO_DEV_SIGN_IDENTITY` (stable self-signed) or `DAYGO_SIGN_IDENTITY` / `DAYGO_NOTARY_PROFILE` (Developer ID). | macOS release packaging |
+| `dev-cert-macos.sh` | Creates a reusable local self-signed code-signing certificate with optional password-protected PKCS#12 export outside the repo. Does not notarize or publish. | Local TCC-stable signing / CI cert setup |
+| `package-windows.ps1` | Windows packager: bootstrap → build EXE + DLLs → sign payloads → compile NSIS (`windows-installer/project.nsi`) → sign installer → write `dist/windows-package.json` SHA-256 manifest. Supports `-InstallScope machine\|user` and `-RunSmoke`. | Windows release packaging |
+| `windows-installer/project.nsi` | Modern UI 2 NSIS installer (9 languages, optional desktop shortcut, WebView2 & in-use-file guards). Installs `Daygo.exe`, `daygo_windows_native.dll`, and `WinSparkle.dll`; uninstall preserves user data. | `package-windows.ps1` |
+| `generate-appcast.py` | Generates dual-platform RSS `appcast.xml` from pre-signed macOS/Windows assets without touching the Ed25519 private key. | Protected GitHub `release` job |
 
-2026-10-13 local cleanup (`test`, based on `ff181c3`, macOS arm64): audited tracked entry points against
-CI, Wails hooks, npm scripts and documented manual checks. The 21 maintained shell, PowerShell, Python and
-Node entry points still have a development, build, packaging or regression role. Removed the ignored
-`build/diagnostics/readme-locales/render.py`, the two `/tmp/daygo-acceptance-*-20261013.py` documentation
-snippets, and the `/tmp/daygo-review-meter.swift` / `.html` probe pair. No tracked script was removed.
-A second inventory found no remaining untracked or ignored script source in the current project checkout,
-excluding dependencies, generated bundles and the `legacy/` archive. Bash syntax checks (11), in-memory
-Python compilation (4) and Node syntax checks (1) passed; PowerShell and runtime checks were not rerun.
-Existing validation records and outputs remain available; deleted local snippets were not versioned and
-cannot be restored with Git. Recreate a probe from its recorded inputs if another experiment is needed.
+### Gates, fixtures & diagnostics
 
-## Shared helpers — where logic lives
+| Script | Purpose | Typical caller |
+|---|---|---|
+| `gate.sh` | Headless pre-commit gate: checks/installs frontend deps → bootstrap → `CGO_ENABLED=0` Go build/test/vet/`gofmt` → 3-OS core cross-build → frontend unit/typecheck/build → Python doc/entrypoint/installer checks. | Local pre-commit & CI |
+| `check-docs.py` | Stdlib-only checker for broken relative Markdown links, missing heading anchors, and unlinked docs under `docs/`. | `gate.sh`, manual |
+| `test-entrypoints.py` | Runs macOS/Linux dev & build scripts in temporary checkouts with tool doubles to verify bootstrap and Wails CLI dispatch without GUI or real process mutation. | `gate.sh`, manual |
+| `test-build-flags.py` / `test-build-flags.ps1` | Verifies dev vs production linker flags (`-s -w`, `-H windowsgui`) using anonymous temp fixtures without compiling an app. | Manual / build-flag regression |
+| `windows-installer/test_installer.py` | Anonymous NSIS fixtures: 9-language coverage, machine/user `makensis -WX` compiles, missing-DLL rejection, plus Windows-only silent install/uninstall, WebView2 failure, and locked-file checks. | `gate.sh`, Windows installer workflow |
+| [`native/darwin/updater-smoke.sh`](../native/darwin/updater-smoke.sh) | Compiles the production Sparkle delegate and exercises anonymous discovery/download/late-finalize/cancel/failure callbacks (requires bootstrapped Sparkle framework). | Updater changes (`bash`); [workflow](../.github/workflows/macos-updater-check.yml) |
+| `sample-memory.py` | Read-only macOS fixed-PID RSS / physical-footprint CSV sampler; verifies process identity and collects no user activity content. | Manual memory diagnostics |
 
-Both `bootstrap-frontend.sh` and the three dev scripts used to duplicate
-host checks, Wails tag selection, and the `go run wails … dev/build`
-invocation. After the 2026-09-14 cleanup:
+> **Gate caveats**: `gofmt -l .` inside `gate.sh` prints unformatted files without failing the exit code — always confirm it emits no file paths. When `python3` is missing, `gate.sh` skips the Python checks; never report skipped checks as passed. Historical acceptance scope and evidence boundaries are tracked in [09 §9.1.1](../docs/09-roadmap.md#911-本轮验收记录与证据边界).
 
-- **`scripts/bootstrap-frontend.sh`** owns `require_tool`, `webkit_tag`,
-  `run_wails`. Sourcing it gives a script those three helpers and the
-  `ROOT_DIR` / `WAILS_VERSION` variables without running the placeholder-dist
-  pipeline.
-- **`scripts/dev.sh`** keeps the macOS-only `clang` check inline. That check
-  is the only piece that is genuinely platform-specific (clang is required
-  on macOS for the cgo build, not on Linux/Windows). Before starting Wails it
-  also recreates the generated `build/bin/Daygo.app`; Wails otherwise updates
-  the bundle contents in place and macOS may continue displaying a cached
-  icon after `build/appicon.png` changes.
-- **`scripts/windows-common.ps1`** is dot-sourced by the Windows entry points
-  and owns their shared tool checks, native-before-bindings bootstrap, frontend
-  bootstrap and Go 1.25 debug-linker workaround. `dev.ps1` uses `npm install`;
-  `build.ps1` and the packager use the lockfile-strict `npm ci` production path.
-- **`scripts/dev-linux.sh`** and **`scripts/build-linux.sh`** are both thin
-  wrappers — the only difference between them is whether `run_wails` is
-  called with `dev` or `build`, and whether `npm install` (dev) or
-  `npm ci` (production) runs.
+---
 
-Adding a new helper (e.g. a future `darwin_sdk_path` resolver) belongs in
-`bootstrap-frontend.sh` so the three dev scripts pick it up automatically.
+## Shared helpers and orchestration
+
+- **`bootstrap-frontend.sh`** is the single source of truth for `WAILS_VERSION` (`v3.1.0`), `require_tool`, `webkit_tag`, and `run_wails`. Note that binding generation uses `-tags=daygo_desktop,server` purely for Go type analysis without requiring native SDKs — Daygo does not ship a server-mode product.
+- **`webkit_tag`** auto-detects GTK4 + WebKitGTK 6.0 via `pkg-config` (falling back to GTK3 + WebKit2GTK 4.1) and honors `DAYGO_LINUX_WEBKIT_TAG=gtk3` for legacy hosts.
+- **`windows-common.ps1`** centralizes Windows tool discovery, native-before-bindings ordering, `npm install` (dev) vs `npm ci` (production), and PE runtime import checks.
+
+---
 
 ## Windows build dependencies
 
-The existing Windows entry points target `windows/amd64`. The following inventory is based on
-[windows-common.ps1](windows-common.ps1), [the native build](../native/windows/build.ps1),
-[build.ps1](build.ps1) and [the packager](package-windows.ps1); it does not change the toolchain.
+Windows entry points target `windows/amd64`. Inventory verified against [`windows-common.ps1`](windows-common.ps1), [`native/windows/build.ps1`](../native/windows/build.ps1), [`build.ps1`](build.ps1), and [`package-windows.ps1`](package-windows.ps1):
 
-| Dependency | Required for / setup |
+| Dependency | Role and setup |
 |---|---|
-| Git for Windows | Checkout and source revision metadata; make `git` available in PATH. Git Bash is also needed to run `gate.sh`, but not the PowerShell build entry points. |
-| Go | Use the Windows amd64 toolchain at the version specified in [go.mod](../go.mod). The desktop native build needs cgo. Set `CGO_ENABLED=0` for the core gate. |
-| Node.js and npm | The existing bootstrap specifies Node 20.19+ or 22.12+; release CI uses Node 22. Use npm and the existing lockfile. `build.ps1` runs `npm ci`; `dev.ps1` runs `npm install`. |
-| MinGW-w64 x64 GCC and binutils | Put `gcc`, `g++`, `ar` and `objdump` from the same x64 toolchain in PATH. GCC serves Go cgo, `g++` / `ar` build `libdaygo_capture.a`, and `objdump` checks the EXE for unbundled MinGW runtime DLLs. Release CI currently installs the Chocolatey `mingw` package. |
-| Visual Studio 2022 C++ tools | Install the **Desktop development with C++** workload (Build Tools is sufficient), including MSVC x64/x86 tools (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`). These compile the C++20/C++/WinRT capture and notification helper `daygo_windows_native.dll`; MinGW alone does not build it. The script finds Visual Studio through `vswhere.exe` and invokes `vcvars64.bat`, so `cl.exe` need not be on the initial PowerShell PATH. |
-| Windows SDK 10.0.26100 | Select this SDK in Visual Studio Installer, including its headers and libraries. The native script looks for `windows.ui.interop.h` under `Windows Kits\10\Include`; merely having an older SDK is insufficient for the complete helper DLL. |
-| Windows PowerShell | Entry points and Wails hooks invoke `powershell` with `-NoProfile -ExecutionPolicy Bypass`; PowerShell 7 alone does not replace that executable. |
-| WebView2 Runtime | Required to run the Wails desktop UI and `dev.ps1`. This is a runtime dependency, separate from the native compiler / Windows SDK. The NSIS installer has a WebView2 bootstrap path; a local source build should have the runtime installed already. |
-| NSIS (`makensis`) | Needed for `package-windows.ps1` and installer compilation fixtures, not the ordinary `build.ps1` EXE build. The packager searches PATH and standard NSIS install directories. |
-| Windows SDK `signtool` | Needed only when signing is configured. Add the SDK's `bin\<version>\x64` directory to PATH and supply the existing certificate configuration; unsigned local compilation does not require a certificate. |
-| Python 3 | Needed for documentation and installer fixture checks, not desktop compilation. On Windows invoke `python` directly; `gate.sh` looks for `python3` and skips those checks when it is unavailable. |
+| Git for Windows | Source checkout and revision metadata (`git` on PATH). Git Bash is needed to run `gate.sh`, not the PowerShell build scripts. |
+| Go | Windows `amd64` toolchain matching [`go.mod`](../go.mod). Desktop builds require cgo; core gate uses `CGO_ENABLED=0`. |
+| Node.js & npm | Node 20.19+ (20.x) or 22.12+ (release CI uses Node 22) with npm and the existing `package-lock.json`. |
+| MinGW-w64 x64 (GCC & binutils) | `gcc`, `g++`, `ar`, and `objdump` from the same x64 toolchain on PATH. Used by Go cgo, `libdaygo_capture.a`, and PE DLL import checks (CI installs Chocolatey `mingw`). |
+| Visual Studio 2022 C++ tools | **Desktop development with C++** workload (Build Tools suffices), including `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`, to compile C++20/C++/WinRT `daygo_windows_native.dll`. Discovered via `vswhere.exe` + `vcvars64.bat`. |
+| Windows SDK 10.0.26100 | Installed via Visual Studio Installer (headers & libs). The build looks for `windows.ui.interop.h` under `Windows Kits\10\Include`. |
+| Windows PowerShell | Entry points invoke `powershell -NoProfile -ExecutionPolicy Bypass` (PowerShell 7 alone does not substitute). |
+| WebView2 Runtime | Required at runtime for `dev.ps1` and desktop UI execution (separate from build compilers). |
+| NSIS (`makensis`) | Required only for `package-windows.ps1` and installer fixture compilation. |
+| Windows SDK `signtool` | Required only when signing is enabled (`bin\<version>\x64` on PATH + cert env vars). |
+| Python 3 | Required only for doc / installer fixture checks (invoke `python` on Windows). |
 
-Both native compiler families are needed for a complete build. If the SDK header is absent,
-`native/windows/build.ps1` can warn and produce only the baseline archive, but `scripts/build.ps1`
-subsequently rejects a missing `daygo_windows_native.dll`. That warning is not evidence of a complete build.
-The script's header discovery is not an exact SDK version validator; also check the installed SDK in
-Visual Studio Installer. Full Windows runtime requirements are listed in the [project README](../README.md#下载与安装).
+Both MinGW-w64 and MSVC/Windows SDK are required for a full Windows build: if SDK headers are missing, `native/windows/build.ps1` warns and emits only the baseline archive, which `scripts/build.ps1` then rejects for lacking `daygo_windows_native.dll`. Runtime OS requirements are documented in the [project README](../README.md#下载与安装).
 
-Wails does not need a separate global installation: the scripts use
-`go run github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`. The native script downloads WinSparkle 0.9.4,
-verifies its pinned SHA-256 and copies the x64 `WinSparkle.dll` to `build/bin` automatically.
-Allow initial access to Go modules, the npm registry and the WinSparkle GitHub release; do not manually
-substitute a different DLL. Keep `Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll` together.
+No global Wails installation is needed — scripts run `go run github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`. The native build also fetches and SHA-256-verifies WinSparkle 0.9.4 and places x64 `WinSparkle.dll` in `build/bin`. Always keep `Daygo.exe`, `daygo_windows_native.dll`, and `WinSparkle.dll` together.
 
-From a new PowerShell session at the repository root, check discovery before building:
+Verify discovery from a fresh PowerShell session at the repo root before building:
 
 ```powershell
 Get-Command git, go, node, npm, gcc, g++, ar, objdump, powershell
@@ -139,127 +94,48 @@ $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer
 Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include" -Filter windows.ui.interop.h -Recurse
 ```
 
-The last two checks must find a C++ installation and the SDK header; they do not compile or validate
-native behavior. For local development use `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1`;
-for an EXE build use the same command with `scripts/build.ps1`. These entry points build native components
-before generating bindings and preparing the embedded frontend bundle. Do not start a clean checkout
-with a bare `go build ./...` or `npm run build`, which lack that bootstrap sequence.
+Start development with `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1` or produce an EXE with `scripts/build.ps1` — do not begin a clean checkout with bare `go build ./...` or `npm run build`.
+
+---
 
 ## Windows acceptance packaging
 
-Run the release-candidate path only on Windows with MinGW-w64, Visual Studio 2022 C++ tools,
-Windows SDK 26100 and NSIS available. `-RunSmoke` is required for an acceptance record:
+Run release-candidate packaging on a Windows host with MinGW-w64, Visual Studio 2022 C++ tools, Windows SDK 26100, and NSIS (`-RunSmoke` required for acceptance records):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1 `
   -Version 0.1.0 -InstallScope machine -RunSmoke
 ```
 
-The packager builds the Go host and copies the pinned NSIS helper. It signs
-`Daygo.exe`, `daygo_windows_native.dll` and `WinSparkle.dll` before invoking
-NSIS, then signs the installer. The resulting `dist/windows-package.json`
-records artifact identity. The WD matrix also verifies installed-file
-signatures, interactive and silent install/uninstall, upgrade, and clean-machine startup.
-
-The installer follows the Windows UI language among the nine supported languages,
-with English as fallback. Custom strings live in `windows-installer/languages.nsh`
-because Vue is not running during installation. Success proceeds directly to the
-finish page; file details remain available. New desktop shortcuts are opt-in on
-that page; existing shortcuts are retained during an upgrade, and `/S` creates
-only the Start menu shortcut. Machine-scope setup never launches Daygo from its
-elevated token. User-scope setup offers launch only when not running as admin.
-The installer preserves the install scope and product identity.
-
-Silent failure codes include 10 (required files inaccessible/in use), 20 (WebView2
-unavailable after bootstrap), 30 (existing update target missing), and the Wails architecture/OS codes 65/64.
-Setup checks files before changing them and does not kill the resident agent.
-`/DAYGO_UPDATE` shares a 30-second file-release wait across the required EXE and DLLs,
-because WinSparkle starts setup before asking Daygo to quit. New clients also pass
-the current executable directory using the final, unquoted `/D=` argument; older
-clients receive `/DAYGO_UPDATE` from the appcast and setup recovers `InstallLocation`
-or the legacy `DisplayIcon` directory in the installer's registry scope. Missing
-targets fail instead of creating a second installation. Ordinary installation and
-uninstallation retain the immediate in-use-file refusal. Launch failure, including
-UAC cancellation, restores previously active recording before WinSparkle reports failure.
-The access checks are not an atomic upgrade transaction: a concurrent launch or
-I/O failure can still interrupt extraction, which fails rather than offering
-Ignore for a required DLL. This needs the real WD-5 recovery check.
-
-For checks without a release build, install NSIS and run:
+- **Signing**: Optional locally (`DAYGO_WIN_CERT_FILE` / `DAYGO_WIN_CERT_PASSWORD` or `DAYGO_WIN_CERT_THUMBPRINT`). When configured, `Daygo.exe`, `daygo_windows_native.dll`, and `WinSparkle.dll` are signed before NSIS packaging, then the installer is signed and `dist/windows-package.json` records SHA-256 digests.
+- **Installer behavior**: Follows Windows UI language across the 9 supported locales (`windows-installer/languages.nsh`, fallback English). Desktop shortcuts are opt-in on new installs and preserved on upgrade; `/S` creates only the Start menu shortcut. Machine-scope installs never launch Daygo from an elevated token.
+- **Silent exit codes & `/DAYGO_UPDATE`**: `10` (required files in use/inaccessible), `20` (WebView2 unavailable after bootstrap), `30` (missing update target), `64`/`65` (Wails OS/arch checks). Setup never force-kills the resident agent; `/DAYGO_UPDATE` waits up to 30 seconds for EXE/DLL release and resolves existing install location (via trailing `/D=` or registry `InstallLocation` / legacy `DisplayIcon`). Launch/UAC failures restore previously active recording.
+- **Fixture checks without a full release build**:
 
 ```bash
-python3 scripts/windows-installer/test_installer.py
+python3 scripts/windows-installer/test_installer.py   # use `python` on Windows
 ```
 
-On Windows use `python` instead of `python3`. The separate Windows installer
-fixture workflow runs compilation, PowerShell parsing, updater callback contracts and anonymous `/S` cases;
-it does not build or publish a Daygo release. Manual WD-3 also needs all nine
-languages at 100%, 150% and 200% scaling, keyboard navigation, the two scope
-finish pages, optional shortcuts, and upgrade/uninstall while Daygo is resident.
-
-## Naming
-
-- One-off snippets belong in the system temporary directory and are removed when the task ends.
-  Keep only reusable entry points with an identified caller or documented manual purpose in the repository.
-- If a new diagnostic is needed, put it in `scripts/probe/<topic>.go` or
-  `scripts/probe/<topic>.sh`; the directory is created when needed. Do not put
-  diagnostic scripts at the `scripts/` root.
-- `dev-*` means "run `wails3 dev`". `build-*` means "run `wails3 build`".
-  `package-*` means "build a signed, distributable artifact" (more than a
-  bare `wails3 build`: signing, notarization, DMG/installer packaging). Its
-  extension follows the host it runs on — `package-macos.sh` is bash,
-  `package-windows.ps1` is PowerShell, because the signing and installer tools
-  are host-native.
-  Anything that does none of these is misfiled.
-- `*.sh` is bash, `*.ps1` is PowerShell, `*.py` is Python. Python scripts are
-  intentionally stdlib-only so they run anywhere.
-
-## Conventions
-
-- All shell scripts use `set -euo pipefail`. The PowerShell script uses
-  `Set-StrictMode -Version Latest` and `$ErrorActionPreference = 'Stop'`.
-- Every script resolves its anchor with `cd "$(dirname "$0")/.."` (bash)
-  or `(Resolve-Path (Join-Path $PSScriptRoot '..')).Path` (PowerShell),
-  so they work regardless of the caller's CWD.
-- `bootstrap-frontend.sh` is the only place where `WAILS_VERSION` lives.
-  Bumping the Wails version means one edit, not five.
-- `webkit_tag` honours `DAYGO_LINUX_WEBKIT_TAG` for the rare hosts that
-  only ship one WebKit2GTK ABI; pkg-config detection is the default.
-
-## When to add a new script
-
-- The action runs more than one external binary in a fixed order.
-- The action is repeated by more than one caller (CI, docs, humans).
-- The action needs an environment check or environment mutation that the
-  rest of the repo should not have to know about.
-
-Anything that fits in `go run ./cmd/foo` or `npm run foo` does not belong
-here — the project's own build/test runners are the right home for it.
+---
 
 ## Release appcast signing
 
-`.github/workflows/publish-release.yml` builds missing installers for a published Release. A formal release then
-downloads both final assets, signs their bytes with Sparkle Ed25519, and uploads `appcast.xml`. The appcast job uses the
-protected `release` environment and requires `SPARKLE_ED25519_PRIVATE_KEY`; if the key or an asset is missing, the
-job fails without uploading an appcast. Prereleases skip it. Developer ID, notarization, and Authenticode certificates
-are not inputs to the appcast job.
+[`.github/workflows/publish-release.yml`](../.github/workflows/publish-release.yml) builds any missing installers for a published GitHub Release. For formal releases (prereleases skipped), the appcast job in the protected `release` environment signs the final macOS and Windows assets with `SPARKLE_ED25519_PRIVATE_KEY` and uploads `appcast.xml`; missing keys or assets fail the job without uploading.
 
-- `SPARKLE_ED25519_PRIVATE_KEY` — already generated; also retained in the local macOS keychain.
+- `SPARKLE_ED25519_PRIVATE_KEY` authenticates update archives for Sparkle / WinSparkle only — it does **not** grant Apple Developer ID / Gatekeeper trust or Windows Authenticode / SmartScreen reputation.
+- When promoting a prerelease or recovering a missed release event, manually dispatch `publish-release.yml` with the `tag` input and confirm `appcast.xml` is uploaded (existing installers are reused).
 
-The Ed25519 signature authenticates the update archive to Sparkle and WinSparkle. It does not give the macOS installer
-Apple Developer ID / Gatekeeper trust or the Windows installer Authenticode / SmartScreen reputation. Those platform
-identity gates and installed-app upgrades were accepted by user confirmation on 2026-10-13 without per-case
-records; certificate and artifact signatures were not independently checked in that documentation update.
-The `releases/latest` URL can return 404
-between publishing a formal Release and uploading the appcast. After promoting a prerelease, manually dispatch the
-workflow with its tag and check that the appcast exists. Existing installers are reused by the prepare job.
-For an existing published Release whose original event was skipped or missed, use the workflow's manual dispatch with
-its `tag` input. The prepare job checks the live Release state before building.
+---
 
+## Naming and conventions
 
-Wails v3 migration: `Taskfile.yml` / `build/config.yml` own build/dev orchestration.
-`build-desktop.sh` explicitly builds macOS / Linux native prerequisites and the desktop host with
-`daygo_desktop`; Windows uses `Build-DaygoWindowsDesktop` in windows-common.ps1.
-The v2 CLI flags (-platform, -nsis, -s for skip frontend) are not forwarded to v3.
-Bindings are generated with `-ts -i -names` into frontend/bindings; the `server` tag is type-analysis only.
-The pinned NSIS helper lives next to project.nsi. See [migration evidence](../docs/decisions/wails-v3-migration.md).
+- **Prefixes**: `dev-*` runs `wails3 dev`; `build-*` builds a desktop binary; `package-*` produces signed/distributable installers (`*.sh` on Unix/macOS, `*.ps1` on Windows).
+- **Strict mode & CWD independence**: Bash scripts use `set -euo pipefail` and anchor at `cd "$(dirname "$0")/.."`; PowerShell scripts use `Set-StrictMode -Version Latest`, `$ErrorActionPreference = 'Stop'`, and `$PSScriptRoot`. Python scripts stay stdlib-only.
+- **Placement**: Keep one-off scripts in `.tmp/` or system temp (never commit them). Reusable diagnostics belong in `scripts/probe/<topic>.{go,sh}`, not at `scripts/` root. Add a script only when orchestrating multiple tools in a fixed order, shared across callers, or encapsulating host checks.
+
+---
+
+## Retired diagnostics
+
+- **2026-10-07**: Removed legacy `probe/analysis.go` and `internal/analysis/probe.go` (read deprecated staging files directly, rejected nonzero frame indices, and opened the DB read-write via `storage.Open`). Also removed machine-specific `internal/analysis/local_probe_test.go` (hardcoded Windows `APPDATA` path and local endpoint; historical observations remain in [providers verification records](../docs/modules/providers.md#验证记录)).
+- **2026-10-13**: Audited all tracked scripts against CI, Wails hooks, npm scripts, and documented manual checks. Removed untracked/ignored local snippets (`build/diagnostics/readme-locales/render.py` and `/tmp/daygo-*` probes); no tracked entry point was removed.

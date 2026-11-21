@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="../docs/assets/readme/banner.en.webp" width="100%" alt="Daygo — 一日の終わりに、何をしていたか思い出せますか？" />
+  <img src="../docs/assets/readme/banner.en.webp" width="100%" alt="Daygo — 1日の終わりに、自分が何に取り組んだか覚えていますか？" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/Jwz-git/Daygo/releases/latest"><img src="https://img.shields.io/github/v/release/Jwz-git/Daygo?style=flat-square&color=F3854B&label=version" alt="最新の正式リリース" /></a>
+  <a href="https://github.com/Jwz-git/Daygo/releases/latest"><img src="https://img.shields.io/github/v/release/Jwz-git/Daygo?style=flat-square&color=F3854B&label=%E3%83%AA%E3%83%AA%E3%83%BC%E3%82%B9" alt="最新正式リリース" /></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-333333?style=flat-square&logo=apple&logoColor=white" alt="macOS 14+" />
-  <img src="https://img.shields.io/badge/Windows-11%2024H2%2B-0078D4?style=flat-square" alt="Windows 11 24H2+" />
-  <a href="../LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E7DF7?style=flat-square&color=6E7DF7" alt="MIT License" /></a>
-  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails · Vue 3" />
+  <img src="https://img.shields.io/badge/Windows-11%2024H2%2B-0078D4?style=flat-square&logo=windows&logoColor=white" alt="Windows 11 24H2+" />
+  <a href="../LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E7DF7?style=flat-square" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%203%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails 3 · Vue 3" />
 </p>
 
 <p align="center">
@@ -20,113 +20,142 @@
   <a href="../README.md">简体中文</a> · <a href="README.zh-Hant.md">繁體中文</a> · <a href="README.en.md">English</a> · <strong>日本語</strong> · <a href="README.ko.md">한국어</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a> · <a href="README.pt-BR.md">Português (Brasil)</a>
 </p>
 
-<p align="center"><strong>画面上の仕事を記録して、一日を振り返る。</strong></p>
+<p align="center"><strong>手動タイマー不要。画面上の作業を自動記録し、毎日をはっきり振り返る。</strong></p>
 
-Daygo は macOS と Windows 向けの作業記録・振り返りツールです。バックグラウンドで一定間隔のスクリーンショットを撮影し、設定した AI が画面上の活動を**タイムライン、日次レビュー、週次まとめ**に整理します。朝会や振り返り、作業の詳細を思い出すために役立ちます。
+Daygo は **macOS** と **Windows** 向けのローカルファーストな作業記録・振り返りツールです。バックグラウンドでメインディスプレイを一定間隔で離散キャプチャし、あなたが設定した AI を使って**自動タイムライン・日次スタンドアップ要約・週次レビュー・計画リマインダー**へと整理します。タイマーの開始やクラウドアカウントは不要です。
 
-**一定間隔のスクリーンショット · ローカル保存 · 選べる AI · 9 言語のインターフェース**
+<p align="center"><b>離散スクリーンショット · ローカル保存 · 自由な AI 選択（ローカルモデル対応） · 9言語 UI</b></p>
 
-[ダウンロードとインストール](#ダウンロードとインストール) · [使い始める](#使い始める) · [機能プレビュー](#機能プレビュー) · [プライバシーとデータ](#プライバシーとデータ) · [開発への参加](#開発への参加)
+<p align="center">
+  <a href="#主な機能">主な機能</a> ·
+  <a href="#ダウンロードとインストール">ダウンロードとインストール</a> ·
+  <a href="#クイックスタート">クイックスタート</a> ·
+  <a href="#プライバシーとセキュリティ">プライバシーとセキュリティ</a> ·
+  <a href="#開発への参加">開発への参加</a>
+</p>
 
-## ダウンロードとインストール
+---
 
-[最新の正式リリースの Assets](https://github.com/Jwz-git/Daygo/releases/latest) から、プラットフォームに合ったインストーラーを選んでください。
+## 主な機能
 
-| プラットフォーム | システムとアーキテクチャ | インストーラー |
-|---|---|---|
-| macOS | macOS 14+、Apple Silicon（arm64） | `Daygo-<バージョン>-arm64.dmg` |
-| Windows | Windows 11 24H2+（build 26100+）、x64（amd64） | `Daygo-<バージョン>-amd64-installer.exe` |
-
-主な開発プラットフォームは macOS で、Windows 向けには x64 インストーラーを提供しています。他のアーキテクチャと Linux 向けのインストーラーは未公開です。ソースコードの進捗はリリース版より先行する場合があります。機能の状態は [モジュール一覧](../docs/09-roadmap.md#91-模块总表)、署名・公証・インストールの検証記録は [配布と更新](../docs/modules/delivery.md) を参照してください。
-
-## 使い始める
-
-1. **インストールと権限の許可**：Daygo を起動します。macOS では画面収録の権限を許可し、アプリの案内に従って再起動してください。
-2. **AI の設定**：設定でサービスの URL、API キー、モデルを追加します。保存後に「モデルのテストと試用」を開き、テキストまたは画像 1 枚で応答を確認します。
-3. **記録方法の設定**：撮影間隔、除外するアプリ、ディスク使用量の上限を選び、記録を有効にします。
-4. **結果の確認**：最初の分析バッチが完了したら、タイムラインでカードと元の画像を確認し、必要に応じて編集します。日次・週次ページで活動を振り返れます。
-
-Daygo に AI サービスや利用枠は付属しません。自動分析には画像認識と、設定したプロトコルでの構造化出力への対応が必要です。試用ページで応答を受け取っても、分析全体が動作することの検証にはなりません。ローカルモデルにも同じ能力が必要です。
-
-## 機能プレビュー
-
-<sub>以下のスクリーンショットには匿名のサンプルデータを使用しています。</sub>
+<sub>以下のスクリーンショットには匿名化されたサンプルデータを使用しています。</sub>
 
 ### 自動タイムライン
 
-システムのメインディスプレイを一定間隔で撮影し、AI が活動を時刻・タイトル・要約・カテゴリ付きのカードに整理します。カードを開くと元の画像を確認でき、結果の編集・削除・再処理も可能です。
+メインディスプレイを一定間隔で離散キャプチャし、AI が時間帯・タイトル・要約・カテゴリ付きのカードとして整理します。カードを展開すると元フレームを確認でき、日 / 週ビューの切り替え、編集・削除、単一カードまたは日単位の再処理、当日の失敗バッチ一括削除、インスペクターでの今日の計画ブロック作成にも対応しています。
 
-<img src="../docs/assets/readme/timeline.en.webp" width="100%" alt="タイムライン：時刻順の活動カードと詳細パネル" />
+<img src="../docs/assets/readme/timeline.en.webp" width="100%" alt="自動タイムライン：時系列の活動カードと詳細パネル" />
 
 ### 日次レビュー
 
-一日の作業の流れを確認し、成果・完了した作業・課題を含む朝会用の要約を生成します。日記と日々の目標で、自分の考えも記録できます。
+1日のワークフローを一覧し、ハイライト・完了事項・ブロッカーをまとめたスタンドアップ要約を生成できます。ジャーナルと日次目標の記録、毎日のジャーナル通知リマインダー、レポート末尾への Token 使用量グラフ表示（デフォルトオフ）にも対応しています。
 
-<img src="../docs/assets/readme/daily.en.webp" width="100%" alt="日次レビュー：作業の流れと朝会用の要約" />
+<img src="../docs/assets/readme/daily.en.webp" width="100%" alt="日次レビュー：ワークフロー概要とスタンドアップ要約" />
 
 ### 週次レビュー
 
-週間の作業の流れ、集中と気散じのヒートマップ、カテゴリの割合、よく使うアプリ、時間の配分で一週間を振り返れます。記録時間の合計からは System カテゴリを除外します。
+週次ワークフロー、集中と気が散りのヒートマップ、カテゴリ割合、よく使ったアプリ、時間の流れから1週間を振り返れます。日次と同様に Token 使用量グラフを任意表示できます（計測時間から `System` カテゴリは除外されます）。
 
-<img src="../docs/assets/readme/weekly.en.webp" width="100%" alt="週次レビュー：カテゴリ別の利用アプリと時間の配分図" />
-
-### バックグラウンド記録とカスタマイズ
-
-| 機能 | 説明 |
-|---|---|
-| バックグラウンド記録 | ウィンドウを閉じても記録を継続。macOS のメニューバーや Windows の通知領域から再表示できます |
-| 一時停止と再開 | 15 / 30 / 60 分、または無期限に停止可能。時間指定の停止は期限が来ると自動で再開します |
-| システムイベント | スリープ・画面ロック・スクリーンセーバー中は撮影を停止。手動で無効にした記録はシステムイベントで再開しません |
-| 撮影設定 | 間隔は 1 / 5 / 10 / 20 / 30 / 60 秒、既定値は 10 秒。高さは 720 / 1080 ピクセル、既定値は 1080 |
-| AI サービス | OpenAI Chat Completions、OpenAI Responses、Anthropic Messages。サービスごとに複数モデルを設定でき、順序付きフォールバックに対応 |
-| 外観とカテゴリ | ライト / ダーク / システムに合わせる。カテゴリの名前・順序・色を編集でき、ログイン時の起動と macOS Dock アイコンも設定可能 |
-
-インターフェースは簡体字中国語、繁体字中国語、英語、日本語、韓国語、ドイツ語、フランス語、スペイン語、ブラジルポルトガル語に対応しています。
+<img src="../docs/assets/readme/weekly.en.webp" width="100%" alt="週次レビュー：カテゴリ別よく使ったアプリと時間の流れ" />
 
 <details>
 <summary>ダークモードを見る</summary>
 
-<p><img src="../docs/assets/readme/dark.en.webp" width="100%" alt="Daygo のダークモード" /></p>
+<p><img src="../docs/assets/readme/dark.en.webp" width="100%" alt="Daygo ダークモードのプレビュー" /></p>
 
 </details>
 
-タイムライン・日記・目標の一日は現地時刻の **午前 4 時**から始まります。朝会用の要約は暦日で集計するため、深夜の活動が属する日付は表示によって異なる場合があります。
+### バックグラウンド常駐とカスタマイズ
 
-## プライバシーとデータ
+| 機能 | 内容 |
+|---|---|
+| バックグラウンド記録 | メインウィンドウを閉じても記録を継続（macOS では Dock 実行インジケーターも非表示）。macOS メニューバーまたは Windows 通知領域からいつでも再表示可能 |
+| 一時停止とシステムイベント | 15 / 30 / 60 分または無期限で一時停止（時間指定は自動で再開）。スリープ・ロック・スクリーンセーバー時に自動一時停止し、手動停止した記録はシステムイベントで自動再開しません |
+| キャプチャと保存 | 間隔 1 / 5 / 10 / 20 / 30 / 60 秒（デフォルト 10 秒）、高さ 720 / 1080 px（デフォルト 1080）。ディスク容量上限とセグメント単位の削除に対応し、Windows では録画フォルダーの移行も可能 |
+| マルチプロトコル AI とフォールバック | API Key は OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Google Gemini（条件を満たす確定済み MP4 セグメントは直接送信を優先し、非該当時はスクリーンショットへフォールバック）に対応。ChatGPT サブスクリプション OAuth、単一プロバイダー複数モデル、順序付きフォールバックチェーンもサポート |
+| 計画とシステム通知 | 今日の計画ブロックと完了チェック。macOS / Windows で毎日のジャーナル通知、計画開始通知、気が散り警告を送信 |
+| 外観・カテゴリ・言語 | ライト / ダーク / システム連動。初回ガイドに職種別カテゴリプリセットを搭載し、名称・順序・色を自由に編集可能。ログイン時起動と 9 言語 UI に対応 |
 
-- **ローカル保存**：スクリーンショット、タイムライン、日記、設定、データベースは端末に保存されます。Daygo 独自のバックエンド、アカウント、同期サービスはありません。
-- **送信先は自分で選択**：画面データを端末外へ送る先は、明示的に設定した AI サービスだけです。対応するローカルモデルを使えば画面分析を端末内で実行できます。第三者サービスでのデータの扱いは、そのプライバシーポリシーに従います。
-- **アプリの除外と前面アプリの保護**：除外対象のアプリを撮影画像から取り除きます。対象アプリが前面にある場合は、内容を含まない代替フレームを保存します。両方の保護を維持します。
-- **OS の資格情報ストア**：API キーは macOS キーチェーンまたは Windows Credential Manager にのみ保存します。画面からは書き込みだけが可能で、読み出せません。アプリのデータベース、localStorage、エラーメッセージには入りません。
+> **午前 4 時区切りの論理日**：タイムライン・計画・ジャーナル・目標は現地時間の**午前 4:00** で1日を区切りますが、スタンドアップ要約は暦日単位で集計されます。深夜の作業はビューによって帰属日が異なる場合があります。
 
-記録は個別のスクリーンショットで行い、継続的な画面録画ストリームは使用しません。利用分析とクラッシュ報告は既定で無効で、送信機能は未実装です。
+---
 
-アンインストール後もユーザーデータと資格情報は保持されます。データの扱いの詳細は [プライバシーとセキュリティ](../docs/07-privacy-security.md) を参照してください。
+## ダウンロードとインストール
+
+[最新正式リリース](https://github.com/Jwz-git/Daygo/releases/latest) の Assets からお使いの環境向けインストーラーを入手してください：
+
+| プラットフォーム | 対応 OS とアーキテクチャ | パッケージ |
+|---|---|---|
+| macOS | macOS 14+、Apple Silicon（`arm64`） | `Daygo-<バージョン>-arm64.dmg` |
+| Windows | Windows 11 24H2+（build 26100+）、x64（`amd64`） | `Daygo-<バージョン>-amd64-installer.exe` |
+
+macOS がメイン開発プラットフォームであり、Windows は x64 インストーラーを提供しています。その他のアーキテクチャと Linux 向けリリースインストーラーは未提供です。ソースコードはリリース版より先行している場合があるため、実装状況は [モジュール総表](../docs/09-roadmap.md#91-模块总表)、署名・公証・更新の検証記録は [インストールと更新](../docs/modules/delivery.md) を参照してください。
+
+---
+
+## クイックスタート
+
+1. **インストールと初回ガイド**：Daygo を起動し、職種別カテゴリプリセットと基本設定を選びます。macOS では案内に従い「画面収録」権限を許可して再起動してください。
+2. **AI の設定**：ガイドまたは設定で **ChatGPT サブスクリプション**（ブラウザ OAuth）または **API Key**（エンドポイント・キー・手入力または取得したモデルの複数選択）を設定します。保存後、「モデルテストと試用」でテキストや単一画像の応答を確認できます。
+3. **記録とプライバシー設定**：撮影間隔、ブロック対象アプリ、ディスク上限（Windows は録画フォルダー移行も可）を調整して記録を有効にします。
+4. **振り返る**：最初の分析が完了したらタイムラインでカードと元フレームを確認し、必要に応じて編集・再処理します。日次・週次ページで全体を振り返れます。
+
+> Daygo には AI サービスや利用枠は含まれていません。自動タイムライン分析には画像認識と対象プロトコルの構造化出力能力が必要です（ローカルモデルも同様）。試用ページで応答が得られても自動分析全体の適合が保証されるわけではありません。
+
+---
+
+## プライバシーとセキュリティ
+
+- **完全ローカル保存**：スクリーンショットのセグメント、タイムライン、ジャーナル、計画、設定、SQLite データベースはすべて端末内に保存されます。独自バックエンド・アカウント・クラウド同期はありません。
+- **送信先はあなたが選択**：画面データが端末外に出る唯一の経路は、あなたが明示的に設定した AI サービスです。対応ローカルモデルを使えば端末内のみで完結でき、外部サービス利用時は各社のプライバシーポリシーが適用されます。
+- **アプリブロック＋前面マスキングの二重保護**：ブロック対象アプリはキャプチャから除外され、ブロック対象アプリが前面にある間は匿名化されたプレースホルダーフレームのみ保存します。
+- **書き込み専用のシステム資格情報管理**：API Key と ChatGPT OAuth 資格情報はシステム資格情報ストア（macOS キーチェーン / Windows 資格情報マネージャー）のみに保存され、UI・バインディング層からは読み戻せず、データベース・`localStorage`・エラーメッセージにも含まれません。
+
+記録は連続的な画面録画ストリームではなく**離散スクリーンショット**を使用します。利用状況分析とクラッシュ報告はデフォルトでオフです（送信コンシューマーは未実装）。アンインストールしてもユーザーデータと資格情報は保持されます。詳細は [プライバシーとセキュリティ](../docs/07-privacy-security.md) を参照してください。
+
+---
 
 ## 開発への参加
 
-Go が業務ロジックとデータベースへの書き込みを担当し、プラットフォーム機能はインターフェースで分離します。Vue は生成した Wails バインディングを通して Go にアクセスします。日常の開発は `test`、安定版は `main` ブランチです。
+日常開発ブランチ `test` は **Go 1.26.10 + Wails v3.1.0 + Vue 3** 構成、`main` は安定ブランチです（移行の詳細は [Wails v3 GA 移行記録](../docs/decisions/wails-v3-migration.md)）。Go がビジネスロジックと SQLite 書き込みを担い、プラットフォーム機能はインターフェース越しに分離し、Vue は生成された TypeScript バインディングで Go を呼び出します。
 
-macOS での開発には Go、Node.js/npm、Xcode Command Line Tools が必要です。Go の要件は [go.mod](../go.mod)、Node.js の要件は [開発用スクリプト](../scripts/dev.sh) を参照してください。
+### 前提環境
+
+- [go.mod](../go.mod) で指定された Go バージョン
+- npm 同梱の Node.js `20.19+`（20.x）または `22.12+`
+- **macOS**：Xcode Command Line Tools
+- **Windows**：MinGW-w64（binutils 含む）、Visual Studio 2022 C++ ツール、Windows SDK 26100、WebView2 Runtime（詳細は [Windows ビルド依存関係](../scripts/README.md#windows-build-dependencies)）
+- **Linux**：既定で GTK4 と WebKitGTK 6.0 開発パッケージ（arm64 ホストビルド検証済み、画面キャプチャとシステム統合は未実装）
+
+### クローン・検証・起動
 
 ```bash
 git clone --branch test https://github.com/Jwz-git/Daygo.git
 cd Daygo
-./scripts/gate.sh   # 初期準備、ビルド、Go / フロントエンドのテスト、ドキュメント検査
+./scripts/gate.sh   # クリーンチェックアウトのブートストラップ、ビルド、Go / フロントエンドテスト、ドキュメント検査
 ```
 
-検査スクリプトは必要な順序でフロントエンド成果物と Wails バインディングを準備します。各 OS の開発コマンドは [スクリプト一覧](../scripts/README.md)、設計と貢献ルールは [設計ドキュメント](../docs/README.md) と [AGENTS.md](../AGENTS.md) を参照してください。
+| プラットフォーム | 開発アプリの起動 |
+|---|---|
+| macOS | `./scripts/dev.sh` |
+| Windows | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev.ps1` |
+| Linux | `./scripts/dev-linux.sh` |
 
-不具合は [Issue](https://github.com/Jwz-git/Daygo/issues) に OS、アプリのバージョン、再現手順、機密情報を除いたエラーを添えて報告してください。実際のスクリーンショット、データベース、API キーはアップロードしないでください。
+ビルド・パッケージング手順は [scripts/README.md](../scripts/README.md)、設計仕様と開発規約は [設計ドキュメント](../docs/README.md) と [AGENTS.md](../AGENTS.md) を参照してください。
+
+不具合の報告は [Issue](https://github.com/Jwz-git/Daygo/issues) へ OS・アプリバージョン・再現手順・機密除去済みエラーを添えてお送りください。**実際のスクリーンショット・データベース・API Key は絶対に添付しないでください。**
+
+---
+
+## 今後の予定
+
+- プラグイン機能の開発
+- Linux での画面キャプチャとシステム統合
+
+---
 
 ## ライセンス
 
-[MIT License](../LICENSE) で公開しています。
+本プロジェクトは [MIT License](../LICENSE) のもとで公開されています。
 
-<sub><a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> に着想を得ています（MIT、© 2025 Jerry Liu）。</sub>
-
-## 時間と気が向いたときに進める今後の更新
-
-- Wails v3 GA への移行
-- プラグイン機能の開発
-- Linux 対応
+<sub><a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a>（MIT、© 2025 Jerry Liu）から着想を得ています。</sub>

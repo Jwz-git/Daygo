@@ -1,132 +1,161 @@
 <p align="center">
-  <img src="../docs/assets/readme/banner.en.webp" width="100%" alt="Daygo — Weißt du am Ende des Tages noch, woran du gearbeitet hast?" />
+  <img src="../docs/assets/readme/banner.en.webp" width="100%" alt="Daygo — Wissen Sie am Ende des Tages noch, woran Sie gearbeitet haben?" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/Jwz-git/Daygo/releases/latest"><img src="https://img.shields.io/github/v/release/Jwz-git/Daygo?style=flat-square&color=F3854B&label=version" alt="Neueste stabile Version" /></a>
+  <a href="https://github.com/Jwz-git/Daygo/releases/latest"><img src="https://img.shields.io/github/v/release/Jwz-git/Daygo?style=flat-square&color=F3854B&label=Release" alt="Aktuelle Version" /></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-333333?style=flat-square&logo=apple&logoColor=white" alt="macOS 14+" />
-  <img src="https://img.shields.io/badge/Windows-11%2024H2%2B-0078D4?style=flat-square" alt="Windows 11 24H2+" />
-  <a href="../LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E7DF7?style=flat-square&color=6E7DF7" alt="MIT License" /></a>
-  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails · Vue 3" />
+  <img src="https://img.shields.io/badge/Windows-11%2024H2%2B-0078D4?style=flat-square&logo=windows&logoColor=white" alt="Windows 11 24H2+" />
+  <a href="../LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E7DF7?style=flat-square" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%203%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails 3 · Vue 3" />
 </p>
 
 <p align="center">
   <a href="https://github.com/Jwz-git/Daygo/releases/latest"><b>Herunterladen</b></a> ·
   <a href="https://jwz-git.github.io/Daygo/"><b>Website</b></a> ·
-  <a href="../docs/README.md">Designdokumentation</a>
+  <a href="../docs/README.md">Design-Dokumentation</a>
 </p>
 
 <p align="center">
   <a href="../README.md">简体中文</a> · <a href="README.zh-Hant.md">繁體中文</a> · <a href="README.en.md">English</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a> · <strong>Deutsch</strong> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a> · <a href="README.pt-BR.md">Português (Brasil)</a>
 </p>
 
-<p align="center"><strong>Halte deine Arbeit am Bildschirm fest. Blicke auf deinen Tag zurück.</strong></p>
+<p align="center"><strong>Kein manuelles Zeiterfassen. Arbeit automatisch festhalten und jeden Tag klar überblicken.</strong></p>
 
-Daygo ist ein Werkzeug zur Arbeitsaufzeichnung und zum Rückblick für macOS und Windows. Es nimmt im Hintergrund in regelmäßigen Abständen Screenshots auf. Dein gewählter KI-Anbieter ordnet die Bildschirmaktivität in eine **Zeitleiste, Tagesrückblicke und Wochenübersichten** ein — als Grundlage für Stand-ups, Rückblicke und das Erinnern an Arbeitsdetails.
+Daygo ist ein Local-First-Tool für Arbeitsprotokolle und Rückblicke unter **macOS** und **Windows**. Es erstellt im Hintergrund in festen Abständen einzelne Screenshots Ihres Hauptbildschirms und ordnet Ihre Aktivitäten mithilfe Ihrer selbst gewählten KI in **automatische Zeitachsen, tägliche Standup-Zusammenfassungen, Wochenrückblicke und Plan-Erinnerungen** ein — ohne Timer und ohne Cloud-Konto.
 
-**Einzelne Screenshots · Lokale Speicherung · Freie KI-Auswahl · Neun Oberflächensprachen**
+<p align="center"><b>Einzel-Screenshots · Lokale Speicherung · Eigene KI (inkl. lokaler Modelle) · 9 Sprachen</b></p>
 
-[Herunterladen und installieren](#herunterladen-und-installieren) · [Schnellstart](#schnellstart) · [Funktionsvorschau](#funktionsvorschau) · [Datenschutz und Daten](#datenschutz-und-daten) · [Zur Entwicklung beitragen](#zur-entwicklung-beitragen)
+<p align="center">
+  <a href="#funktionen">Funktionen</a> ·
+  <a href="#herunterladen-und-installieren">Herunterladen &amp; Installieren</a> ·
+  <a href="#schnellstart">Schnellstart</a> ·
+  <a href="#datenschutz-und-sicherheit">Datenschutz &amp; Sicherheit</a> ·
+  <a href="#mitwirken">Mitwirken</a>
+</p>
 
-## Herunterladen und installieren
+---
 
-Wähle unter [Assets der neuesten stabilen Version](https://github.com/Jwz-git/Daygo/releases/latest) das Installationspaket für deine Plattform:
+## Funktionen
 
-| Plattform | System und Architektur | Installationspaket |
-|---|---|---|
-| macOS | macOS 14+, Apple Silicon (arm64) | `Daygo-<Version>-arm64.dmg` |
-| Windows | Windows 11 24H2+ (Build 26100+), x64 (amd64) | `Daygo-<Version>-amd64-installer.exe` |
+<sub>Alle folgenden Screenshots zeigen anonymisierte Beispieldaten.</sub>
 
-macOS ist die Hauptentwicklungsplattform; für Windows gibt es ein x64-Installationspaket. Für andere Architekturen und Linux sind noch keine Installationspakete veröffentlicht. Der Quellcode kann der veröffentlichten Version voraus sein. Den Funktionsstand zeigt die [Modulübersicht](../docs/09-roadmap.md#91-模块总表); Nachweise zu Signierung, Notarisierung und Installation stehen unter [Auslieferung und Updates](../docs/modules/delivery.md).
+### Automatische Zeitachse
 
-## Schnellstart
+Daygo erfasst diskret den primären Bildschirm und fasst Aktivitätsblöcke per KI in Karten mit Zeitspanne, Titel, Zusammenfassung und Kategorie zusammen. Aufgeklappte Karten zeigen die Originalframes; neben Tages- und Wochenansicht unterstützt die Zeitachse Bearbeiten, Löschen, Neuverarbeiten einzelner Karten oder ganzer Tage, Löschen fehlgeschlagener Tages-Batches per Klick sowie heutige Planblöcke im Inspektor.
 
-1. **Installieren und Berechtigung erteilen**: Starte Daygo. Erlaube unter macOS die Bildschirmaufnahme und starte die App neu, wenn sie dich dazu auffordert.
-2. **KI konfigurieren**: Trage in den Einstellungen die Dienst-URL, den API-Schlüssel und das Modell ein. Speichere und öffne „Modelltest und Erprobung“, um eine Antwort mit Text oder einem Bild zu prüfen.
-3. **Aufzeichnung einstellen**: Wähle Screenshot-Intervall, blockierte Apps und Speicherlimit. Aktiviere anschließend die Aufzeichnung.
-4. **Ergebnisse ansehen**: Nach dem ersten Analysebatch kannst du Karten und Originalbilder in der Zeitleiste prüfen und bearbeiten. Auf den Tages- und Wochenseiten blickst du auf deine Aktivitäten zurück.
-
-Daygo enthält keinen KI-Dienst und kein Nutzungsguthaben. Die automatische Analyse benötigt Bilderkennung und strukturierte Ausgaben für die konfigurierten Protokolle. Eine Antwort auf der Testseite bestätigt nicht, dass die gesamte Analyse funktioniert. Auch lokale Modelle benötigen diese Fähigkeiten.
-
-## Funktionsvorschau
-
-<sub>Die folgenden Screenshots verwenden anonyme Beispieldaten.</sub>
-
-### Automatische Zeitleiste
-
-Daygo erfasst das Hauptdisplay in regelmäßigen Abständen. Die KI erstellt Aktivitätskarten mit Zeit, Titel, Zusammenfassung und Kategorie. Öffne eine Karte, um die Originalbilder anzusehen, oder bearbeite, lösche und verarbeite Ergebnisse erneut.
-
-<img src="../docs/assets/readme/timeline.en.webp" width="100%" alt="Zeitleiste: chronologische Aktivitätskarten mit Detailansicht" />
+<img src="../docs/assets/readme/timeline.en.webp" width="100%" alt="Automatische Zeitachse: Aktivitäten nach Zeitabschnitten mit Detailinspektor" />
 
 ### Tagesrückblick
 
-Sieh dir den Arbeitsverlauf eines Tages an und erstelle eine Stand-up-Zusammenfassung mit Höhepunkten, abgeschlossenen Aufgaben und Hindernissen. Ergänze deine eigene Sicht mit einem Tagebuch und Tageszielen.
+Sehen Sie Ihren Arbeitsablauf auf einen Blick und erstellen Sie Standup-Zusammenfassungen mit Highlights, erledigten Aufgaben und Blockern. Führen Sie ein Journal und Tagesziele, aktivieren Sie tägliche Journal-Erinnerungen und blenden Sie optional ein Token-Verbrauchsdiagramm am Ende des Tagesberichts ein (standardmäßig aus).
 
-<img src="../docs/assets/readme/daily.en.webp" width="100%" alt="Tagesrückblick: Arbeitsverlauf und Stand-up-Zusammenfassung" />
+<img src="../docs/assets/readme/daily.en.webp" width="100%" alt="Tagesrückblick: Arbeitsablauf und Standup-Zusammenfassung" />
 
 ### Wochenrückblick
 
-Blicke mit dem Wochenverlauf, der Heatmap für Fokus und Ablenkung, Kategorieanteilen, häufig genutzten Apps und Zeitflüssen auf die Woche zurück. Die erfasste Gesamtzeit schließt die Kategorie System aus.
+Analysieren Sie Ihre Woche mit Wochenverlauf, Fokus-/Ablenkungs-Heatmap, Kategorieanteilen, häufig genutzten Apps und Zeitfluss — ebenfalls mit optionalem Token-Diagramm (die erfasste Dauer schließt die Kategorie `System` aus).
 
-<img src="../docs/assets/readme/weekly.en.webp" width="100%" alt="Wochenrückblick: häufig genutzte Apps je Kategorie und Zeitflussdiagramm" />
-
-### Hintergrundaufzeichnung und Anpassung
-
-| Funktion | Beschreibung |
-|---|---|
-| Hintergrundaufzeichnung | Die Aufzeichnung läuft nach dem Schließen des Fensters weiter. Öffne es über die macOS-Menüleiste oder den Windows-Infobereich erneut |
-| Pause und Fortsetzung | Pausiere für 15 / 30 / 60 Minuten oder unbegrenzt. Zeitlich begrenzte Pausen enden automatisch |
-| Systemereignisse | Bei Ruhezustand, Bildschirmsperre und Bildschirmschoner pausiert die Aufnahme. Manuell ausgeschaltete Aufzeichnung wird durch Systemereignisse nicht aktiviert |
-| Screenshot-Einstellungen | Intervalle von 1 / 5 / 10 / 20 / 30 / 60 Sekunden, standardmäßig 10. Höhe 720 / 1080 Pixel, standardmäßig 1080 |
-| KI-Dienste | OpenAI Chat Completions, OpenAI Responses und Anthropic Messages. Mehrere Modelle je Anbieter und eine geordnete Ausweichkette |
-| Darstellung und Kategorien | Hell / Dunkel / System. Namen, Reihenfolge und Farben der Kategorien bearbeiten; Start bei Anmeldung und macOS-Dock-Symbol einstellen |
-
-Die Oberfläche unterstützt vereinfachtes und traditionelles Chinesisch, Englisch, Japanisch, Koreanisch, Deutsch, Französisch, Spanisch und brasilianisches Portugiesisch.
+<img src="../docs/assets/readme/weekly.en.webp" width="100%" alt="Wochenrückblick: Kategorien, häufig genutzte Apps und Zeitfluss" />
 
 <details>
 <summary>Dunkelmodus ansehen</summary>
 
-<p><img src="../docs/assets/readme/dark.en.webp" width="100%" alt="Daygo im Dunkelmodus" /></p>
+<p><img src="../docs/assets/readme/dark.en.webp" width="100%" alt="Vorschau des Dunkelmodus von Daygo" /></p>
 
 </details>
 
-Tage in Zeitleiste, Tagebuch und Zielen beginnen um **4 Uhr Ortszeit**. Stand-up-Zusammenfassungen verwenden Kalendertage. Aktivitäten in der Nacht können deshalb je nach Ansicht unterschiedlichen Tagen zugeordnet sein.
+### Hintergrundbetrieb & Anpassung
 
-## Datenschutz und Daten
+| Funktion | Details |
+|---|---|
+| Hintergrundaufnahme | Das Schließen des Hauptfensters beendet die Aufnahme nicht (unter macOS wird der Dock-Indikator ausgeblendet); jederzeit über die macOS-Menüleiste oder den Windows-Infobereich wieder öffnen |
+| Pause & Systemereignisse | Pause für 15 / 30 / 60 Minuten oder dauerhaft (zeitgesteuerte Pausen setzen automatisch fort); automatische Pause bei Ruhezustand, Sperrbildschirm oder Bildschirmschoner; manuell gestoppte Aufnahmen werden durch Systemereignisse nicht neu gestartet |
+| Aufnahme & Speicher | Intervall 1 / 5 / 10 / 20 / 30 / 60 s (Standard 10 s); Höhe 720 / 1080 px (Standard 1080); konfigurierbares Speicherlimit mit Segment-Bereinigung; unter Windows lässt sich der Aufnahmeordner verschieben |
+| Multi-Protokoll-KI & Fallback | API Key unterstützt OpenAI Chat Completions, OpenAI Responses, Anthropic Messages und Google Gemini (bevorzugt direkten Upload geeigneter abgeschlossener MP4-Segmente, sonst Fallback auf Screenshots); außerdem ChatGPT-Abo per OAuth, mehrere Modelle pro Anbieter und geordnete Fallback-Ketten |
+| Pläne & Benachrichtigungen | Heutige Planblöcke mit Erledigt-Markierung; native macOS-/Windows-Benachrichtigungen für Journal-Erinnerungen, Planstart und Ablenkungshinweise |
+| Design, Kategorien & Sprachen | Hell / Dunkel / System; Berufskategorie-Vorlagen beim Erststart mit frei anpassbaren Namen, Reihenfolge und Farben; Autostart beim Anmelden; 9 UI-Sprachen |
 
-- **Lokale Speicherung**: Screenshots, Zeitleisten, Tagebuch, Einstellungen und Datenbank bleiben auf deinem Gerät. Daygo hat kein eigenes Backend, Konto oder Synchronisierungsangebot.
-- **Du wählst das Ziel**: Bildschirmdaten verlassen das Gerät ausschließlich für einen ausdrücklich konfigurierten KI-Dienst. Ein kompatibles lokales Modell kann die Bildschirmanalyse auf deinem Gerät ausführen. Drittanbieter verarbeiten Daten nach ihren eigenen Datenschutzrichtlinien.
-- **App-Blockierung und Schutz der Vordergrund-App**: Blockierte Apps werden aus Screenshots ausgeschlossen. Ist eine blockierte App im Vordergrund, speichert Daygo ein bereinigtes Platzhalterbild. Beide Schutzmaßnahmen bleiben aktiv.
-- **Systemspeicher für Zugangsdaten**: API-Schlüssel liegen ausschließlich im macOS-Schlüsselbund oder Windows Credential Manager. Die Oberfläche kann sie schreiben, aber nicht lesen. Sie gelangen nicht in App-Datenbank, localStorage oder Fehlermeldungen.
+> **Logischer Tag ab 4:00 Uhr**: Zeitachse, Pläne, Journal und Ziele trennen Tage um **4:00 Uhr Ortszeit**, während Standup-Zusammenfassungen nach Kalendertagen gruppieren. Spätabendliche Arbeit kann daher unterschiedlich zugeordnet sein.
 
-Die Aufzeichnung verwendet einzelne Screenshots und keinen fortlaufenden Bildschirmaufnahmestrom. Nutzungsanalyse und Absturzberichte sind standardmäßig deaktiviert; die Übermittlung ist noch nicht implementiert.
+---
 
-Eine Deinstallation bewahrt Benutzerdaten und Zugangsdaten. Die vollständigen Datengrenzen beschreibt [Datenschutz und Sicherheit](../docs/07-privacy-security.md).
+## Herunterladen und installieren
 
-## Zur Entwicklung beitragen
+Laden Sie das passende Installationspaket aus dem [aktuellen GitHub Release](https://github.com/Jwz-git/Daygo/releases/latest) herunter:
 
-Go übernimmt Produktlogik und Datenbankschreibzugriffe. Plattformfähigkeiten sind über Schnittstellen getrennt; Vue greift über generierte Wails-Bindings auf Go zu. `test` ist der Entwicklungsbranch, `main` der stabile Branch.
+| Plattform | System & Architektur | Paket |
+|---|---|---|
+| macOS | macOS 14+, Apple Silicon (`arm64`) | `Daygo-<Version>-arm64.dmg` |
+| Windows | Windows 11 24H2+ (Build 26100+), x64 (`amd64`) | `Daygo-<Version>-amd64-installer.exe` |
 
-Für die Entwicklung unter macOS werden Go, Node.js/npm und Xcode Command Line Tools benötigt. Die Go-Version steht in [go.mod](../go.mod), die Node.js-Anforderungen im [Entwicklungsskript](../scripts/dev.sh).
+macOS ist die Hauptentwicklungsplattform, für Windows gibt es ein x64-Installationsprogramm; für andere Architekturen und Linux gibt es noch keine Release-Pakete. Der Quelltext kann neuer als das letzte Release sein — siehe [Modulübersicht](../docs/09-roadmap.md#91-模块总表) und [Installation & Updates](../docs/modules/delivery.md).
+
+---
+
+## Schnellstart
+
+1. **Installieren & Einrichten**: Starten Sie Daygo und wählen Sie im Onboarding eine Kategorievorlage und Grundeinstellungen. Unter macOS die Berechtigung **Bildschirmaufnahme** erteilen und bei Aufforderung neu starten.
+2. **KI verbinden**: Wählen Sie im Onboarding oder in den Einstellungen **ChatGPT-Abo** (Browser-OAuth) oder **API Key** (Endpunkt, Schlüssel sowie manuell eingegebene oder abgerufene Mehrfach-Modelle). Prüfen Sie die Antwort anschließend im Bereich **Modelltest & Ausprobieren** mit Text oder einem Einzelbild.
+3. **Aufnahme & Datenschutz einstellen**: Intervall, blockierte Apps und Speicherlimit anpassen (unter Windows optional Aufnahmeordner verschieben) und die Aufnahme starten.
+4. **Rückblick nutzen**: Nach dem ersten Analyse-Batch Karten und Originalframes in der Zeitachse prüfen, bei Bedarf bearbeiten oder neu verarbeiten und Tages- sowie Wochenrückblicke ansehen.
+
+> Daygo enthält kein eigenes KI-Kontingent. Die automatische Analyse setzt Bildverständnis und strukturierte Ausgaben im gewählten Protokoll voraus (auch bei lokalen Modellen); eine erfolgreiche Testantwort belegt noch nicht die vollständige Pipeline-Kompatibilität.
+
+---
+
+## Datenschutz und Sicherheit
+
+- **Lokale Speicherung**: Screenshot-Segmente, Zeitachse, Journal, Pläne, Einstellungen und SQLite-Datenbank verbleiben auf Ihrem Gerät. Es gibt kein eigenes Backend, kein Konto und keine Cloud-Synchronisierung.
+- **Sie bestimmen das Ziel**: Bildschirmdaten verlassen Ihr Gerät ausschließlich an einen ausdrücklich konfigurierten KI-Anbieter. Mit einem kompatiblen lokalen Modell bleibt alles auf dem Gerät; bei externen Anbietern gelten deren Datenschutzrichtlinien.
+- **Doppelter App-Schutz**: Blockierte Apps werden aus Screenshots ausgeschlossen; befindet sich eine blockierte App im Vordergrund, speichert Daygo nur einen geschwärzten Platzhalter-Frame. Beide Schutzebenen greifen immer gemeinsam.
+- **System-Schlüsselbund (Write-Only)**: API Keys und ChatGPT-OAuth-Daten liegen ausschließlich im Systemspeicher (macOS-Schlüsselbund / Windows-Anmeldeinformationsverwaltung). Oberfläche und Bindings können keine Klartext-Schlüssel lesen; sie landen weder in SQLite noch in `localStorage` oder Fehlermeldungen.
+
+Die Erfassung nutzt **einzelne Screenshots** statt eines dauerhaften Aufnahme-Streams. Nutzungsanalyse und Absturzberichte sind standardmäßig deaktiviert (noch ohne Sende-Consumer). Bei einer Deinstallation bleiben Ihre Daten und Zugangsdaten erhalten. Details in [Datenschutz & Sicherheit](../docs/07-privacy-security.md).
+
+---
+
+## Mitwirken
+
+Die laufende Entwicklung erfolgt im Branch `test` mit **Go 1.26.10 + Wails v3.1.0 + Vue 3**; `main` ist der stabile Branch (siehe [Wails v3 GA Migrationsprotokoll](../docs/decisions/wails-v3-migration.md)). Go übernimmt Geschäftslogik und SQLite-Schreibzugriffe, Plattformfunktionen sind über Schnittstellen entkoppelt, und Vue kommuniziert über generierte TypeScript-Bindings mit Go.
+
+### Voraussetzungen
+
+- In [go.mod](../go.mod) festgelegte Go-Version
+- Node.js `20.19+` (20.x) oder `22.12+` mit npm
+- **macOS**: Xcode Command Line Tools
+- **Windows**: MinGW-w64 (inkl. binutils), Visual Studio 2022 C++-Tools, Windows SDK 26100 und WebView2 Runtime — siehe [Windows-Build-Abhängigkeiten](../scripts/README.md#windows-build-dependencies)
+- **Linux**: Standardmäßig GTK4- und WebKitGTK-6.0-Entwicklungspakete (arm64-Host-Build verifiziert; Bildschirmaufnahme und Systemintegration noch ausstehend)
+
+### Klonen, prüfen und starten
 
 ```bash
 git clone --branch test https://github.com/Jwz-git/Daygo.git
 cd Daygo
-./scripts/gate.sh   # Vorbereitung, Build, Go- und Frontend-Tests sowie Dokumentationsprüfung
+./scripts/gate.sh   # Bootstrap, Build, Go-/Frontend-Tests und Dokumentationsprüfung
 ```
 
-Das Prüfsystem bereitet Frontend-Artefakte und Wails-Bindings in der erforderlichen Reihenfolge vor. Plattformbefehle stehen unter [Skripteinstiegspunkte](../scripts/README.md), Design und Beitragsregeln in der [Designdokumentation](../docs/README.md) und [AGENTS.md](../AGENTS.md).
+| Plattform | Entwicklungs-App starten |
+|---|---|
+| macOS | `./scripts/dev.sh` |
+| Windows | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev.ps1` |
+| Linux | `./scripts/dev-linux.sh` |
 
-Melde Probleme als [Issue](https://github.com/Jwz-git/Daygo/issues) mit System, App-Version, Reproduktionsschritten und bereinigten Fehlermeldungen. Lade keine echten Screenshots, Datenbanken oder API-Schlüssel hoch.
+Weitere Build- und Paketierungsbefehle stehen in [scripts/README.md](../scripts/README.md), Architektur- und Entwicklungsregeln in [Design-Dokumentation](../docs/README.md) und [AGENTS.md](../AGENTS.md).
+
+Bitte melden Sie Fehler über ein [Issue](https://github.com/Jwz-git/Daygo/issues) mit System, App-Version, Reproduktionsschritten und bereinigten Fehlermeldungen. **Laden Sie niemals echte Screenshots, Datenbanken oder API Keys hoch.**
+
+---
+
+## Geplante Schritte
+
+- Entwicklung eines Plugin-Systems
+- Bildschirmaufnahme und Systemintegration unter Linux
+
+---
 
 ## Lizenz
 
 Veröffentlicht unter der [MIT License](../LICENSE).
 
 <sub>Inspiriert von <a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> (MIT, © 2025 Jerry Liu).</sub>
-
-## Künftige Updates nach Lust und Zeit
-
-- Migration auf Wails v3 GA
-- Entwicklung einer Plugin-Funktion
-- Unterstützung für Linux

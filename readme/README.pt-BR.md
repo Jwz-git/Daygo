@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="../docs/assets/readme/banner.en.webp" width="100%" alt="Daygo — No fim do dia, você lembra no que trabalhou?" />
+  <img src="../docs/assets/readme/banner.en.webp" width="100%" alt="Daygo — No fim do dia, você ainda lembra no que trabalhou?" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/Jwz-git/Daygo/releases/latest"><img src="https://img.shields.io/github/v/release/Jwz-git/Daygo?style=flat-square&color=F3854B&label=version" alt="Versão estável mais recente" /></a>
+  <a href="https://github.com/Jwz-git/Daygo/releases/latest"><img src="https://img.shields.io/github/v/release/Jwz-git/Daygo?style=flat-square&color=F3854B&label=vers%C3%A3o" alt="Última versão estável" /></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-333333?style=flat-square&logo=apple&logoColor=white" alt="macOS 14+" />
-  <img src="https://img.shields.io/badge/Windows-11%2024H2%2B-0078D4?style=flat-square" alt="Windows 11 24H2+" />
+  <img src="https://img.shields.io/badge/Windows-11%2024H2%2B-0078D4?style=flat-square&logo=windows&logoColor=white" alt="Windows 11 24H2+" />
   <a href="../LICENSE"><img src="https://img.shields.io/badge/license-MIT-6E7DF7?style=flat-square" alt="MIT License" /></a>
-  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails · Vue 3" />
+  <img src="https://img.shields.io/badge/Go%20%C2%B7%20Wails%203%20%C2%B7%20Vue%203-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go · Wails 3 · Vue 3" />
 </p>
 
 <p align="center">
@@ -20,113 +20,142 @@
   <a href="../README.md">简体中文</a> · <a href="README.zh-Hant.md">繁體中文</a> · <a href="README.en.md">English</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a> · <strong>Português (Brasil)</strong>
 </p>
 
-<p align="center"><strong>Registre seu trabalho na tela. Reveja seu dia.</strong></p>
+<p align="center"><strong>Zero cronômetros manuais. Registre seu trabalho na tela e revise cada dia com clareza.</strong></p>
 
-Daygo é uma ferramenta de registro e revisão do trabalho para macOS e Windows. Ela captura a tela em intervalos, em segundo plano, e usa o provedor de IA que você escolher para organizar as atividades em uma **linha do tempo, revisão diária e resumo semanal**, para reuniões de acompanhamento, retrospectivas e para lembrar detalhes do trabalho.
+O Daygo é uma ferramenta local-first de registro e retrospectiva de trabalho para **macOS** e **Windows**. Ele faz capturas discretas da tela principal em segundo plano e usa a IA que você configurar para organizar sua rotina em **linha do tempo automática, resumos diários de standup, revisões semanais e lembretes de plano** — sem precisar ligar cronômetros nem criar conta na nuvem.
 
-**Capturas pontuais · Armazenamento local · IA à sua escolha · Interface em nove idiomas**
+<p align="center"><b>Capturas discretas · Armazenamento local · Sua própria IA (inclusive modelos locais) · 9 idiomas</b></p>
 
-[Download e instalação](#download-e-instalação) · [Primeiros passos](#primeiros-passos) · [Visão das funcionalidades](#visão-das-funcionalidades) · [Privacidade e dados](#privacidade-e-dados) · [Contribuir com o desenvolvimento](#contribuir-com-o-desenvolvimento)
+<p align="center">
+  <a href="#recursos-principais">Recursos principais</a> ·
+  <a href="#download-e-instalação">Download e instalação</a> ·
+  <a href="#primeiros-passos">Primeiros passos</a> ·
+  <a href="#privacidade-e-segurança">Privacidade e segurança</a> ·
+  <a href="#como-contribuir">Como contribuir</a>
+</p>
 
-## Download e instalação
+---
 
-Escolha o instalador da sua plataforma nos [Assets da versão estável mais recente](https://github.com/Jwz-git/Daygo/releases/latest):
+## Recursos principais
 
-| Plataforma | Sistema e arquitetura | Instalador |
-|---|---|---|
-| macOS | macOS 14+, Apple Silicon (arm64) | `Daygo-<versão>-arm64.dmg` |
-| Windows | Windows 11 24H2+ (build 26100+), x64 (amd64) | `Daygo-<versão>-amd64-installer.exe` |
-
-macOS é a plataforma principal de desenvolvimento; o Windows também tem um instalador x64. Ainda não há instaladores publicados para outras arquiteturas ou Linux. O código-fonte pode estar à frente da versão publicada. Confira o [estado dos módulos](../docs/09-roadmap.md#91-模块总表) e os registros de assinatura, notarização e instalação em [Distribuição e atualizações](../docs/modules/delivery.md).
-
-## Primeiros passos
-
-1. **Instale e conceda permissão**: inicie o Daygo. No macOS, permita a captura de tela e reinicie quando o aplicativo solicitar.
-2. **Configure a IA**: adicione a URL do serviço, a chave de API e o modelo nas configurações. Salve e abra “Teste e experimentação do modelo” para conferir uma resposta com texto ou uma imagem.
-3. **Escolha como registrar**: defina o intervalo de captura, os aplicativos bloqueados e o limite de disco. Depois, ative o registro.
-4. **Confira os resultados**: após o primeiro lote de análise, veja os cartões e as imagens originais na linha do tempo e edite o que precisar. As páginas diária e semanal permitem rever suas atividades.
-
-O Daygo não inclui serviço de IA nem créditos. A análise automática exige reconhecimento de imagens e saídas estruturadas compatíveis com os protocolos configurados. Receber uma resposta na página de teste não valida todo o processo de análise. Modelos locais também precisam dessas capacidades.
-
-## Visão das funcionalidades
-
-<sub>As capturas abaixo usam dados de exemplo anônimos.</sub>
+<sub>Todas as capturas abaixo utilizam dados de exemplo anonimizados.</sub>
 
 ### Linha do tempo automática
 
-O Daygo captura a tela principal em intervalos, e a IA cria cartões com horários, títulos, resumos e categorias. Abra um cartão para conferir as imagens originais ou edite, exclua e reprocesse os resultados.
+Captura de forma discreta o monitor principal e a IA transforma blocos de atividade em cartões com horário, título, resumo e categoria. Expanda qualquer cartão para inspecionar os quadros originais, alterne entre visão diária e semanal, edite ou exclua cartões, reprocesse um cartão ou o dia inteiro, limpe lotes com falha do dia em um clique e organize os blocos de plano de hoje no inspetor.
 
-<img src="../docs/assets/readme/timeline.en.webp" width="100%" alt="Linha do tempo: cartões de atividades por horário e painel de detalhes" />
+<img src="../docs/assets/readme/timeline.en.webp" width="100%" alt="Linha do tempo automática: cartões cronológicos de atividade e painel de detalhes" />
 
 ### Revisão diária
 
-Veja o fluxo de trabalho do dia e gere um resumo para a reunião de acompanhamento com destaques, tarefas concluídas e impedimentos. Acrescente sua perspectiva com um diário e metas diárias.
+Veja o fluxo do seu dia de relance e gere resumos de standup com destaques, entregas concluídas e bloqueios. Registre diário e metas do dia, ative lembretes diários do diário e exiba opcionalmente um gráfico de consumo de Tokens ao final do relatório (desativado por padrão).
 
-<img src="../docs/assets/readme/daily.en.webp" width="100%" alt="Revisão diária: fluxo de trabalho e resumo para a reunião" />
+<img src="../docs/assets/readme/daily.en.webp" width="100%" alt="Revisão diária: visão geral do dia e resumo de standup" />
 
 ### Revisão semanal
 
-Reveja a semana com o fluxo de trabalho, o mapa de foco e distração, as proporções por categoria, os aplicativos mais usados e os fluxos de tempo. O tempo total registrado exclui a categoria System.
+Revise a semana com fluxo semanal, mapa de calor de foco e distração, distribuição por categoria, aplicativos mais usados e fluxo de tempo — também com gráfico opcional de Tokens (o tempo rastreado exclui a categoria `System`).
 
-<img src="../docs/assets/readme/weekly.en.webp" width="100%" alt="Revisão semanal: aplicativos por categoria e diagrama de fluxos de tempo" />
-
-### Registro em segundo plano e personalização
-
-| Funcionalidade | Descrição |
-|---|---|
-| Registro em segundo plano | O registro continua após fechar a janela; reabra pela barra de menus do macOS ou pela área de notificação do Windows |
-| Pausa e retomada | Pause por 15 / 30 / 60 minutos ou por tempo indeterminado; pausas com duração definida terminam automaticamente |
-| Eventos do sistema | A captura pausa durante o repouso, bloqueio e protetor de tela; eventos do sistema não reativam um registro que você desativou manualmente |
-| Configurações de captura | Intervalos de 1 / 5 / 10 / 20 / 30 / 60 segundos, padrão de 10; altura de 720 / 1080 pixels, padrão de 1080 |
-| Serviços de IA | OpenAI Chat Completions, OpenAI Responses e Anthropic Messages; vários modelos por provedor e uma cadeia de alternativas ordenada |
-| Aparência e categorias | Tema claro / escuro / do sistema; nomes, ordem e cores das categorias editáveis; início ao entrar e ícone do Dock no macOS |
-
-A interface oferece chinês simplificado, chinês tradicional, inglês, japonês, coreano, alemão, francês, espanhol e português do Brasil.
+<img src="../docs/assets/readme/weekly.en.webp" width="100%" alt="Revisão semanal: categorias, aplicativos mais usados e fluxo de tempo" />
 
 <details>
-<summary>Ver o modo escuro</summary>
+<summary>Ver modo escuro</summary>
 
-<p><img src="../docs/assets/readme/dark.en.webp" width="100%" alt="Daygo no modo escuro" /></p>
+<p><img src="../docs/assets/readme/dark.en.webp" width="100%" alt="Prévia do modo escuro do Daygo" /></p>
 
 </details>
 
-Os dias da linha do tempo, do diário e das metas começam às **4h no horário local**. Os resumos de reunião usam dias do calendário. Assim, uma atividade de madrugada pode pertencer a datas diferentes conforme a visualização.
+### Segundo plano e personalização
 
-## Privacidade e dados
+| Recurso | Detalhes |
+|---|---|
+| Gravação residente | Fechar a janela principal mantém a gravação ativa (ocultando o indicador do Dock no macOS); reabra quando quiser pela barra de menus do macOS ou área de notificação do Windows |
+| Pausa e eventos do sistema | Pause por 15 / 30 / 60 minutos ou indefinidamente (pausas temporizadas retomam sozinhas); pausa automática ao suspender, bloquear ou ativar protetor de tela; paradas manuais nunca são reativadas por eventos do sistema |
+| Captura e armazenamento | Intervalos de 1 / 5 / 10 / 20 / 30 / 60 s (padrão 10 s); altura de 720 / 1080 px (padrão 1080); limite de disco com limpeza por segmentos completos; Windows permite mover a pasta de gravações |
+| IA multiprotocolo e fallback | API Key compatível com OpenAI Chat Completions, OpenAI Responses, Anthropic Messages e Google Gemini (prioriza envio direto de segmentos MP4 finalizados elegíveis, com fallback para capturas); também suporta assinatura ChatGPT via OAuth, vários modelos por provedor e cadeia ordenada de fallback |
+| Planos e notificações | Blocos de plano do dia com marcação de concluído; notificações nativas no macOS e Windows para lembrete do diário, início de plano e alertas de distração |
+| Aparência, categorias e idioma | Claro / Escuro / Sistema; predefinições de categorias por profissão na integração inicial com nome, ordem e cor editáveis; iniciar com o sistema; 9 idiomas de interface |
 
-- **Armazenamento local**: capturas, linhas do tempo, diário, configurações e banco de dados ficam no seu dispositivo. O Daygo não tem servidor próprio, contas ou serviço de sincronização.
-- **Você escolhe o destino**: os dados de tela só saem do dispositivo para um serviço de IA que você configure explicitamente. Um modelo local compatível pode analisar a tela no próprio dispositivo. Serviços de terceiros tratam os dados conforme suas políticas de privacidade.
-- **Bloqueio de aplicativos e proteção do primeiro plano**: aplicativos bloqueados são excluídos das capturas. Quando um aplicativo bloqueado está em primeiro plano, o Daygo salva uma imagem substituta sem seu conteúdo. As duas proteções são mantidas.
-- **Armazenamento de credenciais do sistema**: as chaves de API ficam apenas no Acesso às Chaves do macOS ou no Windows Credential Manager. A interface pode gravá-las, mas não lê-las. Elas não entram no banco de dados do aplicativo, no localStorage ou nas mensagens de erro.
+> **Dia lógico às 4h00**: linha do tempo, planos, diário e metas dividem o dia às **4h00 no horário local**, enquanto o resumo de standup agrupa por dia civil. Atividades de madrugada podem aparecer em dias diferentes nessas visões.
 
-O registro usa capturas pontuais e evita um fluxo contínuo de gravação da tela. A análise de uso e os relatórios de falhas ficam desativados por padrão; o envio ainda não foi implementado.
+---
 
-A desinstalação preserva os dados e as credenciais do usuário. Veja os limites completos em [Privacidade e segurança](../docs/07-privacy-security.md).
+## Download e instalação
 
-## Contribuir com o desenvolvimento
+Baixe o instalador da sua plataforma na [última versão oficial no GitHub](https://github.com/Jwz-git/Daygo/releases/latest):
 
-Go cuida da lógica de produto e das gravações no banco de dados. Os recursos de cada plataforma ficam isolados por interfaces; Vue acessa Go pelos bindings Wails gerados. `test` é a branch de desenvolvimento e `main` é a branch estável.
+| Plataforma | Sistema e arquitetura | Pacote |
+|---|---|---|
+| macOS | macOS 14+, Apple Silicon (`arm64`) | `Daygo-<versão>-arm64.dmg` |
+| Windows | Windows 11 24H2+ (build 26100+), x64 (`amd64`) | `Daygo-<versão>-amd64-installer.exe` |
 
-O desenvolvimento no macOS exige Go, Node.js/npm e Xcode Command Line Tools. Veja a versão de Go em [go.mod](../go.mod) e os requisitos de Node.js no [script de desenvolvimento](../scripts/dev.sh).
+macOS é a plataforma principal de desenvolvimento e o Windows conta com instalador x64; outras arquiteturas e Linux ainda não possuem pacotes de lançamento. O código-fonte pode estar à frente da versão publicada — veja a [tabela de módulos](../docs/09-roadmap.md#91-模块总表) e [instalação e atualizações](../docs/modules/delivery.md).
+
+---
+
+## Primeiros passos
+
+1. **Instale e conclua a integração**: abra o Daygo e escolha uma predefinição de categorias e preferências básicas. No macOS, conceda a permissão de **Gravação de Tela** e reinicie quando solicitado.
+2. **Configure a IA**: na integração ou em Configurações, escolha **Assinatura ChatGPT** (OAuth no navegador) ou **API Key** (endpoint, chave e modelos digitados ou buscados em seleção múltipla). Depois de salvar, valide a resposta em **Teste e avaliação de modelos** com texto ou uma imagem.
+3. **Ajuste gravação e privacidade**: defina intervalo, apps bloqueados e limite de disco (no Windows você pode migrar a pasta de gravações) e ative a gravação.
+4. **Revise seu dia**: aguarde o primeiro lote de análise para ver cartões e quadros originais na linha do tempo, edite ou reprocesse se necessário e explore as páginas diária e semanal.
+
+> O Daygo não inclui serviços nem créditos de IA. A análise automática exige visão computacional e saída estruturada do protocolo escolhido (inclusive em modelos locais); obter resposta na página de teste não garante compatibilidade total do pipeline.
+
+---
+
+## Privacidade e segurança
+
+- **Armazenamento local**: segmentos de capturas, linha do tempo, diário, planos, configurações e banco SQLite permanecem no seu dispositivo. Não há backend próprio, conta nem sincronização na nuvem.
+- **Você escolhe o destino**: dados de tela só saem do dispositivo para o provedor de IA que você configurar explicitamente. Com um modelo local compatível, toda a análise ocorre localmente; serviços de terceiros seguem suas próprias políticas de privacidade.
+- **Proteção dupla por aplicativo**: apps bloqueados são excluídos das capturas e, quando um app bloqueado está em primeiro plano, o Daygo grava apenas um quadro substituto anonimizado. As duas camadas permanecem ativas juntas.
+- **Credenciais do sistema somente escrita**: API Keys e credenciais OAuth do ChatGPT ficam exclusivamente no cofre do sistema (Chaves do macOS / Gerenciador de Credenciais do Windows). A interface nunca lê segredos em texto puro, que também não entram no SQLite, `localStorage` ou mensagens de erro.
+
+A gravação utiliza **capturas discretas** em vez de um fluxo contínuo de gravação de tela. Telemetria e relatórios de falha ficam desativados por padrão (os consumidores de envio ainda não foram implementados). A desinstalação preserva seus dados e credenciais. Veja todos os limites em [Privacidade e segurança](../docs/07-privacy-security.md).
+
+---
+
+## Como contribuir
+
+O desenvolvimento ativo ocorre na branch `test` com **Go 1.26.10 + Wails v3.1.0 + Vue 3**; `main` é a branch estável (veja o [registro de migração Wails v3 GA](../docs/decisions/wails-v3-migration.md)). Go cuida da lógica de produto e das escritas no SQLite, recursos de plataforma ficam atrás de interfaces e Vue conversa com Go via bindings TypeScript gerados.
+
+### Pré-requisitos
+
+- Versão do Go definida em [go.mod](../go.mod)
+- Node.js `20.19+` (20.x) ou `22.12+` com npm
+- **macOS**: Xcode Command Line Tools
+- **Windows**: MinGW-w64 (com binutils), ferramentas C++ do Visual Studio 2022, Windows SDK 26100 e WebView2 Runtime — veja [Dependências de build no Windows](../scripts/README.md#windows-build-dependencies)
+- **Linux**: pacotes de desenvolvimento GTK4 e WebKitGTK 6.0 por padrão (build host arm64 verificado; captura de tela e integração de sistema pendentes)
+
+### Clonar, validar e executar
 
 ```bash
 git clone --branch test https://github.com/Jwz-git/Daygo.git
 cd Daygo
-./scripts/gate.sh   # Preparação, compilação, testes Go / frontend e verificação da documentação
+./scripts/gate.sh   # Bootstrap limpo, build, testes Go / frontend e checagem de docs
 ```
 
-O script de verificação prepara os artefatos frontend e os bindings Wails na ordem necessária. Os comandos por plataforma estão em [Entradas dos scripts](../scripts/README.md); as regras de design e contribuição estão na [documentação de design](../docs/README.md) e em [AGENTS.md](../AGENTS.md).
+| Plataforma | Iniciar o app em desenvolvimento |
+|---|---|
+| macOS | `./scripts/dev.sh` |
+| Windows | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev.ps1` |
+| Linux | `./scripts/dev-linux.sh` |
 
-Relate problemas em uma [Issue](https://github.com/Jwz-git/Daygo/issues) com o sistema, a versão do aplicativo, os passos de reprodução e erros sem informações sensíveis. Não envie capturas reais, bancos de dados ou chaves de API.
+Veja [scripts/README.md](../scripts/README.md) para comandos de build e empacotamento, e [Documentação de design](../docs/README.md) junto com [AGENTS.md](../AGENTS.md) para arquitetura e regras de engenharia.
+
+Para relatar problemas, abra uma [Issue](https://github.com/Jwz-git/Daygo/issues) informando sistema operacional, versão do app, passos para reproduzir e erros anonimizados. **Nunca envie capturas reais, bancos de dados ou API Keys.**
+
+---
+
+## Próximos passos
+
+- Desenvolvimento do sistema de plugins
+- Captura de tela e integração de sistema no Linux
+
+---
 
 ## Licença
 
-Publicado sob a [MIT License](../LICENSE).
+Distribuído sob a [Licença MIT](../LICENSE).
 
-<sub>Inspirado por <a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> (MIT, © 2025 Jerry Liu).</sub>
-
-## Atualizações futuras, conforme o tempo e a vontade
-
-- Migração para Wails v3 GA
-- Desenvolvimento da funcionalidade de plugins
-- Suporte ao Linux
+<sub>Inspirado no <a href="https://github.com/JerryZLiu/Dayflow">Dayflow</a> (MIT, © 2025 Jerry Liu).</sub>

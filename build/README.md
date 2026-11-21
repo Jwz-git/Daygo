@@ -1,30 +1,36 @@
-# Build Directory
+# build/
 
-Wails 构建资源与产物目录（Wails v3，沿用 Daygo 输出路径）：
+Wails v3 桌面构建资源、平台清单与本地产物目录。根 [`Taskfile.yml`](../Taskfile.yml) 与 [`build/config.yml`](config.yml) 编排桌面开发与构建；原生静态库和 DLL 由 `scripts/` 显式编译，不再使用 Wails v2 的 `preBuildHooks`。
 
-- `bin/` — 构建产物输出目录（不入库）
-- `darwin/` — macOS 构建文件：`Info.plist`（开发 / 打包共用；Info.dev.plist 为不再使用的 v2 历史模板）
-- `windows/` — Windows 构建文件：`icon.ico`、`info.json`、`wails.exe.manifest`；
-  `installer/` 是打包时从 `scripts/windows-installer/` 复制并由打包入口补齐的临时目录
-- `native/` — 原生静态库构建产物（`native/darwin/build.sh` 与
-  `native/windows/build.ps1` 的输出，不入库）
-- `deps/` — 下载的 Sparkle / WinSparkle 构建依赖（不入库）
-- `diagnostics/` — 本机诊断输出（不入库）
+## 目录结构
 
-仓库根 `.gitignore` 仅忽略这里的 `bin/`、`native/`、`deps/`、`diagnostics/` 与
-`windows/installer/`，不忽略整个 `build/`，以免新增图标、plist、manifest 或安装资源被隐藏。
-`node_modules/`、`dist/`、`.vite/` 等生成目录在各子项目通用；不整目录忽略 `web/`。
-`testdata/` 仅为数据库本体与 ZIP / tar.gz 匿名夹具保留扩展名例外，不放行数据库旁路文件、
-依赖、日志、环境文件或签名材料；`.env.example` / `.env.*.example` 仍可跟踪。
-忽略规则不检查文件内容，也不会停止跟踪已入库文件，不能替代匿名化与敏感信息审查。
+| 路径 | 用途 | Git 跟踪 |
+|---|---|:--:|
+| `config.yml` | Wails v3 应用元数据（`io.github.jwz-git.Daygo`）与 `dev_mode` 编排 | ✅ |
+| `appicon.png` | 桌面应用图标源文件 | ✅ |
+| `darwin/` | macOS 资源：`Info.plist`（开发与打包共用；`Info.dev.plist` 为停用的 v2 历史模板） | ✅ |
+| `windows/` | Windows 资源：`icon.ico`、`info.json`、`wails.exe.manifest` | ✅ |
+| `windows/installer/` | 打包时从 `scripts/windows-installer/` 复制并补齐的临时 NSIS 目录 | ❌ 忽略 |
+| `bin/` | 编译出的桌面应用与可执行产物 | ❌ 忽略 |
+| `native/` | 原生库产物（`native/darwin/build.sh`、`native/windows/build.ps1`） | ❌ 忽略 |
+| `deps/` | 脚本下载并校验的 Sparkle / WinSparkle 构建依赖 | ❌ 忽略 |
+| `diagnostics/` | 本机诊断输出 | ❌ 忽略 |
 
-可用 `git check-ignore -v --no-index -- <path>` 复核匹配来源（`!` 前缀表示放行），
-用 `git ls-files --cached --ignored --exclude-standard` 检查已跟踪文件是否被规则覆盖，预期无输出。
+## 忽略策略与核验
 
-修改 macOS / Windows 构建文件后需重新构建；干净检出先运行
-`./scripts/bootstrap-frontend.sh`。完整打包走 `scripts/package-macos.sh` 或 Windows 主机上的
-`scripts/package-windows.ps1`，由入口补齐 Sparkle framework / WinSparkle DLL、原生产物与安装器。
-构建不等于签名身份验收；当前安装升级的用户确认与正式证书缺口见
-[delivery 执行册](../docs/modules/delivery.md)，脚本参数见 [scripts/README.md](../scripts/README.md)。
+仓库根 `.gitignore` 仅精确忽略上述五个生成目录，不整目录忽略 `build/`，防止新增图标、plist、manifest 或安装资源被意外漏提交。`testdata/` 仅对数据库本体和匿名压缩夹具开放例外，不放行 WAL/SHM 旁路文件、日志、环境文件或签名材料；忽略规则不能替代匿名化与敏感信息审查。
 
-根 Taskfile 与 [config.yml](config.yml) 编排桌面构建；原生库由 scripts 显式构建，不使用 v2 preBuildHooks。
+常用核验命令：
+
+```bash
+git check-ignore -v --no-index -- <path>                  # 检查命中规则（! 表示放行）
+git ls-files --cached --ignored --exclude-standard        # 预期无输出
+```
+
+## 构建与打包入口
+
+修改 `darwin/` 或 `windows/` 下的平台资源后需重新构建：
+
+- 干净检出请先执行 `./scripts/bootstrap-frontend.sh`。
+- macOS 打包走 [`scripts/package-macos.sh`](../scripts/package-macos.sh)；Windows 打包请在 Windows 主机走 [`scripts/package-windows.ps1`](../scripts/package-windows.ps1)，由脚本自动补齐原生产物、Sparkle / WinSparkle 与安装器。
+- 详细参数见 [`scripts/README.md`](../scripts/README.md)，安装升级与签名身份边界见 [`docs/modules/delivery.md`](../docs/modules/delivery.md)。
