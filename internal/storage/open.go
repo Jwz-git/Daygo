@@ -211,9 +211,12 @@ func (s *Store) connect(ctx context.Context) error {
 // caused by legacy clock-derivation bugs or unexpected clock jumps.
 func (s *Store) sanitizeCorruptCards(ctx context.Context) error {
 	return s.Write(ctx, "sanitize corrupt cards", func(ctx context.Context, tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx,
-			"UPDATE timeline_cards SET is_deleted = 1, updated_at = ? WHERE is_deleted = 0 AND (end_ts <= start_ts OR (end_ts - start_ts) > 14400)",
-			time.Now().Unix())
+		_, err := tx.ExecContext(ctx, sanitizeCorruptCardsSQL, s.now().Unix())
 		return err
 	})
 }
+
+// Match the partial index predicate from migration v28 exactly so an
+// ordinary startup with valid rows has no history to scan.
+const invalidLiveCardV28 = `is_deleted = 0 AND (end_ts <= start_ts OR (end_ts - start_ts) > 14400)`
+const sanitizeCorruptCardsSQL = `UPDATE timeline_cards SET is_deleted = 1, updated_at = ? WHERE ` + invalidLiveCardV28

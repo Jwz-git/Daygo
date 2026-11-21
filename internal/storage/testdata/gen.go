@@ -109,6 +109,9 @@ func main() {
 	if err := writeV26(outDir); err != nil {
 		log.Fatalf("v26-transcription-source.db: %v", err)
 	}
+	if err := writeV27(outDir); err != nil {
+		log.Fatalf("v27-card-repair-source.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -1317,6 +1320,35 @@ func writeV26(outDir string) error {
 		`INSERT INTO observations (batch_id, start_ts, end_ts, observation, created_at)
 		  VALUES (1000, 100, 120, 'anonymous legacy transcription', 120)`,
 		`PRAGMA user_version = 26`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeV27(outDir string) error {
+	data, err := os.ReadFile(filepath.Join(outDir, "v26-transcription-source.db"))
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(outDir, "v27-card-repair-source.db")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for _, stmt := range []string{
+		`ALTER TABLE analysis_batches ADD COLUMN transcription_ready INTEGER NOT NULL DEFAULT 0 CHECK (transcription_ready IN (0, 1))`,
+		`INSERT INTO timeline_cards (id, day, start, end, start_ts, end_ts, category, title, summary, created_at, updated_at)
+		  VALUES (2001, '2026-09-12', '10:00', '11:00', 36000, 39600, 'Work', 'Anonymous valid card', '', 0, 0),
+		         (2002, '2026-09-12', '10:00', '08:00', 36000, 28800, 'Work', 'Anonymous inverted time', '', 0, 0),
+		         (2003, '2026-09-12', '10:00', '15:00', 36000, 54000, 'Work', 'Anonymous duration too long', '', 0, 0)`,
+		`PRAGMA user_version = 27`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			return err

@@ -815,6 +815,14 @@ var migrations = []migration{
 			return wrap("add v27 transcription ready marker", err)
 		},
 	},
+	{
+		version: 28,
+		name:    "cards: index invalid rows for startup repair",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `CREATE INDEX idx_timeline_cards_invalid_live ON timeline_cards(id) WHERE `+invalidLiveCardV28)
+			return wrap("index v28 invalid live cards", err)
+		},
+	},
 }
 
 // categoryArchetypeBackfill maps lowercased category names to the archetype
