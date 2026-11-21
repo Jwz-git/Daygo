@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -180,8 +181,25 @@ func (s *Store) IntegrityCheck(ctx context.Context) error {
 //
 // The caller must have closed the store first; this function operates on files.
 func RestoreFromBackup(backupPath, dir string) error {
-	if _, err := os.Stat(backupPath); err != nil {
-		return fmt.Errorf("storage: restore: backup %s: %w", backupPath, err)
+	backup, err := os.Open(backupPath)
+	if err != nil {
+		return fmt.Errorf("storage: restore: open backup: %w", err)
+	}
+	defer backup.Close()
+	staged, err := os.CreateTemp(dir, ".restore-*.sqlite")
+	if err != nil {
+		return fmt.Errorf("storage: restore: stage database: %w", err)
+	}
+	defer os.Remove(staged.Name())
+	defer staged.Close()
+	if _, err := io.Copy(staged, backup); err != nil {
+		return fmt.Errorf("storage: restore: copy backup: %w", err)
+	}
+	if err := staged.Sync(); err != nil {
+		return fmt.Errorf("storage: restore: sync staged database: %w", err)
+	}
+	if err := staged.Close(); err != nil {
+		return fmt.Errorf("storage: restore: close staged database: %w", err)
 	}
 	current := filepath.Join(dir, DatabaseFileName)
 
@@ -198,12 +216,8 @@ func RestoreFromBackup(backupPath, dir string) error {
 		}
 	}
 
-	data, err := os.ReadFile(backupPath)
-	if err != nil {
-		return fmt.Errorf("storage: restore: read backup: %w", err)
-	}
-	if err := os.WriteFile(current, data, 0o600); err != nil {
-		return fmt.Errorf("storage: restore: write database: %w", err)
+	if err := os.Rename(staged.Name(), current); err != nil {
+		return fmt.Errorf("storage: restore: publish database: %w", err)
 	}
 	return nil
 }

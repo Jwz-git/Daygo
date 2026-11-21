@@ -234,6 +234,24 @@ func TestRecoverWithoutBackupsReportsErrNoBackup(t *testing.T) {
 	}
 }
 
+func TestFailedRestoreKeepsCurrentDatabaseAndSidecars(t *testing.T) {
+	dir := t.TempDir()
+	current := filepath.Join(dir, DatabaseFileName)
+	for _, file := range []string{current, current + "-wal", current + "-shm"} {
+		if err := os.WriteFile(file, []byte("anonymous original"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := RestoreFromBackup(t.TempDir(), dir); err == nil {
+		t.Fatal("restoring a directory as a backup must fail")
+	}
+	for _, file := range []string{current, current + "-wal", current + "-shm"} {
+		if data, err := os.ReadFile(file); err != nil || string(data) != "anonymous original" {
+			t.Fatalf("failed restore altered original: data=%q err=%v", data, err)
+		}
+	}
+}
+
 func dirNames(entries []os.DirEntry) []string {
 	out := make([]string, 0, len(entries))
 	for _, e := range entries {

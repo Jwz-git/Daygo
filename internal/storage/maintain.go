@@ -10,7 +10,6 @@ import (
 // Maintenance intervals from docs/03 §3.6.
 const (
 	checkpointInterval      = 300 * time.Second
-	backupInitialDelay      = time.Hour
 	backupInterval          = 24 * time.Hour
 	maintenanceHourlyPeriod = time.Hour
 )
@@ -111,13 +110,9 @@ func (m *Maintainer) Run(ctx context.Context) {
 	checkpoint := time.NewTicker(checkpointInterval)
 	defer checkpoint.Stop()
 
-	// The hourly pass also has a one-hour initial delay, so a single ticker
-	// started after that delay serves both.
+	// The first hour triggers both cleanup and the initial backup.
 	hourly := time.NewTicker(maintenanceHourlyPeriod)
 	defer hourly.Stop()
-
-	initialBackup := time.NewTimer(backupInitialDelay)
-	defer initialBackup.Stop()
 
 	lastBackup := time.Time{}
 	for {
@@ -126,16 +121,10 @@ func (m *Maintainer) Run(ctx context.Context) {
 			return
 		case <-checkpoint.C:
 			m.runCheckpoint(ctx)
-		case <-initialBackup.C:
-			lastBackup = m.now()
-			m.runBackup(ctx)
 		case <-hourly.C:
-			// Cleanup runs hourly per docs/03 §3.6; the same tick also backs
-			// up, but only when a day has actually passed, so a restart does
-			// not produce a backup per hour.
 			m.runCleanup(ctx)
-			if m.now().Sub(lastBackup) >= backupInterval {
-				lastBackup = m.now()
+			if now := m.now(); lastBackup.IsZero() || now.Sub(lastBackup) >= backupInterval {
+				lastBackup = now
 				m.runBackup(ctx)
 			}
 		}
