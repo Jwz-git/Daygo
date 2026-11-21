@@ -131,6 +131,27 @@ v1 范围收口由 delivery 协调，搜索等产品增量随后推进。先落�
 前端 build、Linux 主机测试、原生捕获 / Provider / 安装升级或长期观察；这些检查不提升真实门禁状态。
 本次文档更新的验证记录见下方「当前代码证据」。回退为 revert 本次 `docs:` 提交，无数据迁移。
 
+### 9.1.3 2026-11-21 性能审查进度
+
+基线为 Gemini 审查的 `8035d6f`。以下按原报告编号记录截至 `15484b2` 的代码增量和待验收边界。
+
+| 条目 | 已提交增量 | 剩余工作与完成条件 |
+|---|---|---|
+| P0-1 清理和表增长 | 先汇总受保护段再选清理候选，扫盘移出长临界区，删除前复查。匿名 259,200 帧夹具两版均返回 1,438 个候选。 [data](modules/data.md) | 已提交意图和软删截图的物理留存要先定保留期、稳定 ID 与重放规则，再用匿名旧库验证外键、重复提交和库大小。 |
+| P0-2 Windows 媒体 | 单帧命中后停止解码，录制目录缓存，无旋转或缩放时复用 BGRA。 [recording](modules/recording.md) | 关键帧 seek、轻量容器探查、去除临时 JPEG 往返、DXGI 管线复用及超时、窗口身份重复查询和编码质量模式仍需 Windows 采集机。验收对照旋转、静屏、锁屏切换、屏蔽占位和编码回退。 |
+| P0-3 默认转录 | 可用原始视频时按视频资格选择，截图回退仍遵守每请求最多五张。匿名 60 帧段的两条路径分别是一次视频或三组截图。 [timeline](modules/timeline.md) | 真实 Gemini 上传、识别质量、延迟和用量需要匿名真实 Provider 场景。 |
+| P0-4 时间线与图表 | 移除外壳无效指针更新；目标使用轻量读取；热力图复用静态格与格式化器，指针更新按动画帧合并。 [timeline](modules/timeline.md) [weekly](modules/weekly.md) | 测已安装 WebView 的转场、代表性长周热力图与真实渲染帧耗时。 |
+| P0-5 后台常驻 | 健康帧不唤醒隐藏窗口；状态栏合并相同状态；时间线、日报、计划、目标和周报合并隐藏期间失效；定时器及生成动画随可见性暂停。 [recording](modules/recording.md) [preferences](modules/preferences.md) | 测真实宿主隐藏十分钟的捕获连续性、WebView 唤醒和 CPU。 |
+| P1-6 冷启动 | 捕获服务按双锁启动，系统代理惰性且有超时，v28 部分索引加速启动卡片修复。 [data](modules/data.md) [recording](modules/recording.md) | 历史 MP4 对账、Windows 迁移尾部校验仍同步。调整启动依赖前需证明恢复早于捕获与分析。后台任务首轮争用以真实首屏剖析定位。 |
+| P1-7 回放与配额 | 回放并发上限、同帧合并、缩略图缓存；macOS AVAsset 载入移出缓存锁；按收尾文件实际尺寸入账。 [timeline](modules/timeline.md) [recording](modules/recording.md) | macOS 单帧仍单独创建 reader；应先在不同机器和真实高熵匿名画面核对连续拖动、长段和内存曲线。 |
+| P1-8 分析锁、重试和降级 | 相交窗口串行且等待可取消，自动重试复用已存转录，跨批次回退状态复用，减少 Provider 编码与 Schema 验证的重复工作。 [timeline](modules/timeline.md) [providers](modules/providers.md) | 用户主动重处理保留重做语义。Gemini 等仍有图像复制，剩余瓶颈需要真实负载分配曲线；相邻区间可能仍落在同一保守预留范围。 |
+| P1-9 数据库与设置 | 卡片查询加安全下界，Token 用量加索引，周报共用一次卡片读取，写入实例复用设置快照，补齐空闲连接上限，备份去重、恢复流式。 [data](modules/data.md) [preferences](modules/preferences.md) [weekly](modules/weekly.md) | observations 缺等价最大跨度保证；需要索引基准决定优化。PRAGMA 和读写排队调整需先测吞吐、内存与争用，避免基于猜测调参。 |
+| P1-10 图标和钥匙串 | 合并应用身份在途请求，修复 macOS C 分配释放，Windows 图标缓存有上限，macOS Provider 列表只查并短期缓存条目存在状态。Favicon 有跨主机并发、磁盘淘汰、负缓存时限与取消保护。 [preferences](modules/preferences.md) [recording](modules/recording.md) [providers](modules/providers.md) | Windows 枚举仍会抽取图标；macOS 首次未缓存图标仍需原生解析。验收需量出真实枚举与首次渲染时间。 |
+| P1-11 包体积与刷新 | 缩小标题栏和大图标，模型试用样图移出 JS，首次引导懒加载；周报按变动日期刷新，日报合并后台失效。 [preferences](modules/preferences.md) [weekly](modules/weekly.md) [daily](modules/daily.md) | 当前日报时间线变更仍会补读整页。需先用已安装 WebView 测可感知影响。 |
+| P2 后台 / HTTP | 日报补生成跳过空白日，计划复盘复用已解析分心区间，结构化输出复用编译后的 Schema。 [daily](modules/daily.md) [plan](modules/plan.md) [providers](modules/providers.md) | HTTP 错误体 / SSE 提前返回的连接复用、原生隐私查询和低频计时需要目标平台及真实网络追踪。 |
+| P2 Agent / MCP / Chat | Agent 连接和处理时间上限，MCP 单行上限，删对话取消在途回合，Chat 提示预算和页面订阅释放。 [agent](modules/agent.md) [chat](modules/chat.md) | MCP 同步标准输入的进程退出边界待验证；v1 范围按原决策。 |
+| P2 前端细节 | 周图复用日期格式化和标尺，Chat 高亮语言一次注册，折射滤镜随生命周期清理，大 DTO 浅响应，隐私应用按页呈现和加载图标。 [preferences](modules/preferences.md) [weekly](modules/weekly.md) | 玻璃模糊在各宿主 GPU 上的耗时和新分页布局需实测。 |
+
 ### 当前代码证据
 
 **2026-10-14 配套网页原生滚动与悬停优化（delivery，`test`、基于 `fe01446` 工作树）**：
