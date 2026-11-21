@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useVisibleInterval } from '@/lib/visibleInterval'
 import { useI18n } from 'vue-i18n'
 
 import { useRecordingStore } from '@/stores/recording'
@@ -50,7 +51,6 @@ const statusShown = ref(false)
 let statusTimer = 0
 
 const now = ref(Date.now())
-let clock = 0
 
 const busy = computed(() => recording.pendingAction !== null)
 
@@ -141,13 +141,7 @@ watch(() => recording.lifecycle, (lifecycle) => {
   else if (lifecycle === 'capturing' && phase.value === 'paused') toIdle()
 })
 
-watch(phase, (next) => {
-  window.clearInterval(clock)
-  if (next === 'paused') {
-    now.value = Date.now()
-    clock = window.setInterval(() => { now.value = Date.now() }, 1000)
-  }
-}, { immediate: true })
+useVisibleInterval(() => { now.value = Date.now() }, 1000, () => phase.value === 'paused')
 
 function onDocumentPointer(event: PointerEvent): void {
   if (phase.value === 'menu' && root.value && !root.value.contains(event.target as Node)) closeMenu()
@@ -170,7 +164,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   observer?.disconnect()
   window.clearTimeout(statusTimer)
-  window.clearInterval(clock)
   document.removeEventListener('pointerdown', onDocumentPointer)
   document.removeEventListener('keydown', onKeydown)
 })

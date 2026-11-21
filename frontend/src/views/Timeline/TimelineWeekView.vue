@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useVisibleInterval } from '@/lib/visibleInterval'
 import { useI18n } from 'vue-i18n'
 
 import type { PlanBlockDTO } from '@/api/dto'
@@ -77,7 +78,6 @@ const headerOf = (day: string): { weekday: string; number: string } | null => {
 
 /* Live now-marker position inside today's column. */
 const nowTs = ref(Math.floor(Date.now() / 1000))
-let nowTimer: number | null = null
 const todayKey = computed(() => currentWeekDayKey(props.columns, nowTs.value))
 
 const generatingMark = computed(() => {
@@ -130,12 +130,7 @@ function openPlan(block: PlanBlockDTO, event: MouseEvent): void {
   if (target !== null) emit('openPlan', block, target.getBoundingClientRect())
 }
 
-onMounted(() => {
-  nowTimer = window.setInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000)
-})
-onBeforeUnmount(() => {
-  if (nowTimer !== null) window.clearInterval(nowTimer)
-})
+useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000)
 </script>
 
 <template>

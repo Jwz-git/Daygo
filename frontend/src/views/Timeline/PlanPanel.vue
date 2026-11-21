@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useVisibleInterval } from '@/lib/visibleInterval'
 import { useI18n } from 'vue-i18n'
 
 import DgIcon from '@/components/DgIcon.vue'
@@ -34,14 +35,8 @@ const plan = usePlanStore()
 const capabilities = useCapabilitiesStore()
 
 const nowTs = ref(Math.floor(Date.now() / 1000))
-let clock: number | null = null
-onMounted(() => {
-  void capabilities.load()
-  clock = window.setInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 30_000)
-})
-onBeforeUnmount(() => {
-  if (clock !== null) window.clearInterval(clock)
-})
+useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 30_000)
+onMounted(() => { void capabilities.load() })
 
 function phaseOf(block: PlanBlockDTO) {
   return planPhase(block, nowTs.value)

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import DgIcon from '@/components/DgIcon.vue'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 /*
  * Timeline status card, after Dayflow's `timelineStatusCard` /
@@ -16,6 +17,7 @@ import DgIcon from '@/components/DgIcon.vue'
 const props = defineProps<{ state?: 'off' | 'capturing' | 'paused'; label?: string }>()
 
 const { t } = useI18n()
+const visibility = useUIVisibilityStore()
 const paused = computed(() => props.state === 'paused')
 const text = computed(() => props.label ?? (paused.value ? t('timeline.pausedHere') : t('timeline.recordingNow')))
 
@@ -24,7 +26,7 @@ const CELLS = Array.from({ length: 9 }, (_, index) => ({ index, delay: ((index %
 </script>
 
 <template>
-  <div class="gen-card" :class="{ 'is-paused': paused }" role="status">
+  <div class="gen-card" :class="{ 'is-paused': paused, 'is-window-hidden': !visibility.visible }" role="status">
     <DgIcon v-if="paused" class="gen-card__hold" name="pause" :size="11" />
     <span v-else class="gen-card__spinner" aria-hidden="true">
       <i v-for="cell in CELLS" :key="cell.index" :style="{ animationDelay: `${cell.delay}s` }"></i>
@@ -84,6 +86,10 @@ const CELLS = Array.from({ length: 9 }, (_, index) => ({ index, delay: ((index %
   border-radius: 1px;
   background: rgba(67, 93, 151, 0.18);
   animation: gen-wave 1.5s ease-in-out infinite;
+}
+
+.is-window-hidden .gen-card__spinner i {
+  animation-play-state: paused;
 }
 
 @keyframes gen-wave {

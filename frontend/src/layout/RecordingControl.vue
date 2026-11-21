@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useVisibleInterval } from '@/lib/visibleInterval'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
@@ -30,9 +31,7 @@ const PAUSE_OPTIONS: readonly { minutes: number; labelKey: string }[] = [
 ]
 const menuOpen = ref(false)
 const now = ref(Date.now())
-let ticker: ReturnType<typeof setInterval> | null = null
-onMounted(() => { ticker = setInterval(() => { now.value = Date.now() }, 30_000) })
-onUnmounted(() => { if (ticker !== null) clearInterval(ticker) })
+useVisibleInterval(() => { now.value = Date.now() }, 30_000)
 // A lifecycle change (including the backend's own auto-resume) dismisses the menu.
 watch(lifecycle, () => { menuOpen.value = false })
 
