@@ -5,11 +5,44 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/recordinglocation"
+	"github.com/Jwz-git/Daygo/internal/storage"
 )
+
+type recordingRootCache struct {
+	cached atomic.Pointer[resolvedRecordingRoot]
+}
+
+type resolvedRecordingRoot struct {
+	store    *storage.Store
+	revision uint64
+	path     string
+}
+
+func (c *recordingRootCache) resolve(ctx context.Context, store *storage.Store, defaultRoot string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	repo := store.Settings()
+	revision, cacheable := repo.SnapshotRevision()
+	if cacheable {
+		if cached := c.cached.Load(); cached != nil && cached.store == store && cached.revision == revision {
+			return cached.path, nil
+		}
+	}
+	root, err := recordinglocation.Active(ctx, repo, defaultRoot)
+	if err != nil {
+		return "", err
+	}
+	if current, cacheable := repo.SnapshotRevision(); cacheable && current == revision {
+		c.cached.Store(&resolvedRecordingRoot{store: store, revision: revision, path: root})
+	}
+	return root, nil
+}
 
 func (b *Backend) recordingRoot(ctx context.Context) (string, error) {
 	if b.storage == nil {
@@ -19,7 +52,7 @@ func (b *Backend) recordingRoot(ctx context.Context) (string, error) {
 	if runtime.GOOS != "windows" {
 		return defaultRoot, nil
 	}
-	return recordinglocation.Active(ctx, b.storage.Settings(), defaultRoot)
+	return b.recordingLocation.resolve(ctx, b.storage, defaultRoot)
 }
 
 // locationMedia holds the read lock for the whole decode, so a migration cannot

@@ -40,6 +40,9 @@ func (r *SettingsRepo) SnapshotRevision() (uint64, bool) {
 // than this layer inventing one, because defaults belong to the feature that
 // owns the setting (docs/09 §9.5).
 func (r *SettingsRepo) Get(ctx context.Context, key string) (string, bool, error) {
+	if r.store.closed.Load() {
+		return "", false, newError(KindEnvironment, "settings database is closed")
+	}
 	var value string
 	err := r.store.Read(ctx, "settings get", func(ctx context.Context, tx *sql.Tx) error {
 		row := tx.QueryRowContext(ctx,

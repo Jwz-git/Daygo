@@ -76,6 +76,7 @@ type Backend struct {
 	recorderMu           sync.Mutex
 	// moveMu excludes capture commands, media reads and cleanup while files move.
 	moveMu             sync.RWMutex
+	recordingLocation  recordingRootCache
 	moveControlMu      sync.Mutex
 	moveCancel         context.CancelFunc
 	systemEventMu      sync.Mutex
