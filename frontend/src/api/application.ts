@@ -66,6 +66,8 @@ export async function getBlockedApplications(): Promise<ApplicationDTO[]> {
  * not grow the webview heap without limit; evicted icons simply refetch.
  */
 let installedCache: { language: string; apps: ApplicationDTO[] } | null = null
+const pendingLists = new Map<string, Promise<ApplicationDTO[]>>()
+const pendingIdentities = new Map<string, Promise<ApplicationDTO | undefined>>()
 const identityCache = new LruCache<string, ApplicationDTO>(512, {
   maxWeight: 8 * 1024 * 1024,
   weigh: (value) => (value.id.length + value.name.length + value.iconDataUrl.length) * 2,
@@ -84,14 +86,18 @@ const identityCache = new LruCache<string, ApplicationDTO>(512, {
  */
 export async function listInstalledApplications(language: string): Promise<ApplicationDTO[]> {
   if (installedCache?.language === language) return installedCache.apps
-  let apps: ApplicationDTO[]
-  if (!hasDesktopBridge()) {
-    apps = []
-  } else {
-    apps = (await ListInstalledApplications(language)) ?? []
-  }
-  installedCache = { language, apps }
-  return apps
+  const pending = pendingLists.get(language)
+  if (pending !== undefined) return pending
+
+  const request = (hasDesktopBridge() ? ListInstalledApplications(language) : Promise.resolve([]))
+    .then((apps) => {
+      const results = apps ?? []
+      installedCache = { language, apps: results }
+      return results
+    })
+    .finally(() => pendingLists.delete(language))
+  pendingLists.set(language, request)
+  return request
 }
 
 /**
@@ -102,23 +108,23 @@ export async function listInstalledApplications(language: string): Promise<Appli
  * identities.
  */
 export async function describeApplications(ids: string[]): Promise<ApplicationDTO[]> {
-  if (ids.length === 0) return []
-  const out: ApplicationDTO[] = []
-  const missing: string[] = []
-  for (const id of ids) {
-    const cached = identityCache.get(id)
-    if (cached) out.push(cached)
-    else missing.push(id)
+  const missing = [...new Set(ids.filter((id) => !identityCache.get(id) && !pendingIdentities.has(id)))]
+  if (missing.length > 0) {
+    const batch = loadIdentities(missing).then((apps) => {
+      const byID = new Map(apps.map((app) => [app.id, app]))
+      for (const app of apps) identityCache.set(app.id, app)
+      return byID
+    })
+    for (const id of missing) {
+      pendingIdentities.set(id, batch.then((apps) => apps.get(id)).finally(() => pendingIdentities.delete(id)))
+    }
   }
-  if (missing.length === 0) return out
+  const found = await Promise.all(ids.map((id) => identityCache.get(id) ?? pendingIdentities.get(id)))
+  return found.filter((item): item is ApplicationDTO => item !== undefined)
+}
 
-  let resolvedBatch: ApplicationDTO[]
-  if (!hasDesktopBridge()) {
-    const names = (await getApplicationNamesDevelopmentFixture()) ?? {}
-    resolvedBatch = missing.map((id) => ({ id, name: names[id] ?? '', iconDataUrl: '' }))
-  } else {
-    resolvedBatch = (await DescribeApplications(missing)) ?? []
-  }
-  for (const application of resolvedBatch) identityCache.set(application.id, application)
-  return [...out, ...resolvedBatch]
+async function loadIdentities(ids: string[]): Promise<ApplicationDTO[]> {
+  if (hasDesktopBridge()) return (await DescribeApplications(ids)) ?? []
+  const names = (await getApplicationNamesDevelopmentFixture()) ?? {}
+  return ids.map((id) => ({ id, name: names[id] ?? '', iconDataUrl: '' }))
 }

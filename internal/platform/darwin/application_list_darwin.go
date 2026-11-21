@@ -102,7 +102,7 @@ static void dg_list_add_bundle(NSString *path, NSString *language,
 // com.apple.NEWS), which makes the by-identifier ABI lookup fail for apps the
 // filesystem walk clearly found; this walk — the same one enumeration uses —
 // is the fallback resolver. The caller frees the returned string.
-static char *dg_ls_find_bundle_path(const char *identifier_bytes) {
+static char *find_bundle_path(const char *identifier_bytes) {
     if (identifier_bytes == NULL) return NULL;
     NSString *wanted = [NSString stringWithUTF8String:identifier_bytes];
     if (wanted.length == 0) return NULL;
@@ -156,7 +156,7 @@ static void dg_list_append_u64(NSMutableData *data, uint64_t value) {
 // error: the grid simply has nothing to show. language is Daygo's UI language
 // as a BCP-47 tag ("zh-CN", "en"); an empty string keeps the unlocalized
 // fallback chain.
-static uint8_t *dg_ls_installed_apps(const char *language_bytes, int64_t *out_len) {
+static uint8_t *installed_apps(const char *language_bytes, int64_t *out_len) {
     NSString *language = language_bytes == NULL
         ? @""
         : [NSString stringWithUTF8String:language_bytes];
@@ -224,6 +224,17 @@ done: {
     return out;
 }
 }
+static char *dg_ls_find_bundle_path(const char *identifier_bytes) {
+    @autoreleasepool {
+        return find_bundle_path(identifier_bytes);
+    }
+}
+
+static uint8_t *dg_ls_installed_apps(const char *language_bytes, int64_t *out_len) {
+    @autoreleasepool {
+        return installed_apps(language_bytes, out_len);
+    }
+}
 */
 import "C"
 
@@ -245,6 +256,9 @@ const maximumApplicationListBytes = 4 << 20
 // rules. The buffer the native side mallocs is copied into Go and freed before
 // return; nothing native survives the call.
 func listApplications(ctx context.Context, language string) ([]platform.AppInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var languageBytes *C.char
 	if language != "" {
 		languageBytes = C.CString(language)
@@ -252,13 +266,13 @@ func listApplications(ctx context.Context, language string) ([]platform.AppInfo,
 	}
 	var length C.int64_t
 	data := C.dg_ls_installed_apps(languageBytes, &length)
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
+	defer C.free(unsafe.Pointer(data))
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	if data == nil {
 		return []platform.AppInfo{}, nil
 	}
-	defer C.free(unsafe.Pointer(data))
 	if length <= 0 || uint64(length) > maximumApplicationListBytes {
 		return nil, &platform.ApplicationError{Code: platform.ApplicationNative}
 	}

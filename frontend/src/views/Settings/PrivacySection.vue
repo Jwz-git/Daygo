@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
-import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { ApplicationDTO } from '@/api/application'
@@ -31,6 +31,9 @@ const applications = ref<ApplicationDTO[]>([])
 const listState = ref<ListState>('loading')
 const installed = shallowRef<ApplicationDTO[]>([])
 const installedState = ref<ListState>('loading')
+let mounted = true
+let installedRequest = 0
+onBeforeUnmount(() => { mounted = false; installedRequest++ })
 const selecting = ref(false)
 const pickError = ref('')
 const compatibility = ref<PrivacyCompatibilityDTO | null>(null)
@@ -125,17 +128,21 @@ async function syncApplicationsFromSettings(): Promise<void> {
  * oversized call, and a chunk failing only costs its own icons.
  */
 async function refreshInstalled(): Promise<void> {
+  if (!mounted) return
+  const request = ++installedRequest
   installedState.value = 'loading'
   try {
     const listing = await listInstalledApplications(locale.value)
+    if (request !== installedRequest) return
     const previousIcons = new Map(installed.value.map((application) => [application.id, application.iconDataUrl]))
     installed.value = listing.map((application) => ({
       ...application,
       iconDataUrl: previousIcons.get(application.id) ?? application.iconDataUrl,
     }))
     installedState.value = 'ready'
-    await resolveIcons(installed.value)
+    await resolveIcons(installed.value, request)
   } catch {
+    if (request !== installedRequest) return
     installed.value = []
     installedState.value = 'unavailable'
   }
@@ -143,12 +150,13 @@ async function refreshInstalled(): Promise<void> {
 
 const iconBatchSize = 32
 
-async function resolveIcons(listing: ApplicationDTO[]): Promise<void> {
+async function resolveIcons(listing: ApplicationDTO[], request: number): Promise<void> {
   const withoutIcon = listing.filter((application) => application.iconDataUrl === '')
   for (let start = 0; start < withoutIcon.length; start += iconBatchSize) {
     const batch = withoutIcon.slice(start, start + iconBatchSize)
     try {
       const resolved = await describeApplications(batch.map((application) => application.id))
+      if (request !== installedRequest) return
       const icons = new Map(resolved.map((application) => [application.id, application.iconDataUrl]))
       installed.value = installed.value.map((application) => ({
         ...application,
