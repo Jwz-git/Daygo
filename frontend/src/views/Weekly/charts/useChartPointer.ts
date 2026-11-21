@@ -12,7 +12,7 @@ export function useChartPointer<T>() {
   const x = ref(0)
   const y = ref(0)
 
-  function move(event: PointerEvent | MouseEvent, item: T): void {
+  function move(event: Pick<MouseEvent, 'clientX' | 'clientY'>, item: T): void {
     const box = container.value?.getBoundingClientRect()
     if (box === undefined) return
     const margin = Math.min(110, box.width / 2)
@@ -29,7 +29,7 @@ export function useChartPointer<T>() {
 }
 
 /** The pointer position in the svg's own viewBox units, or null when it cannot be mapped. */
-export function svgPoint(event: PointerEvent | MouseEvent): { x: number; y: number } | null {
+export function svgPoint(event: Pick<MouseEvent, 'currentTarget' | 'clientX' | 'clientY'>): { x: number; y: number } | null {
   const svg = event.currentTarget
   if (!(svg instanceof SVGSVGElement)) return null
   const matrix = svg.getScreenCTM()

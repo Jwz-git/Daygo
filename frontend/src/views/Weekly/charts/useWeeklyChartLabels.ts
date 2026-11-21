@@ -1,3 +1,4 @@
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { categoryLabel } from '@/lib/categoryLabel'
@@ -10,26 +11,32 @@ import { WEEKLY_OTHER_KEY } from '@/stores/weeklyCharts'
  */
 export function useWeeklyChartLabels(days: () => string[]) {
   const { t, locale } = useI18n()
+  const formatters = computed(() => ({
+    short: new Intl.DateTimeFormat(locale.value, { weekday: 'short', timeZone: 'UTC' }),
+    long: new Intl.DateTimeFormat(locale.value, { weekday: 'long', timeZone: 'UTC' }),
+    hour: new Intl.DateTimeFormat(locale.value, { hour: 'numeric', timeZone: 'UTC' }),
+    clock: new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+  }))
 
   function weekday(dayIndex: number, style: 'short' | 'long' = 'short'): string {
     const day = days()[dayIndex]
     if (!day) return ''
     const date = new Date(`${day}T12:00:00Z`)
     if (Number.isNaN(date.getTime())) return day
-    return new Intl.DateTimeFormat(locale.value, { weekday: style, timeZone: 'UTC' }).format(date)
+    return formatters.value[style].format(date)
   }
 
   function hour(minute: number): string {
     const normalized = ((Math.round(minute) % 1440) + 1440) % 1440
     const date = new Date(Date.UTC(2026, 0, 5, Math.floor(normalized / 60), normalized % 60))
-    return new Intl.DateTimeFormat(locale.value, { hour: 'numeric', timeZone: 'UTC' }).format(date)
+    return formatters.value.hour.format(date)
   }
 
   // "09:15"-style clock time for tooltips, in the user's locale.
   function clock(minute: number): string {
     const normalized = ((Math.round(minute) % 1440) + 1440) % 1440
     const date = new Date(Date.UTC(2026, 0, 5, Math.floor(normalized / 60), normalized % 60))
-    return new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(date)
+    return formatters.value.clock.format(date)
   }
 
   function category(name: string): string {

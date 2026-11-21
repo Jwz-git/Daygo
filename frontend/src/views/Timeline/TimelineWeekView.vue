@@ -66,15 +66,29 @@ function onCardLeave(id: number): void {
   if (expandedId.value === id) expandedId.value = null
 }
 
-const headerOf = (day: string): { weekday: string; number: string } | null => {
-  const parsed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day)
-  if (parsed === null) return null
-  const date = new Date(Date.UTC(Number(parsed[1]), Number(parsed[2]) - 1, Number(parsed[3])))
-  const parts = new Intl.DateTimeFormat(locale.value, { timeZone: 'UTC' }).formatToParts(date)
-  const weekday = new Intl.DateTimeFormat(locale.value, { weekday: 'short', timeZone: 'UTC' }).format(date)
-  const number = parts.find((part) => part.type === 'day')?.value ?? ''
-  return { weekday, number }
-}
+const headings = computed(() => {
+  const dateFormatter = new Intl.DateTimeFormat(locale.value, { timeZone: 'UTC' })
+  const weekdayFormatter = new Intl.DateTimeFormat(locale.value, { weekday: 'short', timeZone: 'UTC' })
+  return props.dayKeys.map((day) => {
+    const parsed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day)
+    if (parsed === null) return null
+    const date = new Date(Date.UTC(Number(parsed[1]), Number(parsed[2]) - 1, Number(parsed[3])))
+    return {
+      weekday: weekdayFormatter.format(date),
+      number: dateFormatter.formatToParts(date).find((part) => part.type === 'day')?.value ?? '',
+    }
+  })
+})
+
+const gutterMarks = computed(() => {
+  const seen = new Set<string>()
+  return props.columns.flatMap((column) => column.hourMarks.filter((mark) => {
+    const key = `${mark.top}:${mark.label}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  }))
+})
 
 /* Live now-marker position inside today's column. */
 const nowTs = ref(Math.floor(Date.now() / 1000))
@@ -146,20 +160,18 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
         :disabled="key === ''"
         @click="emit('anchorDay', key)"
       >
-        <template v-if="headerOf(key) !== null">
-          <span>{{ headerOf(key)!.weekday }}</span>
-          <strong>{{ headerOf(key)!.number }}</strong>
+        <template v-if="headings[index] != null">
+          <span>{{ headings[index]!.weekday }}</span>
+          <strong>{{ headings[index]!.number }}</strong>
         </template>
       </button>
 
       <div class="week__gutter" aria-hidden="true">
-        <template v-for="(column, index) in columns" :key="index">
-          <span
-            v-for="mark in column.hourMarks"
-            :key="`${index}-${mark.top}`"
-            :style="{ top: `${mark.top}px` }"
-          >{{ mark.label }}</span>
-        </template>
+        <span
+          v-for="mark in gutterMarks"
+          :key="`${mark.top}:${mark.label}`"
+          :style="{ top: `${mark.top}px` }"
+        >{{ mark.label }}</span>
       </div>
 
       <div

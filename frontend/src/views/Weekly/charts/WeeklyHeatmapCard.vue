@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { WeeklyHeatmapSnapshot } from '@/stores/weeklyCharts'
@@ -19,7 +19,7 @@ import { useWeeklyGrid } from './useWeeklyGrid'
  */
 const props = defineProps<{ snapshot: WeeklyHeatmapSnapshot; days: string[] }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const labels = useWeeklyChartLabels(() => props.days)
 
 const FOCUS_SOFT = [0xe3, 0xdb, 0xfd]
@@ -59,15 +59,38 @@ interface HoveredBucket {
 
 const pointer = useChartPointer<HoveredBucket>()
 
-// One listener on the svg, mapped to the grid, so gaps between cells never flicker.
+const colors = computed(() => props.snapshot.rows.map((row) => row.map(cellColor)))
+const hoveredDay = computed(() => pointer.hovered.value?.day)
+let pointerFrame: number | null = null
+let pendingPointer: Pick<MouseEvent, 'currentTarget' | 'clientX' | 'clientY'> | null = null
+
+// Keep geometry reads and reactive tooltip updates to one per animation frame.
 function onPointerMove(event: PointerEvent): void {
-  const point = svgPoint(event)
-  const day = point === null ? -1 : Math.floor(point.y / (CELL_HEIGHT + ROW_GAP))
-  const bucket = point === null ? -1 : Math.floor((point.x - LABEL_WIDTH) / step.value)
-  const score = props.snapshot.rows[day]?.[bucket]
-  if (score !== undefined) pointer.move(event, { day, bucket, score })
-  else pointer.leave()
+  const { currentTarget, clientX, clientY } = event
+  pendingPointer = { currentTarget, clientX, clientY }
+  if (pointerFrame !== null) return
+  pointerFrame = window.requestAnimationFrame(() => {
+    pointerFrame = null
+    const event = pendingPointer
+    pendingPointer = null
+    if (event === null) return
+    const point = svgPoint(event)
+    const day = point === null ? -1 : Math.floor(point.y / (CELL_HEIGHT + ROW_GAP))
+    const bucket = point === null ? -1 : Math.floor((point.x - LABEL_WIDTH) / step.value)
+    const score = props.snapshot.rows[day]?.[bucket]
+    if (score !== undefined) pointer.move(event, { day, bucket, score })
+    else pointer.leave()
+  })
 }
+
+function onPointerLeave(): void {
+  if (pointerFrame !== null) window.cancelAnimationFrame(pointerFrame)
+  pointerFrame = null
+  pendingPointer = null
+  pointer.leave()
+}
+
+onBeforeUnmount(onPointerLeave)
 
 function bucketRange(bucket: number): string {
   const start = props.snapshot.start + bucket * props.snapshot.bucketMinutes
@@ -103,13 +126,14 @@ function scoreLabel(score: number): string {
           aria-hidden="true"
           preserveAspectRatio="xMinYMin meet"
           @pointermove="onPointerMove"
-          @pointerleave="pointer.leave"
+          @pointerleave="onPointerLeave"
         >
           <g
-            v-for="(row, dayIndex) in snapshot.rows"
+            v-for="(row, dayIndex) in colors"
             :key="`row-${dayIndex}`"
+            v-memo="[row, step, hoveredDay === dayIndex, locale, days[dayIndex]]"
             class="hm__row"
-            :class="{ 'is-current': pointer.hovered.value?.day === dayIndex }"
+            :class="{ 'is-current': hoveredDay === dayIndex }"
           >
             <text
               class="hm__label"
@@ -118,14 +142,14 @@ function scoreLabel(score: number): string {
               text-anchor="end"
             >{{ labels.weekday(dayIndex) }}</text>
             <rect
-              v-for="(score, bucket) in row"
+              v-for="(color, bucket) in row"
               :key="bucket"
               :x="LABEL_WIDTH + bucket * step"
               :y="dayIndex * (CELL_HEIGHT + ROW_GAP)"
               :width="step - 0.5"
               :height="CELL_HEIGHT"
-              :class="{ 'hm__cell--neutral': cellColor(score) === null }"
-              :fill="cellColor(score) ?? undefined"
+              :class="{ 'hm__cell--neutral': color === null }"
+              :fill="color ?? undefined"
             />
           </g>
           <rect

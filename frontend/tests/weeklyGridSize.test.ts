@@ -52,8 +52,12 @@ function mountChart(component: Component, snapshot: unknown, initialWidth: numbe
   // The host fixture has no CSS animation; complete tooltip transitions
   // immediately while retaining the real component and pointer handlers.
   globalThis.requestAnimationFrame = (callback) => { callback(0); return 1 }
+  let frame = 0
+  const frames = new Map<number, FrameRequestCallback>()
   globalThis.window = nativeFixtureWindow({
     getComputedStyle: () => ({ transitionDelay: '0s', transitionDuration: '0s', animationDelay: '0s', animationDuration: '0s' }),
+    requestAnimationFrame: (callback: FrameRequestCallback) => { frames.set(++frame, callback); return frame },
+    cancelAnimationFrame: (id: number) => { frames.delete(id) },
   } as unknown as Window & typeof globalThis)
   globalThis.document = { body: { offsetHeight: 0 } } as unknown as Document
 
@@ -92,7 +96,11 @@ function mountChart(component: Component, snapshot: unknown, initialWidth: numbe
     root,
     async hover(svg: HostNode, x: number, y: number) {
       const move = svg.props.onPointermove as (event: unknown) => void
+      move({ currentTarget: new FixtureSVG(), clientX: x - 2, clientY: y })
       move({ currentTarget: new FixtureSVG(), clientX: x, clientY: y })
+      if (component === WeeklyHeatmapCard) assert.equal(frames.size, 1)
+      for (const callback of frames.values()) callback(0)
+      frames.clear()
       await nextTick()
     },
     async leave(svg: HostNode) {

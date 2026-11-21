@@ -1,8 +1,4 @@
-<script setup lang="ts">
-import DgIcon from '@/components/DgIcon.vue'
-import { computed, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { marked } from 'marked'
+<script lang="ts">
 import hljs from 'highlight.js/lib/core'
 import bash from 'highlight.js/lib/languages/bash'
 import css from 'highlight.js/lib/languages/css'
@@ -17,9 +13,6 @@ import sql from 'highlight.js/lib/languages/sql'
 import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
 import yaml from 'highlight.js/lib/languages/yaml'
-import DOMPurify from 'dompurify'
-
-import { chatFailureMessage } from '@/lib/chatFailure'
 
 // Register only the languages chat realistically renders. The full
 // highlight.js build bundles ~190 languages (~1MB); registering a subset keeps
@@ -41,6 +34,16 @@ for (const [name, lang] of [
 ] as const) {
   hljs.registerLanguage(name, lang)
 }
+</script>
+
+<script setup lang="ts">
+import DgIcon from '@/components/DgIcon.vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+
+import { chatFailureMessage } from '@/lib/chatFailure'
 
 const props = defineProps<{
   content: string
