@@ -20,19 +20,58 @@ var ErrInvalidCardMerge = errors.New("invalid card merge")
 
 func invalidCardMerge(reason string) error { return fmt.Errorf("%w: %s", ErrInvalidCardMerge, reason) }
 
-// MergeCards creates a human-edited card and soft-deletes exactly the selected
-// sources, in one transaction. No files or source feedback are deleted. The
-// persisted timestamps determine the range; clock strings are never re-parsed.
-func (r *CardRepo) MergeCards(ctx context.Context, ids []int64, content domain.CardShell) (domain.TimelineCard, error) {
+func mergeCardIDs(ids []int64) (map[int64]bool, error) {
 	if len(ids) < 2 || len(ids) > 32 {
-		return domain.TimelineCard{}, invalidCardMerge("select 2 to 32 cards")
+		return nil, invalidCardMerge("select 2 to 32 cards")
 	}
 	selected := make(map[int64]bool, len(ids))
 	for _, id := range ids {
 		if id <= 0 || selected[id] {
-			return domain.TimelineCard{}, invalidCardMerge("card ids must be positive and distinct")
+			return nil, invalidCardMerge("card ids must be positive and distinct")
 		}
 		selected[id] = true
+	}
+	return selected, nil
+}
+
+// CardMergeRange returns the persisted extent of the selected live cards for
+// coordinating with analysis. MergeCards revalidates the selection in its
+// write transaction, including sources replaced while waiting to acquire it.
+func (r *CardRepo) CardMergeRange(ctx context.Context, ids []int64) (time.Time, time.Time, error) {
+	if _, err := mergeCardIDs(ids); err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	var from, to int64
+	err := r.store.Read(ctx, "card merge range", func(ctx context.Context, tx *sql.Tx) error {
+		var count int
+		row := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*), COALESCE(MIN(start_ts), 0), COALESCE(MAX(end_ts), 0)
+			FROM timeline_cards WHERE is_deleted=0 AND id IN (`+strings.Join(batchIDPlaceholders(len(ids)), ", ")+`)`,
+			batchIDArgs(ids)...)
+		if err := row.Scan(&count, &from, &to); err != nil {
+			return err
+		}
+		if count != len(ids) {
+			return sql.ErrNoRows
+		}
+		if to <= from || to-from > int64(MaxCardDuration.Seconds()) {
+			return invalidCardMerge("merged range must be positive and at most four hours")
+		}
+		return nil
+	})
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	return time.Unix(from, 0), time.Unix(to, 0), nil
+}
+
+// MergeCards creates a human-edited card and soft-deletes exactly the selected
+// sources, in one transaction. No files or source feedback are deleted. The
+// persisted timestamps determine the range; clock strings are never re-parsed.
+func (r *CardRepo) MergeCards(ctx context.Context, ids []int64, content domain.CardShell) (domain.TimelineCard, error) {
+	selected, err := mergeCardIDs(ids)
+	if err != nil {
+		return domain.TimelineCard{}, err
 	}
 	content.Title, content.Category = strings.TrimSpace(content.Title), strings.TrimSpace(content.Category)
 	if content.Title == "" || utf8.RuneCountInString(content.Title) > 200 ||
@@ -41,7 +80,7 @@ func (r *CardRepo) MergeCards(ctx context.Context, ids []int64, content domain.C
 		return domain.TimelineCard{}, invalidCardMerge("title, summary and an existing user category are required; text exceeds limits or is blank")
 	}
 	var merged domain.TimelineCard
-	err := r.store.Write(ctx, "merge cards", func(ctx context.Context, tx *sql.Tx) error {
+	err = r.store.Write(ctx, "merge cards", func(ctx context.Context, tx *sql.Tx) error {
 		var builtin bool
 		err := tx.QueryRowContext(ctx, "SELECT is_system FROM categories WHERE name=?", content.Category).Scan(&builtin)
 		if errors.Is(err, sql.ErrNoRows) || (err == nil && builtin) {

@@ -54,7 +54,11 @@ func (b *Backend) mergeCards(ctx context.Context, input MergeCardsInputDTO) (Mer
 	}
 	var err error
 	if pipeline := b.analysisService(); pipeline != nil {
-		err = pipeline.WithCardMutation(ctx, mutate)
+		var from, to time.Time
+		from, to, err = store.Cards().CardMergeRange(ctx, input.CardIDs)
+		if err == nil {
+			err = pipeline.WithCardMutation(ctx, from, to, mutate)
+		}
 	} else {
 		err = mutate()
 	}

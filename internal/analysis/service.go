@@ -16,8 +16,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/domain"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/Jwz-git/Daygo/internal/timeutil"
-
-	"golang.org/x/sync/semaphore"
 )
 
 // Consumer-side interfaces. *storage.AnalysisRepo, *storage.CardRepo, and
@@ -107,8 +105,8 @@ type Config struct {
 
 type Service struct {
 	cfg                   Config
-	cardsGate             *semaphore.Weighted // serializes the read→generate→rewrite card sequence (docs/04 §4.3.2)
-	queueMu               sync.Mutex          // guards queue pacing timestamps and rate limit tracking
+	cardsGate             cardRangeGate // serializes intersecting card reads and rewrites (docs/04 §4.3.2)
+	queueMu               sync.Mutex    // guards queue pacing timestamps and rate limit tracking
 	lastBatchProcessedAt  time.Time
 	rateLimitBackoffUntil time.Time
 	rateLimitCount        map[int64]int
@@ -139,7 +137,6 @@ func New(cfg Config) (*Service, error) {
 	}
 	return &Service{
 		cfg:            cfg,
-		cardsGate:      semaphore.NewWeighted(1),
 		rateLimitCount: make(map[int64]int),
 	}, nil
 }
@@ -410,10 +407,11 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	// an idle commit interleaving a neighboring batch's read→generate→rewrite
 	// would clobber one of the two.
 	if DetectIdle(frames, s.cfg.IdleRules) {
-		if err := s.cardsGate.Acquire(ctx, 1); err != nil {
+		release, err := s.lockCardRewrite(ctx, batch.Start, batch.End)
+		if err != nil {
 			return err
 		}
-		defer s.cardsGate.Release(1)
+		defer release()
 		return s.commitIdleCard(ctx, batch)
 	}
 
@@ -448,10 +446,11 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 
 	// Card generation holds cardsGate across read→generate→rewrite so two
 	// batches never interleave a rewrite of the same range (docs/04 §4.3.2).
-	if err := s.cardsGate.Acquire(ctx, 1); err != nil {
+	release, err := s.lockCardRewrite(ctx, batch.Start, batch.End)
+	if err != nil {
 		return err
 	}
-	defer s.cardsGate.Release(1)
+	defer release()
 
 	lookbackStart := batch.Start.Add(-CardLookback)
 	existing, err := s.cfg.Cards.CardsInRange(ctx, lookbackStart, batch.End)
@@ -509,6 +508,9 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	// before the span survive beside the rewrite. ownedFrom is that start after
 	// the merge gate: a merge the gate refused starts the span at the window
 	// instead, and the cross-category predecessor keeps its own card.
+	if !cardRewriteRange(batch.Start, batch.End).allowsRewrite(ownedFrom, batch.End, shells, s.loc()) {
+		return ai.NewError(ai.ErrorInvalidOutput, "cards extend beyond the reserved rewrite window", 0, nil)
+	}
 	result, err := s.cfg.Cards.ReplaceGeneratedCardsInRange(ctx, ownedFrom, batch.End, shells, batch.ID)
 	if err != nil {
 		return err
@@ -817,6 +819,9 @@ func (s *Service) commitIdleCard(ctx context.Context, batch storage.Batch) error
 	}
 
 	shells := append(preserved, idle)
+	if !cardRewriteRange(batch.Start, batch.End).allowsRewrite(replaceFrom, batch.End, shells, loc) {
+		return errors.New("analysis: idle cards extend beyond the reserved rewrite window")
+	}
 	if _, err := s.cfg.Cards.ReplaceGeneratedCardsInRange(ctx, replaceFrom, batch.End, shells, batch.ID); err != nil {
 		return err
 	}
@@ -1229,10 +1234,11 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 	// The same lock the batch pipeline holds across read→generate→rewrite: a
 	// regeneration interleaving a neighbouring batch's rewrite of the same
 	// minutes would clobber one of the two (docs/04 §4.3.2).
-	if err := s.cardsGate.Acquire(ctx, 1); err != nil {
+	release, err := s.lockCardRewrite(ctx, windowStart, windowEnd)
+	if err != nil {
 		return err
 	}
-	defer s.cardsGate.Release(1)
+	defer release()
 
 	// An agent merge may have replaced this source while regeneration waited
 	// for the same lock. Never rewrite the stale source window over that merge.
@@ -1334,6 +1340,9 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 		}
 	}
 
+	if !cardRewriteRange(windowStart, windowEnd).allowsRewrite(replaceFrom, windowEnd, shells, s.loc()) {
+		return fmt.Errorf("%w: cards extend beyond the reserved rewrite window", ErrCardsInvalid)
+	}
 	if _, err := s.cfg.Cards.ReplaceCardsInRange(ctx, replaceFrom, windowEnd, shells, *card.BatchID); err != nil {
 		return err
 	}

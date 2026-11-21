@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/Jwz-git/Daygo/internal/domain"
-
-	"golang.org/x/sync/semaphore"
 )
 
 type mutationContext struct {
@@ -27,31 +25,59 @@ func (c mutationContext) Err() error {
 }
 
 func TestCardMutationSharesSerializationAndHonorsCancellation(t *testing.T) {
-	s := &Service{cardsGate: semaphore.NewWeighted(1)}
-	if err := s.cardsGate.Acquire(t.Context(), 1); err != nil {
+	s := &Service{}
+	start := time.Unix(1760000000, 0)
+	end := start.Add(time.Hour)
+	release, err := s.lockCardRewrite(t.Context(), start, end)
+	if err != nil {
 		t.Fatal(err)
 	}
 	parent, cancel := context.WithCancel(context.Background())
 	ctx := mutationContext{Context: parent, checked: make(chan struct{})}
 	done := make(chan error, 1)
 	called := false
-	go func() { done <- s.WithCardMutation(ctx, func() error { called = true; return nil }) }()
+	go func() {
+		done <- s.WithCardMutation(ctx, start.Add(-CardLookback-time.Hour), start, func() error { called = true; return nil })
+	}()
 	<-ctx.checked
+	disjoint, cancelDisjoint := context.WithTimeout(t.Context(), time.Second)
+	defer cancelDisjoint()
+	expected := errors.New("fixture")
+	nextDay := start.Add(24 * time.Hour)
+	if err := s.WithCardMutation(disjoint, nextDay, nextDay.Add(time.Hour), func() error { return expected }); !errors.Is(err, expected) {
+		cancel()
+		release()
+		<-done
+		t.Fatalf("disjoint mutation waited for an active rewrite: %v", err)
+	}
 	cancel()
 	select {
 	case err := <-done:
-		s.cardsGate.Release(1)
+		release()
 		if !errors.Is(err, context.Canceled) || called {
 			t.Fatalf("err=%v called=%v", err, called)
 		}
 	case <-time.After(time.Second):
-		s.cardsGate.Release(1)
+		release()
 		<-done
 		t.Fatal("canceled mutation waited for the card lock to release")
 	}
-	expected := errors.New("fixture")
-	if err := s.WithCardMutation(context.Background(), func() error { return expected }); !errors.Is(err, expected) {
+	if err := s.WithCardMutation(context.Background(), start, end, func() error { return expected }); !errors.Is(err, expected) {
 		t.Fatal(err)
+	}
+}
+
+func TestCardRewriteReservationCoversStorageExpansion(t *testing.T) {
+	from := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+	to := from.Add(15 * time.Minute)
+	window := cardRewriteRange(from, to)
+	shells := []domain.CardShell{{Start: "4:00 PM", End: "4:15 PM"}}
+	if !window.allowsRewrite(from, to, shells, time.UTC) {
+		t.Fatal("shell touching the reserved boundary should fit")
+	}
+	shells[0].End = "4:16 PM"
+	if window.allowsRewrite(from, to, shells, time.UTC) {
+		t.Fatal("storage expansion must stay inside the reserved window")
 	}
 }
 

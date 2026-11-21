@@ -40,7 +40,7 @@ func (r *CardRepo) CategoryMinutesInRange(ctx context.Context, from, to time.Tim
 			  AND (c.end_ts - c.start_ts) <= 14400
 			GROUP BY c.category, COALESCE(cat.is_idle, 0), COALESCE(cat.color_hex, '')
 			ORDER BY c.category`,
-			to.Unix(), from.Unix(), from.Add(-maxCardDuration).Unix(), to.Unix(), from.Unix())
+			to.Unix(), from.Unix(), from.Add(-MaxCardDuration).Unix(), to.Unix(), from.Unix())
 		if err != nil {
 			return err
 		}
@@ -93,7 +93,7 @@ func (r *CardRepo) CardSpansInRange(ctx context.Context, from, to time.Time) ([]
 			  AND c.is_deleted = 0
 			  AND c.end_ts > c.start_ts
 			  AND (c.end_ts - c.start_ts) <= 14400`,
-			from.Add(-maxCardDuration).Unix(), to.Unix(), from.Unix())
+			from.Add(-MaxCardDuration).Unix(), to.Unix(), from.Unix())
 		if err != nil {
 			return err
 		}

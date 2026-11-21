@@ -36,9 +36,9 @@ type ReplaceResult struct {
 	SkippedCards      []domain.CardShell
 }
 
-// Persisted valid cards are no longer than four hours. An overlapping
+// MaxCardDuration bounds valid cards at four hours. An overlapping
 // one must start at or after this absolute lookback from the query window.
-const maxCardDuration = 4 * time.Hour
+const MaxCardDuration = 4 * time.Hour
 
 const cardColumns = `id, batch_id, day, start, end, start_ts, end_ts, category, subcategory,
 	title, summary, detailed_summary, video_summary_path, metadata, is_deleted, created_at, updated_at`
@@ -55,7 +55,7 @@ func (r *CardRepo) CardsForDay(ctx context.Context, day string) ([]domain.Timeli
 	err = r.store.Read(ctx, "cards for day "+day, func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
 			"SELECT "+cardColumns+" FROM timeline_cards WHERE start_ts >= ? AND start_ts < ? AND end_ts > ? AND is_deleted = 0 AND end_ts > start_ts AND (end_ts - start_ts) <= 14400 ORDER BY start_ts, id",
-			start.Add(-maxCardDuration).Unix(), end.Unix(), start.Unix())
+			start.Add(-MaxCardDuration).Unix(), end.Unix(), start.Unix())
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func (r *CardRepo) CardsInRange(ctx context.Context, from, to time.Time) ([]doma
 			   AND end_ts > start_ts
 			   AND (end_ts - start_ts) <= 14400
 			 ORDER BY start_ts`,
-			from.Add(-maxCardDuration).Unix(), to.Unix(), from.Unix())
+			from.Add(-MaxCardDuration).Unix(), to.Unix(), from.Unix())
 		if err != nil {
 			return err
 		}
@@ -193,7 +193,7 @@ func (r *CardRepo) replaceCardsInRange(ctx context.Context, from, to time.Time,
 			// the three-day anchor selection (docs/03 §3.5), so end is after start.
 			// A still-inverted end is degenerate model output (e.g. 4:30pm~4:29pm);
 			// rolling it a full day would persist a ~24h card, so skip and report it.
-			if !endTs.After(startTs) || endTs.Sub(startTs) > maxCardDuration {
+			if !endTs.After(startTs) || endTs.Sub(startTs) > MaxCardDuration {
 				result.SkippedCards = append(result.SkippedCards, shell)
 				continue
 			}
