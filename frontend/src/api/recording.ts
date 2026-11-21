@@ -28,15 +28,16 @@ export async function setStatusItemLabels(labels: StatusItemLabels): Promise<voi
     // No native host, or the status item is unavailable on this platform.
   }
 }
-interface RecordingEventPayload { state?: unknown }
-interface RecordingRuntime { EventsOnMultiple?: (name: string, callback: (...data: unknown[]) => void, maxCallbacks: number) => (() => void) | undefined }
-export function onRecordingState(callback: (state: string) => void): () => void {
+interface RecordingEventPayload { state?: unknown; lastFrameAtTs?: unknown }
+export function onRecordingState(callback: (state: string, lastFrameAtTs?: number) => void): () => void {
   const runtime = desktopRuntime()
   if (typeof runtime?.EventsOnMultiple !== 'function') return () => undefined
   return runtime.EventsOnMultiple('recording:state', (...data: unknown[]) => {
     const value = data[0]
     if (typeof value !== 'object' || value === null || !('state' in value)) return
-    const state = (value as RecordingEventPayload).state
-    if (typeof state === 'string') callback(state)
+    const { state, lastFrameAtTs } = value as RecordingEventPayload
+    if (typeof state === 'string') {
+      callback(state, typeof lastFrameAtTs === 'number' && Number.isFinite(lastFrameAtTs) ? lastFrameAtTs : undefined)
+    }
   }, -1) ?? (() => undefined)
 }

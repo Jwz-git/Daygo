@@ -1218,7 +1218,7 @@ Windows 的错误、取消与关闭更新弹窗回调均清除 `checking`。安�
 | `recap:updated` | 失效 | `{standupDay: string}` | 日报生成或保存成功（含后台补生成，见 §5.5.1 补生成触发） |
 | `settings:changed` | 失效 | `{keys: string[]}` | 设置、分类或 provider 写入成功后 |
 | `chat:updated` | 失效 | `{conversationId: string}` | chat 会话或消息落库（新建 / 删除 / 回合内每条消息 / 回合结束） |
-| `recording:state` | 状态 | `RecordingStateDTO` | 状态机转换、权限变化、暂停到期 |
+| `recording:state` | 状态 | `{state, lastFrameAtTs?}` | 状态变动、错误及恢复时重读状态。健康帧只携带状态与最新帧时间戳 |
 | `batch:progress` | 状态 | `{batchId: number, step: string, day: string}` | 流水线阶段推进（**规划中，当前不发送**） |
 | `batch:failed` | 状态 | `TimelineFailureDTO` | 批次进入失败终态 |
 | `recording:warning` | 状态 | `{kind: string, sinceTs: number}` | 看门狗：`capturing` 但超过 `interval × 5` 无帧（**规划中，当前不发送**） |

@@ -122,3 +122,28 @@ func TestRecordingDTOReportsTimedPauseAndClearsItOnStop(t *testing.T) {
 		t.Fatalf("stopped DTO=%+v error=%v", dto, err)
 	}
 }
+
+func TestStatusItemPublishesOnlyChangedOrFailedState(t *testing.T) {
+	b := NewBackend(nil, nil)
+	calls := 0
+	b.setStatusUpdater(func(platform.StatusItemState) error {
+		calls++
+		if calls == 1 {
+			return errors.New("anonymous failed status update")
+		}
+		return nil
+	})
+	for range 3 {
+		b.updateStatus(recorder.StateIdle)
+	}
+	if calls != 2 {
+		t.Fatalf("status update calls = %d, want retry then deduplication", calls)
+	}
+	labels := b.statusLabels.get()
+	labels.Tooltip = "Updated anonymous tooltip"
+	b.statusLabels.set(labels)
+	b.updateStatus(recorder.StateIdle)
+	if calls != 3 {
+		t.Fatal("new labels did not update the status item")
+	}
+}

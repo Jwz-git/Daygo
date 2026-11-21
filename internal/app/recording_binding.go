@@ -36,7 +36,11 @@ func (b *Backend) ensureRecorder() (*recorder.Recorder, error) {
 		}
 	}
 	r, err := recorder.New(recorder.Config{Capture: b.capture, Store: b.storage.Captures(), Settings: snapshot, Directory: directory, OnEvent: func(e recorder.Event) {
-		b.emitter.Emit(EventRecordingState, map[string]string{"state": string(e.State)})
+		payload := map[string]any{"state": string(e.State)}
+		if e.FrameAt != nil {
+			payload["lastFrameAtTs"] = e.FrameAt.Unix()
+		}
+		b.emitter.Emit(EventRecordingState, payload)
 		b.updateStatus(e.State)
 	}})
 	if err != nil {

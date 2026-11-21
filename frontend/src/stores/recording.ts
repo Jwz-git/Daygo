@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 import {
   getRecordingState,
@@ -28,6 +29,7 @@ export function lifecycleOf(value: string | undefined): RecordingLifecycle | nul
 }
 
 export const useRecordingStore = defineStore('recording', () => {
+  const visibility = useUIVisibilityStore()
   const snapshot = ref<RecordingState | null>(null)
   const loading = ref(false)
   const pendingAction = ref<RecordingAction | null>(null)
@@ -131,8 +133,24 @@ export const useRecordingStore = defineStore('recording', () => {
 
   function startListening(): void {
     if (stopEvents !== null) return
-    stopEvents = onRecordingState(() => { void refresh() })
-    void refresh()
+    let dirty = !visibility.visible
+    const stopRecording = onRecordingState((state, lastFrameAtTs) => {
+      if (!visibility.visible) {
+        dirty = true
+      } else if (lastFrameAtTs !== undefined && snapshot.value?.state === state) {
+        snapshot.value = { ...snapshot.value, lastFrameAtTs }
+      } else {
+        void refresh()
+      }
+    })
+    const stopVisibility = watch(() => visibility.visible, (visible) => {
+      if (visible && dirty) {
+        dirty = false
+        void refresh()
+      }
+    })
+    stopEvents = () => { stopRecording(); stopVisibility() }
+    if (visibility.visible) void refresh()
   }
 
   function stopListening(): void {

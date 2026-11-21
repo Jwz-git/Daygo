@@ -98,8 +98,8 @@ type Backend struct {
 	// Wails context; it stays nil in headless construction.
 	shutdownRequesterMu sync.RWMutex
 	shutdownRequester   func()
-	statusUpdaterMu     sync.RWMutex
-	statusUpdater       func(recorder.State)
+	statusUpdater       func(platform.StatusItemState) error
+	paintedStatus       *platform.StatusItemState
 	statusPaintMu       sync.Mutex
 	statusLabels        statusItemLabelStore
 	// nativeLabels carries the localized copy for the other native surfaces
@@ -426,22 +426,31 @@ func (b *Backend) startUpdaterEventPump(ctx context.Context) {
 	}(b.updater.Events())
 }
 
-func (b *Backend) setStatusUpdater(updater func(recorder.State)) {
-	b.statusUpdaterMu.Lock()
+func (b *Backend) setStatusUpdater(updater func(platform.StatusItemState) error) {
+	b.statusPaintMu.Lock()
+	defer b.statusPaintMu.Unlock()
 	b.statusUpdater = updater
-	b.statusUpdaterMu.Unlock()
+	b.paintedStatus = nil
 }
 
 func (b *Backend) updateStatus(state recorder.State) {
 	b.statusPaintMu.Lock()
 	defer b.statusPaintMu.Unlock()
-	b.statusUpdaterMu.RLock()
-	updater := b.statusUpdater
-	b.statusUpdaterMu.RUnlock()
-	if updater != nil {
-		updater(state)
+	if b.statusUpdater == nil {
+		return
 	}
+	item := b.statusItemPresentation(state)
+	if b.paintedStatus != nil && *b.paintedStatus == item {
+		return
+	}
+	if err := b.statusUpdater(item); err != nil {
+		b.paintedStatus = nil
+		log.Printf("status item update unavailable: %v", err)
+		return
+	}
+	b.paintedStatus = &item
 }
+
 func (b *Backend) setStatusAction(handler func(string)) {
 	b.statusActionMu.Lock()
 	b.statusAction = handler

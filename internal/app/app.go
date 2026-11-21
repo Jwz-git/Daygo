@@ -20,7 +20,6 @@ import (
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/factory"
 	"github.com/Jwz-git/Daygo/internal/platform/secrets"
-	"github.com/Jwz-git/Daygo/internal/recorder"
 	"github.com/Jwz-git/Daygo/internal/settings"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -290,21 +289,12 @@ func Run() error {
 		})
 		backend.pushApplicationMenuCopy()
 		ready.Store(true)
-		updateStatus := func(state recorder.State) {
-			// Status-item setup is an optional platform capability and must not
-			// make the desktop shell's startup depend on native tray availability.
-			if backend.system == nil {
-				return
-			}
-			// Labels come from the frontend (vue-i18n); the state → surface
-			// mapping stays here so the adapter never learns recorder states.
-			item := backend.statusItemPresentation(state)
-			if err := backend.system.SetStatusItem(ctx, item); err != nil {
-				log.Printf("status item update unavailable: %v", err)
-			}
+		if backend.system != nil {
+			backend.setStatusUpdater(func(item platform.StatusItemState) error {
+				return backend.system.SetStatusItem(ctx, item)
+			})
+			backend.updateStatus(backend.recorderState())
 		}
-		backend.setStatusUpdater(updateStatus)
-		updateStatus(backend.recorderState())
 		backend.loadDockPreference(ctx)
 		reportActionError := func(err error) {
 			showWindow()

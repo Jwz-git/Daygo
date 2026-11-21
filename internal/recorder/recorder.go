@@ -54,9 +54,10 @@ type realClock struct{}
 func (realClock) Now() time.Time { return time.Now() }
 
 type Event struct {
-	State State
-	At    time.Time
-	Err   error
+	State   State
+	At      time.Time
+	Err     error
+	FrameAt *time.Time // Present for a frame that does not change other state.
 }
 
 type Config struct {
@@ -688,12 +689,7 @@ func (r *Recorder) capture(ctx context.Context) error {
 			return err
 		}
 
-		r.mu.Lock()
-		r.lastFrameAt = &now
-		r.lastError = nil
-		state := r.state
-		r.mu.Unlock()
-		r.emit(state, nil)
+		r.frameCommitted(now)
 		return nil
 	}
 
@@ -757,17 +753,25 @@ func (r *Recorder) captureLegacy(ctx context.Context, now time.Time, current set
 	if err := r.cfg.Store.Commit(ctx, id, info.Size()); err != nil {
 		return err
 	}
+	r.frameCommitted(now)
+	return nil
+}
+
+func (r *Recorder) frameCommitted(now time.Time) {
 	r.mu.Lock()
+	recovered := r.lastError != nil
 	r.lastFrameAt = &now
 	r.lastError = nil
 	state := r.state
 	r.mu.Unlock()
-	// The externally visible recording snapshot changed even though the
-	// lifecycle state did not. Reusing the state event lets Wails clients
-	// invalidate GetRecordingState without introducing a test-only event.
-	r.emit(state, nil)
-	return nil
+
+	if recovered {
+		r.emit(state, nil)
+	} else if r.cfg.OnEvent != nil {
+		r.cfg.OnEvent(Event{State: state, At: r.cfg.Clock.Now(), FrameAt: &now})
+	}
 }
+
 func writePlaceholder(path string, height, quality int) error {
 	_ = height
 	f, err := os.Create(path)
