@@ -16,6 +16,8 @@ import (
 	"github.com/Jwz-git/Daygo/internal/domain"
 	"github.com/Jwz-git/Daygo/internal/storage"
 	"github.com/Jwz-git/Daygo/internal/timeutil"
+
+	"golang.org/x/sync/semaphore"
 )
 
 // Consumer-side interfaces. *storage.AnalysisRepo, *storage.CardRepo, and
@@ -105,8 +107,8 @@ type Config struct {
 
 type Service struct {
 	cfg                   Config
-	cardsMu               sync.Mutex // serializes the read→generate→rewrite card sequence (docs/04 §4.3.2)
-	queueMu               sync.Mutex // guards queue pacing timestamps and rate limit tracking
+	cardsGate             *semaphore.Weighted // serializes the read→generate→rewrite card sequence (docs/04 §4.3.2)
+	queueMu               sync.Mutex          // guards queue pacing timestamps and rate limit tracking
 	lastBatchProcessedAt  time.Time
 	rateLimitBackoffUntil time.Time
 	rateLimitCount        map[int64]int
@@ -137,6 +139,7 @@ func New(cfg Config) (*Service, error) {
 	}
 	return &Service{
 		cfg:            cfg,
+		cardsGate:      semaphore.NewWeighted(1),
 		rateLimitCount: make(map[int64]int),
 	}, nil
 }
@@ -407,8 +410,10 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	// an idle commit interleaving a neighboring batch's read→generate→rewrite
 	// would clobber one of the two.
 	if DetectIdle(frames, s.cfg.IdleRules) {
-		s.cardsMu.Lock()
-		defer s.cardsMu.Unlock()
+		if err := s.cardsGate.Acquire(ctx, 1); err != nil {
+			return err
+		}
+		defer s.cardsGate.Release(1)
 		return s.commitIdleCard(ctx, batch)
 	}
 
@@ -434,10 +439,12 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 		return err
 	}
 
-	// Card generation holds cardsMu across read→generate→rewrite so two
+	// Card generation holds cardsGate across read→generate→rewrite so two
 	// batches never interleave a rewrite of the same range (docs/04 §4.3.2).
-	s.cardsMu.Lock()
-	defer s.cardsMu.Unlock()
+	if err := s.cardsGate.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer s.cardsGate.Release(1)
 
 	lookbackStart := batch.Start.Add(-CardLookback)
 	existing, err := s.cfg.Cards.CardsInRange(ctx, lookbackStart, batch.End)
@@ -1215,8 +1222,10 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 	// The same lock the batch pipeline holds across read→generate→rewrite: a
 	// regeneration interleaving a neighbouring batch's rewrite of the same
 	// minutes would clobber one of the two (docs/04 §4.3.2).
-	s.cardsMu.Lock()
-	defer s.cardsMu.Unlock()
+	if err := s.cardsGate.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer s.cardsGate.Release(1)
 
 	// An agent merge may have replaced this source while regeneration waited
 	// for the same lock. Never rewrite the stale source window over that merge.
@@ -1237,7 +1246,7 @@ func (s *Service) RegenerateCard(ctx context.Context, card domain.TimelineCard) 
 
 	// A live batch over the same window will rewrite these cards when it lands,
 	// which would silently discard this regeneration's result. The check runs
-	// UNDER cardsMu: a batch that transitions to pending/processing between an
+	// UNDER cardsGate: a batch that transitions to pending/processing between an
 	// unlocked check and acquiring the lock would not be seen, then rewrite the
 	// window after this call released the lock and clobber the regeneration.
 	// Holding the lock while we check and rewrite also blocks that batch's own

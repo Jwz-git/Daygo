@@ -15,6 +15,8 @@
 
 ## 当前状态与证据
 
+2026-11-21 卡片写入取消（基于 `532f067` 的 `test` 工作树，macOS arm64）：批次、卡片重生成与合并仍在同一串行边界内。等待边界时可响应调用者取消。匿名并发夹具要求持锁方尚未释放时，等待者已返回取消且未执行写回调，修正前超时，修正后通过。`CGO_ENABLED=0 go test -race -count=1 ./internal/analysis ./internal/app -run 'Test(CardMutation.*|RegenerateCard.*|CardMerge.*|Pipeline.*)$'` 通过。真实 Provider 等待时长未测。回退为撤销提交。
+
 2026-11-21 目标刷新（基于 `7211f08` 的 `test` 工作树，macOS arm64）：时间线目标区只读当天目标并订阅目标更新，日期切换隔离在途读取，保存后按事件或补读确认。日报 store 停止加载未展示的目标。匿名前端夹具验证单一目标读取、忽略其他日期、接收全量目标失效及保存读回。 `npm --prefix frontend run test:unit` 306 项与 `npm --prefix frontend run typecheck` 均通过。真实 WebView IPC 耗时未测。回退为撤销提交。
 
 2026-11-21 网站图标（基于 `f434774` 的 `test` 工作树，macOS arm64）：两条匿名夹具先复现负缓存命中续期和取消污染，修正后 `go test -race -count=1 ./internal/favicon` 通过。macOS 系统代理首次需要时才查询，超时 1 秒；未测实际代理服务器或真实首屏时延。回退为撤销提交。
