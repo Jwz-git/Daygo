@@ -1,7 +1,7 @@
 # 03 数据模型
 
 > **状态：设计，已开始落盘。** 本文定义 Daygo 自有的持久化结构。
-> **当前数据库（`PRAGMA user_version = 26`）有十九张业务表**：`app_settings`（v1）、
+> **当前数据库（`PRAGMA user_version = 27`）有十九张业务表**：`app_settings`（v1）、
 > cards 能力的 `analysis_batches`、`timeline_cards`、`categories`（v2，含 `System` / `Idle`
 > 内置种子）、`pending_captures`、`screenshots`（v3）、`providers` 与 chat 的
 > `chat_conversations`、`chat_messages`（v4）、daily 的 `journal_entries`、`day_goals`、
@@ -14,7 +14,7 @@
 > 移除 `journal_entries.summary`（v19，保留用户输入）、计划的 `plan_blocks`（v20），以及
 > `providers.user_agent`（v21，User-Agent 覆盖），以及 `chat_messages.error_code`（v22，
 > 回合失败原因码）、`timeline_cards.is_user_edited`（v23，自动改写保留人工输入）、`categories.archetype`（v24，
-> 分类视觉元类型）、为已在使用的库写入 `system.onboardingCompleted`（v25）、为用量查询增加 `llm_calls(started_at)` 索引（v26）。本文其余表
+> 分类视觉元类型）、为已在使用的库写入 `system.onboardingCompleted`（v25）、为用量查询增加 `llm_calls(started_at)` 索引（v26）、为已保存转录新增 `analysis_batches.transcription_ready` 标记（v27）。本文其余表
 > 都是目标结构，由对应功能模块随需求沿同一条迁移链逐版本追加。
 > 实现与本文冲突时以代码为准，并在同一 commit 修正本文。
 

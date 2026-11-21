@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -727,5 +728,20 @@ func driveBatchTo(t *testing.T, store *Store, batch Batch, to BatchStatus, at ti
 	}
 	if err := store.Analysis().SetBatchStatus(ctx, batch.ID, to, "", "", tick); err != nil {
 		t.Fatalf("SetBatchStatus %s prep: %v", to, err)
+	}
+}
+
+func TestMigrateV26PreservesLegacyObservationsWithoutReusingThem(t *testing.T) {
+	dir := newDir(t)
+	copyFile(t, filepath.Join("testdata", "v26-transcription-source.db"), filepath.Join(dir, DatabaseFileName))
+	s := openWriter(t, dir)
+	ctx := t.Context()
+	legacy, err := s.Analysis().ObservationsForBatch(ctx, 1000)
+	if err != nil || len(legacy) != 1 || legacy[0].Observation != "anonymous legacy transcription" {
+		t.Fatalf("legacy observation = %+v, %v", legacy, err)
+	}
+	ready, err := s.Analysis().ReusableObservationsForBatch(ctx, 1000)
+	if err != nil || len(ready) != 0 {
+		t.Fatalf("reusable legacy observations = %+v, %v", ready, err)
 	}
 }

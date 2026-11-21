@@ -350,7 +350,7 @@ func (r *AnalysisRepo) RequeueFailed(ctx context.Context, olderThan, now time.Ti
 func (r *AnalysisRepo) RetryBatches(ctx context.Context, ids []int64, now time.Time) ([]Batch, error) {
 	return r.updateFailedBatches(ctx, "analysis retry batches", ids,
 		`UPDATE analysis_batches
-		 SET status = ?, failure_kind = NULL, failure_note = NULL, attempts = 0, updated_at = ?
+		 SET status = ?, failure_kind = NULL, failure_note = NULL, attempts = 0, updated_at = ?, transcription_ready = 0
 		 WHERE id = ?`,
 		[]any{BatchPending, now.Unix()})
 }
@@ -415,7 +415,7 @@ func (r *AnalysisRepo) ReprocessDay(ctx context.Context, from, to time.Time, now
 		}
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE analysis_batches
-			SET status = ?, failure_kind = NULL, failure_note = NULL, attempts = 0, updated_at = ?
+			SET status = ?, failure_kind = NULL, failure_note = NULL, attempts = 0, updated_at = ?, transcription_ready = 0
 			WHERE id IN (`+strings.Join(batchIDPlaceholders(len(ids)), ", ")+`)`,
 			append([]any{BatchPending, now.Unix()}, batchIDArgs(ids)...)...); err != nil {
 			return wrap("reprocess day", err)
@@ -598,7 +598,8 @@ func (r *AnalysisRepo) InsertObservations(ctx context.Context, batchID int64, ob
 				return wrap("insert observation", err)
 			}
 		}
-		return nil
+		_, err := tx.ExecContext(ctx, `UPDATE analysis_batches SET transcription_ready = 1 WHERE id = ?`, batchID)
+		return wrap("mark transcription ready", err)
 	})
 }
 
@@ -606,6 +607,20 @@ func (r *AnalysisRepo) InsertObservations(ctx context.Context, batchID int64, ob
 func (r *AnalysisRepo) ObservationsForBatch(ctx context.Context, batchID int64) ([]Observation, error) {
 	return r.observationsQuery(ctx, "analysis observations for batch",
 		`WHERE batch_id = ? ORDER BY start_ts`, batchID)
+}
+
+// ReusableObservationsForBatch only reads a complete transcription from
+// the current processing attempt. An explicit rerun invalidates its marker
+// while leaving historical observations available for other card consumers.
+func (r *AnalysisRepo) ReusableObservationsForBatch(ctx context.Context, batchID int64) ([]Observation, error) {
+	return r.observationsQuery(ctx, "analysis reusable observations for batch", `
+		WHERE batch_id = ?
+		  AND EXISTS (SELECT 1 FROM analysis_batches WHERE id = observations.batch_id AND transcription_ready = 1)
+		  AND NOT EXISTS (
+		    SELECT 1 FROM batch_screenshots bs JOIN screenshots s ON s.id = bs.screenshot_id
+		    WHERE bs.batch_id = observations.batch_id AND s.is_deleted = 1
+		  )
+		ORDER BY start_ts`, batchID)
 }
 
 // ObservationsInRange returns transcriptions overlapping [from, to) in start

@@ -35,7 +35,7 @@ type Store interface {
 	AdoptStaleProcessing(ctx context.Context, now time.Time) (int, error)
 	RequeueFailed(ctx context.Context, olderThan, now time.Time) (int, error)
 	InsertObservations(ctx context.Context, batchID int64, obs []storage.Observation, now time.Time) error
-	ObservationsForBatch(ctx context.Context, batchID int64) ([]storage.Observation, error)
+	ReusableObservationsForBatch(ctx context.Context, batchID int64) ([]storage.Observation, error)
 	ObservationsInRange(ctx context.Context, from, to time.Time) ([]storage.Observation, error)
 }
 
@@ -426,17 +426,24 @@ func (s *Service) processBatch(ctx context.Context, batch storage.Batch) error {
 	batchID := batch.ID
 	ctx = ai.WithAttemptMetadata(ctx, ai.AttemptMetadata{BatchID: &batchID})
 
-	// Transcription: consecutive groups of at most ai.MaxImages frames.
-	observations, err := s.transcribe(ctx, chain, frames)
+	// A retry can resume after the completed vision stage. Explicit reruns
+	// clear the marker in storage so they still analyze the current frames.
+	observations, err := s.cfg.Store.ReusableObservationsForBatch(ctx, batch.ID)
 	if err != nil {
 		return err
 	}
 	if len(observations) == 0 {
-		return s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchFailedEmpty,
-			"empty", "transcription produced no observations", s.cfg.Now())
-	}
-	if err := s.cfg.Store.InsertObservations(ctx, batch.ID, observations, s.cfg.Now()); err != nil {
-		return err
+		observations, err = s.transcribe(ctx, chain, frames)
+		if err != nil {
+			return err
+		}
+		if len(observations) == 0 {
+			return s.cfg.Store.SetBatchStatus(ctx, batch.ID, storage.BatchFailedEmpty,
+				"empty", "transcription produced no observations", s.cfg.Now())
+		}
+		if err := s.cfg.Store.InsertObservations(ctx, batch.ID, observations, s.cfg.Now()); err != nil {
+			return err
+		}
 	}
 
 	// Card generation holds cardsGate across read→generate→rewrite so two

@@ -807,6 +807,14 @@ var migrations = []migration{
 			return wrap("index v26 llm call start times", err)
 		},
 	},
+	{
+		version: 27,
+		name:    "analysis: track transcriptions reusable by retries",
+		apply: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `ALTER TABLE analysis_batches ADD COLUMN transcription_ready INTEGER NOT NULL DEFAULT 0 CHECK (transcription_ready IN (0, 1))`)
+			return wrap("add v27 transcription ready marker", err)
+		},
+	},
 }
 
 // categoryArchetypeBackfill maps lowercased category names to the archetype

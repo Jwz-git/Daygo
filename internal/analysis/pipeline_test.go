@@ -1663,3 +1663,39 @@ func TestBoundDetailedSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestPipelineAutomaticallyRetriesCardsWithoutRepeatingVision(t *testing.T) {
+	h := newHarness(t, map[string]string{
+		string(ai.PurposeTranscribe): `{"observations":[{"from_frame":0,"to_frame":89,"observation":"anonymous work","apps":[]}]}`,
+		string(ai.PurposeCards):      `{}`,
+	})
+	ctx := t.Context()
+	base := time.Date(2026, 9, 12, 10, 0, 0, 0, time.Local)
+	h.commitFrames(t, base, 92, 10*time.Second, func(int) *int { return intPtr(5) })
+	h.service.tick(ctx)
+	batch := mustBatches(t, h.store)[0]
+	if batch.Status != storage.BatchFailed {
+		t.Fatalf("initial status = %s, want failed", batch.Status)
+	}
+	visionCalls := h.provider.callCount(string(ai.PurposeTranscribe))
+	h.provider.responses[string(ai.PurposeCards)] = `{"cards":[{"start":"10:00 AM","end":"10:15 AM","category":"Coding","subcategory":"","title":"Work","summary":"Anonymous work.","detailed_summary":"","appSites":[],"distractions":[],"activityPoints":[]}]}`
+
+	at := batch.UpdatedAt.Add(time.Second)
+	if n, err := h.store.Analysis().RequeueFailed(ctx, at, at); err != nil || n != 1 {
+		t.Fatalf("requeue count=%d err=%v", n, err)
+	}
+	h.service.tick(ctx)
+	if batch := mustBatches(t, h.store)[0]; batch.Status != storage.BatchSucceeded {
+		t.Fatalf("automatic retry status = %s", batch.Status)
+	}
+	if got := h.provider.callCount(string(ai.PurposeTranscribe)); got != visionCalls {
+		t.Fatalf("automatic retry issued %d extra vision requests", got-visionCalls)
+	}
+	if _, err := h.store.Analysis().ReprocessDay(ctx, base, base.Add(24*time.Hour), at); err != nil {
+		t.Fatal(err)
+	}
+	h.service.tick(ctx)
+	if got := h.provider.callCount(string(ai.PurposeTranscribe)); got <= visionCalls {
+		t.Fatal("explicit reprocessing must request fresh transcription")
+	}
+}

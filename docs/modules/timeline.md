@@ -15,6 +15,8 @@
 
 ## 当前状态与证据
 
+2026-11-21 分析自动重试（基于 `15364f3` 的 `test` 工作树，macOS arm64）：v27 在保存完整转录的同一事务标记为可复用；自动重试 / 中断续跑在对应帧仍保留时复用。用户明确重试或重处理清除标记，仍以当前帧重做。匿名卡片失败夹具修正前自动重试新增三次视觉请求，修正后为零且卡片写入成功，显式重处理仍有新的视觉请求。匿名 v26 升级夹具保留旧转录但不标记为可复用。`CGO_ENABLED=0 go test -count=1 ./internal/analysis ./internal/storage ./internal/app` 通过。真实费用未测。回退应用代码时保留兼容 v27 的迁移，旧程序不直接打开已升级的库。
+
 2026-11-21 卡片写入取消（基于 `532f067` 的 `test` 工作树，macOS arm64）：批次、卡片重生成与合并仍在同一串行边界内。等待边界时可响应调用者取消。匿名并发夹具要求持锁方尚未释放时，等待者已返回取消且未执行写回调，修正前超时，修正后通过。`CGO_ENABLED=0 go test -race -count=1 ./internal/analysis ./internal/app -run 'Test(CardMutation.*|RegenerateCard.*|CardMerge.*|Pipeline.*)$'` 通过。真实 Provider 等待时长未测。回退为撤销提交。
 
 2026-11-21 目标刷新（基于 `7211f08` 的 `test` 工作树，macOS arm64）：时间线目标区只读当天目标并订阅目标更新，日期切换隔离在途读取，保存后按事件或补读确认。日报 store 停止加载未展示的目标。匿名前端夹具验证单一目标读取、忽略其他日期、接收全量目标失效及保存读回。 `npm --prefix frontend run test:unit` 306 项与 `npm --prefix frontend run typecheck` 均通过。真实 WebView IPC 耗时未测。回退为撤销提交。

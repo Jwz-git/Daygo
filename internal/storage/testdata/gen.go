@@ -106,6 +106,9 @@ func main() {
 	if err := writeV25(outDir); err != nil {
 		log.Fatalf("v25-token-usage-source.db: %v", err)
 	}
+	if err := writeV26(outDir); err != nil {
+		log.Fatalf("v26-transcription-source.db: %v", err)
+	}
 	if err := writeTruncated(filepath.Join(outDir, "truncated.db")); err != nil {
 		log.Fatalf("truncated.db: %v", err)
 	}
@@ -1284,6 +1287,36 @@ func writeV25(outDir string) error {
 			(provider_id, protocol, requested_model, purpose, attempt_no, started_at, finished_at, latency_ms, outcome, input_tokens, output_tokens)
 			VALUES ('anonymous', 'openai', 'fixture', 'cards', 1, 100, 101, 1000, 'success', 42, 7)`,
 		`PRAGMA user_version = 25`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeV26 makes an old completed transcription whose generation is unknown.
+func writeV26(outDir string) error {
+	data, err := os.ReadFile(filepath.Join(outDir, "v25-token-usage-source.db"))
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(outDir, "v26-transcription-source.db")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	for _, stmt := range []string{
+		`CREATE INDEX idx_llm_calls_started_at ON llm_calls (started_at)`,
+		`INSERT INTO analysis_batches (id, start_ts, end_ts, status, created_at, updated_at)
+		  VALUES (1000, 100, 120, 'failed', 100, 120)`,
+		`INSERT INTO observations (batch_id, start_ts, end_ts, observation, created_at)
+		  VALUES (1000, 100, 120, 'anonymous legacy transcription', 120)`,
+		`PRAGMA user_version = 26`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			return err
