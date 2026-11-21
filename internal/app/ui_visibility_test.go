@@ -7,7 +7,36 @@ import (
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 	"github.com/Jwz-git/Daygo/internal/platform/fake"
+	"github.com/Jwz-git/Daygo/internal/recorder"
 )
+
+func TestHealthyRecordingFramesDoNotWakeHiddenWindow(t *testing.T) {
+	b := NewBackend(fake.NewSystem(), nil)
+	emitter := &recordingEmitter{}
+	b.setEventEmitter(emitter)
+	updates := 0
+	b.setStatusUpdater(func(platform.StatusItemState) error {
+		updates++
+		if updates == 1 {
+			return errors.New("anonymous native update failed")
+		}
+		return nil
+	})
+	b.setWindowHidden(true)
+	now := time.Unix(1795250000, 0)
+	for range 3 {
+		b.handleRecorderEvent(recorder.Event{State: recorder.StateCapturing, FrameAt: &now})
+	}
+	if emitted := emitter.count(EventRecordingState); emitted != 0 || updates != 2 {
+		t.Fatalf("hidden frames emitted=%d tray updates=%d, want zero and a successful tray retry", emitted, updates)
+	}
+	b.handleRecorderEvent(recorder.Event{State: recorder.StatePaused})
+	b.setWindowHidden(false)
+	b.handleRecorderEvent(recorder.Event{State: recorder.StateCapturing, FrameAt: &now})
+	if emitted := emitter.count(EventRecordingState); emitted != 2 {
+		t.Fatalf("recording events=%d, want one transition and one visible frame", emitted)
+	}
+}
 
 func TestUIVisibilityKeepsHideSourcesIndependent(t *testing.T) {
 	b := NewBackend(fake.NewSystem(), nil)

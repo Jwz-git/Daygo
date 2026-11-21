@@ -46,6 +46,14 @@ test('healthy frames update the timestamp without a binding read and hidden even
     listeners.get('ui:visibility-changed')?.({ visible: true })
     await flush()
     assert.equal(reads, 2)
+
+    // The desktop suppresses healthy frame events in the background.
+    listeners.get('ui:visibility-changed')?.({ visible: false })
+    await flush()
+    assert.equal(reads, 2)
+    listeners.get('ui:visibility-changed')?.({ visible: true })
+    await flush()
+    assert.equal(reads, 3)
   } finally {
     recording.stopListening()
     visibility.stop()

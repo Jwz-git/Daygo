@@ -133,21 +133,16 @@ export const useRecordingStore = defineStore('recording', () => {
 
   function startListening(): void {
     if (stopEvents !== null) return
-    let dirty = !visibility.visible
     const stopRecording = onRecordingState((state, lastFrameAtTs) => {
-      if (!visibility.visible) {
-        dirty = true
-      } else if (lastFrameAtTs !== undefined && snapshot.value?.state === state) {
+      if (!visibility.visible) return
+      if (lastFrameAtTs !== undefined && snapshot.value?.state === state) {
         snapshot.value = { ...snapshot.value, lastFrameAtTs }
       } else {
         void refresh()
       }
     })
     const stopVisibility = watch(() => visibility.visible, (visible) => {
-      if (visible && dirty) {
-        dirty = false
-        void refresh()
-      }
+      if (visible) void refresh()
     })
     stopEvents = () => { stopRecording(); stopVisibility() }
     if (visibility.visible) void refresh()

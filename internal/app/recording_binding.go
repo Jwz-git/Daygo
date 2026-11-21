@@ -34,19 +34,31 @@ func (b *Backend) ensureRecorder() (*recorder.Recorder, error) {
 			return nil, apperr.E(apperr.NativeUnavailable, "recording directory is unavailable", err)
 		}
 	}
-	r, err := recorder.New(recorder.Config{Capture: b.capture, Store: b.storage.Captures(), Settings: snapshot, Directory: directory, OnEvent: func(e recorder.Event) {
-		payload := map[string]any{"state": string(e.State)}
-		if e.FrameAt != nil {
-			payload["lastFrameAtTs"] = e.FrameAt.Unix()
-		}
-		b.emitter.Emit(EventRecordingState, payload)
-		b.updateStatus(e.State)
-	}})
+	r, err := recorder.New(recorder.Config{Capture: b.capture, Store: b.storage.Captures(), Settings: snapshot, Directory: directory, OnEvent: b.handleRecorderEvent})
 	if err != nil {
 		return nil, apperr.E(apperr.Internal, "create recorder", err)
 	}
 	b.recorder = r
 	return r, nil
+}
+
+func (b *Backend) handleRecorderEvent(event recorder.Event) {
+	if event.FrameAt == nil {
+		b.emitter.Emit(EventRecordingState, map[string]any{"state": string(event.State)})
+		b.updateStatus(event.State)
+		return
+	}
+	if b.GetUIVisibility().Visible {
+		b.emitter.Emit(EventRecordingState, map[string]any{"state": string(event.State), "lastFrameAtTs": event.FrameAt.Unix()})
+	}
+	// A healthy committed frame does not change native labels or controls.
+	// Retry an unapplied snapshot to recover a failed native update.
+	b.statusPaintMu.Lock()
+	retry := b.paintedStatus == nil && b.statusUpdater != nil
+	b.statusPaintMu.Unlock()
+	if retry {
+		b.updateStatus(event.State)
+	}
 }
 
 func (b *Backend) SetRecording(enabled bool) error {
