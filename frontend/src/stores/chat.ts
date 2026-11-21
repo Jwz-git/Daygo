@@ -58,12 +58,16 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     return last !== undefined && last.role !== 'assistant'
   })
   const providers = ref<{ id: string; displayName: string; model: string }[]>([])
+  let lifecycle = 0
 
   async function refreshProviders(): Promise<void> {
+    const version = lifecycle
     // Chat's model picker still shows one model per provider: its first, which
     // is the model an unpinned conversation follows (chat multi-model UI is out
     // of scope here — see decisions/providers-multi-model).
-    providers.value = (await listProviders()).map((provider) => ({
+    const rows = await listProviders()
+    if (version !== lifecycle) return
+    providers.value = rows.map((provider) => ({
       id: provider.id,
       displayName: provider.displayName,
       model: provider.models[0] ?? '',
@@ -89,6 +93,7 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
 
   let unsubscribe: (() => void) | null = null
   let settingsUnsubscribe: (() => void) | null = null
+  let draftCreation: ReturnType<typeof createChatConversation> | null = null
 
   let messageRequest = 0
   let conversationRequest = 0
@@ -113,11 +118,12 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
   }
 
   async function select(conversationId: string): Promise<void> {
+    const version = lifecycle
     activeId.value = conversationId
     messages.value = []
     loading.value = true
     await loadMessages(conversationId)
-    if (activeId.value === conversationId) await ensureProvider()
+    if (version === lifecycle && activeId.value === conversationId) await ensureProvider()
   }
 
   /**
@@ -136,35 +142,45 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
    * untitled thread), or create one. At most one draft exists at a time.
    */
   async function openDraft(): Promise<void> {
+    const version = lifecycle
     const draft = conversations.value.find((conversation) => conversation.title === '')
     if (draft !== undefined) {
       await select(draft.id)
       return
     }
-    const conversation = await createChatConversation()
-    await refreshConversations()
-    await select(conversation.id)
+    const pendingDraft = draftCreation ??= createChatConversation()
+    try {
+      const conversation = await pendingDraft
+      if (version !== lifecycle) return
+      await refreshConversations()
+      if (version === lifecycle) await select(conversation.id)
+    } finally {
+      if (draftCreation === pendingDraft) draftCreation = null
+    }
   }
 
   async function hydrate(): Promise<void> {
     if (hydrated.value) return
+    const version = lifecycle
     hydrated.value = true
     unavailable.value = false
 
     try {
       await Promise.all([refreshConversations(), refreshProviders()])
     } catch {
+      if (version !== lifecycle) return
       unavailable.value = true
       hydrated.value = false
       return
     }
+    if (version !== lifecycle) return
 
     unsubscribe?.()
     unsubscribe = onChatUpdated(async (conversationId) => {
       try {
         await Promise.all([refreshConversations(), loadMessages(conversationId)])
       } catch {
-        refreshFailed.value = true
+        if (version === lifecycle) refreshFailed.value = true
       }
     })
 
@@ -174,17 +190,35 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     settingsUnsubscribe?.()
     settingsUnsubscribe = onSettingsChanged((keys) => {
       if (!keys.includes('providers.routing')) return
-      void refreshProviders().then(() => ensureProvider())
+      void refreshProviders().then(() => {
+        if (version === lifecycle) return ensureProvider()
+      }).catch(() => {
+        if (version === lifecycle) refreshFailed.value = true
+      })
     })
 
     // Entering the chat view lands on a fresh conversation screen, not an
     // empty state; past threads are one click away in the sidebar.
     try {
-      await openDraft()
+      if (activeConversation.value === null) await openDraft()
+      else await select(activeConversation.value.id)
     } catch {
+      if (version !== lifecycle) return
       unavailable.value = true
       hydrated.value = false
     }
+  }
+
+  function stopListening(): void {
+    lifecycle++
+    messageRequest++
+    conversationRequest++
+    unsubscribe?.()
+    settingsUnsubscribe?.()
+    unsubscribe = null
+    settingsUnsubscribe = null
+    hydrated.value = false
+    loading.value = false
   }
 
   /** New conversation: a no-op when the current screen is already a fresh
@@ -275,6 +309,7 @@ export function createChatState(overrides: Partial<typeof chatAPI> = {}) {
     providers,
     unavailable,
     hydrate,
+    stopListening,
     select,
     newConversation,
     removeConversation,

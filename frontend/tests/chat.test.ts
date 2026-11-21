@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createChatState } from '../src/stores/chat'
-import type { ChatMessageDTO } from '../src/api/dto'
+import type { ChatConversationDTO, ChatMessageDTO } from '../src/api/dto'
 
 const row = (role: string, id = 1): ChatMessageDTO => ({ id, role, content: role, status: role === 'assistant' ? 'ok' : '', errorCode: '', toolName: '', toolArguments: '', createdAt: 0 })
 function deferred<T>() {
@@ -100,6 +100,46 @@ test('a settings event with unrelated keys does not re-pull providers', async ()
   settingsListener!(['appearance.theme'])
   await new Promise((done) => setTimeout(done, 0))
   assert.equal(pulls, 1)
+})
+
+test('leaving Chat removes both subscriptions and reopening reloads the selected transcript', async () => {
+  const subscriptions = new Set<string>()
+  const messages: ChatMessageDTO[] = [row('user')]
+  const loaded: string[] = []
+  const state = createChatState({
+    listChatConversations: async () => [{ id: 'draft', title: '', providerId: 'p', model: '', updatedAt: 0 }],
+    getChatMessages: async (id) => { loaded.push(id); return [...messages] },
+    listProviders: async () => [],
+    onChatUpdated: () => { subscriptions.add('chat'); return () => { subscriptions.delete('chat') } },
+    onSettingsChanged: () => { subscriptions.add('settings'); return () => { subscriptions.delete('settings') } },
+  })
+  await state.hydrate()
+  assert.deepEqual([...subscriptions].sort(), ['chat', 'settings'])
+  assert.deepEqual(loaded, ['draft'])
+
+  state.stopListening()
+  assert.equal(subscriptions.size, 0)
+  messages.push(row('assistant', 2))
+  await state.hydrate()
+  assert.equal(subscriptions.size, 2)
+  assert.equal(state.activeId.value, 'draft')
+  assert.deepEqual(loaded, ['draft', 'draft'])
+  assert.equal(state.messages.value.at(-1)?.id, 2)
+})
+
+test('leaving Chat while initial data is pending prevents late subscriptions', async () => {
+  const initial = deferred<ChatConversationDTO[]>()
+  let listeners = 0
+  const state = createChatState({
+    listChatConversations: () => initial.promise,
+    listProviders: async () => [],
+    onChatUpdated: () => { listeners++; return () => { listeners-- } },
+  })
+  const mount = state.hydrate()
+  state.stopListening()
+  initial.resolve([])
+  await mount
+  assert.equal(listeners, 0)
 })
 
 test('pinModel forwards to the binding', async () => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DgIcon from '@/components/DgIcon.vue'
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
@@ -73,6 +73,7 @@ async function onRename(committed: string): Promise<void> {
 onMounted(() => {
   void store.hydrate()
 })
+onBeforeUnmount(() => store.stopListening())
 </script>
 
 <template>
