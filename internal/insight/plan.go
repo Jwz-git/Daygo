@@ -33,42 +33,81 @@ func PlanBlockCoverage(startTs, endTs, nowTs int64, category string, spans []sto
 	if to <= startTs {
 		return PlanCoverage{}
 	}
+	distractions := NewDistractionIntervals(spans, isDistraction, loc)
+	return planBlockCoverage(startTs, to, category, spans, distractions)
+}
+
+func planBlockCoverage(fromTs, toTs int64, category string, spans []storage.CardSpan,
+	distractions DistractionIntervals) PlanCoverage {
+	if toTs <= fromTs {
+		return PlanCoverage{}
+	}
 	var matched int64
 	if category != "" {
 		for _, span := range spans {
 			if span.Category == category {
-				matched += overlapSeconds(span.StartTs, span.EndTs, startTs, to)
+				matched += overlapSeconds(span.StartTs, span.EndTs, fromTs, toTs)
 			}
 		}
 	}
 	return PlanCoverage{
 		MatchedMinutes:     float64(matched) / 60,
-		DistractionMinutes: DistractionMinutes(startTs, to, spans, isDistraction, loc),
+		DistractionMinutes: distractions.Minutes(fromTs, toTs),
 	}
 }
 
-// DistractionMinutes is the union of distraction time in [fromTs, toTs): whole
-// cards in a distraction category plus the distraction intervals embedded in
-// any card. The union counts an embedded interval inside a distraction card
-// once.
+// DistractionMinutes is the union of distraction time in [fromTs, toTs).
 func DistractionMinutes(fromTs, toTs int64, spans []storage.CardSpan, isDistraction func(string) bool, loc *time.Location) float64 {
+	return NewDistractionIntervals(spans, isDistraction, loc).Minutes(fromTs, toTs)
+}
+
+// DistractionIntervals holds the ordered, disjoint distraction intervals
+// derived from whole cards and embedded metadata.
+type DistractionIntervals struct {
+	intervals []WeeklyInterval
+}
+
+// NewDistractionIntervals parses each relevant span once for all time windows
+// in a plan review or reminder pass.
+func NewDistractionIntervals(spans []storage.CardSpan, isDistraction func(string) bool, loc *time.Location) DistractionIntervals {
 	var intervals []WeeklyInterval
-	add := func(start, end int64) {
-		start, end = max(start, fromTs), min(end, toTs)
-		if end > start {
-			intervals = append(intervals, WeeklyInterval{StartTs: start, EndTs: end})
-		}
-	}
 	for _, span := range spans {
+		if span.EndTs <= span.StartTs {
+			continue
+		}
 		if isDistraction(span.Category) {
-			add(span.StartTs, span.EndTs)
+			intervals = append(intervals, WeeklyInterval{StartTs: span.StartTs, EndTs: span.EndTs})
+			continue // Embedded intervals are already covered by the whole span.
 		}
 		_, _, embedded := segmentMetadata(span, loc)
-		for _, interval := range embedded {
-			add(interval.StartTs, interval.EndTs)
+		intervals = append(intervals, embedded...)
+	}
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i].StartTs < intervals[j].StartTs })
+	merged := intervals[:0]
+	for _, interval := range intervals {
+		if last := len(merged) - 1; last >= 0 && interval.StartTs <= merged[last].EndTs {
+			merged[last].EndTs = max(merged[last].EndTs, interval.EndTs)
+		} else {
+			merged = append(merged, interval)
 		}
 	}
-	return float64(unionSeconds(intervals)) / 60
+	return DistractionIntervals{intervals: merged}
+}
+
+// Minutes measures the distraction union clipped to [fromTs, toTs).
+func (d DistractionIntervals) Minutes(fromTs, toTs int64) float64 {
+	if toTs <= fromTs {
+		return 0
+	}
+	first := sort.Search(len(d.intervals), func(i int) bool { return d.intervals[i].EndTs > fromTs })
+	var total int64
+	for _, interval := range d.intervals[first:] {
+		if interval.StartTs >= toTs {
+			break
+		}
+		total += overlapSeconds(interval.StartTs, interval.EndTs, fromTs, toTs)
+	}
+	return float64(total) / 60
 }
 
 func overlapSeconds(aStart, aEnd, bStart, bEnd int64) int64 {
@@ -77,24 +116,6 @@ func overlapSeconds(aStart, aEnd, bStart, bEnd int64) int64 {
 		return 0
 	}
 	return end - start
-}
-
-func unionSeconds(intervals []WeeklyInterval) int64 {
-	if len(intervals) == 0 {
-		return 0
-	}
-	sort.Slice(intervals, func(i, j int) bool { return intervals[i].StartTs < intervals[j].StartTs })
-	var total int64
-	current := intervals[0]
-	for _, next := range intervals[1:] {
-		if next.StartTs <= current.EndTs {
-			current.EndTs = max(current.EndTs, next.EndTs)
-			continue
-		}
-		total += current.EndTs - current.StartTs
-		current = next
-	}
-	return total + current.EndTs - current.StartTs
 }
 
 // PlanReview pairs a stored block with its coverage up to now.
@@ -109,12 +130,15 @@ type PlanReview struct {
 // the CLI and MCP report the same numbers.
 func PlanReviews(blocks []storage.PlanBlock, spans []storage.CardSpan, distractionCategories []string,
 	nowTs int64, loc *time.Location) []PlanReview {
-	isDistraction := DistractionRule(distractionCategories)
 	reviews := make([]PlanReview, 0, len(blocks))
+	if len(blocks) == 0 {
+		return reviews
+	}
+	distractions := NewDistractionIntervals(spans, DistractionRule(distractionCategories), loc)
 	for _, block := range blocks {
 		reviews = append(reviews, PlanReview{
 			Block:    block,
-			Coverage: PlanBlockCoverage(block.StartTs, block.EndTs, nowTs, block.CategoryName, spans, isDistraction, loc),
+			Coverage: planBlockCoverage(block.StartTs, min(block.EndTs, nowTs), block.CategoryName, spans, distractions),
 		})
 	}
 	return reviews

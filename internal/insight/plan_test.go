@@ -98,3 +98,23 @@ func TestPlanReviewsUseTheGoalDistractionSet(t *testing.T) {
 		t.Fatalf("goal distraction set = %+v, want 11:00–11:30 Coding counted as distraction", withGoal[1])
 	}
 }
+
+func TestPlanReviewsClipOverlappingBlocksAtNow(t *testing.T) {
+	loc, at, spans := planFixture(t)
+	blocks := []storage.PlanBlock{
+		{ID: 1, StartTs: at(10, 35), EndTs: at(11, 0), CategoryName: "Coding"},
+		{ID: 2, StartTs: at(10, 40), EndTs: at(10, 54), CategoryName: "Distraction"},
+		{ID: 3, StartTs: at(11, 0), EndTs: at(11, 30)},
+	}
+	reviews := PlanReviews(blocks, spans, nil, at(10, 53), loc)
+	want := []PlanCoverage{
+		{MatchedMinutes: 8, DistractionMinutes: 13},
+		{MatchedMinutes: 5, DistractionMinutes: 8},
+		{},
+	}
+	for i, review := range reviews {
+		if review.Block.ID != blocks[i].ID || review.Coverage != want[i] {
+			t.Fatalf("review %d = %+v, want coverage %+v", i, review, want[i])
+		}
+	}
+}

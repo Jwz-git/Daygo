@@ -230,15 +230,15 @@ func (b *Backend) syncDistractionAlerts(ctx context.Context, store *storage.Stor
 	if err != nil {
 		return mapStorageError("read cards", err)
 	}
-	rule := insight.DistractionRule(goalNames)
+	distractions := insight.NewDistractionIntervals(spans, insight.DistractionRule(goalNames), loc)
 
 	for _, block := range active {
-		coverage := insight.PlanBlockCoverage(block.StartTs, block.EndTs, now.Unix(), block.CategoryName, spans, rule, loc)
+		minutes := distractions.Minutes(block.StartTs, now.Unix())
 		elapsed := float64(now.Unix()-block.StartTs) / 60
-		if coverage.DistractionMinutes < planDistractionMinMinutes || coverage.DistractionMinutes < planDistractionShare*elapsed {
+		if minutes < planDistractionMinMinutes || minutes < planDistractionShare*elapsed {
 			continue
 		}
-		replacer := strings.NewReplacer("{title}", block.Title, "{minutes}", fmt.Sprintf("%.0f", coverage.DistractionMinutes))
+		replacer := strings.NewReplacer("{title}", block.Title, "{minutes}", fmt.Sprintf("%.0f", minutes))
 		sent, err := b.notifyNow(ctx, planDistractionID(block.ID), replacer.Replace(labels.PlanDistractionTitle),
 			replacer.Replace(labels.PlanDistractionBody))
 		if err != nil || !sent {
@@ -248,7 +248,7 @@ func (b *Backend) syncDistractionAlerts(ctx context.Context, store *storage.Stor
 	}
 
 	if checkDay {
-		minutes := insight.DistractionMinutes(dayStart.Unix(), now.Unix(), spans, rule, loc)
+		minutes := distractions.Minutes(dayStart.Unix(), now.Unix())
 		if minutes >= float64(dayLimit) {
 			replacer := strings.NewReplacer("{minutes}", fmt.Sprintf("%.0f", minutes), "{limit}", strconv.Itoa(dayLimit))
 			sent, err := b.notifyNow(ctx, dayDistractionID(today), replacer.Replace(labels.DayDistractionTitle),
