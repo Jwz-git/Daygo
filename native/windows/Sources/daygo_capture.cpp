@@ -219,10 +219,10 @@ HRESULT find_output(HMONITOR monitor, ComPtr<IDXGIAdapter1>* adapter_out, ComPtr
   return DXGI_ERROR_NOT_FOUND;
 }
 
-void rotate_bgra(const std::vector<uint8_t>& source, UINT width, UINT height, DXGI_MODE_ROTATION rotation,
+void rotate_bgra(std::vector<uint8_t>&& source, UINT width, UINT height, DXGI_MODE_ROTATION rotation,
                  std::vector<uint8_t>* destination, UINT* out_width, UINT* out_height) {
   if (rotation == DXGI_MODE_ROTATION_IDENTITY || rotation == DXGI_MODE_ROTATION_UNSPECIFIED) {
-    *destination = source;
+    *destination = std::move(source);
     *out_width = width;
     *out_height = height;
     return;
@@ -585,8 +585,13 @@ HRESULT capture_pixels(const DecodedRequest& request, std::vector<uint8_t>* pixe
   }
   std::vector<uint8_t> oriented;
   UINT oriented_width = 0, oriented_height = 0;
-  rotate_bgra(raw, source_width, source_height, source_rotation, &oriented, &oriented_width, &oriented_height);
-  *pixels = scale_bgra(oriented, oriented_width, oriented_height, request.target_height, width);
+  rotate_bgra(std::move(raw), source_width, source_height, source_rotation, &oriented, &oriented_width, &oriented_height);
+  if (oriented_height == request.target_height) {
+    *pixels = std::move(oriented);
+    *width = oriented_width;
+  } else {
+    *pixels = scale_bgra(oriented, oriented_width, oriented_height, request.target_height, width);
+  }
   *height = request.target_height;
   FILETIME now{};
   GetSystemTimeAsFileTime(&now);
