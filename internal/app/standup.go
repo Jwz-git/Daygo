@@ -157,7 +157,7 @@ func (b *Backend) GenerateDailyRecap(standupDay string) (DailyRecapDTO, error) {
 // dayActivityCards returns the user-activity cards for one calendar day, with
 // System and Idle cards removed. The standup covers the calendar day
 // [00:00, next 00:00) local, per docs/05 §5.3.2 — not the 4 AM logical-day
-// window the cards are filed under. CardsInRange's overlap rule pulls in
+// window the cards are filed under. The overlap rule pulls in
 // cross-midnight activities. The caller guarantees a non-nil store.
 func (b *Backend) dayActivityCards(ctx context.Context, standupDay string, loc *time.Location) ([]domain.TimelineCard, error) {
 	store := b.store()
@@ -165,30 +165,12 @@ func (b *Backend) dayActivityCards(ctx context.Context, standupDay string, loc *
 	if err != nil {
 		return nil, apperr.E(apperr.InvalidArgument, "standupDay must use yyyy-MM-dd", err)
 	}
-	cards, err := store.Cards().CardsInRange(ctx, dayStart, dayStart.AddDate(0, 0, 1))
+	cards, err := store.Cards().StandupCardsInRange(ctx, dayStart, dayStart.AddDate(0, 0, 1))
 	if err != nil {
 		return nil, mapStorageError("generate daily recap", err)
 	}
 
-	// System and Idle cards are machine semantics, not user activity; the
-	// prompt must not ask the model to summarise them.
-	categories, err := store.Categories().List(ctx)
-	if err != nil {
-		return nil, mapStorageError("generate daily recap", err)
-	}
-	excluded := make(map[string]bool, len(categories))
-	for _, c := range categories {
-		if c.IsSystem || c.IsIdle {
-			excluded[c.Name] = true
-		}
-	}
-	activity := make([]domain.TimelineCard, 0, len(cards))
-	for _, card := range cards {
-		if !excluded[card.Category] {
-			activity = append(activity, card)
-		}
-	}
-	return activity, nil
+	return cards, nil
 }
 
 // generateRecapFromCards runs one LLM generation over the day's activity,

@@ -7,6 +7,52 @@ import (
 	"time"
 )
 
+func TestNextStandupActivitySkipsEmptyDaysAndClipsMidnight(t *testing.T) {
+	store := openWriterAt(t, newDir(t), "Asia/Kathmandu")
+	ctx := t.Context()
+	seedBatch(t, store, 1)
+	loc := store.location()
+	afterGap := time.Date(2026, 9, 9, 0, 0, 0, 0, loc)
+	err := store.Write(ctx, "seed anonymous standup activity", func(ctx context.Context, tx *sql.Tx) error {
+		spans := []struct {
+			start, end time.Time
+			category   string
+			deleted    bool
+		}{
+			{afterGap.Add(-72 * time.Hour), afterGap.Add(-71 * time.Hour), "Idle", false},
+			{afterGap.Add(-48 * time.Hour), afterGap.Add(-47 * time.Hour), "Work", true},
+			{afterGap.Add(-3 * time.Hour), afterGap.Add(-time.Hour), "Work", false},
+			{afterGap.Add(-10 * time.Minute), afterGap.Add(20 * time.Minute), "Work", false},
+		}
+		for _, span := range spans {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO timeline_cards
+				(batch_id, day, start, end, start_ts, end_ts, category, title, summary, is_deleted, created_at, updated_at)
+				VALUES (1, '2026-09-06', '0:00', '0:00', ?, ?, ?, 'fixture', 'fixture', ?, 0, 0)`,
+				span.start.Unix(), span.end.Unix(), span.category, span.deleted); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	to := afterGap.AddDate(0, 0, 1)
+	for _, tc := range []struct {
+		start time.Time
+		want  time.Time
+	}{
+		{afterGap.Add(-96 * time.Hour), afterGap.Add(-3 * time.Hour)},
+		{afterGap, afterGap},
+		{afterGap.Add(20 * time.Minute), time.Time{}},
+	} {
+		got, found, err := store.Cards().NextStandupActivity(ctx, tc.start, to)
+		if err != nil || found != !tc.want.IsZero() || !got.Equal(tc.want) {
+			t.Fatalf("start %s: got %s, %v, %v, want %s", tc.start, got, found, err, tc.want)
+		}
+	}
+}
+
 func TestExistingDaysReturnsStoredStandupDays(t *testing.T) {
 	store := openWriterAt(t, newDir(t), "Asia/Shanghai")
 	ctx := context.Background()

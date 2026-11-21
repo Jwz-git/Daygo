@@ -5,7 +5,44 @@ import (
 	"database/sql"
 	"encoding/json"
 	"time"
+
+	"github.com/Jwz-git/Daygo/internal/domain"
 )
+
+// Exclude system and idle categories. A card whose legacy category name has
+// no current row is still activity, matching the timeline's existing rules.
+const standupActivityPredicate = ` AND NOT EXISTS (
+	SELECT 1 FROM categories WHERE name = timeline_cards.category AND (is_system != 0 OR is_idle != 0))`
+
+// StandupCardsInRange reads user activity in a standup's calendar window.
+func (r *CardRepo) StandupCardsInRange(ctx context.Context, from, to time.Time) ([]domain.TimelineCard, error) {
+	return r.cardsInRange(ctx, from, to, standupActivityPredicate)
+}
+
+// NextStandupActivity finds the first activity instant in [from, to). An
+// earlier card still spanning from counts at from so a midnight crossing
+// remains eligible on both calendar days.
+func (r *CardRepo) NextStandupActivity(ctx context.Context, from, to time.Time) (time.Time, bool, error) {
+	var start int64
+	found := false
+	err := r.store.Read(ctx, "next standup activity", func(ctx context.Context, tx *sql.Tx) error {
+		row := tx.QueryRowContext(ctx, `
+			SELECT start_ts FROM timeline_cards WHERE `+validCardOverlap+standupActivityPredicate+`
+			ORDER BY start_ts LIMIT 1`, from.Add(-MaxCardDuration).Unix(), to.Unix(), from.Unix())
+		if err := row.Scan(&start); err != nil {
+			if err == sql.ErrNoRows {
+				return nil
+			}
+			return err
+		}
+		found = true
+		return nil
+	})
+	if err != nil || !found {
+		return time.Time{}, false, err
+	}
+	return time.Unix(max(start, from.Unix()), 0), true, nil
+}
 
 // DailyStandupEntry is one row of daily_standup_entries.
 type DailyStandupEntry struct {

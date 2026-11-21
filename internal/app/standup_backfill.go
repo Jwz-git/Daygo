@@ -99,26 +99,44 @@ func (b *Backend) standupBackfillSweep(ctx context.Context) error {
 
 	now := b.clock.Now()
 	today := daytime.CalendarDay(now, loc)
+	todayStart, err := daytime.ParseDay(today, loc)
+	if err != nil {
+		return mapStorageError("standup backfill", err)
+	}
+	until := todayStart.AddDate(0, 0, 1)
 	cursor, err := daytime.ParseDay(daytime.CalendarDay(earliest, loc), loc)
 	if err != nil {
 		return mapStorageError("standup backfill", err)
 	}
 
 	consecutiveFailures := 0
-	for {
+	for cursor.Before(until) {
 		if ctx.Err() != nil {
 			return nil
 		}
 		day := daytime.CalendarDay(cursor, loc)
-		// yyyy-MM-dd sorts lexicographically in chronological order, so this
-		// stops after today (today is the last day considered).
-		if day > today {
+		// Fast path: a completed day that already has a recap is done.
+		if day != today && existing[day] {
+			cursor = cursor.AddDate(0, 0, 1)
+			continue
+		}
+		next, found, err := store.Cards().NextStandupActivity(ctx, cursor, until)
+		if ctx.Err() != nil {
 			return nil
+		}
+		if err != nil {
+			return mapStorageError("standup backfill", err)
+		}
+		if !found {
+			return nil
+		}
+		day = daytime.CalendarDay(next, loc)
+		cursor, err = daytime.ParseDay(day, loc)
+		if err != nil {
+			return mapStorageError("standup backfill", err)
 		}
 		cursor = cursor.AddDate(0, 0, 1)
 		isToday := day == today
-
-		// Fast path: a completed day that already has a recap is done.
 		if !isToday && existing[day] {
 			continue
 		}
@@ -127,8 +145,7 @@ func (b *Backend) standupBackfillSweep(ctx context.Context) error {
 			return err
 		}
 		if len(activity) == 0 {
-			// No user activity: writing an empty recap would be noise, and
-			// re-checking it next sweep is one cheap indexed range query.
+			// The last activity could have been deleted after the seek.
 			continue
 		}
 		// Re-read the current entry: for a completed day it guards against a
@@ -174,6 +191,7 @@ func (b *Backend) standupBackfillSweep(ctx context.Context) error {
 		}
 		consecutiveFailures = 0
 	}
+	return nil
 }
 
 // paceStandupBackfill sleeps for the inter-day pace, returning early if ctx is

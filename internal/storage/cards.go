@@ -79,15 +79,18 @@ func (r *CardRepo) CardsForDay(ctx context.Context, day string) ([]domain.Timeli
 // predicate is the overlap rule of docs/03 §3.5: an activity that starts
 // inside the window counts even if it ends after the window.
 func (r *CardRepo) CardsInRange(ctx context.Context, from, to time.Time) ([]domain.TimelineCard, error) {
+	return r.cardsInRange(ctx, from, to, "")
+}
+
+const validCardOverlap = `start_ts >= ? AND start_ts < ? AND end_ts > ?
+	AND is_deleted = 0 AND end_ts > start_ts AND (end_ts - start_ts) <= 14400`
+
+func (r *CardRepo) cardsInRange(ctx context.Context, from, to time.Time, extraPredicate string) ([]domain.TimelineCard, error) {
 	var out []domain.TimelineCard
 	err := r.store.Read(ctx, "cards in range", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx,
 			`SELECT `+cardColumns+` FROM timeline_cards
-			 WHERE start_ts >= ? AND start_ts < ? AND end_ts > ?
-			   AND is_deleted = 0
-			   AND end_ts > start_ts
-			   AND (end_ts - start_ts) <= 14400
-			 ORDER BY start_ts`,
+			 WHERE `+validCardOverlap+extraPredicate+` ORDER BY start_ts`,
 			from.Add(-MaxCardDuration).Unix(), to.Unix(), from.Unix())
 		if err != nil {
 			return err
