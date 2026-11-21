@@ -8,6 +8,7 @@ import (
 	"image/jpeg"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -96,6 +97,83 @@ func TestMediaResourcesRejectInvalidIDsAndMissingPixels(t *testing.T) {
 			if response.Code != 404 {
 				t.Errorf("missing pixels status=%d", response.Code)
 			}
+		}
+	}
+}
+
+func TestMediaReusesThumbnailAndChecksFrameBeforeReturningIt(t *testing.T) {
+	b, media, id := mediaFixtureBackend(t)
+	path := "/media/thumbnail?id=" + strconv.FormatInt(id, 10)
+	for range 2 {
+		response := httptest.NewRecorder()
+		b.serveAsset(response, httptest.NewRequest("GET", path, nil))
+		if response.Code != 200 {
+			t.Fatalf("thumbnail status=%d", response.Code)
+		}
+	}
+	if len(media.requests) != 1 {
+		t.Fatalf("thumbnail decoded %d times, want 1", len(media.requests))
+	}
+
+	store := b.store()
+	if err := store.Captures().AmortizeSegment(t.Context(), "anonymous/fixture.hevc.mp4", 123); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CleanupRecordings(t.Context(), t.TempDir(), 100); err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	b.serveAsset(response, httptest.NewRequest("GET", path, nil))
+	if response.Code != 404 || len(media.requests) != 1 {
+		t.Fatalf("deleted thumbnail response=%d decode calls=%d", response.Code, len(media.requests))
+	}
+}
+
+type blockingMedia struct {
+	platform.Media
+	started chan struct{}
+	release chan struct{}
+}
+
+func (m blockingMedia) DecodeFrame(ctx context.Context, _ platform.DecodeRequest) ([]byte, error) {
+	m.started <- struct{}{}
+	select {
+	case <-m.release:
+		return []byte("fixture frame"), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestMediaBoundsConcurrentDecodes(t *testing.T) {
+	const requests = frameDecodeSlots + 2
+	m := blockingMedia{started: make(chan struct{}, requests), release: make(chan struct{})}
+	release := sync.OnceFunc(func() { close(m.release) })
+	t.Cleanup(release)
+	d := newFrameDecoder()
+	done := make(chan error, requests)
+	for i := range requests {
+		go func() {
+			_, err := d.decode(t.Context(), t.Context(), int64(i), m, platform.DecodeRequest{})
+			done <- err
+		}()
+	}
+	for range frameDecodeSlots {
+		select {
+		case <-m.started:
+		case <-time.After(time.Second):
+			t.Fatal("decode slots did not fill")
+		}
+	}
+	select {
+	case <-m.started:
+		t.Fatal("more decodes started than available slots")
+	case <-time.After(30 * time.Millisecond):
+	}
+	release()
+	for range requests {
+		if err := <-done; err != nil {
+			t.Fatal(err)
 		}
 	}
 }

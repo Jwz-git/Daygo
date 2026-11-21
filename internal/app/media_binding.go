@@ -132,7 +132,7 @@ func (b *Backend) serveFrameSized(w http.ResponseWriter, r *http.Request, maxPix
 		http.NotFound(w, r)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), frameDecodeTimeout)
 	defer cancel()
 	segmentPath, frameIndex, err := store.Captures().FrameLocation(ctx, id)
 	if err != nil {
@@ -143,7 +143,7 @@ func (b *Backend) serveFrameSized(w http.ResponseWriter, r *http.Request, maxPix
 		http.Error(w, "invalid segment location", http.StatusForbidden)
 		return
 	}
-	data, err := media.DecodeFrame(ctx, platform.DecodeRequest{SegmentPath: segmentPath, FrameIndex: frameIndex, MaxPixelSize: maxPixelSize})
+	data, err := b.frameDecoder.decode(ctx, b.operationContext(), id, media, platform.DecodeRequest{SegmentPath: segmentPath, FrameIndex: frameIndex, MaxPixelSize: maxPixelSize})
 	if err != nil {
 		// The row can outlive its file (cleanup removes whole segments
 		// asynchronously); that is a missing resource, not a server error.

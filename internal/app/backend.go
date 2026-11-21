@@ -131,9 +131,10 @@ type Backend struct {
 	// media reads screenshot pixels for card playback. It is nil until
 	// attachMedia runs during startup (headless construction and runs
 	// without storage stay nil), so set-once and read via mediaSnapshot.
-	mediaMu   sync.RWMutex
-	media     platform.Media
-	mediaRoot string
+	mediaMu      sync.RWMutex
+	media        platform.Media
+	mediaRoot    string
+	frameDecoder *frameDecoder
 
 	// favicons resolves site icons for timeline cards on the Go side. It is
 	// nil in headless construction (no support dir); the handler then 404s and
@@ -296,6 +297,7 @@ func newBackend(clock Clock, system platform.System, store *storage.Store, canWr
 		canWrite:       canWrite,
 		isCaptureOwner: isCaptureOwner,
 		emitter:        nopEmitter{},
+		frameDecoder:   newFrameDecoder(),
 		planNudge:      make(chan struct{}, 1),
 		reminderNudge:  make(chan struct{}, 1),
 	}
