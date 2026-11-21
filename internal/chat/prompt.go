@@ -1,8 +1,10 @@
 package chat
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 // agentSystemPrompt renders the base instruction for every agent turn: the
@@ -84,8 +86,66 @@ func normalizeEditMode(mode string) string {
 	return "readonly"
 }
 
-// historyToolResultLimit bounds how much of a past turn's tool result is
-// replayed into the prompt. Current-turn results are kept whole (subject to
-// the 64 KiB budget); older ones are clipped so eight past tools cannot
-// refill the context.
-const historyToolResultLimit = 2048
+const (
+	maxPromptBytes         = 128 << 10
+	promptMessageLimit     = 48
+	promptMemoryLimit      = 8 << 10
+	currentToolResultLimit = 8 << 10
+	historyToolResultLimit = 2 << 10
+	promptToolArgsLimit    = 1 << 10
+)
+
+func promptMessage(message Message, currentTurn bool) string {
+	switch message.Role {
+	case RoleUser:
+		return "\n\nUser: " + clipPromptText(message.Content, maxContentBytes)
+	case RoleAssistant:
+		return "\n\nAssistant: " + clipPromptText(message.Content, maxContentBytes)
+	case RoleToolCall:
+		args := orEmptyJSON(message.ToolArguments)
+		if len(args) > promptToolArgsLimit {
+			args = `{"truncated":true}`
+		}
+		return "\n\nAssistant: " + `{"kind":"tool","tool":` + jsonString(clipPromptText(message.ToolName, 128)) +
+			`,"arguments":` + args + "}"
+	case RoleToolRes:
+		content := clipHistory(message.Content)
+		if currentTurn {
+			content = clipToolPayload(message.Content, currentToolResultLimit)
+		}
+		return "\n\nTool result (" + clipPromptText(message.ToolName, 128) + "): " + content
+	}
+	return ""
+}
+
+func clipPromptText(content string, limit int) string {
+	if len(content) <= limit {
+		return content
+	}
+	const marker = "…(truncated)"
+	return utf8Prefix(content, limit-len(marker)) + marker
+}
+
+// clipToolPayload keeps the result envelope parseable and includes JSON
+// escaping in the byte budget. An escaped byte expands by at most six.
+func clipToolPayload(content string, limit int) string {
+	if len(content) <= limit {
+		return content
+	}
+	const header = `{"ok":true,"truncated":true,"data":`
+	const trailer = "}"
+	budget := limit - len(header) - len(trailer) - 2 // JSON string quotes
+	text, _ := json.Marshal(utf8Prefix(content, budget))
+	if len(text) > budget+2 {
+		text, _ = json.Marshal(utf8Prefix(content, budget/6))
+	}
+	return header + string(text) + trailer
+}
+
+func utf8Prefix(content string, limit int) string {
+	end := min(len(content), limit)
+	for end > 0 && end < len(content) && !utf8.RuneStart(content[end]) {
+		end--
+	}
+	return content[:end]
+}

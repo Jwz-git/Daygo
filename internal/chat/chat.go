@@ -9,6 +9,7 @@
 package chat
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -17,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -433,20 +435,8 @@ func toolResultEnvelope(ok bool, code, message string) json.RawMessage {
 	return envelope
 }
 
-// clipToolResult applies the 64 KiB budget. An oversized success payload is
-// re-packed as a truncated JSON string so the row stays parseable.
 func clipToolResult(data json.RawMessage) json.RawMessage {
-	if len(data) <= maxToolResultBytes {
-		return data
-	}
-	budget := max(maxToolResultBytes-128, 0) // room for the envelope keys
-	clipped := string(data[:budget])
-	envelope, _ := json.Marshal(map[string]any{
-		"ok":        true,
-		"truncated": true,
-		"data":      clipped,
-	})
-	return envelope
+	return json.RawMessage(clipToolPayload(string(data), maxToolResultBytes))
 }
 
 // resolveEntries picks the provider for a conversation: the pinned provider
@@ -517,55 +507,40 @@ func (s *Service) buildChain(entries []ProviderEntry) *ai.Chain {
 // user message, so paging by userMsg.ID would hide them and the model would
 // re-request the same tool forever.
 func (s *Service) buildRequest(ctx context.Context, conversationID string, userMsg Message, extra string) (ai.Request, error) {
-	history, err := s.store.Messages(ctx, conversationID, 0, 0)
+	history, err := s.store.Messages(ctx, conversationID, 0, promptMessageLimit)
 	if err != nil {
 		return ai.Request{}, err
 	}
 
+	currentAt, _ := slices.BinarySearchFunc(history, userMsg.ID, func(message Message, id int64) int {
+		return cmp.Compare(message.ID, id)
+	})
+	var turn strings.Builder
+	turn.WriteString(promptMessage(userMsg, true))
+	for _, message := range history[currentAt:] {
+		if message.ID > userMsg.ID {
+			turn.WriteString(promptMessage(message, true))
+		}
+	}
 	prompt := s.basePrompt(ctx)
-	sawUser := false
-	for _, message := range history {
-		if message.ID == userMsg.ID {
-			sawUser = true
+	remaining := maxPromptBytes - prompt.Len() - turn.Len() - len(extra)
+	if remaining < 0 {
+		return ai.Request{}, ai.NewError(ai.ErrorInvalidRequest, "chat request exceeds the prompt budget", 0, nil)
+	}
+	recent := make([]string, 0, currentAt)
+	for _, message := range slices.Backward(history[:currentAt]) {
+		line := promptMessage(message, false)
+		if len(line) > remaining {
+			break
 		}
-		switch message.Role {
-		case RoleUser:
-			prompt.WriteString("\n\nUser: ")
-			prompt.WriteString(message.Content)
-		case RoleAssistant:
-			prompt.WriteString("\n\nAssistant: ")
-			prompt.WriteString(message.Content)
-		case RoleToolCall:
-			prompt.WriteString("\n\nAssistant: ")
-			prompt.WriteString(`{"kind":"tool","tool":`)
-			prompt.WriteString(jsonString(message.ToolName))
-			prompt.WriteString(`,"arguments":`)
-			prompt.WriteString(orEmptyJSON(message.ToolArguments))
-			prompt.WriteString("}")
-		case RoleToolRes:
-			prompt.WriteString("\n\nTool result (")
-			prompt.WriteString(message.ToolName)
-			prompt.WriteString("): ")
-			// Current-turn results stay whole (the 64 KiB budget already
-			// clipped them at landing); older ones are clipped so eight past
-			// tools cannot refill the context.
-			if message.ID > userMsg.ID {
-				prompt.WriteString(message.Content)
-			} else {
-				prompt.WriteString(clipHistory(message.Content))
-			}
-		}
+		remaining -= len(line)
+		recent = append(recent, line)
 	}
-	// The user row is always inside the latest page (a turn adds at most 17
-	// rows after it, the page holds 200), but a prompt that silently lost the
-	// question is worse than one duplicate check.
-	if !sawUser {
-		prompt.WriteString("\n\nUser: ")
-		prompt.WriteString(userMsg.Content)
+	for _, line := range slices.Backward(recent) {
+		prompt.WriteString(line)
 	}
-	if extra != "" {
-		prompt.WriteString(extra)
-	}
+	prompt.WriteString(turn.String())
+	prompt.WriteString(extra)
 
 	return ai.Request{
 		Purpose:         ai.PurposeChat,
@@ -598,7 +573,7 @@ func (s *Service) basePrompt(ctx context.Context) *strings.Builder {
 	if s.settings != nil {
 		if memory, err := s.settings.Memory(ctx); err == nil && strings.TrimSpace(memory) != "" {
 			prompt.WriteString("\n\nUser's global instructions:\n")
-			prompt.WriteString(memory)
+			prompt.WriteString(clipPromptText(memory, promptMemoryLimit))
 		}
 	}
 	return prompt
@@ -633,10 +608,7 @@ func orEmptyJSON(value string) string {
 
 // clipHistory bounds a past tool result replayed into the prompt.
 func clipHistory(content string) string {
-	if len(content) <= historyToolResultLimit {
-		return content
-	}
-	return content[:historyToolResultLimit] + "…(truncated)"
+	return clipPromptText(content, historyToolResultLimit)
 }
 
 // complete persists the assistant message and clears the turn. Notifications

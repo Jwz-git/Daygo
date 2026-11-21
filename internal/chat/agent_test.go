@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // fakeExecutor records calls and answers with scripted envelopes.
@@ -287,6 +289,62 @@ func TestAgentLoopClipsOversizedToolResult(t *testing.T) {
 	}
 	if !decoded.OK || !decoded.Truncated || decoded.Data == "" {
 		t.Fatalf("clipped result = %+v", decoded)
+	}
+}
+
+func TestClipToolResultCapsEscapedJSON(t *testing.T) {
+	raw, err := json.Marshal(map[string]string{"data": strings.Repeat("<\n\\✨", 32*1024)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := clipToolResult(raw)
+	if len(got) > maxToolResultBytes || !json.Valid(got) {
+		t.Fatalf("escaped result = %d bytes, valid=%v", len(got), json.Valid(got))
+	}
+}
+
+func TestChatPromptKeepsCurrentQuestionAndToolsWithinBudget(t *testing.T) {
+	ctx := t.Context()
+	store := newFakeStore(t)
+	service := New(store, newFakeProviders(), &fakeSettings{memory: strings.Repeat("記憶", 4000)}, nil, nil)
+	conversation, err := service.NewConversation(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendRow := func(row Message) Message {
+		t.Helper()
+		saved, err := store.AppendMessage(ctx, conversation.ID, row)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return saved
+	}
+	for i := range 30 {
+		appendRow(Message{Role: RoleUser, Content: fmt.Sprintf("older-%d %s", i, strings.Repeat("x", 16000))})
+	}
+	userMsg := appendRow(Message{Role: RoleUser, Content: "current-question"})
+	for i := range maxToolCallsPerTurn {
+		appendRow(Message{Role: RoleToolCall, ToolName: "timeline", ToolArguments: `{"day":"2026-11-21"}`})
+		appendRow(Message{Role: RoleToolRes, ToolName: "timeline",
+			Content: fmt.Sprintf(`{"ok":true,"data":"fixture-result-%d %s"}`, i, strings.Repeat("z", 48<<10))})
+	}
+	request, err := service.buildRequest(ctx, conversation.ID, userMsg, envelopeCorrection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prompt := request.Parts[0].Text()
+	const expectedPromptBudget = 128 << 10
+	if len(prompt) > expectedPromptBudget || !utf8.ValidString(prompt) {
+		t.Fatalf("prompt len=%d, utf8=%v", len(prompt), utf8.ValidString(prompt))
+	}
+	if strings.Count(prompt, "current-question") != 1 || strings.Contains(prompt, "older-0 ") ||
+		!strings.Contains(prompt, envelopeCorrection) {
+		t.Fatal("unexpected question, history or correction in bounded prompt")
+	}
+	for i := range maxToolCallsPerTurn {
+		if !strings.Contains(prompt, fmt.Sprintf("fixture-result-%d ", i)) {
+			t.Fatalf("missing current turn result %d", i)
+		}
 	}
 }
 
