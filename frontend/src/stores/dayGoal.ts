@@ -3,8 +3,11 @@ import { ref } from 'vue'
 
 import { getDayGoal, hasGoalBinding, onGoalUpdated, saveDayGoal } from '@/api/daily'
 import type { DayGoalDTO } from '@/api/dto'
+import { deferHiddenRefresh } from '@/lib/hiddenRefresh'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 export const useDayGoalStore = defineStore('dayGoal', () => {
+  const visibility = useUIVisibilityStore()
   const goal = ref<DayGoalDTO | null>(null)
   const unavailable = ref(false)
   const error = ref<unknown>(null)
@@ -52,9 +55,16 @@ export const useDayGoalStore = defineStore('dayGoal', () => {
 
   function startListening(): void {
     if (stop !== null) return
-    stop = onGoalUpdated((changed) => {
-      if (day !== null && (!changed || changed === day)) void load(day)
+    const refresh = deferHiddenRefresh<true>(() => visibility.visible, () => {
+      if (day !== null) void load(day)
     })
+    const stopUpdates = onGoalUpdated((changed) => {
+      if (day !== null && (!changed || changed === day)) refresh.request(true)
+    })
+    stop = () => {
+      stopUpdates()
+      refresh.stop()
+    }
   }
 
   function stopListening(): void {

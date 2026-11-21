@@ -29,6 +29,8 @@ import {
   updateCardSummary,
   updateCardTitle,
 } from '@/api/timeline'
+import { deferHiddenRefresh } from '@/lib/hiddenRefresh'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 export type TimelineState =
   | 'loading'
@@ -49,6 +51,7 @@ export type TimelineAction =
   | 'reprocess-card'
 
 export const useTimelineStore = defineStore('timeline', () => {
+  const visibility = useUIVisibilityStore()
   const context = ref<DayContextDTO | null>(null)
   const day = ref<TimelineDayDTO | null>(null)
   const capabilities = ref<CapabilitiesDTO | null>(null)
@@ -318,20 +321,26 @@ export const useTimelineStore = defineStore('timeline', () => {
     }
   }
 
-  function startEvents(): void {
+  function startEvents(followingToday = () => false): void {
     if (stopEvents !== null) return
     const reloadCurrentDay = () => {
       // An invalidation for the outgoing view must not cancel a date switch.
       if (switching.value) refreshAfterSwitch = true
-      else void load(context.value?.day ?? '', { silent: true })
+      else void load(followingToday() ? '' : context.value?.day ?? '', { silent: true })
     }
+    const refresh = deferHiddenRefresh<true>(
+      () => visibility.visible,
+      reloadCurrentDay,
+      () => followingToday() ? true : undefined,
+    )
     const stopUpdated = onTimelineUpdated((updatedDay) => {
-      if (switching.value || updatedDay === null || updatedDay === context.value?.day) reloadCurrentDay()
+      if (switching.value || updatedDay === null || updatedDay === context.value?.day) refresh.request(true)
     })
-    const stopFailed = onBatchFailed(reloadCurrentDay)
+    const stopFailed = onBatchFailed(() => refresh.request(true))
     stopEvents = () => {
       stopUpdated()
       stopFailed()
+      refresh.stop()
     }
   }
 

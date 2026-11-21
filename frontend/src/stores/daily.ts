@@ -31,6 +31,8 @@ import {
 } from '@/api/daily'
 import { onTimelineUpdated } from '@/api/timeline'
 import { categoryKey } from '@/lib/categoryLabel'
+import { deferHiddenRefresh } from '@/lib/hiddenRefresh'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 export const SLOT_SECONDS = 15 * 60
 const MINIMUM_WINDOW_SLOTS = 36
@@ -386,6 +388,7 @@ export function buildDailyPresentation(day: TimelineDayDTO): DailyPresentation {
 }
 
 export const useDailyStore = defineStore('daily', () => {
+  const visibility = useUIVisibilityStore()
   const context = ref<DayContextDTO | null>(null)
   const day = ref<TimelineDayDTO | null>(null)
   const recap = ref<DailyRecapDTO | null>(null)
@@ -406,8 +409,6 @@ export const useDailyStore = defineStore('daily', () => {
   const journalSaving = ref(false)
   let requestVersion = 0
   let stopEvents: (() => void) | null = null
-  let stopJournalEvents: (() => void) | null = null
-  let stopRecapEvents: (() => void) | null = null
 
   const state = computed<DailyState>(() => {
     if (loading.value) return 'loading'
@@ -575,32 +576,41 @@ export const useDailyStore = defineStore('daily', () => {
 
   function startEvents(): void {
     if (stopEvents !== null) return
-    stopEvents = onTimelineUpdated((updatedDay) => {
-      if (updatedDay === null || updatedDay === context.value?.day) {
+    const refresh = deferHiddenRefresh<'timeline' | 'journal' | 'recap'>(() => visibility.visible, (changes) => {
+      if (changes.has('timeline')) {
         void load(context.value?.day ?? '')
+        return
+      }
+      const current = context.value
+      if (current !== null) {
+        if (changes.has('journal')) void loadJournal(current.day, requestVersion)
+        if (changes.has('recap')) void reloadRecap(current.standupDay, requestVersion)
       }
     })
-    stopJournalEvents = onJournalUpdated((updatedDay) => {
+    const stopTimeline = onTimelineUpdated((updatedDay) => {
+      if (updatedDay === null || updatedDay === context.value?.day) refresh.request('timeline')
+    })
+    const stopJournal = onJournalUpdated((updatedDay) => {
       if (updatedDay === null || updatedDay === context.value?.day) {
-        const day = context.value?.day
-        if (day !== undefined) void loadJournal(day, requestVersion)
+        refresh.request('journal')
       }
     })
-    stopRecapEvents = onRecapUpdated((updatedStandupDay) => {
+    const stopRecap = onRecapUpdated((updatedStandupDay) => {
       if (updatedStandupDay === null || updatedStandupDay === context.value?.standupDay) {
-        const standupDay = context.value?.standupDay
-        if (standupDay !== undefined) void reloadRecap(standupDay, requestVersion)
+        refresh.request('recap')
       }
     })
+    stopEvents = () => {
+      stopTimeline()
+      stopJournal()
+      stopRecap()
+      refresh.stop()
+    }
   }
 
   function stopListening(): void {
     stopEvents?.()
-    stopJournalEvents?.()
-    stopRecapEvents?.()
     stopEvents = null
-    stopJournalEvents = null
-    stopRecapEvents = null
   }
 
   return {

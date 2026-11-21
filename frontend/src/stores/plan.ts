@@ -12,6 +12,8 @@ import {
   savePlanBlock,
   setPlanBlockStatus,
 } from '@/api/plan'
+import { deferHiddenRefresh } from '@/lib/hiddenRefresh'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 /** What went wrong with the last write, for the panel's message. */
 export type PlanWriteError = 'invalid' | 'readonly' | 'failed'
@@ -30,6 +32,7 @@ export interface PlanFocusRequest {
  * done by the CLI or an AI shows up the same way as one marked here.
  */
 export const usePlanStore = defineStore('plan', () => {
+  const visibility = useUIVisibilityStore()
   const day = ref<string | null>(null)
   const blocks = ref<PlanBlockDTO[]>([])
   const loading = ref(false)
@@ -139,8 +142,17 @@ export const usePlanStore = defineStore('plan', () => {
       if (changed === null) void loadWeek(Object.keys(week.value))
       else void reloadWeekDay(changed)
     }
+    const refresh = deferHiddenRefresh<string | null>(() => visibility.visible, (changes) => {
+      if (changes.has(null)) reload(null)
+      else changes.forEach(reload)
+    })
+    const invalidate = (changed: string | null) => {
+      if (changed === null || changed === (requestedDay ?? day.value) || changed in week.value) {
+        refresh.request(changed)
+      }
+    }
     // Reviews derive from cards and goal categories as well as the plan itself.
-    const stops = [onPlanUpdated(reload), onTimelineUpdated(reload), onGoalUpdated(reload)]
+    const stops = [onPlanUpdated(invalidate), onTimelineUpdated(invalidate), onGoalUpdated(invalidate), refresh.stop]
     stopEvents = () => stops.forEach((stop) => stop())
   }
 

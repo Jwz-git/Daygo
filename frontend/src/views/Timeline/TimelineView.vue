@@ -21,6 +21,7 @@ import { useDayGoalStore } from '@/stores/dayGoal'
 import { usePlanStore } from '@/stores/plan'
 import { useRecordingStore } from '@/stores/recording'
 import { useTimelineStore } from '@/stores/timeline'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 import { getReviewTotals } from '@/api/review'
 import CardReviewFlow from './CardReviewFlow.vue'
 import CategoryManagerModal from './CategoryManagerModal.vue'
@@ -36,6 +37,7 @@ import { buildWeekColumns } from './weekLayout'
 import { safeCategoryColor } from './layout'
 
 const timeline = useTimelineStore()
+const visibility = useUIVisibilityStore()
 const dayGoal = useDayGoalStore()
 // The displayed day's plan: the inspector panel edits it, the track draws it.
 const plan = usePlanStore()
@@ -447,20 +449,14 @@ function stopDayRefresh(): void {
 function scheduleDayRefresh(): void {
   stopDayRefresh()
   const current = context.value
-  if (!isFollowingToday() || current === null) return
+  if (!visibility.visible || !isFollowingToday() || current === null) return
 
   // dayEndTs comes from GetDayContext: it preserves the backend-owned 04:00
   // boundary and handles local time-zone/DST rules without frontend guesses.
   dayRefreshTimer = window.setTimeout(() => {
     dayRefreshTimer = null
-    void timeline.load()
+    if (visibility.visible) void timeline.load()
   }, delayUntilDayContextRefresh(current.dayEndTs) + 50)
-}
-
-function refreshWhenWindowReturns(): void {
-  if (document.visibilityState === 'visible' && isFollowingToday()) {
-    void timeline.load('', { silent: true })
-  }
 }
 
 async function copyTimeline(): Promise<void> {
@@ -480,12 +476,10 @@ async function reprocessCurrentDay(): Promise<void> {
 }
 
 onMounted(() => {
-  timeline.startEvents()
+  timeline.startEvents(isFollowingToday)
   dayGoal.startListening()
   plan.startListening()
   recording.startListening()
-  window.addEventListener('focus', refreshWhenWindowReturns)
-  document.addEventListener('visibilitychange', refreshWhenWindowReturns)
 })
 // A date change keeps the current day on screen until the next one arrives
 // (keep), so the track and the inspector update in place instead of being
@@ -503,10 +497,14 @@ watch(() => context.value?.day, (day) => {
   }
 }, { immediate: true })
 watch([() => route.query.day, () => context.value?.dayEndTs], scheduleDayRefresh, { immediate: true })
+watch(() => visibility.visible, (visible) => {
+  if (!visible) stopDayRefresh()
+  // Reopening already asks the store for today's context. An expired
+  // boundary will be replaced by that load and should not fire twice.
+  else if ((context.value?.dayEndTs ?? 0) * 1000 > Date.now()) scheduleDayRefresh()
+})
 onBeforeUnmount(() => {
   stopDayRefresh()
-  window.removeEventListener('focus', refreshWhenWindowReturns)
-  document.removeEventListener('visibilitychange', refreshWhenWindowReturns)
   timeline.stopListening()
   dayGoal.stopListening()
   plan.stopListening()
