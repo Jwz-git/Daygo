@@ -87,12 +87,15 @@ Windows 录制目录迁移已增加纯 Go 复制、SHA-256 校验、数据库状
 `segment_path` 聚合候选并整段软删除，事务外只删除实际软删除的段文件；pending / blocked
 捕获、未收尾 MP4 和被 `pending` / `processing` 批次租用的分段绝不删除，卡片保留。
 用量与租用关系由现有表推导；活跃 MP4 由 Store 所有的保护集合记录（Begin 注册，原生收尾后
-AmortizeSegment 成功才释放），不由逐帧 committed 状态推断。注册 / 释放和整个清理共用互斥锁；
-删除事务内重查租用，批次创建事务内拒绝已删除帧。孤儿清扫也保留活跃集合与 pending / blocked。
+AmortizeSegment 成功才释放），不由逐帧 committed 状态推断。候选查询先一次性计算受保护分段；
+注册 / 释放和按配额删除共用互斥锁。删除事务内重查租用，批次创建事务内拒绝已删除帧。
+孤儿清扫用去重引用快照遍历目录，遍历期间释放录制锁。每个待删除文件在锁内复查引用、文件身份与年龄。
 重启不恢复内存集合：启动 Reconcile 先处理未完成容器，再启动捕获与维护；异常段按既有恢复规则处理。
 当前无需单独的 `recording_segments` 表（`CleanupRecordings`，`internal/storage/cleanup.go`）。
 `Maintainer` 每小时跑一次，上限从 `storage.recordingsLimitBytes` 实时读取（读取失败按 0=不限
 处理，宁可跳过也不在不确定中删文件）。
+
+2026-11-21 清理验证（基于 `87d607f` 的 `test` 工作树，macOS arm64）：`CGO_ENABLED=0 go test -count=1 ./internal/storage -run 'Test(Cleanup.*|OrphanSweep.*|CreateBatchRefusesFramesDeletedSinceDiscovery)$'` 通过，含进入目录遍历时取消、新登记的待提交引用、活跃分段与批次租用夹具。另以忽略目录中的匿名 `TestReviewCleanupQuery` 夹具复测 259,200 帧、86,400 有效帧，生产候选查询三轮平均由约 3.89 秒降至 72 毫秒，与对照的 1,438 个候选及顺序一致。该测量仅含候选查询，未测真实录制丢帧。回退为撤销提交，无 schema 迁移。
 
 | 输入 | 可独立推进 | 真实接入条件 |
 |---|---|---|

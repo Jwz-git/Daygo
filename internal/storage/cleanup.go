@@ -53,6 +53,17 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 		// 0 is the documented "no limit": nothing to enforce.
 		return result, nil
 	}
+	result, err := s.cleanupSegments(ctx, root, limitBytes)
+	if err != nil {
+		return result, err
+	}
+	// A failed removal or an abandoned capture can leave files unreferenced
+	// even while usage is below the limit. Walk without the capture lock.
+	return result, s.sweepOrphanFiles(ctx, root)
+}
+
+func (s *Store) cleanupSegments(ctx context.Context, root string, limitBytes int64) (CleanupResult, error) {
+	var result CleanupResult
 	s.segmentMu.Lock()
 	defer s.segmentMu.Unlock()
 
@@ -61,14 +72,7 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 		return result, err
 	}
 	if usage <= limitBytes {
-		// Under the byte limit there is nothing to delete for space, but crash
-		// leftovers still need reclaiming: CaptureRepo.Reconcile abandons a
-		// pending intent by deleting its row while its file stays on disk, and a
-		// phase-2 os.Remove can fail transiently. Those files are referenced by
-		// no row, so only this sweep frees them — and the over-limit path below,
-		// which is the only other caller, may never run while usage stays low.
-		err = s.sweepOrphanFiles(ctx, root)
-		return result, err
+		return result, nil
 	}
 
 	candidates, err := s.cleanupCandidates(ctx)
@@ -88,13 +92,8 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 	}
 	result.SkippedRented = len(candidates) - len(selected)
 	if len(selected) == 0 {
-		// Everything old enough to delete is rented or active: converge as far
-		// as the boundary allows and report rather than force. Still sweep the
-		// orphan leftovers, which are independent of what is rented.
-		if result.SkippedRented, err = s.remainingOverLimit(ctx); err != nil {
-			return result, err
-		}
-		err = s.sweepOrphanFiles(ctx, root)
+		// Everything old enough to delete is rented or active: report rather than force.
+		result.SkippedRented, err = s.remainingOverLimit(ctx)
 		return result, err
 	}
 
@@ -118,9 +117,6 @@ func (s *Store) CleanupRecordings(ctx context.Context, root string, limitBytes i
 		if err := os.Remove(filepath.Join(root, filepath.FromSlash(seg.segmentPath))); err != nil && !os.IsNotExist(err) {
 			continue
 		}
-	}
-	if err := s.sweepOrphanFiles(ctx, root); err != nil {
-		return result, err
 	}
 	// After the pass, report how much is STILL over the limit: those are the
 	// frames the boundary protected (rented or active), not an under-count.
@@ -171,18 +167,19 @@ func (s *Store) cleanupCandidates(ctx context.Context) ([]cleanupSegment, error)
 	var out []cleanupSegment
 	err := s.Read(ctx, "cleanup candidates", func(ctx context.Context, tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `
+			WITH protected(path) AS (
+			    SELECT relative_path FROM pending_captures WHERE state IN ('pending', 'blocked')
+			    UNION
+			    SELECT s2.segment_path FROM analysis_batches b
+			    JOIN batch_screenshots bs ON bs.batch_id = b.id
+			    JOIN screenshots s2 ON s2.id = bs.screenshot_id
+			    WHERE b.status IN ('pending', 'processing')
+			)
 			SELECT s.segment_path, MIN(s.captured_at) AS oldest_at, SUM(s.file_size) AS total_size
 			FROM screenshots s
 			WHERE s.is_deleted = 0
 			  AND s.file_size IS NOT NULL
-			  AND NOT EXISTS (
-			      SELECT 1 FROM pending_captures p
-		      WHERE p.state IN ('pending', 'blocked') AND p.relative_path = s.segment_path)
-			  AND NOT EXISTS (
-			      SELECT 1 FROM batch_screenshots bs
-			      JOIN analysis_batches b ON b.id = bs.batch_id
-			      JOIN screenshots s2 ON s2.id = bs.screenshot_id
-			      WHERE s2.segment_path = s.segment_path AND b.status IN ('pending', 'processing'))
+			  AND s.segment_path NOT IN (SELECT path FROM protected)
 			GROUP BY s.segment_path
 			ORDER BY oldest_at ASC, s.segment_path ASC`)
 		if err != nil {
@@ -251,12 +248,16 @@ func (s *Store) softDeleteSegments(ctx context.Context, segments []cleanupSegmen
 // unreadable entry never fails the pass, the next one retries.
 func (s *Store) sweepOrphanFiles(ctx context.Context, root string) error {
 	referenced := make(map[string]bool)
+	s.segmentMu.Lock()
 	for segment := range s.openSegments {
 		referenced[segment] = true
 	}
+	s.segmentMu.Unlock()
 	if err := s.Read(ctx, "cleanup sweep refs", func(ctx context.Context, tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx,
-			"SELECT segment_path FROM screenshots WHERE is_deleted = 0")
+		rows, err := tx.QueryContext(ctx, `
+			SELECT segment_path FROM screenshots WHERE is_deleted = 0
+			UNION
+			SELECT relative_path FROM pending_captures WHERE state IN ('pending', 'blocked')`)
 		if err != nil {
 			return err
 		}
@@ -268,29 +269,16 @@ func (s *Store) sweepOrphanFiles(ctx context.Context, root string) error {
 			}
 			referenced[p] = true
 		}
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		pending, err := tx.QueryContext(ctx,
-			"SELECT relative_path FROM pending_captures WHERE state IN ('pending', 'blocked')")
-		if err != nil {
-			return err
-		}
-		defer func() { _ = pending.Close() }()
-		for pending.Next() {
-			var p string
-			if err := pending.Scan(&p); err != nil {
-				return wrap("scan sweep pending", err)
-			}
-			referenced[p] = true
-		}
-		return pending.Err()
+		return rows.Err()
 	}); err != nil {
 		return err
 	}
 
 	staleBefore := s.now().Add(-cleanupStaleFileAge)
 	return filepath.WalkDir(root, func(p string, entry os.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil || entry.IsDir() {
 			return nil
 		}
@@ -298,15 +286,40 @@ func (s *Store) sweepOrphanFiles(ctx context.Context, root string) error {
 		if relErr != nil {
 			return nil
 		}
-		if referenced[filepath.ToSlash(rel)] {
+		segment := filepath.ToSlash(rel)
+		if referenced[segment] {
 			return nil
 		}
 		info, infoErr := entry.Info()
 		if infoErr != nil || info.ModTime().After(staleBefore) {
 			return nil
 		}
-		_ = ctx
-		_ = os.Remove(p)
-		return nil
+		return s.removeStaleOrphan(ctx, p, segment, info, staleBefore)
 	})
+}
+
+func (s *Store) removeStaleOrphan(ctx context.Context, path, segment string, seen os.FileInfo, staleBefore time.Time) error {
+	// Capture may register a segment after the snapshot. Recheck before
+	// removal under the same lock that protects Begin and AmortizeSegment.
+	s.segmentMu.Lock()
+	defer s.segmentMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if _, open := s.openSegments[segment]; open {
+		return nil
+	}
+	var referenced bool
+	if err := s.Read(ctx, "recheck orphan references", func(ctx context.Context, tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, `SELECT
+			EXISTS(SELECT 1 FROM screenshots WHERE segment_path = ? AND is_deleted = 0)
+			OR EXISTS(SELECT 1 FROM pending_captures WHERE relative_path = ? AND state IN ('pending', 'blocked'))`,
+			segment, segment).Scan(&referenced)
+	}); err != nil || referenced {
+		return err
+	}
+	if current, err := os.Lstat(path); err == nil && os.SameFile(seen, current) && !current.ModTime().After(staleBefore) {
+		_ = os.Remove(path)
+	}
+	return nil
 }

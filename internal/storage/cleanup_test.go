@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -257,6 +258,51 @@ func TestCleanupSweepsOrphansWhenUnderLimit(t *testing.T) {
 	// Live frames are untouched: the sweep only removes unreferenced files.
 	if got := liveFrameCount(t, store); got != 10 {
 		t.Fatalf("live rows = %d after under-limit cleanup, want 10", got)
+	}
+}
+
+func TestCleanupSweepStopsWhenCanceled(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	root := t.TempDir()
+	now := time.Now()
+	orphan := filepath.Join(root, "anonymous-orphan.jpg")
+	writeFileAt(t, orphan, 10, now.Add(-2*time.Hour))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store.setClock(func() time.Time {
+		cancel() // The reference query has completed and the walk is about to start.
+		return now
+	})
+
+	if _, err := store.CleanupRecordings(ctx, root, 1024); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cleanup error = %v, want cancellation", err)
+	}
+	if _, err := os.Stat(orphan); err != nil {
+		t.Fatalf("canceled sweep removed the file: %v", err)
+	}
+}
+
+func TestCleanupSweepRechecksNewReference(t *testing.T) {
+	store := openWriter(t, newDir(t))
+	root := t.TempDir()
+	now := time.Now()
+	old := now.Add(-2 * time.Hour)
+	const segment = "anonymous-frame.jpg"
+	file := filepath.Join(root, segment)
+	writeFileAt(t, file, 10, old)
+	ctx := context.Background()
+	store.setClock(func() time.Time {
+		// Register a pending capture after the sweep took its snapshot.
+		if _, err := store.Captures().Begin(ctx, segment, 0, old, nil, 16, 9, false); err != nil {
+			t.Fatal(err)
+		}
+		return now
+	})
+	if _, err := store.CleanupRecordings(ctx, root, 1024); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(file); err != nil {
+		t.Fatalf("sweep removed a new pending capture: %v", err)
 	}
 }
 
