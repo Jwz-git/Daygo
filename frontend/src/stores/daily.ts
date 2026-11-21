@@ -6,7 +6,6 @@ import type {
   CategoryDTO,
   DailyRecapDTO,
   DayContextDTO,
-  DayGoalDTO,
   JournalDayDTO,
   TimelineCardDTO,
   TimelineDayDTO,
@@ -20,18 +19,14 @@ import {
   getDailyContext,
   getDailyRecap,
   getDailyTimeline,
-  getDayGoal,
   getJournalDay,
   hasDailyDayBinding,
   hasDailyRecapBinding,
-  hasGoalBinding,
   hasJournalBinding,
   hasRecapGenerationBinding,
   hasRecapSaveBinding,
-  onGoalUpdated,
   onJournalUpdated,
   onRecapUpdated,
-  saveDayGoal,
   saveJournalDay,
 } from '@/api/daily'
 import { onTimelineUpdated } from '@/api/timeline'
@@ -409,14 +404,9 @@ export const useDailyStore = defineStore('daily', () => {
   const journalUnavailable = ref(false)
   const journalError = ref<unknown>(null)
   const journalSaving = ref(false)
-  const goal = ref<DayGoalDTO | null>(null)
-  const goalUnavailable = ref(false)
-  const goalError = ref<unknown>(null)
-  const goalSaving = ref(false)
   let requestVersion = 0
   let stopEvents: (() => void) | null = null
   let stopJournalEvents: (() => void) | null = null
-  let stopGoalEvents: (() => void) | null = null
   let stopRecapEvents: (() => void) | null = null
 
   const state = computed<DailyState>(() => {
@@ -439,8 +429,6 @@ export const useDailyStore = defineStore('daily', () => {
     recapGenerateError.value = null
     journalUnavailable.value = false
     journalError.value = null
-    goalUnavailable.value = false
-    goalError.value = null
     usingDevelopmentFixture.value = false
 
     try {
@@ -470,7 +458,7 @@ export const useDailyStore = defineStore('daily', () => {
           recapError.value = cause
         }
       }
-      await loadJournalAndGoal(nextContext.day, version)
+      await loadJournal(nextContext.day, version)
     } catch (cause: unknown) {
       if (version !== requestVersion) return
       if (cause instanceof DailyUnavailableError) {
@@ -489,12 +477,9 @@ export const useDailyStore = defineStore('daily', () => {
           capabilities.value = fixture.capabilities
           usingDevelopmentFixture.value = true
         }
-        // Journal/goal bindings are absent in a plain browser too; this marks
-        // their panels unavailable instead of leaving stale values behind.
+        // Clear stale journal data when the desktop bindings are absent.
         journal.value = null
         journalUnavailable.value = true
-        goal.value = null
-        goalUnavailable.value = true
       } else {
         error.value = cause
       }
@@ -503,42 +488,24 @@ export const useDailyStore = defineStore('daily', () => {
     }
   }
 
-  // Journal and goal panels load per-day, independently of the timeline day:
-  // goals are often set before any activity exists. Unavailable bindings
-  // degrade to their panel's unavailable state, not a page failure.
-  async function loadJournalAndGoal(day: string, version: number): Promise<void> {
+  async function loadJournal(day: string, version: number): Promise<void> {
     if (!hasJournalBinding()) {
       journal.value = null
       journalUnavailable.value = true
-    } else {
-      try {
-        const next = await getJournalDay(day)
-        if (version !== requestVersion) return
-        journal.value = next
-      } catch (cause: unknown) {
-        if (version !== requestVersion) return
-        journal.value = null
-        journalError.value = cause
-      }
+      return
     }
-    if (!hasGoalBinding()) {
-      goal.value = null
-      goalUnavailable.value = true
-    } else {
-      try {
-        const next = await getDayGoal(day)
-        if (version !== requestVersion) return
-        goal.value = next
-      } catch (cause: unknown) {
-        if (version !== requestVersion) return
-        goal.value = null
-        goalError.value = cause
-      }
+    try {
+      const next = await getJournalDay(day)
+      if (version !== requestVersion) return
+      journal.value = next
+    } catch (cause: unknown) {
+      if (version !== requestVersion) return
+      journal.value = null
+      journalError.value = cause
     }
   }
 
-  // Saves are not optimistic: the backend emits journal:updated /
-  // goal:updated and the listener re-pulls (docs/05 §5.5.5).
+  // A successful journal write is followed by a read from the backend.
   async function saveJournal(entry: JournalDayDTO): Promise<void> {
     const day = context.value?.day
     if (day === undefined || journalSaving.value) return
@@ -548,26 +515,11 @@ export const useDailyStore = defineStore('daily', () => {
       await saveJournalDay({ ...entry, day })
       // The event listener re-pulls; this re-pull is a safety net for the
       // degraded case where events are unavailable.
-      await loadJournalAndGoal(day, requestVersion)
+      if (context.value?.day === day) await loadJournal(day, requestVersion)
     } catch (cause: unknown) {
       journalError.value = cause
     } finally {
       journalSaving.value = false
-    }
-  }
-
-  async function saveGoal(next: DayGoalDTO): Promise<void> {
-    const day = context.value?.day
-    if (day === undefined || goalSaving.value) return
-    goalSaving.value = true
-    goalError.value = null
-    try {
-      await saveDayGoal({ ...next, day })
-      await loadJournalAndGoal(day, requestVersion)
-    } catch (cause: unknown) {
-      goalError.value = cause
-    } finally {
-      goalSaving.value = false
     }
   }
 
@@ -631,13 +583,7 @@ export const useDailyStore = defineStore('daily', () => {
     stopJournalEvents = onJournalUpdated((updatedDay) => {
       if (updatedDay === null || updatedDay === context.value?.day) {
         const day = context.value?.day
-        if (day !== undefined) void loadJournalAndGoal(day, requestVersion)
-      }
-    })
-    stopGoalEvents = onGoalUpdated((updatedDay) => {
-      if (updatedDay === null || updatedDay === context.value?.day) {
-        const day = context.value?.day
-        if (day !== undefined) void loadJournalAndGoal(day, requestVersion)
+        if (day !== undefined) void loadJournal(day, requestVersion)
       }
     })
     stopRecapEvents = onRecapUpdated((updatedStandupDay) => {
@@ -651,11 +597,9 @@ export const useDailyStore = defineStore('daily', () => {
   function stopListening(): void {
     stopEvents?.()
     stopJournalEvents?.()
-    stopGoalEvents?.()
     stopRecapEvents?.()
     stopEvents = null
     stopJournalEvents = null
-    stopGoalEvents = null
     stopRecapEvents = null
   }
 
@@ -678,10 +622,6 @@ export const useDailyStore = defineStore('daily', () => {
     journalUnavailable,
     journalError,
     journalSaving,
-    goal,
-    goalUnavailable,
-    goalError,
-    goalSaving,
     usingDevelopmentFixture,
     state,
     presentation,
@@ -690,7 +630,6 @@ export const useDailyStore = defineStore('daily', () => {
     regenerateRecap,
     saveRecap,
     saveJournal,
-    saveGoal,
     startEvents,
     stopListening,
   }

@@ -17,7 +17,7 @@ import { delayUntilDayContextRefresh } from '@/lib/dayContextRefresh'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { formatTimeZoneName } from '@/lib/timeFormat'
 import { safeTimeZone } from '@/lib/timeZone'
-import { useDailyStore } from '@/stores/daily'
+import { useDayGoalStore } from '@/stores/dayGoal'
 import { usePlanStore } from '@/stores/plan'
 import { useRecordingStore } from '@/stores/recording'
 import { useTimelineStore } from '@/stores/timeline'
@@ -36,9 +36,7 @@ import { buildWeekColumns } from './weekLayout'
 import { safeCategoryColor } from './layout'
 
 const timeline = useTimelineStore()
-// The inspector's default pane embeds the day-goal form; the daily store owns
-// that state (bindings, events, save path) for both pages.
-const daily = useDailyStore()
+const dayGoal = useDayGoalStore()
 // The displayed day's plan: the inspector panel edits it, the track draws it.
 const plan = usePlanStore()
 const planBlocks = computed(() => (plan.day === context.value?.day ? plan.blocks : []))
@@ -483,7 +481,7 @@ async function reprocessCurrentDay(): Promise<void> {
 
 onMounted(() => {
   timeline.startEvents()
-  daily.startEvents()
+  dayGoal.startListening()
   plan.startListening()
   recording.startListening()
   window.addEventListener('focus', refreshWhenWindowReturns)
@@ -499,8 +497,8 @@ watch([viewMode, weekKeys], () => {
   void plan.loadWeek(weekKeys.value)
 }, { immediate: true })
 watch(() => context.value?.day, (day) => {
+  void dayGoal.load(day ?? null)
   if (day !== undefined) {
-    void daily.load(day)
     void plan.load(day)
   }
 }, { immediate: true })
@@ -510,7 +508,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', refreshWhenWindowReturns)
   document.removeEventListener('visibilitychange', refreshWhenWindowReturns)
   timeline.stopListening()
-  daily.stopListening()
+  dayGoal.stopListening()
   plan.stopListening()
 })
 </script>
@@ -671,10 +669,10 @@ onBeforeUnmount(() => {
               :pending-action="pendingAction"
               :action-failed="generalActionFailed"
               :card-reprocess-failure-key="weekSelection?.card.id === failedCardID ? cardReprocessFailureKey : null"
-              :goal="daily.goal"
-              :goal-unavailable="daily.goalUnavailable"
-              :goal-failed="daily.goalError !== null"
-              :goal-saving="daily.goalSaving"
+              :goal="dayGoal.goal"
+              :goal-unavailable="dayGoal.unavailable"
+              :goal-failed="dayGoal.error !== null"
+              :goal-saving="dayGoal.saving"
               :review-totals="reviewTotals"
               @close="closeWeekCard"
               @save-edits="saveWeekEdits"
@@ -684,7 +682,7 @@ onBeforeUnmount(() => {
               @stop-retries="timeline.stopFailureRetries"
               @dismiss-failure="timeline.dismissFailure"
               @reprocess="reprocessCurrentDay"
-              @save-goal="daily.saveGoal"
+              @save-goal="dayGoal.save"
               @verdict-changed="onVerdictChanged"
             />
           </Transition>
@@ -731,10 +729,10 @@ onBeforeUnmount(() => {
               :pending-action="pendingAction"
               :action-failed="generalActionFailed"
               :card-reprocess-failure-key="selectedCard?.id === failedCardID ? cardReprocessFailureKey : null"
-              :goal="daily.goal"
-              :goal-unavailable="daily.goalUnavailable"
-              :goal-failed="daily.goalError !== null"
-              :goal-saving="daily.goalSaving"
+              :goal="dayGoal.goal"
+              :goal-unavailable="dayGoal.unavailable"
+              :goal-failed="dayGoal.error !== null"
+              :goal-saving="dayGoal.saving"
               :review-totals="reviewTotals"
               @close="timeline.selectCard(null)"
               @save-edits="(cardID, edits) => timeline.saveCardEdits(cardID, edits)"
@@ -744,7 +742,7 @@ onBeforeUnmount(() => {
               @stop-retries="timeline.stopFailureRetries"
               @dismiss-failure="timeline.dismissFailure"
               @reprocess="reprocessCurrentDay"
-              @save-goal="daily.saveGoal"
+              @save-goal="dayGoal.save"
               @verdict-changed="onVerdictChanged"
             />
 
