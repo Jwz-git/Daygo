@@ -17,6 +17,8 @@ anthropic 三种 API Key 协议，另有 `chatgpt` 订阅 OAuth Responses 变体
 
 ## 当前状态与证据
 
+2026-11-21 密钥状态读取（基于 `eb6b913` 的 `test` 工作树，macOS arm64）：Provider 列表在 macOS 只查询钥匙串条目是否存在。内存短时保留布尔状态，添加或删除后重新读；实际调用继续读取系统钥匙串。匿名命令夹具验证列表所用查询不带取密钥参数、重复读取复用状态以及修改后失效。`go test -race -count=1 ./internal/platform/secrets ./internal/app -run 'Test(KeychainPresence|Provider)'` 通过。真实登录钥匙串和授权对话框本轮未操作。回退为撤销提交。
+
 2026-11-21 跨批次回退（基于 `e101882` 的 `test` 工作树，macOS arm64）：时间线分析重建客户端时复用当前有序链的游标和失败计数。配置列表变更时保留仍存在的复合 ID，旧请求继续使用原列表。共享状态仅含标识与计数，凭据按批次读取。匿名回环服务的两批请求修正前共探测故障主服务两次，修正后仅一次，备用服务仍成功两次。`go test -race -count=1 ./internal/ai ./internal/app -run 'Test(Chain|AnalysisChain|ProviderRouting)'` 通过。真实 Provider 恢复时长和配额未测。回退为撤销提交。
 
 2026-10-20 订阅直达授权（基于 `93de0f3` 的 `test` 工作树）：新增服务点击

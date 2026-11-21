@@ -187,11 +187,14 @@ func (b *Backend) ListProviders() ([]ProviderDTO, error) {
 				_, dto.HasSecret, _ = manager.Account(ctx, row.ID)
 			}
 		} else if b.secrets != nil {
-			// Presence only: the value is fetched and discarded right here.
-			getCtx, getCancel := context.WithTimeout(context.Background(), providersTimeout)
-			_, getErr := b.secrets.Get(getCtx, row.ID)
-			getCancel()
-			dto.HasSecret = getErr == nil
+			if presence, ok := b.secrets.(interface {
+				Has(context.Context, string) (bool, error)
+			}); ok {
+				dto.HasSecret, _ = presence.Has(ctx, row.ID)
+			} else {
+				_, getErr := b.secrets.Get(ctx, row.ID)
+				dto.HasSecret = getErr == nil
+			}
 		}
 		out = append(out, dto)
 	}

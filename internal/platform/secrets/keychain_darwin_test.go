@@ -11,6 +11,50 @@ import (
 	"time"
 )
 
+func TestKeychainPresenceCachesOnlyStatusAndInvalidatesAfterWrites(t *testing.T) {
+	k := New()
+	present := false
+	finds := 0
+	k.command = func(_ context.Context, id string, args ...string) ([]byte, error) {
+		switch args[0] {
+		case "find-generic-password":
+			finds++
+			for _, arg := range args {
+				if arg == "-w" || arg == "-g" {
+					t.Fatal("presence query asked for a password")
+				}
+			}
+			if !present {
+				return nil, errNotFound(id)
+			}
+		case "add-generic-password":
+			present = true
+		case "delete-generic-password":
+			present = false
+		}
+		return nil, nil
+	}
+	ctx := t.Context()
+	check := func(want bool, reads int) {
+		t.Helper()
+		got, err := k.Has(ctx, testProvider)
+		if err != nil || got != want || finds != reads {
+			t.Fatalf("present=%v reads=%d err=%v, want %v and %d", got, finds, err, want, reads)
+		}
+	}
+	check(false, 1)
+	check(false, 1)
+	if err := k.Set(ctx, testProvider, "anonymous-fixture"); err != nil {
+		t.Fatal(err)
+	}
+	check(true, 2)
+	check(true, 2)
+	if err := k.Delete(ctx, testProvider); err != nil {
+		t.Fatal(err)
+	}
+	check(false, 3)
+}
+
 // The real-keychain tests run only when explicitly opted in: they touch the
 // user's login keychain (a personal, interactive environment), which CI and
 // `go test ./...` must never do.

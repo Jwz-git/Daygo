@@ -8,6 +8,8 @@ import (
 	"errors"
 	"os/exec"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
 )
@@ -18,7 +20,23 @@ var _ platform.Secrets = (*Keychain)(nil)
 // keychain, reached through the security CLI. The decision record
 // (decisions/providers-secrets-keychain) covers why a subprocess and not
 // Security.framework: cgo is barred by the CGO_ENABLED=0 gate.
-type Keychain struct{}
+type Keychain struct {
+	command func(context.Context, string, ...string) ([]byte, error)
+
+	mu         sync.Mutex
+	generation uint64
+	presence   map[string]keychainPresence
+}
+
+type keychainPresence struct {
+	present bool
+	until   time.Time
+}
+
+const (
+	keychainPresenceTTL   = 15 * time.Second
+	keychainPresenceLimit = 128
+)
 
 // New returns the macOS keychain implementation of platform.Secrets.
 func New() *Keychain { return &Keychain{} }
@@ -27,6 +45,7 @@ func (k *Keychain) Set(ctx context.Context, providerID, secret string) error {
 	if err := validateProvider(providerID); err != nil {
 		return err
 	}
+	defer k.invalidatePresence(providerID)
 	// -U updates an existing item instead of failing on the second write.
 	return k.run(ctx, providerID,
 		"add-generic-password", "-U",
@@ -50,10 +69,49 @@ func (k *Keychain) Get(ctx context.Context, providerID string) (string, error) {
 	return strings.TrimRight(string(out), "\n"), nil
 }
 
+// Has checks configuration presence without retrieving the secret value.
+func (k *Keychain) Has(ctx context.Context, providerID string) (bool, error) {
+	if err := validateProvider(providerID); err != nil {
+		return false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	k.mu.Lock()
+	prev, cached := k.presence[providerID]
+	revision := k.generation
+	k.mu.Unlock()
+	if cached && time.Now().Before(prev.until) {
+		return prev.present, nil
+	}
+	err := k.run(ctx, providerID, "find-generic-password", "-s", ServiceName(providerID), "-a", keychainAccount)
+	if err != nil && !IsNotFound(err) {
+		return false, err
+	}
+	has := err == nil
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if revision == k.generation {
+		if k.presence == nil || len(k.presence) >= keychainPresenceLimit {
+			k.presence = make(map[string]keychainPresence)
+		}
+		k.presence[providerID] = keychainPresence{present: has, until: time.Now().Add(keychainPresenceTTL)}
+	}
+	return has, nil
+}
+
+func (k *Keychain) invalidatePresence(providerID string) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.generation++
+	delete(k.presence, providerID)
+}
+
 func (k *Keychain) Delete(ctx context.Context, providerID string) error {
 	if err := validateProvider(providerID); err != nil {
 		return err
 	}
+	defer k.invalidatePresence(providerID)
 	err := k.run(ctx, providerID,
 		"delete-generic-password",
 		"-s", ServiceName(providerID),
@@ -74,6 +132,9 @@ func (k *Keychain) run(ctx context.Context, providerID string, args ...string) e
 // output executes the security tool and returns stdout. The error carries no
 // command output: stderr may quote the secret-bearing arguments.
 func (k *Keychain) output(ctx context.Context, providerID string, args ...string) ([]byte, error) {
+	if k.command != nil {
+		return k.command(ctx, providerID, args...)
+	}
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
 

@@ -18,6 +18,7 @@ macOS 适配层用 **`/usr/bin/security` 命令行子进程**实现 `Secrets` �
 |---|---|
 | `Set` | `security add-generic-password -U -s <service> -a api-key -w <secret>` |
 | `Get` | `security find-generic-password -s <service> -a api-key -w` |
+| `Has` | `security find-generic-password -s <service> -a api-key` |
 | `Delete` | `security delete-generic-password -s <service> -a api-key` |
 
 - service 名遵守已发布身份：`io.github.jwz-git.daygo.apikeys.<providerID>`，account 固定
@@ -26,6 +27,7 @@ macOS 适配层用 **`/usr/bin/security` 命令行子进程**实现 `Secrets` �
   not-found 结果，不是错误。
 - 密钥值**绝不进入任何 error 文案**；`Get` 的值只供 Go 侧 provider 客户端构造使用，
   绑定层只暴露 `hasSecret` 布尔（05 §5.5.2 既有规则）。
+- `Has` 仅查条目属性，内存保留至多 128 个存在状态，每次缓存 15 秒。本实例新增或删除条目立即失效。
 - Windows 使用当前用户 Credential Manager 中的 `CRED_TYPE_GENERIC` 条目；其他平台返回
   `native_unavailable`，测试与 Linux CI 使用 `NewFake()` 内存实现。
 
