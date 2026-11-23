@@ -5,8 +5,10 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
 import { useRecordingStore, type RecordingAction } from '@/stores/recording'
+import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
 const store = useRecordingStore()
+const visibility = useUIVisibilityStore()
 const { lifecycle, loading, permissionRequired, snapshot } = storeToRefs(store)
 const { t, locale } = useI18n()
 
@@ -73,7 +75,7 @@ function onDismiss(): void {
 </script>
 
 <template>
-  <div class="recording-control lg-tracking">
+  <div class="recording-control" :class="{ 'is-window-hidden': !visibility.visible }">
     <button
       type="button"
       class="recording-control__trigger"
@@ -83,8 +85,10 @@ function onDismiss(): void {
       :aria-expanded="action === 'pause' ? menuOpen : undefined"
       @click="onTriggerClick"
     >
-      <span class="recording-control__dot" aria-hidden="true" />
-      <span>{{ displayLabel }}</span>
+      <span class="recording-control__glyph" aria-hidden="true">
+        <span class="recording-control__dot" />
+      </span>
+      <span class="recording-control__label">{{ displayLabel }}</span>
     </button>
 
     <div v-if="menuOpen" class="pause-menu__backdrop" @click="closeMenu" />
@@ -144,30 +148,53 @@ function onDismiss(): void {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   width: 100%;
-  min-height: 52px;
-  padding: 6px 2px;
+  height: var(--dg-rail-item-size);
+  padding: 0 4px;
   border: none;
   background: none;
   color: var(--dg-text-secondary);
-  font-size: 11px;
-  line-height: 1.1;
   cursor: pointer;
-  transition: color var(--dg-motion-base) ease;
+  transition: color var(--dg-motion-fast) ease;
+}
+
+.recording-control__glyph {
+  display: grid;
+  place-items: center;
+  width: var(--dg-rail-selection-size);
+  height: var(--dg-rail-selection-size);
+  border-radius: var(--dg-rail-selection-radius);
+  transition:
+    background var(--dg-motion-base) var(--dg-ease-out),
+    box-shadow var(--dg-motion-base) var(--dg-ease-out);
+}
+
+.recording-control__label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--dg-rail-label-size);
+  font-weight: 520;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recording-control__trigger:hover:not(:disabled) { color: var(--dg-text-primary); }
+.recording-control__trigger:hover:not(:disabled) .recording-control__glyph { background: var(--dg-hover-fill); }
 
 .recording-control__trigger:focus-visible { outline: none; }
 
-.recording-control__trigger:focus-visible .recording-control__dot {
+.recording-control__trigger:focus-visible .recording-control__glyph {
   box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .recording-control__trigger:disabled { opacity: 0.4; cursor: default; }
 
 .recording-control__dot {
+  position: relative;
   width: 10px;
   height: 10px;
   border: 2px solid var(--dg-text-muted);
@@ -176,7 +203,34 @@ function onDismiss(): void {
   transition: border-color var(--dg-motion-base) ease, background var(--dg-motion-base) ease;
 }
 
-.is-capturing .recording-control__dot { border-color: var(--dg-success); background: var(--dg-success); }
+.is-capturing .recording-control__dot {
+  border-color: var(--dg-success);
+  background: var(--dg-success);
+}
+
+.is-capturing .recording-control__dot::after {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid var(--dg-success);
+  content: '';
+  opacity: 0;
+  animation: rec-pulse 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.is-window-hidden .is-capturing .recording-control__dot::after {
+  animation-play-state: paused;
+}
+
+@keyframes rec-pulse {
+  0% { transform: scale(0.8); opacity: 0.65; }
+  75%, 100% { transform: scale(1.9); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-capturing .recording-control__dot::after { animation: none; display: none; }
+}
+
 .is-starting .recording-control__dot,
 .is-loading .recording-control__dot { border-color: var(--dg-accent); background: var(--dg-accent); }
 .is-paused .recording-control__dot { border-color: var(--dg-warning); background: var(--dg-warning); }

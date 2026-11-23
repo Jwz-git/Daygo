@@ -643,14 +643,15 @@ watch(
   display: block;
 }
 
-/* The floating pencil overlaps the title text, so it carries the pane's own
-   background to stay legible on top of any glyphs behind it. */
+/* The floating pencil overlaps long title text, so it sits on an opaque
+   raised chip to keep underlying glyphs from bleeding through. */
 .inspector__title--card .field-pencil {
   position: absolute;
-  top: 0;
+  top: 2px;
   right: 0;
   z-index: 1;
-  background: var(--dg-timeline-inspector-fill);
+  background: var(--dg-surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12), inset 0 0 0 1px var(--dg-card-border);
 }
 
 .title-text { overflow-wrap: anywhere; }
@@ -763,7 +764,7 @@ watch(
 
 .field-editor__summary { resize: vertical; min-height: 88px; font: inherit; line-height: 1.6; }
 
-.field-editor__hint { margin: 0; color: var(--dg-text-muted); font-size: 10px; }
+.field-editor__hint { margin: 0; color: var(--dg-text-muted); font-size: 11px; }
 
 /* Phase paragraphs of the chronological log: the leading time range reads as
    tabular data, the rest as prose. */
@@ -779,12 +780,12 @@ watch(
   align-items: center;
   gap: 7px;
   min-width: 0;
-  padding: 4px 8px 4px 4px;
+  padding: 4px 9px 4px 5px;
   border: 1px solid var(--dg-timeline-grid);
   border-radius: 7px;
   background: var(--dg-track-fill);
   color: var(--dg-text-secondary);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .app-sites li > span {
@@ -796,11 +797,11 @@ watch(
 
 
 .distraction { display: grid; gap: 2px; padding: 8px 0; }
-.distraction span { color: var(--dg-text-muted); font-size: 9px; }
-.distraction strong { color: var(--dg-text-secondary); font-size: 11px; font-weight: 550; }
+.distraction span { color: var(--dg-text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.distraction strong { color: var(--dg-text-secondary); font-size: 12px; font-weight: 550; }
 
 .inspector__section--frames { display: grid; gap: 12px; }
-.frames-note { margin: 0; color: var(--dg-text-muted); font-size: 10px; }
+.frames-note { margin: 0; color: var(--dg-text-muted); font-size: 11px; }
 .media-list { display: grid; gap: 8px; }
 .media-list video { width: 100%; border-radius: 6px; background: var(--dg-track-fill); }
 
@@ -854,7 +855,7 @@ watch(
 .verdict__option:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 .verdict__option:disabled { opacity: 0.5; cursor: default; }
 
-.verdict__hint { margin: 8px 0 0; color: var(--dg-text-muted); font-size: 10px; line-height: 1.5; }
+.verdict__hint { margin: 8px 0 0; color: var(--dg-text-muted); font-size: 11px; line-height: 1.5; }
 
 /* Regenerate: sits in the action row beside delete, re-running the LLM on the
    card's batch. Accent-tinted on hover to read as the constructive counterpart
@@ -896,7 +897,7 @@ watch(
 }
 .rating-row__thumb:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
 
-.rating__hint { margin: 8px 0 0; color: var(--dg-text-muted); font-size: 10px; line-height: 1.5; }
+.rating__hint { margin: 8px 0 0; color: var(--dg-text-muted); font-size: 11px; line-height: 1.5; }
 
 @media (prefers-reduced-motion: reduce) {
   .field-pencil { transition: none; }

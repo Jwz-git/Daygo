@@ -327,7 +327,7 @@ function labelOf(application: ApplicationDTO): string {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 17px 18px;
+  padding: 0;
 }
 
 .privacy__title {

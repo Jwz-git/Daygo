@@ -3,6 +3,8 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
+import DgIcon from '@/components/DgIcon.vue'
+import type { IconName } from '@/components/icons/glyphs'
 import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import PageHeader from '@/components/PageHeader.vue'
 
@@ -26,6 +28,14 @@ const { t } = useI18n()
  * write; the agent socket checks its gate again for every external request.
  */
 const sections = SETTINGS_SECTIONS
+
+const SECTION_ICONS: Record<SettingsSection, IconName> = {
+  general: 'settings',
+  recording: 'lock',
+  providers: 'sparkle',
+  storage: 'layers',
+  agentAccess: 'link',
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -112,7 +122,8 @@ watch(active, () => void nextTick(measurePill))
               :aria-current="active === section ? 'page' : undefined"
               @click="selectSection(section)"
             >
-              {{ t(`settings.nav.${section}`) }}
+              <DgIcon :name="SECTION_ICONS[section]" :size="15" class="nav__icon" />
+              <span>{{ t(`settings.nav.${section}`) }}</span>
             </button>
           </li>
         </ul>
@@ -175,7 +186,7 @@ watch(active, () => void nextTick(measurePill))
   top: 0;
   left: 0;
   z-index: 0;
-  border-radius: 5px;
+  border-radius: 7px;
   background: var(--dg-nav-active-fill);
   /* Same specular top edge as every raised glass surface. */
   box-shadow: var(--dg-nav-active-shadow);
@@ -192,10 +203,13 @@ watch(active, () => void nextTick(measurePill))
 .nav__item {
   position: relative;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
   width: 100%;
-  min-height: 44px;
-  padding: 9px 11px;
-  border-radius: 5px;
+  min-height: 40px;
+  padding: 8px 11px;
+  border-radius: 7px;
   color: var(--dg-text-secondary);
   font-size: 13px;
   font-weight: 500;
@@ -203,6 +217,21 @@ watch(active, () => void nextTick(measurePill))
   transition:
     color var(--dg-motion-fast) ease,
     transform var(--dg-motion-fast) var(--dg-ease-out);
+}
+
+.nav__icon {
+  flex: none;
+  opacity: 0.72;
+  transition: opacity var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
+}
+
+.nav__item:hover .nav__icon,
+.nav__item.is-active .nav__icon {
+  opacity: 1;
+}
+
+.nav__item.is-active .nav__icon {
+  color: var(--dg-accent-text);
 }
 
 /* No hover box: the sliding pill is the only highlight in this nav, and text

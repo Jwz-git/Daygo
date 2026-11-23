@@ -81,12 +81,12 @@ async function confirmRemove(id: string): Promise<void> {
       <p class="head__hint">{{ t('settings.providers.description') }}</p>
     </div>
     <div class="head__actions">
-      <RouterLink class="dg-button dg-button--small" :to="{ name: 'model-playground' }">
+      <RouterLink class="dg-button dg-button--sm head__link" :to="{ name: 'model-playground' }">
         {{ t('modelPlayground.title') }}
       </RouterLink>
       <button
         type="button"
-        class="dg-button dg-button--primary dg-button--small"
+        class="dg-button dg-button--primary dg-button--sm"
         :disabled="editing === 'new'"
         @click="editing = 'new'"
       >
@@ -155,17 +155,17 @@ async function confirmRemove(id: string): Promise<void> {
 
             <div v-if="pendingRemoveId === provider.id" class="service__confirm" role="alert">
               <span>{{ t('settings.providers.removeConfirm', { name: provider.displayName }) }}</span>
-              <button type="button" class="dg-button dg-button--small" @click="pendingRemoveId = null">
+              <button type="button" class="dg-button dg-button--sm" @click="pendingRemoveId = null">
                 {{ t('common.action.cancel') }}
               </button>
-              <button type="button" class="dg-button dg-button--small dg-button--danger" @click="confirmRemove(provider.id)">
+              <button type="button" class="dg-button dg-button--sm dg-button--danger" @click="confirmRemove(provider.id)">
                 {{ t('common.action.delete') }}
               </button>
             </div>
           </div>
 
           <div v-if="pendingRemoveId !== provider.id" class="service__actions">
-            <button type="button" class="dg-button dg-button--small" @click="startEdit(provider)">
+            <button type="button" class="dg-button dg-button--sm" @click="startEdit(provider)">
               {{ t('common.action.edit') }}
             </button>
             <button
@@ -266,24 +266,8 @@ async function confirmRemove(id: string): Promise<void> {
   gap: 8px;
 }
 
-.dg-button--small {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 28px;
-  padding: 4px 11px;
-  font-size: 12px;
+.head__link {
   text-decoration: none;
-}
-
-.dg-button--danger {
-  background: var(--dg-danger);
-  box-shadow: none;
-  color: #ffffff;
-}
-
-.dg-button--danger:not(:disabled):hover {
-  background: color-mix(in srgb, var(--dg-danger) 86%, #ffffff);
 }
 
 /* Two groups stacked: ChatGPT subscription, then API key services. */

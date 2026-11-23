@@ -419,7 +419,7 @@ onBeforeUnmount(() => {
   background: var(--pp-chip-fill);
   box-shadow: inset 0 0 0 1px var(--pp-chip-border);
   color: var(--pp-chip-text);
-  font-size: 9px;
+  font-size: 10.5px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;

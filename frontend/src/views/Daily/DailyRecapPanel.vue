@@ -481,13 +481,14 @@ watch(() => props.saving, (isSaving, was) => {
 
 .draft-badge {
   position: absolute;
-  top: 10px;
-  right: 14px;
-  padding: 2px 8px;
-  border-radius: 3px;
+  top: 12px;
+  right: 16px;
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--dg-accent) 28%, transparent);
+  border-radius: 999px;
   background: var(--dg-accent-bg);
   color: var(--dg-accent-text);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }

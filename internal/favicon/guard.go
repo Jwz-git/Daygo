@@ -85,6 +85,10 @@ func isPlausibleHost(host string) bool {
 		}
 	}
 	tld := labels[len(labels)-1]
+	switch tld {
+	case "exe", "dmg", "pkg", "msi", "lnk", "local", "internal", "localhost":
+		return false
+	}
 	for _, c := range tld {
 		if c >= '0' && c <= '9' {
 			return false

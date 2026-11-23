@@ -135,11 +135,12 @@ function submit(): void {
 
 .section-heading h2 {
   color: var(--dg-text-primary);
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 650;
+  line-height: 1.25;
 }
 
-.section-heading p { color: var(--dg-text-tertiary); font-size: 12px; }
+.section-heading p { margin-top: 3px; color: var(--dg-text-tertiary); font-size: 12px; }
 
 .journal-state { display: flex; flex-direction: column; gap: 6px; padding: 18px; }
 
@@ -168,9 +169,9 @@ function submit(): void {
   align-items: center;
   gap: 7px;
   color: var(--dg-text-tertiary);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -188,7 +189,7 @@ function submit(): void {
 
 .journal-field span {
   color: var(--dg-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 

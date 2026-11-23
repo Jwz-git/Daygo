@@ -11,20 +11,20 @@
 
 ## 1. 行为
 
-1. 卡片 `appSites` 未命中内置品牌表（vscode / claude / chrome 等）时，`AppSiteIcon.vue`
+1. 卡片 `appSites` 需要网络站标时（显式域名，或命中前端精选知名站点映射表；未知单词桌面应用不再盲猜 `<word>.com`），`AppSiteIcon.vue`
    通过 `lib/favicon.ts` 请求同源资源 `/favicon?host=<host>`；
-2. Go 侧 `internal/favicon` 以 Dayflow 的方式**并行竞速**多个来源，先返回可解码图片者胜出：
-   - Google S2：`https://www.google.com/s2/favicons?sz=64&domain=<host>`（Dayflow 首选）；
-   - icon.horse：`https://icon.horse/icon/<host>`（Google 被墙且无代理时仍可达的第二聚合器）；
-   - 站点直连：`https://<host>/favicon.ico`（聚合器领先 150ms，直连兜底）；
-   - 两个聚合器都会在服务端解析站点 HTML 的 `<link rel="icon">`，因此能拿到不在
-     `/favicon.ico` 的图标（如 Discourse 站）；
+2. Go 侧 `internal/favicon` 并行请求 3 个主来源，并按**来源权威性与分辨率打分**择优，拒绝占位图与误跳转图标：
+   - 站点直连：`https://<host>/favicon.ico`（0ms 启动，无延迟劣势；返回有效 ≥32px 官方图标时直接胜出）；
+   - Google S2：`https://www.google.com/s2/favicons?sz=64&domain_url=https://<host>`（使用 `domain_url` 保留 `mail.google.com` / `drive.google.com` 等子产品图标；过滤默认 16×16 地球图与跨产品 `accounts.google.com` 登录重定向图标）；
+   - icon.horse：`https://icon.horse/icon/<host>`（Google 不可达时的第二聚合器；严格拒绝 `X-Icon-Fallback: true`、`X-Icon-Confidence: 0` 与指向通用登录域的 `X-Icon-Source`）；
+   - 当聚合器先于站点直连返回时，等待短暂收敛窗口（350ms）让站点直连或更高清来源有机会胜出；
+   - 仅当三个主来源全部失败时，才顺序回退到：① 读取站点首页 `<head>` 前 64 KiB 内的光栅 `<link rel="icon" / "apple-touch-icon">`（同 SSRF 守卫、跳过 SVG 与 `data:` URI）；② 非多租户子域回退到可注册主域；
 3. **代理**：`http.Client` 先用环境变量代理（`HTTPS_PROXY`），再回退到 **macOS 系统代理**
    （首次需要回退时执行一次 `scutil --proxy`，超时 1 秒，见 `proxy_darwin.go`）。这一步对齐 Dayflow——它的原生
    `URLSession` 天然走系统代理，这也是 Google S2 在被墙网络里仍能取到图标的原因；
-4. 别名表 `hostAliases`（如 `codex.com → chatgpt.com`）与 Dayflow 一致；
+4. 别名表 `hostAliases` 将短链、更名域与子品牌域规范到官网主域（如 `codex.com` / `chat.openai.com` → `chatgpt.com`、`twitter.com` → `x.com`、`youtu.be` → `youtube.com`、`b23.tv` → `bilibili.com`、`notion.site` → `notion.so`、`app.slack.com` → `slack.com`、`larkoffice.com` → `feishu.cn`）；
 5. 抓取只发送**主机名**，不携带 cookie、referrer、屏幕内容；单次 4 秒超时；
-6. 成功结果**落盘缓存**到 `~/Library/Application Support/Daygo/favicons/<sha256(host)>.ico`。
+6. 成功结果**落盘缓存**到 `~/Library/Application Support/Daygo/favicons/<sha256("v2:"+host)>.ico`（14 天 TTL，版本前缀使旧版缓存中的占位图/低质量图自动刷新）。
    单进程跨主机最多同时发出 12 个图标 HTTP 请求。磁盘缓存首次访问检查 1,024 文件 / 32 MiB
    预算，写入跨过预算时优先淘汰最早写入的缓存文件。各实例独立记账，共享目录可能暂时超限。
    失败在内存负缓存 10 分钟，命中负缓存直接返回；取消及排队超时不写负缓存；
@@ -56,8 +56,8 @@
 
 | 部分 | 位置 |
 |---|---|
-| 抓取 / 竞速 / 磁盘缓存 / SSRF | `internal/favicon`（`favicon.go` / `guard.go`） |
+| 抓取 / 质量打分 / 磁盘缓存 / SSRF | `internal/favicon`（`favicon.go` / `quality.go` / `guard.go` / `disk_cache.go`） |
 | 资源 handler `GET /favicon?host=` | `internal/app/favicon_binding.go`，经 `serveAsset` 分发 |
-| 客户端缓存 / 去重 / 负缓存 | `frontend/src/lib/favicon.ts`（请求同源资源） |
-| 渲染（品牌 SVG → 已安装应用图标 → favicon 图 → monogram） | `frontend/src/components/AppSiteIcon.vue` |
+| 客户端缓存 / 规范域解析 / 去重 / 负缓存 | `frontend/src/lib/favicon.ts`（请求同源资源） |
+| 渲染（已安装应用 / 官网 favicon / 内置品牌图 → 手绘 SVG → monogram） | `frontend/src/components/AppSiteIcon.vue` |
 | 卡片固定图标列（无图标也留位） | `TimelineActivityCard.vue` / `TimelineWeekView.vue` |

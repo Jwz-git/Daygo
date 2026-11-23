@@ -198,10 +198,7 @@ function onLimitChange(event: Event): void {
   </SettingRow>
   </SettingGroup>
 
-  <SettingGroup
-    :title="t('settings.storage.limit')"
-    :hint="t('settings.storage.limitHint')"
-  >
+  <SettingGroup :title="t('settings.nav.storage')">
   <SettingRow :title="t('settings.storage.usage')">
     <div class="usage">
       <span class="usage__value">
@@ -210,8 +207,8 @@ function onLimitChange(event: Event): void {
           percent: usagePercent,
         }) }}
       </span>
-      <div class="usage__bar" role="presentation">
-        <div class="usage__fill" :style="{ width: usagePercent + '%' }" />
+      <div class="usage__bar dg-meter" role="presentation">
+        <div v-if="usagePercent > 0" class="dg-meter__fill usage__fill" :style="{ width: usagePercent + '%' }" />
       </div>
     </div>
   </SettingRow>
@@ -377,16 +374,11 @@ function onLimitChange(event: Event): void {
 
 .usage__bar {
   width: 180px;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--dg-track-fill);
-  overflow: hidden;
 }
 
 .usage__fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--dg-accent);
+  --meter-fill: var(--dg-accent);
+  transition: width var(--dg-motion-slow) var(--dg-ease-glide);
 }
 
 .directory {

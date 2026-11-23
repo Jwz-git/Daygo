@@ -316,7 +316,7 @@ defineExpose<DgSelectHandle>({
   border: none;
   border-radius: 7px;
   background: var(--dg-input-fill);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--dg-input-border);
   color: var(--dg-text-primary);
   font-size: 13px;
   text-align: left;
@@ -341,7 +341,7 @@ defineExpose<DgSelectHandle>({
 .dg-select:focus-visible,
 .dg-select--open {
   outline: none;
-  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+  box-shadow: inset 0 0 0 1px var(--dg-accent), 0 0 0 3px var(--dg-focus-ring);
 }
 
 .dg-select:disabled {

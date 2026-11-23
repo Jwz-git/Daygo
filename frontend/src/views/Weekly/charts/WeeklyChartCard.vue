@@ -9,7 +9,10 @@ defineProps<{ title: string }>()
 
 <template>
   <section class="wk-card">
-    <h3 class="wk-card__title">{{ title }}</h3>
+    <header class="wk-card__head">
+      <h3 class="wk-card__title">{{ title }}</h3>
+      <slot name="header-extra" />
+    </header>
     <div class="wk-card__body">
       <slot />
     </div>
@@ -26,18 +29,27 @@ defineProps<{ title: string }>()
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--dg-wk-card-border);
-  border-radius: 4px;
+  border-radius: var(--dg-card-radius);
   background: var(--dg-wk-card-fill);
+  box-shadow: var(--dg-card-shadow);
   color: var(--dg-wk-text);
+}
+
+.wk-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 16px 18px 0;
 }
 
 .wk-card__title {
   margin: 0;
-  padding: 16px 18px 0;
   color: var(--dg-wk-title);
-  font-family: var(--dg-font-serif);
+  font-family: var(--dg-font-page-title);
   font-size: 20px;
-  font-weight: 400;
+  font-weight: var(--dg-page-title-weight);
   line-height: 1.25;
 }
 

@@ -149,6 +149,7 @@ function slot(x: number, labelY: number, labelHeight: number, width: number): Re
 
 <template>
   <WeeklyChartCard :title="t('weekly.charts.sankey.title')">
+    <div class="sk-scroll">
     <div
       :ref="(el) => { pointer.container.value = el as HTMLElement | null }"
       class="sk"
@@ -295,16 +296,21 @@ function slot(x: number, labelY: number, labelHeight: number, width: number): Re
         </template>
       </WeeklyChartTooltip>
     </div>
+    </div>
   </WeeklyChartCard>
 </template>
 
 <style scoped>
+.sk-scroll {
+  overflow-x: auto;
+}
+
 .sk {
   position: relative;
   container-type: inline-size;
   width: 100%;
+  min-width: 640px;
   aspect-ratio: 1748 / 933;
-  min-height: 360px;
 }
 
 .sk svg {

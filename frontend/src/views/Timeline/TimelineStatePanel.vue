@@ -68,6 +68,21 @@ const canRetry = computed(() => props.state === 'failure')
 .state-panel__mark span:nth-child(2) { top: 35px; right: 26px; }
 .state-panel__mark span:nth-child(3) { top: 48px; right: 21px; }
 
+.state-panel--loading .state-panel__mark span {
+  animation: dg-shimmer 1.5s ease-in-out infinite;
+}
+.state-panel--loading .state-panel__mark span:nth-child(2) { animation-delay: 0.18s; }
+.state-panel--loading .state-panel__mark span:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes dg-shimmer {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state-panel--loading .state-panel__mark span { animation: none; }
+}
+
 .state-panel__eyebrow {
   margin-bottom: 7px;
   color: var(--dg-accent-text);

@@ -54,18 +54,9 @@ onUnmounted(() => {
 
 type SidebarView = 'conversations' | 'memory'
 const sidebarView = ref<SidebarView>('conversations')
-const transitioning = ref(false)
 
 function switchView(view: SidebarView): void {
-  if (view === sidebarView.value) return
-  transitioning.value = true
-  // Allow fade-out, then swap
-  setTimeout(() => {
-    sidebarView.value = view
-    requestAnimationFrame(() => {
-      transitioning.value = false
-    })
-  }, 90)
+  sidebarView.value = view
 }
 
 // ---- conversation list ----
@@ -220,7 +211,6 @@ const hasConversations = computed(() => grouped.value.length > 0)
         v-if="open"
         as="aside"
         intensity="dense"
-        tracking
         class="drawer"
         role="complementary"
         :aria-label="t('chat.title')"
@@ -260,10 +250,12 @@ const hasConversations = computed(() => grouped.value.length > 0)
         </header>
 
         <!-- Body: view with cross-fade -->
-        <div class="drawer__body" :class="{ 'drawer__body--fading': transitioning }">
+        <div class="drawer__body">
+          <Transition name="drawer-pane" mode="out-in">
           <!-- Conversations -->
           <section
             v-if="sidebarView === 'conversations'"
+            key="conversations"
             class="drawer__pane drawer__pane--conversations"
             role="tabpanel"
           >
@@ -373,6 +365,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
           <!-- Memory -->
           <section
             v-else
+            key="memory"
             class="drawer__pane drawer__pane--memory"
             role="tabpanel"
           >
@@ -406,6 +399,7 @@ const hasConversations = computed(() => grouped.value.length > 0)
               </button>
             </footer>
           </section>
+          </Transition>
         </div>
 
         <!-- Confirm delete overlay (floating) -->
@@ -545,21 +539,25 @@ const hasConversations = computed(() => grouped.value.length > 0)
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--dg-chip-border);
+  border: none;
   border-radius: 8px;
-  background: var(--dg-track-fill);
+  background: transparent;
   color: var(--dg-text-secondary);
   cursor: pointer;
   transition:
-    background var(--dg-motion-base) ease,
-    color var(--dg-motion-base) ease,
-    border-color var(--dg-motion-base) ease,
+    background var(--dg-motion-fast) ease,
+    color var(--dg-motion-fast) ease,
     transform var(--dg-motion-fast) ease;
 }
 
 .drawer__close:hover {
-  background: var(--dg-control-fill);
+  background: var(--dg-hover-fill-strong);
   color: var(--dg-text-primary);
+}
+
+.drawer__close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 .drawer__close:active {
@@ -574,10 +572,15 @@ const hasConversations = computed(() => grouped.value.length > 0)
   min-height: 0;
   display: flex;
   flex-direction: column;
-  transition: opacity 90ms ease;
 }
 
-.drawer__body--fading {
+.drawer-pane-enter-active,
+.drawer-pane-leave-active {
+  transition: opacity var(--dg-motion-fast) ease;
+}
+
+.drawer-pane-enter-from,
+.drawer-pane-leave-to {
   opacity: 0;
 }
 

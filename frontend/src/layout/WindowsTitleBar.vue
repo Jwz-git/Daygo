@@ -42,7 +42,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
         :aria-label="$t('common.window.minimise')"
         @click.stop="WindowMinimise"
       >
-        <span class="window-titlebar__minimise" aria-hidden="true" />
+        <svg class="window-titlebar__glyph" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
+          <path d="M0 5h10" />
+        </svg>
       </button>
       <button
         class="window-titlebar__control"
@@ -50,10 +52,13 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
         :aria-label="$t(maximised ? 'common.window.restore' : 'common.window.maximise')"
         @click.stop="toggleMaximise"
       >
-        <span
-          :class="maximised ? 'window-titlebar__restore' : 'window-titlebar__maximise'"
-          aria-hidden="true"
-        />
+        <svg v-if="maximised" class="window-titlebar__glyph" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
+          <path d="M2.5 2.5V0.5h7v7h-2" />
+          <rect x="0.5" y="2.5" width="7" height="7" />
+        </svg>
+        <svg v-else class="window-titlebar__glyph" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="9" height="9" />
+        </svg>
       </button>
       <button
         class="window-titlebar__control window-titlebar__control--close"
@@ -61,7 +66,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
         :aria-label="$t('common.window.close')"
         @click.stop="WindowHide"
       >
-        <span class="window-titlebar__close" aria-hidden="true" />
+        <svg class="window-titlebar__glyph" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
+          <path d="M1 1l8 8M9 1 1 9" />
+        </svg>
       </button>
     </div>
   </header>
@@ -121,63 +128,14 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   background: #c42b1c;
 }
 
-.window-titlebar__minimise {
-  width: 10px;
-  height: 1px;
-  background: currentcolor;
+.window-titlebar__glyph {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
 }
 
-.window-titlebar__maximise {
-  width: 10px;
-  height: 10px;
-  border: 1px solid currentcolor;
-}
-
-.window-titlebar__restore {
-  position: relative;
-  width: 9px;
-  height: 9px;
-  border: 1px solid currentcolor;
-}
-
-.window-titlebar__restore::before {
-  position: absolute;
-  top: -4px;
-  left: 2px;
-  width: 8px;
-  height: 8px;
-  border: 1px solid currentcolor;
-  content: '';
-}
-
-.window-titlebar__restore::after {
-  position: absolute;
-  inset: -1px auto auto -1px;
-  width: 8px;
-  height: 3px;
-  background: var(--dg-window-bg);
-  content: '';
-}
-
-.window-titlebar__close {
-  position: relative;
-  width: 12px;
-  height: 12px;
-}
-
-.window-titlebar__close::before,
-.window-titlebar__close::after {
-  position: absolute;
-  top: 5.5px;
-  left: 0;
-  width: 12px;
-  height: 1px;
-  background: currentcolor;
-  content: '';
-  transform: rotate(45deg);
-}
-
-.window-titlebar__close::after {
-  transform: rotate(-45deg);
+.window-titlebar__control--close .window-titlebar__glyph {
+  shape-rendering: geometricPrecision;
 }
 </style>

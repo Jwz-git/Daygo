@@ -3,11 +3,14 @@ import test from 'node:test'
 
 import {
   appSiteValues,
+  canonicalHostForKind,
   displayHost,
+  findBestInstalledApp,
   preferredAppSite,
   resolveAppSiteIdentity,
+  type IndexedApplication,
 } from '../src/lib/appSiteIcon'
-import { hostOf } from '../src/lib/favicon'
+import { hostOf, isExplicitDomain } from '../src/lib/favicon'
 
 test('normalizes a display host without treating application names as hosts', () => {
   assert.equal(displayHost('https://www.github.com/openai/codex?q=1'), 'github.com')
@@ -100,11 +103,63 @@ test('localized names of bundled system apps reach their marks', () => {
 })
 
 test('dotless non-Latin names are not guessed as .com sites', () => {
-  // "终端" became 终端.com (xn--suzt2f.com), a parked domain whose favicon
-  // replaced the Terminal icon. Latin single words keep Dayflow's .com rule.
   assert.equal(hostOf('终端'), null)
   assert.equal(displayHost('终端'), null)
   assert.equal(hostOf('微信'), null)
   assert.equal(hostOf('pinterest'), 'pinterest.com')
   assert.notEqual(hostOf('知乎.com'), null, 'a written-out domain still resolves')
+})
+
+test('unknown bare app names never guess unrelated .com domains while curated sites resolve accurately', () => {
+  for (const appName of ['Preview', 'Mail', 'Calendar', 'Photos', 'Antigravity', 'WeChat.app', 'Code.exe']) {
+    assert.equal(hostOf(appName), null, `${appName} must not become a guessed .com host`)
+    assert.equal(displayHost(appName), null, `${appName} must not have a guessed display host`)
+  }
+  assert.equal(hostOf('Obsidian'), 'obsidian.md')
+  assert.equal(hostOf('Linear'), 'linear.app')
+  assert.equal(hostOf('Telegram'), 'telegram.org')
+  assert.equal(hostOf('Zed'), 'zed.dev')
+  assert.equal(hostOf('Notion'), 'notion.so')
+  assert.equal(hostOf('Google Docs'), 'docs.google.com')
+  assert.equal(hostOf('哔哩哔哩'), 'bilibili.com')
+  assert.equal(isExplicitDomain('linear.app'), true)
+  assert.equal(isExplicitDomain('WeChat.app'), false)
+  assert.equal(isExplicitDomain('Google Docs'), false)
+})
+
+test('brand rules respect domain and exact-name boundaries without substring hijacking', () => {
+  assert.equal(resolveAppSiteIdentity('messages.google.com').kind, 'generic')
+  assert.equal(resolveAppSiteIdentity('GoodNotes').kind, 'generic')
+  assert.equal(resolveAppSiteIdentity('release-notes.example.com').kind, 'generic')
+  assert.equal(resolveAppSiteIdentity('Windows Terminal').kind, 'generic')
+  assert.equal(resolveAppSiteIdentity('web-terminal.dev').kind, 'generic')
+  assert.equal(resolveAppSiteIdentity('chromewebstore.google.com').kind, 'generic')
+  assert.equal(resolveAppSiteIdentity('user.github.io').kind, 'generic')
+
+  assert.equal(resolveAppSiteIdentity('gist.github.com').kind, 'github')
+  assert.equal(resolveAppSiteIdentity('developer.apple.com/xcode').kind, 'xcode')
+  assert.equal(resolveAppSiteIdentity('https://www.icloud.com/notes/abc').kind, 'notes')
+  assert.equal(resolveAppSiteIdentity('Cursor').kind, 'cursor')
+  assert.equal(canonicalHostForKind('google-docs'), 'docs.google.com')
+  assert.equal(canonicalHostForKind('notion'), 'notion.so')
+  assert.equal(canonicalHostForKind('cursor'), 'cursor.com')
+  assert.equal(canonicalHostForKind('warp'), 'warp.dev')
+})
+
+test('installed-app matching handles bilingual names, aliases, extensions, and bundle IDs', () => {
+  const apps: IndexedApplication[] = [
+    { id: 'com.tencent.xinWeChat', names: ['微信'] },
+    { id: 'com.apple.Preview', names: ['预览'] },
+    { id: 'md.obsidian', names: ['Obsidian'] },
+    { id: 'com.microsoft.VSCode', names: ['Visual Studio Code'] },
+    { id: 'io.github.clash-verge-rev.clash-verge-rev', names: ['Clash Verge'] },
+    { id: 'com.todesktop.230313mzl4w4u92', names: ['Cursor'] },
+  ]
+  assert.equal(findBestInstalledApp('WeChat', apps)?.id, 'com.tencent.xinWeChat')
+  assert.equal(findBestInstalledApp('WeChat.app', apps)?.id, 'com.tencent.xinWeChat')
+  assert.equal(findBestInstalledApp('Preview', apps)?.id, 'com.apple.Preview')
+  assert.equal(findBestInstalledApp('VSCode', apps)?.id, 'com.microsoft.VSCode')
+  assert.equal(findBestInstalledApp('Clash Verge Rev', apps)?.id, 'io.github.clash-verge-rev.clash-verge-rev')
+  assert.equal(findBestInstalledApp('Cursor', apps)?.id, 'com.todesktop.230313mzl4w4u92')
+  assert.equal(findBestInstalledApp('Completely Unknown Tool', apps), null)
 })

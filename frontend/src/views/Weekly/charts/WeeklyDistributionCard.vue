@@ -234,9 +234,10 @@ function share(value: number): string {
 
 .dist__center strong {
   color: var(--dg-wk-text);
-  font-family: var(--dg-font-serif);
+  font-family: var(--dg-font-page-title);
   font-size: 18px;
-  font-weight: 400;
+  font-weight: var(--dg-page-title-weight);
+  font-variant-numeric: tabular-nums;
   line-height: 1.15;
 }
 

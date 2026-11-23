@@ -15,6 +15,8 @@
 
 ## 当前状态与证据
 
+2026-11-23 网站与应用图标质量与展示（基于 `4dcff67` 的 `test` 工作树，macOS arm64）：Go `internal/favicon` 取消站点直连 150ms 延迟劣势，按来源权威性与解码尺寸打分并留 350ms 收敛窗口；Google S2 切为 `domain_url=https://<host>` 并过滤默认 16×16 地球图与跨产品 `accounts.google.com` 图标，icon.horse 过滤 `X-Icon-Fallback: true`、`X-Icon-Confidence: 0` 与通用登录页重定向；三主源均失败时回退到首页 64 KiB HTML `<link rel="icon" / "apple-touch-icon">` 与非多租户父域；磁盘缓存加 `v2:` 前缀与 14 天 TTL，扩充 `hostAliases`。前端停止对未知单词盲猜 `.com` 改为精选知名站点表，收紧 `brandRules` 为精确名/域名边界匹配，本地已安装应用改为同时索引当前 UI 语言与英文并支持 bundle ID / 别名匹配；`AppSiteIcon.vue` 优先展示本机真实应用图标（去边框 `.is-raw`），网络 favicon 改为 `object-fit: contain` 并在暗色模式下自动检测透明纯黑单色图标反色。`CGO_ENABLED=0 go test -count=1 ./internal/favicon/... ./internal/app/...`、`go test -race ./internal/favicon/...`、`go vet ./...`、`CGO_ENABLED=0 go build ./...` 及前端 319 项单测 / `typecheck` / `build` 全部通过；真实桌面 WebView 与 Windows 端实机展示待验证。回退为撤销对应改动。
+
 2026-11-21 网站图标资源预算（基于 `cb56fa7` 的 `test` 工作树，macOS arm64）：跨主机 HTTP 请求上限 12，磁盘缓存按文件计数和字节预算淘汰，仅处理命名符合规则的图标。匿名传输夹具发起 24 个不同主机的查询，峰值 12 个 HTTP 请求，取消后收尾；匿名磁盘夹具覆盖淘汰、保留无关文件和内存淘汰后的磁盘命中。`go test -race -count=1 ./internal/favicon` 通过。多实例共享目录按各自盘点，可能暂时超限。回退为撤销提交。
 
 2026-11-21 卡片范围协调（基于 `21ff6d2` 的 `test` 工作树，macOS arm64）：批次和单卡重写先预留上下文及相邻折叠所需范围，解析后越过预留边界的结果拒绝写入。人工合并用已存时间取范围，等待后由事务重新核对来源。匿名夹具持有分析预留范围时，另一日期的修改可完成，相交修改取消后未执行；另覆盖时钟解析后的边界及来源已被替换。`CGO_ENABLED=0 go test -count=1 ./internal/analysis ./internal/storage ./internal/app` 和分析、绑定的相关 `-race` 测试通过。相近的空档仍可能落在同一保守预留范围。回退为撤销提交。

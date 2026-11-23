@@ -860,7 +860,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 9px;
   color: var(--dg-text-muted);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
@@ -921,7 +921,7 @@ onBeforeUnmount(() => {
 .filter-manage:not(:disabled) { color: var(--dg-text-secondary); cursor: pointer; }
 .filter-manage:not(:disabled):hover { background: var(--dg-capsule-hover); color: var(--dg-text-primary); }
 .filter-manage:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
-.filter-error { flex: none; color: var(--dg-danger); font-size: 10px; white-space: nowrap; }
+.filter-error { flex: none; color: var(--dg-danger); font-size: 11px; white-space: nowrap; }
 
 .timeline-body {
   position: relative;
@@ -1280,7 +1280,7 @@ onBeforeUnmount(() => {
   .footer-pop-leave-active { transition: none; }
 }
 
-/* Category manager modal */
+/* Modal backdrop shared by the category wizard and review flow */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1290,138 +1290,5 @@ onBeforeUnmount(() => {
   justify-content: center;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
-}
-
-.modal-panel {
-  width: min(480px, calc(100vw - 32px));
-  max-height: calc(100vh - 64px);
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--dg-panel-border);
-  border-radius: 12px;
-  background: var(--dg-surface);
-  box-shadow: var(--dg-shadow-lg);
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--dg-panel-border);
-}
-
-.modal-header h2 {
-  margin: 0;
-  color: var(--dg-text-primary);
-  font-size: 16px;
-  font-weight: 650;
-}
-
-.modal-close {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--dg-text-secondary);
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.modal-close:hover { background: var(--dg-hover-fill); }
-
-.modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
-}
-
-.modal-empty {
-  color: var(--dg-text-muted);
-  font-size: 13px;
-  text-align: center;
-  padding: 24px 0;
-}
-
-.category-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.category-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: var(--dg-track-fill);
-  color: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  /* Fill-only hover, mirroring the filter chips: no lift, no displacement. */
-  transition: background var(--dg-motion-fast) ease, border-color var(--dg-motion-fast) ease;
-}
-
-.category-item:hover { background: var(--dg-hover-fill); }
-.category-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
-.category-item.is-active { border-color: var(--dg-chip-border); background: var(--dg-chip-fill); }
-
-.category-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.category-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--dg-text-primary);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.category-meta {
-  display: inline-flex;
-  flex: none;
-  align-items: baseline;
-  gap: 8px;
-  color: var(--dg-text-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.category-meta b {
-  color: var(--dg-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--dg-panel-border);
-}
-
-.modal-hint {
-  margin: 0;
-  color: var(--dg-text-muted);
-  font-size: 11px;
 }
 </style>

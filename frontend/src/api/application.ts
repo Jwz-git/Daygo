@@ -59,13 +59,13 @@ export async function getBlockedApplications(): Promise<ApplicationDTO[]> {
 }
 
 /*
- * One-entry enumeration cache keyed by the requested language, plus a bounded
- * icon memo. The privacy grid enumerates on mount and re-enumerates when the UI
- * language changes; the memo saves the per-icon binding round trip within a
- * session. It is bounded so a long-running session with many distinct apps can
- * not grow the webview heap without limit; evicted icons simply refetch.
+ * Bounded per-language enumeration cache plus a bounded icon memo. The privacy
+ * grid enumerates on mount and re-enumerates when the UI language changes, and
+ * timeline icon matching may query both the active UI locale and English so
+ * localized apps match English model labels without thrashing a single slot.
  */
-let installedCache: { language: string; apps: ApplicationDTO[] } | null = null
+const MAX_INSTALLED_LOCALE_CACHE = 4
+const installedCache = new Map<string, ApplicationDTO[]>()
 const pendingLists = new Map<string, Promise<ApplicationDTO[]>>()
 const pendingIdentities = new Map<string, Promise<ApplicationDTO | undefined>>()
 const identityCache = new LruCache<string, ApplicationDTO>(512, {
@@ -85,14 +85,19 @@ const identityCache = new LruCache<string, ApplicationDTO>(512, {
  * native picker as the add path there.
  */
 export async function listInstalledApplications(language: string): Promise<ApplicationDTO[]> {
-  if (installedCache?.language === language) return installedCache.apps
+  const cached = installedCache.get(language)
+  if (cached !== undefined) return cached
   const pending = pendingLists.get(language)
   if (pending !== undefined) return pending
 
   const request = (hasDesktopBridge() ? ListInstalledApplications(language) : Promise.resolve([]))
     .then((apps) => {
       const results = apps ?? []
-      installedCache = { language, apps: results }
+      if (installedCache.size >= MAX_INSTALLED_LOCALE_CACHE) {
+        const oldest = installedCache.keys().next().value
+        if (oldest !== undefined) installedCache.delete(oldest)
+      }
+      installedCache.set(language, results)
       return results
     })
     .finally(() => pendingLists.delete(language))

@@ -786,9 +786,9 @@ function totalsSnapshot(): ReviewTotals {
   min-width: 0;
   margin: 0;
   color: var(--dg-text-primary);
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1.4;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .review__meta {

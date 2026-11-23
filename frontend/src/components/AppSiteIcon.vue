@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch, type CSSProperties } from 'vue'
 
-import { isWebsiteKind, matchInstalledAppIcon, resolveAppSiteIdentity, type AppSiteIconKind } from '@/lib/appSiteIcon'
-import { fetchFaviconDataUrl, hostOf } from '@/lib/favicon'
+import {
+  canonicalHostForKind,
+  isWebsiteKind,
+  matchInstalledAppIcon,
+  resolveAppSiteIdentity,
+  type AppSiteIconKind,
+} from '@/lib/appSiteIcon'
+import { fetchFaviconDataUrl, hostOf, isExplicitDomain } from '@/lib/favicon'
 
 /*
  * Real brand images, borrowed from the Dayflow asset catalog (MIT) — the
@@ -77,36 +83,105 @@ const activeIdentity = computed(() => resolveAppSiteIdentity(activeSite.value))
 // transparent background overrides the brand's colored fill.
 const brandImage = computed(() => BRAND_IMAGES[activeIdentity.value.kind] ?? null)
 
+type ResolvedImageSource = 'app' | 'favicon' | null
+
+const darkMonochromeCache = new Map<string, boolean>()
+
+/**
+ * Detects transparent-background monochrome dark network favicons (e.g. X,
+ * Vercel, Notion, Apple, Medium) so dark mode can invert them cleanly without
+ * disturbing colorful logos or solid-tile icons. Runs on same-origin data URLs.
+ */
+function detectDarkMonochrome(img: HTMLImageElement, src: string): boolean {
+  const cached = darkMonochromeCache.get(src)
+  if (cached !== undefined) return cached
+  try {
+    if (typeof document === 'undefined') return false
+    const canvas = document.createElement('canvas')
+    canvas.width = 16
+    canvas.height = 16
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return false
+    ctx.clearRect(0, 0, 16, 16)
+    ctx.drawImage(img, 0, 0, 16, 16)
+    const { data } = ctx.getImageData(0, 0, 16, 16)
+    let visible = 0
+    let transparent = 0
+    let darkLowSat = 0
+    let brightOrColored = 0
+    for (let i = 0; i < data.length; i += 4) {
+      const a = data[i + 3]
+      if (a < 32) {
+        transparent += 1
+        continue
+      }
+      visible += 1
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b)
+      if (lum < 72 && chroma < 32) darkLowSat += 1
+      else if (lum > 110 || chroma >= 45) brightOrColored += 1
+    }
+    const result =
+      visible >= 8 &&
+      transparent >= 32 &&
+      darkLowSat / visible >= 0.78 &&
+      brightOrColored / visible <= 0.1
+    if (darkMonochromeCache.size >= 256) darkMonochromeCache.clear()
+    darkMonochromeCache.set(src, result)
+    return result
+  } catch {
+    return false
+  }
+}
+
 /*
  * When a card has a list of candidate sites (e.g. browsed website + browser),
- * iterate through them to find the first candidate with an available icon:
- * 1. Website brand → real network favicon, falling back to its bundled/drawn
- *    mark when the fetch fails (offline still shows the brand).
- * 2. App / browser brand → bundled or drawn mark (no favicon exists).
- * 3. Installed desktop application icon.
- * 4. Network favicon for generic hosts.
+ * iterate through them to find the first candidate with an available real icon:
+ * 1. Website brand without bundled PNG → installed desktop app (when named as
+ *    an app) or official website favicon via canonical host, falling back to
+ *    its drawn mark offline.
+ * 2. App brand without bundled PNG (cursor / warp) → installed desktop app
+ *    icon first, then official website favicon, then drawn mark.
+ * 3. Brand with crisp bundled image → bundled asset directly.
+ * 4. Explicit website domain → official network favicon.
+ * 5. Generic app/site name → installed desktop app icon first, then curated
+ *    known-site favicon (never blind `<word>.com` guessing).
  * If none produces a real icon, falls back to the primary site's monogram.
- *
- * faviconSrc holds a resolved image (network favicon or installed-app icon)
- * and, when set, takes precedence over the brand mark in the template.
  */
 const faviconSrc = ref<string | null>(null)
+const imageSource = ref<ResolvedImageSource>(null)
+const faviconDarkInvert = ref(false)
 /*
  * A src that failed to decode. Without this the slot is not merely wrong but
- * invisible: .is-raw drops the border and background for real brand images, so
- * a bundled mark missing from the build (or a favicon the host served as
- * something the webview cannot decode) leaves an empty 18px gap with nothing to
- * click or read. Remembering the failed src makes the chain keep going instead —
- * broken favicon → bundled brand mark → drawn mark or monogram.
+ * invisible: .is-raw drops the border and background for real brand/app images,
+ * so a broken asset would leave an empty 18px gap with nothing to click or
+ * read. Remembering the failed src makes the chain keep going instead —
+ * broken image → bundled brand mark → drawn mark or monogram.
  */
 const failedSrc = ref<string | null>(null)
 let resolveSeq = 0
+
+function onFaviconLoad(event: Event) {
+  if (imageSource.value !== 'favicon' || faviconSrc.value === null) {
+    faviconDarkInvert.value = false
+    return
+  }
+  const target = event.target
+  if (target instanceof HTMLImageElement) {
+    faviconDarkInvert.value = detectDarkMonochrome(target, faviconSrc.value)
+  }
+}
 
 watch(
   candidateSites,
   async (sites) => {
     const seq = ++resolveSeq
     faviconSrc.value = null
+    imageSource.value = null
+    faviconDarkInvert.value = false
     failedSrc.value = null
 
     if (sites.length === 0) {
@@ -119,52 +194,120 @@ watch(
 
     for (const candidate of sites) {
       const identity = resolveAppSiteIdentity(candidate)
+      const hasBundledImage = BRAND_IMAGES[identity.kind] !== undefined
+      const explicitDomain = isExplicitDomain(candidate)
 
       // 1. Website brand WITHOUT a crisp bundled image (bilibili / google-docs
-      // / notion / figma / slack): prefer the real network favicon over the
-      // rough drawn approximation; on failure keep the candidate so the drawn
-      // mark renders as the offline fallback. Website brands that DO ship a
-      // bundled PNG (github / youtube / chatgpt / …) skip this and use the
-      // crisp asset below, matching Dayflow's brand-first order.
-      if (
-        isWebsiteKind(identity.kind) &&
-        BRAND_IMAGES[identity.kind] === undefined &&
-        hostOf(candidate) !== null
-      ) {
+      // / notion / figma / slack).
+      if (isWebsiteKind(identity.kind) && !hasBundledImage) {
+        if (!explicitDomain) {
+          try {
+            const appIcon = await matchInstalledAppIcon(candidate)
+            if (seq !== resolveSeq) return
+            if (appIcon !== null) {
+              activeSite.value = candidate
+              faviconSrc.value = appIcon
+              imageSource.value = 'app'
+              return
+            }
+          } catch {
+            // Fall through to website favicon
+          }
+        }
+        const targetHost = hostOf(candidate) ?? canonicalHostForKind(identity.kind)
         let dataUrl: string | null = null
-        try {
-          dataUrl = await fetchFaviconDataUrl(candidate)
-        } catch {
-          dataUrl = null
+        if (targetHost !== null) {
+          try {
+            dataUrl = await fetchFaviconDataUrl(targetHost)
+          } catch {
+            dataUrl = null
+          }
         }
         if (seq !== resolveSeq) return
         activeSite.value = candidate
         faviconSrc.value = dataUrl
+        imageSource.value = dataUrl !== null ? 'favicon' : null
         return
       }
 
-      // 2. App / browser brand: bundled or drawn mark.
+      // 2. App brand WITHOUT a crisp bundled image (cursor / warp): prefer the
+      // real installed desktop icon, then official site favicon, then drawn SVG.
+      if (identity.kind !== 'generic' && !hasBundledImage) {
+        try {
+          const appIcon = await matchInstalledAppIcon(candidate)
+          if (seq !== resolveSeq) return
+          if (appIcon !== null) {
+            activeSite.value = candidate
+            faviconSrc.value = appIcon
+            imageSource.value = 'app'
+            return
+          }
+        } catch {
+          // Fall through to official website favicon
+        }
+        const targetHost = hostOf(candidate) ?? canonicalHostForKind(identity.kind)
+        if (targetHost !== null) {
+          try {
+            const dataUrl = await fetchFaviconDataUrl(targetHost)
+            if (seq !== resolveSeq) return
+            if (dataUrl !== null) {
+              activeSite.value = candidate
+              faviconSrc.value = dataUrl
+              imageSource.value = 'favicon'
+              return
+            }
+          } catch {
+            // Fall through to drawn SVG mark
+          }
+        }
+        if (seq !== resolveSeq) return
+        activeSite.value = candidate
+        faviconSrc.value = null
+        imageSource.value = null
+        return
+      }
+
+      // 3. Brand WITH a crisp bundled image.
       if (identity.kind !== 'generic') {
         if (seq !== resolveSeq) return
         activeSite.value = candidate
         faviconSrc.value = null
+        imageSource.value = null
         return
       }
 
-      // 3. Installed desktop application icon (e.g. "Microsoft Edge", "Clash Verge")
+      // 4. Generic explicit website domain.
+      if (explicitDomain) {
+        try {
+          const dataUrl = await fetchFaviconDataUrl(candidate)
+          if (seq !== resolveSeq) return
+          if (dataUrl !== null) {
+            activeSite.value = candidate
+            faviconSrc.value = dataUrl
+            imageSource.value = 'favicon'
+            return
+          }
+        } catch {
+          // Fall through to next candidate
+        }
+        continue
+      }
+
+      // 5. Generic desktop application or bare site name: try installed app
+      // icon first, then curated known-site favicon (no blind `.com` guessing).
       try {
         const appIcon = await matchInstalledAppIcon(candidate)
         if (seq !== resolveSeq) return
         if (appIcon !== null) {
           activeSite.value = candidate
           faviconSrc.value = appIcon
+          imageSource.value = 'app'
           return
         }
       } catch {
-        // Fall through to favicon
+        // Fall through to known-site favicon
       }
 
-      // 4. Network favicon
       if (hostOf(candidate) !== null) {
         try {
           const dataUrl = await fetchFaviconDataUrl(candidate)
@@ -172,6 +315,7 @@ watch(
           if (dataUrl !== null) {
             activeSite.value = candidate
             faviconSrc.value = dataUrl
+            imageSource.value = 'favicon'
             return
           }
         } catch {
@@ -184,15 +328,18 @@ watch(
     if (seq !== resolveSeq) return
     activeSite.value = sites[0]
     faviconSrc.value = null
+    imageSource.value = null
   },
   { immediate: true, deep: true },
 )
 
-// A resolved favicon (network or installed-app) wins over the brand mark; the
-// bundled brand image renders only when no favicon was resolved. A src that
+// A resolved image (installed-app or network favicon) wins over the brand mark;
+// the bundled brand image renders when no dynamic icon was resolved. A src that
 // already failed to decode stays out of both branches.
 const showFavicon = computed(() => faviconSrc.value !== null && faviconSrc.value !== failedSrc.value)
 const showBrandImage = computed(() => !showFavicon.value && brandImage.value !== null && brandImage.value !== failedSrc.value)
+const isRawIcon = computed(() => showBrandImage.value || (showFavicon.value && imageSource.value === 'app'))
+const isNetworkFavicon = computed(() => showFavicon.value && imageSource.value === 'favicon')
 
 const iconStyle = computed<CSSProperties>(() => ({
   width: `${props.size}px`,
@@ -204,13 +351,28 @@ const iconStyle = computed<CSSProperties>(() => ({
 <template>
   <span
     class="app-site-icon"
-    :class="[`app-site-icon--${activeIdentity.kind}`, { 'is-raw': showBrandImage }]"
+    :class="[
+      `app-site-icon--${activeIdentity.kind}`,
+      {
+        'is-raw': isRawIcon,
+        'is-favicon': isNetworkFavicon,
+        'is-dark-mono': isNetworkFavicon && faviconDarkInvert,
+      },
+    ]"
     :style="iconStyle"
     role="img"
     :aria-label="activeIdentity.label"
     :title="activeIdentity.label"
   >
-    <img v-if="showFavicon" class="app-site-icon__favicon" :src="faviconSrc!" alt="" draggable="false" @error="failedSrc = faviconSrc">
+    <img
+      v-if="showFavicon"
+      class="app-site-icon__favicon"
+      :src="faviconSrc!"
+      alt=""
+      draggable="false"
+      @load="onFaviconLoad"
+      @error="failedSrc = faviconSrc"
+    >
 
     <img v-else-if="showBrandImage" class="app-site-icon__favicon" :src="brandImage!" alt="" draggable="false" @error="failedSrc = brandImage">
 
@@ -322,6 +484,7 @@ const iconStyle = computed<CSSProperties>(() => ({
   position: relative;
   display: inline-grid;
   flex: none;
+  box-sizing: border-box;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--dg-timeline-card-border) 86%, transparent);
   border-radius: 5px;
@@ -335,11 +498,31 @@ const iconStyle = computed<CSSProperties>(() => ({
   border: none;
   background: transparent;
   box-shadow: none;
-  border-radius: 2px;
+  border-radius: 3px;
+}
+
+.app-site-icon.is-favicon {
+  padding: 1.5px;
+  border-color: color-mix(in srgb, var(--dg-timeline-card-border) 72%, transparent);
+  background: color-mix(in srgb, var(--dg-surface) 94%, var(--dg-track-fill));
+  box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-dg-appearance='dark'] .app-site-icon.is-favicon {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+/* Monochrome black brand marks (bundled GitHub/ChatGPT and detected dark-mono network favicons) vanish on dark surfaces. */
+:root[data-dg-appearance='dark'] .app-site-icon--github.is-raw .app-site-icon__favicon,
+:root[data-dg-appearance='dark'] .app-site-icon--chatgpt.is-raw .app-site-icon__favicon,
+:root[data-dg-appearance='dark'] .app-site-icon.is-dark-mono .app-site-icon__favicon {
+  filter: invert(1) brightness(0.95);
 }
 
 .app-site-icon svg { width: 100%; height: 100%; }
-.app-site-icon__favicon { width: 100%; height: 100%; object-fit: cover; }
+.app-site-icon__favicon { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
 .app-site-icon--daygo { background: #4b79a6; color: white; }
 .app-site-icon--google-docs { background: #4285f4; color: white; }
 .app-site-icon--discord { background: #5865f2; color: white; }

@@ -82,8 +82,9 @@ const providerMissing = computed(() => !activeConversation.value?.providerId)
   flex-wrap: wrap;
   gap: 10px;
   flex: none;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--dg-card-border);
+  padding: 2px 0 0;
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 
 .context-bar__group {

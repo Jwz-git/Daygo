@@ -342,6 +342,15 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
           @select="emit('select', $event)"
         />
 
+        <div
+          v-if="nowPosition !== null"
+          class="now-line"
+          :style="{ top: `${nowPosition}px` }"
+          aria-hidden="true"
+        >
+          <span class="now-line__dot" />
+        </div>
+
         <GeneratingCard
           v-if="props.generating !== 'off' && nowPosition !== null"
           :state="props.generating"
@@ -353,7 +362,7 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
           :style="{
             top: `${nowPosition + 6}px`,
             right: '14px',
-            left: '2px',
+            left: '8px',
             position: 'absolute',
           }"
         />
@@ -396,16 +405,18 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
 }
 
 .hour-mark time {
-  padding-right: 14px;
+  padding-right: 12px;
   color: var(--dg-text-tertiary);
-  font-size: 11px;
+  font-size: 10.5px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
+  opacity: 0.86;
 }
 
 .hour-mark span {
-  border-top: 1px solid var(--dg-timeline-grid);
+  border-top: 1px solid color-mix(in srgb, var(--dg-timeline-grid) 64%, transparent);
 }
 
 /* Gutter marker: a 4px dashed line per lane with round-ended dashes (a
@@ -443,19 +454,19 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
   right: 0;
   bottom: 0;
   left: var(--dg-timeline-time-width);
-  border-left: 1px solid var(--dg-timeline-grid-strong);
+  border-left: 1px solid color-mix(in srgb, var(--dg-timeline-grid-strong) 78%, transparent);
 }
 
 .range {
   position: absolute;
   z-index: 2;
-  /* Tracks the single-lane activity-card edge: 2px left + (100% - 12px) lane span - 4px card inset. */
+  /* Tracks the activity-card horizontal inset: 8px air off the time axis, 14px right margin. */
   right: 14px;
-  left: 2px;
+  left: 8px;
   display: flex;
   align-items: center;
   min-height: 34px;
-  padding: 8px 12px;
+  padding: 7px 13px 7px 16px;
   overflow: hidden;
   font-size: 11px;
 }
@@ -473,20 +484,45 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
 .range--failure {
   justify-content: space-between;
   gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--dg-danger) 34%, transparent);
-  background: var(--dg-danger-fill);
+  border: 1px solid color-mix(in srgb, var(--dg-danger) 30%, var(--dg-timeline-card-border));
+  border-radius: 9px;
+  background: linear-gradient(
+    102deg,
+    color-mix(in srgb, var(--dg-danger) 14%, var(--dg-timeline-card-surface)) 0%,
+    color-mix(in srgb, var(--dg-danger) 5%, var(--dg-timeline-card-surface)) 100%
+  );
+  box-shadow: var(--dg-timeline-card-shadow);
   color: var(--dg-danger);
   cursor: pointer;
   text-align: left;
   transition:
-    border-color var(--dg-motion-base) ease-in-out,
-    background var(--dg-motion-base) ease-in-out,
-    transform var(--dg-motion-base) ease-in-out;
+    border-color var(--dg-motion-base) ease-out,
+    background var(--dg-motion-base) ease-out,
+    box-shadow var(--dg-motion-base) var(--dg-ease-out),
+    transform 160ms var(--dg-ease-out);
+}
+
+.range--failure::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 6px;
+  width: 3.5px;
+  border-radius: 99px;
+  background: var(--dg-danger);
 }
 
 .range--failure:hover {
-  border-color: color-mix(in srgb, var(--dg-danger) 55%, transparent);
-  background: color-mix(in srgb, var(--dg-danger) 12%, var(--dg-danger-fill));
+  z-index: 5;
+  border-color: color-mix(in srgb, var(--dg-danger) 54%, var(--dg-timeline-card-border));
+  background: linear-gradient(
+    102deg,
+    color-mix(in srgb, var(--dg-danger) 20%, var(--dg-timeline-card-surface-hover)) 0%,
+    color-mix(in srgb, var(--dg-danger) 9%, var(--dg-timeline-card-surface-hover)) 100%
+  );
+  box-shadow: var(--dg-timeline-card-shadow-hover);
+  transform: translateY(-1px);
 }
 
 .range--failure:focus-visible {
@@ -495,13 +531,16 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
 }
 
 .range--failure.is-selected {
-  border-color: color-mix(in srgb, var(--dg-danger) 65%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dg-danger) 25%, transparent);
+  z-index: 4;
+  border-color: color-mix(in srgb, var(--dg-danger) 68%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--dg-danger) 24%, transparent),
+    0 3px 12px color-mix(in srgb, var(--dg-danger) 16%, transparent);
 }
 
 .range--failure:active {
   box-shadow: inset 0 1px 3px rgba(20, 16, 25, 0.1);
-  transform: scale(0.985);
+  transform: translateY(0);
 }
 
 .range__copy { display: flex; min-width: 0; flex-direction: column; }
@@ -512,6 +551,39 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
   color: var(--dg-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.now-line {
+  position: absolute;
+  right: 14px;
+  left: 0;
+  z-index: 4;
+  height: 1.5px;
+  background: linear-gradient(90deg, var(--dg-accent) 0%, color-mix(in srgb, var(--dg-accent) 30%, transparent) 100%);
+  transform: translateY(-0.75px);
+  pointer-events: none;
+}
+
+.now-line__dot {
+  position: absolute;
+  top: 50%;
+  left: -3.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dg-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dg-accent) 24%, transparent);
+  transform: translateY(-50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .range--failure {
+    transition: none;
+  }
+
+  .range--failure:hover {
+    transform: none;
+  }
 }
 
 </style>

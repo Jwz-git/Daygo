@@ -37,28 +37,63 @@ const CELLS = Array.from({ length: 9 }, (_, index) => ({ index, delay: ((index %
 
 <style scoped>
 .gen-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 26px;
-  padding: 0 12px;
+  min-height: 28px;
+  padding: 0 13px;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: 9px;
   background: var(--dg-status-generating), var(--dg-surface);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 2px 10px rgba(50, 118, 224, 0.14);
   color: var(--dg-status-generating-text);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
+  transition: box-shadow var(--dg-motion-base) ease-out, filter var(--dg-motion-fast) ease-out;
+}
+
+.gen-card:not(.is-paused)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 24%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 76%
+  );
+  transform: translateX(-100%);
+  animation: gen-sheen 2.8s ease-in-out infinite;
+}
+
+.gen-card.is-window-hidden:not(.is-paused)::after {
+  animation-play-state: paused;
+}
+
+@keyframes gen-sheen {
+  0% { transform: translateX(-100%); }
+  55%, 100% { transform: translateX(100%); }
 }
 
 .gen-card.is-paused {
-  gap: 10px;
-  /* Dayflow strokes only the paused card: cardBorder at 60%, 0.5pt. */
-  box-shadow: inset 0 0 0 0.5px var(--dg-status-paused-border);
+  gap: 9px;
+  /* Dayflow strokes only the paused card, lifted with a soft top specular edge. */
+  box-shadow:
+    inset 0 0 0 1px var(--dg-status-paused-border),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
   background: var(--dg-status-paused), var(--dg-surface);
   color: var(--dg-status-paused-text);
-  font-weight: 400;
+  font-weight: 500;
+}
+
+.gen-card.is-paused:hover {
+  filter: brightness(1.03);
 }
 
 .gen-card__text {
@@ -100,6 +135,8 @@ const CELLS = Array.from({ length: 9 }, (_, index) => ({ index, delay: ((index %
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .gen-card { transition: none; }
+  .gen-card:not(.is-paused)::after { display: none; }
   .gen-card__spinner i { animation: none; background: #b884bc; }
 }
 </style>

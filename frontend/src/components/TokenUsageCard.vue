@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, ref, toRef, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DgSelect, { type DgSelectOption } from '@/components/DgSelect.vue'
 import { useTokenUsage } from '@/stores/tokenUsage'
@@ -11,6 +11,7 @@ import WeeklyChartTooltip from '@/views/Weekly/charts/WeeklyChartTooltip.vue'
 
 const props = defineProps<{ period: 'day' | 'week'; day: string }>()
 const { t, locale } = useI18n()
+const gradPrefix = `tok-${useId()}`
 const { usage, state, reload } = useTokenUsage(props.period, toRef(props, 'day'))
 type ChartKind = 'line' | 'bar' | 'pie'
 const kind = ref<ChartKind>('line')
@@ -25,6 +26,12 @@ const input = computed(() => tokenUsagePoints(buckets.value, 'inputTokens'))
 const output = computed(() => tokenUsagePoints(buckets.value, 'outputTokens'))
 const max = computed(() => Math.max(1, ...buckets.value.map(b => Math.max(b.inputTokens, b.outputTokens))))
 const path = (points: { x: number; y: number }[]) => points.map(p => `${p.x},${p.y}`).join(' ')
+const areaPath = (points: { x: number; y: number }[]) => {
+  if (points.length === 0) return ''
+  const first = points[0]!
+  const last = points[points.length - 1]!
+  return `M${first.x},210 ` + points.map(p => `L${p.x},${p.y}`).join(' ') + ` L${last.x},210 Z`
+}
 const number = (value: number) => new Intl.NumberFormat(locale.value).format(value)
 const formatter = computed(() => tokenUsageFormatter(locale.value, props.period, usage.value?.timeZone))
 const label = (ts: number) => formatter.value.format(new Date(ts * 1000))
@@ -51,10 +58,16 @@ function hover(event: PointerEvent): void {
 }
 watch([kind, buckets], leave)
 
-const pie = computed(() => {
+const RING_R = 68
+const RING_C = 2 * Math.PI * RING_R
+const ringInput = computed(() => {
   const total = totals.value.input + totals.value.output
-  const angle = total ? totals.value.input / total * 360 : 0
-  return { background: `conic-gradient(var(--dg-accent-text) 0deg ${angle}deg, #6b8e9a ${angle}deg 360deg)` }
+  return total > 0 ? (totals.value.input / total) * RING_C : 0
+})
+const ringOutput = computed(() => Math.max(0, RING_C - ringInput.value))
+const inputShare = computed(() => {
+  const total = totals.value.input + totals.value.output
+  return total > 0 ? Math.round((totals.value.input / total) * 100) : 0
 })
 </script>
 
@@ -77,16 +90,51 @@ const pie = computed(() => {
       <p v-if="!totals.calls" class="empty">{{ t('tokenUsage.empty') }}</p>
       <p v-else-if="totals.input + totals.output === 0" class="empty">{{ t('tokenUsage.noReported') }}</p>
       <div v-else-if="kind === 'pie'" class="pie-row">
-        <div class="pie" :style="pie" role="img" :aria-label="t('tokenUsage.pieLabel', { input: number(totals.input), output: number(totals.output) })" />
+        <div class="pie-ring" role="img" :aria-label="t('tokenUsage.pieLabel', { input: number(totals.input), output: number(totals.output) })">
+          <svg viewBox="0 0 180 180" aria-hidden="true">
+            <circle cx="90" cy="90" :r="RING_R" class="pie-ring__track" />
+            <circle
+              cx="90"
+              cy="90"
+              :r="RING_R"
+              class="pie-ring__seg pie-ring__seg--input"
+              :stroke-dasharray="`${ringInput} ${RING_C}`"
+            />
+            <circle
+              cx="90"
+              cy="90"
+              :r="RING_R"
+              class="pie-ring__seg pie-ring__seg--output"
+              :stroke-dasharray="`${ringOutput} ${RING_C}`"
+              :stroke-dashoffset="-ringInput"
+            />
+          </svg>
+          <div class="pie-ring__center">
+            <strong>{{ number(totals.input + totals.output) }}</strong>
+            <span>{{ inputShare }}% / {{ 100 - inputShare }}%</span>
+          </div>
+        </div>
         <p>{{ t('tokenUsage.composition') }}</p>
       </div>
       <div v-else ref="container" class="chart-area">
         <svg class="chart" viewBox="0 0 780 250" role="img" :aria-label="t('tokenUsage.title')" @pointermove="hover" @pointerleave="leave" @pointercancel="leave">
+          <defs>
+            <linearGradient :id="`${gradPrefix}-in`" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" class="input-stop-top" />
+              <stop offset="100%" class="input-stop-bottom" />
+            </linearGradient>
+            <linearGradient :id="`${gradPrefix}-out`" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" class="output-stop-top" />
+              <stop offset="100%" class="output-stop-bottom" />
+            </linearGradient>
+          </defs>
           <g v-for="tick in [0, 0.5, 1]" :key="tick">
             <line x1="52" x2="748" :y1="210 - tick * 170" :y2="210 - tick * 170" class="grid" />
             <text x="44" :y="214 - tick * 170" text-anchor="end">{{ number(Math.round(max * tick)) }}</text>
           </g>
           <template v-if="kind === 'line'">
+            <path :d="areaPath(input)" :fill="`url(#${gradPrefix}-in)`" />
+            <path :d="areaPath(output)" :fill="`url(#${gradPrefix}-out)`" />
             <polyline :points="path(input)" class="input-line" />
             <polyline :points="path(output)" class="output-line" />
           </template>
@@ -124,26 +172,61 @@ const pie = computed(() => {
 </template>
 
 <style scoped>
-.token-card { background: var(--dg-wk-card-fill); border: 1px solid var(--dg-wk-divider); border-radius: 4px; padding: 24px; color: var(--dg-text-primary); }
+.token-card {
+  background: var(--dg-wk-card-fill);
+  border: 1px solid var(--dg-wk-card-border);
+  border-radius: var(--dg-card-radius);
+  box-shadow: var(--dg-card-shadow);
+  padding: 20px 22px;
+  color: var(--dg-text-primary);
+}
 header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
-h2 { font-family: var(--dg-font-serif); font-size: 23px; font-weight: 400; }
-p { color: var(--dg-text-muted); font-size: 12px; line-height: 1.6; margin-top: 8px; }
+h2 {
+  color: var(--dg-wk-title);
+  font-family: var(--dg-font-page-title);
+  font-size: 20px;
+  font-weight: var(--dg-page-title-weight);
+  line-height: 1.25;
+}
+p { color: var(--dg-text-muted); font-size: 12px; line-height: 1.6; margin-top: 6px; }
 .kind-select { flex: none; width: 132px; }
-.totals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 18px; margin-top: 24px; font-size: 12px; }
-.totals strong { font-size: 30px; font-weight: 500; }
-.input { color: var(--dg-accent-text); } .output { color: #6b8e9a; }
+.totals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 18px; margin-top: 20px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.totals strong { font-size: 28px; font-weight: 600; }
+.input { color: var(--dg-accent-text); } .output { color: var(--dg-token-output); }
 .chart-area { position: relative; min-width: 0; }
 .hover-marker { pointer-events: none; }
-.hover-line { stroke: var(--dg-text-tertiary); stroke-width: 1; }
-.hover-point { stroke: var(--dg-wk-card-fill); stroke-width: 2; }
+.hover-line { stroke: var(--dg-text-tertiary); stroke-width: 1; stroke-dasharray: 3 3; }
+.hover-point { stroke: var(--dg-surface); stroke-width: 2; }
 .chart { width: 100%; min-height: 180px; margin-top: 12px; overflow: visible; }
-.chart text { fill: var(--dg-text-muted); font-size: 11px; }
+.chart text { fill: var(--dg-text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .grid { stroke: var(--dg-wk-divider); }
-.input-line, .output-line { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
-.input-line { stroke: var(--dg-accent-text); } .output-line { stroke: #6b8e9a; stroke-dasharray: 5 4; }
-.input-fill { fill: var(--dg-accent-text); } .output-fill { fill: #6b8e9a; }
-.pie-row { display: flex; align-items: center; justify-content: center; gap: 30px; padding: 28px; }
-.pie { width: 180px; height: 180px; border-radius: 50%; flex-shrink: 0; }
+.input-stop-top { stop-color: var(--dg-accent-text); stop-opacity: 0.2; }
+.input-stop-bottom { stop-color: var(--dg-accent-text); stop-opacity: 0; }
+.output-stop-top { stop-color: var(--dg-token-output); stop-opacity: 0.16; }
+.output-stop-bottom { stop-color: var(--dg-token-output); stop-opacity: 0; }
+.input-line, .output-line { fill: none; stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.input-line { stroke: var(--dg-accent-text); } .output-line { stroke: var(--dg-token-output); stroke-dasharray: 5 4; }
+.input-fill { fill: var(--dg-accent-text); } .output-fill { fill: var(--dg-token-output); }
+.pie-row { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 24px 16px; }
+.pie-ring { position: relative; width: 176px; height: 176px; flex-shrink: 0; }
+.pie-ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.pie-ring__track { fill: none; stroke: var(--dg-wk-divider); stroke-width: 18; }
+.pie-ring__seg { fill: none; stroke-width: 18; transition: stroke-dasharray var(--dg-motion-slow) var(--dg-ease-glide); }
+.pie-ring__seg--input { stroke: var(--dg-accent-text); }
+.pie-ring__seg--output { stroke: var(--dg-token-output); }
+.pie-ring__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.pie-ring__center strong { font-size: 16px; font-weight: 650; color: var(--dg-text-primary); }
+.pie-ring__center span { font-size: 11px; color: var(--dg-text-muted); }
 .empty { padding: 32px 0; text-align: center; }
 .note { font-size: 11px; }
 @media (max-width: 600px) { .token-card { padding: 16px; } .pie-row { flex-direction: column; } }

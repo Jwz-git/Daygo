@@ -23,9 +23,9 @@
   --dg-titlebar-border: rgba(255, 255, 255, 0.07);
   --dg-window-gradient: linear-gradient(75deg, rgb(48, 60, 91) 21%, rgb(49, 51, 72) 53%, rgb(59, 41, 75) 105%);
 
-  --dg-panel-fill: linear-gradient(140deg, rgba(39, 41, 58, 0.8) 9%, rgba(32, 39, 51, 0.8) 80%);
-  --dg-panel-border: #414141;
-  --dg-panel-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
+  --dg-panel-fill: linear-gradient(140deg, rgba(39, 41, 58, 0.82) 9%, rgba(30, 35, 48, 0.84) 80%);
+  --dg-panel-border: rgba(255, 255, 255, 0.1);
+  --dg-panel-shadow: 0 12px 36px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   /* Same role as in the light palette: the raised surface behind content,
      kept a step above the glass panels so it still reads as lifted. */
   --dg-surface: #272a3c;
@@ -34,30 +34,34 @@
    * Liquid-glass surfaces (.dg-panel, the rail selection, popovers). Colour
    * half only — blur and saturation are geometry and stay in tokens.light.css.
    */
-  --dg-glass-tint: rgba(39, 41, 58, 0.8);
+  --dg-glass-tint: rgba(39, 41, 58, 0.82);
   --dg-glass-fallback: #272a3c;
-  --dg-glass-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
-  --dg-glass-sheen: none;
+  --dg-glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --dg-glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 24%);
+  --dg-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.36);
+  --dg-shadow-lg: 0 22px 54px rgba(0, 0, 0, 0.56), 0 4px 14px rgba(0, 0, 0, 0.32);
 
-  --dg-text-primary: #ffffff;
-  --dg-text-secondary: #dddddd;
-  --dg-text-tertiary: #b3b3b3;
-  --dg-text-muted: #b4b4b4;
+  --dg-text-primary: #f5f5f7;
+  --dg-text-secondary: #d6d5de;
+  --dg-text-tertiary: #b3b2be;
+  --dg-text-muted: #9d9ca8;
 
   --dg-accent: #f3854b;
   --dg-accent-strong: #f77952;
-  --dg-accent-text: #f77952;
-  --dg-focus-ring: rgba(243, 133, 75, 0.38);
-  --dg-control-fill: rgba(226, 160, 121, 0.4);
-  --dg-control-fill-hover: rgba(226, 160, 121, 0.52);
-  --dg-nav-active-fill: linear-gradient(180deg, rgba(116, 114, 255, 0.3), rgba(167, 167, 167, 0.05));
+  --dg-accent-text: #ff9466;
+  --dg-accent-bg: rgba(243, 133, 75, 0.18);
+  --dg-focus-ring: rgba(243, 133, 75, 0.4);
+  --dg-control-fill: rgba(226, 160, 121, 0.32);
+  --dg-control-fill-hover: rgba(226, 160, 121, 0.44);
+  --dg-nav-active-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
   --dg-nav-active-text: #ffffff;
-  --dg-nav-active-shadow: inset 0 0 6px rgba(255, 255, 255, 0.2), 0 0 0 0.6px #848484;
+  --dg-nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 4px rgba(0, 0, 0, 0.24);
   --dg-danger: #ff7053;
   --dg-success: #46a758;
   --dg-plan-done: #34d27a;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
   --dg-warning: #e3b25e;
+  --dg-token-output: #7fb3c4;
 
   --dg-hover-fill: rgba(255, 255, 255, 0.06);
   --dg-hover-fill-strong: rgba(255, 255, 255, 0.1);
@@ -71,9 +75,9 @@
   --dg-capsule-selected-text: #1c1c1e;
   --dg-segment-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
 
-  --dg-input-fill: rgba(255, 255, 255, 0.1);
-  --dg-input-fill-hover: rgba(255, 255, 255, 0.14);
-  --dg-input-border: #666666;
+  --dg-input-fill: rgba(255, 255, 255, 0.08);
+  --dg-input-fill-hover: rgba(255, 255, 255, 0.12);
+  --dg-input-border: rgba(255, 255, 255, 0.14);
   --dg-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' stroke='%23a7a5af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 
   /* switch; the white knob and its checkmark sibling token are
@@ -84,45 +88,56 @@
   /* a white thumb would swallow the light label text, so dark lifts one step */
   --dg-segment-thumb: #4a4852;
 
-  --dg-chip-fill: rgba(255, 255, 255, 0.15);
-  --dg-chip-border: #888888;
-  --dg-chip-text: #ffffff;
+  --dg-chip-fill: rgba(255, 255, 255, 0.1);
+  --dg-chip-border: rgba(255, 255, 255, 0.15);
+  --dg-chip-text: #f5f5f7;
 
-  --dg-button-primary-fill: #d1653e;
-  --dg-button-primary-hover: #dc7048;
-  --dg-button-primary-border: #ea9265;
+  --dg-button-primary-fill: #d86535;
+  --dg-button-primary-hover: #e37242;
+  --dg-button-primary-border: #e8895e;
   --dg-button-primary-text: #ffffff;
-  --dg-button-primary-shadow: inset 0 0 6px rgba(255, 135, 77, 0.9), 0 0 0 1px #ea9265;
-  --dg-button-secondary-fill: rgba(104, 109, 138, 0.4);
-  --dg-button-secondary-hover: rgba(104, 109, 138, 0.55);
-  --dg-button-secondary-border: #777777;
-  --dg-button-secondary-text: #dddddd;
+  --dg-button-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --dg-button-secondary-fill: rgba(255, 255, 255, 0.08);
+  --dg-button-secondary-hover: rgba(255, 255, 255, 0.13);
+  --dg-button-secondary-border: rgba(255, 255, 255, 0.14);
+  --dg-button-secondary-text: #e0dfe8;
 
-  --dg-danger-fill: rgba(255, 89, 80, 0.22);
+  --dg-danger-fill: rgba(255, 89, 80, 0.2);
   --dg-danger-text: #ff8589;
   --dg-accent-fill: rgba(75, 141, 240, 0.16);
 
-  --dg-rail-selection-fill: linear-gradient(180deg, rgba(116, 114, 255, 0.3), rgba(167, 167, 167, 0.05));
-  --dg-rail-selection-border: #848484;
-  --dg-rail-selection-shadow: inset 0 0 6px rgba(255, 255, 255, 0.2);
-  --dg-popover-fill: rgba(39, 41, 58, 0.92);
-  --dg-popover-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 0 0 1px #585858;
+  --dg-rail-selection-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.07));
+  --dg-rail-selection-border: rgba(255, 255, 255, 0.16);
+  --dg-rail-selection-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 6px rgba(0, 0, 0, 0.24);
+  --dg-popover-fill: rgba(34, 37, 52, 0.94);
+  --dg-popover-shadow: 0 18px 44px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(255, 255, 255, 0.12);
 
-  --dg-card-fill: rgba(255, 255, 255, 0.12);
-  --dg-card-border: #717171;
-  --dg-card-shadow: inset 0 0 6px rgba(255, 255, 255, 0.12);
-  --dg-card-time: #888693;
+  --dg-card-fill: rgba(255, 255, 255, 0.065);
+  --dg-card-border: rgba(255, 255, 255, 0.09);
+  --dg-card-shadow: 0 2px 12px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --dg-card-time: #9896a4;
 
-  --dg-timeline-grid: rgba(255, 255, 255, 0.18);
-  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.24);
-  --dg-timeline-card-fill: #232329;
-  --dg-timeline-card-hover: #2b2b33;
-  --dg-timeline-card-selected: #26304a;
-  --dg-timeline-card-border: rgba(255, 255, 255, 0.09);
-  --dg-timeline-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  --dg-timeline-card-shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.24),
+  --dg-timeline-grid: rgba(255, 255, 255, 0.1);
+  --dg-timeline-grid-strong: rgba(255, 255, 255, 0.16);
+  --dg-timeline-card-fill: #262837;
+  --dg-timeline-card-hover: #2e3144;
+  --dg-timeline-card-selected: #30354f;
+  --dg-timeline-card-surface: rgba(36, 39, 54, 0.88);
+  --dg-timeline-card-surface-hover: rgba(45, 49, 68, 0.95);
+  --dg-timeline-card-surface-selected: rgba(48, 53, 78, 0.97);
+  --dg-timeline-card-border: rgba(255, 255, 255, 0.1);
+  --dg-timeline-card-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.09);
-  --dg-timeline-inspector-fill: rgba(102, 108, 161, 0.18);
+  --dg-timeline-card-shadow-hover:
+    0 10px 26px rgba(0, 0, 0, 0.44),
+    0 2px 6px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --dg-timeline-card-idle-fill: rgba(255, 255, 255, 0.03);
+  --dg-timeline-card-idle-hover: rgba(255, 255, 255, 0.07);
+  --dg-timeline-card-idle-hatch: rgba(255, 255, 255, 0.038);
+  --dg-timeline-card-idle-border: rgba(255, 255, 255, 0.12);
+  --dg-timeline-inspector-fill: rgba(34, 37, 54, 0.72);
   --dg-inspector-tile-fill: rgba(255, 255, 255, 0.05);
   --dg-inspector-tile-border: rgba(255, 255, 255, 0.07);
   --dg-goal-focus: #3362e3;
@@ -147,12 +162,12 @@
   --dg-status-paused-text: #dddddd;
   --dg-status-paused-border: rgba(153, 153, 153, 0.6);
 
-  --dg-daily-grid-line: #4e4e4e;
-  --dg-daily-cell-empty: rgba(255, 255, 255, 0.08);
+  --dg-daily-grid-line: rgba(255, 255, 255, 0.1);
+  --dg-daily-cell-empty: rgba(255, 255, 255, 0.07);
   --dg-daily-cell-border: transparent;
   --dg-daily-distraction: #ff8278;
-  --dg-daily-distraction-track: rgba(0, 0, 0, 0.2);
-  --dg-daily-footer-fill: rgba(171, 168, 185, 0.2);
+  --dg-daily-distraction-track: rgba(0, 0, 0, 0.22);
+  --dg-daily-footer-fill: rgba(255, 255, 255, 0.04);
   /* weekly daily-timeline lane: recessed groove, hairline between abutting
      runs of different categories, and the quiet idle hatch. */
   --dg-daily-track-groove: inset 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.03);
@@ -160,14 +175,14 @@
   --dg-daily-idle-fill: rgba(199, 199, 204, 0.10);
   --dg-daily-idle-line: rgba(199, 199, 204, 0.34);
 
-  --dg-wk-card-fill: rgba(127, 122, 148, 0.1);
-  --dg-wk-card-border: #4e4e4e;
+  --dg-wk-card-fill: rgba(255, 255, 255, 0.05);
+  --dg-wk-card-border: rgba(255, 255, 255, 0.09);
   --dg-wk-title: #ff9a64;
-  --dg-wk-text: #ffffff;
-  --dg-wk-text-secondary: #dddddd;
-  --dg-wk-text-muted: #b4b4b4;
-  --dg-wk-footer: rgba(127, 122, 148, 0.1);
-  --dg-wk-divider: #4e4e4e;
+  --dg-wk-text: #f5f5f7;
+  --dg-wk-text-secondary: #d6d5de;
+  --dg-wk-text-muted: #9d9ca8;
+  --dg-wk-footer: rgba(255, 255, 255, 0.035);
+  --dg-wk-divider: rgba(255, 255, 255, 0.09);
   --dg-wk-axis: #dddddd;
   --dg-wk-axis-soft: rgba(255, 255, 255, 0.25);
   --dg-wk-empty-cell: rgba(255, 255, 255, 0.08);

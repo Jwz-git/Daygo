@@ -3,7 +3,6 @@ import DgIcon from '@/components/DgIcon.vue'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import LiquidGlassSurface from '@/components/LiquidGlassSurface.vue'
 import { useChatStore } from '@/stores/chat'
 
 import ChatComposer from './ChatComposer.vue'
@@ -93,11 +92,10 @@ onBeforeUnmount(() => store.stopListening())
       <button class="dg-button" @click="store.hydrate">{{ t('chat.retry') }}</button>
     </div>
 
-    <!-- Main layout — the glass panel is the entire right column; the drawer
-         toggle moves inside the panel head so there's no outer titlebar
-         competing with the panel's own frame. -->
+    <!-- Main layout — sits directly inside AppShell's .dg-panel so there is
+         no nested glass frame competing with the shell's own border. -->
     <div v-else class="layout">
-      <LiquidGlassSurface intensity="glass" class="panel">
+      <div class="chat-surface">
         <!-- Context bar + drawer toggle live at the top of the panel -->
         <div v-if="store.activeConversation !== null" class="panel__head">
           <div class="panel__headRow">
@@ -137,7 +135,7 @@ onBeforeUnmount(() => store.stopListening())
         <div v-if="store.activeConversation !== null" class="panel__foot">
           <ChatComposer ref="composer" @error="actionError = $event" />
         </div>
-      </LiquidGlassSurface>
+      </div>
     </div>
 
     <!-- Drawer -->
@@ -199,27 +197,25 @@ onBeforeUnmount(() => store.stopListening())
   padding: 0;
 }
 
-/* ---- glass panel ---- */
+/* ---- chat surface ---- */
 
-.panel {
+.chat-surface {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  /* Match the shell panel's corner so the covered frame never peeks
-     through at the corners. */
-  border-radius: var(--dg-panel-radius);
-  padding: 0 16px;
 }
 
 .panel__head {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 0 8px;
+  gap: 6px;
+  padding: 18px var(--dg-page-padding) 12px;
   flex: none;
   border-bottom: 1px solid var(--dg-card-border);
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
 }
 
 .panel__headRow {
@@ -232,6 +228,8 @@ onBeforeUnmount(() => store.stopListening())
 .panel__title-wrap {
   flex: 1;
   min-width: 0;
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 
 .panel__body {
@@ -239,12 +237,11 @@ onBeforeUnmount(() => store.stopListening())
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding: 0 4px;
 }
 
 .panel__foot {
   flex: none;
-  padding: 4px 4px 8px;
+  padding: 6px var(--dg-page-padding) 16px;
 }
 
 /* ---- header toggle button (in panel head) ---- */
@@ -252,31 +249,38 @@ onBeforeUnmount(() => store.stopListening())
   width: 32px;
   height: 32px;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--dg-chip-border);
+  border: none;
   border-radius: 8px;
-  background: var(--dg-track-fill);
+  background: transparent;
   color: var(--dg-text-secondary);
   cursor: pointer;
-  transition: background var(--dg-motion-base) ease, color var(--dg-motion-base) ease;
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
+  transition: background var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
 }
 
 .header-toggle:hover {
-  background: var(--dg-control-fill);
+  background: var(--dg-hover-fill-strong);
   color: var(--dg-text-primary);
 }
 
 .header-toggle:focus-visible {
-  outline: 2px solid var(--dg-accent-text);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--dg-focus-ring);
 }
 
 /* ---- narrow viewport ---- */
 
 @media (max-width: 700px) {
-  .panel {
-    padding: 0 8px;
+  .panel__head {
+    padding: 14px 16px 10px;
+  }
+
+  .panel__foot {
+    padding: 6px 16px 12px;
   }
 }
 </style>

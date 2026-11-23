@@ -139,7 +139,7 @@ onBeforeUnmount(() => { mounted = false; weekly.stopListening() })
 
 <style scoped>
 
-.week-meta { color: var(--dg-text-muted); font-size: 10px; white-space: nowrap; }
+.week-meta { color: var(--dg-text-muted); font-size: 11px; white-space: nowrap; }
 
 .weekly-body {
   flex: 1;
@@ -174,11 +174,11 @@ onBeforeUnmount(() => { mounted = false; weekly.stopListening() })
 }
 
 .weekly-intro h2 {
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--dg-text-primary);
-  font-family: var(--dg-font-serif);
-  font-size: 30px;
-  font-weight: 400;
+  font-family: var(--dg-font-page-title);
+  font-size: 28px;
+  font-weight: var(--dg-page-title-weight);
   letter-spacing: 0;
 }
 
@@ -187,7 +187,7 @@ onBeforeUnmount(() => { mounted = false; weekly.stopListening() })
 .weekly-scope-note {
   padding: 0 2px 6px;
   color: var(--dg-text-muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
 }
 

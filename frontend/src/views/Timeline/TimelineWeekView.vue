@@ -220,8 +220,8 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
           :state="generating"
           :style="{
             top: `${generatingMark.top + 4}px`,
-            right: '4px',
-            left: '4px',
+            right: '3px',
+            left: '3px',
             position: 'absolute',
           }"
         />
@@ -236,13 +236,13 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
           :class="{
             'is-selected': card.id === selectedCardId,
             'is-expanded': expandedId === card.id,
+            'is-idle': card.isIdle,
             'is-regenerating': card.regenerating,
           }"
           :style="{
             top: `${card.top}px`,
             height: `${expandedId === card.id ? expandedHeight : card.height}px`,
-            backgroundColor: `color-mix(in srgb, ${card.color} 16%, var(--dg-timeline-card-fill))`,
-            borderLeftColor: card.color,
+            '--week-category': card.color,
           }"
           :title="card.title"
           :aria-busy="card.regenerating"
@@ -251,9 +251,8 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
           @click="emit('selectCard', column.day, card.id)"
         >
           <span class="week__card-head">
-            <span class="week__card-icon-slot">
+            <span v-if="card.sites.length > 0" class="week__card-icon-slot" aria-hidden="true">
               <AppSiteIcon
-                v-if="card.sites.length > 0"
                 :sites="card.sites"
                 :accent="card.color"
                 :size="13"
@@ -363,13 +362,13 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
 
 .week__generating {
   position: absolute;
-  right: 4px;
-  left: 4px;
+  right: 3px;
+  left: 3px;
   display: flex;
   align-items: center;
   overflow: hidden;
   padding: 3px 7px;
-  border-radius: 6px;
+  border-radius: 7px;
   background: linear-gradient(100deg, color-mix(in srgb, var(--dg-accent) 26%, transparent), color-mix(in srgb, #e8804a 20%, transparent));
   color: var(--dg-text-primary);
   font-size: 10px;
@@ -400,9 +399,28 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
 .week__plan-rail.is-open { opacity: 1; transform: scaleX(1.6); }
 
 .week__card {
+  --week-surface-rest: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--week-category) 15%, var(--dg-timeline-card-surface)) 0%,
+    color-mix(in srgb, var(--week-category) 6%, var(--dg-timeline-card-surface)) 100%
+  );
+  --week-surface-hover: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--week-category) 21%, var(--dg-timeline-card-surface-hover)) 0%,
+    color-mix(in srgb, var(--week-category) 10%, var(--dg-timeline-card-surface-hover)) 100%
+  );
+  --week-surface-selected: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--week-category) 26%, var(--dg-timeline-card-surface-selected)) 0%,
+    color-mix(in srgb, var(--week-category) 13%, var(--dg-timeline-card-surface-selected)) 100%
+  );
+  --week-border-rest: color-mix(in srgb, var(--week-category) 24%, var(--dg-timeline-card-border));
+  --week-border-hover: color-mix(in srgb, var(--week-category) 48%, var(--dg-timeline-card-border));
+  --week-border-selected: color-mix(in srgb, var(--week-category) 70%, var(--dg-timeline-card-border));
+
   position: absolute;
-  right: 2px;
-  left: 2px;
+  right: 3px;
+  left: 3px;
   /* Flex column kills the <button>'s built-in vertical centering: content
      hangs from the card top. */
   display: flex;
@@ -411,41 +429,125 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
   justify-content: flex-start;
   overflow: hidden;
   min-height: 34px;
-  padding: 2px 4px;
-  border: 1px solid var(--dg-timeline-card-border);
-  border-left: 5px solid;
-  border-radius: 4px;
-  background: var(--dg-timeline-card-fill);
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--week-border-rest);
+  border-radius: 7px;
+  background: var(--week-surface-rest);
   box-shadow: var(--dg-timeline-card-shadow);
   cursor: pointer;
   text-align: left;
-  /* Only height and shadow animate. left/right must NOT: the hover state
-     widens the box, and an animated width re-wraps the title on every frame
-     of the transition — that continuous re-breaking is what read as jitter. */
+  /* Only height, surface and shadow animate. left/right must NOT: widening
+     re-wraps the title on every frame, which reads as jitter. */
   transition:
     height 320ms var(--dg-ease-glide),
-    box-shadow var(--dg-motion-base) ease;
+    border-color var(--dg-motion-base) ease-out,
+    background var(--dg-motion-base) ease-out,
+    box-shadow var(--dg-motion-base) ease-out;
+}
+
+:root[data-dg-appearance='dark'] .week__card {
+  --week-surface-rest: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--week-category) 22%, var(--dg-timeline-card-surface)) 0%,
+    color-mix(in srgb, var(--week-category) 10%, var(--dg-timeline-card-surface)) 100%
+  );
+  --week-surface-hover: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--week-category) 29%, var(--dg-timeline-card-surface-hover)) 0%,
+    color-mix(in srgb, var(--week-category) 14%, var(--dg-timeline-card-surface-hover)) 100%
+  );
+  --week-surface-selected: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--week-category) 34%, var(--dg-timeline-card-surface-selected)) 0%,
+    color-mix(in srgb, var(--week-category) 18%, var(--dg-timeline-card-surface-selected)) 100%
+  );
+  --week-border-rest: color-mix(in srgb, var(--week-category) 30%, var(--dg-timeline-card-border));
+  --week-border-hover: color-mix(in srgb, var(--week-category) 54%, var(--dg-timeline-card-border));
+  --week-border-selected: color-mix(in srgb, var(--week-category) 74%, var(--dg-timeline-card-border));
+}
+
+.week__card::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 3.5px;
+  width: 3px;
+  border-radius: 99px;
+  background: var(--week-category);
+}
+
+.week__card.is-idle {
+  border-style: dashed;
+  border-color: var(--dg-timeline-card-idle-border);
+  background-color: var(--dg-timeline-card-idle-fill);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    var(--dg-timeline-card-idle-hatch) 6px 7px
+  );
+  box-shadow: none;
+}
+
+.week__card.is-idle::before {
+  opacity: 0.45;
+}
+
+.week__card.is-idle .week__card-text {
+  color: var(--dg-text-muted);
+  font-weight: 500;
 }
 
 /* Hovered: a gentle downward stretch floating above the neighbours. No
    width change, no transform — both jittered or felt exaggerated. */
 .week__card.is-expanded {
   z-index: 6;
-  box-shadow: var(--dg-timeline-card-shadow-hover);
+  border-color: var(--week-border-hover);
+  box-shadow:
+    var(--dg-timeline-card-shadow-hover),
+    0 2px 8px color-mix(in srgb, var(--week-category) 14%, transparent);
 }
 
 .week__card:hover {
-  background: var(--dg-timeline-card-hover);
+  border-color: var(--week-border-hover);
+  background: var(--week-surface-hover);
+}
+
+.week__card.is-idle:not(.is-selected):not(.is-regenerating):hover {
+  border-style: solid;
+  background-color: var(--dg-timeline-card-idle-hover);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    var(--dg-timeline-card-idle-hatch) 6px 7px
+  );
 }
 
 .week__card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring), var(--dg-timeline-card-shadow); }
 
-.week__card.is-selected { background: var(--dg-timeline-card-selected); }
+.week__card.is-selected {
+  z-index: 4;
+  border-style: solid;
+  border-color: var(--week-border-selected);
+  background: var(--week-surface-selected);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--week-category) 24%, transparent),
+    0 2px 10px color-mix(in srgb, var(--week-category) 16%, transparent);
+}
+
+.week__card.is-selected.is-expanded {
+  z-index: 6;
+}
+
+.week__card.is-selected.is-idle .week__card-text {
+  color: var(--dg-text-primary);
+}
 
 /* Same tint as the day track's generating block: a card whose window is being
    analyzed again reads as provisional instead of getting a second box on top
    of it. Declared last so the hover/selection shorthand above cannot drop it. */
 .week__card.is-regenerating {
+  border-style: solid;
   background-image: linear-gradient(
     100deg,
     color-mix(in srgb, var(--dg-accent) 20%, transparent),
@@ -462,9 +564,9 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
 .week__card-icon-slot {
   flex: none;
   width: 13px;
-  /* Matches the title's first line (13px x 1.4 ≈ 18px) so the icon centers
+  /* Matches the title's first line (11px x 1.4 ≈ 15.4px) so the icon centers
      on the text's center line instead of hugging the top. */
-  height: 17px;
+  height: 16px;
   display: grid;
   place-items: center;
 }
@@ -482,8 +584,27 @@ useVisibleInterval(() => { nowTs.value = Math.floor(Date.now() / 1000) }, 15_000
   overflow: hidden;
   color: var(--dg-text-primary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .week__card {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .week__card,
+  .week__card.is-idle {
+    border: 1px solid ButtonText;
+    background: Canvas;
+    box-shadow: none;
+  }
+
+  .week__card.is-selected {
+    border-color: Highlight;
+  }
 }
 </style>

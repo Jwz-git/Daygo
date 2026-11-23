@@ -106,11 +106,13 @@ function scoreLabel(score: number): string {
 
 <template>
   <WeeklyChartCard :title="t('weekly.charts.heatmap.title')">
-    <div class="hm__legend" aria-hidden="true">
-      <span>{{ t('weekly.charts.heatmap.focused') }}</span>
-      <i class="hm__legend-bar"></i>
-      <span>{{ t('weekly.charts.heatmap.distracted') }}</span>
-    </div>
+    <template #header-extra>
+      <div class="hm__legend" aria-hidden="true">
+        <span>{{ t('weekly.charts.heatmap.focused') }}</span>
+        <i class="hm__legend-bar"></i>
+        <span>{{ t('weekly.charts.heatmap.distracted') }}</span>
+      </div>
+    </template>
     <div
       :ref="(el) => { pointer.container.value = el as HTMLElement | null }"
       class="hm"
@@ -186,9 +188,7 @@ function scoreLabel(score: number): string {
 .hm__legend {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
-  margin: -34px 0 14px;
   color: var(--dg-wk-text-secondary);
   font-size: 12px;
   font-weight: 500;
@@ -247,9 +247,5 @@ function scoreLabel(score: number): string {
 @media (prefers-reduced-motion: reduce) {
   .hm__row,
   .hm__cursor { transition: none; }
-}
-
-@media (max-width: 760px) {
-  .hm__legend { margin-top: 0; justify-content: flex-start; }
 }
 </style>

@@ -70,28 +70,30 @@ function itemKey(item: RenderItem): string {
 
 <template>
   <div ref="scroller" class="transcript dg-scroll" :aria-busy="store.loading">
-    <template v-if="store.messages.length === 0 && !store.loading">
-      <!-- Empty handled by ChatWelcome in parent -->
-      <slot name="empty" />
-    </template>
+    <div class="transcript__inner">
+      <template v-if="store.messages.length === 0 && !store.loading">
+        <!-- Empty handled by ChatWelcome in parent -->
+        <slot name="empty" />
+      </template>
 
-    <template v-for="item in renderItems" :key="itemKey(item)">
-      <!-- Date divider -->
-      <ChatDateDivider
-        v-if="item.kind === 'date'"
-        :timestamp="item.ts * 1000"
-      />
+      <template v-for="item in renderItems" :key="itemKey(item)">
+        <!-- Date divider -->
+        <ChatDateDivider
+          v-if="item.kind === 'date'"
+          :timestamp="item.ts * 1000"
+        />
 
-      <!-- Message bubble -->
-      <ChatBubble
-        v-if="item.kind === 'message'"
-        :content="item.message.content"
-        :role="item.message.role as 'user' | 'assistant'"
-        :timestamp="item.message.createdAt * 1000"
-        :status="item.message.status as 'ok' | 'failed' | 'canceled' | ''"
-        :error-code="item.message.errorCode"
-      />
-    </template>
+        <!-- Message bubble -->
+        <ChatBubble
+          v-if="item.kind === 'message'"
+          :content="item.message.content"
+          :role="item.message.role as 'user' | 'assistant'"
+          :timestamp="item.message.createdAt * 1000"
+          :status="item.message.status as 'ok' | 'failed' | 'canceled' | ''"
+          :error-code="item.message.errorCode"
+        />
+      </template>
+    </div>
   </div>
 </template>
 
@@ -99,10 +101,25 @@ function itemKey(item: RenderItem): string {
 .transcript {
   display: flex;
   flex-direction: column;
-  gap: 20px;
   flex: 1;
   min-height: 0;
-  padding: 24px 12px;
+  padding: 24px var(--dg-page-padding);
   overflow-y: auto;
+}
+
+.transcript__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+@media (max-width: 700px) {
+  .transcript {
+    padding: 18px 16px;
+  }
 }
 </style>

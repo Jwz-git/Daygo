@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,14 +36,21 @@ const (
 	// fetchTimeout bounds one favicon lookup end to end. Icons are decorative;
 	// a slow host must never hold a render.
 	fetchTimeout = 4 * time.Second
-	// directHeadStart delays the direct /favicon.ico attempt so the aggregators
-	// (which return normalized icons and resolve HTML-declared favicons the
-	// root path misses) get a lead, matching Dayflow's S2 head-start. First
-	// decodable image wins regardless.
-	directHeadStart = 150 * time.Millisecond
+	// raceSettleWindow gives the origin /favicon.ico and higher-fidelity sources
+	// a brief window to finish when an aggregator replies first, so official
+	// origin icons win over lower-confidence or redirected aggregator images.
+	raceSettleWindow = 350 * time.Millisecond
 	// maxIconBytes caps a favicon response. Real icons are a few KiB; the cap
 	// stops a hostile or broken host from ballooning memory or disk.
 	maxIconBytes = 512 << 10
+	// maxHTMLBytes bounds the HTML head snippet read during fallback link discovery.
+	maxHTMLBytes = 64 << 10
+	// diskCacheTTL bounds how long a cached icon stays fresh on disk before
+	// re-validation, preventing stale or degraded icons from sticking forever.
+	diskCacheTTL = 14 * 24 * time.Hour
+	// diskCacheVersion namespaces cache keys so quality-gate upgrades bypass
+	// pre-existing low-quality or fallback icons cached by earlier builds.
+	diskCacheVersion = "v2:"
 	// Each hostname can race multiple sources. Bound the actual HTTP requests
 	// across all hosts, including slower losers while cancellation settles.
 	maxConcurrentRequests = 12
@@ -70,11 +78,12 @@ type Result struct {
 
 // Resolver fetches and caches favicons. It is safe for concurrent use.
 type Resolver struct {
-	client   *http.Client
-	cacheDir string
-	group    singleflight.Group
-	requests *semaphore.Weighted
-	disk     diskIconCache
+	client       *http.Client
+	cacheDir     string
+	settleWindow time.Duration
+	group        singleflight.Group
+	requests     *semaphore.Weighted
+	disk         diskIconCache
 
 	mu       sync.Mutex
 	memory   *lruCache[Result]    // host -> cached icon (bounded session hot cache)
@@ -205,73 +214,204 @@ func (r *Resolver) negativeActive(host string) bool {
 	return false
 }
 
-// fetch races several favicon sources; the first decodable image wins and the
-// losers are cancelled. Following Dayflow, the aggregators (Google S2 +
-// icon.horse) fire immediately because they return normalized icons and
-// resolve HTML-declared favicons that the root /favicon.ico misses; the direct
-// site hit starts a short head-start later as the aggregator-free fallback.
+func (r *Resolver) raceSettleWindow() time.Duration {
+	if r.settleWindow > 0 {
+		return r.settleWindow
+	}
+	return raceSettleWindow
+}
+
+// fetch resolves the highest-quality official favicon for host. It starts the
+// site's own /favicon.ico alongside Google S2 and icon.horse with no handicap,
+// rejects synthetic fallback / login-redirect placeholders, and prefers crisp
+// origin icons over aggregator responses. When all three fail, it falls back
+// to discovering raster <link rel="icon"> tags in the homepage HTML head and
+// finally to the parent registrable domain for non-multi-tenant subdomains.
 func (r *Resolver) fetch(ctx context.Context, host string) (Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 
+	res, queued, err := r.fetchPrimary(ctx, host)
+	if err == nil && len(res.Data) > 0 {
+		return res, nil
+	}
+	if ctx.Err() != nil || queued {
+		if queued {
+			return Result{}, errFetchQueued
+		}
+		return Result{}, err
+	}
+
+	if htmlRes, htmlErr := r.fetchHTMLIcon(ctx, host); htmlErr == nil && len(htmlRes.Data) > 0 {
+		return htmlRes, nil
+	}
+	if ctx.Err() != nil {
+		return Result{}, err
+	}
+
+	if parent, ok := parentDomainFallback(host); ok {
+		if parentRes, _, parentErr := r.fetchPrimary(ctx, parent); parentErr == nil && len(parentRes.Data) > 0 {
+			return parentRes, nil
+		}
+	}
+	if err == nil {
+		err = errNotFound
+	}
+	return Result{}, err
+}
+
+func (r *Resolver) fetchPrimary(ctx context.Context, host string) (Result, bool, error) {
+	raceCtx, cancelRace := context.WithCancel(ctx)
+	defer cancelRace()
+
 	type attempt struct {
+		kind   sourceKind
 		result Result
+		score  int
 		err    error
 	}
 	sources := []struct {
-		url   string
-		delay time.Duration
+		kind sourceKind
+		url  string
 	}{
-		{s2URL(host), 0},
-		{aggregatorURL(host), 0},
-		{directURL(host), directHeadStart},
+		{sourceDirect, directURL(host)},
+		{sourceGoogleS2, s2URL(host)},
+		{sourceIconHorse, aggregatorURL(host)},
 	}
 	results := make(chan attempt, len(sources))
 	for _, src := range sources {
-		go func(url string, delay time.Duration) {
-			if delay > 0 {
-				select {
-				case <-ctx.Done():
-					results <- attempt{Result{}, ctx.Err()}
-					return
-				case <-time.After(delay):
-				}
-			}
-			res, err := r.request(ctx, url)
-			results <- attempt{res, err}
-		}(src.url, src.delay)
+		go func(kind sourceKind, target string) {
+			res, score, err := r.request(raceCtx, kind, host, target)
+			results <- attempt{kind: kind, result: res, score: score, err: err}
+		}(src.kind, src.url)
 	}
 
+	var best attempt
+	var hasBest bool
 	var lastErr error
 	var queued bool
-	for range sources {
-		got := <-results
-		if got.err == nil && len(got.result.Data) > 0 {
-			return got.result, nil
+	var settleC <-chan time.Time
+	var settleTimer *time.Timer
+	defer func() {
+		if settleTimer != nil {
+			settleTimer.Stop()
 		}
-		if got.err != nil {
-			lastErr = got.err
-			queued = queued || errors.Is(got.err, errFetchQueued)
+	}()
+
+	received := 0
+	for received < len(sources) {
+		select {
+		case got := <-results:
+			received++
+			if got.err == nil && len(got.result.Data) > 0 {
+				if !hasBest || got.score > best.score {
+					best = got
+					hasBest = true
+				}
+				if got.kind == sourceDirect && got.score >= directImmediateScore {
+					return got.result, false, nil
+				}
+				if settleTimer == nil && received < len(sources) {
+					settleTimer = time.NewTimer(r.raceSettleWindow())
+					settleC = settleTimer.C
+				}
+			} else if got.err != nil {
+				lastErr = got.err
+				queued = queued || errors.Is(got.err, errFetchQueued)
+			}
+		case <-settleC:
+			if hasBest {
+				return best.result, false, nil
+			}
+			settleC = nil
+		case <-raceCtx.Done():
+			if hasBest {
+				return best.result, false, nil
+			}
+			if queued {
+				return Result{}, true, errFetchQueued
+			}
+			return Result{}, false, raceCtx.Err()
 		}
 	}
+	if hasBest {
+		return best.result, false, nil
+	}
 	if queued {
-		return Result{}, errFetchQueued
+		return Result{}, true, errFetchQueued
 	}
 	if lastErr == nil {
 		lastErr = errNotFound
 	}
-	return Result{}, lastErr
+	return Result{}, false, lastErr
 }
 
-// request fetches one URL and validates the payload is a non-empty image.
-func (r *Resolver) request(ctx context.Context, target string) (Result, error) {
+// fetchHTMLIcon reads a bounded head prefix from https://<host>/ and attempts
+// up to two raster <link rel="icon" / "apple-touch-icon"> URLs.
+func (r *Resolver) fetchHTMLIcon(ctx context.Context, host string) (Result, error) {
+	iconURLs, err := r.discoverHTMLIcons(ctx, host)
+	if err != nil || len(iconURLs) == 0 {
+		return Result{}, errNotFound
+	}
+	limit := min(len(iconURLs), 2)
+	for i := range limit {
+		if ctx.Err() != nil {
+			return Result{}, ctx.Err()
+		}
+		res, _, reqErr := r.request(ctx, sourceHTML, host, iconURLs[i])
+		if reqErr == nil && len(res.Data) > 0 {
+			return res, nil
+		}
+	}
+	return Result{}, errNotFound
+}
+
+func (r *Resolver) discoverHTMLIcons(ctx context.Context, host string) ([]string, error) {
 	if err := r.requests.Acquire(ctx, 1); err != nil {
-		return Result{}, errFetchQueued
+		return nil, errFetchQueued
+	}
+	defer r.requests.Release(1)
+
+	target := "https://" + host + "/"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "text/html,application/xhtml+xml")
+	req.Header.Set("Referer", "")
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("favicon: html status %d", resp.StatusCode)
+	}
+	if ct := strings.ToLower(resp.Header.Get("Content-Type")); ct != "" &&
+		!strings.Contains(ct, "html") && !strings.Contains(ct, "xhtml") {
+		return nil, fmt.Errorf("favicon: non-html content type %q", ct)
+	}
+	snippet, err := io.ReadAll(io.LimitReader(resp.Body, maxHTMLBytes))
+	if err != nil || len(snippet) == 0 {
+		return nil, errNotFound
+	}
+	baseURL := req.URL
+	if resp.Request != nil && resp.Request.URL != nil {
+		baseURL = resp.Request.URL
+	}
+	return extractHTMLIconURLs(baseURL, snippet), nil
+}
+
+// request fetches one URL, validates it is a non-placeholder image, and scores it.
+func (r *Resolver) request(ctx context.Context, source sourceKind, requestedHost, target string) (Result, int, error) {
+	if err := r.requests.Acquire(ctx, 1); err != nil {
+		return Result{}, 0, errFetchQueued
 	}
 	defer r.requests.Release(1)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
-		return Result{}, err
+		return Result{}, 0, err
 	}
 	req.Header.Set("Accept", "image/*")
 	// No cookies, no referrer: only the hostname may leave the device.
@@ -279,30 +419,34 @@ func (r *Resolver) request(ctx context.Context, target string) (Result, error) {
 
 	resp, err := r.client.Do(req)
 	if err != nil {
-		return Result{}, err
+		return Result{}, 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return Result{}, fmt.Errorf("favicon: status %d", resp.StatusCode)
+		return Result{}, 0, fmt.Errorf("favicon: status %d", resp.StatusCode)
 	}
 	data, err := readCapped(resp.Body, maxIconBytes)
 	if err != nil {
-		return Result{}, err
+		return Result{}, 0, err
 	}
 	if len(data) == 0 {
-		return Result{}, errNotFound
+		return Result{}, 0, errNotFound
 	}
 	ct := http.DetectContentType(data)
 	if !strings.HasPrefix(ct, "image/") {
-		return Result{}, fmt.Errorf("favicon: not an image (%s)", ct)
+		return Result{}, 0, fmt.Errorf("favicon: not an image (%s)", ct)
 	}
-	return Result{Data: data, ContentType: ct}, nil
+	score, err := validateAndScore(source, requestedHost, resp, data)
+	if err != nil {
+		return Result{}, 0, err
+	}
+	return Result{Data: data, ContentType: ct}, score, nil
 }
 
 // --- disk cache ---
 
 func (r *Resolver) diskPath(host string) string {
-	sum := sha256.Sum256([]byte(host))
+	sum := sha256.Sum256([]byte(diskCacheVersion + host))
 	return filepath.Join(r.cacheDir, hex.EncodeToString(sum[:])+".ico")
 }
 
@@ -316,6 +460,9 @@ func (r *Resolver) readDisk(host string) (Result, bool) {
 		return Result{}, false
 	}
 	defer file.Close()
+	if info, statErr := file.Stat(); statErr == nil && time.Since(info.ModTime()) > diskCacheTTL {
+		return Result{}, false
+	}
 	data, err := readCapped(file, maxIconBytes)
 	if err != nil || len(data) == 0 {
 		return Result{}, false
@@ -339,11 +486,20 @@ func (r *Resolver) writeDisk(host string, result Result) {
 var errNotFound = errors.New("favicon: not found")
 var errFetchQueued = errors.New("favicon: canceled while waiting for a request slot")
 
-// hostAliases redirects known renamed/sub-brand hosts to the domain that
-// actually serves the icon, matching Dayflow's FaviconService.hostAliases.
+// hostAliases redirects known renamed, short-link, or sub-brand hosts to the
+// canonical domain that serves the official icon.
 var hostAliases = map[string]string{
-	"codex.com": "chatgpt.com",
-	"codex.so":  "chatgpt.com",
+	"codex.com":             "chatgpt.com",
+	"codex.so":              "chatgpt.com",
+	"chat.openai.com":       "chatgpt.com",
+	"twitter.com":           "x.com",
+	"t.co":                  "x.com",
+	"youtu.be":              "youtube.com",
+	"b23.tv":                "bilibili.com",
+	"notion.site":           "notion.so",
+	"app.slack.com":         "slack.com",
+	"makersuite.google.com": "aistudio.google.com",
+	"larkoffice.com":        "feishu.cn",
 }
 
 func resolveAlias(host string) string {
@@ -357,11 +513,11 @@ func directURL(host string) string {
 	return "https://" + host + "/favicon.ico"
 }
 
-// s2URL is Google's favicon aggregator (Dayflow's default). It resolves the
-// site's HTML-declared favicon server-side and returns a normalized 64px icon.
-// Only the hostname is sent. Reachable via the proxy resolved in New.
+// s2URL is Google's favicon aggregator. Using domain_url=https://<host> instead
+// of bare domain=<host> preserves product-specific icons for Google subdomains
+// such as mail.google.com, drive.google.com, and calendar.google.com.
 func s2URL(host string) string {
-	return "https://www.google.com/s2/favicons?sz=64&domain=" + url.QueryEscape(host)
+	return "https://www.google.com/s2/favicons?sz=64&domain_url=" + url.QueryEscape("https://"+host)
 }
 
 // aggregatorURL is a second aggregator that stays reachable when Google is

@@ -89,14 +89,6 @@ body {
   isolation: isolate;
   border: 1px solid var(--dg-panel-border);
   border-radius: var(--dg-panel-radius);
-  background: var(--dg-glass-fallback);
-  box-shadow: var(--dg-glass-shadow);
-}
-
-/* Dayflow's main panel is a translucent sheet, not frosted glass: the warm
-   window gradient shows straight through the 55% fill, with a white edge and
-   an inner glow (DayflowTheme.panelFill / panelBorder / panelInnerGlow). */
-.dg-panel {
   background: var(--dg-panel-fill);
   box-shadow: var(--dg-panel-shadow);
 }
@@ -124,7 +116,7 @@ body {
 }
 
 .dg-card {
-  border: none;
+  border: 1px solid var(--dg-card-border);
   border-radius: var(--dg-card-radius);
   background: var(--dg-card-fill);
   box-shadow: var(--dg-card-shadow);
@@ -234,7 +226,7 @@ body {
   /* Longhand, not the `background` shorthand: a <select> layers its chevron in
      background-image, and the shorthand here (and on :hover) would wipe it. */
   background-color: var(--dg-input-fill);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--dg-input-border);
   color: var(--dg-text-primary);
   font-size: 13px;
   transition:
@@ -248,7 +240,7 @@ body {
 
 .dg-input:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--dg-focus-ring);
+  box-shadow: inset 0 0 0 1px var(--dg-accent), 0 0 0 3px var(--dg-focus-ring);
 }
 
 .dg-input[aria-invalid='true'] {

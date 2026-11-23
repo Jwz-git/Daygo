@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
+import CalendarPopover from '@/components/CalendarPopover.vue'
+import DgIcon from '@/components/DgIcon.vue'
 import TokenUsageCard from '@/components/TokenUsageCard.vue'
 import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -93,9 +95,17 @@ function goToToday(): void {
   void router.push({ name: 'daily', query })
 }
 
+const showCalendar = ref(false)
+
+function pickDate(dayKey: string): void {
+  showCalendar.value = false
+  if (dayKey === '') return
+  void router.push({ name: 'daily', query: { ...route.query, day: dayKey } })
+}
+
 const releaseView = registerWindowView(() => {
   if (route.name !== 'daily' || !context.value || daily.loading || recapGenerating.value || recapSaving.value ||
-      journalSaving.value || Object.keys(route.query).some(key => key !== 'day')) return null
+      journalSaving.value || showCalendar.value || Object.keys(route.query).some(key => key !== 'day')) return null
   return { route: 'daily', day: routeDay(), cardId: 0 }
 })
 onBeforeUnmount(releaseView)
@@ -124,6 +134,27 @@ onBeforeUnmount(() => daily.stopListening())
           @navigate="navigate"
           @current="goToToday"
         />
+        <div v-if="dayNavigationAvailable" class="calendar-anchor">
+          <button
+            type="button"
+            class="tool-button"
+            data-calendar-toggle
+            :title="t('timeline.calendar.open')"
+            :aria-label="t('timeline.calendar.open')"
+            :aria-expanded="showCalendar"
+            @click="showCalendar = !showCalendar"
+          >
+            <DgIcon name="calendar" :size="16" />
+          </button>
+          <Transition name="calendar-pop">
+            <CalendarPopover
+              v-if="showCalendar"
+              :selected="context?.day ?? routeDay()"
+              @select="pickDate"
+              @close="showCalendar = false"
+            />
+          </Transition>
+        </div>
         <h1 class="dg-page-date dg-display">{{ dateTitle }}</h1>
       </template>
 
@@ -199,7 +230,39 @@ onBeforeUnmount(() => daily.stopListening())
 
 <style scoped>
 
-.day-meta { color: var(--dg-text-muted); font-size: 10px; white-space: nowrap; }
+.day-meta { color: var(--dg-text-muted); font-size: 11px; white-space: nowrap; }
+
+.calendar-anchor { position: relative; }
+
+.calendar-pop-enter-active,
+.calendar-pop-leave-active {
+  transition: opacity 160ms ease, transform 200ms var(--dg-ease-glide);
+  transform-origin: top left;
+}
+
+.calendar-pop-enter-from,
+.calendar-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(-6px);
+}
+
+.tool-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dg-text-secondary);
+  cursor: pointer;
+  transition: background var(--dg-motion-fast) ease, transform var(--dg-motion-base) var(--dg-ease-glide);
+}
+
+.tool-button:hover { background: var(--dg-capsule-hover); color: var(--dg-text-primary); }
+.tool-button:active { transform: scale(0.96); }
+.tool-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--dg-focus-ring); }
+.tool-button svg { width: 16px; height: 16px; }
 
 .daily-body {
   flex: 1;

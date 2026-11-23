@@ -24,12 +24,12 @@
   --dg-window-gradient: radial-gradient(circle 92vmax at 64% 100%, #ffe6cf 17%, #ffe6e0 33%, #d6e8ff 100%);
 
   /* panel */
-  --dg-panel-fill: rgba(251, 251, 251, 0.55);
-  --dg-panel-border: #fafafa;
-  --dg-panel-shadow: 0 0 24px rgba(0, 0, 0, 0.08), inset 0 0 8px rgba(255, 255, 255, 0.25);
+  --dg-panel-fill: rgba(251, 251, 251, 0.58);
+  --dg-panel-border: rgba(255, 255, 255, 0.88);
+  --dg-panel-shadow: 0 4px 28px rgba(48, 34, 24, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
   /* The primary glass slab. A generous radius is the single strongest cue that
      the surface is an intentional floating material, not a chromeless window. */
-  --dg-panel-radius: 8px;
+  --dg-panel-radius: 12px;
 
   /* The opaque raised surface content sits on: a chart's centre disc, a modal
      panel, the halo that punches a swatch out of its background. Opaque on
@@ -41,44 +41,42 @@
    * fallback, shadow and sheen are colour and differ per appearance; blur and
    * saturation are geometry and live here only.
    */
-  --dg-glass-tint: rgba(251, 251, 251, 0.55);
+  --dg-glass-tint: rgba(251, 251, 251, 0.58);
   --dg-glass-fallback: #fbf6f4;
-  /* The two inset layers are the liquid-glass rim: a 1px specular top edge
-     from the implied upper-left light, and a half-pixel inner outline that
-     reads as the refracting lip of the material. The drop layers are graded
-     with a negative spread so the slab casts one broad, soft ambient plus a
-     tight contact line — that split is what reads as "floating" rather than
-     "bordered". */
-  --dg-glass-shadow: 0 0 24px rgba(0, 0, 0, 0.08), inset 0 0 8px rgba(255, 255, 255, 0.25);
-  /* Specular pool at the light source, plus a faint counter-glow along the
-     bottom edge — the light bending back out of the slab. */
-  --dg-glass-sheen: none;
+  --dg-glass-shadow: 0 4px 28px rgba(48, 34, 24, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  /* Subtle upper-edge specular reflection along the panel rim. */
+  --dg-glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 24%);
   --dg-glass-blur: 30px;
   --dg-glass-saturation: 170%;
+  --dg-shadow-sm: 0 2px 8px rgba(48, 34, 24, 0.12);
+  --dg-shadow-lg: 0 20px 48px rgba(48, 34, 24, 0.16), 0 4px 12px rgba(48, 34, 24, 0.08);
 
   /* text */
-  --dg-text-primary: #333333;
-  --dg-text-secondary: #707070;
-  --dg-text-tertiary: #787878;
-  --dg-text-muted: #979797;
+  --dg-text-primary: #2c2a2e;
+  --dg-text-secondary: #5c5961;
+  --dg-text-tertiary: #6a6670;
+  --dg-text-muted: #726e77;
 
   /* accent and controls */
   --dg-accent: #f3854b;
-  --dg-accent-strong: #e0703a;
-  --dg-accent-text: #d9682f;
-  --dg-focus-ring: rgba(243, 133, 75, 0.28);
+  --dg-accent-strong: #d9642c;
+  --dg-accent-text: #c85822;
+  --dg-accent-bg: rgba(243, 133, 75, 0.14);
+  --dg-focus-ring: rgba(243, 133, 75, 0.3);
   --dg-control-fill: #ffd2b9;
   --dg-control-fill-hover: #ffc6a6;
   /* selected item in a secondary nav list: a whisper of the accent, not a block */
-  --dg-nav-active-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.35));
-  --dg-nav-active-text: #333333;
-  --dg-nav-active-shadow: inset 0 0 6px rgba(255, 255, 255, 0.8), 0 1px 2px #d5d3d9;
-  --dg-danger: #e5533d;
-  --dg-success: #39815e;
+  --dg-nav-active-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.48));
+  --dg-nav-active-text: #2c2a2e;
+  --dg-nav-active-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(48, 34, 24, 0.1);
+  --dg-danger: #d9432f;
+  --dg-danger-text: #be321f;
+  --dg-success: #2f7d57;
   /* Plan "done": brighter than --dg-success so a finished block stands out. */
   --dg-plan-done: #1fb860;
   /* caution, one step below danger: plaintext-HTTP endpoints and the like */
   --dg-warning: #9a6d14;
+  --dg-token-output: #467382;
 
   /* hover wash shared by the rail and the settings nav */
   --dg-hover-fill: rgba(120, 92, 74, 0.06);
@@ -124,15 +122,15 @@
   --dg-chip-text: #333333;
 
   /* buttons (→ primaryButton* / secondaryButton*) */
-  --dg-button-primary-fill: #ff9f6f;
-  --dg-button-primary-hover: #f99260;
-  --dg-button-primary-border: #f4c8b1;
+  --dg-button-primary-fill: #d45f28;
+  --dg-button-primary-hover: #c2501d;
+  --dg-button-primary-border: #c55420;
   --dg-button-primary-text: #ffffff;
-  --dg-button-primary-shadow: inset 0 0 6px rgba(255, 220, 203, 0.9), 0 0 0 1px #f4c8b1;
-  --dg-button-secondary-fill: #fcf9f7;
+  --dg-button-primary-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 1px 2px rgba(160, 62, 20, 0.24);
+  --dg-button-secondary-fill: rgba(255, 255, 255, 0.84);
   --dg-button-secondary-hover: #ffffff;
-  --dg-button-secondary-border: #d0d0d0;
-  --dg-button-secondary-text: #727272;
+  --dg-button-secondary-border: rgba(65, 58, 70, 0.16);
+  --dg-button-secondary-text: #4a4750;
 
   /* failure surfaces (→ cardFailedFill) */
   --dg-danger-fill: #ffece4;
@@ -143,22 +141,22 @@
   --dg-rail-icon-size: 18px;
   --dg-rail-selection-size: 33px;
   --dg-rail-selection-radius: 10px;
-  --dg-rail-selection-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.35));
-  --dg-rail-selection-border: rgba(255, 255, 255, 0.2);
-  --dg-rail-selection-shadow: inset 0 0 6px rgba(255, 255, 255, 0.8), 0 1px 2px #d5d3d9;
+  --dg-rail-selection-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.48));
+  --dg-rail-selection-border: rgba(255, 255, 255, 0.65);
+  --dg-rail-selection-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(48, 34, 24, 0.12);
   --dg-rail-label-size: 12px;
-  --dg-popover-fill: rgba(250, 245, 242, 0.86);
+  --dg-popover-fill: rgba(252, 248, 245, 0.92);
   --dg-popover-shadow: 0 18px 44px rgba(80, 52, 36, 0.14), 0 2px 8px rgba(80, 52, 36, 0.08), 0 0 0 1px #e8e0de;
 
   /* cards */
-  --dg-card-fill: rgba(255, 255, 255, 0.75);
-  --dg-card-border: #f2eeec;
+  --dg-card-fill: rgba(255, 255, 255, 0.78);
+  --dg-card-border: rgba(96, 64, 44, 0.09);
   /* The inset line is the card's specular top edge — the same implied
      upper-left light as the panel rim, one level dimmer. A soft graded drop
      lifts the card just clear of the surface behind it. */
-  --dg-card-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  --dg-card-time: #7d7a84;
-  --dg-card-radius: 8px;
+  --dg-card-shadow: 0 2px 10px rgba(48, 34, 24, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --dg-card-time: #6f6c76;
+  --dg-card-radius: 10px;
 
   /* timeline */
   --dg-timeline-time-width: 66px;
@@ -167,11 +165,23 @@
   --dg-timeline-card-fill: #ffffff;
   --dg-timeline-card-hover: #ffffff;
   --dg-timeline-card-selected: #ffffff;
-  --dg-timeline-card-border: rgba(65, 58, 70, 0.13);
-  --dg-timeline-card-shadow: 0 1px 2px rgba(28, 34, 45, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  /* Hover lifts the card off the track; the bloom is what sells the height. */
-  --dg-timeline-card-shadow-hover: 0 8px 20px rgba(28, 34, 45, 0.12), 0 1px 2px rgba(28, 34, 45, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --dg-timeline-card-surface: rgba(255, 255, 255, 0.92);
+  --dg-timeline-card-surface-hover: rgba(255, 255, 255, 0.98);
+  --dg-timeline-card-surface-selected: #ffffff;
+  --dg-timeline-card-border: rgba(72, 54, 42, 0.11);
+  --dg-timeline-card-shadow:
+    0 1px 2px rgba(48, 34, 24, 0.045),
+    0 2px 6px rgba(48, 34, 24, 0.025),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  /* Hover lifts the card off the track; layered ambient + tight contact sells the height. */
+  --dg-timeline-card-shadow-hover:
+    0 8px 22px rgba(48, 34, 24, 0.11),
+    0 2px 5px rgba(48, 34, 24, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --dg-timeline-card-idle-fill: rgba(255, 255, 255, 0.44);
+  --dg-timeline-card-idle-hover: rgba(255, 255, 255, 0.76);
+  --dg-timeline-card-idle-hatch: rgba(96, 64, 44, 0.045);
+  --dg-timeline-card-idle-border: rgba(96, 64, 44, 0.14);
   --dg-timeline-inspector-fill: rgba(255, 255, 255, 0.6);
   /* Inspector overview tiles and the day-goal panels (Dayflow sheet palette). */
   --dg-inspector-tile-fill: rgba(255, 255, 255, 0.58);
@@ -199,8 +209,8 @@
   --dg-status-generating: linear-gradient(90deg, rgba(50, 135, 255, 0.55), rgba(255, 165, 153, 0.36));
   --dg-status-generating-text: #ffffff;
   --dg-status-paused: linear-gradient(90deg, #f7e6d5 13%, #dadee4 100%);
-  --dg-status-paused-text: #888d95;
-  --dg-status-paused-border: rgba(208, 208, 208, 0.6);
+  --dg-status-paused-text: #585e69;
+  --dg-status-paused-border: rgba(160, 162, 170, 0.5);
 
   /* daily workflow */
   --dg-daily-grid-line: #ebe6e3;
@@ -234,14 +244,14 @@
   --dg-weekly-series-6: #a8834f;
 
   /* Dayflow weekly charts (WeeklyPalette in Weekly/WeeklyView.swift, MIT). */
-  --dg-wk-card-fill: rgba(255, 255, 255, 0.46);
-  --dg-wk-card-border: #ebe6e3;
-  --dg-wk-title: #ff9a64;
-  --dg-wk-text: #333333;
-  --dg-wk-text-secondary: #777777;
-  --dg-wk-text-muted: #a5a5a5;
+  --dg-wk-card-fill: rgba(255, 255, 255, 0.62);
+  --dg-wk-card-border: rgba(96, 64, 44, 0.1);
+  --dg-wk-title: #cf5e28;
+  --dg-wk-text: #2c2a2e;
+  --dg-wk-text-secondary: #5e5a61;
+  --dg-wk-text-muted: #756f6c;
   --dg-wk-footer: #faf7f5;
-  --dg-wk-divider: #e5dfd9;
+  --dg-wk-divider: rgba(96, 64, 44, 0.1);
   --dg-wk-axis: rgba(90, 83, 76, 0.9);
   --dg-wk-axis-soft: #c9c2bc;
   --dg-wk-empty-cell: rgba(152, 152, 152, 0.1);

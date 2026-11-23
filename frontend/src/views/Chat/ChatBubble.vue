@@ -63,7 +63,6 @@ const emit = defineEmits<{
 
 const { t, te, locale } = useI18n()
 const copied = ref(false)
-const codeCopied = ref<Record<number, boolean>>({})
 
 // A terminal turn stores a machine code, not user-facing prose; see the helper.
 const failureMessage = computed(() =>
@@ -145,19 +144,19 @@ async function copyContent(): Promise<void> {
 // assistant markdown output. The template root of this component is the
 // assistant body container.
 function onAssistantClick(e: MouseEvent): void {
-  const target = (e.target as HTMLElement | null)?.closest('[data-cb-copy]')
+  const target = (e.target as HTMLElement | null)?.closest('[data-cb-copy]') as HTMLButtonElement | null
   if (!target) return
-  const idx = Number(target.getAttribute('data-cb-copy'))
-  const wrapper = (target as HTMLElement).closest('.cb-code') as HTMLElement | null
+  const wrapper = target.closest('.cb-code') as HTMLElement | null
   const code = wrapper?.querySelector('code')
   if (!code) return
   const text = code.textContent ?? ''
   void navigator.clipboard.writeText(text).then(() => {
-    codeCopied.value = { ...codeCopied.value, [idx]: true }
+    target.textContent = t('chat.bubble.copied')
+    target.classList.add('is-copied')
     setTimeout(() => {
-      const next = { ...codeCopied.value }
-      delete next[idx]
-      codeCopied.value = next
+      if (!target.isConnected) return
+      target.textContent = t('chat.bubble.copy')
+      target.classList.remove('is-copied')
     }, 2000)
   }).catch(() => { /* noop */ })
 }
@@ -427,8 +426,9 @@ function onAssistantClick(e: MouseEvent): void {
 .cb__md :deep(.cb-code) {
   margin: 14px 0;
   border-radius: 10px;
-  background: rgb(0 0 0 / 0.55);
-  border: 1px solid rgb(255 255 255 / 0.06);
+  background: #1d1f29;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
   overflow: hidden;
 }
 
@@ -438,13 +438,13 @@ function onAssistantClick(e: MouseEvent): void {
   justify-content: space-between;
   gap: 8px;
   padding: 6px 12px;
-  background: rgb(255 255 255 / 0.03);
-  border-bottom: 1px solid rgb(255 255 255 / 0.05);
+  background: rgb(255 255 255 / 0.04);
+  border-bottom: 1px solid rgb(255 255 255 / 0.07);
 }
 
 .cb__md :deep(.cb-code__lang) {
-  color: rgb(255 255 255 / 0.45);
-  font-size: 10.5px;
+  color: rgb(255 255 255 / 0.55);
+  font-size: 11px;
   text-transform: lowercase;
   letter-spacing: 0.04em;
   font-family: var(--dg-font-mono);
@@ -453,17 +453,22 @@ function onAssistantClick(e: MouseEvent): void {
 .cb__md :deep(.cb-code__copy) {
   padding: 2px 8px;
   border: none;
-  border-radius: 4px;
-  background: rgb(255 255 255 / 0.06);
-  color: rgb(255 255 255 / 0.7);
-  font-size: 10.5px;
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(255 255 255 / 0.78);
+  font-size: 11px;
   cursor: pointer;
   transition: background var(--dg-motion-fast) ease, color var(--dg-motion-fast) ease;
 }
 
 .cb__md :deep(.cb-code__copy:hover) {
-  background: rgb(255 255 255 / 0.12);
-  color: rgb(255 255 255 / 0.95);
+  background: rgb(255 255 255 / 0.15);
+  color: #ffffff;
+}
+
+.cb__md :deep(.cb-code__copy.is-copied) {
+  background: color-mix(in srgb, var(--dg-success) 28%, transparent);
+  color: #8be0b0;
 }
 
 .cb__md :deep(.cb-code__pre) {

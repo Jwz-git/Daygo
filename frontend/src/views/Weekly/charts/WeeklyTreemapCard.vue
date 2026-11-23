@@ -403,13 +403,23 @@ function changeLabel(minutes: number | null): string | null {
   min-width: 0;
   overflow: hidden;
   color: var(--dg-wk-text);
-  font-family: var(--dg-font-serif);
+  font-family: var(--dg-font-page-title);
   font-size: var(--tm-name);
-  font-weight: 400;
+  font-weight: var(--dg-page-title-weight);
   -webkit-text-stroke: 0.45px currentColor;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* CJK glyphs already carry balanced stroke weight in their sans face;
+   adding a hairline text-stroke bloats dense ideographs. */
+:root[data-dg-lang-script='hans'] .tm__name,
+:root[data-dg-lang-script='hant'] .tm__name,
+:root[data-dg-lang-script='jpan'] .tm__name,
+:root[data-dg-lang-script='kore'] .tm__name {
+  -webkit-text-stroke: 0;
+  font-weight: 620;
 }
 
 .tm__time,
