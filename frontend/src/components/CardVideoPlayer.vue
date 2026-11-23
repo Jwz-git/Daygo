@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { CardMediaFrameDTO } from '@/api/dto'
-import { FramePreloader, frameSrc, thumbnailSrc } from '@/lib/framePreloader'
+import { FramePreloader, frameSrc, previewSrc, thumbnailSrc } from '@/lib/framePreloader'
 import { PlaybackScheduler } from '@/lib/playbackScheduler'
 import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
@@ -16,8 +16,8 @@ import { useUIVisibilityStore } from '@/stores/uiVisibility'
  * the rate badge (cycles 20x → 40x → 60x → 120x); the expand button opens the
  * same playback in a full-window overlay with a ticked scrubber.
  *
- * Frames arrive as numeric IDs and render through /media/frame?id=, which the
- * backend resolves inside the recordings root only.
+ * Inline playback uses sized previews. The lightbox fetches original frames.
+ * Both use numeric IDs resolved by the backend inside the recordings root.
  */
 const props = withDefaults(defineProps<{
   frames: CardMediaFrameDTO[]
@@ -189,10 +189,11 @@ const currentClock = computed(() =>
 /* Warm the next few frames so stepping stays instant. */
 function warmNextFrames(): void {
   if (uiVisibility.visible && started.value) {
-    preloader.update(props.frames.slice(frameIndex.value + 1, frameIndex.value + 4).map((frame) => frame.id))
+    const src = expanded.value ? frameSrc : previewSrc
+    preloader.update(props.frames.slice(frameIndex.value + 1, frameIndex.value + 4).map((frame) => src(frame.id)))
   }
 }
-watch(frameIndex, warmNextFrames)
+watch([frameIndex, expanded], warmNextFrames)
 
 /* Evenly sampled thumbnails for the lightbox filmstrip. */
 const STRIP_COUNT = 14
@@ -225,13 +226,15 @@ onBeforeUnmount(() => {
   <div class="player" :class="{ 'is-hovered': hovered, 'is-empty': frames.length === 0 }" @mouseenter="hovered = true" @mouseleave="hovered = false">
     <template v-if="frames.length > 0">
       <img
-        v-if="uiVisibility.visible"
+        v-if="uiVisibility.visible && !expanded"
         class="player__frame"
-        :src="frameSrc(displayFrame!.id)"
+        :src="previewSrc(displayFrame!.id)"
         :alt="title"
         draggable="false"
         @click="togglePlay"
       >
+
+      <div v-if="expanded" class="player__placeholder" aria-hidden="true" />
 
       <span v-if="currentClock !== ''" class="player__stage-clock">{{ currentClock }}</span>
 

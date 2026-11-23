@@ -1,4 +1,5 @@
 export const frameSrc = (id: number): string => `/media/frame?id=${id}`
+export const previewSrc = (id: number): string => `/media/preview?id=${id}`
 export const thumbnailSrc = (id: number): string => `/media/thumbnail?id=${id}`
 
 interface PreloadImage {
@@ -10,19 +11,19 @@ interface PreloadImage {
 
 /** Owns only the next three frames; browser cache lifetime remains WebKit's decision. */
 export class FramePreloader {
-  private readonly images = new Map<number, PreloadImage>()
+  private readonly images = new Map<string, PreloadImage>()
   constructor(private readonly create: () => PreloadImage = () => new Image()) {}
 
-  update(ids: readonly number[]): void {
-    const wanted = new Set(ids.slice(0, 3))
-    for (const [id, image] of this.images) {
-      if (!wanted.has(id)) { this.release(image); this.images.delete(id) }
+  update(urls: readonly string[]): void {
+    const wanted = new Set(urls.slice(0, 3))
+    for (const [url, image] of this.images) {
+      if (!wanted.has(url)) { this.release(image); this.images.delete(url) }
     }
-    for (const id of wanted) {
-      if (this.images.has(id)) continue
+    for (const url of wanted) {
+      if (this.images.has(url)) continue
       const image = this.create()
-      this.images.set(id, image)
-      image.src = frameSrc(id)
+      this.images.set(url, image)
+      image.src = url
     }
   }
 

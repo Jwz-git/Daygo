@@ -83,7 +83,7 @@ Windows 联调面板另通过正式 recording bindings 驱动共享 recorder，�
 |---|---|---|
 | agent | `GetAgentConnection` | 读写实例启动时监听 `agent.sock`（0600），写入经与 chat 同源的共享执行器（同校验、同事件），每次请求服务端校验 `agentEditsEnabled`，成功写入追加 `agent-writes.log`；绑定只报告可执行路径与 socket 是否在监听 |
 | preferences | `GetCapabilities`、`GetSettings / UpdateSettings`、`SetWindowBackground`、`GetUIVisibility` | 真实读写 `app_settings`；`canWrite` / `isCaptureOwner` 来自真实实例锁；`SetWindowBackground` 把 `#rrggbb` 颜色刷到原生窗口背景，供前端跟随主题过渡 |
-| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`StopRetries`、`DeleteBatches`、`DeleteDayFailures`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试、停止自动重试或软删除，可按所选逻辑日批量软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经 `/media/frame` 资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
+| timeline | `GetDayContext`、`GetTimelineDay`、`GetCardMedia`、卡片写操作、`SaveCategories`、`RetryBatches`、`StopRetries`、`DeleteBatches`、`DeleteDayFailures`、`ReprocessDay`、`ReprocessCard`、`SaveCardReview`、`ClearCardReview`、`GetCardVerdict`、`GetReviewTotals`、`SaveCardRating`、`ClearCardRating`、`GetCardRating` | 真实 4 点边界与周边界计算；卡片查询 / 写操作走 `timeline_cards`，写后发合并的 `timeline:updated`；失败批次可手动重试、停止自动重试或软删除，可按所选逻辑日批量软删除，整日按批次重处理，单张卡片重写其自己的时间窗；审阅判定持久化在 `card_reviews` 并可按卡片读回 / 按日聚合，摘要拇指评分持久化在 `card_ratings` 并可按卡片读回（两者都不改写卡片，因此都不发事件）；`GetCardMedia` 返回卡片时间窗内的帧引用（上限 600，经固定尺寸预览或原帧资源回放，§5.5.4）；搜索未实现。`ClearHistoryData` 是开发测试入口，详见下文 |
 | daily | `GetDailyRecap`、`GenerateDailyRecap`、`SaveDailyRecap`、`GetJournalDay`、`SaveJournalDay`、`GetDayGoal`、`SaveDayGoal` | 真实读写 `journal_entries` / `day_goals` / `daily_standup_entries`；`GenerateDailyRecap` 走分析 Provider 生成并覆盖重写；日报站会即当日 AI 摘要，日记不再单独存 AI summary |
 | daily / weekly | `GetTokenUsage` | 全部已记录模型尝试的只读用量；逻辑日按小时、周按逻辑日，统一缓存口径并提示未报告数量 |
 | weekly | `GetWeeklyDashboard` | 真实只读聚合（`CategoryMinutesInRange` + `CardSpansInRange` + insight 排除 System / isIdle，含按日明细与洞察）；周边界周一 4 点对齐（decisions/weekly-boundary-monday） |
@@ -347,7 +347,7 @@ export function toApiError(e: unknown): ApiError {
 
 `GetCardMedia` 返回**引用**而非像素：卡片时间窗内的帧列表（`CardMediaFrameDTO`：数字
 `screenshotID` + `capturedAtTs`），按时间升序，上限 600（与 storage 层一致）。像素在浏览器
-按 `/media/frame?id=` 资源请求时才解码（§5.5.4）；无帧的卡片返回空列表而不是错误，播放器
+按预览或原帧资源请求时才解码（§5.5.4）；无帧的卡片返回空列表而不是错误，播放器
 渲染占位。规划中的 `GetFrameStrip` 是按时间窗（而非卡片）取帧引用的泛化形式，`count`
 上限 240，超出即 `invalid_argument`。
 
@@ -1252,12 +1252,13 @@ macOS 红叉与 Cmd+H 均由 `didHide` / `didUnhide` 更新应用隐藏状态，
 | 资源 | 路径形状 | 内容 | 状态 |
 |------|----------|------|------|
 | 单帧 | `GET /media/frame?id={screenshotID}` | JPEG | 已实现 |
+| 小窗预览 | `GET /media/preview?id={screenshotID}` | 最长边 720 像素以内的等比 JPEG | 已实现 |
 | 缩略图 | `GET /media/thumbnail?id={screenshotID}` | 最长边不超过 256 像素的 JPEG，保持比例 | 已实现 |
 | Timelapse | `/media/timelapse/{cardID}` | mp4 | 规划中 |
 
 契约：
 
-1. **寻址以数字 ID 完成，路径形状是固定约定**（`/media/frame?id=` 或 `/media/thumbnail?id=`，无其他查询参数）。
+1. **寻址以数字 ID 完成，路径形状是固定约定**（`/media/frame?id=`、`/media/preview?id=`、`/media/thumbnail?id=`，无其他查询参数）。
    前端从 `CardMediaFrameDTO.id` 生成 URL；"ID → 磁盘路径"的映射只存在于 Go 侧，
    帧寻址方式一旦变化只需改后端与这一处约定。
 2. **处理器只接受数字 ID。** 不接受文件路径参数；ID 在数据库中解析为 `segment_path`
@@ -1268,8 +1269,8 @@ macOS 红叉与 Cmd+H 均由 `didHide` / `didUnhide` 更新应用隐藏状态，
 4. **状态码映射**：`404` 行不存在、已软删除或文件已清理（含解码失败——行存在但文件
    不可读等同缺资源，不区分 5xx）；`400` ID 非法。适配层不可用等同资源缺失（404），
    因为无录制目录时本来就没有帧。
-5. **缩略图**：与单帧复用 ID 校验、目录约束、状态码和缓存策略；使用
-   `DecodeRequest.MaxPixelSize=256`。主画面 / 放大查看仍走完整单帧，预览条走缩略图。
+5. 小窗封面和播放使用 720 像素预览，放大查看使用原图，帧条使用 256 像素缩略图。
+   预加载限接下来三帧，尺寸跟随当前视图。三个资源共用 ID 校验、目录约束、状态码和 HTTP 缓存策略。
 6. **解码在请求时发生**：`GetCardMedia` 只返回引用；像素在浏览器请求资源时经
    `platform.Media.DecodeFrame` 解码。规划中的 Timelapse 资源将复用同一处理器约定。
 

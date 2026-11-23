@@ -190,7 +190,7 @@ func Run() error {
 			Middleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					switch req.URL.Path {
-					case "/media/frame", "/media/thumbnail", "/favicon":
+					case "/media/frame", "/media/preview", "/media/thumbnail", "/favicon":
 						backend.serveAsset(w, req)
 					default:
 						next.ServeHTTP(w, req)

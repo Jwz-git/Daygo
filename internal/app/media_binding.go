@@ -85,6 +85,8 @@ func (b *Backend) serveAsset(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/media/frame":
 		b.serveFrame(w, r)
+	case "/media/preview":
+		b.serveFrameSized(w, r, 720)
 	case "/media/thumbnail":
 		b.serveFrameSized(w, r, 256)
 	case "/favicon":

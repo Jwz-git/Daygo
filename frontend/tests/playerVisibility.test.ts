@@ -109,6 +109,8 @@ test('real player removes hidden images while retaining rate, progress and playb
     await tick(1000); await tick(2000)
     const progress = find('player__bar').props['aria-valuenow']
     const rate = find('player__rate').text
+    assert.match(String(collect('img')[0]?.props.src), /^\/media\/preview\?id=/)
+    assert.ok(warmed.some(image => image.src.startsWith('/media/preview?id=')))
     const count = warmed.length
     nativeEvent?.({ visible: false })
     await nextTick()
@@ -141,6 +143,8 @@ test('real player removes hidden images while retaining rate, progress and playb
     await nextTick()
     await tick(200000); await tick(200001)
     assert.equal(collect('img', body).length, 5)
+    assert.match(String(collect('img', body)[0]?.props.src), /^\/media\/frame\?id=/)
+    assert.ok(warmed.every(image => !image.src || image.src.startsWith('/media/frame?id=')))
     assert.ok(collect('img', body).filter((image) => image.props.class === 'filmstrip__thumb')
       .every((image) => String(image.props.src).startsWith('/media/thumbnail?id=')))
     nativeEvent?.({ visible: false })
