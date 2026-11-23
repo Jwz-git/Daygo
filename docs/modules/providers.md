@@ -17,6 +17,8 @@ anthropic 三种 API Key 协议，另有 `chatgpt` 订阅 OAuth Responses 变体
 
 ## 当前状态与证据
 
+2026-11-23 Gemini 媒体请求按块编码，保留固定 Content-Length、独立请求体重放和原有重定向限制。匿名 8 MiB 视频在 macOS arm64 上各启动三个独立基准进程，每进程运行 20 次，请求体全部读入丢弃传输层。每次累计分配的三轮中位数由 34.1 降至 8.0 MiB（约 76%），基准进程的物理内存峰值中位数由 117.3 降至 40.3 MiB。结果限于请求构造与发送夹具。混合文本和图片、JSON 转义、Base64 补位、逐字节读取、中途重放及现有协议与取消测试可由 `go test -race ./internal/ai/...` 复核。线上 Provider 未发送请求。回退可独立撤销此改动。
+
 2026-11-21 密钥状态读取（基于 `eb6b913` 的 `test` 工作树，macOS arm64）：Provider 列表在 macOS 只查询钥匙串条目是否存在。内存短时保留布尔状态，添加或删除后重新读；实际调用继续读取系统钥匙串。匿名命令夹具验证列表所用查询不带取密钥参数、重复读取复用状态以及修改后失效。`go test -race -count=1 ./internal/platform/secrets ./internal/app -run 'Test(KeychainPresence|Provider)'` 通过。真实登录钥匙串和授权对话框本轮未操作。回退为撤销提交。
 
 2026-11-21 跨批次回退（基于 `e101882` 的 `test` 工作树，macOS arm64）：时间线分析重建客户端时复用当前有序链的游标和失败计数。配置列表变更时保留仍存在的复合 ID，旧请求继续使用原列表。共享状态仅含标识与计数，凭据按批次读取。匿名回环服务的两批请求修正前共探测故障主服务两次，修正后仅一次，备用服务仍成功两次。`go test -race -count=1 ./internal/ai ./internal/app -run 'Test(Chain|AnalysisChain|ProviderRouting)'` 通过。真实 Provider 恢复时长和配额未测。回退为撤销提交。

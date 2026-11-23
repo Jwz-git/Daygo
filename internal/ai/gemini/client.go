@@ -1,7 +1,6 @@
 package gemini
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -65,32 +64,16 @@ func (c *Client) Generate(ctx context.Context, request ai.Request) (ai.Result, e
 	if err := request.Validate(); err != nil {
 		return ai.Result{}, err
 	}
-	parts := make([]contentPart, 0, len(request.Parts))
-	for _, part := range request.Parts {
-		switch part.Kind() {
-		case ai.PartText:
-			parts = append(parts, contentPart{Text: part.Text()})
-		case ai.PartImage, ai.PartVideo:
-			parts = append(parts, contentPart{InlineData: &mediaBlob{MIMEType: part.MediaType(), Data: part.Bytes()}})
-		}
-	}
-	config := generationConfig{MaxOutputTokens: request.MaxOutputTokens}
-	if request.Output != nil {
-		config.ResponseMIMEType = "application/json"
-		config.ResponseJSONSchema = request.Output.Schema
-	}
-	payload := struct {
-		Contents []content        `json:"contents"`
-		Config   generationConfig `json:"generationConfig"`
-	}{Contents: []content{{Parts: parts}}, Config: config}
-	body, err := json.Marshal(payload)
+	body, err := newUpload(request)
 	if err != nil {
 		return ai.Result{}, ai.NewError(ai.ErrorInvalidRequest, "cannot encode Gemini request", 0, err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, body.open())
 	if err != nil {
 		return ai.Result{}, ai.NewError(ai.ErrorInvalidRequest, "cannot create Gemini request", 0, err)
 	}
+	req.ContentLength = body.length
+	req.GetBody = func() (io.ReadCloser, error) { return body.open(), nil }
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-goog-api-key", c.secret)
 	res, err := c.http.Do(req)
@@ -106,17 +89,17 @@ func (c *Client) Generate(ctx context.Context, request ai.Request) (ai.Result, e
 	}
 
 	const maxResponseBytes = 4 << 20
-	body, err = io.ReadAll(io.LimitReader(res.Body, maxResponseBytes+1))
+	response, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes+1))
 	if err != nil {
 		if ctx.Err() != nil {
 			return ai.Result{}, ctx.Err()
 		}
 		return ai.Result{}, ai.NewError(ai.ErrorUnavailable, "cannot read Gemini response", res.StatusCode, err)
 	}
-	if len(body) > maxResponseBytes {
+	if len(response) > maxResponseBytes {
 		return ai.Result{}, ai.NewError(ai.ErrorInvalidOutput, "Gemini response is too large", res.StatusCode, nil)
 	}
-	return parseResponse(body, request.Output)
+	return parseResponse(response, request.Output)
 }
 
 func statusError(res *http.Response) error {
