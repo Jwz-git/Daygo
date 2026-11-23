@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 
 import type { CardMediaFrameDTO } from '@/api/dto'
 import { FramePreloader, frameSrc, previewSrc, thumbnailSrc } from '@/lib/framePreloader'
+import { registerWindowPlayer, takeRestoredPlayer } from '@/lib/windowResume'
 import { PlaybackScheduler } from '@/lib/playbackScheduler'
 import { useUIVisibilityStore } from '@/stores/uiVisibility'
 
@@ -20,6 +21,7 @@ import { useUIVisibilityStore } from '@/stores/uiVisibility'
  * Both use numeric IDs resolved by the backend inside the recordings root.
  */
 const props = withDefaults(defineProps<{
+  resumeCardId?: number
   frames: CardMediaFrameDTO[]
   title: string
   timeLabel: string
@@ -172,8 +174,30 @@ watch(() => props.frames, () => {
   started.value = false
   virtualTs = clockStart.value
   setProgress(0)
-  if (props.autoplay && props.frames.length > 0) startPlayback()
+  if (!restorePlayback() && props.autoplay && props.frames.length > 0) startPlayback()
 })
+
+function restorePlayback(): boolean {
+  if (!props.resumeCardId || props.frames.length === 0) return false
+  const saved = takeRestoredPlayer(props.resumeCardId)
+  if (!saved) return false
+  const index = RATES.findIndex(value => value === saved.rate)
+  if (index >= 0) rateIndex.value = index
+  started.value = saved.started
+  expanded.value = saved.expanded
+  seekTo(saved.progress / 100)
+  playing.value = saved.playing
+  warmNextFrames()
+  return true
+}
+
+if (props.resumeCardId) {
+  const unregister = registerWindowPlayer(() => ({
+    cardId: props.resumeCardId!,
+    state: { started: started.value, playing: playing.value, expanded: expanded.value, rate: rate.value, progress: progress.value },
+  }))
+  onBeforeUnmount(unregister)
+}
 
 function openExpanded(): void {
   expanded.value = true
@@ -214,6 +238,7 @@ watch(expanded, (value) => {
   if (value) document.addEventListener('keydown', onKeydown)
   else document.removeEventListener('keydown', onKeydown)
 })
+restorePlayback()
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown)

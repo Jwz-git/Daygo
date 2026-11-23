@@ -4,6 +4,34 @@ import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig, type Plugin } from 'vite'
 
+import { SUPPORTED_LOCALES } from './src/i18n/locales'
+import { loadLocale } from './src/locales'
+
+function residentMenuLabels(): Plugin {
+  return {
+    name: 'daygo-resident-menu-labels',
+    apply: 'build',
+    async generateBundle() {
+      for (const locale of SUPPORTED_LOCALES) {
+        const { recording, native } = await loadLocale(locale)
+        const { applicationPicker, updater, journalReminder, plan, applicationMenu } = native
+        const labels = {
+          status: recording.menuBar,
+          native: {
+            applicationPickerTitle: applicationPicker.title, applicationPickerFilter: applicationPicker.filterExecutable,
+            updateOwnerRequired: updater.ownerRequired, applicationMenu,
+            journalReminderTitle: journalReminder.title, journalReminderBody: journalReminder.body,
+            planStartTitle: plan.startTitle, planStartBody: plan.startBody,
+            planDistractionTitle: plan.distractionTitle, planDistractionBody: plan.distractionBody,
+            dayDistractionTitle: plan.dayDistractionTitle, dayDistractionBody: plan.dayDistractionBody,
+          },
+        }
+        this.emitFile({ type: 'asset', fileName: `native-labels/${locale}.json`, source: JSON.stringify(labels) })
+      }
+    },
+  }
+}
+
 function developmentFixtures(): Plugin {
   const timelineFixture = fileURLToPath(
     new URL('./dev-fixtures/timeline.json', import.meta.url),
@@ -78,7 +106,7 @@ export default defineConfig(({ mode }) => ({
       mode !== 'production' || process.env.VITE_DAYGO_TEST_TOOLS === '1',
     ),
   },
-  plugins: [vue(), developmentFixtures(), frameFallthrough()],
+  plugins: [vue(), residentMenuLabels(), developmentFixtures(), frameFallthrough()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

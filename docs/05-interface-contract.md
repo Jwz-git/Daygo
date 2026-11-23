@@ -268,6 +268,7 @@ export function toApiError(e: unknown): ApiError {
 | `GetDayContext(day string) (DayContextDTO, error)` | timeline | time 日期子能力 | 读 | — | `invalid_argument` |
 | `GetCapabilities() (CapabilitiesDTO, error)` | preferences | 实际功能 / 锁状态 | 读 | — | — |
 | `GetUIVisibility() UIVisibilityDTO` | preferences | UI 宿主 | 读 | `ui:visibility-changed` | — |
+| `ConfirmWindowRelease(token, state)` / `TakeWindowResumeState()` | preferences | UI 宿主 | 确认回收 / 一次性读取内存快照 | `ui:prepare-window-release` | — |
 | `GetDiagnostics() (DiagnosticsDTO, error)` | data | diagnostics / db-core | 读 | — | `database_error` |
 
 `day` 传空串表示"当前逻辑日"。其余所有接受 `day` 的方法**必须**收到合法 `yyyy-MM-dd`，
@@ -1242,7 +1243,13 @@ Windows 的错误、取消与关闭更新弹窗回调均清除 `checking`。安�
 macOS 红叉与 Cmd+H 均由 `didHide` / `didUnhide` 更新应用隐藏状态，红叉另上送 `window_close_requested` 触发 Dock 策略。
 普通激活 / 失焦不构成隐藏；隐藏不改变录制状态和业务订阅。前端单一订阅先安装事件，
 再读快照；事件或较新的快照请求使旧快照失效，结合 `document.visibilityState` 驱动媒体。
-隐藏只暂停媒体时钟并移除像素元素，不卸载路由、播放器或编辑状态；重开保留播放意图与进度。
+隐藏立即暂停媒体时钟并移除像素元素。macOS 主窗口红叉隐藏满 120 秒时，宿主可发
+`ui:prepare-window-release`（整数 token）。只有可恢复的时间线日视图、日报或周报应答。
+`ConfirmWindowRelease(token, state)` 要求本次 token 仍有效且窗口仍隐藏。state 仅含
+`route`（timeline / daily / weekly）、ISO 日期或空串、数字卡片 ID、可选的播放器进度百分比、倍速、
+已开始 / 播放 / 展开布尔值。快照只存宿主内存，重建的窗口调用 `TakeWindowResumeState()` 一次取走。
+表单、未保存编辑、未结束的 store 操作、未知页面或未确认状态保留原窗口。快速重开取消回收，
+Cmd+H 与最小化不启动回收。设置、聊天、首次引导和工具窗口沿用隐藏恢复行为。
 
 ### 5.5.4 资源契约
 
@@ -1621,6 +1628,10 @@ Windows 的静态库 / DLL 必须与 Go 桥一起重建。System ABI 1.6 另提�
 不阻塞系统事件泵，System 关闭时移除；收尾失败的退出选择仍在独立 Wails 退出回调中等待。
 
 2026-10-13：前端设置页已移除 Dock 显示开关；以下后台字段与策略保留，继续尊重已有保存值。
+
+2026-11-23 macOS System ABI 1.8 新增 `dg_login_launch_languages` 和 `dg_main_window_attach`。
+前者只在 AppKit 的打开事件带有登录项标记时返回首选语言列表（调用方释放）；后者在主线程借用
+宿主的 NSWindow，为每个新建主窗口接入红叉控制。登录项注册状态仍走原有查询。
 
 2026-11-08：macOS System ABI 1.7 增加红叉事件 `window_close_requested`（原生值 12）。
 主窗口红叉隐藏应用后上送，Cmd+H 无此事件。应用菜单 JSON 中 `quit` 对应 Cmd+Q，

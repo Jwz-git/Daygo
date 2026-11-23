@@ -153,7 +153,7 @@ const errorText = computed(() => {
 </script>
 
 <template>
-  <section class="inspector__tile plan">
+  <section :data-retain-window="draft || pendingDelete !== null ? '' : undefined" class="inspector__tile plan">
     <header class="inspector__tile-head">
       <h3 class="inspector__tile-title">{{ t('timeline.plan.title') }}</h3>
       <span v-if="plan.blocks.length > 0" class="inspector__tile-meta">

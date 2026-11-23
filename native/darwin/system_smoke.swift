@@ -46,6 +46,12 @@ private final class WorkerCompletion: @unchecked Sendable {
 @main
 struct SystemSmoke {
   @MainActor static func main() {
+    let event = NSAppleEventDescriptor(eventClass: AEEventClass(kCoreEventClass),
+      eventID: AEEventID(kAEOpenApplication), targetDescriptor: nil,
+      returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
+    precondition(!isLoginLaunch(nil) && !isLoginLaunch(event))
+    event.setParam(NSAppleEventDescriptor(enumCode: OSType(keyAELaunchedAsLogInItem)), forKeyword: AEKeyword(keyAEPropData))
+    precondition(isLoginLaunch(event))
     let app = NSApplication.shared
     app.finishLaunching()
     precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_REGULAR)) == 0)
@@ -122,7 +128,10 @@ struct SystemSmoke {
     precondition(dg_activation_policy_set(UInt32(DG_ACTIVATION_ACCESSORY)) == 0)
     precondition(app.setActivationPolicy(.regular))
     NotificationCenter.default.post(name: NSApplication.didFinishLaunchingNotification, object: app)
-    RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+    let policyDeadline = Date().addingTimeInterval(2)
+    while app.activationPolicy() != .accessory && Date() < policyDeadline {
+      RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+    }
     precondition(app.activationPolicy() == .accessory)
     app.hide(nil)
     precondition(observed.closeCount() == 0)
@@ -166,7 +175,7 @@ struct SystemSmoke {
     let appRoot = NSMenuItem(title: "Fixture", action: nil, keyEquivalent: "")
     let appMenu = NSMenu(title: "Fixture")
     let target = NSObject()
-    let quit = NSMenuItem(title: "Quit", action: NSSelectorFromString("Quit"), keyEquivalent: "q")
+    let quit = NSMenuItem(title: "Quit", action: NSSelectorFromString("terminate:"), keyEquivalent: "q")
     quit.target = target
     appMenu.addItem(quit)
     appRoot.submenu = appMenu
@@ -193,7 +202,7 @@ struct SystemSmoke {
         quit.title == "\(prefix)-quit" && editRoot.title == "\(prefix)-edit"
           && undo.title == "\(prefix)-undo")
       precondition(
-        quit.action == NSSelectorFromString("Quit") && quit.keyEquivalent == "q"
+        quit.action == NSSelectorFromString("terminate:") && quit.keyEquivalent == "q"
           && quit.target === target)
       precondition(undo.action == NSSelectorFromString("undo:") && undo.keyEquivalent == "z")
     }

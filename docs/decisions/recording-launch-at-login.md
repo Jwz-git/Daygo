@@ -63,6 +63,11 @@ App 最低系统为 **macOS 14.0**（`scripts/package-macos.sh:39` `MACOS_MIN_VE
   （[`SystemABI.swift`](../../native/darwin/Sources/SystemABI.swift) `dg_open_system_settings`），
   `.requiresApproval` 时可直接复用它跳转。
 
+2026-11-23 窗口按需创建使用独立的启动来源。AppKit 在启动完成通知期间提供的
+`kAEOpenApplication` 事件，其 `keyAEPropData` 枚举等于 `keyAELaunchedAsLogInItem` 时确认登录启动。
+读取系统首选语言后使用内嵌的九语言菜单资源，原生菜单和提醒在首次 WebView 创建之前可用。
+LaunchServices 匿名应用的带标记 / 未带标记启动均已验证；正式签名包下次真实登录需要独立确认。
+
 ## 4. 状态映射与对账（端口是 bool）
 
 SMAppService 有四态，端口只暴露 bool，映射约定：
@@ -85,7 +90,7 @@ OS 的 `status` 表示实际注册。`UpdateSettings` 提交成功后，仅当�
 
 | 切片 | 当前落点 | 状态 |
 |---|---|---|
-| C ABI / Swift | `daygo_system.h` 的 `dg_launch_at_login_query` / `dg_launch_at_login_set`；`SystemABI.swift` 的 SMAppService 调用 | 已实现；System ABI 当前为 1.6，不再执行旧 minor 2→3 计划 |
+| C ABI / Swift | `daygo_system.h` 的 `dg_launch_at_login_query` / `dg_launch_at_login_set`；`SystemABI.swift` 的 SMAppService 调用 | 已实现；System ABI 1.8 另支持区分本次登录启动与手动启动 |
 | Go 桥 / 端口 | `system_bridge_darwin.go`、无 cgo 不可用桥、`darwin.System`；Windows Run 键实现保留 | 已实现 |
 | 设置消费者 | `internal/app/api_settings.go` 的 `applyLaunchAtLogin`，提交后按改动键尽力应用 | 已实现；OS 失败不回滚保存 |
 | UI / i18n | `AppearanceSection.vue` 开关、设置 DTO / patch、九语言文案 | 已实现；当前展示 DB 意图 |

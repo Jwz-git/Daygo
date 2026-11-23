@@ -16,6 +16,7 @@ import { categoryLabel } from '@/lib/categoryLabel'
 import { delayUntilDayContextRefresh } from '@/lib/dayContextRefresh'
 import { formatTimelineForClipboard } from '@/lib/timelineClipboard'
 import { formatTimeZoneName } from '@/lib/timeFormat'
+import { registerWindowView, takeRestoredCardID } from '@/lib/windowResume'
 import { safeTimeZone } from '@/lib/timeZone'
 import { useDayGoalStore } from '@/stores/dayGoal'
 import { usePlanStore } from '@/stores/plan'
@@ -473,6 +474,25 @@ async function copyTimeline(): Promise<void> {
 async function reprocessCurrentDay(): Promise<void> {
   if (context.value === null) return
   await timeline.reprocessCurrentDay(context.value.day)
+}
+
+const unregisterWindow = registerWindowView(() => {
+  if (route.name !== 'timeline' || !day.value || day.value.day !== context.value?.day ||
+      viewMode.value !== 'day' || switching.value || state.value === 'loading' ||
+      categoryFilter.value || selectedFailureTs.value !== null || pendingAction.value || actionError.value ||
+      plan.pending || dayGoal.saving || recording.pendingAction || showCalendar.value ||
+      showCategoryManager.value || showReview.value || planPopover.value ||
+      Object.keys(route.query).some(key => key !== 'day')) return null
+  return { route: 'timeline', day: selectedCardID.value ? day.value.day : routeDay(), cardId: selectedCardID.value ?? 0 }
+})
+onBeforeUnmount(unregisterWindow)
+const resumeCard = takeRestoredCardID()
+if (resumeCard > 0) {
+  const stop = watch(day, loaded => {
+    if (!loaded) return
+    stop()
+    if (selectedCardID.value === null && loaded.cards.some(card => card.id === resumeCard)) timeline.selectCard(resumeCard)
+  })
 }
 
 onMounted(() => {

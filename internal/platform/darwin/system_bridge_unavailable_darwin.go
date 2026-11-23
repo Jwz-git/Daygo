@@ -28,7 +28,8 @@ func setApplicationMenuLabels(platform.ApplicationMenuLabels) error {
 func statusItemAvailable() (bool, error) {
 	return false, errors.New("status item ABI unavailable without cgo")
 }
-func systemStop() {}
+func systemStop()                       {}
+func loginItemLaunch() ([]string, bool) { return nil, false }
 func setActivationPolicy(platform.ActivationPolicy) error {
 	return errors.New("activation policy ABI unavailable without cgo")
 }

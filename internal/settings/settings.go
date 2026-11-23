@@ -528,35 +528,41 @@ func normalizeLanguage(value string) string {
 	if value == "" {
 		return ""
 	}
-	lowered := strings.ToLower(strings.ReplaceAll(value, "_", "-"))
-	switch {
-	// Script beats region: zh-Hant-CN is Traditional by the writer's own
-	// declaration, so Hant is tested before the region list. A bare "zh" is
-	// Simplified, the more common reading.
-	case hasLanguagePrefix(lowered, "zh") && hasAnyPrefix(lowered, traditionalChinesePrefixes):
-		return "zh-Hant"
-	case hasLanguagePrefix(lowered, "zh"):
-		return "zh-CN"
-	case hasLanguagePrefix(lowered, "ja"):
-		return "ja"
-	case hasLanguagePrefix(lowered, "ko"):
-		return "ko"
-	case hasLanguagePrefix(lowered, "en"):
-		return "en"
-	case hasLanguagePrefix(lowered, "de"):
-		return "de"
-	case hasLanguagePrefix(lowered, "fr"):
-		return "fr"
-	case hasLanguagePrefix(lowered, "es"):
-		return "es"
-	// Every Portuguese region ships the Brazilian bundle: it is the larger
-	// audience and the de-facto default written standard in software, and the
-	// two standards diverge on ordinary UI vocabulary (tela/ecrã).
-	case hasLanguagePrefix(lowered, "pt"):
-		return "pt-BR"
-	default:
-		return DefaultLanguage
+	return SystemLanguage([]string{value})
+}
+
+// SystemLanguage chooses the first shipped language in OS preference order.
+func SystemLanguage(tags []string) string {
+	for _, tag := range tags {
+		lowered := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(tag), "_", "-"))
+		switch {
+		// Script beats region: zh-Hant-CN is Traditional by the writer's own
+		// declaration, so Hant is tested before the region list. A bare "zh" is
+		// Simplified, the more common reading.
+		case hasLanguagePrefix(lowered, "zh") && hasAnyPrefix(lowered, traditionalChinesePrefixes):
+			return "zh-Hant"
+		case hasLanguagePrefix(lowered, "zh"):
+			return "zh-CN"
+		case hasLanguagePrefix(lowered, "ja"):
+			return "ja"
+		case hasLanguagePrefix(lowered, "ko"):
+			return "ko"
+		case hasLanguagePrefix(lowered, "en"):
+			return "en"
+		case hasLanguagePrefix(lowered, "de"):
+			return "de"
+		case hasLanguagePrefix(lowered, "fr"):
+			return "fr"
+		case hasLanguagePrefix(lowered, "es"):
+			return "es"
+		// Every Portuguese region ships the Brazilian bundle: it is the larger
+		// audience and the de-facto default written standard in software, and the
+		// two standards diverge on ordinary UI vocabulary (tela/ecrã).
+		case hasLanguagePrefix(lowered, "pt"):
+			return "pt-BR"
+		}
 	}
+	return DefaultLanguage
 }
 
 // traditionalChinesePrefixes are the tags that name a script or a region where

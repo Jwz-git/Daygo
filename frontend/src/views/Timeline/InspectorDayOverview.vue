@@ -330,7 +330,7 @@ const reviewMinutesTotal = computed(() =>
 
   <PlanPanel :day="day.day" :categories="day.categories" :can-write="canWrite" :live="isLiveDay" />
 
-  <section class="inspector__tile goal-tile">
+  <section class="inspector__tile goal-tile" :data-retain-window="editingGoal ? '' : undefined">
     <header class="inspector__tile-head">
       <h3 class="inspector__tile-title">{{ t('daily.goal.title') }}</h3>
       <template v-if="!goalUnavailable && !goalFailed && canWrite">

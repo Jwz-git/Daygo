@@ -327,7 +327,7 @@ watch(
 </script>
 
 <template>
-  <header class="inspector__header">
+  <header class="inspector__header" :data-retain-window="editingField || confirmingDelete || confirmingReprocess || verdictSaving || ratingSaving ? '' : undefined">
     <div class="inspector__heading">
       <div v-if="editingField === 'category'" class="field-editor field-editor--category">
         <DgSelect
@@ -397,6 +397,7 @@ watch(
        title/time row, before the summaries. -->
   <CardVideoPlayer
     class="card-player"
+    :resume-card-id="props.card.id"
     :frames="mediaFrames"
     :title="props.card.title"
     :time-label="timeRange"

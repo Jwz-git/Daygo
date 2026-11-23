@@ -1,6 +1,9 @@
 package platform
 
-import "context"
+import (
+	"context"
+	"unsafe"
+)
 
 // Capture performs one caller-driven screenshot of the current primary display.
 // It owns no timer, recorder state, event stream, persistence, or segment encoder.
@@ -95,6 +98,16 @@ type NotificationAvailability interface {
 // recording-screen-recording-permission.md).
 type Relauncher interface {
 	Relaunch(ctx context.Context) error
+}
+
+// MainWindowAttachment installs native controls on a live host-owned window.
+// The pointer is borrowed for this call on the desktop main thread.
+type MainWindowAttachment interface{ AttachMainWindow(unsafe.Pointer) }
+
+// LoginItemLaunch reports the launch event and preferred languages for native
+// presentation before the first window is created.
+type LoginItemLaunch interface {
+	LoginItemLaunch() (preferredLanguages []string, confirmed bool)
 }
 
 // StatusItemAvailability confirms that the native recovery entry point exists.

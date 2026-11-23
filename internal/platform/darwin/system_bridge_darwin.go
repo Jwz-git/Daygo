@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Jwz-git/Daygo/internal/platform"
+	"strings"
 	"sync"
 	"unsafe"
 )
@@ -31,6 +32,16 @@ func systemStart() error {
 		return fmt.Errorf("system ABI start failed: %d", code)
 	}
 	return nil
+}
+func (*System) AttachMainWindow(window unsafe.Pointer) { C.dg_main_window_attach(window) }
+
+func loginItemLaunch() ([]string, bool) {
+	p := C.dg_login_launch_languages()
+	if p == nil {
+		return nil, false
+	}
+	defer C.free(unsafe.Pointer(p))
+	return strings.Fields(C.GoString(p)), true
 }
 func systemStop() { C.dg_system_stop() }
 

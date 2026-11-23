@@ -13,6 +13,8 @@ var contractBindings = []string{
 	"AddProvider",
 	"BeginChatGPTLogin",
 	"ConfirmChatGPTPlan",
+	"ConfirmWindowRelease",
+	"TakeWindowResumeState",
 	"CancelChatGPTLogin",
 	"GetChatGPTConnection",
 	"SaveChatGPTProvider",

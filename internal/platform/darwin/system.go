@@ -19,6 +19,8 @@ type System struct {
 	closed  bool
 }
 
+func (*System) LoginItemLaunch() ([]string, bool) { return loginItemLaunch() }
+
 func (*System) NotificationsAvailable() bool { return notificationsAvailable() }
 
 func NewSystem() *System {

@@ -37,6 +37,11 @@ function fromJournal(journal: JournalDayDTO | null): Draft {
 
 watch(() => props.journal, (next) => { draft.value = fromJournal(next) }, { immediate: true })
 
+const hasChanges = computed(() => {
+  const saved = fromJournal(props.journal)
+  return (Object.keys(saved) as (keyof Draft)[]).some(key => draft.value[key] !== saved[key])
+})
+
 const status = computed(() => {
   if (draft.value.intentions.trim() !== '') {
     return draft.value.reflections.trim() !== '' ? 'complete' : 'intentions_set'
@@ -63,7 +68,7 @@ function submit(): void {
 </script>
 
 <template>
-  <section class="daily-section" aria-labelledby="daily-journal-title">
+  <section :data-retain-window="hasChanges || saving ? '' : undefined" class="daily-section" aria-labelledby="daily-journal-title">
     <header class="section-heading">
       <div>
         <h2 id="daily-journal-title">{{ t('daily.journal.title') }}</h2>
@@ -92,11 +97,11 @@ function submit(): void {
           </span>
           <label class="journal-field">
             <span>{{ t('daily.journal.intentions') }}</span>
-            <textarea v-model="draft.intentions" class="dg-reading" rows="3" :placeholder="t('daily.journal.intentionsPlaceholder')" />
+            <textarea data-journal-field v-model="draft.intentions" class="dg-reading" rows="3" :placeholder="t('daily.journal.intentionsPlaceholder')" />
           </label>
           <label class="journal-field">
             <span>{{ t('daily.journal.goals') }}</span>
-            <textarea v-model="draft.goals" class="dg-reading" rows="2" :placeholder="t('daily.journal.goalsPlaceholder')" />
+            <textarea data-journal-field v-model="draft.goals" class="dg-reading" rows="2" :placeholder="t('daily.journal.goalsPlaceholder')" />
           </label>
         </div>
         <div class="journal-group">
@@ -105,11 +110,11 @@ function submit(): void {
           </span>
           <label class="journal-field">
             <span>{{ t('daily.journal.notes') }}</span>
-            <textarea v-model="draft.notes" class="dg-reading" rows="3" :placeholder="t('daily.journal.notesPlaceholder')" />
+            <textarea data-journal-field v-model="draft.notes" class="dg-reading" rows="3" :placeholder="t('daily.journal.notesPlaceholder')" />
           </label>
           <label class="journal-field">
             <span>{{ t('daily.journal.reflections') }}</span>
-            <textarea v-model="draft.reflections" class="dg-reading" rows="2" :placeholder="t('daily.journal.reflectionsPlaceholder')" />
+            <textarea data-journal-field v-model="draft.reflections" class="dg-reading" rows="2" :placeholder="t('daily.journal.reflectionsPlaceholder')" />
           </label>
         </div>
       </div>

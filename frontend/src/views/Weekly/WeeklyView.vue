@@ -7,6 +7,7 @@ import TokenUsageCard from '@/components/TokenUsageCard.vue'
 import DevelopmentBadge from '@/components/DevelopmentBadge.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PeriodNav from '@/components/PeriodNav.vue'
+import { registerWindowView, takeRestoredWeek } from '@/lib/windowResume'
 import { shiftCalendarDate } from '@/lib/calendarDate'
 import { useWeeklyStore } from '@/stores/weekly'
 import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
@@ -54,12 +55,22 @@ const dateTitle = computed(() => {
 // Logical-day strings of the week, Monday first, for the charts' weekday labels.
 const weekDays = computed(() => dashboard.value?.days.map((day) => day.day) ?? [])
 
-onMounted(() => {
+let mounted = false
+const requestedWeek = takeRestoredWeek()
+const releaseView = registerWindowView(() => {
+  if (weekly.loading || !dashboard.value) return null
+  const start = dashboard.value.weekStart
+  return { route: 'weekly', day: start === weekly.currentWeekStart ? '' : start, cardId: 0 }
+})
+onBeforeUnmount(releaseView)
+onMounted(async () => {
+  mounted = true
   weekly.startEvents()
-  void weekly.load()
+  await weekly.load()
+  if (mounted && requestedWeek && requestedWeek !== dashboard.value?.weekStart) await weekly.load(requestedWeek)
 })
 
-onBeforeUnmount(() => weekly.stopListening())
+onBeforeUnmount(() => { mounted = false; weekly.stopListening() })
 </script>
 
 <template>

@@ -9,6 +9,7 @@ private final class SystemState: @unchecked Sendable {
     var callbackData: UnsafeMutableRawPointer?
     var observers: [NSObjectProtocol] = []
     var lastDisplayEventNs: Int64 = 0
+    var loginLaunch = false
     var lastLocked: Bool?
     var lockTimer: DispatchSourceTimer?
 }
@@ -31,6 +32,19 @@ private func currentScreenLockState() -> Bool? {
 
 
 
+func isLoginLaunch(_ event: NSAppleEventDescriptor?) -> Bool {
+    event?.eventClass == AEEventClass(kCoreEventClass)
+        && event?.eventID == AEEventID(kAEOpenApplication)
+        && event?.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue == keyAELaunchedAsLogInItem
+}
+
+// Called after AppKit finishes launching. Nil also covers manual/unknown launches.
+@_cdecl("dg_login_launch_languages")
+func dg_login_launch_languages() -> UnsafeMutablePointer<CChar>? {
+    state.lock.lock(); let confirmed = state.loginLaunch; state.lock.unlock()
+    return confirmed ? strdup(Locale.preferredLanguages.joined(separator: "\n")) : nil
+}
+
 @_cdecl("dg_system_start")
 func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ data: UnsafeMutableRawPointer?) -> Int32 {
     guard requested == DG_SYSTEM_ABI_MAJOR, let cb else { return -1 }
@@ -50,6 +64,8 @@ func dg_system_start(_ requested: UInt32, _ cb: dg_system_event_callback_v1?, _ 
     add(NSApplication.didHideNotification, NotificationCenter.default)
     add(NSApplication.didUnhideNotification, NotificationCenter.default)
     let menuObserver = NotificationCenter.default.addObserver(forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: nil) { _ in
+        let confirmed = isLoginLaunch(NSAppleEventManager.shared().currentAppleEvent)
+        state.lock.lock(); state.loginLaunch = confirmed; state.lock.unlock()
         DispatchQueue.main.async {
             applyApplicationMenuCopy()
             restoreAppliedActivationPolicy()
@@ -126,6 +142,15 @@ private func activationRunOnMain(_ body: @Sendable @escaping @MainActor () -> Vo
         NSApp.hide(sender)
         emit(UInt32(DG_SYSTEM_WINDOW_CLOSE_REQUESTED))
     }
+}
+
+// The host passes its own live NSWindow on the app thread after creating it.
+// Late-created windows may never become main (for example when the Dock is hidden).
+@_cdecl("dg_main_window_attach")
+func dg_main_window_attach(_ raw: UnsafeMutableRawPointer?) {
+    guard let raw, Thread.isMainThread else { return }
+    let window = Unmanaged<NSWindow>.fromOpaque(raw).takeUnretainedValue()
+    MainActor.assumeIsolated { windowCloseAction.install(on: window) }
 }
 
 @MainActor private func restoreAppliedActivationPolicy() {
@@ -267,7 +292,7 @@ func dg_system_stop() {
     }
     let workspace = NSWorkspace.shared.notificationCenter
     let distributed = DistributedNotificationCenter.default()
-    state.lock.lock(); let old = state.observers; let timer = state.lockTimer; state.observers.removeAll(); state.lockTimer = nil; state.lastLocked = nil; state.callback = nil; state.callbackData = nil; state.lock.unlock()
+    state.lock.lock(); let old = state.observers; let timer = state.lockTimer; state.observers.removeAll(); state.lockTimer = nil; state.lastLocked = nil; state.loginLaunch = false; state.callback = nil; state.callbackData = nil; state.lock.unlock()
     timer?.cancel()
     for token in old { workspace.removeObserver(token); distributed.removeObserver(token); NotificationCenter.default.removeObserver(token) }
 }

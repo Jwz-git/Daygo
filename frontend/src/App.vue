@@ -3,6 +3,8 @@ import { defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView } from 'vue-router'
 
+import { onWindowRelease } from '@/api/windowResume'
+import { fatalError } from '@/lib/fatalError'
 import { setNativeUiLabels } from '@/api/native'
 import { setStatusItemLabels } from '@/api/recording'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
@@ -33,7 +35,13 @@ void tokenUsageVisibility.initialize()
 const OnboardingFlow = defineAsyncComponent(() => import('@/views/Onboarding/OnboardingFlow.vue'))
 const onboarding = useOnboardingStore()
 void onboarding.initialize()
-const showSplash = ref(true)
+const props = defineProps<{ resumed?: boolean }>()
+const showSplash = ref(!props.resumed)
+const stopWindowRelease = onWindowRelease(() =>
+  !uiVisibility.visible && !showSplash.value && onboarding.status === 'done' && !fatalError.value &&
+  !document.querySelector('input, textarea:not([data-journal-field]), select, [contenteditable="true"], [data-retain-window], [role="alert"], [aria-busy="true"], [role="dialog"]:not(.lightbox__panel)'),
+)
+onBeforeUnmount(stopWindowRelease)
 
 // Native surfaces (the menu-bar item, the application picker, the updater's
 // install refusal) render outside the webview, so vue-i18n cannot reach them.

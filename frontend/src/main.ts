@@ -2,6 +2,8 @@ import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 
 import App from './App.vue'
+import { recoverWindow } from './api/windowResume'
+import { trackWindowAction } from './lib/windowResume'
 import { i18n } from './i18n'
 import { clearFatalError, reportFatalError } from './lib/fatalError'
 import { resolveDesktopPlatform } from './lib/desktopPlatform'
@@ -35,20 +37,33 @@ window.addEventListener('unhandledrejection', (event) => {
 async function bootstrap(): Promise<void> {
   await initializeDesktopBridge()
   document.documentElement.dataset.dgPlatform = await resolveDesktopPlatform()
-  const app = createApp(App)
+  const resume = await recoverWindow()
+  const app = createApp(App, { resumed: resume !== null })
 
   // Render/lifecycle errors that no ErrorBoundary caught land here.
   app.config.errorHandler = (error, _instance, info) => {
     reportFatalError(`vue (${info})`, error)
   }
 
-  app.use(createPinia())
+  const pinia = createPinia()
+  pinia.use(({ store }) => {
+    store.$onAction(({ after, onError }) => {
+      const done = trackWindowAction()
+      after(done)
+      onError(done)
+    }, true)
+  })
+  app.use(pinia)
   app.use(i18n)
 
   // Resolve theme and language before the first paint: otherwise copy flashes
   // in the wrong locale and a dark-appearance window flashes light.
   await useAppearanceStore().hydrate()
 
+  if (resume) await router.replace({
+    name: resume.route,
+    query: resume.route !== 'weekly' && resume.day ? { day: resume.day } : {},
+  })
   app.use(router)
   // A new location is a fresh chance: clear the previous fatal error so a
   // working page is not hidden behind a stale overlay. If the destination also

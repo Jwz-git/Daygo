@@ -128,6 +128,9 @@ type Backend struct {
 	dockHidden        bool
 	// Desktop operations are installed before the backend is bound to a window.
 	hostContext            context.Context
+	windowResume           atomic.Pointer[WindowResumeDTO]
+	confirmWindowRelease   func(int, WindowResumeDTO)
+	nativeWindowClosed     func()
 	paintWindowBackground  func(red, green, blue uint8)
 	pickRecordingDirectory func() (string, error)
 
@@ -361,6 +364,9 @@ func (b *Backend) startSystemEventPump() {
 				b.setWindowHidden(true)
 				if err := b.enterBackground(context.Background()); err != nil {
 					log.Printf("drop dock icon on window close unavailable: %v", err)
+				}
+				if b.nativeWindowClosed != nil {
+					b.nativeWindowClosed()
 				}
 			case platform.EventSystemShutdown:
 				b.requestSystemShutdown()

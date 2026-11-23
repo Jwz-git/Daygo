@@ -3,6 +3,7 @@
 package app
 
 import (
+	"errors"
 	"runtime"
 
 	"github.com/Jwz-git/Daygo/internal/platform"
@@ -30,18 +31,22 @@ func desktopWindowOptions(goos string) application.WebviewWindowOptions {
 }
 
 type wailsApplicationPicker struct {
-	host   *application.App
-	window application.Window
-	labels func() NativeUiLabelsDTO
+	host    *application.App
+	current func() *application.WebviewWindow
+	labels  func() NativeUiLabelsDTO
 }
 
 func (picker wailsApplicationPicker) PickApplication() (string, error) {
+	window := picker.current()
+	if window == nil {
+		return "", errors.New("application picker requires a window")
+	}
 	opts := applicationPickerOptions(runtime.GOOS, picker.labels())
 	dialog := picker.host.Dialog.OpenFile().
 		CanChooseFiles(true).CanChooseDirectories(false).
 		ResolvesAliases(true).TreatsFilePackagesAsDirectories(false).
 		SetTitle(opts.Title).SetDirectory(opts.DefaultDirectory).
-		AttachToWindow(picker.window)
+		AttachToWindow(window)
 	for _, filter := range opts.Filters {
 		dialog.AddFilter(filter.DisplayName, filter.Pattern)
 	}

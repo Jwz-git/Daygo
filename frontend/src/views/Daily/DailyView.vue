@@ -13,6 +13,7 @@ import { safeTimeZone } from '@/lib/timeZone'
 import { useDailyStore } from '@/stores/daily'
 import { useTokenUsageVisibilityStore } from '@/stores/tokenUsageVisibility'
 
+import { registerWindowView } from '@/lib/windowResume'
 import DailyJournalPanel from './DailyJournalPanel.vue'
 import DailyMetricsPanel from './DailyMetricsPanel.vue'
 import DailyRecapPanel from './DailyRecapPanel.vue'
@@ -91,6 +92,13 @@ function goToToday(): void {
   delete query.day
   void router.push({ name: 'daily', query })
 }
+
+const releaseView = registerWindowView(() => {
+  if (route.name !== 'daily' || !context.value || daily.loading || recapGenerating.value || recapSaving.value ||
+      journalSaving.value || Object.keys(route.query).some(key => key !== 'day')) return null
+  return { route: 'daily', day: routeDay(), cardId: 0 }
+})
+onBeforeUnmount(releaseView)
 
 onMounted(() => {
   daily.startEvents()

@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -74,6 +75,10 @@ func Run() error {
 	backend.setSecrets(secrets.New())
 	emitter := NewWailsEmitter()
 	backend.setEventEmitter(emitter)
+	var quitPreparing, quitPrepared atomic.Bool
+	windows := &desktopWindows{backend: backend, ctx: ctx, quit: &quitPrepared}
+	backend.nativeWindowClosed = windows.scheduleRelease
+	backend.confirmWindowRelease = windows.confirm
 	backend.startSystemEventPump()
 
 	dir, err := supportDir()
@@ -161,23 +166,12 @@ func Run() error {
 	backend.setUpdater(factory.NewUpdater())
 	backend.startUpdaterEventPump(ctx)
 
-	windowOptions := desktopWindowOptions(goruntime.GOOS)
 	var host *application.App
-	var window application.Window
-	var quitPreparing, quitPrepared atomic.Bool
 	showWindow := func() {
 		if err := backend.exitBackground(ctx); err != nil {
 			log.Printf("restore dock icon on reopen unavailable: %v", err)
 		}
-		if goruntime.GOOS == "darwin" {
-			application.InvokeSync(host.Show)
-		}
-		window.Show()
-		if goruntime.GOOS == "darwin" {
-			// Unhiding and ordering a window front do not activate the application.
-			window.Focus()
-		}
-		backend.setWindowHidden(false)
+		windows.show()
 	}
 	host = application.New(application.Options{
 		Name:                        "Daygo",
@@ -246,33 +240,30 @@ func Run() error {
 		},
 	})
 	installDesktopMenu(host, backend.nativeLabels.get().ApplicationMenu)
-	window = host.Window.NewWithOptions(windowOptions)
-	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
-		if quitPrepared.Load() {
-			return
-		}
-		event.Cancel()
-		backend.setWindowHidden(true)
-		if goruntime.GOOS == "darwin" {
-			application.InvokeSync(host.Hide)
-		} else {
-			window.Hide()
-		}
-		go func() {
-			if err := backend.enterBackground(ctx); err != nil {
-				log.Printf("drop dock icon on window close unavailable: %v", err)
-			}
-		}()
-	})
+	if goruntime.GOOS == "darwin" {
+		host.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
+			backend.restoreOnActivation(showWindow)
+		})
+	}
+	windows.host = host
+	if goruntime.GOOS != "darwin" {
+		windows.create()
+	}
 	backend.paintWindowBackground = func(r, g, b uint8) {
-		window.SetBackgroundColour(application.NewRGBA(r, g, b, 255))
+		if w := windows.current.Load(); w != nil {
+			w.SetBackgroundColour(application.NewRGBA(r, g, b, 255))
+		}
 	}
 	backend.pickRecordingDirectory = func() (string, error) {
+		w := windows.current.Load()
+		if w == nil {
+			return "", errors.New("recording directory picker requires a window")
+		}
 		return host.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
-			CanCreateDirectories(true).AttachToWindow(window).PromptForSingleSelection()
+			CanCreateDirectories(true).AttachToWindow(w).PromptForSingleSelection()
 	}
 	backend.chatgptOpenURL = host.Browser.OpenURL
-	backend.setApplicationPicker(wailsApplicationPicker{host: host, window: window, labels: backend.nativeLabels.get})
+	backend.setApplicationPicker(wailsApplicationPicker{host: host, current: windows.current.Load, labels: backend.nativeLabels.get})
 
 	requestShutdown := func() {
 		backend.requestQuit()
@@ -342,6 +333,19 @@ func Run() error {
 				}
 			}
 		})
+		if goruntime.GOOS == "darwin" {
+			// Wait for the didFinishLaunching notification observers on the main thread.
+			application.InvokeSync(func() {})
+			if backend.prepareLoginWindow(ctx, frontend.Assets) {
+				if err := backend.enterBackground(ctx); err == nil {
+					backend.setWindowHidden(true)
+				} else {
+					showWindow()
+				}
+			} else {
+				showWindow()
+			}
+		}
 		// After the status action is installed so the status item reflects
 		// the state the auto-start produces.
 		backend.maybeAutoStartRecording()
