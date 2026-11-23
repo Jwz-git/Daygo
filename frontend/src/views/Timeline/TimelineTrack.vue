@@ -362,7 +362,7 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
           :style="{
             top: `${nowPosition + 6}px`,
             right: '14px',
-            left: '8px',
+            left: '2px',
             position: 'absolute',
           }"
         />
@@ -460,13 +460,13 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
 .range {
   position: absolute;
   z-index: 2;
-  /* Tracks the activity-card horizontal inset: 8px air off the time axis, 14px right margin. */
+  /* Align status and failure cards with activity cards. */
   right: 14px;
-  left: 8px;
+  left: 2px;
   display: flex;
   align-items: center;
   min-height: 34px;
-  padding: 7px 13px 7px 16px;
+  padding: 8px 12px;
   overflow: hidden;
   font-size: 11px;
 }
@@ -484,45 +484,20 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
 .range--failure {
   justify-content: space-between;
   gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--dg-danger) 30%, var(--dg-timeline-card-border));
-  border-radius: 9px;
-  background: linear-gradient(
-    102deg,
-    color-mix(in srgb, var(--dg-danger) 14%, var(--dg-timeline-card-surface)) 0%,
-    color-mix(in srgb, var(--dg-danger) 5%, var(--dg-timeline-card-surface)) 100%
-  );
-  box-shadow: var(--dg-timeline-card-shadow);
+  border: 1px solid color-mix(in srgb, var(--dg-danger) 34%, transparent);
+  background: var(--dg-danger-fill);
   color: var(--dg-danger);
   cursor: pointer;
   text-align: left;
   transition:
-    border-color var(--dg-motion-base) ease-out,
-    background var(--dg-motion-base) ease-out,
-    box-shadow var(--dg-motion-base) var(--dg-ease-out),
-    transform 160ms var(--dg-ease-out);
-}
-
-.range--failure::before {
-  content: '';
-  position: absolute;
-  top: 7px;
-  bottom: 7px;
-  left: 6px;
-  width: 3.5px;
-  border-radius: 99px;
-  background: var(--dg-danger);
+    border-color var(--dg-motion-base) ease-in-out,
+    background var(--dg-motion-base) ease-in-out,
+    transform var(--dg-motion-base) ease-in-out;
 }
 
 .range--failure:hover {
-  z-index: 5;
-  border-color: color-mix(in srgb, var(--dg-danger) 54%, var(--dg-timeline-card-border));
-  background: linear-gradient(
-    102deg,
-    color-mix(in srgb, var(--dg-danger) 20%, var(--dg-timeline-card-surface-hover)) 0%,
-    color-mix(in srgb, var(--dg-danger) 9%, var(--dg-timeline-card-surface-hover)) 100%
-  );
-  box-shadow: var(--dg-timeline-card-shadow-hover);
-  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--dg-danger) 55%, transparent);
+  background: color-mix(in srgb, var(--dg-danger) 12%, var(--dg-danger-fill));
 }
 
 .range--failure:focus-visible {
@@ -531,16 +506,13 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
 }
 
 .range--failure.is-selected {
-  z-index: 4;
-  border-color: color-mix(in srgb, var(--dg-danger) 68%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--dg-danger) 24%, transparent),
-    0 3px 12px color-mix(in srgb, var(--dg-danger) 16%, transparent);
+  border-color: color-mix(in srgb, var(--dg-danger) 65%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dg-danger) 25%, transparent);
 }
 
 .range--failure:active {
   box-shadow: inset 0 1px 3px rgba(20, 16, 25, 0.1);
-  transform: translateY(0);
+  transform: scale(0.985);
 }
 
 .range__copy { display: flex; min-width: 0; flex-direction: column; }
@@ -581,7 +553,7 @@ watch(() => [props.context.day, props.cards.length] as const, () => void playEnt
     transition: none;
   }
 
-  .range--failure:hover {
+  .range--failure:active {
     transform: none;
   }
 }

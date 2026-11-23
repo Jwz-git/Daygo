@@ -155,7 +155,7 @@
      upper-left light as the panel rim, one level dimmer. A soft graded drop
      lifts the card just clear of the surface behind it. */
   --dg-card-shadow: 0 2px 10px rgba(48, 34, 24, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --dg-card-time: #6f6c76;
+  --dg-card-time: #7d7a84;
   --dg-card-radius: 10px;
 
   /* timeline */
@@ -163,25 +163,15 @@
   --dg-timeline-grid: rgba(0, 0, 0, 0.12);
   --dg-timeline-grid-strong: rgba(0, 0, 0, 0.16);
   --dg-timeline-card-fill: #ffffff;
+  --dg-timeline-card-border: rgba(72, 54, 42, 0.11);
+  --dg-timeline-activity-fill: var(--dg-timeline-card-fill);
   --dg-timeline-card-hover: #ffffff;
   --dg-timeline-card-selected: #ffffff;
-  --dg-timeline-card-surface: rgba(255, 255, 255, 0.92);
-  --dg-timeline-card-surface-hover: rgba(255, 255, 255, 0.98);
-  --dg-timeline-card-surface-selected: #ffffff;
-  --dg-timeline-card-border: rgba(72, 54, 42, 0.11);
-  --dg-timeline-card-shadow:
-    0 1px 2px rgba(48, 34, 24, 0.045),
-    0 2px 6px rgba(48, 34, 24, 0.025),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  /* Hover lifts the card off the track; layered ambient + tight contact sells the height. */
-  --dg-timeline-card-shadow-hover:
-    0 8px 22px rgba(48, 34, 24, 0.11),
-    0 2px 5px rgba(48, 34, 24, 0.055),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
-  --dg-timeline-card-idle-fill: rgba(255, 255, 255, 0.44);
-  --dg-timeline-card-idle-hover: rgba(255, 255, 255, 0.76);
-  --dg-timeline-card-idle-hatch: rgba(96, 64, 44, 0.045);
-  --dg-timeline-card-idle-border: rgba(96, 64, 44, 0.14);
+  --dg-timeline-activity-border: rgba(65, 58, 70, 0.13);
+  --dg-timeline-card-shadow: 0 1px 2px rgba(28, 34, 45, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  /* Hover lifts the card off the track; the bloom is what sells the height. */
+  --dg-timeline-card-shadow-hover: 0 8px 20px rgba(28, 34, 45, 0.12), 0 1px 2px rgba(28, 34, 45, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --dg-timeline-inspector-fill: rgba(255, 255, 255, 0.6);
   /* Inspector overview tiles and the day-goal panels (Dayflow sheet palette). */
   --dg-inspector-tile-fill: rgba(255, 255, 255, 0.58);
@@ -210,7 +200,7 @@
   --dg-status-generating-text: #ffffff;
   --dg-status-paused: linear-gradient(90deg, #f7e6d5 13%, #dadee4 100%);
   --dg-status-paused-text: #585e69;
-  --dg-status-paused-border: rgba(160, 162, 170, 0.5);
+  --dg-status-paused-border: rgba(208, 208, 208, 0.6);
 
   /* daily workflow */
   --dg-daily-grid-line: #ebe6e3;
