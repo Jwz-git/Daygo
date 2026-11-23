@@ -100,9 +100,13 @@ type Relauncher interface {
 	Relaunch(ctx context.Context) error
 }
 
-// MainWindowAttachment installs native controls on a live host-owned window.
-// The pointer is borrowed for this call on the desktop main thread.
-type MainWindowAttachment interface{ AttachMainWindow(unsafe.Pointer) }
+// MainWindowAttachment installs native controls on a live host-owned window
+// and cleans up retain cycles before a reclaimed window closes.
+// Pointers are borrowed on the desktop main thread.
+type MainWindowAttachment interface {
+	AttachMainWindow(unsafe.Pointer)
+	PrepareMainWindowRelease(unsafe.Pointer)
+}
 
 // LoginItemLaunch reports the launch event and preferred languages for native
 // presentation before the first window is created.

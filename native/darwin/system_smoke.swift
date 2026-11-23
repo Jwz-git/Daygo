@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import WebKit
 
 private final class ObservedEvents: @unchecked Sendable {
   let lock = NSLock()
@@ -144,6 +145,7 @@ struct SystemSmoke {
       name: NSWorkspace.willPowerOffNotification, object: NSWorkspace.shared)
     precondition(observed.count() == 1)
     precondition(message.withCString { dg_status_message_show(DG_SYSTEM_ABI_MAJOR, $0) } == 0)
+    verifyWindowReleaseTeardown()
     dg_system_stop()
     precondition(closeButton.action == originalCloseAction)
     precondition(residentMessageForSmoke() == nil)
@@ -249,5 +251,67 @@ struct SystemSmoke {
     }
     precondition(completion.finished(), "worker main-thread bridge deadlocked")
     precondition(app.activationPolicy() == .regular)
+  }
+
+  @MainActor private final class SmokeWebWindow: NSWindow {
+    @objc dynamic var webView: WKWebView?
+  }
+
+  @MainActor private final class SmokeWindowDelegate: NSObject, NSWindowDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+    var retainedCycleRef: AnyObject?
+    @objc func handleLeftMouseUp(_ window: NSWindow) {
+      retainedCycleRef = nil
+    }
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {}
+  }
+
+  @MainActor private static func verifyWindowReleaseTeardown() {
+    weak var weakWindow: SmokeWebWindow?
+    weak var weakWebView: WKWebView?
+    weak var weakDelegate: SmokeWindowDelegate?
+
+    autoreleasepool {
+      let window = SmokeWebWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+        styleMask: [.titled, .closable], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      let delegate = SmokeWindowDelegate()
+      window.delegate = delegate
+
+      let config = WKWebViewConfiguration()
+      config.userContentController.add(delegate, name: "external")
+      let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 320, height: 240), configuration: config)
+      webView.navigationDelegate = delegate
+      webView.uiDelegate = delegate
+      window.contentView?.addSubview(webView)
+      window.webView = webView
+
+      weakWindow = window
+      weakWebView = webView
+      weakDelegate = delegate
+
+      let rawWindow = Unmanaged.passUnretained(window).toOpaque()
+      dg_main_window_attach(rawWindow)
+      window.makeKeyAndOrderFront(nil)
+
+      let closeButton = window.standardWindowButton(.closeButton)!
+      delegate.retainedCycleRef = window
+      closeButton.performClick(nil)
+      precondition(delegate.retainedCycleRef == nil, "red-button hide must clear Wails mouse retain")
+      NSApp.unhide(nil)
+
+      delegate.retainedCycleRef = window
+      dg_main_window_prepare_release(rawWindow)
+      precondition(delegate.retainedCycleRef == nil, "prepare_release must clear Wails mouse retain")
+      precondition(window.webView == nil, "prepare_release must clear webView reference")
+      precondition(webView.superview == nil, "prepare_release must detach WKWebView")
+      window.close()
+    }
+
+    let releaseDeadline = Date().addingTimeInterval(2)
+    while (weakWindow != nil || weakWebView != nil || weakDelegate != nil) && Date() < releaseDeadline {
+      autoreleasepool { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+    }
+    precondition(weakWindow == nil && weakWebView == nil && weakDelegate == nil,
+      "reclaimed window leaked delegate/WKWebView retain cycle")
   }
 }

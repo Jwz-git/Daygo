@@ -54,6 +54,17 @@ macOS 26.0.1 arm64 匿名 Wails 宿主在隔离目录运行；两组均以原生
 正式安装身份下的登录、真实 G-host 屏幕捕获与 24 小时 / 14 天常驻观察需另验。
 回退可独立撤销窗口生命周期提交。
 
+2026-11-23（增量）：真机鼠标点击红叉触发 Wails v3.1.0 `WebviewWindowDelegate.leftMouseEvent`
+引用环导致回收后旧 `WKWebView` 进程滞留的问题，已通过 macOS System ABI 1.9
+（`dg_main_window_prepare_release`）与红叉隐藏时主动调用 `handleLeftMouseUp:` 清除左键保留引用、
+卸载 `WKWebView` 的 `"external"` 消息处理器并清空 `webView` 指针。macOS 26.0.1 arm64 上，
+`./scripts/gate.sh`、`native/darwin/build.sh`（arm64 / x86_64）、`-tags daygo_desktop` 构建和
+`internal/app` 四项定向单测通过。独立与匿名 `.app` 原生 smoke 均验证红叉清除鼠标引用，以及
+回收清理后 `NSWindow`、`WKWebView` 和委托均释放。
+匿名 Wails 宿主以合成鼠标事件和 1 秒回收定时器运行 10 轮，每轮红叉均清除保留事件，窗口均回收到零个并重开至时间线。
+正式桌面包下使用真实鼠标关闭、完整等待 120 秒后重开，以及旧 WebContent 进程退出和持续捕获仍待验。
+回退可独立撤销此回收修复提交。
+
 2026-11-21 隐藏窗口录制事件（基于 `6d92756` 的 `test` 工作树，macOS arm64）：健康帧只在窗口可见时发布时间戳。状态变化仍发布并更新状态栏，健康帧仅重试未应用的状态栏快照。重开后前端读回最新快照。匿名 Go 夹具验证三帧无隐藏窗口事件及状态栏失败重试，前端夹具覆盖隐藏期间未收到任何录制事件时的重开读回。Go 相关竞态测试、前端 313 项单测和类型检查通过。真实常驻耗电待测。回退为撤销提交。
 
 2026-11-21 Windows 应用图标预算（基于 `263b1e2` 的 `test` 工作树，macOS arm64）：DLL 应用图标缓存按最近使用顺序限制为 256 条和 8 MiB 图标字节。匿名 C++ 夹具提取生产缓存类，验证条数、字节淘汰、覆盖和大图标跳过。Windows 实际图标提取耗时待验。回退为撤销提交。

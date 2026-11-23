@@ -1629,6 +1629,10 @@ Windows 的静态库 / DLL 必须与 Go 桥一起重建。System ABI 1.6 另提�
 
 2026-10-13：前端设置页已移除 Dock 显示开关；以下后台字段与策略保留，继续尊重已有保存值。
 
+2026-11-23 macOS System ABI 1.9 新增 `dg_main_window_prepare_release(void *window)`。在回收关闭
+主窗口前于主线程清除原生关闭按钮关联、左键事件保留引用并拆除 `WKWebView` 消息处理器，打破
+窗口回收引用环。
+
 2026-11-23 macOS System ABI 1.8 新增 `dg_login_launch_languages` 和 `dg_main_window_attach`。
 前者只在 AppKit 的打开事件带有登录项标记时返回首选语言列表（调用方释放）；后者在主线程借用
 宿主的 NSWindow，为每个新建主窗口接入红叉控制。登录项注册状态仍走原有查询。

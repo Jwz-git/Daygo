@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import CoreGraphics
 import ServiceManagement
+import WebKit
 
 private final class SystemState: @unchecked Sendable {
     let lock = NSLock()
@@ -138,9 +139,43 @@ private func activationRunOnMain(_ body: @Sendable @escaping @MainActor () -> Vo
         button = nil
     }
 
+    func uninstall(from window: NSWindow) {
+        if let button, window.standardWindowButton(.closeButton) === button {
+            uninstall()
+        }
+    }
+
     @objc private func hideWindow(_ sender: NSButton) {
+        if let window = sender.window {
+            clearWailsMouseRetain(on: window)
+        }
         NSApp.hide(sender)
         emit(UInt32(DG_SYSTEM_WINDOW_CLOSE_REQUESTED))
+    }
+}
+
+// Wails retains leftMouseEvent on its window delegate until LeftMouseUp, which
+// AppKit's red-button tracking loop consumes. Clearing it breaks the window
+// retain cycle before a reclaimed NSWindow closes.
+@MainActor private func clearWailsMouseRetain(on window: NSWindow) {
+    guard let delegate = window.delegate as? NSObject else { return }
+    let selector = NSSelectorFromString("handleLeftMouseUp:")
+    if delegate.responds(to: selector) {
+        _ = delegate.perform(selector, with: window)
+    }
+}
+
+@MainActor private func detachWebViews(in view: NSView) {
+    for subview in view.subviews {
+        if let webView = subview as? WKWebView {
+            webView.stopLoading()
+            webView.navigationDelegate = nil
+            webView.uiDelegate = nil
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: "external")
+            webView.removeFromSuperview()
+        } else {
+            detachWebViews(in: subview)
+        }
     }
 }
 
@@ -151,6 +186,22 @@ func dg_main_window_attach(_ raw: UnsafeMutableRawPointer?) {
     guard let raw, Thread.isMainThread else { return }
     let window = Unmanaged<NSWindow>.fromOpaque(raw).takeUnretainedValue()
     MainActor.assumeIsolated { windowCloseAction.install(on: window) }
+}
+
+@_cdecl("dg_main_window_prepare_release")
+func dg_main_window_prepare_release(_ raw: UnsafeMutableRawPointer?) {
+    guard let raw, Thread.isMainThread else { return }
+    let window = Unmanaged<NSWindow>.fromOpaque(raw).takeUnretainedValue()
+    MainActor.assumeIsolated {
+        windowCloseAction.uninstall(from: window)
+        clearWailsMouseRetain(on: window)
+        if let contentView = window.contentView {
+            detachWebViews(in: contentView)
+        }
+        if window.responds(to: NSSelectorFromString("setWebView:")) {
+            window.setValue(nil, forKey: "webView")
+        }
+    }
 }
 
 @MainActor private func restoreAppliedActivationPolicy() {

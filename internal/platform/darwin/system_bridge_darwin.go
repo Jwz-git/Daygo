@@ -4,7 +4,7 @@ package darwin
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../../native/include
-#cgo LDFLAGS: -L${SRCDIR}/../../../build/native/darwin/universal -ldaygo_capture -framework Foundation -framework AppKit -framework ServiceManagement
+#cgo LDFLAGS: -L${SRCDIR}/../../../build/native/darwin/universal -ldaygo_capture -framework Foundation -framework AppKit -framework ServiceManagement -framework WebKit
 #include <stdlib.h>
 #include "daygo_system.h"
 #include "daygo_status_item.h"
@@ -34,6 +34,9 @@ func systemStart() error {
 	return nil
 }
 func (*System) AttachMainWindow(window unsafe.Pointer) { C.dg_main_window_attach(window) }
+func (*System) PrepareMainWindowRelease(window unsafe.Pointer) {
+	C.dg_main_window_prepare_release(window)
+}
 
 func loginItemLaunch() ([]string, bool) {
 	p := C.dg_login_launch_languages()

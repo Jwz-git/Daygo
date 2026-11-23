@@ -36,6 +36,7 @@ for arch in arm64 x86_64; do
     -framework AVFoundation \
     -framework CoreMedia \
     -framework VideoToolbox \
+    -framework WebKit \
     "${SOURCES[@]}" \
     -o "$archive"
   ARCHIVES+=("$archive")

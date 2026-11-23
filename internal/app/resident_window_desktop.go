@@ -113,6 +113,9 @@ func (d *desktopWindows) confirm(token int, snapshot WindowResumeDTO) {
 			return
 		}
 		d.backend.windowResume.Store(&snapshot)
+		if native, ok := d.backend.system.(platform.MainWindowAttachment); ok {
+			native.PrepareMainWindowRelease(w.NativeWindow())
+		}
 		d.allowClose.Store(true)
 		d.current.Store(nil)
 		w.Close()

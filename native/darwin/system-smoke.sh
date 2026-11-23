@@ -5,7 +5,7 @@ task_output="$(mktemp -d)"
 trap 'rm -rf "$task_output"' EXIT
 xcrun swiftc -swift-version 6 -parse-as-library -D DAYGO_NATIVE_TESTS \
   -import-objc-header "$task_root/native/include/daygo_native.h" \
-  -framework AppKit -framework Foundation -framework ServiceManagement -framework CoreGraphics \
+  -framework AppKit -framework Foundation -framework ServiceManagement -framework CoreGraphics -framework WebKit \
   "$task_root/native/darwin/Sources/SystemABI.swift" \
   "$task_root/native/darwin/Sources/StatusItemABI.swift" \
   "$task_root/native/darwin/Sources/ApplicationMenuABI.swift" \
