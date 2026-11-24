@@ -1248,7 +1248,7 @@ macOS 红叉与 Cmd+H 均由 `didHide` / `didUnhide` 更新应用隐藏状态，
 `ConfirmWindowRelease(token, state)` 要求本次 token 仍有效且窗口仍隐藏。state 仅含
 `route`（timeline / daily / weekly）、ISO 日期或空串、数字卡片 ID、可选的播放器进度百分比、倍速、
 已开始 / 播放 / 展开布尔值。快照只存宿主内存，重建的窗口调用 `TakeWindowResumeState()` 一次取走。
-表单、未保存编辑、未结束的 store 操作、未知页面或未确认状态保留原窗口。快速重开取消回收，
+表单、未保存编辑、未结束的 store 操作、未知页面或未确认状态保留原窗口。请求期间，前端在页面状态变化或保存结束后重新检查，窗口仍隐藏且状态可恢复时用同一 token 确认。重开取消回收，
 Cmd+H 与最小化不启动回收。设置、聊天、首次引导和工具窗口沿用隐藏恢复行为。
 
 ### 5.5.4 资源契约

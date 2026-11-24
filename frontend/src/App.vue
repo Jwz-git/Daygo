@@ -37,8 +37,8 @@ const onboarding = useOnboardingStore()
 void onboarding.initialize()
 const props = defineProps<{ resumed?: boolean }>()
 const showSplash = ref(!props.resumed)
-const stopWindowRelease = onWindowRelease(() =>
-  !uiVisibility.visible && !showSplash.value && onboarding.status === 'done' && !fatalError.value &&
+const stopWindowRelease = onWindowRelease(() => uiVisibility.visible, () =>
+  !showSplash.value && onboarding.status === 'done' && !fatalError.value &&
   !document.querySelector('input, textarea:not([data-journal-field]), select, [contenteditable="true"], [data-retain-window], [role="alert"], [aria-busy="true"], [role="dialog"]:not(.lightbox__panel)'),
 )
 onBeforeUnmount(stopWindowRelease)
