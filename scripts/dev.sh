@@ -22,16 +22,21 @@ fi
 
 # One writer, one status-bar item: a leftover dev instance would degrade the
 # fresh one to read-only (instance locks) and pile up status icons.
-printf 'Stopping leftover dev instances...\n'
-pkill -f "Daygo.app/Contents/MacOS/Daygo" 2>/dev/null || true
-sleep 1
+dev_app_bundle="$ROOT_DIR/build/bin/Daygo.app"
+dev_executable="$dev_app_bundle/Contents/MacOS/Daygo"
+if [[ -f "$dev_executable" && ! -L "$dev_app_bundle" && ! -L "$dev_executable" ]]; then
+  # Match the executable file even when Wails launched it with a relative argv[0].
+  while IFS= read -r dev_pid; do
+    kill -TERM "$dev_pid" 2>/dev/null || true
+  done < <(lsof -nP -a -u "$(id -u)" -c '/^Daygo$/' -d txt -t -- "$dev_executable")
+  sleep 1
+fi
 
 # Wails updates the files inside build/bin/Daygo.app in place. The bundle
 # directory itself can therefore keep its old modification time, causing
 # Launch Services / Dock to reuse a cached icon after build/appicon.png
 # changes. This is generated output, so recreate the development bundle on
 # every fresh dev launch; backend hot reloads within the session are unchanged.
-dev_app_bundle="$ROOT_DIR/build/bin/Daygo.app"
 if [[ -d "$dev_app_bundle" ]]; then
   rm -rf -- "$dev_app_bundle"
 fi

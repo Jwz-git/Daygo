@@ -18,7 +18,7 @@ Entry points outside standard `go test` / `npm test` runs live here, organized b
 
 | Script | Purpose | Typical caller |
 |---|---|---|
-| `dev.sh` | macOS `wails3 dev` launcher; checks `clang`, recreates `build/bin/Daygo.app` (preventing stale Dock icon cache), then runs Wails dev. | Local macOS development |
+| `dev.sh` | macOS `wails3 dev` launcher; checks `clang`, stops leftover Daygo processes running this checkout’s development binary, recreates `build/bin/Daygo.app` (preventing stale Dock icon cache), then runs Wails dev. | Local macOS development |
 | `dev.ps1` | Windows `wails3 dev` launcher; prepares native artifacts + `npm install` and applies the DWARF-5 debug workaround when needed. | Local Windows development |
 | `dev-linux.sh` | Linux `wails3 dev` launcher; detects GTK4/WebKitGTK 6.0 (or legacy `gtk3`) via `webkit_tag`. | Local Linux development |
 | `build-desktop.sh` | Compiles the macOS / Linux desktop host with `daygo_desktop` (plus `production` and `-ldflags '-s -w'` unless `DAYGO_DEV=1`) after building native prerequisites. | `Taskfile.yml`, `package-macos.sh` |

@@ -29,23 +29,42 @@ class ShellEntrypoints(unittest.TestCase):
             tools.mkdir()
             log = root / "calls.log"
             env_log = root / "go-env.log"
-            for tool in ("go", "npm", "pkill", "sleep", "clang", "pkg-config"):
+            for tool in ("go", "npm", "pkill", "lsof", "sleep", "clang", "pkg-config"):
                 stub = tools / tool
                 stub.write_text('#!/bin/sh\nprintf "%s\\n" "' + tool + ' $*" >> "$DAYGO_ENTRY_LOG"\n')
                 if tool == "go":
                     with stub.open("a") as stream:
                         stream.write('printf "%s\\n" "CGO=${CGO_ENABLED:-unset} $*" >> "$DAYGO_ENV_LOG"\n')
                 stub.chmod(0o755)
+            if name == "dev.sh":
+                executable = root / "build/bin/Daygo.app/Contents/MacOS/Daygo"
+                executable.parent.mkdir(parents=True)
+                executable.touch()
+                # Return a fixture PID only when lsof receives the checkout binary
+                # as one path argument (the temporary checkout contains spaces).
+                with (tools / "lsof").open("a") as stream:
+                    stream.write('for path do :; done\n')
+                    stream.write('[ "$path" = "$DAYGO_FIXTURE_EXECUTABLE" ] && echo 12345\n')
+                bash_env = root / "bash-env"
+                bash_env.write_text('kill() { echo "kill $*" >> "$DAYGO_ENTRY_LOG"; }\n')
             uname = tools / "uname"
             uname.write_text('#!/bin/sh\nprintf "Darwin\\n"\n')
             uname.chmod(0o755)
             env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
                        DAYGO_ENTRY_LOG=str(log), DAYGO_ENV_LOG=str(env_log), CGO_ENABLED="1")
+            if name == "dev.sh":
+                env.update(BASH_ENV=str(bash_env), DAYGO_FIXTURE_EXECUTABLE=str(executable))
             env.pop("DAYGO_LINUX_WEBKIT_TAG", None)
             result = subprocess.run(["bash", str(scripts / name), "-help"], cwd=root,
                                     env=env, text=True, capture_output=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             calls = log.read_text().splitlines()
+            if name == "dev.sh":
+                self.assertFalse(any(line.startswith("pkill ") for line in calls), calls)
+                lsof, = (line for line in calls if line.startswith("lsof "))
+                self.assertIn(" -d txt ", lsof)
+                self.assertIn(" -c /^Daygo$/ ", lsof)
+                self.assertEqual([line for line in calls if line.startswith("kill ")], ["kill -TERM 12345"])
             cli = "go run github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0"
             self.assertTrue(any(line.startswith(cli + " generate bindings ") for line in calls), calls)
             command = "build" if name == "build-linux.sh" else "dev"
